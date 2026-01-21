@@ -1,3 +1,11 @@
-.claude/
-bin/
-.env
+# Binaries (all should go in bin/)
+bin/*
+buildutil
+fest
+
+# Test coverage files
+coverage.out
+**/coverage.out
+**/*.coverprofile
+
+.gocache/
