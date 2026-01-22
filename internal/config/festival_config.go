@@ -101,7 +101,7 @@ func SaveFestivalConfig(festivalPath string, cfg *FestivalConfig) error {
 }
 
 // DefaultFestivalConfig returns the default festival configuration.
-// Note: Template paths reference the templates/agent/gates/ directory structure.
+// Note: Template paths reference the embedded/templates/agent/gates/ directory structure.
 // Gate IDs match template filenames (snake_case, no extension).
 func DefaultFestivalConfig() *FestivalConfig {
 	return &FestivalConfig{
@@ -110,7 +110,7 @@ func DefaultFestivalConfig() *FestivalConfig {
 			Enabled:    true,
 			AutoAppend: true,
 			// Legacy Tasks field for backwards compatibility (implementation only)
-			// IDs match template filenames in templates/agent/gates/implementation/
+			// IDs match template filenames in embedded/templates/agent/gates/implementation/
 			Tasks: []QualityGateTask{
 				{ID: "testing", Template: "agent/gates/implementation/testing", Name: "Testing and Verification", Enabled: true},
 				{ID: "review", Template: "agent/gates/implementation/review", Name: "Code Review", Enabled: true},
@@ -118,7 +118,7 @@ func DefaultFestivalConfig() *FestivalConfig {
 				{ID: "commit", Template: "agent/gates/implementation/commit", Name: "Commit Changes", Enabled: true},
 			},
 			// PhaseGates specifies gate ordering per phase type
-			// IDs match template filenames in templates/agent/gates/{phase_type}/
+			// IDs match template filenames in embedded/templates/agent/gates/{phase_type}/
 			// Note: The source of truth is gates.yaml in each phase type's directory.
 			// These defaults are fallbacks if gates.yaml is not present.
 			PhaseGates: map[string][]QualityGateTask{

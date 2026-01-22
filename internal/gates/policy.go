@@ -151,7 +151,7 @@ func DefaultPolicy() *GatePolicy {
 
 // ImplementationGates returns quality gates for implementation phases.
 // These focus on testing, code review, and committing code changes.
-// IDs match template filenames in templates/agent/gates/implementation/
+// IDs match template filenames in embedded/templates/agent/gates/implementation/
 func ImplementationGates() []GateTask {
 	return []GateTask{
 		{
@@ -183,7 +183,7 @@ func ImplementationGates() []GateTask {
 
 // PlanningGates returns quality gates for planning phases.
 // These focus on reviewing decisions and preparing for implementation.
-// IDs match template filenames in templates/agent/gates/planning/
+// IDs match template filenames in embedded/templates/agent/gates/planning/
 func PlanningGates() []GateTask {
 	return []GateTask{
 		{
@@ -203,7 +203,7 @@ func PlanningGates() []GateTask {
 
 // ResearchGates returns quality gates for research phases.
 // These focus on documenting findings and knowledge transfer.
-// IDs match template filenames in templates/agent/gates/research/
+// IDs match template filenames in embedded/templates/agent/gates/research/
 func ResearchGates() []GateTask {
 	return []GateTask{
 		{
@@ -223,7 +223,7 @@ func ResearchGates() []GateTask {
 
 // ReviewGates returns quality gates for review/QA phases.
 // These focus on verification and sign-off.
-// IDs match template filenames in templates/agent/gates/review/
+// IDs match template filenames in embedded/templates/agent/gates/review/
 func ReviewGates() []GateTask {
 	return []GateTask{
 		{
@@ -244,7 +244,7 @@ func ReviewGates() []GateTask {
 // ActionGates returns quality gates for action/operational phases.
 // These phases handle deployment, configuration, publishing, migrations, and other
 // non-coding tasks. No code review gates since there's no code to review.
-// IDs match template filenames in templates/agent/gates/non_coding_action/
+// IDs match template filenames in embedded/templates/agent/gates/non_coding_action/
 func ActionGates() []GateTask {
 	return []GateTask{
 		{

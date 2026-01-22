@@ -9,7 +9,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/ui"
-	"github.com/Obedience-Corp/fest/templates/agent"
+	"github.com/Obedience-Corp/fest/embedded/templates/agent"
 )
 
 // Runner orchestrates festival execution

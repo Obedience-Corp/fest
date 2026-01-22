@@ -600,7 +600,7 @@ func DiscoverGatesForPhaseType(templateRoot, phaseType string) ([]GateTask, erro
 			newGatesDir,
 			legacyGatesDir,
 		}).
-		WithField("hint", fmt.Sprintf("Create gates.yaml at templates/agent/gates/%s/gates.yaml", phaseType))
+		WithField("hint", fmt.Sprintf("Create gates.yaml at embedded/templates/agent/gates/%s/gates.yaml", phaseType))
 }
 
 // discoverGatesFromDirectory reads gate templates from a directory.
