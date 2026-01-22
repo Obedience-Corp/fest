@@ -133,14 +133,6 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 		vars = v
 	}
 
-	// Build template context
-	tmplCtx := tpl.NewContext()
-	tmplCtx.SetFestival(opts.Name, opts.Goal, parseTags(opts.Tags))
-	tmplCtx.ComputeStructureVariables()
-	for k, v := range vars {
-		tmplCtx.SetCustom(k, v)
-	}
-
 	// Destination
 	slug := Slugify(opts.Name)
 	destCategory := strings.ToLower(strings.TrimSpace(opts.Dest))
@@ -148,10 +140,19 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 		destCategory = "active"
 	}
 
-	// Generate unique festival ID
+	// Generate unique festival ID before building context (so it can be auto-filled)
 	festivalID, err := id.GenerateID(opts.Name, festivalsRoot)
 	if err != nil {
 		return emitCreateFestivalError(opts, errors.Wrap(err, "generating festival ID").WithField("name", opts.Name))
+	}
+
+	// Build template context (festival is root level, no hierarchy to load)
+	tmplCtx := tpl.NewContext()
+	tmplCtx.SetFestival(opts.Name, opts.Goal, parseTags(opts.Tags))
+	tmplCtx.SetFestivalID(festivalID)
+	tmplCtx.ComputeStructureVariables()
+	for k, v := range vars {
+		tmplCtx.SetCustom(k, v)
 	}
 
 	// Create directory with ID suffix: {slug}-{ID}
@@ -207,6 +208,15 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 				return emitCreateFestivalError(opts, errors.Wrap(fmErr, "injecting frontmatter"))
 			}
 			content = contentWithFM
+		}
+
+		// Auto-fill [REPLACE: ...] markers from context (before writing)
+		if !effectiveSkipMarkers {
+			renderer := tpl.NewRenderer()
+			renderedContent, renderErr := renderer.RenderWithMarkerReplacement(content, tmplCtx, nil)
+			if renderErr == nil {
+				content = renderedContent
+			}
 		}
 
 		if err := os.WriteFile(outPath, []byte(content), 0644); err != nil {

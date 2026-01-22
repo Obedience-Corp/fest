@@ -313,15 +313,23 @@ func FormatTaskID(number int, name string) string {
 func (c *Context) ToReplacementMap() map[string]string {
 	m := make(map[string]string)
 
-	// Festival-level replacements
+	// Festival-level replacements (multiple case variations for compatibility)
 	if c.FestivalName != "" {
 		m["[REPLACE: Festival Name]"] = c.FestivalName
+		m["[REPLACE: festival_name]"] = c.FestivalName
+		m["[REPLACE: Festival name]"] = c.FestivalName
+		m["[REPLACE: FESTIVAL_NAME]"] = c.FestivalName
 	}
 	if c.FestivalID != "" {
 		m["[REPLACE: FESTIVAL_ID]"] = c.FestivalID
+		m["[REPLACE: festival_id]"] = c.FestivalID
+		m["[REPLACE: Festival ID]"] = c.FestivalID
+		m["[REPLACE: Festival Id]"] = c.FestivalID
 	}
 	if c.FestivalGoal != "" {
 		m["[REPLACE: Festival goal]"] = c.FestivalGoal
+		m["[REPLACE: festival_goal]"] = c.FestivalGoal
+		m["[REPLACE: Festival Goal]"] = c.FestivalGoal
 	}
 
 	// Phase-level replacements

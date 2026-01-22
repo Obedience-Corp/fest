@@ -200,10 +200,14 @@ func RunCreateTask(ctx context.Context, opts *CreateTaskOptions) error {
 		taskID := tpl.FormatTaskID(newNumber, name)
 		taskPath := filepath.Join(absPath, taskID)
 
-		// Build template context for this task
-		tmplCtx := tpl.NewContext()
-		tmplCtx.SetTask(newNumber, name)
-		tmplCtx.ComputeStructureVariables()
+		// Build full template context with hierarchy (festival → phase → sequence → task)
+		tmplCtx, ctxErr := tpl.BuildTaskContext(absPath, festivalPath, newNumber, name)
+		if ctxErr != nil {
+			// Fall back to minimal context
+			tmplCtx = tpl.NewContext()
+			tmplCtx.SetTask(newNumber, name)
+			tmplCtx.ComputeStructureVariables()
+		}
 		for k, v := range vars {
 			tmplCtx.SetCustom(k, v)
 		}
@@ -252,6 +256,24 @@ func RunCreateTask(ctx context.Context, opts *CreateTaskOptions) error {
 					return emitCreateTaskError(opts, errors.Wrap(fmErr, "injecting frontmatter"))
 				}
 				content = contentWithFM
+			}
+
+			// Auto-fill [REPLACE: ...] markers from context (before writing)
+			// This fills Category A (structure) markers automatically
+			if !effectiveSkipMarkers {
+				renderer := tpl.NewRenderer()
+				// Load config markers for Category B markers (lint_command, test_command, etc.)
+				var configMarkers map[string]string
+				if festivalPath != "" {
+					festCfg, cfgErr := config.LoadFestivalConfig(festivalPath)
+					if cfgErr == nil && festCfg != nil {
+						configMarkers = extractConfigMarkers(festCfg)
+					}
+				}
+				renderedContent, renderErr := renderer.RenderWithMarkerReplacement(content, tmplCtx, configMarkers)
+				if renderErr == nil {
+					content = renderedContent
+				}
 			}
 
 			if err := os.WriteFile(taskPath, []byte(content), 0644); err != nil {
@@ -427,4 +449,35 @@ func emitCreateTaskJSON(opts *CreateTaskOptions, res createTaskResult) error {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(res)
+}
+
+// extractConfigMarkers extracts marker values from festival config.
+// Maps config fields to [REPLACE: ...] marker hints for Category B (config-based) markers.
+func extractConfigMarkers(cfg *config.FestivalConfig) map[string]string {
+	if cfg == nil {
+		return nil
+	}
+
+	markers := make(map[string]string)
+
+	// Map project path if set
+	if cfg.ProjectPath != "" {
+		markers["project_path"] = cfg.ProjectPath
+	}
+
+	// Map metadata fields
+	if cfg.Metadata.Name != "" {
+		markers["festival_name"] = cfg.Metadata.Name
+	}
+	if cfg.Metadata.ID != "" {
+		markers["festival_id"] = cfg.Metadata.ID
+	}
+
+	// Future: Add more config-based markers here as they're added to fest.yaml
+	// Examples:
+	//   markers["lint_command"] = cfg.Commands.Lint
+	//   markers["test_command"] = cfg.Commands.Test
+	//   markers["build_command"] = cfg.Commands.Build
+
+	return markers
 }
