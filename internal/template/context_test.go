@@ -466,3 +466,125 @@ func TestOverwritingValues(t *testing.T) {
 
 	assert.Equal(t, "value2", ctx.Custom["key"])
 }
+
+func TestToReplacementMap(t *testing.T) {
+	ctx := NewContext()
+	ctx.SetFestival("Test Festival", "Test goal", []string{"tag1"})
+	ctx.SetFestivalID("TF0001")
+	ctx.SetPhase(1, "PLANNING", "planning")
+	ctx.SetSequence(2, "requirements")
+	ctx.SetTask(3, "user research")
+	ctx.ComputeStructureVariables()
+
+	m := ctx.ToReplacementMap()
+
+	// Festival-level markers
+	assert.Equal(t, "Test Festival", m["[REPLACE: Festival Name]"])
+	assert.Equal(t, "TF0001", m["[REPLACE: FESTIVAL_ID]"])
+	assert.Equal(t, "Test goal", m["[REPLACE: Festival goal]"])
+
+	// Phase-level markers
+	assert.Equal(t, "PLANNING", m["[REPLACE: Phase name]"])
+	assert.Equal(t, "PLANNING", m["[REPLACE: Phase Name]"])
+	assert.Equal(t, "PLANNING", m["[REPLACE: PHASE_NAME]"])
+	assert.Equal(t, "planning", m["[REPLACE: Phase type]"])
+	assert.Equal(t, "1", m["[REPLACE: Phase order]"])
+	assert.Equal(t, "001_PLANNING", m["[REPLACE: Phase ID]"])
+
+	// Sequence-level markers
+	assert.Equal(t, "requirements", m["[REPLACE: Sequence name]"])
+	assert.Equal(t, "requirements", m["[REPLACE: Sequence Name]"])
+	assert.Equal(t, "requirements", m["[REPLACE: SEQUENCE_NAME]"])
+	assert.Equal(t, "2", m["[REPLACE: Sequence order]"])
+	assert.Equal(t, "02_requirements", m["[REPLACE: Sequence ID]"])
+
+	// Task-level markers
+	assert.Equal(t, "user research", m["[REPLACE: Task name]"])
+	assert.Equal(t, "user research", m["[REPLACE: Task Name]"])
+	assert.Equal(t, "user research", m["[REPLACE: TASK_NAME]"])
+	assert.Equal(t, "3", m["[REPLACE: Task order]"])
+	assert.Equal(t, "03_user_research.md", m["[REPLACE: Task ID]"])
+	assert.Equal(t, "03_user_research", m["[REPLACE: NN_task_name]"])
+
+	// Structure markers
+	assert.Equal(t, "001_PLANNING", m["[REPLACE: Parent phase ID]"])
+	assert.Equal(t, "02_requirements", m["[REPLACE: Parent sequence ID]"])
+
+	// Timestamp should be present
+	assert.NotEmpty(t, m["[REPLACE: Created date]"])
+}
+
+func TestToReplacementMapEmptyValues(t *testing.T) {
+	ctx := NewContext()
+
+	m := ctx.ToReplacementMap()
+
+	// Empty values should not be included
+	_, hasFestivalName := m["[REPLACE: Festival Name]"]
+	assert.False(t, hasFestivalName, "Empty festival name should not be in map")
+
+	_, hasPhaseOrder := m["[REPLACE: Phase order]"]
+	assert.False(t, hasPhaseOrder, "Zero phase number should not be in map")
+
+	// Created date should always be present
+	assert.NotEmpty(t, m["[REPLACE: Created date]"])
+}
+
+func TestToReplacementMapWithConfig(t *testing.T) {
+	ctx := NewContext()
+	ctx.SetFestival("Test Festival", "Test goal", []string{"tag1"})
+
+	config := map[string]string{
+		"lint_command":             "just lint",
+		"test_command":             "just test",
+		"integration_test_command": "just test-integration",
+		"coverage_command":         "just test-coverage",
+		"coverage_threshold":       "80%",
+		"build_command":            "just build",
+	}
+
+	m := ctx.ToReplacementMapWithConfig(config)
+
+	// Config markers should be present
+	assert.Equal(t, "just lint", m["[REPLACE: Run your project's lint command]"])
+	assert.Equal(t, "just test", m["[REPLACE: Run your project's test command]"])
+	assert.Equal(t, "just test-integration", m["[REPLACE: Run your project's integration test command]"])
+	assert.Equal(t, "just test-coverage", m["[REPLACE: Run your project's coverage command]"])
+	assert.Equal(t, "80%", m["[REPLACE: coverage threshold, e.g., 80%]"])
+	assert.Equal(t, "just build", m["[REPLACE: Run your project's build command]"])
+
+	// Context markers should also be present
+	assert.Equal(t, "Test Festival", m["[REPLACE: Festival Name]"])
+}
+
+func TestToReplacementMapWithConfigPartial(t *testing.T) {
+	ctx := NewContext()
+
+	// Only provide some config values
+	config := map[string]string{
+		"lint_command": "make lint",
+		// test_command intentionally omitted
+	}
+
+	m := ctx.ToReplacementMapWithConfig(config)
+
+	// Provided config should be present
+	assert.Equal(t, "make lint", m["[REPLACE: Run your project's lint command]"])
+
+	// Omitted config should not be present
+	_, hasTestCommand := m["[REPLACE: Run your project's test command]"]
+	assert.False(t, hasTestCommand, "Omitted config should not be in map")
+}
+
+func TestToReplacementMapTaskIDWithoutExtension(t *testing.T) {
+	ctx := NewContext()
+	ctx.SetTask(5, "code review")
+
+	m := ctx.ToReplacementMap()
+
+	// Task ID has .md extension
+	assert.Equal(t, "05_code_review.md", m["[REPLACE: Task ID]"])
+
+	// NN_task_name should NOT have .md extension
+	assert.Equal(t, "05_code_review", m["[REPLACE: NN_task_name]"])
+}

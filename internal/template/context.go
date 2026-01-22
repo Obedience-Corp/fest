@@ -306,3 +306,110 @@ func FormatTaskID(number int, name string) string {
 	normalized := normalizeName(name, 2, strings.ToLower)
 	return fmt.Sprintf("%02d_%s.md", number, normalized)
 }
+
+// ToReplacementMap generates a map of marker patterns to replacement values.
+// Only non-empty values are included in the map.
+// The marker patterns match those defined in DefaultMarkerDefinitions().
+func (c *Context) ToReplacementMap() map[string]string {
+	m := make(map[string]string)
+
+	// Festival-level replacements
+	if c.FestivalName != "" {
+		m["[REPLACE: Festival Name]"] = c.FestivalName
+	}
+	if c.FestivalID != "" {
+		m["[REPLACE: FESTIVAL_ID]"] = c.FestivalID
+	}
+	if c.FestivalGoal != "" {
+		m["[REPLACE: Festival goal]"] = c.FestivalGoal
+	}
+
+	// Phase-level replacements
+	if c.PhaseName != "" {
+		m["[REPLACE: Phase name]"] = c.PhaseName
+		m["[REPLACE: Phase Name]"] = c.PhaseName
+		m["[REPLACE: PHASE_NAME]"] = c.PhaseName
+		m["[REPLACE: First phase name]"] = c.PhaseName
+	}
+	if c.PhaseType != "" {
+		m["[REPLACE: Phase type]"] = c.PhaseType
+	}
+	if c.PhaseNumber > 0 {
+		m["[REPLACE: Phase order]"] = strconv.Itoa(c.PhaseNumber)
+	}
+	if c.PhaseID != "" {
+		m["[REPLACE: Phase ID]"] = c.PhaseID
+	}
+
+	// Sequence-level replacements
+	if c.SequenceName != "" {
+		m["[REPLACE: Sequence name]"] = c.SequenceName
+		m["[REPLACE: Sequence Name]"] = c.SequenceName
+		m["[REPLACE: SEQUENCE_NAME]"] = c.SequenceName
+		m["[REPLACE: First sequence name]"] = c.SequenceName
+	}
+	if c.SequenceNumber > 0 {
+		m["[REPLACE: Sequence order]"] = strconv.Itoa(c.SequenceNumber)
+	}
+	if c.SequenceID != "" {
+		m["[REPLACE: Sequence ID]"] = c.SequenceID
+	}
+
+	// Task-level replacements
+	if c.TaskName != "" {
+		m["[REPLACE: Task name]"] = c.TaskName
+		m["[REPLACE: Task Name]"] = c.TaskName
+		m["[REPLACE: TASK_NAME]"] = c.TaskName
+	}
+	if c.TaskNumber > 0 {
+		m["[REPLACE: Task order]"] = strconv.Itoa(c.TaskNumber)
+	}
+	if c.TaskID != "" {
+		m["[REPLACE: Task ID]"] = c.TaskID
+		// NN_task_name is TaskID without .md extension
+		if strings.HasSuffix(c.TaskID, ".md") {
+			m["[REPLACE: NN_task_name]"] = c.TaskID[:len(c.TaskID)-3]
+		} else {
+			m["[REPLACE: NN_task_name]"] = c.TaskID
+		}
+	}
+
+	// Parent/structure replacements
+	if c.ParentPhaseID != "" {
+		m["[REPLACE: Parent phase ID]"] = c.ParentPhaseID
+	}
+	if c.ParentSequenceID != "" {
+		m["[REPLACE: Parent sequence ID]"] = c.ParentSequenceID
+	}
+
+	// Timestamp replacements
+	if c.CreatedDate != "" {
+		m["[REPLACE: Created date]"] = c.CreatedDate
+	}
+
+	return m
+}
+
+// ToReplacementMapWithConfig generates a replacement map including config values.
+// Config values are provided as a separate map to keep Context focused on structure.
+func (c *Context) ToReplacementMapWithConfig(config map[string]string) map[string]string {
+	m := c.ToReplacementMap()
+
+	// Add config-based replacements
+	configMarkers := map[string]string{
+		"lint_command":             "[REPLACE: Run your project's lint command]",
+		"test_command":             "[REPLACE: Run your project's test command]",
+		"integration_test_command": "[REPLACE: Run your project's integration test command]",
+		"coverage_command":         "[REPLACE: Run your project's coverage command]",
+		"coverage_threshold":       "[REPLACE: coverage threshold, e.g., 80%]",
+		"build_command":            "[REPLACE: Run your project's build command]",
+	}
+
+	for key, marker := range configMarkers {
+		if val, ok := config[key]; ok && val != "" {
+			m[marker] = val
+		}
+	}
+
+	return m
+}
