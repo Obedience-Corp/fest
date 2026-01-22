@@ -191,7 +191,7 @@ func QuickSelect[T comparable](ctx context.Context, title string, options []huh.
 		huh.NewGroup(
 			huh.NewSelect[T]().
 				Title(title).
-				Description("↑/↓ navigate • enter select • esc quit").
+				Description("j/k or ↑/↓ navigate • enter select • esc quit").
 				Options(options...).
 				Value(value),
 		),

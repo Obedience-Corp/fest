@@ -69,7 +69,7 @@ func runCharmTUI(ctx context.Context) error {
 			huh.NewGroup(
 				huh.NewSelect[string]().
 					Title("What would you like to do?").
-					Description("↑/↓ navigate • enter select • esc/ctrl-c quit").
+					Description("j/k or ↑/↓ navigate • enter select • esc/ctrl-c quit").
 					Options(
 						huh.NewOption("Plan a New Festival (wizard)", "plan_festival"),
 						huh.NewOption("Create a Festival (quick)", "create_festival"),
@@ -165,7 +165,7 @@ func StartCreateTUI(ctx context.Context) error {
 			huh.NewGroup(
 				huh.NewSelect[string]().
 					Title("Create what?").
-					Description("↑/↓ navigate • enter select • esc/ctrl-c quit").
+					Description("j/k or ↑/↓ navigate • enter select • esc/ctrl-c quit").
 					Options(
 						huh.NewOption("Festival", "festival"),
 						huh.NewOption("Phase", "phase"),
