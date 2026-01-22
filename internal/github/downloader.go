@@ -454,8 +454,14 @@ func IsGitAvailable() bool {
 	return err == nil
 }
 
-// SHAMarkerFile is the name of the file that stores the last synced commit SHA
+// SHAMarkerFile is the name of the file that stores sync state
 const SHAMarkerFile = ".last-sync-sha"
+
+// SyncState stores both commit SHA and content hash for accurate update detection
+type SyncState struct {
+	CommitSHA   string `json:"commit_sha"`
+	ContentHash string `json:"content_hash"`
+}
 
 // GetRemoteSHA gets the current HEAD SHA of the branch using git ls-remote
 // This works with private repos using SSH keys
@@ -479,46 +485,190 @@ func (d *Downloader) GetRemoteSHA() (string, error) {
 	return parts[0], nil
 }
 
-// ReadLastSyncSHA reads the stored SHA from the last sync
-func ReadLastSyncSHA(targetDir string) (string, error) {
-	shaFile := filepath.Join(targetDir, SHAMarkerFile)
-	data, err := os.ReadFile(shaFile)
+// ReadSyncState reads the stored sync state from the last sync
+func ReadSyncState(targetDir string) (*SyncState, error) {
+	stateFile := filepath.Join(targetDir, SHAMarkerFile)
+	data, err := os.ReadFile(stateFile)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return "", nil // No previous sync
+			return nil, nil // No previous sync
 		}
-		return "", err
+		return nil, err
 	}
-	return strings.TrimSpace(string(data)), nil
+
+	// Try to parse as JSON (new format)
+	var state SyncState
+	if err := json.Unmarshal(data, &state); err != nil {
+		// Fall back to old format (just commit SHA)
+		state.CommitSHA = strings.TrimSpace(string(data))
+		state.ContentHash = ""
+	}
+	return &state, nil
 }
 
-// WriteLastSyncSHA stores the SHA after a successful sync
+// WriteSyncState stores the sync state after a successful sync
+func WriteSyncState(targetDir string, state *SyncState) error {
+	stateFile := filepath.Join(targetDir, SHAMarkerFile)
+	data, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(stateFile, data, 0644)
+}
+
+// ReadLastSyncSHA reads the stored commit SHA from the last sync (for backward compatibility)
+func ReadLastSyncSHA(targetDir string) (string, error) {
+	state, err := ReadSyncState(targetDir)
+	if err != nil {
+		return "", err
+	}
+	if state == nil {
+		return "", nil
+	}
+	return state.CommitSHA, nil
+}
+
+// WriteLastSyncSHA stores the SHA after a successful sync (for backward compatibility)
 func WriteLastSyncSHA(targetDir, sha string) error {
-	shaFile := filepath.Join(targetDir, SHAMarkerFile)
-	return os.WriteFile(shaFile, []byte(sha+"\n"), 0644)
+	// Read existing state to preserve content hash
+	state, _ := ReadSyncState(targetDir)
+	if state == nil {
+		state = &SyncState{}
+	}
+	state.CommitSHA = sha
+	return WriteSyncState(targetDir, state)
+}
+
+// ComputeContentHash computes a hash of directory contents
+// This hash changes only when the actual file contents change, not when the repo has unrelated commits
+func ComputeContentHash(dir string) (string, error) {
+	h := sha1.New()
+
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // Skip errors
+		}
+		if info.IsDir() {
+			return nil
+		}
+
+		// Get relative path
+		relPath, err := filepath.Rel(dir, path)
+		if err != nil {
+			return nil
+		}
+
+		// Skip hidden files (including .last-sync-sha)
+		if strings.HasPrefix(filepath.Base(relPath), ".") {
+			return nil
+		}
+
+		// Add path to hash (sorted by Walk)
+		h.Write([]byte(relPath))
+		h.Write([]byte{0})
+
+		// Add file content hash
+		fileHash, err := calculateGitBlobSHA(path)
+		if err != nil {
+			return nil // Skip files we can't hash
+		}
+		h.Write([]byte(fileHash))
+		h.Write([]byte{0})
+
+		return nil
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 // CheckForUpdatesWithGit checks if the remote has new commits using git ls-remote
 // Returns (hasUpdates, remoteSHA, error)
+// Note: This only checks commit SHA. Use CheckForTemplateUpdates for accurate detection.
 func (d *Downloader) CheckForUpdatesWithGit(targetDir string) (bool, string, error) {
 	remoteSHA, err := d.GetRemoteSHA()
 	if err != nil {
 		return false, "", err
 	}
 
-	localSHA, err := ReadLastSyncSHA(targetDir)
+	state, err := ReadSyncState(targetDir)
 	if err != nil {
 		return false, "", err
 	}
 
-	// If no local SHA, we need to sync
-	if localSHA == "" {
+	// If no local state, we need to sync
+	if state == nil {
 		return true, remoteSHA, nil
 	}
 
-	// Compare SHAs
-	hasUpdates := remoteSHA != localSHA
-	return hasUpdates, remoteSHA, nil
+	// If commit SHA is same, definitely no updates
+	if state.CommitSHA == remoteSHA {
+		return false, remoteSHA, nil
+	}
+
+	// Commit SHA changed - might have template updates
+	return true, remoteSHA, nil
+}
+
+// CheckForTemplateUpdates performs a full check by cloning and comparing content hashes
+// Returns (hasUpdates, newState, error)
+// If hasUpdates is false, the caller should just update the commit SHA without copying files
+func (d *Downloader) CheckForTemplateUpdates(targetDir string, remoteSHA string) (bool, *SyncState, error) {
+	// Read local state
+	localState, err := ReadSyncState(targetDir)
+	if err != nil {
+		return false, nil, err
+	}
+
+	// If no local state, definitely need to sync
+	if localState == nil || localState.ContentHash == "" {
+		return true, nil, nil
+	}
+
+	// Clone to temp directory to compute content hash
+	tempDir, err := os.MkdirTemp("", "fest-sync-check-*")
+	if err != nil {
+		return false, nil, errors.IO("creating temp directory", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// Clone with depth=1
+	cmd := exec.Command("git", "clone",
+		"--depth=1",
+		"--single-branch",
+		"-b", d.branch,
+		d.repoURL,
+		tempDir,
+	)
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+
+	if err := cmd.Run(); err != nil {
+		return false, nil, errors.IO("cloning repository for update check", err).WithField("url", d.repoURL)
+	}
+
+	// Compute content hash of remote templates
+	sourceDir := filepath.Join(tempDir, d.repoPath)
+	if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
+		return false, nil, errors.NotFound("directory " + d.repoPath + " in repository")
+	}
+
+	remoteContentHash, err := ComputeContentHash(sourceDir)
+	if err != nil {
+		return false, nil, errors.Wrap(err, "computing remote content hash")
+	}
+
+	newState := &SyncState{
+		CommitSHA:   remoteSHA,
+		ContentHash: remoteContentHash,
+	}
+
+	// Compare content hashes
+	hasUpdates := localState.ContentHash != remoteContentHash
+	return hasUpdates, newState, nil
 }
 
 // DownloadWithGit clones the repository using git and copies the target directory

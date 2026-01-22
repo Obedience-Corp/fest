@@ -111,14 +111,15 @@ func runSync(ctx context.Context, _ *cobra.Command, opts *syncOptions) error {
 
 	// Check if directory exists and we're not forcing
 	useGit := github.IsGitAvailable()
-	var remoteSHA string // Used to store SHA after git sync
+	var remoteSHA string           // Used to store SHA after git sync
+	var newSyncState *github.SyncState // Used when templates actually changed
 
 	if fileExists(targetDir) && !opts.force {
 		display.Info("Checking for updates from %s...", repoURL)
 
 		if useGit {
-			// Git-based update check (works with private repos)
-			hasUpdates, sha, err := downloader.CheckForUpdatesWithGit(targetDir)
+			// Stage 1: Quick check using commit SHA (works with private repos)
+			hasCommitChanges, sha, err := downloader.CheckForUpdatesWithGit(targetDir)
 			if err != nil {
 				display.Warning("Failed to check for updates: %v", err)
 				display.Info("Use --force to re-download")
@@ -126,11 +127,31 @@ func runSync(ctx context.Context, _ *cobra.Command, opts *syncOptions) error {
 			}
 			remoteSHA = sha
 
-			if !hasUpdates {
+			if !hasCommitChanges {
 				display.Success("Fest templates are up to date!")
 				return nil
 			}
-			display.Info("Updates available (new commit: %s)", sha[:8])
+
+			// Stage 2: Full check - commit SHA changed, but templates may be the same
+			display.Info("New commits detected (commit: %s), checking templates...", sha[:8])
+			hasTemplateChanges, newState, err := downloader.CheckForTemplateUpdates(targetDir, sha)
+			if err != nil {
+				display.Warning("Failed to check template changes: %v", err)
+				display.Info("Proceeding with full sync...")
+				// Continue with full sync since we couldn't determine if templates changed
+			} else if !hasTemplateChanges {
+				// Templates haven't changed - just update the commit SHA
+				display.Success("Fest templates are up to date (no template changes)!")
+				if newState != nil {
+					if err := github.WriteSyncState(targetDir, newState); err != nil {
+						display.Warning("Failed to save sync state: %v", err)
+					}
+				}
+				return nil
+			} else {
+				newSyncState = newState
+				display.Info("Template updates available")
+			}
 		} else {
 			// HTTP-based update check (public repos only)
 			hasUpdates, changes, err := downloader.CheckForUpdates(owner, repo, targetDir)
@@ -190,10 +211,31 @@ func runSync(ctx context.Context, _ *cobra.Command, opts *syncOptions) error {
 		if downloadErr != nil {
 			display.Warning("Git clone failed: %v", downloadErr)
 			display.Info("Falling back to HTTP API...")
-		} else if remoteSHA != "" {
-			// Store the SHA for future update checks
-			if err := github.WriteLastSyncSHA(targetDir, remoteSHA); err != nil {
-				display.Warning("Failed to save sync marker: %v", err)
+		} else {
+			// Store the sync state for future update checks
+			if newSyncState != nil {
+				// We already computed the content hash during update check
+				if err := github.WriteSyncState(targetDir, newSyncState); err != nil {
+					display.Warning("Failed to save sync state: %v", err)
+				}
+			} else if remoteSHA != "" {
+				// Compute content hash for new/forced syncs
+				contentHash, hashErr := github.ComputeContentHash(targetDir)
+				if hashErr != nil {
+					display.Warning("Failed to compute content hash: %v", hashErr)
+					// Fall back to just commit SHA
+					if err := github.WriteLastSyncSHA(targetDir, remoteSHA); err != nil {
+						display.Warning("Failed to save sync marker: %v", err)
+					}
+				} else {
+					state := &github.SyncState{
+						CommitSHA:   remoteSHA,
+						ContentHash: contentHash,
+					}
+					if err := github.WriteSyncState(targetDir, state); err != nil {
+						display.Warning("Failed to save sync state: %v", err)
+					}
+				}
 			}
 		}
 	}
