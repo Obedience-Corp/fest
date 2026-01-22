@@ -110,25 +110,46 @@ func runSync(ctx context.Context, _ *cobra.Command, opts *syncOptions) error {
 	downloader.SetRetry(opts.retry)
 
 	// Check if directory exists and we're not forcing
+	useGit := github.IsGitAvailable()
+	var remoteSHA string // Used to store SHA after git sync
+
 	if fileExists(targetDir) && !opts.force {
 		display.Info("Checking for updates from %s...", repoURL)
 
-		hasUpdates, changes, err := downloader.CheckForUpdates(owner, repo, targetDir)
-		if err != nil {
-			display.Warning("Failed to check for updates: %v", err)
-			display.Info("Use --force to re-download")
-			return nil
-		}
+		if useGit {
+			// Git-based update check (works with private repos)
+			hasUpdates, sha, err := downloader.CheckForUpdatesWithGit(targetDir)
+			if err != nil {
+				display.Warning("Failed to check for updates: %v", err)
+				display.Info("Use --force to re-download")
+				return nil
+			}
+			remoteSHA = sha
 
-		if !hasUpdates {
-			display.Success("Fest templates are up to date!")
-			return nil
-		}
+			if !hasUpdates {
+				display.Success("Fest templates are up to date!")
+				return nil
+			}
+			display.Info("Updates available (new commit: %s)", sha[:8])
+		} else {
+			// HTTP-based update check (public repos only)
+			hasUpdates, changes, err := downloader.CheckForUpdates(owner, repo, targetDir)
+			if err != nil {
+				display.Warning("Failed to check for updates: %v", err)
+				display.Info("Use --force to re-download")
+				return nil
+			}
 
-		// Show changes
-		display.Info("\nUpdates available (%d changes):", len(changes))
-		for _, change := range changes {
-			display.Info("  %s", change)
+			if !hasUpdates {
+				display.Success("Fest templates are up to date!")
+				return nil
+			}
+
+			// Show changes
+			display.Info("\nUpdates available (%d changes):", len(changes))
+			for _, change := range changes {
+				display.Info("  %s", change)
+			}
 		}
 
 		// Prompt user
@@ -145,19 +166,54 @@ func runSync(ctx context.Context, _ *cobra.Command, opts *syncOptions) error {
 
 	display.Info("Syncing from %s (branch: %s)...", repoURL, opts.branch)
 
-	// Download with progress
-	progressBar := display.NewProgressBar("Downloading", -1)
-	err = downloader.Download(targetDir, func(current, total int64, file string) {
-		progressBar.Update(current, total, file)
-	})
-	progressBar.Finish()
+	// Try git-based download first (works with SSH keys for private repos)
+	// Fall back to HTTP API if git is not available
+	var downloadErr error
+	if useGit {
+		// Get remote SHA if we don't have it yet (e.g., --force or first sync)
+		if remoteSHA == "" {
+			sha, err := downloader.GetRemoteSHA()
+			if err != nil {
+				display.Warning("Failed to get remote SHA: %v", err)
+			} else {
+				remoteSHA = sha
+			}
+		}
 
-	if err != nil {
-		return errors.IO("downloading templates", err).WithField("url", repoURL)
+		display.Info("Using git clone (supports private repos with SSH keys)...")
+		progressBar := display.NewProgressBar("Cloning", 3)
+		downloadErr = downloader.DownloadWithGit(targetDir, func(current, total int64, status string) {
+			progressBar.Update(current, total, status)
+		})
+		progressBar.Finish()
+
+		if downloadErr != nil {
+			display.Warning("Git clone failed: %v", downloadErr)
+			display.Info("Falling back to HTTP API...")
+		} else if remoteSHA != "" {
+			// Store the SHA for future update checks
+			if err := github.WriteLastSyncSHA(targetDir, remoteSHA); err != nil {
+				display.Warning("Failed to save sync marker: %v", err)
+			}
+		}
+	}
+
+	// Fall back to HTTP API download if git failed or not available
+	if downloadErr != nil || !useGit {
+		progressBar := display.NewProgressBar("Downloading", -1)
+		downloadErr = downloader.Download(targetDir, func(current, total int64, file string) {
+			progressBar.Update(current, total, file)
+		})
+		progressBar.Finish()
+	}
+
+	if downloadErr != nil {
+		return errors.IO("downloading templates", downloadErr).WithField("url", repoURL)
 	}
 
 	// Delete orphaned files (files that exist locally but not in remote)
-	if opts.force {
+	// Note: Only works with HTTP method, git clone replaces everything
+	if opts.force && !useGit {
 		display.Info("Removing orphaned files...")
 		deleted, err := downloader.DeleteOrphaned(owner, repo, targetDir)
 		if err != nil {

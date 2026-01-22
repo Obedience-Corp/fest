@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -445,4 +446,196 @@ func (d *Downloader) CheckForUpdates(owner, repo, targetDir string) (bool, []str
 
 	hasUpdates := len(changes) > 0
 	return hasUpdates, changes, nil
+}
+
+// IsGitAvailable checks if the git command is available
+func IsGitAvailable() bool {
+	_, err := exec.LookPath("git")
+	return err == nil
+}
+
+// SHAMarkerFile is the name of the file that stores the last synced commit SHA
+const SHAMarkerFile = ".last-sync-sha"
+
+// GetRemoteSHA gets the current HEAD SHA of the branch using git ls-remote
+// This works with private repos using SSH keys
+func (d *Downloader) GetRemoteSHA() (string, error) {
+	if !IsGitAvailable() {
+		return "", errors.Validation("git command not found")
+	}
+
+	cmd := exec.Command("git", "ls-remote", d.repoURL, "refs/heads/"+d.branch)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", errors.IO("getting remote SHA", err).WithField("url", d.repoURL)
+	}
+
+	// Output format: "<sha>\trefs/heads/<branch>"
+	parts := strings.Fields(string(output))
+	if len(parts) < 1 {
+		return "", errors.NotFound("branch " + d.branch)
+	}
+
+	return parts[0], nil
+}
+
+// ReadLastSyncSHA reads the stored SHA from the last sync
+func ReadLastSyncSHA(targetDir string) (string, error) {
+	shaFile := filepath.Join(targetDir, SHAMarkerFile)
+	data, err := os.ReadFile(shaFile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", nil // No previous sync
+		}
+		return "", err
+	}
+	return strings.TrimSpace(string(data)), nil
+}
+
+// WriteLastSyncSHA stores the SHA after a successful sync
+func WriteLastSyncSHA(targetDir, sha string) error {
+	shaFile := filepath.Join(targetDir, SHAMarkerFile)
+	return os.WriteFile(shaFile, []byte(sha+"\n"), 0644)
+}
+
+// CheckForUpdatesWithGit checks if the remote has new commits using git ls-remote
+// Returns (hasUpdates, remoteSHA, error)
+func (d *Downloader) CheckForUpdatesWithGit(targetDir string) (bool, string, error) {
+	remoteSHA, err := d.GetRemoteSHA()
+	if err != nil {
+		return false, "", err
+	}
+
+	localSHA, err := ReadLastSyncSHA(targetDir)
+	if err != nil {
+		return false, "", err
+	}
+
+	// If no local SHA, we need to sync
+	if localSHA == "" {
+		return true, remoteSHA, nil
+	}
+
+	// Compare SHAs
+	hasUpdates := remoteSHA != localSHA
+	return hasUpdates, remoteSHA, nil
+}
+
+// DownloadWithGit clones the repository using git and copies the target directory
+// This method uses existing git credentials (SSH keys, credential helpers) automatically
+func (d *Downloader) DownloadWithGit(targetDir string, progress ProgressFunc) error {
+	if !IsGitAvailable() {
+		return errors.Validation("git command not found")
+	}
+
+	// Create temp directory for clone
+	tempDir, err := os.MkdirTemp("", "fest-sync-*")
+	if err != nil {
+		return errors.IO("creating temp directory", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	if progress != nil {
+		progress(1, 3, "Cloning repository...")
+	}
+
+	// Clone with depth=1 for speed
+	cmd := exec.Command("git", "clone",
+		"--depth=1",
+		"--single-branch",
+		"-b", d.branch,
+		d.repoURL,
+		tempDir,
+	)
+	cmd.Stdout = nil
+	cmd.Stderr = nil
+
+	if err := cmd.Run(); err != nil {
+		return errors.IO("cloning repository", err).WithField("url", d.repoURL)
+	}
+
+	if progress != nil {
+		progress(2, 3, "Copying files...")
+	}
+
+	// Source directory within the clone
+	sourceDir := filepath.Join(tempDir, d.repoPath)
+
+	// Check if source directory exists
+	if _, err := os.Stat(sourceDir); os.IsNotExist(err) {
+		return errors.NotFound("directory " + d.repoPath + " in repository")
+	}
+
+	// Create target directory
+	if err := os.MkdirAll(targetDir, registry.DirPermissions); err != nil {
+		return errors.IO("creating target directory", err).WithField("path", targetDir)
+	}
+
+	// Copy files from source to target
+	if err := copyDir(sourceDir, targetDir); err != nil {
+		return errors.Wrap(err, "copying files")
+	}
+
+	if progress != nil {
+		progress(3, 3, "Done")
+	}
+
+	return nil
+}
+
+// copyDir recursively copies a directory tree
+func copyDir(src, dst string) error {
+	return filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Get relative path
+		relPath, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+
+		// Skip .git directory
+		if strings.HasPrefix(relPath, ".git") || relPath == ".git" {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		targetPath := filepath.Join(dst, relPath)
+
+		if info.IsDir() {
+			return os.MkdirAll(targetPath, info.Mode())
+		}
+
+		// Copy file
+		return copyFile(path, targetPath)
+	})
+}
+
+// copyFile copies a single file
+func copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	// Get source file info for permissions
+	sourceInfo, err := sourceFile.Stat()
+	if err != nil {
+		return err
+	}
+
+	// Create destination file
+	destFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, sourceInfo.Mode())
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, sourceFile)
+	return err
 }
