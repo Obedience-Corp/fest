@@ -118,7 +118,6 @@ func (s *FestivalSelector) Run(ctx context.Context) (*FestivalSelectorResult, er
 		Title(s.config.Title).
 		Description(s.config.Description).
 		Options(options...).
-		Height(10).
 		Value(&selected)
 
 	// Enable filtering if configured

@@ -19,13 +19,14 @@ var ErrUserCancelled = festErrors.New("operation cancelled by user").WithCode(Er
 // RunForm executes a form with the fest theme, context propagation, and proper error handling.
 // Context cancellation will interrupt the form. Returns ErrUserCancelled if the user aborts.
 // Keyboard interrupt (Ctrl-C) and Escape are enabled for clean exits.
+// Theme is loaded from user config (~/.config/fest/config.json).
 func RunForm(ctx context.Context, form *huh.Form) error {
 	if err := ctx.Err(); err != nil {
 		return festErrors.Wrap(err, "context cancelled").WithOp("RunForm")
 	}
 
 	form = form.
-		WithTheme(FestTheme()).
+		WithTheme(GetThemeFromConfig(ctx)).
 		WithKeyMap(huh.NewDefaultKeyMap()).
 		WithShowHelp(true)
 
