@@ -2,17 +2,20 @@ package template
 
 import (
 	"bytes"
+	"regexp"
 	"strings"
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
 )
 
 // Renderer renders templates with variable substitution
 type Renderer interface {
 	Render(tmpl *Template, ctx *Context) (string, error)
 	RenderString(content string, ctx *Context) (string, error)
+	RenderWithMarkerReplacement(content string, ctx *Context, config map[string]string) (string, error)
 }
 
 type rendererImpl struct {
@@ -53,6 +56,91 @@ func (r *rendererImpl) RenderString(content string, ctx *Context) (string, error
 	}
 
 	return buf.String(), nil
+}
+
+// RenderWithMarkerReplacement renders a template and then replaces [REPLACE: ...] markers
+// with values from the context and config. This combines Go template rendering with
+// marker-based auto-fill for a complete rendering pipeline.
+//
+// The replacement order is:
+// 1. Go template variables ({{.variable}})
+// 2. Context-based markers from ctx.ToReplacementMap()
+// 3. Config-based markers from ctx.ToReplacementMapWithConfig(config)
+// 4. Frontmatter-based markers (if content has frontmatter)
+//
+// If ctx is nil, content is returned as-is (backward compatibility).
+func (r *rendererImpl) RenderWithMarkerReplacement(content string, ctx *Context, config map[string]string) (string, error) {
+	// If no context, return as-is (backward compatibility)
+	if ctx == nil {
+		return content, nil
+	}
+
+	// First, render Go templates
+	rendered, err := r.RenderString(content, ctx)
+	if err != nil {
+		return "", err
+	}
+
+	// Build replacement map from context (includes config markers)
+	replacements := ctx.ToReplacementMapWithConfig(config)
+
+	// Try to extract frontmatter for additional context
+	fm, _, parseErr := frontmatter.Parse([]byte(rendered))
+	if parseErr == nil && fm != nil {
+		// Add frontmatter-based replacements (context takes precedence)
+		fmReplacements := FrontmatterToReplacements(fm)
+		for k, v := range fmReplacements {
+			if _, exists := replacements[k]; !exists {
+				replacements[k] = v
+			}
+		}
+	}
+
+	// Perform marker replacements
+	result := rendered
+	for marker, value := range replacements {
+		if value != "" {
+			result = strings.ReplaceAll(result, marker, value)
+		}
+	}
+
+	return result, nil
+}
+
+// ReplaceMarkers replaces [REPLACE: ...] markers in content using the provided replacement map.
+// This is a lower-level function for when you have a pre-built replacement map.
+func ReplaceMarkers(content string, replacements map[string]string) string {
+	result := content
+	for marker, value := range replacements {
+		if value != "" {
+			result = strings.ReplaceAll(result, marker, value)
+		}
+	}
+	return result
+}
+
+// CountMarkers counts the number of [REPLACE: ...] markers in content.
+// Useful for debugging and reporting unfilled markers.
+func CountMarkers(content string) int {
+	re := regexp.MustCompile(`\[REPLACE:[^\]]+\]`)
+	return len(re.FindAllString(content, -1))
+}
+
+// FindUnfilledMarkers returns all [REPLACE: ...] markers that remain in content.
+func FindUnfilledMarkers(content string) []string {
+	re := regexp.MustCompile(`\[REPLACE:[^\]]+\]`)
+	matches := re.FindAllString(content, -1)
+
+	// Remove duplicates
+	seen := make(map[string]bool)
+	unique := []string{}
+	for _, m := range matches {
+		if !seen[m] {
+			seen[m] = true
+			unique = append(unique, m)
+		}
+	}
+	return unique
 }
 
 // ValidateTemplate checks if a template can be rendered with required variables
