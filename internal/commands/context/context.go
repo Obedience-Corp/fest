@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	ctx "github.com/lancekrogers/festival-methodology/fest/internal/context"
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
-	tpl "github.com/lancekrogers/festival-methodology/fest/internal/template"
+	ctx "github.com/Obedience-Corp/fest/internal/context"
+	"github.com/Obedience-Corp/fest/internal/errors"
+	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/spf13/cobra"
 )
 

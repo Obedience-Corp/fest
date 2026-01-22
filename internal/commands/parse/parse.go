@@ -6,9 +6,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
-	"github.com/lancekrogers/festival-methodology/fest/internal/parser"
-	tpl "github.com/lancekrogers/festival-methodology/fest/internal/template"
+	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/parser"
+	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/spf13/cobra"
 )
 

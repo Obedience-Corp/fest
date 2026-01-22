@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/ui"
-	"github.com/lancekrogers/festival-methodology/fest/templates/agent"
+	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/templates/agent"
 )
 
 // FormatText formats the result as human-readable text

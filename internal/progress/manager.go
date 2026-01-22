@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // Manager handles progress operations for a festival

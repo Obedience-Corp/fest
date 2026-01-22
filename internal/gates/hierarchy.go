@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // EffectivePolicy represents the merged result of policies from all hierarchy levels

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/festival"
+	"github.com/Obedience-Corp/fest/internal/festival"
 )
 
 // TestCreateSequence_DirectoryCreation tests that creating a sequence

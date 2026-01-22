@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/types"
+	"github.com/Obedience-Corp/fest/internal/types"
 )
 
 func TestNewTypesCommand(t *testing.T) {

@@ -6,7 +6,7 @@ import (
 	"text/template"
 
 	"github.com/Masterminds/sprig/v3"
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // Renderer renders templates with variable substitution

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // PolicyInfo describes a named policy

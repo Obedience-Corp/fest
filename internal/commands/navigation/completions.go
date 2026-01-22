@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/navigation"
-	"github.com/lancekrogers/festival-methodology/fest/internal/workspace"
+	"github.com/Obedience-Corp/fest/internal/navigation"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
 

@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/commands/shared"
-	"github.com/lancekrogers/festival-methodology/fest/internal/config"
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
-	"github.com/lancekrogers/festival-methodology/fest/internal/github"
-	"github.com/lancekrogers/festival-methodology/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	"github.com/Obedience-Corp/fest/internal/config"
+	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/github"
+	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -98,8 +98,14 @@ func runSync(ctx context.Context, _ *cobra.Command, opts *syncOptions) error {
 		return errors.Validation("invalid repository URL").WithField("url", repoURL)
 	}
 
+	// Determine repository path: config > default
+	repoPath := config.DefaultRepoPath
+	if cfg != nil && cfg.Repository.Path != "" {
+		repoPath = cfg.Repository.Path
+	}
+
 	// Create downloader
-	downloader := github.NewDownloader(repoURL, opts.branch)
+	downloader := github.NewDownloader(repoURL, opts.branch, repoPath)
 	downloader.SetTimeout(opts.timeout)
 	downloader.SetRetry(opts.retry)
 

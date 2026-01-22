@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/ui"
 )
 
 // Formatter formats context output

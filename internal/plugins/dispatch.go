@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // Dispatcher handles plugin command dispatch

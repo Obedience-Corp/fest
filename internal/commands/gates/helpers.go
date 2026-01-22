@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
-	gatescore "github.com/lancekrogers/festival-methodology/fest/internal/gates"
+	"github.com/Obedience-Corp/fest/internal/errors"
+	gatescore "github.com/Obedience-Corp/fest/internal/gates"
 )
 
 // resolvePaths resolves festival, phase, and sequence paths from flags or cwd.

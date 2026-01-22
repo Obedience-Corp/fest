@@ -11,9 +11,9 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
-	"github.com/lancekrogers/festival-methodology/fest/internal/commands/show"
-	uitheme "github.com/lancekrogers/festival-methodology/fest/internal/ui/theme"
-	"github.com/lancekrogers/festival-methodology/fest/internal/workspace"
+	"github.com/Obedience-Corp/fest/internal/commands/show"
+	uitheme "github.com/Obedience-Corp/fest/internal/ui/theme"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 // statusPriority defines sort order for festival statuses.

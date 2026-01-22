@@ -5,9 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/config"
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
-	"github.com/lancekrogers/festival-methodology/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/config"
+	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/id"
 )
 
 // ValidationError represents a discrepancy between registry and filesystem.

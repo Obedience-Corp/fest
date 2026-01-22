@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/festival"
+	"github.com/Obedience-Corp/fest/internal/festival"
 )
 
 // CompletenessValidator validates that required files exist.

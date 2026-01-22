@@ -1,4 +1,4 @@
-module github.com/lancekrogers/festival-methodology/fest
+module github.com/Obedience-Corp/fest
 
 go 1.25.1
 

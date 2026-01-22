@@ -3,7 +3,7 @@ package gates
 import (
 	"path/filepath"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/config"
+	"github.com/Obedience-Corp/fest/internal/config"
 )
 
 // PolicyLoader handles loading and merging gate policies from multiple sources

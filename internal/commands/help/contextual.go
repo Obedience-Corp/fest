@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/commands/show"
+	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/spf13/cobra"
 )
 

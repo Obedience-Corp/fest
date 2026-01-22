@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/festival"
-	"github.com/lancekrogers/festival-methodology/fest/internal/frontmatter"
-	"github.com/lancekrogers/festival-methodology/fest/internal/gates"
+	"github.com/Obedience-Corp/fest/internal/festival"
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
+	"github.com/Obedience-Corp/fest/internal/gates"
 )
 
 // TreeSyncer builds a TreeIndex from the workspace filesystem

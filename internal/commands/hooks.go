@@ -3,9 +3,9 @@ package commands
 import (
 	"context"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/commands/festival"
-	"github.com/lancekrogers/festival-methodology/fest/internal/commands/shared"
-	"github.com/lancekrogers/festival-methodology/fest/internal/commands/system"
+	"github.com/Obedience-Corp/fest/internal/commands/festival"
+	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	"github.com/Obedience-Corp/fest/internal/commands/system"
 )
 
 func init() {

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // CountResult represents the result of token counting

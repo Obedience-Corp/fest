@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/config"
-	"github.com/lancekrogers/festival-methodology/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/config"
+	"github.com/Obedience-Corp/fest/internal/ui"
 )
 
 // formatNodeReference creates a node reference string from festival ID and location.

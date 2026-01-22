@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	tpl "github.com/lancekrogers/festival-methodology/fest/internal/template"
+	tpl "github.com/Obedience-Corp/fest/internal/template"
 )
 
 // findDotFestivalDir searches for the .festival directory by walking up the directory tree.

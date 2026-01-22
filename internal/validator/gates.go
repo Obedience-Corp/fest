@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
-	"github.com/lancekrogers/festival-methodology/fest/internal/festival"
-	"github.com/lancekrogers/festival-methodology/fest/internal/gates"
+	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/festival"
+	"github.com/Obedience-Corp/fest/internal/gates"
 )
 
 // ValidateQualityGates checks that implementation sequences have quality gate tasks

@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
-	tpl "github.com/lancekrogers/festival-methodology/fest/internal/template"
-	uitheme "github.com/lancekrogers/festival-methodology/fest/internal/ui/theme"
+	"github.com/Obedience-Corp/fest/internal/errors"
+	tpl "github.com/Obedience-Corp/fest/internal/template"
+	uitheme "github.com/Obedience-Corp/fest/internal/ui/theme"
 )
 
 // HierarchyLevel represents a level in the selection hierarchy.

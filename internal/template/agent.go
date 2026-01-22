@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // AgentTemplatesDir is the directory name for agent-created templates

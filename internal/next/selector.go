@@ -10,9 +10,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/deps"
-	"github.com/lancekrogers/festival-methodology/fest/internal/frontmatter"
-	"github.com/lancekrogers/festival-methodology/fest/internal/progress"
+	"github.com/Obedience-Corp/fest/internal/deps"
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
+	"github.com/Obedience-Corp/fest/internal/progress"
 )
 
 // NextTaskResult represents the result of finding the next task

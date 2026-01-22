@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/commands/shared"
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
-	"github.com/lancekrogers/festival-methodology/fest/internal/feedback"
-	"github.com/lancekrogers/festival-methodology/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/feedback"
+	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
 )
 

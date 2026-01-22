@@ -4,9 +4,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/navigation"
-	"github.com/lancekrogers/festival-methodology/fest/internal/template"
-	"github.com/lancekrogers/festival-methodology/fest/internal/workspace"
+	"github.com/Obedience-Corp/fest/internal/navigation"
+	"github.com/Obedience-Corp/fest/internal/template"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 // ResolveFestivalPath resolves the festival path from multiple sources in priority order:

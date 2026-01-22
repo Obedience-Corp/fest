@@ -8,10 +8,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
-	"github.com/lancekrogers/festival-methodology/fest/internal/festival"
-	"github.com/lancekrogers/festival-methodology/fest/internal/frontmatter"
-	tpl "github.com/lancekrogers/festival-methodology/fest/internal/template"
+	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/festival"
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
+	tpl "github.com/Obedience-Corp/fest/internal/template"
 )
 
 // TaskGenerator generates quality gate task files in sequences.

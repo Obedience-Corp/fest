@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/config"
+	"github.com/Obedience-Corp/fest/internal/config"
 )
 
 const (

@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/frontmatter"
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
 )
 
 // ParseOptions controls what to include in parsed output

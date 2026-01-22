@@ -3,7 +3,7 @@ package template
 import (
 	"context"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // Catalog maps template IDs (and aliases) to file paths

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/registry"
+	"github.com/Obedience-Corp/fest/internal/registry"
 )
 
 // TreeIndex represents the complete workspace tree for Guild v3

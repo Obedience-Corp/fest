@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/config"
+	"github.com/Obedience-Corp/fest/internal/config"
 )
 
 // TestCreateFestival_DirectoryNaming verifies that festival directories

@@ -6,11 +6,11 @@ import (
 	"os"
 	"sort"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/commands/shared"
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
-	"github.com/lancekrogers/festival-methodology/fest/internal/extensions"
-	"github.com/lancekrogers/festival-methodology/fest/internal/gates"
-	"github.com/lancekrogers/festival-methodology/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/extensions"
+	"github.com/Obedience-Corp/fest/internal/gates"
+	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
 )
 

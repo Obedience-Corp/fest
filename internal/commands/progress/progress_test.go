@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 func TestResolveTaskID_WithTaskPath(t *testing.T) {

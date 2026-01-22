@@ -9,10 +9,10 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/lancekrogers/festival-methodology/fest/internal/commands/shared"
-	festErrors "github.com/lancekrogers/festival-methodology/fest/internal/errors"
-	"github.com/lancekrogers/festival-methodology/fest/internal/navigation"
-	uitheme "github.com/lancekrogers/festival-methodology/fest/internal/ui/theme"
+	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	festErrors "github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/navigation"
+	uitheme "github.com/Obedience-Corp/fest/internal/ui/theme"
 )
 
 // Styles for list items

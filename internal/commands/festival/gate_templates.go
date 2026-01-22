@@ -1,6 +1,6 @@
 package festival
 
-import "github.com/lancekrogers/festival-methodology/fest/internal/config"
+import "github.com/Obedience-Corp/fest/internal/config"
 
 // DefaultGateTemplates contains embedded default gate template content.
 // These are used as fallback when templates don't exist in the template root.

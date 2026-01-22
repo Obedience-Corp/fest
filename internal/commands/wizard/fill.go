@@ -13,11 +13,11 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
-	"github.com/lancekrogers/festival-methodology/fest/internal/config"
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
-	"github.com/lancekrogers/festival-methodology/fest/internal/markers"
-	"github.com/lancekrogers/festival-methodology/fest/internal/ui"
-	"github.com/lancekrogers/festival-methodology/fest/internal/ui/theme"
+	"github.com/Obedience-Corp/fest/internal/config"
+	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/markers"
+	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/ui/theme"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 )

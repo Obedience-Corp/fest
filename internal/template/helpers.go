@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // RenderByIDOrFallback renders a template by catalog ID if available, otherwise

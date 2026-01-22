@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/ui"
 )
 
 func TestListAllMarkers(t *testing.T) {

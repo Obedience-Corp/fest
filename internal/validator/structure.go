@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
-	"github.com/lancekrogers/festival-methodology/fest/internal/festival"
+	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/festival"
 )
 
 // isFreeformPhase checks if a phase uses freeform structure (not numbered sequences/tasks).

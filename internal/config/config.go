@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // File permission constants (kept local to avoid import cycles with registry)
@@ -17,10 +17,13 @@ const (
 
 const (
 	// DefaultRepositoryURL is the default festival methodology repository
-	DefaultRepositoryURL = "https://github.com/lancekrogers/festival-methodology"
+	DefaultRepositoryURL = "https://github.com/Obedience-Corp/fest"
 
 	// DefaultBranch is the default git branch
 	DefaultBranch = "main"
+
+	// DefaultRepoPath is the path within the repository to the festivals directory
+	DefaultRepoPath = "methodology/festivals"
 
 	// ConfigFileName is the name of the config file
 	ConfigFileName = "config.json"
@@ -160,7 +163,7 @@ func DefaultConfig() *Config {
 		Repository: Repository{
 			URL:    DefaultRepositoryURL,
 			Branch: DefaultBranch,
-			Path:   "festivals",
+			Path:   DefaultRepoPath,
 		},
 		Local: Local{
 			CacheDir:     filepath.Join(ConfigDir(), "cache"),

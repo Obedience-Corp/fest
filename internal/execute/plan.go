@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"sort"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/deps"
-	"github.com/lancekrogers/festival-methodology/fest/internal/progress"
+	"github.com/Obedience-Corp/fest/internal/deps"
+	"github.com/Obedience-Corp/fest/internal/progress"
 )
 
 // ExecutionPlan represents the complete plan for executing a festival

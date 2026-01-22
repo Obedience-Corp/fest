@@ -3,7 +3,7 @@ package config
 import (
 	"fmt"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/spf13/cobra"
 )
 

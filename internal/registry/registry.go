@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // Registerer provides registry operations for festival ID management.

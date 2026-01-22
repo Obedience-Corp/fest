@@ -4,8 +4,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/config"
-	tpl "github.com/lancekrogers/festival-methodology/fest/internal/template"
+	"github.com/Obedience-Corp/fest/internal/config"
+	tpl "github.com/Obedience-Corp/fest/internal/template"
 )
 
 // ExtensionLoader handles loading extensions from multiple sources

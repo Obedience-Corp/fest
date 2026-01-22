@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/id"
-	"github.com/lancekrogers/festival-methodology/fest/internal/registry"
+	"github.com/Obedience-Corp/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/registry"
 )
 
 // AtomicStatusChange performs an atomic status change for a festival.

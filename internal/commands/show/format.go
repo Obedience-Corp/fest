@@ -5,8 +5,8 @@ import (
 	"math"
 	"strings"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/progress"
-	"github.com/lancekrogers/festival-methodology/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/progress"
+	"github.com/Obedience-Corp/fest/internal/ui"
 )
 
 // FormatNodeReference creates a node reference string from festival ID and location.

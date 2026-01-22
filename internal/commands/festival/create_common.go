@@ -3,9 +3,9 @@ package festival
 import (
 	"context"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/config"
-	tpl "github.com/lancekrogers/festival-methodology/fest/internal/template"
-	"github.com/lancekrogers/festival-methodology/fest/internal/validator"
+	"github.com/Obedience-Corp/fest/internal/config"
+	tpl "github.com/Obedience-Corp/fest/internal/template"
+	"github.com/Obedience-Corp/fest/internal/validator"
 )
 
 // ValidationSummary is a simplified validation result for JSON output

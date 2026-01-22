@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // ValidationResult holds the results of dependency validation

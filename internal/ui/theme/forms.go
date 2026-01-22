@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/charmbracelet/huh"
-	festErrors "github.com/lancekrogers/festival-methodology/fest/internal/errors"
+	festErrors "github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // Error codes for theme package.

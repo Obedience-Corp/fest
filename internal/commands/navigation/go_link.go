@@ -10,11 +10,11 @@ import (
 
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/lancekrogers/festival-methodology/fest/internal/commands/show"
-	festErrors "github.com/lancekrogers/festival-methodology/fest/internal/errors"
-	"github.com/lancekrogers/festival-methodology/fest/internal/navigation"
-	"github.com/lancekrogers/festival-methodology/fest/internal/ui"
-	"github.com/lancekrogers/festival-methodology/fest/internal/workspace"
+	"github.com/Obedience-Corp/fest/internal/commands/show"
+	festErrors "github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/navigation"
+	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
 

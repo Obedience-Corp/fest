@@ -3,7 +3,7 @@ package understand
 import (
 	"fmt"
 
-	understanddocs "github.com/lancekrogers/festival-methodology/fest/docs/understand"
+	understanddocs "github.com/Obedience-Corp/fest/docs/understand"
 	"github.com/spf13/cobra"
 )
 

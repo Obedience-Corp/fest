@@ -10,9 +10,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
-	"github.com/lancekrogers/festival-methodology/fest/internal/festival"
-	tpl "github.com/lancekrogers/festival-methodology/fest/internal/template"
+	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/festival"
+	tpl "github.com/Obedience-Corp/fest/internal/template"
 )
 
 func collectRequiredVars(ctx context.Context, templateRoot string, paths []string) []string {

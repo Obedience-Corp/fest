@@ -7,7 +7,7 @@ import (
 
 	gitignore "github.com/sabhiram/go-gitignore"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // WalkResult contains information about walked files

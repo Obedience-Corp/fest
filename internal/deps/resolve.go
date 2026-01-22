@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/progress"
+	"github.com/Obedience-Corp/fest/internal/progress"
 )
 
 // Resolver handles dependency resolution for a festival

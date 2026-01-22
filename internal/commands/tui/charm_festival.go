@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
-	"github.com/lancekrogers/festival-methodology/fest/internal/commands/shared"
-	tpl "github.com/lancekrogers/festival-methodology/fest/internal/template"
-	uitheme "github.com/lancekrogers/festival-methodology/fest/internal/ui/theme"
+	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	tpl "github.com/Obedience-Corp/fest/internal/template"
+	uitheme "github.com/Obedience-Corp/fest/internal/ui/theme"
 )
 
 func charmCreateFestival(ctx context.Context) error {

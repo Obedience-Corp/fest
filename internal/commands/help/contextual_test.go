@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/commands/show"
+	"github.com/Obedience-Corp/fest/internal/commands/show"
 )
 
 func TestGetContext(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // markerPattern matches REPLACE markers in templates.

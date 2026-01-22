@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // ParallelExecutor handles parallel task execution

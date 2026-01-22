@@ -6,7 +6,7 @@ import (
 
 	"github.com/pkoukk/tiktoken-go"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // TiktokenTokenizer implements exact tokenization for OpenAI models

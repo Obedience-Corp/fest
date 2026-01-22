@@ -12,8 +12,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
-	"github.com/lancekrogers/festival-methodology/fest/internal/registry"
+	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/registry"
 )
 
 // ProgressFunc is called during download to report progress
@@ -41,18 +41,21 @@ type FileInfo struct {
 
 // Downloader handles downloading from GitHub
 type Downloader struct {
-	repoURL string
-	branch  string
-	client  *http.Client
-	timeout int
-	retry   int
+	repoURL  string
+	branch   string
+	repoPath string // Path within the repository to the festivals directory
+	client   *http.Client
+	timeout  int
+	retry    int
 }
 
 // NewDownloader creates a new GitHub downloader
-func NewDownloader(repoURL, branch string) *Downloader {
+// repoPath is the path within the repository to the festivals directory (e.g., "methodology/festivals")
+func NewDownloader(repoURL, branch, repoPath string) *Downloader {
 	return &Downloader{
-		repoURL: repoURL,
-		branch:  branch,
+		repoURL:  repoURL,
+		branch:   branch,
+		repoPath: repoPath,
 		client: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -95,7 +98,7 @@ func (d *Downloader) Download(targetDir string, progress ProgressFunc) error {
 	}
 
 	if len(files) == 0 {
-		return errors.NotFound("files in festivals/ directory")
+		return errors.NotFound("files in " + d.repoPath + " directory")
 	}
 
 	totalFiles := int64(len(files))
@@ -108,7 +111,7 @@ func (d *Downloader) Download(targetDir string, progress ProgressFunc) error {
 			progress(currentFile, totalFiles, file)
 		}
 
-		fileURL := fmt.Sprintf("%s/festivals/%s", baseURL, file)
+		fileURL := fmt.Sprintf("%s/%s/%s", baseURL, d.repoPath, file)
 		targetPath := filepath.Join(targetDir, file)
 
 		// Download with retry
@@ -210,7 +213,8 @@ func (d *Downloader) getFilesFromGitHub(owner, repo string) ([]string, error) {
 		return nil, errors.Parse("parsing GitHub API response", err)
 	}
 
-	// Filter for files in festivals/ directory
+	// Filter for files in the configured repository path
+	pathPrefix := d.repoPath + "/"
 	var files []string
 	for _, item := range treeResp.Tree {
 		// Only include files (blobs), not directories (trees)
@@ -218,10 +222,10 @@ func (d *Downloader) getFilesFromGitHub(owner, repo string) ([]string, error) {
 			continue
 		}
 
-		// Only include files under festivals/ directory
-		if strings.HasPrefix(item.Path, "festivals/") {
-			// Remove "festivals/" prefix to get relative path
-			relativePath := strings.TrimPrefix(item.Path, "festivals/")
+		// Only include files under the configured path
+		if strings.HasPrefix(item.Path, pathPrefix) {
+			// Remove path prefix to get relative path
+			relativePath := strings.TrimPrefix(item.Path, pathPrefix)
 			files = append(files, relativePath)
 		}
 	}
@@ -252,7 +256,8 @@ func (d *Downloader) getFilesWithSHA(owner, repo string) (map[string]string, err
 		return nil, errors.Parse("parsing GitHub API response", err)
 	}
 
-	// Build map of path -> SHA for files in festivals/ directory
+	// Build map of path -> SHA for files in the configured repository path
+	pathPrefix := d.repoPath + "/"
 	files := make(map[string]string)
 	for _, item := range treeResp.Tree {
 		// Only include files (blobs), not directories (trees)
@@ -260,10 +265,10 @@ func (d *Downloader) getFilesWithSHA(owner, repo string) (map[string]string, err
 			continue
 		}
 
-		// Only include files under festivals/ directory
-		if strings.HasPrefix(item.Path, "festivals/") {
-			// Remove "festivals/" prefix to get relative path
-			relativePath := strings.TrimPrefix(item.Path, "festivals/")
+		// Only include files under the configured path
+		if strings.HasPrefix(item.Path, pathPrefix) {
+			// Remove path prefix to get relative path
+			relativePath := strings.TrimPrefix(item.Path, pathPrefix)
 			files[relativePath] = item.SHA
 		}
 	}

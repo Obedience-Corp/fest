@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/lancekrogers/festival-methodology/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // Replace applies marker values to content, returning the modified content.
