@@ -1,0 +1,16 @@
+# Gate ordering for planning phases
+# Gates are applied in the order listed below
+
+version: 1
+phase_type: planning
+
+gates:
+  - id: plan_review
+    template: plan_review
+    name: Planning Review
+    enabled: true
+
+  - id: approval
+    template: approval
+    name: Planning Approval
+    enabled: true

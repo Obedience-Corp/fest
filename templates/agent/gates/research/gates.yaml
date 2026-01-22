@@ -1,0 +1,16 @@
+# Gate ordering for research phases
+# Gates are applied in the order listed below
+
+version: 1
+phase_type: research
+
+gates:
+  - id: findings_review
+    template: findings_review
+    name: Findings Review
+    enabled: true
+
+  - id: documentation
+    template: documentation
+    name: Documentation
+    enabled: true

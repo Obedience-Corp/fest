@@ -21,8 +21,8 @@ func TestDefaultFestivalConfig(t *testing.T) {
 		t.Errorf("expected 4 default quality gate tasks, got %d", len(cfg.QualityGates.Tasks))
 	}
 
-	// Check task IDs (IDs match template filenames)
-	expectedIDs := []string{"QUALITY_GATE_TESTING", "QUALITY_GATE_REVIEW", "QUALITY_GATE_ITERATE", "QUALITY_GATE_COMMIT"}
+	// Check task IDs (IDs match template filenames - snake_case)
+	expectedIDs := []string{"testing", "review", "iterate", "commit"}
 	for i, task := range cfg.QualityGates.Tasks {
 		if task.ID != expectedIDs[i] {
 			t.Errorf("expected task ID %s, got %s", expectedIDs[i], task.ID)

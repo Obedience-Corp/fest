@@ -1,0 +1,16 @@
+# Gate ordering for review phases
+# Gates are applied in the order listed below
+
+version: 1
+phase_type: review
+
+gates:
+  - id: checklist
+    template: checklist
+    name: Review Checklist
+    enabled: true
+
+  - id: sign_off
+    template: sign_off
+    name: Sign-off
+    enabled: true

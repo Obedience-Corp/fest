@@ -12,6 +12,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/festival"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
+	"gopkg.in/yaml.v3"
 )
 
 // TaskGenerator generates quality gate task files in sequences.
@@ -182,7 +183,13 @@ func (g *TaskGenerator) GenerateForSequence(
 }
 
 // renderGateContent renders the content for a gate task file.
-// festivalPath is used to resolve gates/ prefixed templates.
+// festivalPath is used to resolve festival-local gates/ templates.
+// Template paths are resolved in this order:
+// 1. Festival-local: {festivalPath}/gates/{templateName}.md
+// 2. Catalog lookup by template ID
+// 3. New structure: {templateRoot}/{template}.tmpl (e.g., agent/gates/implementation/testing.tmpl)
+// 4. Legacy .md: {templateRoot}/{template}.md
+// 5. Default generated content
 func (g *TaskGenerator) renderGateContent(ctx context.Context, gate GateTask, taskNum int, festivalPath string) string {
 	// Build context
 	tmplCtx := tpl.NewContext()
@@ -195,72 +202,108 @@ func (g *TaskGenerator) renderGateContent(ctx context.Context, gate GateTask, ta
 
 	var content string
 
-	// Handle "gates/TEMPLATE_NAME" format - resolve from festival's gates/ directory first
+	// 1. Handle "gates/TEMPLATE_NAME" format - resolve from festival's gates/ directory first
 	if strings.HasPrefix(gate.Template, "gates/") && festivalPath != "" {
 		templateName := strings.TrimPrefix(gate.Template, "gates/")
 		gatesPath := filepath.Join(festivalPath, "gates", templateName+".md")
 
 		if _, err := os.Stat(gatesPath); err == nil {
-			loader := tpl.NewLoader()
-			t, err := loader.Load(ctx, gatesPath)
-			if err == nil {
-				if strings.Contains(t.Content, "{{") {
-					content, _ = g.manager.Render(t, tmplCtx)
-				} else {
-					content = t.Content
-				}
-			}
+			content = g.loadAndRenderTemplate(ctx, gatesPath, tmplCtx)
 		}
 	}
 
-	// Try catalog if not found in festival gates/
+	// 2. Try catalog if not found in festival gates/
 	if content == "" && g.catalog != nil {
-		// For gates/ prefix, try with the stripped template name
 		templateID := gate.Template
-		if strings.HasPrefix(templateID, "gates/") {
-			templateID = strings.TrimPrefix(templateID, "gates/")
+		// Strip common prefixes for catalog lookup
+		for _, prefix := range []string{"gates/", "agent/gates/"} {
+			if strings.HasPrefix(templateID, prefix) {
+				templateID = strings.TrimPrefix(templateID, prefix)
+				break
+			}
 		}
 		content, _ = g.manager.RenderByID(ctx, g.catalog, templateID, tmplCtx)
 	}
 
-	// Fallback to direct file load from template root
+	// 3. Try direct file load from template root
 	if content == "" && g.templateRoot != "" {
-		templateName := gate.Template
-		// Strip gates/ prefix if present (legacy format)
-		if strings.HasPrefix(templateName, "gates/") {
-			templateName = strings.TrimPrefix(templateName, "gates/")
-		}
-
-		// Try multiple possible paths:
-		// 1. Direct path: templateRoot/phases/implementation/gates/testing.md
-		// 2. Legacy gates/ path: templateRoot/gates/testing.md
-		possiblePaths := []string{
-			filepath.Join(g.templateRoot, templateName+".md"),
-			filepath.Join(g.templateRoot, "gates", templateName+".md"),
-		}
+		// Build list of possible paths to try
+		possiblePaths := buildTemplatePaths(g.templateRoot, gate.Template)
 
 		for _, tpath := range possiblePaths {
 			if _, err := os.Stat(tpath); err == nil {
-				loader := tpl.NewLoader()
-				t, err := loader.Load(ctx, tpath)
-				if err == nil {
-					if strings.Contains(t.Content, "{{") {
-						content, _ = g.manager.Render(t, tmplCtx)
-					} else {
-						content = t.Content
-					}
+				content = g.loadAndRenderTemplate(ctx, tpath, tmplCtx)
+				if content != "" {
 					break
 				}
 			}
 		}
 	}
 
-	// Use default content if template not found
+	// 4. Use default content if template not found
 	if content == "" {
 		content = generateDefaultGateContent(gate)
 	}
 
 	return content
+}
+
+// loadAndRenderTemplate loads a template file and renders it with context.
+func (g *TaskGenerator) loadAndRenderTemplate(ctx context.Context, path string, tmplCtx *tpl.Context) string {
+	loader := tpl.NewLoader()
+	t, err := loader.Load(ctx, path)
+	if err != nil {
+		return ""
+	}
+
+	// Only render if template has Go template syntax
+	if strings.Contains(t.Content, "{{") {
+		content, _ := g.manager.Render(t, tmplCtx)
+		return content
+	}
+	return t.Content
+}
+
+// buildTemplatePaths returns a list of possible file paths for a template.
+// Tries multiple extensions and directory structures.
+func buildTemplatePaths(templateRoot, templatePath string) []string {
+	var paths []string
+
+	// Normalize template path - remove any leading prefixes
+	normalized := templatePath
+	for _, prefix := range []string{"gates/", "phases/"} {
+		if strings.HasPrefix(normalized, prefix) {
+			normalized = strings.TrimPrefix(normalized, prefix)
+			break
+		}
+	}
+
+	// New structure with .tmpl extension (preferred)
+	// e.g., agent/gates/implementation/testing -> agent/gates/implementation/testing.tmpl
+	paths = append(paths, filepath.Join(templateRoot, templatePath+".tmpl"))
+
+	// New structure without extension prefix
+	// e.g., implementation/testing -> agent/gates/implementation/testing.tmpl
+	if !strings.HasPrefix(templatePath, "agent/") {
+		paths = append(paths, filepath.Join(templateRoot, "agent", "gates", normalized+".tmpl"))
+	}
+
+	// Legacy .md extension
+	paths = append(paths, filepath.Join(templateRoot, templatePath+".md"))
+
+	// Legacy gates/ structure
+	paths = append(paths, filepath.Join(templateRoot, "gates", normalized+".md"))
+
+	// Legacy phases/ structure
+	// e.g., phases/implementation/gates/testing.md
+	if strings.Contains(normalized, "/") {
+		parts := strings.SplitN(normalized, "/", 2)
+		if len(parts) == 2 {
+			paths = append(paths, filepath.Join(templateRoot, "phases", parts[0], "gates", parts[1]+".md"))
+		}
+	}
+
+	return paths
 }
 
 // generateDefaultGateContent creates default content for a gate task.
@@ -520,22 +563,49 @@ func FindSequencesWithInfo(festivalRoot string, excludePatterns []string) ([]Seq
 	return sequences, nil
 }
 
-// DiscoverGatesForPhaseType reads gate templates from the template root's phases/{phase_type}/gates/ directory.
-// If templateRoot is empty, falls back to festivalPath.
-// Returns gate tasks constructed from the .md files found in that directory.
-// Returns an error if the directory doesn't exist or contains no gates.
+// DiscoverGatesForPhaseType discovers gates for a phase type.
+// It tries sources in this order:
+// 1. gates.yaml at templateRoot/agent/gates/{phaseType}/gates.yaml (preferred - defines order)
+// 2. Directory listing of templateRoot/agent/gates/{phaseType}/*.tmpl (legacy fallback)
+// 3. Directory listing of templateRoot/phases/{phaseType}/gates/*.md (old legacy fallback)
+// Returns an error if no gates can be found.
 func DiscoverGatesForPhaseType(templateRoot, phaseType string) ([]GateTask, error) {
-	gatesDir := filepath.Join(templateRoot, "phases", phaseType, "gates")
-
-	// Check if directory exists
-	if _, err := os.Stat(gatesDir); os.IsNotExist(err) {
-		return nil, errors.NotFound("gates directory for phase type").
-			WithField("phase_type", phaseType).
-			WithField("path", gatesDir).
-			WithField("hint", fmt.Sprintf("Create gates directory: %s", gatesDir))
+	// Try gates.yaml first (preferred - defines explicit ordering)
+	if gates, err := LoadGatesYaml(templateRoot, phaseType); err == nil {
+		return gates, nil
 	}
 
-	// Read all .md files from the directory
+	// Try new template structure: agent/gates/{phaseType}/*.tmpl
+	newGatesDir := filepath.Join(templateRoot, "agent", "gates", phaseType)
+	if _, err := os.Stat(newGatesDir); err == nil {
+		gates, err := discoverGatesFromDirectory(newGatesDir, phaseType, ".tmpl")
+		if err == nil && len(gates) > 0 {
+			return gates, nil
+		}
+	}
+
+	// Legacy fallback: phases/{phaseType}/gates/*.md
+	legacyGatesDir := filepath.Join(templateRoot, "phases", phaseType, "gates")
+	if _, err := os.Stat(legacyGatesDir); err == nil {
+		gates, err := discoverGatesFromDirectory(legacyGatesDir, phaseType, ".md")
+		if err == nil && len(gates) > 0 {
+			return gates, nil
+		}
+	}
+
+	return nil, errors.NotFound("gates for phase type").
+		WithField("phase_type", phaseType).
+		WithField("tried_paths", []string{
+			filepath.Join(templateRoot, "agent", "gates", phaseType, "gates.yaml"),
+			newGatesDir,
+			legacyGatesDir,
+		}).
+		WithField("hint", fmt.Sprintf("Create gates.yaml at templates/agent/gates/%s/gates.yaml", phaseType))
+}
+
+// discoverGatesFromDirectory reads gate templates from a directory.
+// Returns gate tasks constructed from the files found.
+func discoverGatesFromDirectory(gatesDir, phaseType, extension string) ([]GateTask, error) {
 	entries, err := os.ReadDir(gatesDir)
 	if err != nil {
 		return nil, errors.IO("reading gates directory", err).
@@ -544,23 +614,32 @@ func DiscoverGatesForPhaseType(templateRoot, phaseType string) ([]GateTask, erro
 
 	var gates []GateTask
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+		if entry.IsDir() {
 			continue
 		}
 
-		// Extract gate ID from filename (e.g., "testing.md" -> "testing")
-		baseName := strings.TrimSuffix(entry.Name(), ".md")
+		// Skip non-matching extensions and gates.yaml
+		if !strings.HasSuffix(entry.Name(), extension) || entry.Name() == "gates.yaml" {
+			continue
+		}
+
+		// Extract gate ID from filename (e.g., "testing.tmpl" -> "testing")
+		baseName := strings.TrimSuffix(entry.Name(), extension)
 		gateID := strings.ReplaceAll(baseName, "-", "_")
 
-		// Build template path that matches the new structure
-		templatePath := fmt.Sprintf("gates/%s/%s", phaseType, baseName)
+		// Build template path
+		templatePath := filepath.Join("agent", "gates", phaseType, baseName)
 
-		// Try to read gate name from frontmatter if available
+		// Generate human-readable name
 		gateName := strings.Title(strings.ReplaceAll(baseName, "_", " "))
-		filePath := filepath.Join(gatesDir, entry.Name())
-		if content, err := os.ReadFile(filePath); err == nil {
-			if fm, _, err := frontmatter.Parse(content); err == nil && fm != nil && fm.Name != "" {
-				gateName = fm.Name
+
+		// Try to read gate name from frontmatter if it's an .md file
+		if extension == ".md" {
+			filePath := filepath.Join(gatesDir, entry.Name())
+			if content, err := os.ReadFile(filePath); err == nil {
+				if fm, _, err := frontmatter.Parse(content); err == nil && fm != nil && fm.Name != "" {
+					gateName = fm.Name
+				}
 			}
 		}
 
@@ -598,4 +677,73 @@ func inferGateType(gateID string) frontmatter.GateType {
 	default:
 		return frontmatter.GateTesting
 	}
+}
+
+// GatesConfig represents the structure of a gates.yaml file.
+type GatesConfig struct {
+	Version   int              `yaml:"version"`
+	PhaseType string           `yaml:"phase_type"`
+	Gates     []GatesYamlEntry `yaml:"gates"`
+}
+
+// GatesYamlEntry represents a single gate entry in gates.yaml.
+type GatesYamlEntry struct {
+	ID       string `yaml:"id"`
+	Template string `yaml:"template"`
+	Name     string `yaml:"name"`
+	Enabled  bool   `yaml:"enabled"`
+}
+
+// LoadGatesYaml loads gate configuration from a gates.yaml file for a specific phase type.
+// It looks for the file at templateRoot/agent/gates/{phaseType}/gates.yaml.
+func LoadGatesYaml(templateRoot, phaseType string) ([]GateTask, error) {
+	// Build path to gates.yaml
+	gatesYamlPath := filepath.Join(templateRoot, "agent", "gates", phaseType, "gates.yaml")
+
+	// Check if file exists
+	if _, err := os.Stat(gatesYamlPath); os.IsNotExist(err) {
+		return nil, errors.NotFound("gates.yaml file").
+			WithField("phase_type", phaseType).
+			WithField("path", gatesYamlPath)
+	}
+
+	// Read file
+	data, err := os.ReadFile(gatesYamlPath)
+	if err != nil {
+		return nil, errors.IO("reading gates.yaml", err).
+			WithField("path", gatesYamlPath)
+	}
+
+	// Parse YAML
+	var config GatesConfig
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return nil, errors.Parse("parsing gates.yaml", err).
+			WithField("path", gatesYamlPath)
+	}
+
+	// Convert to GateTask slice
+	var gates []GateTask
+	for _, entry := range config.Gates {
+		if !entry.Enabled {
+			continue
+		}
+
+		// Build full template path: agent/gates/{phaseType}/{template}
+		templatePath := filepath.Join("agent", "gates", phaseType, entry.Template)
+
+		gates = append(gates, GateTask{
+			ID:       entry.ID,
+			Template: templatePath,
+			Name:     entry.Name,
+			Enabled:  entry.Enabled,
+		})
+	}
+
+	if len(gates) == 0 {
+		return nil, errors.Validation("no enabled gates in gates.yaml").
+			WithField("phase_type", phaseType).
+			WithField("path", gatesYamlPath)
+	}
+
+	return gates, nil
 }

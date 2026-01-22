@@ -1,0 +1,26 @@
+# Gate ordering for implementation phases
+# Gates are applied in the order listed below
+
+version: 1
+phase_type: implementation
+
+gates:
+  - id: testing
+    template: testing
+    name: Testing and Verification
+    enabled: true
+
+  - id: review
+    template: review
+    name: Code Review
+    enabled: true
+
+  - id: iterate
+    template: iterate
+    name: Review Results and Iterate
+    enabled: true
+
+  - id: commit
+    template: commit
+    name: Commit Changes
+    enabled: true

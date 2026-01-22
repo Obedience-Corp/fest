@@ -101,7 +101,8 @@ func SaveFestivalConfig(festivalPath string, cfg *FestivalConfig) error {
 }
 
 // DefaultFestivalConfig returns the default festival configuration.
-// Note: Template paths reference the templates directory structure.
+// Note: Template paths reference the templates/agent/gates/ directory structure.
+// Gate IDs match template filenames (snake_case, no extension).
 func DefaultFestivalConfig() *FestivalConfig {
 	return &FestivalConfig{
 		Version: "1.0",
@@ -109,39 +110,39 @@ func DefaultFestivalConfig() *FestivalConfig {
 			Enabled:    true,
 			AutoAppend: true,
 			// Legacy Tasks field for backwards compatibility (implementation only)
-			// Note: IDs should match template filenames (without .md extension)
+			// IDs match template filenames in templates/agent/gates/implementation/
 			Tasks: []QualityGateTask{
-				{ID: "QUALITY_GATE_TESTING", Template: "phases/implementation/gates/QUALITY_GATE_TESTING", Name: "Testing and Verification", Enabled: true},
-				{ID: "QUALITY_GATE_REVIEW", Template: "phases/implementation/gates/QUALITY_GATE_REVIEW", Name: "Code Review", Enabled: true},
-				{ID: "QUALITY_GATE_ITERATE", Template: "phases/implementation/gates/QUALITY_GATE_ITERATE", Name: "Review Results and Iterate", Enabled: true},
-				{ID: "QUALITY_GATE_COMMIT", Template: "phases/implementation/gates/QUALITY_GATE_COMMIT", Name: "Commit Changes", Enabled: true},
+				{ID: "testing", Template: "agent/gates/implementation/testing", Name: "Testing and Verification", Enabled: true},
+				{ID: "review", Template: "agent/gates/implementation/review", Name: "Code Review", Enabled: true},
+				{ID: "iterate", Template: "agent/gates/implementation/iterate", Name: "Review Results and Iterate", Enabled: true},
+				{ID: "commit", Template: "agent/gates/implementation/commit", Name: "Commit Changes", Enabled: true},
 			},
 			// PhaseGates specifies gate ordering per phase type
-			// Note: IDs should match template filenames (without .md extension)
+			// IDs match template filenames in templates/agent/gates/{phase_type}/
+			// Note: The source of truth is gates.yaml in each phase type's directory.
+			// These defaults are fallbacks if gates.yaml is not present.
 			PhaseGates: map[string][]QualityGateTask{
 				"implementation": {
-					{ID: "QUALITY_GATE_TESTING", Template: "phases/implementation/gates/QUALITY_GATE_TESTING", Name: "Testing and Verification", Enabled: true},
-					{ID: "QUALITY_GATE_REVIEW", Template: "phases/implementation/gates/QUALITY_GATE_REVIEW", Name: "Code Review", Enabled: true},
-					{ID: "QUALITY_GATE_ITERATE", Template: "phases/implementation/gates/QUALITY_GATE_ITERATE", Name: "Review Results and Iterate", Enabled: true},
-					{ID: "QUALITY_GATE_COMMIT", Template: "phases/implementation/gates/QUALITY_GATE_COMMIT", Name: "Commit Changes", Enabled: true},
+					{ID: "testing", Template: "agent/gates/implementation/testing", Name: "Testing and Verification", Enabled: true},
+					{ID: "review", Template: "agent/gates/implementation/review", Name: "Code Review", Enabled: true},
+					{ID: "iterate", Template: "agent/gates/implementation/iterate", Name: "Review Results and Iterate", Enabled: true},
+					{ID: "commit", Template: "agent/gates/implementation/commit", Name: "Commit Changes", Enabled: true},
 				},
 				"planning": {
-					{ID: "plan_review", Template: "phases/planning/gates/plan_review", Name: "Planning Review", Enabled: true},
-					{ID: "decision_validation", Template: "phases/planning/gates/decision_validation", Name: "Decision Validation", Enabled: true},
-					{ID: "approval", Template: "phases/planning/gates/approval", Name: "Planning Approval", Enabled: true},
+					{ID: "plan_review", Template: "agent/gates/planning/plan_review", Name: "Planning Review", Enabled: true},
+					{ID: "approval", Template: "agent/gates/planning/approval", Name: "Planning Approval", Enabled: true},
 				},
 				"research": {
-					{ID: "findings_review", Template: "phases/research/gates/findings_review", Name: "Findings Review", Enabled: true},
-					{ID: "documentation", Template: "phases/research/gates/documentation", Name: "Documentation", Enabled: true},
-					{ID: "summary", Template: "phases/research/gates/summary", Name: "Research Summary", Enabled: true},
+					{ID: "findings_review", Template: "agent/gates/research/findings_review", Name: "Findings Review", Enabled: true},
+					{ID: "documentation", Template: "agent/gates/research/documentation", Name: "Documentation", Enabled: true},
 				},
 				"review": {
-					{ID: "checklist", Template: "phases/review/gates/checklist", Name: "Review Checklist", Enabled: true},
-					{ID: "sign_off", Template: "phases/review/gates/sign_off", Name: "Sign-off", Enabled: true},
+					{ID: "checklist", Template: "agent/gates/review/checklist", Name: "Review Checklist", Enabled: true},
+					{ID: "sign_off", Template: "agent/gates/review/sign_off", Name: "Sign-off", Enabled: true},
 				},
 				"non_coding_action": {
-					{ID: "action_verify", Template: "phases/non_coding_action/gates/action_verify", Name: "Execution & Verify", Enabled: true},
-					{ID: "completion", Template: "phases/non_coding_action/gates/completion", Name: "Completion", Enabled: true},
+					{ID: "action_verify", Template: "agent/gates/non_coding_action/action_verify", Name: "Execution and Verify", Enabled: true},
+					{ID: "completion", Template: "agent/gates/non_coding_action/completion", Name: "Completion", Enabled: true},
 				},
 			},
 		},
