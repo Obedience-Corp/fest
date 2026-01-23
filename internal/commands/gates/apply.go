@@ -180,11 +180,15 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 	// Find sequences to process
 	var sequences []gatescore.SequenceInfo
 	if sequencePath != "" {
-		// Single sequence
+		// Single sequence - detect phase type from PHASE_GOAL.md
+		phaseType := gatescore.DetectPhaseType(phasePath)
+		phaseName := filepath.Base(phasePath)
 		sequences = []gatescore.SequenceInfo{{
 			Path:      sequencePath,
 			PhasePath: phasePath,
 			Name:      filepath.Base(sequencePath),
+			PhaseType: phaseType,
+			PhaseName: phaseName,
 		}}
 	} else {
 		// Find all implementation sequences
