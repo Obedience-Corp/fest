@@ -110,17 +110,19 @@ func (g *TaskGenerator) GenerateForSequence(
 		taskFileName := tpl.FormatTaskID(taskNum, gate.ID)
 		taskPath := filepath.Join(sequencePath, taskFileName)
 
-		// Check if file already exists at the target path
-		if _, err := os.Stat(taskPath); err == nil {
+		// Check if a gate of this type already exists (any task number)
+		if existingPath := findExistingGate(entries, sequencePath, gate.ID); existingPath != "" {
 			if !opts.Force {
 				results = append(results, GenerateResult{
 					Type:   "skip",
-					Path:   taskPath,
+					Path:   existingPath,
 					TaskID: gate.ID,
-					Reason: "file_exists",
+					Reason: "gate_exists",
 				})
 				continue
 			}
+			// With --force, overwrite the existing file instead of creating new
+			taskPath = existingPath
 		}
 
 		// Create the task
@@ -164,6 +166,62 @@ func (g *TaskGenerator) GenerateForSequence(
 	}
 
 	return results, warnings, nil
+}
+
+// findExistingGate checks if a gate with the given type already exists in the sequence.
+// Returns the path of the existing file, or empty string if not found.
+func findExistingGate(entries []os.DirEntry, sequencePath, gateType string) string {
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".md") {
+			continue
+		}
+		filePath := filepath.Join(sequencePath, name)
+		if hasGateType(filePath, gateType) {
+			return filePath
+		}
+	}
+	return ""
+}
+
+// hasGateType checks if a file is a gate document with the specified gate type.
+func hasGateType(filePath, gateType string) bool {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return false
+	}
+
+	lines := strings.Split(string(content), "\n")
+	inFrontmatter := false
+	isGate := false
+	matchesType := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "---" {
+			if inFrontmatter {
+				break // End of frontmatter
+			}
+			inFrontmatter = true
+			continue
+		}
+		if !inFrontmatter {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "fest_type:") && strings.Contains(trimmed, "gate") {
+			isGate = true
+		}
+		if strings.HasPrefix(trimmed, "fest_gate_type:") {
+			parts := strings.SplitN(trimmed, ":", 2)
+			if len(parts) == 2 && strings.TrimSpace(parts[1]) == gateType {
+				matchesType = true
+			}
+		}
+	}
+	return isGate && matchesType
 }
 
 // renderGateContent renders the content for a gate task file.
@@ -483,6 +541,8 @@ func inferGateType(gateID string) frontmatter.GateType {
 		return frontmatter.GateReview
 	case strings.Contains(lower, "iterate") || strings.Contains(lower, "iteration"):
 		return frontmatter.GateIterate
+	case strings.Contains(lower, "commit"):
+		return frontmatter.GateCommit
 	case strings.Contains(lower, "security"):
 		return frontmatter.GateSecurity
 	case strings.Contains(lower, "performance") || strings.Contains(lower, "perf"):

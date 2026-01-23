@@ -153,6 +153,8 @@ func inferGateType(filename string) GateType {
 		return GateReview
 	case strings.Contains(lower, "iterate"):
 		return GateIterate
+	case strings.Contains(lower, "commit"):
+		return GateCommit
 	case strings.Contains(lower, "security"):
 		return GateSecurity
 	case strings.Contains(lower, "performance") || strings.Contains(lower, "perf"):
