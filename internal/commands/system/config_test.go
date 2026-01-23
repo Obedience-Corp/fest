@@ -131,6 +131,50 @@ func TestRunConfigTUIContextCancelled(t *testing.T) {
 	}
 }
 
+func TestEditStringSettingContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	cfg := config.DefaultConfig()
+	err := editStringSetting(ctx, cfg, "Test", "desc", &cfg.Behavior.Editor)
+	if err == nil {
+		t.Error("Expected error for cancelled context")
+	}
+}
+
+func TestEditBoolSettingContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	cfg := config.DefaultConfig()
+	err := editBoolSetting(ctx, cfg, "Test", "desc", &cfg.TUI.VimMode)
+	if err == nil {
+		t.Error("Expected error for cancelled context")
+	}
+}
+
+func TestEditIntSettingContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	cfg := config.DefaultConfig()
+	err := editIntSetting(ctx, cfg, "Test", "desc", &cfg.TUI.MaxInputHeight)
+	if err == nil {
+		t.Error("Expected error for cancelled context")
+	}
+}
+
+func TestEditThemeSettingContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	cfg := config.DefaultConfig()
+	err := editThemeSetting(ctx, cfg)
+	if err == nil {
+		t.Error("Expected error for cancelled context")
+	}
+}
+
 func TestConfigCommandShowFlag(t *testing.T) {
 	// Create temp config directory
 	tmpDir := t.TempDir()
@@ -201,18 +245,70 @@ func TestConfigDirUsed(t *testing.T) {
 	}
 }
 
+func TestTruncateStr(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		max    int
+		expect string
+	}{
+		{"empty returns not set", "", 10, "(not set)"},
+		{"short string unchanged", "hello", 10, "hello"},
+		{"exact length unchanged", "hello", 5, "hello"},
+		{"long string truncated", "hello world", 8, "hello..."},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := truncateStr(tt.input, tt.max)
+			if got != tt.expect {
+				t.Errorf("truncateStr(%q, %d) = %q, want %q", tt.input, tt.max, got, tt.expect)
+			}
+		})
+	}
+}
+
+func TestDisplayStr(t *testing.T) {
+	tests := []struct {
+		name   string
+		input  string
+		def    string
+		expect string
+	}{
+		{"empty returns default", "", "default", "default"},
+		{"non-empty returns input", "value", "default", "value"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := displayStr(tt.input, tt.def)
+			if got != tt.expect {
+				t.Errorf("displayStr(%q, %q) = %q, want %q", tt.input, tt.def, got, tt.expect)
+			}
+		})
+	}
+}
+
+func TestBoolDisplay(t *testing.T) {
+	if got := boolDisplay(true); got != "enabled" {
+		t.Errorf("boolDisplay(true) = %q, want %q", got, "enabled")
+	}
+	if got := boolDisplay(false); got != "disabled" {
+		t.Errorf("boolDisplay(false) = %q, want %q", got, "disabled")
+	}
+}
+
 func TestValidatePositiveIntEdgeCases(t *testing.T) {
 	tests := []struct {
 		name    string
 		input   string
 		wantErr bool
-		errMsg  string
 	}{
-		{"max int", "9223372036854775807", false, ""},
-		{"leading zeros", "007", false, ""},
-		{"plus sign", "+5", false, ""}, // Go's strconv.Atoi accepts +5
-		{"underscore separator", "1_000", true, ""},
-		{"hex notation", "0xFF", true, ""},
+		{"max int", "9223372036854775807", false},
+		{"leading zeros", "007", false},
+		{"plus sign", "+5", false},
+		{"underscore separator", "1_000", true},
+		{"hex notation", "0xFF", true},
 	}
 
 	for _, tt := range tests {

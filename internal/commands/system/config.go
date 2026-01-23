@@ -22,10 +22,10 @@ func NewConfigCommand() *cobra.Command {
 		Short: "Manage fest configuration settings",
 		Long: `Interactive TUI for managing fest configuration.
 
-All settings are displayed in a flat list for easy editing.
-Changes are saved to ~/.config/fest/config.json.
+Navigate to a setting to edit it. Changes are saved immediately.
+Configuration is stored in ~/.config/fest/config.json.
 
-Use arrow keys or j/k to navigate, Enter to edit, Esc to exit.`,
+Use arrow keys or j/k to navigate, Enter to select, Esc to exit.`,
 		Example: `  fest system config           # Open configuration TUI
   fest system config --show    # Display current configuration`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -42,7 +42,7 @@ Use arrow keys or j/k to navigate, Enter to edit, Esc to exit.`,
 	return cmd
 }
 
-// runConfigTUI runs the flat configuration settings form
+// runConfigTUI runs the navigable settings menu
 func runConfigTUI(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
@@ -58,82 +58,160 @@ func runConfigTUI(ctx context.Context) error {
 			return errors.Wrap(err, "context cancelled")
 		}
 
-		// Convert int to string for form input
-		maxHeightStr := strconv.Itoa(cfg.TUI.MaxInputHeight)
+		// Build menu options showing current values
+		options := []huh.Option[string]{
+			huh.NewOption(fmt.Sprintf("Repository URL      %s", truncateStr(cfg.Repository.URL, 30)), "repo_url"),
+			huh.NewOption(fmt.Sprintf("Repository Branch   %s", displayStr(cfg.Repository.Branch, "main")), "repo_branch"),
+			huh.NewOption(fmt.Sprintf("Repository Path     %s", displayStr(cfg.Repository.Path, ".festival")), "repo_path"),
+			huh.NewOption("─────────────────────", ""),
+			huh.NewOption(fmt.Sprintf("Editor              %s", displayStr(cfg.Behavior.Editor, "$EDITOR")), "editor"),
+			huh.NewOption("─────────────────────", ""),
+			huh.NewOption(fmt.Sprintf("Vim Mode            %s", boolDisplay(cfg.TUI.VimMode)), "vim_mode"),
+			huh.NewOption(fmt.Sprintf("Expand Inputs       %s", boolDisplay(cfg.TUI.ExpandInputs)), "expand_inputs"),
+			huh.NewOption(fmt.Sprintf("Max Input Height    %d", cfg.TUI.MaxInputHeight), "max_height"),
+			huh.NewOption(fmt.Sprintf("Theme               %s", cfg.TUI.Theme), "theme"),
+			huh.NewOption("─────────────────────", ""),
+			huh.NewOption("Exit", "exit"),
+		}
 
-		form := huh.NewForm(
-			huh.NewGroup(
-				huh.NewInput().
-					Title("Repository URL").
-					Description("GitHub repository for festival methodology templates").
-					Placeholder(config.DefaultRepositoryURL).
-					Value(&cfg.Repository.URL),
-				huh.NewInput().
-					Title("Repository Branch").
-					Description("Git branch to sync from").
-					Placeholder("main").
-					Value(&cfg.Repository.Branch),
-				huh.NewInput().
-					Title("Repository Path").
-					Description("Path within repository to methodology files").
-					Placeholder(config.DefaultRepoPath).
-					Value(&cfg.Repository.Path),
-			),
-			huh.NewGroup(
-				huh.NewInput().
-					Title("Editor").
-					Description("For wizard fill (empty = $EDITOR or vim)").
-					Placeholder("vim").
-					Value(&cfg.Behavior.Editor),
-			),
-			huh.NewGroup(
-				huh.NewConfirm().
-					Title("Vim Mode").
-					Description("Enable vim-style keybindings (j/k navigation)").
-					Value(&cfg.TUI.VimMode),
-				huh.NewConfirm().
-					Title("Expand Inputs").
-					Description("Auto-expand text areas as content grows").
-					Value(&cfg.TUI.ExpandInputs),
-				huh.NewInput().
-					Title("Max Input Height").
-					Description("Maximum lines for expandable text areas").
-					Placeholder("10").
-					Value(&maxHeightStr).
-					Validate(validatePositiveInt),
-				huh.NewSelect[string]().
-					Title("Theme").
-					Description("Color theme for TUI elements").
-					Options(
-						huh.NewOption("adaptive", "adaptive"),
-						huh.NewOption("light", "light"),
-						huh.NewOption("dark", "dark"),
-						huh.NewOption("high-contrast", "high-contrast"),
-					).
-					Value(&cfg.TUI.Theme),
-			),
-		)
+		var choice string
+		form := huh.NewForm(huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Configuration Settings").
+				Description("Select a setting to edit").
+				Options(options...).
+				Value(&choice),
+		))
 
 		if err := uitheme.RunForm(ctx, form); err != nil {
 			if uitheme.IsCancelled(err) {
-				return nil // ESC exits cleanly
+				return nil
 			}
 			return err
 		}
 
-		// Parse max height back to int
-		cfg.TUI.MaxInputHeight, _ = strconv.Atoi(maxHeightStr)
-
-		// Save the configuration
-		if err := config.Save(ctx, cfg); err != nil {
-			return errors.Wrap(err, "saving config")
+		switch choice {
+		case "exit", "":
+			return nil
+		case "repo_url":
+			editStringSetting(ctx, cfg, "Repository URL", "GitHub repository for festival methodology templates", &cfg.Repository.URL)
+		case "repo_branch":
+			editStringSetting(ctx, cfg, "Repository Branch", "Git branch to sync from", &cfg.Repository.Branch)
+		case "repo_path":
+			editStringSetting(ctx, cfg, "Repository Path", "Path within repository to methodology files", &cfg.Repository.Path)
+		case "editor":
+			editStringSetting(ctx, cfg, "Editor", "Preferred editor for wizard fill (empty = $EDITOR or vim)", &cfg.Behavior.Editor)
+		case "vim_mode":
+			editBoolSetting(ctx, cfg, "Vim Mode", "Enable vim-style keybindings (j/k navigation)", &cfg.TUI.VimMode)
+		case "expand_inputs":
+			editBoolSetting(ctx, cfg, "Expand Inputs", "Auto-expand text areas as content grows", &cfg.TUI.ExpandInputs)
+		case "max_height":
+			editIntSetting(ctx, cfg, "Max Input Height", "Maximum lines for expandable text areas", &cfg.TUI.MaxInputHeight)
+		case "theme":
+			editThemeSetting(ctx, cfg)
 		}
-
-		// Show confirmation and loop back
-		display := ui.New(false, false)
-		display.Success("Settings saved")
-		fmt.Println()
 	}
+}
+
+// editStringSetting prompts to edit a single string setting
+func editStringSetting(ctx context.Context, cfg *config.Config, title, description string, value *string) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled")
+	}
+
+	form := huh.NewForm(huh.NewGroup(
+		huh.NewInput().
+			Title(title).
+			Description(description).
+			Value(value),
+	))
+
+	if err := uitheme.RunForm(ctx, form); err != nil {
+		if uitheme.IsCancelled(err) {
+			return nil // Don't save on cancel
+		}
+		return err
+	}
+
+	return config.Save(ctx, cfg)
+}
+
+// editBoolSetting prompts to edit a single boolean setting
+func editBoolSetting(ctx context.Context, cfg *config.Config, title, description string, value *bool) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled")
+	}
+
+	form := huh.NewForm(huh.NewGroup(
+		huh.NewConfirm().
+			Title(title).
+			Description(description).
+			Value(value),
+	))
+
+	if err := uitheme.RunForm(ctx, form); err != nil {
+		if uitheme.IsCancelled(err) {
+			return nil
+		}
+		return err
+	}
+
+	return config.Save(ctx, cfg)
+}
+
+// editIntSetting prompts to edit a single integer setting
+func editIntSetting(ctx context.Context, cfg *config.Config, title, description string, value *int) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled")
+	}
+
+	strValue := strconv.Itoa(*value)
+	form := huh.NewForm(huh.NewGroup(
+		huh.NewInput().
+			Title(title).
+			Description(description).
+			Value(&strValue).
+			Validate(validatePositiveInt),
+	))
+
+	if err := uitheme.RunForm(ctx, form); err != nil {
+		if uitheme.IsCancelled(err) {
+			return nil
+		}
+		return err
+	}
+
+	*value, _ = strconv.Atoi(strValue)
+	return config.Save(ctx, cfg)
+}
+
+// editThemeSetting prompts to select a theme
+func editThemeSetting(ctx context.Context, cfg *config.Config) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled")
+	}
+
+	form := huh.NewForm(huh.NewGroup(
+		huh.NewSelect[string]().
+			Title("Theme").
+			Description("Color theme for TUI elements").
+			Options(
+				huh.NewOption("adaptive - Auto-detect light/dark", "adaptive"),
+				huh.NewOption("light - Optimized for light backgrounds", "light"),
+				huh.NewOption("dark - Optimized for dark backgrounds", "dark"),
+				huh.NewOption("high-contrast - Maximum visibility", "high-contrast"),
+			).
+			Value(&cfg.TUI.Theme),
+	))
+
+	if err := uitheme.RunForm(ctx, form); err != nil {
+		if uitheme.IsCancelled(err) {
+			return nil
+		}
+		return err
+	}
+
+	return config.Save(ctx, cfg)
 }
 
 // showCurrentConfig displays the current configuration as JSON
@@ -161,10 +239,39 @@ func showCurrentConfig(ctx context.Context) error {
 	return nil
 }
 
+// Helper functions
+
+// truncateStr truncates a string to max length with ellipsis
+func truncateStr(s string, max int) string {
+	if s == "" {
+		return "(not set)"
+	}
+	if len(s) <= max {
+		return s
+	}
+	return s[:max-3] + "..."
+}
+
+// displayStr returns the string or a default if empty
+func displayStr(s, def string) string {
+	if s == "" {
+		return def
+	}
+	return s
+}
+
+// boolDisplay returns "enabled" or "disabled"
+func boolDisplay(b bool) string {
+	if b {
+		return "enabled"
+	}
+	return "disabled"
+}
+
 // validatePositiveInt validates that input is a positive integer
 func validatePositiveInt(s string) error {
 	if s == "" {
-		return nil // Allow empty (will use default)
+		return nil
 	}
 	n, err := strconv.Atoi(s)
 	if err != nil {
