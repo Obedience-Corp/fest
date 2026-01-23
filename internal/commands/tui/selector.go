@@ -10,10 +10,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/charmbracelet/huh"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	uitheme "github.com/Obedience-Corp/fest/internal/ui/theme"
 	"github.com/Obedience-Corp/fest/internal/workspace"
+	"github.com/charmbracelet/huh"
 )
 
 // statusPriority defines sort order for festival statuses.

@@ -8,11 +8,11 @@ import (
 
 func TestFuzzyFinder_Find(t *testing.T) {
 	tests := []struct {
-		name     string
-		targets  []FuzzyTarget
-		pattern  string
-		wantLen  int
-		wantTop  string // expected top match name
+		name    string
+		targets []FuzzyTarget
+		pattern string
+		wantLen int
+		wantTop string // expected top match name
 	}{
 		{
 			name: "exact match",

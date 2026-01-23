@@ -333,9 +333,9 @@ This enables better visualization.
 			want: "Build a tree view for fest show.",
 		},
 		{
-			name: "with trailing punctuation",
+			name:    "with trailing punctuation",
 			content: `**Primary Goal:** Test goal extraction with punctuation!`,
-			want: "Test goal extraction with punctuation!",
+			want:    "Test goal extraction with punctuation!",
 		},
 	}
 

@@ -109,12 +109,12 @@ func TestRegistryDiscover(t *testing.T) {
 
 	// Create test templates
 	templates := map[string]string{
-		"FESTIVAL_GOAL_TEMPLATE.md":    "# Festival Goal\n[REPLACE: description]",
-		"PHASE_GOAL_TEMPLATE.md":       "# Phase Goal\n[REPLACE: objective]",
-		"SEQUENCE_GOAL_TEMPLATE.md":    "# Sequence Goal",
-		"TASK_TEMPLATE.md":             "# Task\n[REPLACE: task_name]",
-		"TASK_TEMPLATE_SIMPLE.md":      "# Simple Task",
-		"QUALITY_GATE_TESTING.md":      "# Testing Gate\n[REPLACE: criteria]",
+		"FESTIVAL_GOAL_TEMPLATE.md": "# Festival Goal\n[REPLACE: description]",
+		"PHASE_GOAL_TEMPLATE.md":    "# Phase Goal\n[REPLACE: objective]",
+		"SEQUENCE_GOAL_TEMPLATE.md": "# Sequence Goal",
+		"TASK_TEMPLATE.md":          "# Task\n[REPLACE: task_name]",
+		"TASK_TEMPLATE_SIMPLE.md":   "# Simple Task",
+		"QUALITY_GATE_TESTING.md":   "# Testing Gate\n[REPLACE: criteria]",
 	}
 
 	for name, content := range templates {

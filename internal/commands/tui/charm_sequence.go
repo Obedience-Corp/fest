@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/huh"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	uitheme "github.com/Obedience-Corp/fest/internal/ui/theme"
+	"github.com/charmbracelet/huh"
 )
 
 func charmCreateSequence(ctx context.Context) error {

@@ -111,7 +111,7 @@ func runSync(ctx context.Context, _ *cobra.Command, opts *syncOptions) error {
 
 	// Check if directory exists and we're not forcing
 	useGit := github.IsGitAvailable()
-	var remoteSHA string           // Used to store SHA after git sync
+	var remoteSHA string               // Used to store SHA after git sync
 	var newSyncState *github.SyncState // Used when templates actually changed
 
 	if fileExists(targetDir) && !opts.force {

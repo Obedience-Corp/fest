@@ -5,9 +5,9 @@ package theme
 import (
 	"context"
 
+	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/Obedience-Corp/fest/internal/config"
 )
 
 // ThemeName represents available theme options.

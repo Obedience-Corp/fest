@@ -16,11 +16,11 @@ import (
 
 // DisplayNode represents a node in the festival tree hierarchy.
 type DisplayNode struct {
-	Name     string          // Directory/file name
-	Goal     string          // Primary goal from *_GOAL.md
-	Status   string          // pending/in_progress/completed
-	Stats    StatusCounts    // Task counts for this level
-	NodeType string          // "festival", "phase", "sequence"
+	Name     string       // Directory/file name
+	Goal     string       // Primary goal from *_GOAL.md
+	Status   string       // pending/in_progress/completed
+	Stats    StatusCounts // Task counts for this level
+	NodeType string       // "festival", "phase", "sequence"
 	Children []*DisplayNode
 }
 

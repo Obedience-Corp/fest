@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/charmbracelet/huh"
 	festErrors "github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/charmbracelet/huh"
 )
 
 // Error codes for theme package.

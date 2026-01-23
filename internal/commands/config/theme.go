@@ -6,13 +6,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/charmbracelet/huh"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/ui/theme"
+	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )
 

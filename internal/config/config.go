@@ -186,9 +186,9 @@ func DefaultConfig() *Config {
 			RetryDelay: 1,
 		},
 		TUI: TUI{
-			VimMode:        false,     // Opt-in to avoid breaking existing workflows
-			ExpandInputs:   true,      // Good UX default
-			MaxInputHeight: 10,        // Reasonable limit for expandable inputs
+			VimMode:        false,      // Opt-in to avoid breaking existing workflows
+			ExpandInputs:   true,       // Good UX default
+			MaxInputHeight: 10,         // Reasonable limit for expandable inputs
 			Theme:          "adaptive", // Auto-detect light/dark terminal
 		},
 	}

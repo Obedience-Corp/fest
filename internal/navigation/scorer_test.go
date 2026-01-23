@@ -103,10 +103,10 @@ func TestScore(t *testing.T) {
 
 func TestIsWordBoundary(t *testing.T) {
 	tests := []struct {
-		name   string
-		s      string
-		pos    int
-		want   bool
+		name string
+		s    string
+		pos  int
+		want bool
 	}{
 		{"start of string", "test", 0, true},
 		{"after dash", "foo-bar", 4, true},
@@ -134,8 +134,8 @@ func TestIsCamelCaseBoundary(t *testing.T) {
 		want bool
 	}{
 		{"start of string", "Test", 0, false},
-		{"camelCase boundary", "festivalName", 8, true},    // N is uppercase after lowercase
-		{"PascalCase boundary", "FestivalName", 8, true},   // N is uppercase after lowercase
+		{"camelCase boundary", "festivalName", 8, true},  // N is uppercase after lowercase
+		{"PascalCase boundary", "FestivalName", 8, true}, // N is uppercase after lowercase
 		{"all lowercase", "festival", 4, false},
 		{"all uppercase", "FESTIVAL", 4, false},
 		{"end of string", "test", 4, false},
