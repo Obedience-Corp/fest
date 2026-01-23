@@ -191,24 +191,40 @@ func printGatesShowMergedTable(cmd *cobra.Command, merged *gatescore.MergedPolic
 		}
 	}
 
-	// Active gates
+	// Active gates organized by phase type
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, ui.H2("Active Gates"))
 
-	// Gates
 	activeGates := merged.GetActiveGates()
 	if len(activeGates) == 0 {
 		fmt.Fprintln(out, ui.Dim("No active gates."))
-	}
-	for _, gate := range activeGates {
-		source := "builtin"
-		if gate.Source != nil {
-			source = string(gate.Source.Level)
+	} else {
+		// Group gates by phase type from template path (e.g., gates/implementation/...)
+		phaseGates := make(map[string][]gatescore.GateTask)
+		phaseOrder := []string{"implementation", "planning", "research", "review", "non_coding_action"}
+
+		for _, gate := range activeGates {
+			phaseType := extractPhaseFromTemplate(gate.Template)
+			phaseGates[phaseType] = append(phaseGates[phaseType], gate)
 		}
-		fmt.Fprintf(out, "%s %s %s\n",
-			ui.Value(gate.ID, ui.GateColor),
-			ui.Dim(fmt.Sprintf("[%s]", source)),
-			ui.Dim(gate.Template))
+
+		// Display gates grouped by phase type
+		for _, phaseType := range phaseOrder {
+			gates := phaseGates[phaseType]
+			if len(gates) == 0 {
+				continue
+			}
+			fmt.Fprintf(out, "\n%s\n", ui.Value(phaseType))
+			for _, gate := range gates {
+				source := "builtin"
+				if gate.Source != nil {
+					source = string(gate.Source.Level)
+				}
+				fmt.Fprintf(out, "  %s %s\n",
+					ui.Value(gate.ID, ui.GateColor),
+					ui.Dim(fmt.Sprintf("[%s]", source)))
+			}
+		}
 	}
 
 	// Show removed gates if any
@@ -478,3 +494,16 @@ func runGatesValidate(ctx context.Context, cmd *cobra.Command, fix, jsonOutput b
 }
 
 // Note: helper types and functions moved to gates_helpers.go
+
+// extractPhaseFromTemplate extracts the phase type from a template path.
+// e.g., "gates/implementation/QUALITY_GATE_TESTING" -> "implementation"
+func extractPhaseFromTemplate(template string) string {
+	// Expected format: gates/<phase_type>/<gate_name>
+	if strings.HasPrefix(template, "gates/") {
+		parts := strings.Split(template, "/")
+		if len(parts) >= 2 {
+			return parts[1]
+		}
+	}
+	return "other"
+}
