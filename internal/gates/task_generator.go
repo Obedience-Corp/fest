@@ -12,7 +12,6 @@ import (
 	"github.com/Obedience-Corp/fest/internal/festival"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
-	"gopkg.in/yaml.v3"
 )
 
 // TaskGenerator generates quality gate task files in sequences.
@@ -495,126 +494,6 @@ func FindSequencesWithInfo(festivalRoot string, excludePatterns []string) ([]Seq
 	return sequences, nil
 }
 
-// DiscoverFestivalGates discovers gates from the festival's gates/ directory.
-// Returns gates in order specified by gates.yaml, or alphabetical if not present.
-func DiscoverFestivalGates(festivalPath, phaseType string) ([]GateTask, error) {
-	phaseGatesDir := filepath.Join(festivalPath, "gates", phaseType)
-
-	// Check if directory exists
-	if _, err := os.Stat(phaseGatesDir); os.IsNotExist(err) {
-		return nil, errors.NotFound("festival gates directory").
-			WithField("path", phaseGatesDir).
-			WithField("phase_type", phaseType)
-	}
-
-	// Try gates.yaml first for explicit ordering
-	gatesYamlPath := filepath.Join(phaseGatesDir, "gates.yaml")
-	if gates, err := loadFestivalGatesYaml(gatesYamlPath, phaseType); err == nil {
-		return gates, nil
-	}
-
-	// Fall back to alphabetical directory listing
-	return discoverGatesFromFestivalDir(phaseGatesDir, phaseType)
-}
-
-// loadFestivalGatesYaml loads gate ordering from festival's gates/{phaseType}/gates.yaml.
-func loadFestivalGatesYaml(path, phaseType string) ([]GateTask, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, errors.IO("reading gates.yaml", err).WithField("path", path)
-	}
-
-	var config FestivalGatesConfig
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return nil, errors.Parse("parsing gates.yaml", err).WithField("path", path)
-	}
-
-	if len(config.Order) == 0 {
-		return nil, errors.Validation("no gates in order list").WithField("path", path)
-	}
-
-	var gates []GateTask
-	for _, filename := range config.Order {
-		// Remove .md extension if present for gate ID
-		gateName := strings.TrimSuffix(filename, ".md")
-		gateID := strings.ReplaceAll(gateName, "-", "_")
-
-		gates = append(gates, GateTask{
-			ID:       gateID,
-			Template: fmt.Sprintf("gates/%s/%s", phaseType, gateName),
-			Name:     formatGateName(gateName),
-			Enabled:  true,
-		})
-	}
-
-	return gates, nil
-}
-
-// discoverGatesFromFestivalDir reads gate files from a festival gates directory.
-// Returns gate tasks in alphabetical order by filename.
-func discoverGatesFromFestivalDir(gatesDir, phaseType string) ([]GateTask, error) {
-	entries, err := os.ReadDir(gatesDir)
-	if err != nil {
-		return nil, errors.IO("reading gates directory", err).
-			WithField("path", gatesDir)
-	}
-
-	var gates []GateTask
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-
-		// Skip non-.md files and gates.yaml
-		if !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "gates.yaml" {
-			continue
-		}
-
-		// Extract gate ID from filename (e.g., "QUALITY_GATE_TESTING.md" -> "QUALITY_GATE_TESTING")
-		baseName := strings.TrimSuffix(entry.Name(), ".md")
-		gateID := strings.ReplaceAll(baseName, "-", "_")
-
-		// Try to read gate name from frontmatter
-		gateName := formatGateName(baseName)
-		filePath := filepath.Join(gatesDir, entry.Name())
-		if content, err := os.ReadFile(filePath); err == nil {
-			if fm, _, err := frontmatter.Parse(content); err == nil && fm != nil && fm.Name != "" {
-				gateName = fm.Name
-			}
-		}
-
-		gates = append(gates, GateTask{
-			ID:       gateID,
-			Template: fmt.Sprintf("gates/%s/%s", phaseType, baseName),
-			Name:     gateName,
-			Enabled:  true,
-		})
-	}
-
-	if len(gates) == 0 {
-		return nil, errors.Validation("no gate files found in directory").
-			WithField("phase_type", phaseType).
-			WithField("path", gatesDir)
-	}
-
-	return gates, nil
-}
-
-// formatGateName formats a gate ID into a human-readable name.
-func formatGateName(gateID string) string {
-	// Replace underscores with spaces and capitalize words
-	name := strings.ReplaceAll(gateID, "_", " ")
-	name = strings.ReplaceAll(name, "-", " ")
-	// Simple title case
-	words := strings.Fields(name)
-	for i, word := range words {
-		if len(word) > 0 {
-			words[i] = strings.ToUpper(string(word[0])) + strings.ToLower(word[1:])
-		}
-	}
-	return strings.Join(words, " ")
-}
-
 // inferGateType infers the gate type from the gate ID.
 func inferGateType(gateID string) frontmatter.GateType {
 	lower := strings.ToLower(gateID)
@@ -632,11 +511,4 @@ func inferGateType(gateID string) frontmatter.GateType {
 	default:
 		return frontmatter.GateTesting
 	}
-}
-
-// FestivalGatesConfig represents the structure of a festival gates.yaml file.
-type FestivalGatesConfig struct {
-	Version   int      `yaml:"version"`
-	PhaseType string   `yaml:"phase_type"`
-	Order     []string `yaml:"order"` // List of gate filenames in order
 }
