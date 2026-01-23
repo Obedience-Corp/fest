@@ -37,6 +37,7 @@ type removedFileInfo struct {
 	Path     string `json:"path"`
 	GateID   string `json:"gate_id,omitempty"`
 	Sequence string `json:"sequence"`
+	Phase    string `json:"phase,omitempty"`
 }
 
 type removeSummary struct {
@@ -163,11 +164,16 @@ func runGatesRemove(ctx context.Context, cmd *cobra.Command, opts *removeOptions
 
 		if len(files) > 0 {
 			summary.SequencesUpdated++
+			phaseName := seq.PhaseName
+			if phaseName == "" {
+				phaseName = filepath.Base(seq.PhasePath)
+			}
 			for _, f := range files {
 				toRemove = append(toRemove, removedFileInfo{
 					Path:     f.Path,
 					GateID:   f.GateID,
 					Sequence: seq.Name,
+					Phase:    phaseName,
 				})
 			}
 		}
@@ -212,34 +218,75 @@ func runGatesRemove(ctx context.Context, cmd *cobra.Command, opts *removeOptions
 	// Human-readable output
 	out := cmd.OutOrStdout()
 
-	if opts.dryRun {
-		display.Info("Dry-run mode (use --approve to remove files)")
+	// Group by phase -> sequence -> gates
+	type seqInfo struct {
+		name  string
+		gates []string
 	}
-
-	display.Info("Found %d sequences, %d contain gate files", summary.TotalSequences, summary.SequencesUpdated)
+	type phaseInfo struct {
+		name      string
+		sequences map[string]*seqInfo
+		seqOrder  []string
+	}
+	phaseMap := make(map[string]*phaseInfo)
+	var phaseOrder []string
 
 	for _, f := range toRemove {
-		relPath := f.Path
-		if rel, err := filepath.Rel(festivalPath, f.Path); err == nil {
-			relPath = rel
-		}
-		if opts.dryRun {
-			display.Warning("  - %s", relPath)
-		} else {
-			display.Success("  ✓ Removed %s", relPath)
-		}
-	}
+		phaseName := f.Phase
+		seqName := f.Sequence
 
-	for _, w := range warnings {
-		display.Warning("  Warning: %s", w)
+		phase, exists := phaseMap[phaseName]
+		if !exists {
+			phase = &phaseInfo{
+				name:      phaseName,
+				sequences: make(map[string]*seqInfo),
+			}
+			phaseMap[phaseName] = phase
+			phaseOrder = append(phaseOrder, phaseName)
+		}
+
+		seq, exists := phase.sequences[seqName]
+		if !exists {
+			seq = &seqInfo{name: seqName}
+			phase.sequences[seqName] = seq
+			phase.seqOrder = append(phase.seqOrder, seqName)
+		}
+
+		gateID := f.GateID
+		if gateID == "" {
+			gateID = filepath.Base(f.Path)
+		}
+		seq.gates = append(seq.gates, gateID)
 	}
 
 	fmt.Fprintln(out)
+	for _, phaseName := range phaseOrder {
+		phase := phaseMap[phaseName]
+		fmt.Fprintf(out, "%s\n", ui.Phase(phase.name))
+		for _, seqName := range phase.seqOrder {
+			seq := phase.sequences[seqName]
+			fmt.Fprintf(out, "  %s\n", ui.Sequence(seq.name))
+			for _, g := range seq.gates {
+				fmt.Fprintf(out, "    %s\n", ui.Gate(g))
+			}
+		}
+		fmt.Fprintln(out)
+	}
+
+	// Show warnings
+	for _, w := range warnings {
+		display.Warning("Warning: %s", w)
+	}
+
+	// Summary
+	actionWord := "would be removed"
+	if !opts.dryRun {
+		actionWord = "removed"
+	}
+	display.Info("Summary: %d files %s", summary.FilesRemoved, actionWord)
+
 	if opts.dryRun {
-		display.Info("Summary: %d files would be removed", summary.FilesRemoved)
-		display.Info("Run with --approve to remove these files")
-	} else {
-		display.Info("Summary: %d files removed", summary.FilesRemoved)
+		display.Warning("Dry-run mode (use --approve to remove files)")
 	}
 
 	return nil
