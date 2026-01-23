@@ -151,7 +151,13 @@ func (g *TaskGenerator) GenerateForSequence(
 			if len(festivalPath) > 0 {
 				festPath = festivalPath[0]
 			}
-			content := g.renderGateContent(ctx, gate, taskNum, festPath)
+
+			content, err := g.renderGateContent(ctx, gate, taskNum, festPath)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "rendering gate content").
+					WithField("gate_id", gate.ID).
+					WithField("task_path", taskPath)
+			}
 
 			// Inject frontmatter if content doesn't already have it
 			if !strings.HasPrefix(strings.TrimSpace(content), "---") {
@@ -183,15 +189,15 @@ func (g *TaskGenerator) GenerateForSequence(
 }
 
 // renderGateContent renders the content for a gate task file.
-// festivalPath is used to resolve festival-local gates/ templates.
-// Template paths are resolved in this order:
-// 1. Festival-local: {festivalPath}/gates/{templateName}.md
-// 2. Catalog lookup by template ID
-// 3. New structure: {templateRoot}/{template}.tmpl (e.g., agent/gates/implementation/testing.tmpl)
-// 4. Legacy .md: {templateRoot}/{template}.md
-// 5. Default generated content
-func (g *TaskGenerator) renderGateContent(ctx context.Context, gate GateTask, taskNum int, festivalPath string) string {
-	// Build context
+// Loads directly from the festival's gates/ directory - no fallbacks.
+// Returns an error if the gate file cannot be found.
+func (g *TaskGenerator) renderGateContent(ctx context.Context, gate GateTask, taskNum int, festivalPath string) (string, error) {
+	if festivalPath == "" {
+		return "", errors.Validation("festivalPath required for gate rendering").
+			WithField("gate_id", gate.ID)
+	}
+
+	// Build template context
 	tmplCtx := tpl.NewContext()
 	tmplCtx.SetTask(taskNum, gate.ID)
 	if gate.Customizations != nil {
@@ -200,52 +206,51 @@ func (g *TaskGenerator) renderGateContent(ctx context.Context, gate GateTask, ta
 		}
 	}
 
-	var content string
-
-	// 1. Handle "gates/TEMPLATE_NAME" format - resolve from festival's gates/ directory first
-	if strings.HasPrefix(gate.Template, "gates/") && festivalPath != "" {
-		templateName := strings.TrimPrefix(gate.Template, "gates/")
-		gatesPath := filepath.Join(festivalPath, "gates", templateName+".md")
-
-		if _, err := os.Stat(gatesPath); err == nil {
-			content = g.loadAndRenderTemplate(ctx, gatesPath, tmplCtx)
-		}
+	// Extract phase type and gate name from template path
+	phaseType, gateName := extractPhaseAndGate(gate.Template)
+	if phaseType == "" || gateName == "" {
+		return "", errors.Validation("invalid gate template path").
+			WithField("template", gate.Template).
+			WithField("gate_id", gate.ID)
 	}
 
-	// 2. Try catalog if not found in festival gates/
-	if content == "" && g.catalog != nil {
-		templateID := gate.Template
-		// Strip common prefixes for catalog lookup
-		for _, prefix := range []string{"gates/", "agent/gates/"} {
-			if strings.HasPrefix(templateID, prefix) {
-				templateID = strings.TrimPrefix(templateID, prefix)
-				break
-			}
-		}
-		content, _ = g.manager.RenderByID(ctx, g.catalog, templateID, tmplCtx)
+	// Load from festival's gates directory - this MUST exist
+	gatesPath := filepath.Join(festivalPath, "gates", phaseType, gateName+".md")
+	if _, err := os.Stat(gatesPath); err != nil {
+		return "", errors.NotFound("gate file").
+			WithField("path", gatesPath).
+			WithField("gate_id", gate.ID).
+			WithField("phase_type", phaseType)
 	}
 
-	// 3. Try direct file load from template root
-	if content == "" && g.templateRoot != "" {
-		// Build list of possible paths to try
-		possiblePaths := buildTemplatePaths(g.templateRoot, gate.Template)
-
-		for _, tpath := range possiblePaths {
-			if _, err := os.Stat(tpath); err == nil {
-				content = g.loadAndRenderTemplate(ctx, tpath, tmplCtx)
-				if content != "" {
-					break
-				}
-			}
-		}
-	}
-
-	// 4. Use default content if template not found
+	content := g.loadAndRenderTemplate(ctx, gatesPath, tmplCtx)
 	if content == "" {
-		content = generateDefaultGateContent(gate)
+		return "", errors.IO("failed to load gate template", nil).
+			WithField("path", gatesPath)
 	}
 
-	return content
+	return content, nil
+}
+
+// extractPhaseAndGate extracts phase type and gate name from a template path.
+// Handles formats: "gates/{phaseType}/{gateName}", "{phaseType}/{gateName}"
+func extractPhaseAndGate(templatePath string) (phaseType, gateName string) {
+	// Strip common prefixes
+	path := templatePath
+	for _, prefix := range []string{"gates/", "agent/gates/"} {
+		if strings.HasPrefix(path, prefix) {
+			path = strings.TrimPrefix(path, prefix)
+			break
+		}
+	}
+
+	// Split into parts: should be {phaseType}/{gateName}
+	parts := strings.Split(path, "/")
+	if len(parts) >= 2 {
+		return parts[0], parts[len(parts)-1]
+	}
+
+	return "", ""
 }
 
 // loadAndRenderTemplate loads a template file and renders it with context.
@@ -264,79 +269,6 @@ func (g *TaskGenerator) loadAndRenderTemplate(ctx context.Context, path string, 
 	return t.Content
 }
 
-// buildTemplatePaths returns a list of possible file paths for a template.
-// Tries multiple extensions and directory structures.
-func buildTemplatePaths(templateRoot, templatePath string) []string {
-	var paths []string
-
-	// Normalize template path - remove any leading prefixes
-	normalized := templatePath
-	for _, prefix := range []string{"gates/", "phases/"} {
-		if strings.HasPrefix(normalized, prefix) {
-			normalized = strings.TrimPrefix(normalized, prefix)
-			break
-		}
-	}
-
-	// New structure with .tmpl extension (preferred)
-	// e.g., agent/gates/implementation/testing -> agent/gates/implementation/testing.tmpl
-	paths = append(paths, filepath.Join(templateRoot, templatePath+".tmpl"))
-
-	// New structure without extension prefix
-	// e.g., implementation/testing -> agent/gates/implementation/testing.tmpl
-	if !strings.HasPrefix(templatePath, "agent/") {
-		paths = append(paths, filepath.Join(templateRoot, "agent", "gates", normalized+".tmpl"))
-	}
-
-	// Legacy .md extension
-	paths = append(paths, filepath.Join(templateRoot, templatePath+".md"))
-
-	// Legacy gates/ structure
-	paths = append(paths, filepath.Join(templateRoot, "gates", normalized+".md"))
-
-	// Legacy phases/ structure
-	// e.g., phases/implementation/gates/testing.md
-	if strings.Contains(normalized, "/") {
-		parts := strings.SplitN(normalized, "/", 2)
-		if len(parts) == 2 {
-			paths = append(paths, filepath.Join(templateRoot, "phases", parts[0], "gates", parts[1]+".md"))
-		}
-	}
-
-	return paths
-}
-
-// generateDefaultGateContent creates default content for a gate task.
-func generateDefaultGateContent(gate GateTask) string {
-	name := gate.Name
-	if name == "" {
-		name = strings.ReplaceAll(gate.ID, "_", " ")
-		name = strings.Title(name)
-	}
-
-	return fmt.Sprintf(`# Task: %s
-
-## Objective
-
-%s
-
-## Requirements
-
-- [ ] Complete this quality gate task
-- [ ] Verify all requirements are met
-- [ ] Document any findings
-
-## Definition of Done
-
-- [ ] Task completed successfully
-- [ ] All checks pass
-- [ ] Ready to proceed
-
-## Notes
-
-[Add notes here]
-`, name, name)
-}
 
 // FindFestivalRoot finds the festival root directory from a starting path.
 func FindFestivalRoot(startPath string) (string, error) {
@@ -563,49 +495,64 @@ func FindSequencesWithInfo(festivalRoot string, excludePatterns []string) ([]Seq
 	return sequences, nil
 }
 
-// DiscoverGatesForPhaseType discovers gates for a phase type.
-// It tries sources in this order:
-// 1. gates.yaml at templateRoot/agent/gates/{phaseType}/gates.yaml (preferred - defines order)
-// 2. Directory listing of templateRoot/agent/gates/{phaseType}/*.tmpl (legacy fallback)
-// 3. Directory listing of templateRoot/phases/{phaseType}/gates/*.md (old legacy fallback)
-// Returns an error if no gates can be found.
-func DiscoverGatesForPhaseType(templateRoot, phaseType string) ([]GateTask, error) {
-	// Try gates.yaml first (preferred - defines explicit ordering)
-	if gates, err := LoadGatesYaml(templateRoot, phaseType); err == nil {
+// DiscoverFestivalGates discovers gates from the festival's gates/ directory.
+// Returns gates in order specified by gates.yaml, or alphabetical if not present.
+func DiscoverFestivalGates(festivalPath, phaseType string) ([]GateTask, error) {
+	phaseGatesDir := filepath.Join(festivalPath, "gates", phaseType)
+
+	// Check if directory exists
+	if _, err := os.Stat(phaseGatesDir); os.IsNotExist(err) {
+		return nil, errors.NotFound("festival gates directory").
+			WithField("path", phaseGatesDir).
+			WithField("phase_type", phaseType)
+	}
+
+	// Try gates.yaml first for explicit ordering
+	gatesYamlPath := filepath.Join(phaseGatesDir, "gates.yaml")
+	if gates, err := loadFestivalGatesYaml(gatesYamlPath, phaseType); err == nil {
 		return gates, nil
 	}
 
-	// Try new template structure: agent/gates/{phaseType}/*.tmpl
-	newGatesDir := filepath.Join(templateRoot, "agent", "gates", phaseType)
-	if _, err := os.Stat(newGatesDir); err == nil {
-		gates, err := discoverGatesFromDirectory(newGatesDir, phaseType, ".tmpl")
-		if err == nil && len(gates) > 0 {
-			return gates, nil
-		}
-	}
-
-	// Legacy fallback: phases/{phaseType}/gates/*.md
-	legacyGatesDir := filepath.Join(templateRoot, "phases", phaseType, "gates")
-	if _, err := os.Stat(legacyGatesDir); err == nil {
-		gates, err := discoverGatesFromDirectory(legacyGatesDir, phaseType, ".md")
-		if err == nil && len(gates) > 0 {
-			return gates, nil
-		}
-	}
-
-	return nil, errors.NotFound("gates for phase type").
-		WithField("phase_type", phaseType).
-		WithField("tried_paths", []string{
-			filepath.Join(templateRoot, "agent", "gates", phaseType, "gates.yaml"),
-			newGatesDir,
-			legacyGatesDir,
-		}).
-		WithField("hint", fmt.Sprintf("Create gates.yaml at embedded/templates/agent/gates/%s/gates.yaml", phaseType))
+	// Fall back to alphabetical directory listing
+	return discoverGatesFromFestivalDir(phaseGatesDir, phaseType)
 }
 
-// discoverGatesFromDirectory reads gate templates from a directory.
-// Returns gate tasks constructed from the files found.
-func discoverGatesFromDirectory(gatesDir, phaseType, extension string) ([]GateTask, error) {
+// loadFestivalGatesYaml loads gate ordering from festival's gates/{phaseType}/gates.yaml.
+func loadFestivalGatesYaml(path, phaseType string) ([]GateTask, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, errors.IO("reading gates.yaml", err).WithField("path", path)
+	}
+
+	var config FestivalGatesConfig
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return nil, errors.Parse("parsing gates.yaml", err).WithField("path", path)
+	}
+
+	if len(config.Order) == 0 {
+		return nil, errors.Validation("no gates in order list").WithField("path", path)
+	}
+
+	var gates []GateTask
+	for _, filename := range config.Order {
+		// Remove .md extension if present for gate ID
+		gateName := strings.TrimSuffix(filename, ".md")
+		gateID := strings.ReplaceAll(gateName, "-", "_")
+
+		gates = append(gates, GateTask{
+			ID:       gateID,
+			Template: fmt.Sprintf("gates/%s/%s", phaseType, gateName),
+			Name:     formatGateName(gateName),
+			Enabled:  true,
+		})
+	}
+
+	return gates, nil
+}
+
+// discoverGatesFromFestivalDir reads gate files from a festival gates directory.
+// Returns gate tasks in alphabetical order by filename.
+func discoverGatesFromFestivalDir(gatesDir, phaseType string) ([]GateTask, error) {
 	entries, err := os.ReadDir(gatesDir)
 	if err != nil {
 		return nil, errors.IO("reading gates directory", err).
@@ -618,46 +565,54 @@ func discoverGatesFromDirectory(gatesDir, phaseType, extension string) ([]GateTa
 			continue
 		}
 
-		// Skip non-matching extensions and gates.yaml
-		if !strings.HasSuffix(entry.Name(), extension) || entry.Name() == "gates.yaml" {
+		// Skip non-.md files and gates.yaml
+		if !strings.HasSuffix(entry.Name(), ".md") || entry.Name() == "gates.yaml" {
 			continue
 		}
 
-		// Extract gate ID from filename (e.g., "testing.tmpl" -> "testing")
-		baseName := strings.TrimSuffix(entry.Name(), extension)
+		// Extract gate ID from filename (e.g., "QUALITY_GATE_TESTING.md" -> "QUALITY_GATE_TESTING")
+		baseName := strings.TrimSuffix(entry.Name(), ".md")
 		gateID := strings.ReplaceAll(baseName, "-", "_")
 
-		// Build template path
-		templatePath := filepath.Join("agent", "gates", phaseType, baseName)
-
-		// Generate human-readable name
-		gateName := strings.Title(strings.ReplaceAll(baseName, "_", " "))
-
-		// Try to read gate name from frontmatter if it's an .md file
-		if extension == ".md" {
-			filePath := filepath.Join(gatesDir, entry.Name())
-			if content, err := os.ReadFile(filePath); err == nil {
-				if fm, _, err := frontmatter.Parse(content); err == nil && fm != nil && fm.Name != "" {
-					gateName = fm.Name
-				}
+		// Try to read gate name from frontmatter
+		gateName := formatGateName(baseName)
+		filePath := filepath.Join(gatesDir, entry.Name())
+		if content, err := os.ReadFile(filePath); err == nil {
+			if fm, _, err := frontmatter.Parse(content); err == nil && fm != nil && fm.Name != "" {
+				gateName = fm.Name
 			}
 		}
 
 		gates = append(gates, GateTask{
 			ID:       gateID,
-			Template: templatePath,
+			Template: fmt.Sprintf("gates/%s/%s", phaseType, baseName),
 			Name:     gateName,
 			Enabled:  true,
 		})
 	}
 
 	if len(gates) == 0 {
-		return nil, errors.Validation("no gate templates found in directory").
+		return nil, errors.Validation("no gate files found in directory").
 			WithField("phase_type", phaseType).
 			WithField("path", gatesDir)
 	}
 
 	return gates, nil
+}
+
+// formatGateName formats a gate ID into a human-readable name.
+func formatGateName(gateID string) string {
+	// Replace underscores with spaces and capitalize words
+	name := strings.ReplaceAll(gateID, "_", " ")
+	name = strings.ReplaceAll(name, "-", " ")
+	// Simple title case
+	words := strings.Fields(name)
+	for i, word := range words {
+		if len(word) > 0 {
+			words[i] = strings.ToUpper(string(word[0])) + strings.ToLower(word[1:])
+		}
+	}
+	return strings.Join(words, " ")
 }
 
 // inferGateType infers the gate type from the gate ID.
@@ -679,71 +634,9 @@ func inferGateType(gateID string) frontmatter.GateType {
 	}
 }
 
-// GatesConfig represents the structure of a gates.yaml file.
-type GatesConfig struct {
-	Version   int              `yaml:"version"`
-	PhaseType string           `yaml:"phase_type"`
-	Gates     []GatesYamlEntry `yaml:"gates"`
-}
-
-// GatesYamlEntry represents a single gate entry in gates.yaml.
-type GatesYamlEntry struct {
-	ID       string `yaml:"id"`
-	Template string `yaml:"template"`
-	Name     string `yaml:"name"`
-	Enabled  bool   `yaml:"enabled"`
-}
-
-// LoadGatesYaml loads gate configuration from a gates.yaml file for a specific phase type.
-// It looks for the file at templateRoot/agent/gates/{phaseType}/gates.yaml.
-func LoadGatesYaml(templateRoot, phaseType string) ([]GateTask, error) {
-	// Build path to gates.yaml
-	gatesYamlPath := filepath.Join(templateRoot, "agent", "gates", phaseType, "gates.yaml")
-
-	// Check if file exists
-	if _, err := os.Stat(gatesYamlPath); os.IsNotExist(err) {
-		return nil, errors.NotFound("gates.yaml file").
-			WithField("phase_type", phaseType).
-			WithField("path", gatesYamlPath)
-	}
-
-	// Read file
-	data, err := os.ReadFile(gatesYamlPath)
-	if err != nil {
-		return nil, errors.IO("reading gates.yaml", err).
-			WithField("path", gatesYamlPath)
-	}
-
-	// Parse YAML
-	var config GatesConfig
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return nil, errors.Parse("parsing gates.yaml", err).
-			WithField("path", gatesYamlPath)
-	}
-
-	// Convert to GateTask slice
-	var gates []GateTask
-	for _, entry := range config.Gates {
-		if !entry.Enabled {
-			continue
-		}
-
-		// Build full template path: agent/gates/{phaseType}/{template}
-		templatePath := filepath.Join("agent", "gates", phaseType, entry.Template)
-
-		gates = append(gates, GateTask{
-			ID:       entry.ID,
-			Template: templatePath,
-			Name:     entry.Name,
-			Enabled:  entry.Enabled,
-		})
-	}
-
-	if len(gates) == 0 {
-		return nil, errors.Validation("no enabled gates in gates.yaml").
-			WithField("phase_type", phaseType).
-			WithField("path", gatesYamlPath)
-	}
-
-	return gates, nil
+// FestivalGatesConfig represents the structure of a festival gates.yaml file.
+type FestivalGatesConfig struct {
+	Version   int      `yaml:"version"`
+	PhaseType string   `yaml:"phase_type"`
+	Order     []string `yaml:"order"` // List of gate filenames in order
 }

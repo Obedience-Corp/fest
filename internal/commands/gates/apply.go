@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
-	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	gatescore "github.com/Obedience-Corp/fest/internal/gates"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
@@ -209,12 +208,6 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 		return emitApplyError(opts, errors.Wrap(err, "finding template root").WithOp("runGatesApply"))
 	}
 
-	// Load festival config for gate ordering
-	festCfg, err := config.LoadFestivalConfig(festivalPath)
-	if err != nil {
-		return emitApplyError(opts, errors.Wrap(err, "loading festival config").WithOp("runGatesApply"))
-	}
-
 	// Create generator
 	generator, err := gatescore.NewTaskGenerator(ctx, tmplRoot)
 	if err != nil {
@@ -240,29 +233,14 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 			continue
 		}
 
-		// Get gates in configured order for this phase type
-		var sequenceGates []gatescore.GateTask
-		configGates := festCfg.GetGatesForPhaseType(seq.PhaseType)
-		if len(configGates) > 0 {
-			// Use configured gate ordering
-			sequenceGates = make([]gatescore.GateTask, len(configGates))
-			for i, qt := range configGates {
-				sequenceGates[i] = gatescore.GateTaskFromQualityGateTask(qt)
-			}
-			if shared.IsVerbose() {
-				fmt.Fprintf(cmd.OutOrStdout(), "  Phase %s: using %d configured %s gates\n", seq.PhaseName, len(sequenceGates), seq.PhaseType)
-			}
-		} else {
-			// Fallback to filesystem discovery if no config
-			var discoverErr error
-			sequenceGates, discoverErr = gatescore.DiscoverGatesForPhaseType(tmplRoot, seq.PhaseType)
-			if discoverErr != nil {
-				warnings = append(warnings, fmt.Sprintf("Phase %s: %v", seq.PhaseName, discoverErr))
-				continue
-			}
-			if shared.IsVerbose() {
-				fmt.Fprintf(cmd.OutOrStdout(), "  Phase %s: discovered %d %s gates (fallback)\n", seq.PhaseName, len(sequenceGates), seq.PhaseType)
-			}
+		// Get gates from festival's gates/ directory - this is the source of truth
+		sequenceGates, discoverErr := gatescore.DiscoverFestivalGates(festivalPath, seq.PhaseType)
+		if discoverErr != nil {
+			warnings = append(warnings, fmt.Sprintf("Phase %s: no gates found in gates/%s/", seq.PhaseName, seq.PhaseType))
+			continue
+		}
+		if shared.IsVerbose() {
+			fmt.Fprintf(cmd.OutOrStdout(), "  Phase %s: using %d %s gates from festival\n", seq.PhaseName, len(sequenceGates), seq.PhaseType)
 		}
 
 		// Skip sequences in phases with no gates
