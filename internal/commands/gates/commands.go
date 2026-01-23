@@ -187,7 +187,7 @@ func printGatesShowMergedTable(cmd *cobra.Command, merged *gatescore.MergedPolic
 			if target == "" {
 				target = src.Name
 			}
-			fmt.Fprintf(out, "%s %s\n", ui.Dim(fmt.Sprintf("[%s]", src.Level)), ui.Dim(target))
+			fmt.Fprintf(out, "  %s\n", ui.Dim(target))
 		}
 	}
 
@@ -216,13 +216,7 @@ func printGatesShowMergedTable(cmd *cobra.Command, merged *gatescore.MergedPolic
 			}
 			fmt.Fprintf(out, "\n%s\n", ui.Value(phaseType))
 			for _, gate := range gates {
-				source := "builtin"
-				if gate.Source != nil {
-					source = string(gate.Source.Level)
-				}
-				fmt.Fprintf(out, "  %s %s\n",
-					ui.Value(gate.ID, ui.GateColor),
-					ui.Dim(fmt.Sprintf("[%s]", source)))
+				fmt.Fprintf(out, "  %s\n", ui.Value(gate.ID, ui.GateColor))
 			}
 		}
 	}
