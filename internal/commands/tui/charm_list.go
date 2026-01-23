@@ -86,9 +86,9 @@ func StartGoListTUI(ctx context.Context) (string, error) {
 				Options(opts...).
 				Value(&selected),
 		),
-	).WithTheme(uitheme.FestTheme())
+	)
 
-	if err := form.Run(); err != nil {
+	if err := uitheme.RunForm(ctx, form); err != nil {
 		// Silent exit on user cancel (Ctrl-C or Esc)
 		if uitheme.IsCancelled(err) {
 			return "", nil

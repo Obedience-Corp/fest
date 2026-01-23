@@ -50,14 +50,14 @@ func createTaskInSequence(ctx context.Context, sequencePath string) error {
 	var name string
 
 	// Task name form
-	if err := huh.NewForm(huh.NewGroup(
+	if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(
 		huh.NewInput().
 			Title("Task name").
 			Placeholder("implement_feature").
 			Description(fmt.Sprintf("Creating in: %s", filepath.Base(sequencePath))).
 			Value(&name).
 			Validate(notEmpty),
-	)).WithTheme(theme()).Run(); err != nil {
+	))); err != nil {
 		if uitheme.IsCancelled(err) {
 			return nil
 		}
@@ -69,14 +69,14 @@ func createTaskInSequence(ctx context.Context, sequencePath string) error {
 	var pos string
 	var afterStr string
 
-	if err := huh.NewForm(huh.NewGroup(
+	if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(
 		huh.NewSelect[string]().
 			Title("Position").
 			Options(
 				huh.NewOption("Append at end", "append"),
 				huh.NewOption("Insert after number", "insert"),
 			).Value(&pos),
-	)).WithTheme(theme()).Run(); err != nil {
+	))); err != nil {
 		if uitheme.IsCancelled(err) {
 			return nil
 		}
@@ -85,11 +85,11 @@ func createTaskInSequence(ctx context.Context, sequencePath string) error {
 
 	if pos == "insert" {
 		afterStr = fmt.Sprintf("%d", defAfter)
-		if err := huh.NewForm(huh.NewGroup(
+		if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(
 			huh.NewInput().
 				Title("Insert after number (0 to insert at beginning)").
 				Value(&afterStr),
-		)).WithTheme(theme()).Run(); err != nil {
+		))); err != nil {
 			if uitheme.IsCancelled(err) {
 				return nil
 			}
@@ -110,9 +110,9 @@ func createTaskInSequence(ctx context.Context, sequencePath string) error {
 			continue
 		}
 		var v string
-		if err := huh.NewForm(huh.NewGroup(
+		if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(
 			huh.NewInput().Title(k).Value(&v),
-		)).WithTheme(theme()).Run(); err != nil {
+		))); err != nil {
 			if uitheme.IsCancelled(err) {
 				return nil
 			}
@@ -162,15 +162,15 @@ func charmCreateTaskManual(ctx context.Context) error {
 			pOpts = append(pOpts, huh.NewOption("Other...", "__other__"))
 			pf := huh.NewForm(huh.NewGroup(
 				huh.NewSelect[string]().Title("Select phase").Options(pOpts...).Value(&pSel),
-			)).WithTheme(theme())
-			if err := pf.Run(); err != nil {
+			))
+			if err := uitheme.RunForm(ctx, pf); err != nil {
 				if uitheme.IsCancelled(err) {
 					return nil
 				}
 				return err
 			}
 			if pSel == "__other__" {
-				if err := huh.NewForm(huh.NewGroup(huh.NewInput().Title("Phase (dir or number)").Value(&path))).WithTheme(theme()).Run(); err != nil {
+				if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(huh.NewInput().Title("Phase (dir or number)").Value(&path)))); err != nil {
 					if uitheme.IsCancelled(err) {
 						return nil
 					}
@@ -185,7 +185,7 @@ func charmCreateTaskManual(ctx context.Context) error {
 				phasePath = pSel
 			}
 		} else {
-			if err := huh.NewForm(huh.NewGroup(huh.NewInput().Title("Phase (dir or number)").Value(&path))).WithTheme(theme()).Run(); err != nil {
+			if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(huh.NewInput().Title("Phase (dir or number)").Value(&path)))); err != nil {
 				if uitheme.IsCancelled(err) {
 					return nil
 				}
@@ -213,15 +213,15 @@ func charmCreateTaskManual(ctx context.Context) error {
 				huh.NewInput().Title("Task name").Placeholder("user_research").Value(&name).Validate(notEmpty),
 				huh.NewSelect[string]().Title("Select sequence").Options(sOpts...).Value(&sSel),
 			),
-		).WithTheme(theme())
-		if err := form.Run(); err != nil {
+		)
+		if err := uitheme.RunForm(ctx, form); err != nil {
 			if uitheme.IsCancelled(err) {
 				return nil
 			}
 			return err
 		}
 		if sSel == "__other__" {
-			if err := huh.NewForm(huh.NewGroup(huh.NewInput().Title("Sequence (dir or number)").Value(&path))).WithTheme(theme()).Run(); err != nil {
+			if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(huh.NewInput().Title("Sequence (dir or number)").Value(&path)))); err != nil {
 				if uitheme.IsCancelled(err) {
 					return nil
 				}
@@ -236,8 +236,8 @@ func charmCreateTaskManual(ctx context.Context) error {
 				huh.NewInput().Title("Task name").Placeholder("user_research").Value(&name).Validate(notEmpty),
 				huh.NewInput().Title("Sequence (dir or number, e.g., 01 or 01_requirements)").Placeholder(".").Value(&path),
 			),
-		).WithTheme(theme())
-		if err := form.Run(); err != nil {
+		)
+		if err := uitheme.RunForm(ctx, form); err != nil {
 			if uitheme.IsCancelled(err) {
 				return nil
 			}
@@ -251,12 +251,12 @@ func charmCreateTaskManual(ctx context.Context) error {
 	}
 	defAfter := nextTaskAfter(ctx, rs)
 	var pos string
-	if err := huh.NewForm(huh.NewGroup(
+	if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(
 		huh.NewSelect[string]().Title("Position").Options(
 			huh.NewOption("Append at end", "append"),
 			huh.NewOption("Insert after number", "insert"),
 		).Value(&pos),
-	)).WithTheme(theme()).Run(); err != nil {
+	))); err != nil {
 		if uitheme.IsCancelled(err) {
 			return nil
 		}
@@ -264,7 +264,7 @@ func charmCreateTaskManual(ctx context.Context) error {
 	}
 	if pos == "insert" {
 		afterStr = fmt.Sprintf("%d", defAfter)
-		if err := huh.NewForm(huh.NewGroup(huh.NewInput().Title("Insert after number (0 to insert at beginning)").Value(&afterStr))).WithTheme(theme()).Run(); err != nil {
+		if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(huh.NewInput().Title("Insert after number (0 to insert at beginning)").Value(&afterStr)))); err != nil {
 			if uitheme.IsCancelled(err) {
 				return nil
 			}
@@ -283,7 +283,7 @@ func charmCreateTaskManual(ctx context.Context) error {
 			continue
 		}
 		var v string
-		if err := huh.NewForm(huh.NewGroup(huh.NewInput().Title(k).Value(&v))).WithTheme(theme()).Run(); err != nil {
+		if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(huh.NewInput().Title(k).Value(&v)))); err != nil {
 			if uitheme.IsCancelled(err) {
 				return nil
 			}

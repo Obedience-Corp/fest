@@ -50,14 +50,14 @@ func createSequenceInPhase(ctx context.Context, phasePath string) error {
 	var name string
 
 	// Sequence name form
-	if err := huh.NewForm(huh.NewGroup(
+	if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(
 		huh.NewInput().
 			Title("Sequence name").
 			Placeholder("requirements").
 			Description(fmt.Sprintf("Creating in: %s", filepath.Base(phasePath))).
 			Value(&name).
 			Validate(notEmpty),
-	)).WithTheme(theme()).Run(); err != nil {
+	))); err != nil {
 		if uitheme.IsCancelled(err) {
 			return nil
 		}
@@ -69,14 +69,14 @@ func createSequenceInPhase(ctx context.Context, phasePath string) error {
 	var pos string
 	var afterStr string
 
-	if err := huh.NewForm(huh.NewGroup(
+	if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(
 		huh.NewSelect[string]().
 			Title("Position").
 			Options(
 				huh.NewOption("Append at end", "append"),
 				huh.NewOption("Insert after number", "insert"),
 			).Value(&pos),
-	)).WithTheme(theme()).Run(); err != nil {
+	))); err != nil {
 		if uitheme.IsCancelled(err) {
 			return nil
 		}
@@ -85,11 +85,11 @@ func createSequenceInPhase(ctx context.Context, phasePath string) error {
 
 	if pos == "insert" {
 		afterStr = fmt.Sprintf("%d", defAfter)
-		if err := huh.NewForm(huh.NewGroup(
+		if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(
 			huh.NewInput().
 				Title("Insert after number (0 to insert at beginning)").
 				Value(&afterStr),
-		)).WithTheme(theme()).Run(); err != nil {
+		))); err != nil {
 			if uitheme.IsCancelled(err) {
 				return nil
 			}
@@ -110,9 +110,9 @@ func createSequenceInPhase(ctx context.Context, phasePath string) error {
 			continue
 		}
 		var v string
-		if err := huh.NewForm(huh.NewGroup(
+		if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(
 			huh.NewInput().Title(k).Value(&v),
-		)).WithTheme(theme()).Run(); err != nil {
+		))); err != nil {
 			if uitheme.IsCancelled(err) {
 				return nil
 			}
@@ -161,15 +161,15 @@ func charmCreateSequenceManual(ctx context.Context) error {
 				huh.NewInput().Title("Sequence name").Placeholder("requirements").Value(&name).Validate(notEmpty),
 				huh.NewSelect[string]().Title("Select phase").Options(opts...).Value(&selected),
 			),
-		).WithTheme(theme())
-		if err := form.Run(); err != nil {
+		)
+		if err := uitheme.RunForm(ctx, form); err != nil {
 			if uitheme.IsCancelled(err) {
 				return nil
 			}
 			return err
 		}
 		if selected == "__other__" {
-			if err := huh.NewForm(huh.NewGroup(huh.NewInput().Title("Phase (dir or number)").Value(&path))).WithTheme(theme()).Run(); err != nil {
+			if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(huh.NewInput().Title("Phase (dir or number)").Value(&path)))); err != nil {
 				if uitheme.IsCancelled(err) {
 					return nil
 				}
@@ -184,8 +184,8 @@ func charmCreateSequenceManual(ctx context.Context) error {
 				huh.NewInput().Title("Sequence name").Placeholder("requirements").Value(&name).Validate(notEmpty),
 				huh.NewInput().Title("Phase (dir or number, e.g., 002 or 002_IMPLEMENT)").Placeholder(".").Value(&path),
 			),
-		).WithTheme(theme())
-		if err := form.Run(); err != nil {
+		)
+		if err := uitheme.RunForm(ctx, form); err != nil {
 			if uitheme.IsCancelled(err) {
 				return nil
 			}
@@ -200,12 +200,12 @@ func charmCreateSequenceManual(ctx context.Context) error {
 
 	defAfter := nextSequenceAfter(ctx, rp)
 	var pos string
-	if err := huh.NewForm(huh.NewGroup(
+	if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(
 		huh.NewSelect[string]().Title("Position").Options(
 			huh.NewOption("Append at end", "append"),
 			huh.NewOption("Insert after number", "insert"),
 		).Value(&pos),
-	)).WithTheme(theme()).Run(); err != nil {
+	))); err != nil {
 		if uitheme.IsCancelled(err) {
 			return nil
 		}
@@ -213,7 +213,7 @@ func charmCreateSequenceManual(ctx context.Context) error {
 	}
 	if pos == "insert" {
 		afterStr = fmt.Sprintf("%d", defAfter)
-		if err := huh.NewForm(huh.NewGroup(huh.NewInput().Title("Insert after number (0 to insert at beginning)").Value(&afterStr))).WithTheme(theme()).Run(); err != nil {
+		if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(huh.NewInput().Title("Insert after number (0 to insert at beginning)").Value(&afterStr)))); err != nil {
 			if uitheme.IsCancelled(err) {
 				return nil
 			}
@@ -232,7 +232,7 @@ func charmCreateSequenceManual(ctx context.Context) error {
 			continue
 		}
 		var v string
-		if err := huh.NewForm(huh.NewGroup(huh.NewInput().Title(k).Value(&v))).WithTheme(theme()).Run(); err != nil {
+		if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(huh.NewInput().Title(k).Value(&v)))); err != nil {
 			if uitheme.IsCancelled(err) {
 				return nil
 			}

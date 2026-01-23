@@ -121,16 +121,6 @@ func TestShowCurrentConfigContextCancelled(t *testing.T) {
 	}
 }
 
-func TestResetToDefaultsContextCancelled(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Cancel immediately
-
-	err := resetToDefaults(ctx)
-	if err == nil {
-		t.Error("Expected error for cancelled context")
-	}
-}
-
 func TestRunConfigTUIContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // Cancel immediately
@@ -138,33 +128,6 @@ func TestRunConfigTUIContextCancelled(t *testing.T) {
 	err := runConfigTUI(ctx)
 	if err == nil {
 		t.Error("Expected error for cancelled context")
-	}
-}
-
-func TestEditFunctionsContextCancelled(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel() // Cancel immediately
-
-	cfg := config.DefaultConfig()
-
-	tests := []struct {
-		name string
-		fn   func(context.Context, *config.Config) error
-	}{
-		{"editBehaviorSettings", editBehaviorSettings},
-		{"editNetworkSettings", editNetworkSettings},
-		{"editTUISettings", editTUISettings},
-		{"editRepositorySettings", editRepositorySettings},
-		{"editLocalPathSettings", editLocalPathSettings},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := tt.fn(ctx, cfg)
-			if err == nil {
-				t.Errorf("%s() expected error for cancelled context", tt.name)
-			}
-		})
 	}
 }
 

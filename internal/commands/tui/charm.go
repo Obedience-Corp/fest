@@ -138,11 +138,6 @@ func toOptions(values []string) []huh.Option[string] {
 	return opts
 }
 
-// theme returns the custom theme for TUI forms.
-// Uses the high-contrast FestTheme that works on any terminal background.
-func theme() *huh.Theme {
-	return uitheme.FestTheme()
-}
 
 // fallbackDot returns "." if string is empty, otherwise returns the string
 func fallbackDot(s string) string {
