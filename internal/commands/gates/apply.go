@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/config"
@@ -230,6 +231,9 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 	var warnings []string
 	summary := gatescore.GenerateSummary{TotalSequences: len(sequences)}
 
+	// Track results per sequence for compact display
+	seqResults := make(map[string][]gatescore.GenerateResult)
+
 	genOpts := gatescore.GenerateOptions{
 		DryRun:  opts.dryRun,
 		Force:   opts.force,
@@ -281,6 +285,7 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 			}
 		}
 
+		seqResults[seq.Path] = results
 		allResults = append(allResults, results...)
 		warnings = append(warnings, seqWarnings...)
 	}
@@ -347,26 +352,52 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 			seqWord = "sequences"
 		}
 		fmt.Fprintf(out, "%s (%d %s)\n", ui.Phase(phaseName), len(info.seqNames), seqWord)
+
 		for _, seqName := range info.seqNames {
-			fmt.Fprintf(out, "  %s\n", ui.Sequence(seqName))
+			// Find results for this sequence
+			var skipCount, createCount int
+			var otherSkips []gatescore.GenerateResult
+			for seqPath, results := range seqResults {
+				if filepath.Base(seqPath) == seqName {
+					for _, r := range results {
+						if r.Type == "create" {
+							createCount++
+						} else if r.Type == "skip" {
+							if r.Reason == "gate_exists" {
+								skipCount++
+							} else {
+								otherSkips = append(otherSkips, r)
+							}
+						}
+					}
+					break
+				}
+			}
+
+			// Format sequence line with counts
+			if createCount > 0 && skipCount > 0 {
+				fmt.Fprintf(out, "  %s: %d created, %d skipped (exist)\n", ui.Sequence(seqName), createCount, skipCount)
+			} else if createCount > 0 {
+				fmt.Fprintf(out, "  %s: %d created\n", ui.Sequence(seqName), createCount)
+			} else if skipCount > 0 {
+				fmt.Fprintf(out, "  %s: %d skipped (exist)\n", ui.Sequence(seqName), skipCount)
+			} else {
+				fmt.Fprintf(out, "  %s\n", ui.Sequence(seqName))
+			}
+
+			// Show unexpected skips with detail
+			for _, r := range otherSkips {
+				display.Warning("    ⚠ %s: %s", filepath.Base(r.Path), r.Reason)
+			}
 		}
-		fmt.Fprintf(out, "  Gates:\n")
-		for _, g := range info.gates {
-			fmt.Fprintf(out, "    %s\n", ui.Gate(g))
-		}
+
+		fmt.Fprintf(out, "  Gates: %s\n", strings.Join(info.gates, ", "))
 		fmt.Fprintln(out)
 	}
 
 	// Show warnings if any
 	for _, w := range warnings {
 		display.Warning("Warning: %s", w)
-	}
-
-	// Show skipped files only (not creates - too verbose)
-	for _, r := range allResults {
-		if r.Type == "skip" {
-			display.Warning("Skipped: %s (%s)", filepath.Base(r.Path), r.Reason)
-		}
 	}
 
 	actionWord := "to create"
