@@ -346,10 +346,10 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 		if info.seqCount != 1 {
 			seqWord = "sequences"
 		}
-		fmt.Fprintf(out, "%s\n", ui.Value(phaseName))
+		fmt.Fprintf(out, "%s\n", ui.Phase(phaseName))
 		fmt.Fprintf(out, "  %s (%d %s)\n", info.phaseType, info.seqCount, seqWord)
 		for _, g := range info.gates {
-			fmt.Fprintf(out, "    %s\n", g)
+			fmt.Fprintf(out, "    %s\n", ui.Gate(g))
 		}
 		fmt.Fprintln(out)
 	}

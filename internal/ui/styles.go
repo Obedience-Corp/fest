@@ -145,3 +145,47 @@ var (
 	ArchivedStyle  = lipgloss.NewStyle().Foreground(ArchivedColor).Bold(true)
 	DungeonStyle   = lipgloss.NewStyle().Foreground(DungeonColor).Bold(true)
 )
+
+// Entity color getters - use palette colors based on user's theme setting.
+
+// GetFestivalColor returns the color for festival names.
+func GetFestivalColor() lipgloss.TerminalColor { return Current().Festival }
+
+// GetPhaseColor returns the color for phase names.
+func GetPhaseColor() lipgloss.TerminalColor { return Current().Phase }
+
+// GetSequenceColor returns the color for sequence names.
+func GetSequenceColor() lipgloss.TerminalColor { return Current().Sequence }
+
+// GetTaskColor returns the color for task names.
+func GetTaskColor() lipgloss.TerminalColor { return Current().Task }
+
+// GetGateColor returns the color for gate names.
+func GetGateColor() lipgloss.TerminalColor { return Current().Gate }
+
+// Entity style getters - bold styles for emphasis.
+
+// GetFestivalStyle returns a bold style for festival names.
+func GetFestivalStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(Current().Festival).Bold(true)
+}
+
+// GetPhaseStyle returns a bold style for phase names.
+func GetPhaseStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(Current().Phase).Bold(true)
+}
+
+// GetSequenceStyle returns a bold style for sequence names.
+func GetSequenceStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(Current().Sequence).Bold(true)
+}
+
+// GetTaskStyle returns a bold style for task names.
+func GetTaskStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(Current().Task).Bold(true)
+}
+
+// GetGateStyle returns a bold style for gate names.
+func GetGateStyle() lipgloss.Style {
+	return lipgloss.NewStyle().Foreground(Current().Gate).Bold(true)
+}

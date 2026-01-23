@@ -92,3 +92,31 @@ func WriteLabelValue(sb *strings.Builder, label, value string) {
 	sb.WriteString(value)
 	sb.WriteByte('\n')
 }
+
+// Semantic text functions for festival concepts.
+// These provide consistent styling for entity names throughout the CLI.
+
+// Festival styles a festival name with the festival color.
+func Festival(name string) string {
+	return lipgloss.NewStyle().Foreground(Current().Festival).Bold(true).Render(name)
+}
+
+// Phase styles a phase name with the phase color.
+func Phase(name string) string {
+	return lipgloss.NewStyle().Foreground(Current().Phase).Bold(true).Render(name)
+}
+
+// Sequence styles a sequence name with the sequence color.
+func Sequence(name string) string {
+	return lipgloss.NewStyle().Foreground(Current().Sequence).Bold(true).Render(name)
+}
+
+// Task styles a task name with the task color.
+func Task(name string) string {
+	return lipgloss.NewStyle().Foreground(Current().Task).Bold(true).Render(name)
+}
+
+// Gate styles a gate name with the gate color.
+func Gate(name string) string {
+	return lipgloss.NewStyle().Foreground(Current().Gate).Bold(true).Render(name)
+}
