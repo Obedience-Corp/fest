@@ -112,12 +112,24 @@ func (g *TaskGenerator) GenerateForSequence(
 		taskFileName := tpl.FormatTaskID(taskNum, gate.ID)
 		taskPath := filepath.Join(sequencePath, taskFileName)
 
-		// Check if task already exists (by ID pattern)
+		// Check if task already exists (by exact match or precise pattern)
+		// Matches: NN_GATEID.md or NN_quality_gate_GATEID.md
 		taskExists := false
 		for existingName := range existingTasks {
-			if strings.Contains(existingName, gate.ID) {
-				taskExists = true
-				break
+			baseName := strings.TrimSuffix(existingName, ".md")
+			// Check for exact match after the number prefix (e.g., 05_testing -> testing)
+			if idx := strings.Index(baseName, "_"); idx != -1 {
+				suffix := baseName[idx+1:]
+				// Exact match for new naming: NN_GATEID
+				if suffix == gate.ID {
+					taskExists = true
+					break
+				}
+				// Match for legacy naming: NN_quality_gate_GATEID
+				if strings.HasSuffix(suffix, "_"+gate.ID) {
+					taskExists = true
+					break
+				}
 			}
 		}
 

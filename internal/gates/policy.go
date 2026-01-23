@@ -396,7 +396,8 @@ func GateTaskFromQualityGateTask(qt config.QualityGateTask) GateTask {
 }
 
 // LoadGatesFromFestConfig loads gate tasks from a festival's fest.yaml file.
-// Returns the tasks, excluded patterns, and whether quality gates are enabled.
+// Returns the tasks (from all phase types), excluded patterns, and whether quality gates are enabled.
+// For backwards compatibility, falls back to Tasks field if phase-specific fields are empty.
 func LoadGatesFromFestConfig(festivalPath string) ([]GateTask, []string, bool, error) {
 	cfg, err := config.LoadFestivalConfig(festivalPath)
 	if err != nil {
@@ -409,15 +410,36 @@ func LoadGatesFromFestConfig(festivalPath string) ([]GateTask, []string, bool, e
 		return nil, nil, false, nil
 	}
 
-	tasks := make([]GateTask, 0, len(cfg.QualityGates.Tasks))
-	for _, qt := range cfg.QualityGates.Tasks {
-		task := GateTaskFromQualityGateTask(qt)
-		task.Source = &PolicySource{
-			Level: PolicyLevelFestival,
-			Path:  filepath.Join(festivalPath, config.FestivalConfigFileName),
-			Name:  "fest.yaml",
+	source := &PolicySource{
+		Level: PolicyLevelFestival,
+		Path:  filepath.Join(festivalPath, config.FestivalConfigFileName),
+		Name:  "fest.yaml",
+	}
+
+	// Collect gates from all phase types
+	var tasks []GateTask
+
+	// Helper to add gates from a phase
+	addPhaseGates := func(phaseTasks []config.QualityGateTask) {
+		for _, qt := range phaseTasks {
+			if qt.Enabled {
+				task := GateTaskFromQualityGateTask(qt)
+				task.Source = source
+				tasks = append(tasks, task)
+			}
 		}
-		tasks = append(tasks, task)
+	}
+
+	// Collect from all phase-specific fields
+	addPhaseGates(cfg.QualityGates.Implementation)
+	addPhaseGates(cfg.QualityGates.Planning)
+	addPhaseGates(cfg.QualityGates.Research)
+	addPhaseGates(cfg.QualityGates.Review)
+	addPhaseGates(cfg.QualityGates.NonCodingAction)
+
+	// Backwards compatibility: if no phase-specific gates, use legacy Tasks field
+	if len(tasks) == 0 {
+		addPhaseGates(cfg.QualityGates.Tasks)
 	}
 
 	return tasks, cfg.ExcludedPatterns, true, nil
