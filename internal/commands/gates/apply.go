@@ -302,14 +302,15 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 	// Human-readable output
 	out := cmd.OutOrStdout()
 
-	if opts.dryRun {
-		display.Info("Dry-run mode (use --approve to apply changes)")
+	// Group by phase name for compact display
+	type phaseInfo struct {
+		name      string
+		phaseType string
+		seqCount  int
+		gates     []string
 	}
-
-	// Group by phase type for compact display
-	phaseTypeGates := make(map[string][]string)  // phase type -> gate names
-	phaseTypeSeqCount := make(map[string]int)    // phase type -> sequence count
-	phaseOrder := []string{"implementation", "planning", "research", "review", "non_coding_action"}
+	phaseMap := make(map[string]*phaseInfo)  // phase name -> info
+	var phaseOrder []string                   // preserve order
 
 	for _, seq := range sequences {
 		if seq.PhaseType == "" {
@@ -319,28 +320,36 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 		if len(configGates) == 0 {
 			continue
 		}
-		phaseTypeSeqCount[seq.PhaseType]++
-		if _, exists := phaseTypeGates[seq.PhaseType]; !exists {
+
+		info, exists := phaseMap[seq.PhaseName]
+		if !exists {
+			var gateNames []string
 			for _, g := range configGates {
-				phaseTypeGates[seq.PhaseType] = append(phaseTypeGates[seq.PhaseType], g.ID)
+				gateNames = append(gateNames, g.ID)
 			}
+			phaseMap[seq.PhaseName] = &phaseInfo{
+				name:      seq.PhaseName,
+				phaseType: seq.PhaseType,
+				seqCount:  1,
+				gates:     gateNames,
+			}
+			phaseOrder = append(phaseOrder, seq.PhaseName)
+		} else {
+			info.seqCount++
 		}
 	}
 
 	fmt.Fprintln(out)
-	for _, pt := range phaseOrder {
-		gates := phaseTypeGates[pt]
-		count := phaseTypeSeqCount[pt]
-		if count == 0 {
-			continue
-		}
+	for _, phaseName := range phaseOrder {
+		info := phaseMap[phaseName]
 		seqWord := "sequence"
-		if count != 1 {
+		if info.seqCount != 1 {
 			seqWord = "sequences"
 		}
-		fmt.Fprintf(out, "%s (%d %s)\n", ui.Value(pt), count, seqWord)
-		for _, g := range gates {
-			fmt.Fprintf(out, "  %s\n", g)
+		fmt.Fprintf(out, "%s\n", ui.Value(phaseName))
+		fmt.Fprintf(out, "  %s (%d %s)\n", info.phaseType, info.seqCount, seqWord)
+		for _, g := range info.gates {
+			fmt.Fprintf(out, "    %s\n", g)
 		}
 		fmt.Fprintln(out)
 	}
@@ -362,6 +371,10 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 		actionWord = "created"
 	}
 	display.Info("Summary: %d files %s, %d skipped", summary.FilesCreated, actionWord, summary.FilesSkipped)
+
+	if opts.dryRun {
+		display.Warning("Dry-run mode (use --approve to apply changes)")
+	}
 
 	return nil
 }
