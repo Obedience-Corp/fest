@@ -306,11 +306,11 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 	type phaseInfo struct {
 		name      string
 		phaseType string
-		seqCount  int
+		seqNames  []string
 		gates     []string
 	}
-	phaseMap := make(map[string]*phaseInfo)  // phase name -> info
-	var phaseOrder []string                   // preserve order
+	phaseMap := make(map[string]*phaseInfo) // phase name -> info
+	var phaseOrder []string                 // preserve order
 
 	for _, seq := range sequences {
 		if seq.PhaseType == "" {
@@ -330,12 +330,12 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 			phaseMap[seq.PhaseName] = &phaseInfo{
 				name:      seq.PhaseName,
 				phaseType: seq.PhaseType,
-				seqCount:  1,
+				seqNames:  []string{seq.Name},
 				gates:     gateNames,
 			}
 			phaseOrder = append(phaseOrder, seq.PhaseName)
 		} else {
-			info.seqCount++
+			info.seqNames = append(info.seqNames, seq.Name)
 		}
 	}
 
@@ -343,11 +343,14 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 	for _, phaseName := range phaseOrder {
 		info := phaseMap[phaseName]
 		seqWord := "sequence"
-		if info.seqCount != 1 {
+		if len(info.seqNames) != 1 {
 			seqWord = "sequences"
 		}
-		fmt.Fprintf(out, "%s\n", ui.Phase(phaseName))
-		fmt.Fprintf(out, "  %s (%d %s)\n", info.phaseType, info.seqCount, seqWord)
+		fmt.Fprintf(out, "%s (%d %s)\n", ui.Phase(phaseName), len(info.seqNames), seqWord)
+		for _, seqName := range info.seqNames {
+			fmt.Fprintf(out, "  %s\n", ui.Sequence(seqName))
+		}
+		fmt.Fprintf(out, "  Gates:\n")
 		for _, g := range info.gates {
 			fmt.Fprintf(out, "    %s\n", ui.Gate(g))
 		}

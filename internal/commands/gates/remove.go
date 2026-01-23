@@ -218,15 +218,13 @@ func runGatesRemove(ctx context.Context, cmd *cobra.Command, opts *removeOptions
 	// Human-readable output
 	out := cmd.OutOrStdout()
 
-	// Group by phase -> sequence -> gates
-	type seqInfo struct {
-		name  string
-		gates []string
-	}
+	// Group by phase, collect sequences and unique gates
 	type phaseInfo struct {
-		name      string
-		sequences map[string]*seqInfo
-		seqOrder  []string
+		name     string
+		seqNames []string
+		seqSet   map[string]bool
+		gates    []string
+		gateSet  map[string]bool
 	}
 	phaseMap := make(map[string]*phaseInfo)
 	var phaseOrder []string
@@ -238,37 +236,45 @@ func runGatesRemove(ctx context.Context, cmd *cobra.Command, opts *removeOptions
 		phase, exists := phaseMap[phaseName]
 		if !exists {
 			phase = &phaseInfo{
-				name:      phaseName,
-				sequences: make(map[string]*seqInfo),
+				name:    phaseName,
+				seqSet:  make(map[string]bool),
+				gateSet: make(map[string]bool),
 			}
 			phaseMap[phaseName] = phase
 			phaseOrder = append(phaseOrder, phaseName)
 		}
 
-		seq, exists := phase.sequences[seqName]
-		if !exists {
-			seq = &seqInfo{name: seqName}
-			phase.sequences[seqName] = seq
-			phase.seqOrder = append(phase.seqOrder, seqName)
+		// Track unique sequences
+		if !phase.seqSet[seqName] {
+			phase.seqSet[seqName] = true
+			phase.seqNames = append(phase.seqNames, seqName)
 		}
 
+		// Track unique gates
 		gateID := f.GateID
 		if gateID == "" {
 			gateID = filepath.Base(f.Path)
 		}
-		seq.gates = append(seq.gates, gateID)
+		if !phase.gateSet[gateID] {
+			phase.gateSet[gateID] = true
+			phase.gates = append(phase.gates, gateID)
+		}
 	}
 
 	fmt.Fprintln(out)
 	for _, phaseName := range phaseOrder {
 		phase := phaseMap[phaseName]
-		fmt.Fprintf(out, "%s\n", ui.Phase(phase.name))
-		for _, seqName := range phase.seqOrder {
-			seq := phase.sequences[seqName]
-			fmt.Fprintf(out, "  %s\n", ui.Sequence(seq.name))
-			for _, g := range seq.gates {
-				fmt.Fprintf(out, "    %s\n", ui.Gate(g))
-			}
+		seqWord := "sequence"
+		if len(phase.seqNames) != 1 {
+			seqWord = "sequences"
+		}
+		fmt.Fprintf(out, "%s (%d %s)\n", ui.Phase(phase.name), len(phase.seqNames), seqWord)
+		for _, seqName := range phase.seqNames {
+			fmt.Fprintf(out, "  %s\n", ui.Sequence(seqName))
+		}
+		fmt.Fprintf(out, "  Gates:\n")
+		for _, g := range phase.gates {
+			fmt.Fprintf(out, "    %s\n", ui.Gate(g))
 		}
 		fmt.Fprintln(out)
 	}
