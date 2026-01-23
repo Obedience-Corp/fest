@@ -122,29 +122,6 @@ func TestNextTaskResult_Complete(t *testing.T) {
 	}
 }
 
-func TestNextTaskResult_BlockingGate(t *testing.T) {
-	result := &NextTaskResult{
-		BlockingGate: &GateInfo{
-			Phase:       "01_Planning",
-			GateType:    "phase_transition",
-			Description: "Quality gate required",
-		},
-		Location: &LocationInfo{
-			FestivalPath: "/test",
-		},
-	}
-
-	text := FormatText(result)
-	if !contains(text, "Quality Gate") {
-		t.Error("Expected 'Quality Gate' in output")
-	}
-
-	short := FormatShort(result)
-	if !contains(short, "Blocked") {
-		t.Error("Expected 'Blocked' in short output")
-	}
-}
-
 func TestNextTaskResult_WithTask(t *testing.T) {
 	result := &NextTaskResult{
 		Task: &TaskInfo{
@@ -233,8 +210,8 @@ func TestSelector_FindNext_Integration(t *testing.T) {
 		t.Fatal("FindNext returned nil result")
 	}
 
-	// Should have either a task, blocking gate, or be complete
-	hasResult := result.Task != nil || result.BlockingGate != nil || result.FestivalComplete
+	// Should have either a task or be complete
+	hasResult := result.Task != nil || result.FestivalComplete
 	if !hasResult {
 		t.Logf("No task available: %s", result.Reason)
 	}

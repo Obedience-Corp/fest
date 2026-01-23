@@ -23,9 +23,6 @@ type NextTaskResult struct {
 	// Alternative tasks that can be done in parallel
 	ParallelTasks []*TaskInfo `json:"parallel_tasks,omitempty"`
 
-	// Quality gate if one is blocking progress
-	BlockingGate *GateInfo `json:"blocking_gate,omitempty"`
-
 	// Planning phase info (when in a planning/research phase)
 	Planning *PlanningPhaseResult `json:"planning,omitempty"`
 
@@ -88,14 +85,6 @@ type TaskInfo struct {
 	Dependencies  []string `json:"dependencies,omitempty"`
 }
 
-// GateInfo contains information about a quality gate
-type GateInfo struct {
-	Phase       string   `json:"phase"`
-	GateType    string   `json:"gate_type"`
-	Description string   `json:"description"`
-	Criteria    []string `json:"criteria,omitempty"`
-}
-
 // LocationInfo contains current location context
 type LocationInfo struct {
 	FestivalPath string `json:"festival_path"`
@@ -152,16 +141,6 @@ func (s *Selector) FindNext(ctx context.Context, currentPath string) (*NextTaskR
 				FestivalComplete: true,
 				Reason:           "All tasks in the festival are complete",
 				Location:         location,
-			}, nil
-		}
-
-		// Check for blocking quality gate
-		gate := s.findBlockingGate(graph)
-		if gate != nil {
-			return &NextTaskResult{
-				BlockingGate: gate,
-				Reason:       "Quality gate must be passed before proceeding",
-				Location:     location,
 			}, nil
 		}
 
@@ -395,50 +374,6 @@ func (s *Selector) isFestivalComplete(graph *deps.Graph) bool {
 		}
 	}
 	return true
-}
-
-// findBlockingGate checks for quality gates blocking progress
-func (s *Selector) findBlockingGate(graph *deps.Graph) *GateInfo {
-	// Group tasks by phase
-	byPhase := make(map[string][]*deps.Task)
-	for _, task := range graph.Tasks {
-		byPhase[task.PhasePath] = append(byPhase[task.PhasePath], task)
-	}
-
-	// Sort phases
-	var phases []string
-	for phase := range byPhase {
-		phases = append(phases, phase)
-	}
-	sort.Strings(phases)
-
-	// Check each phase for incomplete tasks and gates
-	for i, phase := range phases {
-		tasks := byPhase[phase]
-
-		// Check if phase is complete
-		allComplete := true
-		for _, task := range tasks {
-			if task.Status != "complete" {
-				allComplete = false
-				break
-			}
-		}
-
-		// If phase complete and there's a next phase, check for gate
-		if allComplete && i < len(phases)-1 {
-			gateFile := filepath.Join(phase, "QUALITY_GATE.md")
-			if _, err := os.Stat(gateFile); err == nil {
-				return &GateInfo{
-					Phase:       filepath.Base(phase),
-					GateType:    "phase_transition",
-					Description: "Quality gate must be passed before moving to next phase",
-				}
-			}
-		}
-	}
-
-	return nil
 }
 
 // generateReason creates a human-readable reason for the recommendation

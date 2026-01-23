@@ -16,8 +16,6 @@ func FormatText(result *NextTaskResult) string {
 	switch {
 	case result.FestivalComplete:
 		return formatTextComplete(result)
-	case result.BlockingGate != nil:
-		return formatTextBlockingGate(result)
 	case result.Planning != nil:
 		return formatTextPlanning(result)
 	case result.Task == nil:
@@ -41,8 +39,6 @@ func FormatVerbose(result *NextTaskResult) string {
 	switch {
 	case result.FestivalComplete:
 		return formatVerboseComplete(result)
-	case result.BlockingGate != nil:
-		return formatVerboseBlockingGate(result)
 	case result.Planning != nil:
 		return formatVerbosePlanning(result)
 	case result.Task == nil:
@@ -70,39 +66,6 @@ func formatTextComplete(result *NextTaskResult) string {
 
 	var buf bytes.Buffer
 	agent.MustGet("next/complete").Execute(&buf, data)
-	return buf.String()
-}
-
-func formatTextBlockingGate(result *NextTaskResult) string {
-	gate := result.BlockingGate
-
-	var criteriaSection string
-	if len(gate.Criteria) > 0 {
-		var sb strings.Builder
-		sb.WriteString(ui.H3("Criteria"))
-		sb.WriteString("\n")
-		for _, c := range gate.Criteria {
-			sb.WriteString(fmt.Sprintf("  - %s\n", ui.Info(c)))
-		}
-		criteriaSection = sb.String()
-	}
-
-	data := struct {
-		Header          string
-		PhaseLine       string
-		TypeLine        string
-		DescriptionLine string
-		CriteriaSection string
-	}{
-		Header:          ui.H2("Quality Gate Required"),
-		PhaseLine:       labelValue("Phase", ui.Value(gate.Phase, ui.PhaseColor)),
-		TypeLine:        labelValue("Type", ui.Value(gate.GateType)),
-		DescriptionLine: labelValue("Description", ui.Value(gate.Description)),
-		CriteriaSection: criteriaSection,
-	}
-
-	var buf bytes.Buffer
-	agent.MustGet("next/blocked").Execute(&buf, data)
 	return buf.String()
 }
 
@@ -357,33 +320,6 @@ func formatVerboseComplete(result *NextTaskResult) string {
 	return sb.String()
 }
 
-func formatVerboseBlockingGate(result *NextTaskResult) string {
-	var sb strings.Builder
-	gate := result.BlockingGate
-
-	sb.WriteString(ui.H2("Quality Gate Required"))
-	sb.WriteString("\n")
-	ui.WriteLabelValue(&sb, "Phase", ui.Value(gate.Phase, ui.PhaseColor))
-	ui.WriteLabelValue(&sb, "Gate Type", ui.Value(gate.GateType))
-	sb.WriteString("\n")
-	sb.WriteString(ui.Info(gate.Description))
-	sb.WriteString("\n")
-
-	if len(gate.Criteria) > 0 {
-		sb.WriteString("\n")
-		sb.WriteString(ui.H3("Criteria to Pass"))
-		sb.WriteString("\n")
-		for i, c := range gate.Criteria {
-			sb.WriteString(fmt.Sprintf("  %d. %s\n", i+1, ui.Info(c)))
-		}
-	}
-
-	sb.WriteString("\n")
-	sb.WriteString(ui.Warning("Complete the quality gate before proceeding."))
-
-	return sb.String()
-}
-
 func formatVerboseNoTask(result *NextTaskResult) string {
 	var sb strings.Builder
 
@@ -525,9 +461,6 @@ func writeCurrentLocation(sb *strings.Builder, loc *LocationInfo) {
 func FormatShort(result *NextTaskResult) string {
 	if result.FestivalComplete {
 		return "Festival complete"
-	}
-	if result.BlockingGate != nil {
-		return fmt.Sprintf("Blocked: Quality gate in %s", result.BlockingGate.Phase)
 	}
 	if result.Task == nil {
 		return "No tasks available"
