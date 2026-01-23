@@ -306,27 +306,62 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 		display.Info("Dry-run mode (use --approve to apply changes)")
 	}
 
-	display.Info("Found %d sequences, %d will be updated", summary.TotalSequences, summary.SequencesUpdated)
+	// Group by phase type for compact display
+	phaseTypeGates := make(map[string][]string)  // phase type -> gate names
+	phaseTypeSeqCount := make(map[string]int)    // phase type -> sequence count
+	phaseOrder := []string{"implementation", "planning", "research", "review", "non_coding_action"}
 
-	for _, r := range allResults {
-		switch r.Type {
-		case "create":
-			display.Success("  + %s", r.Path)
-		case "skip":
-			display.Warning("  ~ Skipped %s (%s)", r.Path, r.Reason)
-		case "exists":
-			if shared.IsVerbose() {
-				display.Info("  = %s (already exists)", r.Path)
+	for _, seq := range sequences {
+		if seq.PhaseType == "" {
+			continue
+		}
+		configGates := festCfg.GetGatesForPhaseType(seq.PhaseType)
+		if len(configGates) == 0 {
+			continue
+		}
+		phaseTypeSeqCount[seq.PhaseType]++
+		if _, exists := phaseTypeGates[seq.PhaseType]; !exists {
+			for _, g := range configGates {
+				phaseTypeGates[seq.PhaseType] = append(phaseTypeGates[seq.PhaseType], g.ID)
 			}
 		}
 	}
 
-	for _, w := range warnings {
-		display.Warning("  Warning: %s", w)
+	fmt.Fprintln(out)
+	for _, pt := range phaseOrder {
+		gates := phaseTypeGates[pt]
+		count := phaseTypeSeqCount[pt]
+		if count == 0 {
+			continue
+		}
+		seqWord := "sequence"
+		if count != 1 {
+			seqWord = "sequences"
+		}
+		fmt.Fprintf(out, "%s (%d %s)\n", ui.Value(pt), count, seqWord)
+		for _, g := range gates {
+			fmt.Fprintf(out, "  %s\n", g)
+		}
+		fmt.Fprintln(out)
 	}
 
-	fmt.Fprintln(out)
-	display.Info("Summary: %d files created, %d skipped", summary.FilesCreated, summary.FilesSkipped)
+	// Show warnings if any
+	for _, w := range warnings {
+		display.Warning("Warning: %s", w)
+	}
+
+	// Show skipped files only (not creates - too verbose)
+	for _, r := range allResults {
+		if r.Type == "skip" {
+			display.Warning("Skipped: %s (%s)", filepath.Base(r.Path), r.Reason)
+		}
+	}
+
+	actionWord := "to create"
+	if !opts.dryRun {
+		actionWord = "created"
+	}
+	display.Info("Summary: %d files %s, %d skipped", summary.FilesCreated, actionWord, summary.FilesSkipped)
 
 	return nil
 }
