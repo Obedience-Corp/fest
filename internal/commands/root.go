@@ -119,6 +119,9 @@ func init() {
 		shared.SetConfigFile(configFile)
 		ui.SetNoColor(noColor)
 
+		// Initialize color palette from user's theme config
+		ui.InitPalette(cmd.Context())
+
 		// Allow root (help/version), init, system, count, go, shell-init, understand, intro, config, extension, index, gates, research, show, status, progress, context, deps, next, execute, migrate, link, unlink, links, commit, commits, parse, completion, list, validate, markers, and types to run anywhere
 		// Also allow subcommands of system, understand, intro, config, extension, index, gates, research, show, status, progress, context, deps, next, execute, migrate, remove, renumber, reorder, validate, markers, wizard, types, and go
 		if cmd == rootCmd || cmd.Name() == "init" || cmd.Name() == "system" || cmd.Name() == "help" || cmd.Name() == "tui" || cmd.Name() == "count" || cmd.Name() == "go" || cmd.Name() == "shell-init" || cmd.Name() == "understand" || cmd.Name() == "intro" || cmd.Name() == "config" || cmd.Name() == "extension" || cmd.Name() == "index" || cmd.Name() == "gates" || cmd.Name() == "research" || cmd.Name() == "show" || cmd.Name() == "status" || cmd.Name() == "progress" || cmd.Name() == "context" || cmd.Name() == "deps" || cmd.Name() == "next" || cmd.Name() == "execute" || cmd.Name() == "migrate" || cmd.Name() == "link" || cmd.Name() == "unlink" || cmd.Name() == "links" || cmd.Name() == "commit" || cmd.Name() == "commits" || cmd.Name() == "parse" || cmd.Name() == "remove" || cmd.Name() == "renumber" || cmd.Name() == "reorder" || cmd.Name() == "validate" || cmd.Name() == "markers" || cmd.Name() == "wizard" || cmd.Name() == "completion" || cmd.Name() == "list" || cmd.Name() == "graduate" || cmd.Name() == "feedback" || cmd.Name() == "templates" || cmd.Name() == "types" {
