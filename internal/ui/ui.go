@@ -28,25 +28,25 @@ func New(noColor, verbose bool) *UI {
 // Info prints an info message
 func (u *UI) Info(format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
-	fmt.Println(infoStyle.Render(message))
+	fmt.Println(Info(message))
 }
 
 // Success prints a success message in green
 func (u *UI) Success(format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
-	fmt.Println(successStyle.Render("✓ " + message))
+	fmt.Println(Success("✓ " + message))
 }
 
 // Warning prints a warning message in yellow
 func (u *UI) Warning(format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
-	fmt.Println(warningStyle.Render("⚠ " + message))
+	fmt.Println(Warning("⚠ " + message))
 }
 
 // Error prints an error message in red
 func (u *UI) Error(format string, args ...interface{}) {
 	message := fmt.Sprintf(format, args...)
-	fmt.Fprintln(os.Stderr, errorStyle.Render("✗ "+message))
+	fmt.Fprintln(os.Stderr, Error("✗ "+message))
 }
 
 // Confirm asks for yes/no confirmation

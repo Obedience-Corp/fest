@@ -329,11 +329,6 @@ func formatFraction(completed, total int) string {
 }
 
 func truncateGoal(goal string, maxLen int) string {
-	if maxLen <= 0 {
-		maxLen = 60
-	}
-	if len(goal) <= maxLen {
-		return goal
-	}
-	return goal[:maxLen-3] + "..."
+	// Don't truncate goals - let them display fully and wrap naturally
+	return goal
 }

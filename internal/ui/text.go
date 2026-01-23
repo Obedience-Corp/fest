@@ -6,32 +6,28 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-var (
-	labelStyle   = lipgloss.NewStyle().Foreground(MetadataColor).Bold(true)
-	valueStyle   = lipgloss.NewStyle().Foreground(ValueColor).Bold(true)
-	dimStyle     = lipgloss.NewStyle().Foreground(MetadataColor).Faint(true)
-	infoStyle    = lipgloss.NewStyle().Foreground(MetadataColor)
-	successStyle = lipgloss.NewStyle().Foreground(SuccessColor).Bold(true)
-	warningStyle = lipgloss.NewStyle().Foreground(WarningColor).Bold(true)
-	errorStyle   = lipgloss.NewStyle().Foreground(ErrorColor).Bold(true)
-)
+// Note: Text styling functions now use the palette system for theme-aware colors.
+// The Faint modifier has been removed as it makes text unreadable on non-black backgrounds.
 
 // Label styles a short label for key/value pairs or section metadata.
+// Uses the palette's Metadata color with bold styling.
 func Label(text string) string {
-	return labelStyle.Render(text)
+	return lipgloss.NewStyle().Foreground(Current().Metadata).Bold(true).Render(text)
 }
 
 // Value styles a primary value. Pass an optional color override.
+// Uses the palette's Value color with bold styling.
 func Value(text string, colors ...lipgloss.Color) string {
 	if len(colors) > 0 && colors[0] != "" {
-		return valueStyle.Foreground(colors[0]).Render(text)
+		return lipgloss.NewStyle().Foreground(colors[0]).Bold(true).Render(text)
 	}
-	return valueStyle.Render(text)
+	return lipgloss.NewStyle().Foreground(Current().Value).Bold(true).Render(text)
 }
 
 // Dim styles secondary metadata (paths, IDs, timestamps).
+// Uses the palette's Dim color WITHOUT the Faint modifier for readability.
 func Dim(text string) string {
-	return dimStyle.Render(text)
+	return lipgloss.NewStyle().Foreground(Current().Dim).Render(text)
 }
 
 // ColoredText renders text in a specific color without other styling.
@@ -40,23 +36,27 @@ func ColoredText(text string, color lipgloss.Color) string {
 }
 
 // Success styles a success message fragment.
+// Uses the palette's Success color with bold styling.
 func Success(text string) string {
-	return successStyle.Render(text)
+	return lipgloss.NewStyle().Foreground(Current().Success).Bold(true).Render(text)
 }
 
 // Warning styles a warning message fragment.
+// Uses the palette's Warning color with bold styling.
 func Warning(text string) string {
-	return warningStyle.Render(text)
+	return lipgloss.NewStyle().Foreground(Current().Warning).Bold(true).Render(text)
 }
 
 // Error styles an error message fragment.
+// Uses the palette's Error color with bold styling.
 func Error(text string) string {
-	return errorStyle.Render(text)
+	return lipgloss.NewStyle().Foreground(Current().Error).Bold(true).Render(text)
 }
 
 // Info styles informational message fragments without strong emphasis.
+// Uses the palette's Metadata color without bold styling.
 func Info(text string) string {
-	return infoStyle.Render(text)
+	return lipgloss.NewStyle().Foreground(Current().Metadata).Render(text)
 }
 
 // StateIcon returns a colored symbol representing a progress state.
