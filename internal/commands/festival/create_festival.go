@@ -277,7 +277,7 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 	}
 
 	// Generate fest.yaml with default gates configuration and metadata
-	festConfig := DefaultFestivalGatesConfig()
+	festConfig := config.DefaultFestivalConfig()
 
 	// Populate metadata section
 	now := time.Now().UTC()
