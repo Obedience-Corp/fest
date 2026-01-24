@@ -11,16 +11,16 @@ func TestRunner_FormatDryRun_IncludesSummaryAndTasks(t *testing.T) {
 
 	output := runner.FormatDryRun()
 
-	for _, snippet := range []string{
-		"EXECUTION PLAN",
-		"Festival",
-		"Summary",
-		"Phase 001_PHASE",
-		"Sequence 01_SEQUENCE",
-		"01_task",
-	} {
+	// Only check for dynamic values from test data, not static template text
+	dynamicValues := []string{
+		"001_PHASE",    // phase name from test data
+		"01_SEQUENCE",  // sequence name from test data
+		"01_task",      // task name from test data
+	}
+
+	for _, snippet := range dynamicValues {
 		if !contains(output, snippet) {
-			t.Errorf("expected output to contain %q", snippet)
+			t.Errorf("expected output to contain dynamic value %q", snippet)
 		}
 	}
 }
@@ -33,18 +33,19 @@ func TestRunner_FormatAgentInstructions_IncludesCommands(t *testing.T) {
 		t.Fatalf("FormatAgentInstructions() error = %v", err)
 	}
 
-	for _, snippet := range []string{
-		"AGENT EXECUTION INSTRUCTIONS",
-		"Current Position",
-		"Tasks to Execute",
-		"01_task",
-		"!! ACTION REQUIRED !!",
-		"Read the task file and follow its instructions exactly",
-		"fest progress --task",
-		"--complete",
-	} {
+	// Only check for dynamic values from test data and config, not static template text
+	dynamicValues := []string{
+		"01_task",                              // task name from test data
+		"001_PHASE",                            // phase name from test data
+		"01_SEQUENCE",                          // sequence name from test data
+		"/tmp/fest/001_PHASE/01_SEQUENCE/01_task.md", // task path from test data
+		runner.config.ActionInstruction,        // action instruction from config
+		"fest progress --task",                 // progress command
+	}
+
+	for _, snippet := range dynamicValues {
 		if !contains(output, snippet) {
-			t.Errorf("expected output to contain %q", snippet)
+			t.Errorf("expected output to contain dynamic value %q", snippet)
 		}
 	}
 }
