@@ -37,6 +37,7 @@ type ExecutionConfig struct {
 	MaxTasks          int           `json:"max_tasks"`          // Maximum tasks to execute in a loop (0 = unlimited)
 	DryRun            bool          `json:"dry_run"`            // Preview without executing
 	ActionInstruction string        `json:"action_instruction"` // Instruction shown to agents
+	InlineContext     bool          `json:"inline_context"`     // Render goal file contents inline
 }
 
 // DefaultActionInstruction is shown to agents when executing tasks

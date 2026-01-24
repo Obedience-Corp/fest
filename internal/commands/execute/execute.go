@@ -15,14 +15,15 @@ import (
 )
 
 var (
-	dryRun       bool
-	agentMode    bool
-	jsonOutput   bool
-	maxParallel  int
-	continueExec bool
-	phaseName    string
-	seqName      string
-	reset        bool
+	dryRun        bool
+	agentMode     bool
+	jsonOutput    bool
+	maxParallel   int
+	continueExec  bool
+	phaseName     string
+	seqName       string
+	reset         bool
+	inlineContext bool
 )
 
 // NewExecuteCommand creates the execute command
@@ -59,6 +60,7 @@ Examples:
 	cmd.Flags().StringVar(&phaseName, "phase", "", "execute specific phase")
 	cmd.Flags().StringVar(&seqName, "sequence", "", "execute specific sequence")
 	cmd.Flags().BoolVar(&reset, "reset", false, "clear saved execution state")
+	cmd.Flags().BoolVar(&inlineContext, "inline-context", false, "render goal file contents inline instead of paths")
 
 	// Add status subcommand
 	cmd.AddCommand(newStatusCommand())
@@ -112,6 +114,7 @@ func runExecute(cmd *cobra.Command, args []string) error {
 	// Create execution config
 	execCfg := execute.DefaultConfig()
 	execCfg.DryRun = dryRun
+	execCfg.InlineContext = inlineContext
 	if globalCfg.Execute.ActionInstruction != "" {
 		execCfg.ActionInstruction = globalCfg.Execute.ActionInstruction
 	}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -214,7 +215,7 @@ func (r *Runner) FormatAgentInstructions() (string, error) {
 		PositionSection:   buildAgentPositionSection(phase, seq, step),
 		TasksSection:      buildAgentTasksSection(r, step),
 		ProgressCmd:       buildProgressCommand(step),
-		ContextSection:    buildAgentContextSection(r.festivalPath, phase.Path, sequencePath),
+		ContextSection:    buildAgentContextSection(r.festivalPath, phase.Path, sequencePath, r.config.InlineContext),
 	}
 
 	var buf bytes.Buffer
@@ -321,17 +322,55 @@ func buildAgentTasksSection(r *Runner, step *StepGroup) string {
 	return sb.String()
 }
 
-func buildAgentContextSection(festivalPath, phasePath, seqPath string) string {
+func buildAgentContextSection(festivalPath, phasePath, seqPath string, inlineContext bool) string {
 	var sb strings.Builder
-	sb.WriteString(ui.H2("Context Files"))
-	sb.WriteString("\n")
+
 	festivalGoal := filepath.Join(festivalPath, "FESTIVAL_GOAL.md")
 	phaseGoal := filepath.Join(phasePath, "PHASE_GOAL.md")
 	sequenceGoal := filepath.Join(seqPath, "SEQUENCE_GOAL.md")
-	sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(festivalGoal)))
-	sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(phaseGoal)))
-	sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(sequenceGoal)))
+
+	if inlineContext {
+		sb.WriteString(ui.H2("Context"))
+		sb.WriteString("\n")
+		writeInlineGoalFile(&sb, "Festival Goal", festivalGoal)
+		writeInlineGoalFile(&sb, "Phase Goal", phaseGoal)
+		writeInlineGoalFile(&sb, "Sequence Goal", sequenceGoal)
+	} else {
+		sb.WriteString(ui.H2("Context Files"))
+		sb.WriteString("\n")
+		sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(festivalGoal)))
+		sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(phaseGoal)))
+		sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(sequenceGoal)))
+	}
+
 	return sb.String()
+}
+
+// writeInlineGoalFile reads a goal file and writes its content to the builder
+func writeInlineGoalFile(sb *strings.Builder, title, path string) {
+	sb.WriteString(ui.H3(title))
+	sb.WriteString("\n")
+
+	content, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			sb.WriteString(ui.Dim(fmt.Sprintf("  (File not found: %s)\n", path)))
+		} else {
+			sb.WriteString(ui.Dim(fmt.Sprintf("  (Error reading file: %s)\n", err.Error())))
+		}
+		sb.WriteString("\n")
+		return
+	}
+
+	// Trim whitespace and write content
+	trimmed := strings.TrimSpace(string(content))
+	if trimmed == "" {
+		sb.WriteString(ui.Dim("  (Empty file)\n"))
+	} else {
+		sb.WriteString(trimmed)
+		sb.WriteString("\n")
+	}
+	sb.WriteString("\n")
 }
 
 // buildProgressCommand builds the fest progress command for marking a task complete

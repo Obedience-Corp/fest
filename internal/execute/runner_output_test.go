@@ -104,6 +104,63 @@ func buildTestRunner() *Runner {
 	}
 }
 
+func TestRunner_FormatAgentInstructions_InlineContext(t *testing.T) {
+	runner := buildTestRunner()
+	runner.config.InlineContext = true
+
+	output, err := runner.FormatAgentInstructions()
+	if err != nil {
+		t.Fatalf("FormatAgentInstructions() error = %v", err)
+	}
+
+	// With InlineContext true, should show "Context" header instead of "Context Files"
+	if !contains(output, "Context") {
+		t.Errorf("expected output to contain 'Context' header")
+	}
+
+	// Should show goal headers (Festival Goal, Phase Goal, Sequence Goal)
+	goalHeaders := []string{
+		"Festival Goal",
+		"Phase Goal",
+		"Sequence Goal",
+	}
+
+	for _, header := range goalHeaders {
+		if !contains(output, header) {
+			t.Errorf("expected output to contain goal header %q", header)
+		}
+	}
+
+	// Should indicate files are not readable (since test paths don't exist)
+	stripped := stripANSI(output)
+	if !strings.Contains(stripped, "Error reading file") && !strings.Contains(stripped, "File not found") {
+		t.Errorf("expected output to indicate missing/unreadable files, got:\n%s", stripped)
+	}
+}
+
+func TestRunner_FormatAgentInstructions_PathsOnly(t *testing.T) {
+	runner := buildTestRunner()
+	runner.config.InlineContext = false
+
+	output, err := runner.FormatAgentInstructions()
+	if err != nil {
+		t.Fatalf("FormatAgentInstructions() error = %v", err)
+	}
+
+	// With InlineContext false (default), should show file paths
+	expectedPaths := []string{
+		"FESTIVAL_GOAL.md",
+		"PHASE_GOAL.md",
+		"SEQUENCE_GOAL.md",
+	}
+
+	for _, path := range expectedPaths {
+		if !contains(output, path) {
+			t.Errorf("expected output to contain path %q", path)
+		}
+	}
+}
+
 func contains(s, substr string) bool {
 	if substr == "" {
 		return false
