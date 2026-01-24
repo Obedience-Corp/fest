@@ -211,8 +211,8 @@ func (r *Runner) FormatAgentInstructions() (string, error) {
 		Header:            ui.H1("Agent Execution Instructions"),
 		ProgressLine:      buildAgentProgressLine(r),
 		PositionSection:   buildAgentPositionSection(phase, seq, step),
-		TasksSection:      buildAgentTasksSection(r, step),
 		ActionInstruction: ui.Info("Read the task file and follow the instructions laid out exactly."),
+		TasksSection:      buildAgentTasksSection(r, step),
 		ProgressCmd:       buildProgressCommand(step),
 		ContextSection:    buildAgentContextSection(r.festivalPath, phase.Path, sequencePath),
 	}
