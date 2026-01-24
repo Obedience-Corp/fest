@@ -213,9 +213,9 @@ func (r *Runner) FormatAgentInstructions() (string, error) {
 		ActionInstruction: r.config.ActionInstruction,
 		ProgressLine:      buildAgentProgressLine(r),
 		PositionSection:   buildAgentPositionSection(phase, seq, step),
-		TasksSection:      buildAgentTasksSection(r, step),
+		TasksSection:      buildAgentTasksSection(r, step, r.config.InlineContext),
 		ProgressCmd:       buildProgressCommand(step),
-		ContextSection:    buildAgentContextSection(r.festivalPath, phase.Path, sequencePath, r.config.InlineContext),
+		ContextSection:    buildAgentContextSection(r.festivalPath, phase.Path, sequencePath),
 	}
 
 	var buf bytes.Buffer
@@ -306,7 +306,7 @@ func buildAgentPositionSection(phase *PhaseExecution, seq *SequenceExecution, st
 	return sb.String()
 }
 
-func buildAgentTasksSection(r *Runner, step *StepGroup) string {
+func buildAgentTasksSection(r *Runner, step *StepGroup, inlineContext bool) string {
 	var sb strings.Builder
 	sb.WriteString(ui.H2("Tasks to Execute"))
 	sb.WriteString("\n")
@@ -318,59 +318,61 @@ func buildAgentTasksSection(r *Runner, step *StepGroup) string {
 		if task.AutonomyLevel != "" {
 			sb.WriteString(fmt.Sprintf("    %s %s\n", ui.Label("Autonomy"), ui.Value(task.AutonomyLevel)))
 		}
+
+		// Render task content inline when requested
+		if inlineContext {
+			writeInlineTaskContent(&sb, task.Path)
+		}
 	}
 	return sb.String()
 }
 
-func buildAgentContextSection(festivalPath, phasePath, seqPath string, inlineContext bool) string {
+func buildAgentContextSection(festivalPath, phasePath, seqPath string) string {
 	var sb strings.Builder
 
 	festivalGoal := filepath.Join(festivalPath, "FESTIVAL_GOAL.md")
 	phaseGoal := filepath.Join(phasePath, "PHASE_GOAL.md")
 	sequenceGoal := filepath.Join(seqPath, "SEQUENCE_GOAL.md")
 
-	if inlineContext {
-		sb.WriteString(ui.H2("Context"))
-		sb.WriteString("\n")
-		writeInlineGoalFile(&sb, "Festival Goal", festivalGoal)
-		writeInlineGoalFile(&sb, "Phase Goal", phaseGoal)
-		writeInlineGoalFile(&sb, "Sequence Goal", sequenceGoal)
-	} else {
-		sb.WriteString(ui.H2("Context Files"))
-		sb.WriteString("\n")
-		sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(festivalGoal)))
-		sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(phaseGoal)))
-		sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(sequenceGoal)))
-	}
+	sb.WriteString(ui.H2("Context Files"))
+	sb.WriteString("\n")
+	sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(festivalGoal)))
+	sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(phaseGoal)))
+	sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(sequenceGoal)))
 
 	return sb.String()
 }
 
-// writeInlineGoalFile reads a goal file and writes its content to the builder
-func writeInlineGoalFile(sb *strings.Builder, title, path string) {
-	sb.WriteString(ui.H3(title))
+// writeInlineTaskContent reads a task file and writes its content inline
+func writeInlineTaskContent(sb *strings.Builder, taskPath string) {
 	sb.WriteString("\n")
+	sb.WriteString("    --- Task Content ---\n")
 
-	content, err := os.ReadFile(path)
+	content, err := os.ReadFile(taskPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			sb.WriteString(ui.Dim(fmt.Sprintf("  (File not found: %s)\n", path)))
+			sb.WriteString(fmt.Sprintf("    (File not found: %s)\n", taskPath))
 		} else {
-			sb.WriteString(ui.Dim(fmt.Sprintf("  (Error reading file: %s)\n", err.Error())))
+			sb.WriteString(fmt.Sprintf("    (Error reading file: %s)\n", err.Error()))
 		}
-		sb.WriteString("\n")
+		sb.WriteString("    --------------------\n\n")
 		return
 	}
 
-	// Trim whitespace and write content
+	// Trim whitespace and write content with indentation
 	trimmed := strings.TrimSpace(string(content))
 	if trimmed == "" {
-		sb.WriteString(ui.Dim("  (Empty file)\n"))
+		sb.WriteString("    (Empty file)\n")
 	} else {
-		sb.WriteString(trimmed)
-		sb.WriteString("\n")
+		// Indent each line of the task content
+		lines := strings.Split(trimmed, "\n")
+		for _, line := range lines {
+			sb.WriteString("    ")
+			sb.WriteString(line)
+			sb.WriteString("\n")
+		}
 	}
-	sb.WriteString("\n")
+	sb.WriteString("    --------------------\n\n")
 }
 
 // buildProgressCommand builds the fest progress command for marking a task complete
