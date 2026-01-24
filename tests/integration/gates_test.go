@@ -294,11 +294,12 @@ Implement the features.
 func requireGateTasks(t *testing.T, files []string) {
 	t.Helper()
 
+	// Gate IDs from DefaultFestivalConfig: testing, review, iterate, commit
 	expected := []string{
-		"_quality_gate_testing.md",
-		"_quality_gate_review.md",
-		"_quality_gate_iterate.md",
-		"_quality_gate_commit.md",
+		"_testing.md",
+		"_review.md",
+		"_iterate.md",
+		"_commit.md",
 	}
 
 	for _, suffix := range expected {
