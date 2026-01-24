@@ -29,12 +29,11 @@ func (e *EffectivePolicy) GetActiveGates() []GateTask {
 
 // HierarchicalLoader loads and merges policies from all hierarchy levels
 type HierarchicalLoader struct {
-	festivalsRoot string          // Root of festivals directory
-	registry      *PolicyRegistry // For loading named policies (optional)
+	festivalsRoot string // Root of festivals directory
 }
 
 // NewHierarchicalLoader creates a loader with the given festivals root
-func NewHierarchicalLoader(festivalsRoot string, registry *PolicyRegistry) (*HierarchicalLoader, error) {
+func NewHierarchicalLoader(festivalsRoot string) (*HierarchicalLoader, error) {
 	if festivalsRoot == "" {
 		return nil, errors.Validation("festivalsRoot cannot be empty").
 			WithOp("NewHierarchicalLoader")
@@ -48,7 +47,6 @@ func NewHierarchicalLoader(festivalsRoot string, registry *PolicyRegistry) (*Hie
 
 	return &HierarchicalLoader{
 		festivalsRoot: festivalsRoot,
-		registry:      registry,
 	}, nil
 }
 
@@ -271,17 +269,6 @@ func (h *HierarchicalLoader) addGate(gates []GateTask, newGate GateTask) []GateT
 
 	// No positioning specified, append to end
 	return append(gates, newGate)
-}
-
-// removeGate marks a gate as removed (keeps it for display purposes)
-func (h *HierarchicalLoader) removeGate(gates []GateTask, removeID string, source *PolicySource) []GateTask {
-	for i := range gates {
-		if gates[i].ID == removeID {
-			gates[i].Removed = true
-			gates[i].Source = source
-		}
-	}
-	return gates
 }
 
 // FestivalsRoot returns the configured festivals root path

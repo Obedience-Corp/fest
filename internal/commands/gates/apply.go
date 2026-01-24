@@ -17,14 +17,12 @@ import (
 )
 
 type applyOptions struct {
-	policyName string // Optional named policy to apply
 	phase      string // --phase: target phase
 	sequence   string // --sequence: target sequence
 	dryRun     bool   // --dry-run (default: true)
 	approve    bool   // --approve: actually apply
 	force      bool   // --force: overwrite existing files
 	jsonOutput bool   // --json: output as JSON
-	policyOnly bool   // --policy-only: only write policy file
 }
 
 type applyResult struct {
@@ -41,15 +39,15 @@ func newGatesApplyCmd() *cobra.Command {
 	opts := &applyOptions{}
 
 	cmd := &cobra.Command{
-		Use:   "apply [policy]",
+		Use:   "apply",
 		Short: "Apply quality gates to sequences",
-		Long: `Apply quality gate task files to implementation sequences.
+		Long: `Apply quality gate task files to sequences based on phase type.
 
 By default, runs in dry-run mode showing what would change.
 Use --approve to actually apply the changes.
 
-Without a policy name, uses fest.yaml and built-in defaults.
-With a policy name (default, strict, lightweight), applies that policy.
+Gates are read from fest.yaml phase-type sections (implementation, planning,
+research, review, non_coding_action). Each phase type can have its own gates.
 
 Quality gates are only added to sequences not matching excluded_patterns.`,
 		Example: `  # Preview changes (dry-run is default)
@@ -58,25 +56,16 @@ Quality gates are only added to sequences not matching excluded_patterns.`,
   # Apply to all sequences
   fest gates apply --approve
 
-  # Apply strict policy
-  fest gates apply strict --approve
-
   # Apply to specific sequence
   fest gates apply --sequence 002_IMPL/01_core --approve
 
   # Force overwrite modified files
   fest gates apply --approve --force
 
-  # Only write policy file (no task files)
-  fest gates apply strict --policy-only
-
   # JSON output for automation
   fest gates apply --json`,
-		Args: cobra.MaximumNArgs(1),
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if len(args) > 0 {
-				opts.policyName = args[0]
-			}
 			// If approve is set, explicitly disable dry-run
 			// (since --dry-run flag defaults to true)
 			if opts.approve {
@@ -92,7 +81,6 @@ Quality gates are only added to sequences not matching excluded_patterns.`,
 	cmd.Flags().BoolVar(&opts.approve, "approve", false, "Apply changes")
 	cmd.Flags().BoolVar(&opts.force, "force", false, "Overwrite modified files")
 	cmd.Flags().BoolVar(&opts.jsonOutput, "json", false, "Output JSON")
-	cmd.Flags().BoolVar(&opts.policyOnly, "policy-only", false, "Only write policy file, no task files")
 
 	return cmd
 }
@@ -120,63 +108,24 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 		return emitApplyError(opts, errors.Wrap(err, "resolving paths").WithOp("runGatesApply"))
 	}
 
-	// If policy-only mode with a named policy, just write the policy file
-	if opts.policyOnly && opts.policyName != "" {
-		return runPolicyOnlyApply(ctx, cmd, opts, festivalsRoot, festivalPath, phasePath, sequencePath)
-	}
-
-	// Create merger and load effective policy
-	registry, err := gatescore.NewPolicyRegistry(festivalsRoot, getConfigRoot())
+	// Load festival config for gate configuration
+	festCfg, err := config.LoadFestivalConfig(festivalPath)
 	if err != nil {
-		return emitApplyError(opts, errors.Wrap(err, "creating policy registry").WithOp("runGatesApply"))
+		return emitApplyError(opts, errors.Wrap(err, "loading festival config").WithOp("runGatesApply"))
 	}
 
-	merger, err := gatescore.NewConfigMerger(festivalsRoot, registry)
-	if err != nil {
-		return emitApplyError(opts, errors.Wrap(err, "creating config merger").WithOp("runGatesApply"))
-	}
-
-	// If a named policy is specified, we need to handle it differently
-	var mergedPolicy *gatescore.MergedPolicy
-	mergeOpts := gatescore.DefaultMergeOptions()
-
-	if opts.policyName != "" {
-		// Get the named policy and use it instead of fest.yaml
-		policy, err := registry.GetPolicy(opts.policyName)
-		if err != nil {
-			return emitApplyError(opts, errors.Wrap(err, "policy not found").WithField("policy", opts.policyName))
-		}
-
-		// Use named policy gates
-		mergedPolicy = &gatescore.MergedPolicy{
-			Gates:           policy.GetEnabledTasks(),
-			ExcludePatterns: policy.ExcludePatterns,
-			FestYAMLEnabled: true,
-		}
-	} else {
-		// Merge from fest.yaml and hierarchy
-		if sequencePath != "" {
-			mergedPolicy, err = merger.MergeForSequence(ctx, festivalPath, phasePath, sequencePath, mergeOpts)
-		} else if phasePath != "" {
-			mergedPolicy, err = merger.MergeForPhase(ctx, festivalPath, phasePath, mergeOpts)
-		} else {
-			mergedPolicy, err = merger.MergeForFestival(ctx, festivalPath, mergeOpts)
-		}
-		if err != nil {
-			return emitApplyError(opts, errors.Wrap(err, "loading gate configuration").WithOp("runGatesApply"))
-		}
-	}
-
-	// Get active gates
-	activeGates := mergedPolicy.GetActiveGates()
-	if len(activeGates) == 0 {
+	// Check if quality gates are enabled
+	if festCfg == nil || !festCfg.QualityGates.Enabled {
 		return emitApplyResult(opts, applyResult{
 			OK:       true,
 			Action:   "gates_apply",
 			DryRun:   opts.dryRun,
-			Warnings: []string{"No active quality gates configured"},
+			Warnings: []string{"Quality gates not enabled in fest.yaml"},
 		})
 	}
+
+	// Get exclude patterns from config
+	excludePatterns := festCfg.ExcludedPatterns
 
 	// Find sequences to process
 	var sequences []gatescore.SequenceInfo
@@ -192,8 +141,8 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 			PhaseName: phaseName,
 		}}
 	} else {
-		// Find all implementation sequences
-		sequences, err = gatescore.FindSequencesWithInfo(festivalPath, mergedPolicy.ExcludePatterns)
+		// Find all sequences
+		sequences, err = gatescore.FindSequencesWithInfo(festivalPath, excludePatterns)
 		if err != nil {
 			return emitApplyError(opts, errors.Wrap(err, "finding sequences").WithOp("runGatesApply"))
 		}
@@ -204,7 +153,7 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 			OK:       true,
 			Action:   "gates_apply",
 			DryRun:   opts.dryRun,
-			Warnings: []string{"No implementation sequences found"},
+			Warnings: []string{"No sequences found"},
 		})
 	}
 
@@ -212,12 +161,6 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 	tmplRoot, err := tpl.LocalTemplateRoot(festivalPath)
 	if err != nil {
 		return emitApplyError(opts, errors.Wrap(err, "finding template root").WithOp("runGatesApply"))
-	}
-
-	// Load festival config for gate ordering
-	festCfg, err := config.LoadFestivalConfig(festivalPath)
-	if err != nil {
-		return emitApplyError(opts, errors.Wrap(err, "loading festival config").WithOp("runGatesApply"))
 	}
 
 	// Create generator
@@ -413,56 +356,3 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 	return nil
 }
 
-// runPolicyOnlyApply writes just the policy file (original behavior).
-func runPolicyOnlyApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions, festivalsRoot, festivalPath, phasePath, sequencePath string) error {
-	registry, err := gatescore.NewPolicyRegistry(festivalsRoot, getConfigRoot())
-	if err != nil {
-		return emitApplyError(opts, errors.Wrap(err, "creating policy registry").WithOp("runPolicyOnlyApply"))
-	}
-
-	// Verify policy exists
-	info, ok := registry.Get(opts.policyName)
-	if !ok {
-		return emitApplyError(opts, errors.NotFound("policy").WithField("policy", opts.policyName).
-			WithField("hint", "run 'fest gates list' to see available policies"))
-	}
-
-	// Determine target path
-	targetPath, overrideFile := resolveTargetPath(festivalPath, phasePath, sequencePath)
-	overridePath := filepath.Join(targetPath, overrideFile)
-
-	out := cmd.OutOrStdout()
-	if opts.dryRun {
-		fmt.Fprintln(out, ui.H1("Gate Policy (Dry Run)"))
-		fmt.Fprintf(out, "%s %s\n", ui.Label("Policy"), ui.Value(info.Name))
-		if info.Description != "" {
-			fmt.Fprintf(out, "%s %s\n", ui.Label("Description"), ui.Dim(info.Description))
-		}
-		fmt.Fprintf(out, "%s %s\n", ui.Label("Target"), ui.Dim(overridePath))
-		return nil
-	}
-
-	// Get the policy
-	policy, err := registry.GetPolicy(opts.policyName)
-	if err != nil {
-		return emitApplyError(opts, errors.Wrap(err, "loading policy").WithField("policy", opts.policyName))
-	}
-
-	// Ensure parent directory exists for festival-level override
-	if sequencePath == "" && phasePath == "" {
-		gatesDir := filepath.Join(festivalPath, ".festival")
-		if err := os.MkdirAll(gatesDir, 0755); err != nil {
-			return emitApplyError(opts, errors.IO("creating .festival directory", err).WithField("path", gatesDir))
-		}
-	}
-
-	// Write the override file
-	if err := gatescore.SavePolicy(overridePath, policy); err != nil {
-		return emitApplyError(opts, errors.Wrap(err, "saving policy").WithField("path", overridePath))
-	}
-
-	fmt.Fprintln(out, ui.Success("✓ Gate policy applied"))
-	fmt.Fprintf(out, "%s %s\n", ui.Label("Policy"), ui.Value(info.Name))
-	fmt.Fprintf(out, "%s %s\n", ui.Label("Path"), ui.Dim(overridePath))
-	return nil
-}

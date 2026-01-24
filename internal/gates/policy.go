@@ -26,14 +26,18 @@ type HierarchicalTemplateResolver interface {
 	ClearCache()
 }
 
-// PolicyRegistrar provides access to named policies.
-type PolicyRegistrar interface {
-	Get(name string) (*PolicyInfo, bool)
-	GetPolicy(name string) (*GatePolicy, error)
-	List() []string
-	ListInfo() []*PolicyInfo
-	Refresh()
+// PolicyInfo describes a named policy (for backwards compatibility)
+// Deprecated: Named policies are no longer supported. Use fest.yaml phase-type sections.
+type PolicyInfo struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Source      string `json:"source"`
+	Path        string `json:"path,omitempty"`
 }
+
+// PolicyRegistry is a deprecated type kept for API compatibility
+// Deprecated: Named policies are no longer supported. Use fest.yaml phase-type sections.
+type PolicyRegistry struct{}
 
 const (
 	// PolicyFileName is the name of the gate policy file

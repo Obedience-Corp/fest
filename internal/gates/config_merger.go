@@ -17,8 +17,9 @@ type ConfigMerger struct {
 }
 
 // NewConfigMerger creates a new config merger with the given festivals root.
-func NewConfigMerger(festivalsRoot string, registry *PolicyRegistry) (*ConfigMerger, error) {
-	loader, err := NewHierarchicalLoader(festivalsRoot, registry)
+// The registry parameter is deprecated and ignored (pass nil).
+func NewConfigMerger(festivalsRoot string, _ *PolicyRegistry) (*ConfigMerger, error) {
+	loader, err := NewHierarchicalLoader(festivalsRoot)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating hierarchical loader").
 			WithOp("NewConfigMerger")

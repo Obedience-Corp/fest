@@ -38,46 +38,24 @@ func TestGatesCommands(t *testing.T) {
 		require.NoError(t, err, "gates --help should not fail")
 		require.Contains(t, output, "gates", "Help should mention gates")
 		require.Contains(t, output, "show", "Help should mention show subcommand")
-		require.Contains(t, output, "list", "Help should mention list subcommand")
 		require.Contains(t, output, "apply", "Help should mention apply subcommand")
 		require.Contains(t, output, "init", "Help should mention init subcommand")
 		require.Contains(t, output, "validate", "Help should mention validate subcommand")
 		t.Logf("gates help: %s", output)
 	})
 
-	// Test 2: gates list - show available policies
-	t.Run("GatesList", func(t *testing.T) {
-		// Change to festivals directory first
-		output, err := container.RunFestInDir("/festivals", "gates", "list")
-		require.NoError(t, err, "gates list should not fail")
-		require.Contains(t, output, "default", "Should list default policy")
-		require.Contains(t, output, "strict", "Should list strict policy")
-		require.Contains(t, output, "lightweight", "Should list lightweight policy")
-		t.Logf("gates list: %s", output)
-	})
-
-	// Test 3: gates list --json
-	t.Run("GatesListJSON", func(t *testing.T) {
-		output, err := container.RunFestInDir("/festivals", "gates", "list", "--json")
-		require.NoError(t, err, "gates list --json should not fail")
-		require.Contains(t, output, `"name"`, "JSON should contain name field")
-		require.Contains(t, output, `"source"`, "JSON should contain source field")
-		require.Contains(t, output, `"description"`, "JSON should contain description field")
-		t.Logf("gates list --json: %s", output)
-	})
-
-	// Test 4: gates show - show effective policy for festival
+	// Test 2: gates show - show effective policy for festival
 	t.Run("GatesShow", func(t *testing.T) {
 		output, err := container.RunFestInDir("/festivals/test-gates-festival", "gates", "show")
 		require.NoError(t, err, "gates show should not fail")
 		require.Contains(t, output, "GATE POLICY", "Should show gate policy header")
 		require.Contains(t, output, "Active Gates", "Should list active gates")
-		require.Contains(t, output, "testing_and_verify", "Should show default gate")
-		require.Contains(t, output, "code_review", "Should show code review gate")
+		require.Contains(t, output, "testing", "Should show testing gate")
+		require.Contains(t, output, "review", "Should show review gate")
 		t.Logf("gates show: %s", output)
 	})
 
-	// Test 5: gates show --json
+	// Test 3: gates show --json
 	t.Run("GatesShowJSON", func(t *testing.T) {
 		output, err := container.RunFestInDir("/festivals/test-gates-festival", "gates", "show", "--json")
 		require.NoError(t, err, "gates show --json should not fail")
@@ -87,7 +65,7 @@ func TestGatesCommands(t *testing.T) {
 		t.Logf("gates show --json: %s", output)
 	})
 
-	// Test 6: gates init - create fest.yaml at festival level
+	// Test 4: gates init - create fest.yaml at festival level
 	t.Run("GatesInitFestival", func(t *testing.T) {
 		// First verify fest.yaml doesn't exist
 		festYAMLPath := "/festivals/test-gates-festival/fest.yaml"
@@ -105,15 +83,16 @@ func TestGatesCommands(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, exists, "fest.yaml should be created")
 
-		// Verify file content
+		// Verify file content - should have phase-type sections
 		content, err := container.ReadFile(festYAMLPath)
 		require.NoError(t, err)
 		require.Contains(t, content, "quality_gates:", "fest.yaml should have quality_gates section")
-		require.Contains(t, content, "testing_and_verify", "fest.yaml should have default gate")
+		require.Contains(t, content, "implementation:", "fest.yaml should have implementation section")
+		require.Contains(t, content, "id: testing", "fest.yaml should have testing gate")
 		t.Logf("fest.yaml content: %s", content)
 	})
 
-	// Test 7: gates init --phase - create override at phase level
+	// Test 5: gates init --phase - create override at phase level
 	t.Run("GatesInitPhase", func(t *testing.T) {
 		overridePath := "/festivals/test-gates-festival/002_IMPLEMENT/.fest.gates.yml"
 
@@ -133,7 +112,7 @@ func TestGatesCommands(t *testing.T) {
 		require.True(t, exists, "Phase override should be created")
 	})
 
-	// Test 8: gates init --sequence - create override at sequence level
+	// Test 6: gates init --sequence - create override at sequence level
 	t.Run("GatesInitSequence", func(t *testing.T) {
 		overridePath := "/festivals/test-gates-festival/002_IMPLEMENT/01_core/.fest.gates.yml"
 
@@ -153,48 +132,7 @@ func TestGatesCommands(t *testing.T) {
 		require.True(t, exists, "Sequence override should be created")
 	})
 
-	// Test 9: gates apply - apply named policy (policy-only mode)
-	t.Run("GatesApplyStrict", func(t *testing.T) {
-		// Create a second festival for apply test
-		err := createMinimalFestival(container, "/festivals/apply-test-festival")
-		require.NoError(t, err)
-
-		// Apply strict policy with --policy-only to write the policy file
-		output, err := container.RunFestInDir("/festivals/apply-test-festival", "gates", "apply", "strict", "--policy-only", "--approve")
-		require.NoError(t, err, "gates apply strict --policy-only should not fail")
-		require.Contains(t, output, "Gate policy applied", "Should confirm application")
-		require.Contains(t, output, "Policy strict", "Should mention policy name")
-		t.Logf("gates apply strict: %s", output)
-
-		// Verify policy was written
-		policyPath := "/festivals/apply-test-festival/.festival/gates.yml"
-		content, err := container.ReadFile(policyPath)
-		require.NoError(t, err)
-		require.Contains(t, content, "strict", "Policy file should contain strict")
-		require.Contains(t, content, "security_audit", "Strict policy should have security_audit")
-		t.Logf("Applied policy content: %s", content)
-	})
-
-	// Test 10: gates apply --dry-run (policy-only mode)
-	t.Run("GatesApplyDryRun", func(t *testing.T) {
-		// Create another test festival
-		err := createMinimalFestival(container, "/festivals/dry-run-test")
-		require.NoError(t, err)
-
-		// Apply with --policy-only (dry-run is default)
-		output, err := container.RunFestInDir("/festivals/dry-run-test", "gates", "apply", "lightweight", "--policy-only")
-		require.NoError(t, err, "gates apply --policy-only should not fail")
-		require.Contains(t, output, "DRY RUN", "Should indicate dry run")
-		require.Contains(t, output, "lightweight", "Should mention policy name")
-		t.Logf("gates apply --policy-only: %s", output)
-
-		// Verify file was NOT created
-		policyPath := "/festivals/dry-run-test/.festival/gates.yml"
-		exists, _ := container.CheckFileExists(policyPath)
-		require.False(t, exists, "Dry run should not create file")
-	})
-
-	// Test 11: gates validate
+	// Test 7: gates validate
 	t.Run("GatesValidate", func(t *testing.T) {
 		output, err := container.RunFestInDir("/festivals/test-gates-festival", "gates", "validate")
 		require.NoError(t, err, "gates validate should not fail")
@@ -206,7 +144,7 @@ func TestGatesCommands(t *testing.T) {
 		}
 	})
 
-	// Test 12: gates validate --json
+	// Test 8: gates validate --json
 	t.Run("GatesValidateJSON", func(t *testing.T) {
 		output, err := container.RunFestInDir("/festivals/test-gates-festival", "gates", "validate", "--json")
 		require.NoError(t, err, "gates validate --json should not fail")
@@ -215,9 +153,9 @@ func TestGatesCommands(t *testing.T) {
 		t.Logf("gates validate --json: %s", output)
 	})
 
-	// Test 13: gates show with phase override in effect
+	// Test 9: gates show with phase override in effect
 	t.Run("GatesShowWithOverride", func(t *testing.T) {
-		// The phase override was created in test 7
+		// The phase override was created in test 5
 		// Show gates for that phase
 		output, err := container.RunFestInDir("/festivals/test-gates-festival", "gates", "show", "--phase", "002_IMPLEMENT")
 		require.NoError(t, err, "gates show --phase should not fail")
@@ -226,7 +164,7 @@ func TestGatesCommands(t *testing.T) {
 		t.Logf("gates show --phase: %s", output)
 	})
 
-	// Test 14: gates show for sequence
+	// Test 10: gates show for sequence
 	t.Run("GatesShowSequence", func(t *testing.T) {
 		output, err := container.RunFestInDir("/festivals/test-gates-festival", "gates", "show", "--sequence", "002_IMPLEMENT/01_core")
 		require.NoError(t, err, "gates show --sequence should not fail")
@@ -235,19 +173,19 @@ func TestGatesCommands(t *testing.T) {
 		t.Logf("gates show --sequence: %s", output)
 	})
 
-	// Test 15: Verify hierarchical merge behavior
+	// Test 11: Verify hierarchical merge behavior with custom override file
 	t.Run("HierarchicalMerge", func(t *testing.T) {
-		// Write a custom policy at festival level that removes a gate
+		// Write a custom policy at festival level
 		customPolicy := `version: 1
 name: custom
 inherit: true
 append:
-  - id: testing_and_verify
-    template: phases/implementation/gates/testing
+  - id: testing
+    template: gates/implementation/QUALITY_GATE_TESTING
     name: Testing and Verification
     enabled: true
-  - id: code_review
-    template: phases/implementation/gates/review
+  - id: review
+    template: gates/implementation/QUALITY_GATE_REVIEW
     name: Code Review
     enabled: true
 `
@@ -267,7 +205,7 @@ append:
 		// Verify the policy is loaded correctly
 		output, err := container.RunFestInDir("/festivals/hierarchy-test", "gates", "show", "--json")
 		require.NoError(t, err, "gates show should work with custom policy")
-		require.Contains(t, output, "testing_and_verify", "Should show gates from custom policy")
+		require.Contains(t, output, "testing", "Should show gates from custom policy")
 		t.Logf("Hierarchical merge test: %s", output)
 	})
 }
@@ -306,6 +244,17 @@ func TestGatesApplyVaryingSequenceCounts(t *testing.T) {
 	exitCode, _, err := container.container.Exec(container.ctx, []string{"mkdir", "-p", phasePath})
 	require.NoError(t, err)
 	require.Equal(t, 0, exitCode)
+
+	// Create PHASE_GOAL.md with fest_phase_type frontmatter
+	phaseGoalContent := `---
+fest_phase_type: implementation
+---
+
+# Implementation Phase
+
+Implement the features.
+`
+	writeFile(filepath.Join(phasePath, "PHASE_GOAL.md"), phaseGoalContent)
 
 	sequences := []struct {
 		name      string
