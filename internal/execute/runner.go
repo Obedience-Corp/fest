@@ -201,17 +201,17 @@ func (r *Runner) FormatAgentInstructions() (string, error) {
 
 	data := struct {
 		Header            string
+		ActionInstruction string
 		ProgressLine      string
 		PositionSection   string
 		TasksSection      string
-		ActionInstruction string
 		ProgressCmd       string
 		ContextSection    string
 	}{
 		Header:            ui.H1("Agent Execution Instructions"),
+		ActionInstruction: r.config.ActionInstruction,
 		ProgressLine:      buildAgentProgressLine(r),
 		PositionSection:   buildAgentPositionSection(phase, seq, step),
-		ActionInstruction: ui.Info("Read the task file and follow the instructions laid out exactly."),
 		TasksSection:      buildAgentTasksSection(r, step),
 		ProgressCmd:       buildProgressCommand(step),
 		ContextSection:    buildAgentContextSection(r.festivalPath, phase.Path, sequencePath),

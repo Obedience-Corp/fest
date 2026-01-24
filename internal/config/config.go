@@ -37,7 +37,13 @@ type Config struct {
 	Behavior   Behavior   `json:"behavior"`
 	Network    Network    `json:"network"`
 	TUI        TUI        `json:"tui"`
+	Execute    Execute    `json:"execute"`
 	LastSync   string     `json:"last_sync,omitempty"`
+}
+
+// Execute contains execution configuration
+type Execute struct {
+	ActionInstruction string `json:"action_instruction"`
 }
 
 // Repository contains repository information
@@ -191,6 +197,9 @@ func DefaultConfig() *Config {
 			MaxInputHeight: 10,         // Reasonable limit for expandable inputs
 			Theme:          "adaptive", // Auto-detect light/dark terminal
 		},
+		Execute: Execute{
+			ActionInstruction: "Read the task file and follow its instructions exactly.",
+		},
 	}
 }
 
@@ -256,5 +265,10 @@ func applyDefaults(cfg *Config) {
 	}
 	if cfg.TUI.Theme == "" {
 		cfg.TUI.Theme = defaults.TUI.Theme
+	}
+
+	// Execute defaults
+	if cfg.Execute.ActionInstruction == "" {
+		cfg.Execute.ActionInstruction = defaults.Execute.ActionInstruction
 	}
 }

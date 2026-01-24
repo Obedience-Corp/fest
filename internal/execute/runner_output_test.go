@@ -38,7 +38,8 @@ func TestRunner_FormatAgentInstructions_IncludesCommands(t *testing.T) {
 		"Current Position",
 		"Tasks to Execute",
 		"01_task",
-		"Read the task file and follow the instructions laid out exactly",
+		"!! ACTION REQUIRED !!",
+		"Read the task file and follow its instructions exactly",
 		"fest progress --task",
 		"--complete",
 	} {
@@ -96,6 +97,7 @@ func buildTestRunner() *Runner {
 
 	return &Runner{
 		festivalPath: "/tmp/fest",
+		config:       DefaultConfig(),
 		plan:         plan,
 		stateManager: &StateManager{state: state},
 	}

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/execute"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -102,12 +103,21 @@ func runExecute(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Create config
-	config := execute.DefaultConfig()
-	config.DryRun = dryRun
+	// Load global config for action instruction
+	globalCfg, err := config.Load(ctx, "")
+	if err != nil {
+		return errors.Wrap(err, "loading config")
+	}
+
+	// Create execution config
+	execCfg := execute.DefaultConfig()
+	execCfg.DryRun = dryRun
+	if globalCfg.Execute.ActionInstruction != "" {
+		execCfg.ActionInstruction = globalCfg.Execute.ActionInstruction
+	}
 
 	// Create runner
-	runner := execute.NewRunner(festivalPath, config)
+	runner := execute.NewRunner(festivalPath, execCfg)
 
 	// Initialize
 	if err := runner.Initialize(ctx); err != nil {
@@ -158,11 +168,20 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return errors.Wrap(err, "not inside a festival")
 	}
 
-	// Create config
-	config := execute.DefaultConfig()
+	// Load global config
+	globalCfg, err := config.Load(ctx, "")
+	if err != nil {
+		return errors.Wrap(err, "loading config")
+	}
+
+	// Create execution config
+	execCfg := execute.DefaultConfig()
+	if globalCfg.Execute.ActionInstruction != "" {
+		execCfg.ActionInstruction = globalCfg.Execute.ActionInstruction
+	}
 
 	// Create runner
-	runner := execute.NewRunner(festivalPath, config)
+	runner := execute.NewRunner(festivalPath, execCfg)
 
 	// Initialize
 	if err := runner.Initialize(ctx); err != nil {
