@@ -231,14 +231,14 @@ func (n *Navigator) GetNext(ctx context.Context) (*guidance.NextStep, error) {
 	step := n.steps[n.currentStep]
 
 	return &guidance.NextStep{
-		Mode:          guidance.ModePlan,
-		StepType:      guidance.StepTypePlanningStep,
-		ID:            step.ID,
-		Title:         step.Title,
-		Objective:     step.Description,
-		Instructions:  step.Instructions,
-		AutonomyLevel: step.Autonomy,
-		ContextFiles:  n.getContextFiles(),
+		Mode:              guidance.ModePlan,
+		StepType:          guidance.StepTypePlanningStep,
+		ID:                step.ID,
+		Title:             step.Title,
+		Objective:         step.Description,
+		Instructions:      step.Instructions,
+		AutonomyLevel:     step.Autonomy,
+		ContextFiles:      n.getContextFiles(),
 		CompletionCommand: fmt.Sprintf("fest plan next --complete %s", step.ID),
 		Metadata: map[string]any{
 			"deliverables": step.Deliverables,
