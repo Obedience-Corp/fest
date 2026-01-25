@@ -223,19 +223,21 @@ func TestFormatPercent(t *testing.T) {
 }
 
 func TestTruncateGoal(t *testing.T) {
+	// truncateGoal no longer truncates - it returns goals as-is to allow natural wrapping
 	tests := []struct {
+		name     string
 		goal     string
 		maxLen   int
 		expected string
 	}{
-		{"Short goal", 20, "Short goal"},
-		{"This is a very long goal that needs truncation", 20, "This is a very lo..."},
-		{"Exact length goal", 17, "Exact length goal"},
-		{"", 10, ""},
+		{"short goal", "Short goal", 20, "Short goal"},
+		{"long goal returned as-is", "This is a very long goal that needs truncation", 20, "This is a very long goal that needs truncation"},
+		{"exact length goal", "Exact length goal", 17, "Exact length goal"},
+		{"empty goal", "", 10, ""},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.expected, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			result := truncateGoal(tt.goal, tt.maxLen)
 			if result != tt.expected {
 				t.Errorf("truncateGoal(%q, %d) = %q, want %q", tt.goal, tt.maxLen, result, tt.expected)

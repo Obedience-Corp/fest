@@ -328,7 +328,7 @@ func formatFraction(completed, total int) string {
 	return ui.Value(fmt.Sprintf("%d/%d", completed, total), ui.MetadataColor)
 }
 
-func truncateGoal(goal string, maxLen int) string {
+func truncateGoal(goal string, _ int) string {
 	// Don't truncate goals - let them display fully and wrap naturally
 	return goal
 }

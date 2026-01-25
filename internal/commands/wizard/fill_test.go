@@ -34,6 +34,19 @@ func TestGetEditor(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Isolate from user's real config by pointing FEST_CONFIG_DIR to temp dir
+			// This ensures config.Load returns default config (empty editor)
+			tmpDir := t.TempDir()
+			origConfigDir := os.Getenv("FEST_CONFIG_DIR")
+			os.Setenv("FEST_CONFIG_DIR", tmpDir)
+			defer func() {
+				if origConfigDir == "" {
+					os.Unsetenv("FEST_CONFIG_DIR")
+				} else {
+					os.Setenv("FEST_CONFIG_DIR", origConfigDir)
+				}
+			}()
+
 			// Save and restore EDITOR
 			origEditor := os.Getenv("EDITOR")
 			defer func() {
