@@ -1089,3 +1089,54 @@ func TestNavigator_FormatInstructions_ShowsAutonomyLevel(t *testing.T) {
 		t.Error("FormatInstructions() should show autonomy level")
 	}
 }
+
+// --- GetPlan backward compatibility tests ---
+
+func TestNavigator_GetPlan(t *testing.T) {
+	tmpDir := t.TempDir()
+	plan := buildSingleTaskPlan(tmpDir)
+	nav := buildInitializedNavigator(t, plan)
+
+	// GetPlan should return the plan used to initialize the navigator
+	gotPlan := nav.GetPlan()
+	if gotPlan == nil {
+		t.Fatal("GetPlan() returned nil after initialization")
+	}
+
+	// Verify plan matches what was passed
+	if gotPlan.FestivalPath != plan.FestivalPath {
+		t.Errorf("GetPlan().FestivalPath = %v, want %v", gotPlan.FestivalPath, plan.FestivalPath)
+	}
+
+	if len(gotPlan.Phases) != len(plan.Phases) {
+		t.Errorf("GetPlan().Phases length = %d, want %d", len(gotPlan.Phases), len(plan.Phases))
+	}
+
+	if gotPlan.Summary.TotalTasks != plan.Summary.TotalTasks {
+		t.Errorf("GetPlan().Summary.TotalTasks = %d, want %d", gotPlan.Summary.TotalTasks, plan.Summary.TotalTasks)
+	}
+}
+
+func TestNavigator_GetPlan_BeforeInitialize(t *testing.T) {
+	gctx := &guidance.GuidanceContext{
+		FestivalPath: t.TempDir(),
+		Config:       guidance.DefaultConfig(),
+	}
+
+	pb := &mockPlanBuilder{
+		plan: &ExecutionPlan{
+			Summary: &ExecutionSummary{TotalTasks: 1},
+		},
+	}
+
+	nav, err := NewNavigator(gctx, pb)
+	if err != nil {
+		t.Fatalf("NewNavigator() error = %v", err)
+	}
+
+	// GetPlan before Initialize should return nil
+	gotPlan := nav.GetPlan()
+	if gotPlan != nil {
+		t.Error("GetPlan() should return nil before Initialize")
+	}
+}

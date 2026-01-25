@@ -103,6 +103,18 @@ func (n *Navigator) Initialize(ctx context.Context) error {
 }
 
 // GetPlan returns the execution plan. Returns nil if not initialized.
+//
+// Backward Compatibility Notes:
+//
+// This method provides access to the execution plan for code that hasn't
+// yet migrated to the Navigator interface. New code should prefer using
+// Navigator methods (GetNext, MarkComplete, GetProgress, etc.) rather
+// than accessing the plan directly.
+//
+// Migration path:
+// 1. Replace execute.Runner with guidance.Navigator
+// 2. Replace direct plan access with Navigator methods
+// 3. Remove GetPlan() calls once migration is complete
 func (n *Navigator) GetPlan() *ExecutionPlan {
 	return n.plan
 }
