@@ -2,14 +2,23 @@
 package next
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/next"
 	"github.com/spf13/cobra"
+
+	// Import all navigator packages to trigger their registration.
+	_ "github.com/Obedience-Corp/fest/internal/guidance/action"
+	_ "github.com/Obedience-Corp/fest/internal/guidance/ingest"
+	_ "github.com/Obedience-Corp/fest/internal/guidance/planning"
+	_ "github.com/Obedience-Corp/fest/internal/guidance/research"
+	_ "github.com/Obedience-Corp/fest/internal/guidance/review"
 )
 
 var (
@@ -18,6 +27,8 @@ var (
 	shortOutput   bool
 	cdOutput      bool
 	sequenceOnly  bool
+	modeFlag      string
+	useNavigator  bool
 )
 
 // NewNextCommand creates the next command
@@ -50,11 +61,18 @@ Examples:
 	cmd.Flags().BoolVar(&shortOutput, "short", false, "output only the task path")
 	cmd.Flags().BoolVar(&cdOutput, "cd", false, "output directory path for cd command")
 	cmd.Flags().BoolVar(&sequenceOnly, "sequence", false, "only consider current sequence")
+	cmd.Flags().StringVarP(&modeFlag, "mode", "m", "", "override phase type detection (execute|plan|research|review|action|ingest)")
+	cmd.Flags().BoolVar(&useNavigator, "navigator", false, "use guidance navigator for output formatting")
 
 	return cmd
 }
 
 func runNext(cmd *cobra.Command, args []string) error {
+	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		return errors.IO("getting current directory", err)
@@ -66,8 +84,13 @@ func runNext(cmd *cobra.Command, args []string) error {
 		return errors.Wrap(err, "not inside a festival")
 	}
 
+	// If mode flag is provided or --navigator flag is set, use guidance navigator
+	if modeFlag != "" || useNavigator {
+		return runNavigatorMode(ctx, cwd, festivalPath)
+	}
+
+	// Fall back to selector-based navigation
 	selector := next.NewSelector(festivalPath)
-	ctx := cmd.Context()
 
 	var result *next.NextTaskResult
 	if sequenceOnly {
@@ -114,6 +137,78 @@ func runNext(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Print(next.FormatText(result))
+	return nil
+}
+
+// runNavigatorMode uses the guidance navigator for mode-aware output.
+func runNavigatorMode(ctx context.Context, cwd, festivalPath string) error {
+	// Validate mode flag if provided
+	var modeOverride guidance.Mode
+	if modeFlag != "" {
+		modeOverride = guidance.Mode(modeFlag)
+		if !modeOverride.IsValid() {
+			validModes := []string{}
+			for _, m := range guidance.AllModes() {
+				validModes = append(validModes, string(m))
+			}
+			return errors.Validation("invalid mode").
+				WithField("mode", modeFlag).
+				WithField("valid_modes", validModes)
+		}
+	}
+
+	// Detect if we're within a phase directory
+	phasePath := shared.ResolvePhasePath(cwd, festivalPath)
+
+	// Create navigator via factory
+	var nav guidance.Navigator
+	var err error
+	if phasePath != "" {
+		// Within a phase - use NewNavigatorForPath for phase-type-aware navigation
+		nav, err = guidance.NewNavigatorForPath(ctx, festivalPath, phasePath, guidance.DefaultConfig())
+		if err != nil {
+			return errors.Wrap(err, "creating navigator for phase").
+				WithField("phase_path", phasePath)
+		}
+	} else {
+		// At festival root - use NewNavigator with default execution mode
+		mode := guidance.ModeExecute
+		if modeOverride != "" {
+			mode = modeOverride
+		}
+		gctx := &guidance.GuidanceContext{
+			FestivalPath: festivalPath,
+			FestivalName: filepath.Base(festivalPath),
+			Mode:         mode,
+			Config:       guidance.DefaultConfig(),
+		}
+		nav, err = guidance.NewNavigator(ctx, gctx)
+		if err != nil {
+			return errors.Wrap(err, "creating navigator")
+		}
+	}
+
+	// Apply mode override if flag was provided (overrides auto-detection)
+	if modeOverride != "" && nav.GetContext().Mode != modeOverride {
+		gctx := nav.GetContext().WithMode(modeOverride)
+		nav, err = guidance.NewNavigator(ctx, gctx)
+		if err != nil {
+			return errors.Wrap(err, "creating navigator with mode override").
+				WithField("mode", modeOverride)
+		}
+	}
+
+	// Initialize the navigator
+	if err := nav.Initialize(ctx); err != nil {
+		return errors.Wrap(err, "initializing navigator")
+	}
+
+	// Use Navigator.FormatInstructions() for output
+	instructions, err := nav.FormatInstructions(ctx)
+	if err != nil {
+		return errors.Wrap(err, "formatting instructions")
+	}
+	fmt.Print(instructions)
 	return nil
 }
 
