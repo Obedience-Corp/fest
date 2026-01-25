@@ -1,6 +1,8 @@
 package execute
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -146,5 +148,98 @@ func TestQualityGateInfo(t *testing.T) {
 	}
 	if len(gate.Criteria) != 2 {
 		t.Errorf("Criteria count = %d, want 2", len(gate.Criteria))
+	}
+}
+
+func TestIsGateTask(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		wantGate bool
+	}{
+		{
+			name: "gate task",
+			content: `---
+fest_type: gate
+fest_id: 01_review
+fest_name: Code Review
+fest_parent: 01_sequence
+fest_order: 1
+fest_status: pending
+fest_created: 2025-01-01T00:00:00Z
+---
+
+# Quality Gate
+`,
+			wantGate: true,
+		},
+		{
+			name: "regular task",
+			content: `---
+fest_type: task
+fest_id: 01_implement
+fest_name: Implementation
+fest_parent: 01_sequence
+fest_order: 1
+fest_status: pending
+fest_created: 2025-01-01T00:00:00Z
+---
+
+# Task
+`,
+			wantGate: false,
+		},
+		{
+			name:     "no frontmatter",
+			content:  "# Just a markdown file\n\nNo frontmatter here.",
+			wantGate: false,
+		},
+		{
+			name:     "empty file",
+			content:  "",
+			wantGate: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create temp file
+			tmpDir := t.TempDir()
+			taskPath := filepath.Join(tmpDir, "task.md")
+			if err := os.WriteFile(taskPath, []byte(tc.content), 0644); err != nil {
+				t.Fatal(err)
+			}
+
+			got := isGateTask(taskPath)
+			if got != tc.wantGate {
+				t.Errorf("isGateTask() = %v, want %v", got, tc.wantGate)
+			}
+		})
+	}
+}
+
+func TestIsGateTask_FileNotFound(t *testing.T) {
+	got := isGateTask("/nonexistent/path/task.md")
+	if got {
+		t.Error("isGateTask() should return false for non-existent file")
+	}
+}
+
+func TestIsGateTask_InvalidYAML(t *testing.T) {
+	tmpDir := t.TempDir()
+	taskPath := filepath.Join(tmpDir, "task.md")
+	content := `---
+fest_type: [invalid yaml
+---
+
+# Task
+`
+	if err := os.WriteFile(taskPath, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	got := isGateTask(taskPath)
+	if got {
+		t.Error("isGateTask() should return false for invalid YAML")
 	}
 }

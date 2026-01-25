@@ -305,7 +305,6 @@ func (g *TaskGenerator) loadAndRenderTemplate(ctx context.Context, path string, 
 	return t.Content
 }
 
-
 // FindFestivalRoot finds the festival root directory from a starting path.
 func FindFestivalRoot(startPath string) (string, error) {
 	path := startPath

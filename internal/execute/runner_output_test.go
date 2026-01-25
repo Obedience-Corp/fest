@@ -15,9 +15,9 @@ func TestRunner_FormatDryRun_IncludesSummaryAndTasks(t *testing.T) {
 
 	// Only check for dynamic values from test data, not static template text
 	dynamicValues := []string{
-		"001_PHASE",    // phase name from test data
-		"01_SEQUENCE",  // sequence name from test data
-		"01_task",      // task name from test data
+		"001_PHASE",   // phase name from test data
+		"01_SEQUENCE", // sequence name from test data
+		"01_task",     // task name from test data
 	}
 
 	for _, snippet := range dynamicValues {
@@ -37,12 +37,12 @@ func TestRunner_FormatAgentInstructions_IncludesCommands(t *testing.T) {
 
 	// Only check for dynamic values from test data and config, not static template text
 	dynamicValues := []string{
-		"01_task",                              // task name from test data
-		"001_PHASE",                            // phase name from test data
-		"01_SEQUENCE",                          // sequence name from test data
+		"01_task",     // task name from test data
+		"001_PHASE",   // phase name from test data
+		"01_SEQUENCE", // sequence name from test data
 		"/tmp/fest/001_PHASE/01_SEQUENCE/01_task.md", // task path from test data
-		runner.config.ActionInstruction,        // action instruction from config
-		"fest progress --task",                 // progress command
+		runner.config.ActionInstruction,              // action instruction from config
+		"fest progress --task",                       // progress command
 	}
 
 	for _, snippet := range dynamicValues {
