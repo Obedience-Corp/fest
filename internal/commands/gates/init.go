@@ -124,25 +124,68 @@ version: "1.0"
 quality_gates:
   enabled: true
   auto_append: true
-  tasks:
-    - id: testing_and_verify
-      template: phases/implementation/gates/testing
+
+  # Implementation phase gates (code changes)
+  implementation:
+    - id: testing
+      template: gates/implementation/QUALITY_GATE_TESTING
       name: Testing and Verification
       enabled: true
-
-    - id: code_review
-      template: phases/implementation/gates/review
+    - id: review
+      template: gates/implementation/QUALITY_GATE_REVIEW
       name: Code Review
       enabled: true
-
-    - id: review_results_iterate
-      template: phases/implementation/gates/iterate
+    - id: iterate
+      template: gates/implementation/QUALITY_GATE_ITERATE
       name: Review Results and Iterate
       enabled: true
-
     - id: commit
-      template: phases/implementation/gates/commit
+      template: gates/implementation/QUALITY_GATE_COMMIT
       name: Commit Changes
+      enabled: true
+
+  # Planning phase gates
+  planning:
+    - id: plan_review
+      template: gates/planning/QUALITY_GATE_PLAN_REVIEW
+      name: Planning Review
+      enabled: true
+    - id: approval
+      template: gates/planning/QUALITY_GATE_APPROVAL
+      name: Planning Approval
+      enabled: true
+
+  # Research phase gates
+  research:
+    - id: findings_review
+      template: gates/research/QUALITY_GATE_FINDINGS_REVIEW
+      name: Findings Review
+      enabled: true
+    - id: documentation
+      template: gates/research/QUALITY_GATE_DOCUMENTATION
+      name: Documentation
+      enabled: true
+
+  # Review/QA phase gates
+  review:
+    - id: checklist
+      template: gates/review/QUALITY_GATE_CHECKLIST
+      name: Review Checklist
+      enabled: true
+    - id: sign_off
+      template: gates/review/QUALITY_GATE_SIGN_OFF
+      name: Sign-off
+      enabled: true
+
+  # Non-coding action phase gates (deployment, config, etc.)
+  non_coding_action:
+    - id: action_verify
+      template: gates/non_coding_action/QUALITY_GATE_ACTION_VERIFY
+      name: Execution and Verify
+      enabled: true
+    - id: completion
+      template: gates/non_coding_action/QUALITY_GATE_COMPLETION
+      name: Completion
       enabled: true
 
 excluded_patterns:

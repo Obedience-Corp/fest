@@ -127,13 +127,17 @@ These flags are mutually exclusive - only one level can be targeted at a time.`,
   fest status set --task 01_analyze.md in_progress
   fest status set --task 001/01/02_impl.md completed
   fest status set --path ./002/01/task.md blocked`,
-		Args: cobra.ExactArgs(1),
+		Args: cobra.RangeArgs(0, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			if ctx == nil {
 				ctx = context.Background()
 			}
-			return runStatusSet(ctx, cmd, args[0], opts)
+			var newStatus string
+			if len(args) > 0 {
+				newStatus = args[0]
+			}
+			return runStatusSet(ctx, cmd, newStatus, opts)
 		},
 	}
 

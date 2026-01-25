@@ -4,7 +4,7 @@ package intro
 import (
 	"fmt"
 
-	introdocs "github.com/Obedience-Corp/fest/docs/intro"
+	introdocs "github.com/Obedience-Corp/fest/embedded/docs/intro"
 	"github.com/spf13/cobra"
 )
 

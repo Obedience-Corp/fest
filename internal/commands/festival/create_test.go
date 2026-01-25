@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/festival"
 )
 
@@ -489,19 +490,31 @@ func TestCreateFestival_FestYAMLGenerated(t *testing.T) {
 
 // TestCreateFestival_GatesConfigHasCorrectStructure verifies the generated config
 func TestCreateFestival_GatesConfigHasCorrectStructure(t *testing.T) {
-	cfg := DefaultFestivalGatesConfig()
+	cfg := config.DefaultFestivalConfig()
 
 	// Verify quality gates are enabled
 	if !cfg.QualityGates.Enabled {
 		t.Error("quality gates should be enabled by default")
 	}
 
-	// Verify we have 4 default gates
-	if len(cfg.QualityGates.Tasks) != 4 {
-		t.Errorf("expected 4 quality gate tasks, got %d", len(cfg.QualityGates.Tasks))
+	// Verify we have phase-type organized gates (new format)
+	if len(cfg.QualityGates.Implementation) != 4 {
+		t.Errorf("expected 4 implementation gates, got %d", len(cfg.QualityGates.Implementation))
+	}
+	if len(cfg.QualityGates.Planning) != 3 {
+		t.Errorf("expected 3 planning gates, got %d", len(cfg.QualityGates.Planning))
+	}
+	if len(cfg.QualityGates.Research) != 3 {
+		t.Errorf("expected 3 research gates, got %d", len(cfg.QualityGates.Research))
+	}
+	if len(cfg.QualityGates.Review) != 2 {
+		t.Errorf("expected 2 review gates, got %d", len(cfg.QualityGates.Review))
+	}
+	if len(cfg.QualityGates.NonCodingAction) != 2 {
+		t.Errorf("expected 2 non_coding_action gates, got %d", len(cfg.QualityGates.NonCodingAction))
 	}
 
-	// Verify all gates use gates/implementation/ prefix with proper template names
+	// Verify implementation gates use correct template paths
 	expectedTemplates := map[string]bool{
 		"gates/implementation/QUALITY_GATE_TESTING": false,
 		"gates/implementation/QUALITY_GATE_REVIEW":  false,
@@ -509,7 +522,7 @@ func TestCreateFestival_GatesConfigHasCorrectStructure(t *testing.T) {
 		"gates/implementation/QUALITY_GATE_COMMIT":  false,
 	}
 
-	for _, task := range cfg.QualityGates.Tasks {
+	for _, task := range cfg.QualityGates.Implementation {
 		if _, ok := expectedTemplates[task.Template]; !ok {
 			t.Errorf("unexpected template path: %s", task.Template)
 		} else {

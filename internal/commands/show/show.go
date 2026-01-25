@@ -13,7 +13,8 @@ import (
 )
 
 type showOptions struct {
-	json bool
+	json    bool
+	summary bool // Show aggregate summary instead of tree view
 }
 
 // NewShowCommand creates the show command with all subcommands.
@@ -46,6 +47,7 @@ SUBCOMMANDS:
 	}
 
 	cmd.Flags().BoolVar(&opts.json, "json", false, "output in JSON format")
+	cmd.Flags().BoolVar(&opts.summary, "summary", false, "show aggregate summary instead of tree view")
 
 	// Add subcommands for status directories
 	cmd.AddCommand(newShowActiveCommand(opts))
@@ -150,7 +152,7 @@ func runShowCurrent(ctx context.Context, opts *showOptions) error {
 	if opts.json {
 		return emitFestivalJSON(festival)
 	}
-	return emitFestivalText(festival)
+	return emitFestivalText(festival, opts.summary)
 }
 
 func runShow(ctx context.Context, target string, opts *showOptions) error {
@@ -180,7 +182,7 @@ func runShow(ctx context.Context, target string, opts *showOptions) error {
 	if opts.json {
 		return emitFestivalJSON(festival)
 	}
-	return emitFestivalText(festival)
+	return emitFestivalText(festival, opts.summary)
 }
 
 func runShowStatus(ctx context.Context, status string, opts *showOptions) error {
@@ -256,9 +258,25 @@ func emitFestivalJSON(festival *FestivalInfo) error {
 	return nil
 }
 
-func emitFestivalText(festival *FestivalInfo) error {
+func emitFestivalText(festival *FestivalInfo, summary bool) error {
 	verbose := shared.IsVerbose()
-	fmt.Println(FormatFestivalDetails(festival, verbose))
+
+	// Use tree view by default, summary view with --summary flag
+	if summary {
+		fmt.Println(FormatFestivalDetails(festival, verbose))
+		return nil
+	}
+
+	// Build and render tree view
+	tree, err := BuildFestivalTree(context.Background(), festival.Path)
+	if err != nil {
+		// Fall back to summary view on error
+		fmt.Println(FormatFestivalDetails(festival, verbose))
+		return nil
+	}
+
+	opts := DefaultTreeOptions()
+	fmt.Println(RenderTree(tree, opts))
 	return nil
 }
 

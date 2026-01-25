@@ -26,14 +26,18 @@ type HierarchicalTemplateResolver interface {
 	ClearCache()
 }
 
-// PolicyRegistrar provides access to named policies.
-type PolicyRegistrar interface {
-	Get(name string) (*PolicyInfo, bool)
-	GetPolicy(name string) (*GatePolicy, error)
-	List() []string
-	ListInfo() []*PolicyInfo
-	Refresh()
+// PolicyInfo describes a named policy (for backwards compatibility)
+// Deprecated: Named policies are no longer supported. Use fest.yaml phase-type sections.
+type PolicyInfo struct {
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Source      string `json:"source"`
+	Path        string `json:"path,omitempty"`
 }
+
+// PolicyRegistry is a deprecated type kept for API compatibility
+// Deprecated: Named policies are no longer supported. Use fest.yaml phase-type sections.
+type PolicyRegistry struct{}
 
 const (
 	// PolicyFileName is the name of the gate policy file
@@ -151,29 +155,30 @@ func DefaultPolicy() *GatePolicy {
 
 // ImplementationGates returns quality gates for implementation phases.
 // These focus on testing, code review, and committing code changes.
+// IDs match template filenames in embedded/templates/agent/gates/implementation/
 func ImplementationGates() []GateTask {
 	return []GateTask{
 		{
-			ID:       "testing_and_verify",
-			Template: "phases/implementation/gates/testing",
+			ID:       "testing",
+			Template: "agent/gates/implementation/testing",
 			Name:     "Testing and Verification",
 			Enabled:  true,
 		},
 		{
-			ID:       "code_review",
-			Template: "phases/implementation/gates/review",
+			ID:       "review",
+			Template: "agent/gates/implementation/review",
 			Name:     "Code Review",
 			Enabled:  true,
 		},
 		{
-			ID:       "review_results_iterate",
-			Template: "phases/implementation/gates/iterate",
+			ID:       "iterate",
+			Template: "agent/gates/implementation/iterate",
 			Name:     "Review Results and Iterate",
 			Enabled:  true,
 		},
 		{
 			ID:       "commit",
-			Template: "phases/implementation/gates/commit",
+			Template: "agent/gates/implementation/commit",
 			Name:     "Commit Changes",
 			Enabled:  true,
 		},
@@ -182,24 +187,19 @@ func ImplementationGates() []GateTask {
 
 // PlanningGates returns quality gates for planning phases.
 // These focus on reviewing decisions and preparing for implementation.
+// IDs match template filenames in embedded/templates/agent/gates/planning/
 func PlanningGates() []GateTask {
 	return []GateTask{
 		{
-			ID:       "planning_review",
-			Template: "phases/planning/gates/plan_review",
+			ID:       "plan_review",
+			Template: "agent/gates/planning/plan_review",
 			Name:     "Planning Review",
 			Enabled:  true,
 		},
 		{
-			ID:       "decision_validation",
-			Template: "phases/planning/gates/decision_validation",
-			Name:     "Decision Validation",
-			Enabled:  true,
-		},
-		{
-			ID:       "planning_summary",
-			Template: "phases/planning/gates/approval",
-			Name:     "Planning Summary",
+			ID:       "approval",
+			Template: "agent/gates/planning/approval",
+			Name:     "Planning Approval",
 			Enabled:  true,
 		},
 	}
@@ -207,24 +207,19 @@ func PlanningGates() []GateTask {
 
 // ResearchGates returns quality gates for research phases.
 // These focus on documenting findings and knowledge transfer.
+// IDs match template filenames in embedded/templates/agent/gates/research/
 func ResearchGates() []GateTask {
 	return []GateTask{
 		{
-			ID:       "research_review",
-			Template: "phases/research/gates/findings_review",
-			Name:     "Research Review",
+			ID:       "findings_review",
+			Template: "agent/gates/research/findings_review",
+			Name:     "Findings Review",
 			Enabled:  true,
 		},
 		{
-			ID:       "findings_synthesis",
-			Template: "phases/research/gates/documentation",
-			Name:     "Findings Synthesis",
-			Enabled:  true,
-		},
-		{
-			ID:       "research_summary",
-			Template: "phases/research/gates/summary",
-			Name:     "Research Summary",
+			ID:       "documentation",
+			Template: "agent/gates/research/documentation",
+			Name:     "Documentation",
 			Enabled:  true,
 		},
 	}
@@ -232,17 +227,18 @@ func ResearchGates() []GateTask {
 
 // ReviewGates returns quality gates for review/QA phases.
 // These focus on verification and sign-off.
+// IDs match template filenames in embedded/templates/agent/gates/review/
 func ReviewGates() []GateTask {
 	return []GateTask{
 		{
-			ID:       "review_checklist",
-			Template: "phases/review/gates/checklist",
+			ID:       "checklist",
+			Template: "agent/gates/review/checklist",
 			Name:     "Review Checklist",
 			Enabled:  true,
 		},
 		{
-			ID:       "signoff",
-			Template: "phases/review/gates/sign_off",
+			ID:       "sign_off",
+			Template: "agent/gates/review/sign_off",
 			Name:     "Sign-off",
 			Enabled:  true,
 		},
@@ -252,24 +248,19 @@ func ReviewGates() []GateTask {
 // ActionGates returns quality gates for action/operational phases.
 // These phases handle deployment, configuration, publishing, migrations, and other
 // non-coding tasks. No code review gates since there's no code to review.
+// IDs match template filenames in embedded/templates/agent/gates/non_coding_action/
 func ActionGates() []GateTask {
 	return []GateTask{
 		{
-			ID:       "execution_verify",
-			Template: "phases/non_coding_action/gates/action_verify",
-			Name:     "Execution & Verify",
+			ID:       "action_verify",
+			Template: "agent/gates/non_coding_action/action_verify",
+			Name:     "Execution and Verify",
 			Enabled:  true,
 		},
 		{
-			ID:       "rollback_confirm",
-			Template: "phases/non_coding_action/gates/completion",
-			Name:     "Rollback Confirmed",
-			Enabled:  true,
-		},
-		{
-			ID:       "commit",
-			Template: "phases/implementation/gates/commit",
-			Name:     "Commit",
+			ID:       "completion",
+			Template: "agent/gates/non_coding_action/completion",
+			Name:     "Completion",
 			Enabled:  true,
 		},
 	}
@@ -409,7 +400,8 @@ func GateTaskFromQualityGateTask(qt config.QualityGateTask) GateTask {
 }
 
 // LoadGatesFromFestConfig loads gate tasks from a festival's fest.yaml file.
-// Returns the tasks, excluded patterns, and whether quality gates are enabled.
+// Returns the tasks (from all phase types), excluded patterns, and whether quality gates are enabled.
+// For backwards compatibility, falls back to Tasks field if phase-specific fields are empty.
 func LoadGatesFromFestConfig(festivalPath string) ([]GateTask, []string, bool, error) {
 	cfg, err := config.LoadFestivalConfig(festivalPath)
 	if err != nil {
@@ -422,15 +414,36 @@ func LoadGatesFromFestConfig(festivalPath string) ([]GateTask, []string, bool, e
 		return nil, nil, false, nil
 	}
 
-	tasks := make([]GateTask, 0, len(cfg.QualityGates.Tasks))
-	for _, qt := range cfg.QualityGates.Tasks {
-		task := GateTaskFromQualityGateTask(qt)
-		task.Source = &PolicySource{
-			Level: PolicyLevelFestival,
-			Path:  filepath.Join(festivalPath, config.FestivalConfigFileName),
-			Name:  "fest.yaml",
+	source := &PolicySource{
+		Level: PolicyLevelFestival,
+		Path:  filepath.Join(festivalPath, config.FestivalConfigFileName),
+		Name:  "fest.yaml",
+	}
+
+	// Collect gates from all phase types
+	var tasks []GateTask
+
+	// Helper to add gates from a phase
+	addPhaseGates := func(phaseTasks []config.QualityGateTask) {
+		for _, qt := range phaseTasks {
+			if qt.Enabled {
+				task := GateTaskFromQualityGateTask(qt)
+				task.Source = source
+				tasks = append(tasks, task)
+			}
 		}
-		tasks = append(tasks, task)
+	}
+
+	// Collect from all phase-specific fields
+	addPhaseGates(cfg.QualityGates.Implementation)
+	addPhaseGates(cfg.QualityGates.Planning)
+	addPhaseGates(cfg.QualityGates.Research)
+	addPhaseGates(cfg.QualityGates.Review)
+	addPhaseGates(cfg.QualityGates.NonCodingAction)
+
+	// Backwards compatibility: if no phase-specific gates, use legacy Tasks field
+	if len(tasks) == 0 {
+		addPhaseGates(cfg.QualityGates.Tasks)
 	}
 
 	return tasks, cfg.ExcludedPatterns, true, nil

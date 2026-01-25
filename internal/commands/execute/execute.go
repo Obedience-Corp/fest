@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/execute"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -14,14 +15,15 @@ import (
 )
 
 var (
-	dryRun       bool
-	agentMode    bool
-	jsonOutput   bool
-	maxParallel  int
-	continueExec bool
-	phaseName    string
-	seqName      string
-	reset        bool
+	dryRun        bool
+	agentMode     bool
+	jsonOutput    bool
+	maxParallel   int
+	continueExec  bool
+	phaseName     string
+	seqName       string
+	reset         bool
+	inlineContext bool
 )
 
 // NewExecuteCommand creates the execute command
@@ -58,6 +60,7 @@ Examples:
 	cmd.Flags().StringVar(&phaseName, "phase", "", "execute specific phase")
 	cmd.Flags().StringVar(&seqName, "sequence", "", "execute specific sequence")
 	cmd.Flags().BoolVar(&reset, "reset", false, "clear saved execution state")
+	cmd.Flags().BoolVar(&inlineContext, "inline-context", false, "render goal file contents inline instead of paths")
 
 	// Add status subcommand
 	cmd.AddCommand(newStatusCommand())
@@ -102,12 +105,22 @@ func runExecute(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Create config
-	config := execute.DefaultConfig()
-	config.DryRun = dryRun
+	// Load global config for action instruction
+	globalCfg, err := config.Load(ctx, "")
+	if err != nil {
+		return errors.Wrap(err, "loading config")
+	}
+
+	// Create execution config
+	execCfg := execute.DefaultConfig()
+	execCfg.DryRun = dryRun
+	execCfg.InlineContext = inlineContext
+	if globalCfg.Execute.ActionInstruction != "" {
+		execCfg.ActionInstruction = globalCfg.Execute.ActionInstruction
+	}
 
 	// Create runner
-	runner := execute.NewRunner(festivalPath, config)
+	runner := execute.NewRunner(festivalPath, execCfg)
 
 	// Initialize
 	if err := runner.Initialize(ctx); err != nil {
@@ -158,11 +171,20 @@ func runStatus(cmd *cobra.Command, args []string) error {
 		return errors.Wrap(err, "not inside a festival")
 	}
 
-	// Create config
-	config := execute.DefaultConfig()
+	// Load global config
+	globalCfg, err := config.Load(ctx, "")
+	if err != nil {
+		return errors.Wrap(err, "loading config")
+	}
+
+	// Create execution config
+	execCfg := execute.DefaultConfig()
+	if globalCfg.Execute.ActionInstruction != "" {
+		execCfg.ActionInstruction = globalCfg.Execute.ActionInstruction
+	}
 
 	// Create runner
-	runner := execute.NewRunner(festivalPath, config)
+	runner := execute.NewRunner(festivalPath, execCfg)
 
 	// Initialize
 	if err := runner.Initialize(ctx); err != nil {

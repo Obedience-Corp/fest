@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/huh"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	uitheme "github.com/Obedience-Corp/fest/internal/ui/theme"
+	"github.com/charmbracelet/huh"
 )
 
 func charmCreateFestival(ctx context.Context) error {
@@ -43,8 +43,8 @@ func charmCreateFestival(ctx context.Context) error {
 				huh.NewOption("planned", "planned"),
 			).Value(&dest),
 		),
-	).WithTheme(theme())
-	if err := form.Run(); err != nil {
+	)
+	if err := uitheme.RunForm(ctx, form); err != nil {
 		if uitheme.IsCancelled(err) {
 			return nil
 		}
@@ -63,7 +63,7 @@ func charmCreateFestival(ctx context.Context) error {
 			continue
 		}
 		var v string
-		if err := huh.NewForm(huh.NewGroup(huh.NewInput().Title(k).Value(&v))).WithTheme(theme()).Run(); err != nil {
+		if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(huh.NewInput().Title(k).Value(&v)))); err != nil {
 			if uitheme.IsCancelled(err) {
 				return nil
 			}
@@ -114,8 +114,8 @@ func charmPlanFestivalWizard(ctx context.Context) error {
 				huh.NewOption("active", "active"),
 			).Value(&dest),
 		),
-	).WithTheme(theme())
-	if err := base.Run(); err != nil {
+	)
+	if err := uitheme.RunForm(ctx, base); err != nil {
 		if uitheme.IsCancelled(err) {
 			return nil
 		}
@@ -132,7 +132,7 @@ func charmPlanFestivalWizard(ctx context.Context) error {
 			continue
 		}
 		var v string
-		if err := huh.NewForm(huh.NewGroup(huh.NewInput().Title(k).Value(&v))).WithTheme(theme()).Run(); err != nil {
+		if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(huh.NewInput().Title(k).Value(&v)))); err != nil {
 			if uitheme.IsCancelled(err) {
 				return nil
 			}
@@ -161,8 +161,8 @@ func charmPlanFestivalWizard(ctx context.Context) error {
 			huh.NewConfirm().Title("Add initial phases now?").Value(&addPhases),
 			huh.NewInput().Title("How many phases?").Value(&countStr),
 		),
-	).WithTheme(theme())
-	if err := phasesForm.Run(); err != nil {
+	)
+	if err := uitheme.RunForm(ctx, phasesForm); err != nil {
 		if uitheme.IsCancelled(err) {
 			return nil
 		}
@@ -182,8 +182,8 @@ func charmPlanFestivalWizard(ctx context.Context) error {
 					huh.NewInput().Title(fmt.Sprintf("Phase %d name", i+1)).Placeholder("PLAN").Value(&pname).Validate(notEmpty),
 					huh.NewSelect[string]().Title("Phase type").Options(toOptions([]string{"planning", "implementation", "review", "deployment", "research"})...).Value(&ptype),
 				),
-			).WithTheme(theme())
-			if err := pf.Run(); err != nil {
+			)
+			if err := uitheme.RunForm(ctx, pf); err != nil {
 				if uitheme.IsCancelled(err) {
 					return nil
 				}
@@ -210,8 +210,8 @@ func charmGenerateFestivalGoal(ctx context.Context) error {
 			huh.NewInput().Title("festival_name").Value(&name),
 			huh.NewInput().Title("festival_goal").Value(&goal),
 		),
-	).WithTheme(theme())
-	if err := form.Run(); err != nil {
+	)
+	if err := uitheme.RunForm(ctx, form); err != nil {
 		if uitheme.IsCancelled(err) {
 			return nil
 		}

@@ -9,10 +9,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/charmbracelet/huh"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	uitheme "github.com/Obedience-Corp/fest/internal/ui/theme"
+	"github.com/charmbracelet/huh"
 )
 
 // HierarchyLevel represents a level in the selection hierarchy.

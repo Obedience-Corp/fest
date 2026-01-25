@@ -85,9 +85,8 @@ func (g *TaskGenerator) GenerateForSequence(
 			WithField("path", sequencePath)
 	}
 
-	// Find highest task number and existing task IDs
+	// Find highest task number to continue numbering from
 	maxNum := 0
-	existingTasks := make(map[string]bool)
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
 			continue
@@ -95,7 +94,6 @@ func (g *TaskGenerator) GenerateForSequence(
 		if entry.Name() == "SEQUENCE_GOAL.md" {
 			continue
 		}
-		existingTasks[entry.Name()] = true
 		num := festival.ParseTaskNumber(entry.Name())
 		if num > maxNum {
 			maxNum = num
@@ -112,36 +110,19 @@ func (g *TaskGenerator) GenerateForSequence(
 		taskFileName := tpl.FormatTaskID(taskNum, gate.ID)
 		taskPath := filepath.Join(sequencePath, taskFileName)
 
-		// Check if task already exists (by ID pattern)
-		taskExists := false
-		for existingName := range existingTasks {
-			if strings.Contains(existingName, gate.ID) {
-				taskExists = true
-				break
-			}
-		}
-
-		if taskExists {
-			results = append(results, GenerateResult{
-				Type:   "exists",
-				Path:   taskPath,
-				TaskID: gate.ID,
-				Reason: "task_already_exists",
-			})
-			continue
-		}
-
-		// Check if file exists (could be renamed)
-		if _, err := os.Stat(taskPath); err == nil {
+		// Check if a gate of this type already exists (any task number)
+		if existingPath := findExistingGate(entries, sequencePath, gate.ID); existingPath != "" {
 			if !opts.Force {
 				results = append(results, GenerateResult{
 					Type:   "skip",
-					Path:   taskPath,
+					Path:   existingPath,
 					TaskID: gate.ID,
-					Reason: "file_exists",
+					Reason: "gate_exists",
 				})
 				continue
 			}
+			// With --force, overwrite the existing file instead of creating new
+			taskPath = existingPath
 		}
 
 		// Create the task
@@ -150,7 +131,13 @@ func (g *TaskGenerator) GenerateForSequence(
 			if len(festivalPath) > 0 {
 				festPath = festivalPath[0]
 			}
-			content := g.renderGateContent(ctx, gate, taskNum, festPath)
+
+			content, err := g.renderGateContent(ctx, gate, taskNum, festPath)
+			if err != nil {
+				return nil, nil, errors.Wrap(err, "rendering gate content").
+					WithField("gate_id", gate.ID).
+					WithField("task_path", taskPath)
+			}
 
 			// Inject frontmatter if content doesn't already have it
 			if !strings.HasPrefix(strings.TrimSpace(content), "---") {
@@ -181,10 +168,72 @@ func (g *TaskGenerator) GenerateForSequence(
 	return results, warnings, nil
 }
 
+// findExistingGate checks if a gate with the given type already exists in the sequence.
+// Returns the path of the existing file, or empty string if not found.
+func findExistingGate(entries []os.DirEntry, sequencePath, gateType string) string {
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".md") {
+			continue
+		}
+		filePath := filepath.Join(sequencePath, name)
+		if hasGateType(filePath, gateType) {
+			return filePath
+		}
+	}
+	return ""
+}
+
+// hasGateType checks if a file is a gate document with the specified gate type.
+func hasGateType(filePath, gateType string) bool {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return false
+	}
+
+	lines := strings.Split(string(content), "\n")
+	inFrontmatter := false
+	isGate := false
+	matchesType := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "---" {
+			if inFrontmatter {
+				break // End of frontmatter
+			}
+			inFrontmatter = true
+			continue
+		}
+		if !inFrontmatter {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "fest_type:") && strings.Contains(trimmed, "gate") {
+			isGate = true
+		}
+		if strings.HasPrefix(trimmed, "fest_gate_type:") {
+			parts := strings.SplitN(trimmed, ":", 2)
+			if len(parts) == 2 && strings.TrimSpace(parts[1]) == gateType {
+				matchesType = true
+			}
+		}
+	}
+	return isGate && matchesType
+}
+
 // renderGateContent renders the content for a gate task file.
-// festivalPath is used to resolve gates/ prefixed templates.
-func (g *TaskGenerator) renderGateContent(ctx context.Context, gate GateTask, taskNum int, festivalPath string) string {
-	// Build context
+// Loads directly from the festival's gates/ directory - no fallbacks.
+// Returns an error if the gate file cannot be found.
+func (g *TaskGenerator) renderGateContent(ctx context.Context, gate GateTask, taskNum int, festivalPath string) (string, error) {
+	if festivalPath == "" {
+		return "", errors.Validation("festivalPath required for gate rendering").
+			WithField("gate_id", gate.ID)
+	}
+
+	// Build template context
 	tmplCtx := tpl.NewContext()
 	tmplCtx.SetTask(taskNum, gate.ID)
 	if gate.Customizations != nil {
@@ -193,107 +242,69 @@ func (g *TaskGenerator) renderGateContent(ctx context.Context, gate GateTask, ta
 		}
 	}
 
-	var content string
-
-	// Handle "gates/TEMPLATE_NAME" format - resolve from festival's gates/ directory first
-	if strings.HasPrefix(gate.Template, "gates/") && festivalPath != "" {
-		templateName := strings.TrimPrefix(gate.Template, "gates/")
-		gatesPath := filepath.Join(festivalPath, "gates", templateName+".md")
-
-		if _, err := os.Stat(gatesPath); err == nil {
-			loader := tpl.NewLoader()
-			t, err := loader.Load(ctx, gatesPath)
-			if err == nil {
-				if strings.Contains(t.Content, "{{") {
-					content, _ = g.manager.Render(t, tmplCtx)
-				} else {
-					content = t.Content
-				}
-			}
-		}
+	// Extract phase type and gate name from template path
+	phaseType, gateName := extractPhaseAndGate(gate.Template)
+	if phaseType == "" || gateName == "" {
+		return "", errors.Validation("invalid gate template path").
+			WithField("template", gate.Template).
+			WithField("gate_id", gate.ID)
 	}
 
-	// Try catalog if not found in festival gates/
-	if content == "" && g.catalog != nil {
-		// For gates/ prefix, try with the stripped template name
-		templateID := gate.Template
-		if strings.HasPrefix(templateID, "gates/") {
-			templateID = strings.TrimPrefix(templateID, "gates/")
-		}
-		content, _ = g.manager.RenderByID(ctx, g.catalog, templateID, tmplCtx)
+	// Load from festival's gates directory - this MUST exist
+	gatesPath := filepath.Join(festivalPath, "gates", phaseType, gateName+".md")
+	if _, err := os.Stat(gatesPath); err != nil {
+		return "", errors.NotFound("gate file").
+			WithField("path", gatesPath).
+			WithField("gate_id", gate.ID).
+			WithField("phase_type", phaseType)
 	}
 
-	// Fallback to direct file load from template root
-	if content == "" && g.templateRoot != "" {
-		templateName := gate.Template
-		// Strip gates/ prefix if present (legacy format)
-		if strings.HasPrefix(templateName, "gates/") {
-			templateName = strings.TrimPrefix(templateName, "gates/")
-		}
-
-		// Try multiple possible paths:
-		// 1. Direct path: templateRoot/phases/implementation/gates/testing.md
-		// 2. Legacy gates/ path: templateRoot/gates/testing.md
-		possiblePaths := []string{
-			filepath.Join(g.templateRoot, templateName+".md"),
-			filepath.Join(g.templateRoot, "gates", templateName+".md"),
-		}
-
-		for _, tpath := range possiblePaths {
-			if _, err := os.Stat(tpath); err == nil {
-				loader := tpl.NewLoader()
-				t, err := loader.Load(ctx, tpath)
-				if err == nil {
-					if strings.Contains(t.Content, "{{") {
-						content, _ = g.manager.Render(t, tmplCtx)
-					} else {
-						content = t.Content
-					}
-					break
-				}
-			}
-		}
-	}
-
-	// Use default content if template not found
+	content := g.loadAndRenderTemplate(ctx, gatesPath, tmplCtx)
 	if content == "" {
-		content = generateDefaultGateContent(gate)
+		return "", errors.IO("failed to load gate template", nil).
+			WithField("path", gatesPath)
 	}
 
-	return content
+	return content, nil
 }
 
-// generateDefaultGateContent creates default content for a gate task.
-func generateDefaultGateContent(gate GateTask) string {
-	name := gate.Name
-	if name == "" {
-		name = strings.ReplaceAll(gate.ID, "_", " ")
-		name = strings.Title(name)
+// extractPhaseAndGate extracts phase type and gate name from a template path.
+// Handles formats: "gates/{phaseType}/{gateName}", "{phaseType}/{gateName}"
+func extractPhaseAndGate(templatePath string) (phaseType, gateName string) {
+	// Strip common prefixes
+	path := templatePath
+	for _, prefix := range []string{"gates/", "agent/gates/"} {
+		if strings.HasPrefix(path, prefix) {
+			path = strings.TrimPrefix(path, prefix)
+			break
+		}
 	}
 
-	return fmt.Sprintf(`# Task: %s
+	// Split into parts: should be {phaseType}/{gateName}
+	parts := strings.Split(path, "/")
+	if len(parts) >= 2 {
+		return parts[0], parts[len(parts)-1]
+	}
 
-## Objective
-
-%s
-
-## Requirements
-
-- [ ] Complete this quality gate task
-- [ ] Verify all requirements are met
-- [ ] Document any findings
-
-## Definition of Done
-
-- [ ] Task completed successfully
-- [ ] All checks pass
-- [ ] Ready to proceed
-
-## Notes
-
-[Add notes here]
-`, name, name)
+	return "", ""
 }
+
+// loadAndRenderTemplate loads a template file and renders it with context.
+func (g *TaskGenerator) loadAndRenderTemplate(ctx context.Context, path string, tmplCtx *tpl.Context) string {
+	loader := tpl.NewLoader()
+	t, err := loader.Load(ctx, path)
+	if err != nil {
+		return ""
+	}
+
+	// Only render if template has Go template syntax
+	if strings.Contains(t.Content, "{{") {
+		content, _ := g.manager.Render(t, tmplCtx)
+		return content
+	}
+	return t.Content
+}
+
 
 // FindFestivalRoot finds the festival root directory from a starting path.
 func FindFestivalRoot(startPath string) (string, error) {
@@ -520,67 +531,6 @@ func FindSequencesWithInfo(festivalRoot string, excludePatterns []string) ([]Seq
 	return sequences, nil
 }
 
-// DiscoverGatesForPhaseType reads gate templates from the template root's phases/{phase_type}/gates/ directory.
-// If templateRoot is empty, falls back to festivalPath.
-// Returns gate tasks constructed from the .md files found in that directory.
-// Returns an error if the directory doesn't exist or contains no gates.
-func DiscoverGatesForPhaseType(templateRoot, phaseType string) ([]GateTask, error) {
-	gatesDir := filepath.Join(templateRoot, "phases", phaseType, "gates")
-
-	// Check if directory exists
-	if _, err := os.Stat(gatesDir); os.IsNotExist(err) {
-		return nil, errors.NotFound("gates directory for phase type").
-			WithField("phase_type", phaseType).
-			WithField("path", gatesDir).
-			WithField("hint", fmt.Sprintf("Create gates directory: %s", gatesDir))
-	}
-
-	// Read all .md files from the directory
-	entries, err := os.ReadDir(gatesDir)
-	if err != nil {
-		return nil, errors.IO("reading gates directory", err).
-			WithField("path", gatesDir)
-	}
-
-	var gates []GateTask
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
-			continue
-		}
-
-		// Extract gate ID from filename (e.g., "testing.md" -> "testing")
-		baseName := strings.TrimSuffix(entry.Name(), ".md")
-		gateID := strings.ReplaceAll(baseName, "-", "_")
-
-		// Build template path that matches the new structure
-		templatePath := fmt.Sprintf("gates/%s/%s", phaseType, baseName)
-
-		// Try to read gate name from frontmatter if available
-		gateName := strings.Title(strings.ReplaceAll(baseName, "_", " "))
-		filePath := filepath.Join(gatesDir, entry.Name())
-		if content, err := os.ReadFile(filePath); err == nil {
-			if fm, _, err := frontmatter.Parse(content); err == nil && fm != nil && fm.Name != "" {
-				gateName = fm.Name
-			}
-		}
-
-		gates = append(gates, GateTask{
-			ID:       gateID,
-			Template: templatePath,
-			Name:     gateName,
-			Enabled:  true,
-		})
-	}
-
-	if len(gates) == 0 {
-		return nil, errors.Validation("no gate templates found in directory").
-			WithField("phase_type", phaseType).
-			WithField("path", gatesDir)
-	}
-
-	return gates, nil
-}
-
 // inferGateType infers the gate type from the gate ID.
 func inferGateType(gateID string) frontmatter.GateType {
 	lower := strings.ToLower(gateID)
@@ -591,6 +541,8 @@ func inferGateType(gateID string) frontmatter.GateType {
 		return frontmatter.GateReview
 	case strings.Contains(lower, "iterate") || strings.Contains(lower, "iteration"):
 		return frontmatter.GateIterate
+	case strings.Contains(lower, "commit"):
+		return frontmatter.GateCommit
 	case strings.Contains(lower, "security"):
 		return frontmatter.GateSecurity
 	case strings.Contains(lower, "performance") || strings.Contains(lower, "perf"):

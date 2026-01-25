@@ -30,6 +30,7 @@ that override or extend the built-in fest methodology resources.`,
 	cmd.AddCommand(newConfigShowCommand())
 	cmd.AddCommand(newConfigListCommand())
 	cmd.AddCommand(newConfigRemoveCommand())
+	cmd.AddCommand(NewThemeCommand())
 
 	return cmd
 }

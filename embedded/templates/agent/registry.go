@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io/fs"
-	"path/filepath"
 	"strings"
 	"text/template"
 )
@@ -102,12 +101,4 @@ func ListByPrefix(prefix string) []string {
 		}
 	}
 	return names
-}
-
-// GetGateTemplate returns a gate template for a specific phase type and gate name.
-// phaseType: "implementation", "research", "planning", "review", "non_coding_action"
-// gateName: "testing", "review", "iterate", "commit", etc.
-func GetGateTemplate(phaseType, gateName string) *template.Template {
-	name := filepath.Join("gates", phaseType, gateName)
-	return Get(name)
 }

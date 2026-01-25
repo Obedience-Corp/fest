@@ -4,12 +4,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/embedded/templates/agent"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/ui"
-	"github.com/Obedience-Corp/fest/templates/agent"
 )
 
 // Runner orchestrates festival execution
@@ -201,18 +202,18 @@ func (r *Runner) FormatAgentInstructions() (string, error) {
 
 	data := struct {
 		Header            string
+		ActionInstruction string
 		ProgressLine      string
 		PositionSection   string
 		TasksSection      string
-		ActionInstruction string
 		ProgressCmd       string
 		ContextSection    string
 	}{
 		Header:            ui.H1("Agent Execution Instructions"),
+		ActionInstruction: r.config.ActionInstruction,
 		ProgressLine:      buildAgentProgressLine(r),
 		PositionSection:   buildAgentPositionSection(phase, seq, step),
-		TasksSection:      buildAgentTasksSection(r, step),
-		ActionInstruction: ui.Info("Read the task file and follow the instructions laid out exactly."),
+		TasksSection:      buildAgentTasksSection(r, step, r.config.InlineContext),
 		ProgressCmd:       buildProgressCommand(step),
 		ContextSection:    buildAgentContextSection(r.festivalPath, phase.Path, sequencePath),
 	}
@@ -305,7 +306,7 @@ func buildAgentPositionSection(phase *PhaseExecution, seq *SequenceExecution, st
 	return sb.String()
 }
 
-func buildAgentTasksSection(r *Runner, step *StepGroup) string {
+func buildAgentTasksSection(r *Runner, step *StepGroup, inlineContext bool) string {
 	var sb strings.Builder
 	sb.WriteString(ui.H2("Tasks to Execute"))
 	sb.WriteString("\n")
@@ -317,21 +318,61 @@ func buildAgentTasksSection(r *Runner, step *StepGroup) string {
 		if task.AutonomyLevel != "" {
 			sb.WriteString(fmt.Sprintf("    %s %s\n", ui.Label("Autonomy"), ui.Value(task.AutonomyLevel)))
 		}
+
+		// Render task content inline when requested
+		if inlineContext {
+			writeInlineTaskContent(&sb, task.Path)
+		}
 	}
 	return sb.String()
 }
 
 func buildAgentContextSection(festivalPath, phasePath, seqPath string) string {
 	var sb strings.Builder
-	sb.WriteString(ui.H2("Context Files"))
-	sb.WriteString("\n")
+
 	festivalGoal := filepath.Join(festivalPath, "FESTIVAL_GOAL.md")
 	phaseGoal := filepath.Join(phasePath, "PHASE_GOAL.md")
 	sequenceGoal := filepath.Join(seqPath, "SEQUENCE_GOAL.md")
+
+	sb.WriteString(ui.H2("Context Files"))
+	sb.WriteString("\n")
 	sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(festivalGoal)))
 	sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(phaseGoal)))
 	sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(sequenceGoal)))
+
 	return sb.String()
+}
+
+// writeInlineTaskContent reads a task file and writes its content inline
+func writeInlineTaskContent(sb *strings.Builder, taskPath string) {
+	sb.WriteString("\n")
+	sb.WriteString("    --- Task Content ---\n")
+
+	content, err := os.ReadFile(taskPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			sb.WriteString(fmt.Sprintf("    (File not found: %s)\n", taskPath))
+		} else {
+			sb.WriteString(fmt.Sprintf("    (Error reading file: %s)\n", err.Error()))
+		}
+		sb.WriteString("    --------------------\n\n")
+		return
+	}
+
+	// Trim whitespace and write content with indentation
+	trimmed := strings.TrimSpace(string(content))
+	if trimmed == "" {
+		sb.WriteString("    (Empty file)\n")
+	} else {
+		// Indent each line of the task content
+		lines := strings.Split(trimmed, "\n")
+		for _, line := range lines {
+			sb.WriteString("    ")
+			sb.WriteString(line)
+			sb.WriteString("\n")
+		}
+	}
+	sb.WriteString("    --------------------\n\n")
 }
 
 // buildProgressCommand builds the fest progress command for marking a task complete

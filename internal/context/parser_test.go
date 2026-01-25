@@ -285,3 +285,66 @@ More text.
 		t.Errorf("extractBulletList() = %d items, want 3", len(items))
 	}
 }
+
+func TestExtractPrimaryGoal(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			name: "bold format",
+			content: `# Phase Goal
+
+## Objective
+
+**Primary Goal:** Implement the core functionality.
+
+Additional details here.
+`,
+			want: "Implement the core functionality.",
+		},
+		{
+			name: "plain format",
+			content: `# Sequence Goal
+
+Primary Goal: Create the utilities.
+
+More info.
+`,
+			want: "Create the utilities.",
+		},
+		{
+			name: "no primary goal",
+			content: `# Task
+
+## Objective
+
+Just do things.
+`,
+			want: "",
+		},
+		{
+			name: "multiline after goal",
+			content: `**Primary Goal:** Build a tree view for fest show.
+
+This enables better visualization.
+`,
+			want: "Build a tree view for fest show.",
+		},
+		{
+			name:    "with trailing punctuation",
+			content: `**Primary Goal:** Test goal extraction with punctuation!`,
+			want:    "Test goal extraction with punctuation!",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := ExtractPrimaryGoal([]byte(tc.content))
+			if got != tc.want {
+				t.Errorf("ExtractPrimaryGoal() = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}

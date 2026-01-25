@@ -7,11 +7,11 @@ import (
 	"os"
 	"strings"
 
-	"github.com/charmbracelet/huh"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	uitheme "github.com/Obedience-Corp/fest/internal/ui/theme"
+	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 )
 
@@ -69,7 +69,7 @@ func runCharmTUI(ctx context.Context) error {
 			huh.NewGroup(
 				huh.NewSelect[string]().
 					Title("What would you like to do?").
-					Description("↑/↓ navigate • enter select • esc/ctrl-c quit").
+					Description("j/k or ↑/↓ navigate • enter select • esc/ctrl-c quit").
 					Options(
 						huh.NewOption("Plan a New Festival (wizard)", "plan_festival"),
 						huh.NewOption("Create a Festival (quick)", "create_festival"),
@@ -138,11 +138,6 @@ func toOptions(values []string) []huh.Option[string] {
 	return opts
 }
 
-// theme returns the custom theme for TUI forms.
-// Uses the high-contrast FestTheme that works on any terminal background.
-func theme() *huh.Theme {
-	return uitheme.FestTheme()
-}
 
 // fallbackDot returns "." if string is empty, otherwise returns the string
 func fallbackDot(s string) string {
@@ -165,7 +160,7 @@ func StartCreateTUI(ctx context.Context) error {
 			huh.NewGroup(
 				huh.NewSelect[string]().
 					Title("Create what?").
-					Description("↑/↓ navigate • enter select • esc/ctrl-c quit").
+					Description("j/k or ↑/↓ navigate • enter select • esc/ctrl-c quit").
 					Options(
 						huh.NewOption("Festival", "festival"),
 						huh.NewOption("Phase", "phase"),

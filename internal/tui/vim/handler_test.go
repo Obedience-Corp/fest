@@ -88,11 +88,11 @@ func TestHandleKeyNormalModeNavigation(t *testing.T) {
 
 func TestHandleKeyNormalModeInsert(t *testing.T) {
 	tests := []struct {
-		name     string
-		key      string
-		wantMode Mode
-		wantMove int
-		wantEnd  bool
+		name      string
+		key       string
+		wantMode  Mode
+		wantMove  int
+		wantEnd   bool
 		wantStart bool
 	}{
 		{"i enters insert at cursor", "i", ModeInsert, 0, false, false},

@@ -30,23 +30,29 @@ const (
 
 // ExecutionConfig holds configuration for execution
 type ExecutionConfig struct {
-	Mode          ExecutionMode `json:"mode"`
-	AutoDemote    bool          `json:"auto_demote"`     // Auto-switch to human-guided on low autonomy
-	ReviewAtGates bool          `json:"review_at_gates"` // Pause at quality gates for review
-	ClaimTimeout  time.Duration `json:"claim_timeout"`   // For orchestrated mode
-	MaxTasks      int           `json:"max_tasks"`       // Maximum tasks to execute in a loop (0 = unlimited)
-	DryRun        bool          `json:"dry_run"`         // Preview without executing
+	Mode              ExecutionMode `json:"mode"`
+	AutoDemote        bool          `json:"auto_demote"`        // Auto-switch to human-guided on low autonomy
+	ReviewAtGates     bool          `json:"review_at_gates"`    // Pause at quality gates for review
+	ClaimTimeout      time.Duration `json:"claim_timeout"`      // For orchestrated mode
+	MaxTasks          int           `json:"max_tasks"`          // Maximum tasks to execute in a loop (0 = unlimited)
+	DryRun            bool          `json:"dry_run"`            // Preview without executing
+	ActionInstruction string        `json:"action_instruction"` // Instruction shown to agents
+	InlineContext     bool          `json:"inline_context"`     // Render goal file contents inline
 }
+
+// DefaultActionInstruction is shown to agents when executing tasks
+const DefaultActionInstruction = "Read the task file and follow its instructions exactly."
 
 // DefaultConfig returns the default execution configuration
 func DefaultConfig() *ExecutionConfig {
 	return &ExecutionConfig{
-		Mode:          ModeHumanGuided,
-		AutoDemote:    true,
-		ReviewAtGates: true,
-		ClaimTimeout:  5 * time.Minute,
-		MaxTasks:      0,
-		DryRun:        false,
+		Mode:              ModeHumanGuided,
+		AutoDemote:        true,
+		ReviewAtGates:     true,
+		ClaimTimeout:      5 * time.Minute,
+		MaxTasks:          0,
+		DryRun:            false,
+		ActionInstruction: DefaultActionInstruction,
 	}
 }
 

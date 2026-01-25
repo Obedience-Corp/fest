@@ -13,10 +13,12 @@ These commands manage fest's templates, configuration, and methodology
 files - NOT your festival content. Use these to keep fest up to date.
 
 Available subcommands:
+  config - Manage fest configuration settings (TUI)
   sync   - Download latest templates from GitHub
   update - Update .festival/ files from cached templates`,
 	}
 
+	cmd.AddCommand(NewConfigCommand())
 	cmd.AddCommand(NewSyncCommand())
 	cmd.AddCommand(NewUpdateCommand())
 

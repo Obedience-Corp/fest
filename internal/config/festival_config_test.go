@@ -17,35 +17,32 @@ func TestDefaultFestivalConfig(t *testing.T) {
 		t.Error("expected quality gates to be enabled by default")
 	}
 
-	if len(cfg.QualityGates.Tasks) != 4 {
-		t.Errorf("expected 4 default quality gate tasks, got %d", len(cfg.QualityGates.Tasks))
+	// Check implementation gates
+	expectedIDs := []string{"testing", "review", "iterate", "commit"}
+	if len(cfg.QualityGates.Implementation) != 4 {
+		t.Errorf("expected 4 implementation gates, got %d", len(cfg.QualityGates.Implementation))
 	}
-
-	// Check task IDs (IDs match template filenames)
-	expectedIDs := []string{"QUALITY_GATE_TESTING", "QUALITY_GATE_REVIEW", "QUALITY_GATE_ITERATE", "QUALITY_GATE_COMMIT"}
-	for i, task := range cfg.QualityGates.Tasks {
-		if task.ID != expectedIDs[i] {
-			t.Errorf("expected task ID %s, got %s", expectedIDs[i], task.ID)
-		}
-		if !task.Enabled {
-			t.Errorf("expected task %s to be enabled", task.ID)
-		}
-	}
-
-	// Check PhaseGates is populated
-	if cfg.QualityGates.PhaseGates == nil {
-		t.Error("expected PhaseGates to be populated")
-	}
-
-	// Check implementation gates are in correct order
-	implGates := cfg.QualityGates.PhaseGates["implementation"]
-	if len(implGates) != 4 {
-		t.Errorf("expected 4 implementation gates, got %d", len(implGates))
-	}
-	for i, gate := range implGates {
+	for i, gate := range cfg.QualityGates.Implementation {
 		if gate.ID != expectedIDs[i] {
 			t.Errorf("expected implementation gate ID %s at index %d, got %s", expectedIDs[i], i, gate.ID)
 		}
+		if !gate.Enabled {
+			t.Errorf("expected gate %s to be enabled", gate.ID)
+		}
+	}
+
+	// Check other phase types have gates defined
+	if len(cfg.QualityGates.Planning) == 0 {
+		t.Error("expected planning gates to be populated")
+	}
+	if len(cfg.QualityGates.Research) == 0 {
+		t.Error("expected research gates to be populated")
+	}
+	if len(cfg.QualityGates.Review) == 0 {
+		t.Error("expected review gates to be populated")
+	}
+	if len(cfg.QualityGates.NonCodingAction) == 0 {
+		t.Error("expected non_coding_action gates to be populated")
 	}
 }
 

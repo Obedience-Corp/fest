@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	understanddocs "github.com/Obedience-Corp/fest/docs/understand"
+	understanddocs "github.com/Obedience-Corp/fest/embedded/docs/understand"
 	"github.com/spf13/cobra"
 )
 

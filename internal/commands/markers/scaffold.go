@@ -55,7 +55,7 @@ var templateAliases = map[string]string{
 	"festival-goal":     "festival/GOAL.md",
 	"festival-overview": "festival/OVERVIEW.md",
 	"festival-todo":     "festival/TODO.md",
-	"festival-rules": "festival/RULES.md",
+	"festival-rules":    "festival/RULES.md",
 }
 
 // newScaffoldCommand creates the scaffold subcommand

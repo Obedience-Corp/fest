@@ -49,6 +49,7 @@ const (
 	GateTesting     GateType = "testing"
 	GateReview      GateType = "review"
 	GateIterate     GateType = "iterate"
+	GateCommit      GateType = "commit"
 	GateSecurity    GateType = "security"
 	GatePerformance GateType = "performance"
 )

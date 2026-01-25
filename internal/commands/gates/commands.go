@@ -20,22 +20,21 @@ func NewGatesCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "gates",
 		Short: "Manage quality gates - validation steps at sequence end",
-		Long: `Manage hierarchical quality gate policies for festivals.
+		Long: `Manage quality gate policies for festivals.
 
-Quality gates are validation steps that run at the end of implementation
-sequences. Gates can be customized at any level: festival, phase, or sequence.
+Quality gates are validation steps that run at the end of sequences.
+Gates are configured in fest.yaml by phase type (implementation, planning,
+research, review, non_coding_action).
 
 Available Commands:
-  show      Show effective gate policy
-  list      List available named policies
+  show      Show effective gate policy from fest.yaml
   apply     Apply quality gates to sequences
   remove    Remove quality gate files from sequences
-  init      Initialize an override file
+  init      Initialize a fest.yaml gate configuration
   validate  Validate gate configuration`,
 	}
 
 	cmd.AddCommand(newGatesShowCmd())
-	cmd.AddCommand(newGatesListCmd())
 	cmd.AddCommand(newGatesApplyCmd())
 	cmd.AddCommand(newGatesRemoveCmd())
 	cmd.AddCommand(newGatesInitCmd())
@@ -90,13 +89,8 @@ func runGatesShow(ctx context.Context, cmd *cobra.Command, phase, sequence strin
 		return errors.Wrap(err, "resolving paths").WithOp("runGatesShow")
 	}
 
-	registry, err := gatescore.NewPolicyRegistry(festivalsRoot, getConfigRoot())
-	if err != nil {
-		return errors.Wrap(err, "creating policy registry").WithOp("runGatesShow")
-	}
-
-	// Use ConfigMerger to show merged configuration from fest.yaml + policy files
-	merger, err := gatescore.NewConfigMerger(festivalsRoot, registry)
+	// Use ConfigMerger with nil registry (registry is no longer needed)
+	merger, err := gatescore.NewConfigMerger(festivalsRoot, nil)
 	if err != nil {
 		return errors.Wrap(err, "creating config merger").WithOp("runGatesShow")
 	}
@@ -187,28 +181,38 @@ func printGatesShowMergedTable(cmd *cobra.Command, merged *gatescore.MergedPolic
 			if target == "" {
 				target = src.Name
 			}
-			fmt.Fprintf(out, "%s %s\n", ui.Dim(fmt.Sprintf("[%s]", src.Level)), ui.Dim(target))
+			fmt.Fprintf(out, "  %s\n", ui.Dim(target))
 		}
 	}
 
-	// Active gates
+	// Active gates organized by phase type
 	fmt.Fprintln(out)
 	fmt.Fprintln(out, ui.H2("Active Gates"))
 
-	// Gates
 	activeGates := merged.GetActiveGates()
 	if len(activeGates) == 0 {
 		fmt.Fprintln(out, ui.Dim("No active gates."))
-	}
-	for _, gate := range activeGates {
-		source := "builtin"
-		if gate.Source != nil {
-			source = string(gate.Source.Level)
+	} else {
+		// Group gates by phase type from template path (e.g., gates/implementation/...)
+		phaseGates := make(map[string][]gatescore.GateTask)
+		phaseOrder := []string{"implementation", "planning", "research", "review", "non_coding_action"}
+
+		for _, gate := range activeGates {
+			phaseType := extractPhaseFromTemplate(gate.Template)
+			phaseGates[phaseType] = append(phaseGates[phaseType], gate)
 		}
-		fmt.Fprintf(out, "%s %s %s\n",
-			ui.Value(gate.ID, ui.GateColor),
-			ui.Dim(fmt.Sprintf("[%s]", source)),
-			ui.Dim(gate.Template))
+
+		// Display gates grouped by phase type
+		for _, phaseType := range phaseOrder {
+			gates := phaseGates[phaseType]
+			if len(gates) == 0 {
+				continue
+			}
+			fmt.Fprintf(out, "\n%s\n", ui.Value(phaseType))
+			for _, gate := range gates {
+				fmt.Fprintf(out, "  %s\n", ui.Value(gate.ID, ui.GateColor))
+			}
+		}
 	}
 
 	// Show removed gates if any
@@ -243,141 +247,7 @@ func printGatesShowMergedTable(cmd *cobra.Command, merged *gatescore.MergedPolic
 	return nil
 }
 
-// --- LIST COMMAND ---
-
-func newGatesListCmd() *cobra.Command {
-	var jsonOutput bool
-
-	cmd := &cobra.Command{
-		Use:   "list",
-		Short: "List available named policies",
-		Long:  `Display all available named gate policies that can be applied.`,
-		Example: `  fest gates list
-  fest gates list --json`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runGatesList(cmd.Context(), cmd, jsonOutput)
-		},
-	}
-
-	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
-
-	return cmd
-}
-
-func runGatesList(ctx context.Context, cmd *cobra.Command, jsonOutput bool) error {
-	if err := ctx.Err(); err != nil {
-		return errors.Wrap(err, "context cancelled").WithOp("runGatesList")
-	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		return errors.IO("getting working directory", err)
-	}
-
-	festivalsRoot, err := tpl.FindFestivalsRoot(cwd)
-	if err != nil {
-		return errors.Wrap(err, "finding festivals root").WithOp("runGatesList")
-	}
-
-	registry, err := gatescore.NewPolicyRegistry(festivalsRoot, getConfigRoot())
-	if err != nil {
-		return errors.Wrap(err, "creating policy registry").WithOp("runGatesList")
-	}
-
-	policies := registry.ListInfo()
-
-	// Try to find festival root to discover local templates
-	var localTemplates []string
-	var gatesDir string
-	festivalRoot, findErr := tpl.FindFestivalRoot(cwd)
-	if findErr == nil {
-		gatesDir = filepath.Join(festivalRoot, "gates")
-		localTemplates = discoverLocalGateTemplates(gatesDir)
-	}
-
-	if jsonOutput {
-		return printGatesListJSON(cmd, policies, localTemplates, gatesDir)
-	}
-
-	return printGatesListTable(cmd, policies, localTemplates, gatesDir)
-}
-
-// discoverLocalGateTemplates finds all .md files in a gates directory
-func discoverLocalGateTemplates(gatesDir string) []string {
-	var templates []string
-
-	entries, err := os.ReadDir(gatesDir)
-	if err != nil {
-		return templates // Return empty if directory doesn't exist
-	}
-
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		if strings.HasSuffix(name, ".md") {
-			// Return without .md extension
-			templates = append(templates, strings.TrimSuffix(name, ".md"))
-		}
-	}
-
-	return templates
-}
-
-func printGatesListJSON(cmd *cobra.Command, policies []*gatescore.PolicyInfo, localTemplates []string, gatesDir string) error {
-	output := struct {
-		Policies       []*gatescore.PolicyInfo `json:"policies"`
-		LocalTemplates []string                `json:"local_templates,omitempty"`
-		GatesDirectory string                  `json:"gates_directory,omitempty"`
-	}{
-		Policies:       policies,
-		LocalTemplates: localTemplates,
-	}
-
-	if len(localTemplates) > 0 {
-		output.GatesDirectory = gatesDir
-	}
-
-	enc := json.NewEncoder(cmd.OutOrStdout())
-	enc.SetIndent("", "  ")
-	return enc.Encode(output)
-}
-
-func printGatesListTable(cmd *cobra.Command, policies []*gatescore.PolicyInfo, localTemplates []string, gatesDir string) error {
-	out := cmd.OutOrStdout()
-
-	// Show named policies
-	fmt.Fprintln(out, ui.H1("Gate Policies"))
-	if len(policies) == 0 {
-		fmt.Fprintln(out, ui.Dim("No gate policies available."))
-	} else {
-		fmt.Fprintln(out, ui.H2("Named Policies"))
-		for _, info := range policies {
-			fmt.Fprintf(out, "%s %s\n",
-				ui.Value(info.Name),
-				ui.Dim(fmt.Sprintf("[%s]", info.Source)))
-			if info.Description != "" {
-				fmt.Fprintf(out, "  %s\n", ui.Dim(info.Description))
-			}
-		}
-	}
-
-	// Show local templates if present
-	if len(localTemplates) > 0 {
-		fmt.Fprintln(out)
-		fmt.Fprintln(out, ui.H2("Local Gate Templates"))
-		fmt.Fprintf(out, "%s %s\n", ui.Label("Directory"), ui.Dim(gatesDir))
-		for _, tmpl := range localTemplates {
-			fmt.Fprintf(out, "%s %s\n", ui.Dim("•"), ui.Value(tmpl, ui.GateColor))
-		}
-	}
-
-	fmt.Fprintln(out)
-	return nil
-}
-
-// Apply and init commands moved to gates_apply.go
+// Apply and init commands in apply.go and init.go
 
 // --- VALIDATE COMMAND ---
 
@@ -478,3 +348,16 @@ func runGatesValidate(ctx context.Context, cmd *cobra.Command, fix, jsonOutput b
 }
 
 // Note: helper types and functions moved to gates_helpers.go
+
+// extractPhaseFromTemplate extracts the phase type from a template path.
+// e.g., "gates/implementation/QUALITY_GATE_TESTING" -> "implementation"
+func extractPhaseFromTemplate(template string) string {
+	// Expected format: gates/<phase_type>/<gate_name>
+	if strings.HasPrefix(template, "gates/") {
+		parts := strings.Split(template, "/")
+		if len(parts) >= 2 {
+			return parts[1]
+		}
+	}
+	return "other"
+}

@@ -7,12 +7,12 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/charmbracelet/huh"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	festErrors "github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/navigation"
 	uitheme "github.com/Obedience-Corp/fest/internal/ui/theme"
+	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // Styles for list items
@@ -86,9 +86,9 @@ func StartGoListTUI(ctx context.Context) (string, error) {
 				Options(opts...).
 				Value(&selected),
 		),
-	).WithTheme(uitheme.FestTheme())
+	)
 
-	if err := form.Run(); err != nil {
+	if err := uitheme.RunForm(ctx, form); err != nil {
 		// Silent exit on user cancel (Ctrl-C or Esc)
 		if uitheme.IsCancelled(err) {
 			return "", nil

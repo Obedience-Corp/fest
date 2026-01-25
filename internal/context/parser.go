@@ -342,3 +342,22 @@ func extractBulletList(text string) []string {
 
 	return items
 }
+
+// ExtractPrimaryGoal extracts the "Primary Goal:" line from goal file content.
+// Looks for **Primary Goal:** format commonly used in festival goal files.
+// Returns empty string if no primary goal is found.
+func ExtractPrimaryGoal(content []byte) string {
+	// Match: **Primary Goal:** followed by content until newline
+	re := regexp.MustCompile(`(?m)\*\*Primary Goal:\*\*\s*(.+)$`)
+	if match := re.FindSubmatch(content); len(match) > 1 {
+		return strings.TrimSpace(string(match[1]))
+	}
+
+	// Fallback: Try plain "Primary Goal:" without bold
+	rePlain := regexp.MustCompile(`(?mi)^Primary Goal:\s*(.+)$`)
+	if match := rePlain.FindSubmatch(content); len(match) > 1 {
+		return strings.TrimSpace(string(match[1]))
+	}
+
+	return ""
+}

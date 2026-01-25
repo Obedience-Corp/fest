@@ -182,8 +182,12 @@ func RunCreateSequence(ctx context.Context, opts *CreateSequenceOptions) error {
 		vars = v
 	}
 
-	// Build template context for sequence
-	tmplCtx := tpl.NewContext()
+	// Build full template context with hierarchy (festival → phase → sequence)
+	tmplCtx, ctxErr := tpl.BuildContextFromPath(absPath, festivalPath)
+	if ctxErr != nil {
+		// Fall back to minimal context
+		tmplCtx = tpl.NewContext()
+	}
 	tmplCtx.SetSequence(newNumber, opts.Name)
 	tmplCtx.ComputeStructureVariables()
 	for k, v := range vars {
@@ -243,6 +247,24 @@ func RunCreateSequence(ctx context.Context, opts *CreateSequenceOptions) error {
 				return emitCreateSequenceError(opts, errors.Wrap(fmErr, "injecting frontmatter"))
 			}
 			content = contentWithFM
+		}
+
+		// Auto-fill [REPLACE: ...] markers from context (before writing)
+		// This fills Category A (structure) markers automatically
+		if !effectiveSkipMarkers {
+			renderer := tpl.NewRenderer()
+			// Load config markers for Category B markers
+			var configMarkers map[string]string
+			if festivalPath != "" {
+				festCfg, cfgErr := config.LoadFestivalConfig(festivalPath)
+				if cfgErr == nil && festCfg != nil {
+					configMarkers = extractConfigMarkers(festCfg)
+				}
+			}
+			renderedContent, renderErr := renderer.RenderWithMarkerReplacement(content, tmplCtx, configMarkers)
+			if renderErr == nil {
+				content = renderedContent
+			}
 		}
 
 		if err := os.WriteFile(goalPath, []byte(content), 0644); err != nil {

@@ -37,7 +37,13 @@ type Config struct {
 	Behavior   Behavior   `json:"behavior"`
 	Network    Network    `json:"network"`
 	TUI        TUI        `json:"tui"`
+	Execute    Execute    `json:"execute"`
 	LastSync   string     `json:"last_sync,omitempty"`
+}
+
+// Execute contains execution configuration
+type Execute struct {
+	ActionInstruction string `json:"action_instruction"`
 }
 
 // Repository contains repository information
@@ -74,9 +80,10 @@ type Network struct {
 
 // TUI contains terminal user interface configuration
 type TUI struct {
-	VimMode        bool `json:"vim_mode"`         // Enable vim-style keybindings in TUI inputs
-	ExpandInputs   bool `json:"expand_inputs"`    // Auto-expand text areas as content grows
-	MaxInputHeight int  `json:"max_input_height"` // Maximum height for expandable inputs (lines)
+	VimMode        bool   `json:"vim_mode"`         // Enable vim-style keybindings in TUI inputs
+	ExpandInputs   bool   `json:"expand_inputs"`    // Auto-expand text areas as content grows
+	MaxInputHeight int    `json:"max_input_height"` // Maximum height for expandable inputs (lines)
+	Theme          string `json:"theme"`            // Color theme: adaptive, light, dark, high-contrast
 }
 
 // ConfigDir returns the configuration directory path
@@ -185,9 +192,13 @@ func DefaultConfig() *Config {
 			RetryDelay: 1,
 		},
 		TUI: TUI{
-			VimMode:        false, // Opt-in to avoid breaking existing workflows
-			ExpandInputs:   true,  // Good UX default
-			MaxInputHeight: 10,    // Reasonable limit for expandable inputs
+			VimMode:        false,      // Opt-in to avoid breaking existing workflows
+			ExpandInputs:   true,       // Good UX default
+			MaxInputHeight: 10,         // Reasonable limit for expandable inputs
+			Theme:          "adaptive", // Auto-detect light/dark terminal
+		},
+		Execute: Execute{
+			ActionInstruction: "Read the task file and follow its instructions exactly.",
 		},
 	}
 }
@@ -251,5 +262,13 @@ func applyDefaults(cfg *Config) {
 	// ExpandInputs defaults to true for better UX
 	if cfg.TUI.MaxInputHeight == 0 {
 		cfg.TUI.MaxInputHeight = defaults.TUI.MaxInputHeight
+	}
+	if cfg.TUI.Theme == "" {
+		cfg.TUI.Theme = defaults.TUI.Theme
+	}
+
+	// Execute defaults
+	if cfg.Execute.ActionInstruction == "" {
+		cfg.Execute.ActionInstruction = defaults.Execute.ActionInstruction
 	}
 }

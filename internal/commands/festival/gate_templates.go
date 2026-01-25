@@ -1,7 +1,5 @@
 package festival
 
-import "github.com/Obedience-Corp/fest/internal/config"
-
 // DefaultGateTemplates contains embedded default gate template content.
 // These are used as fallback when templates don't exist in the template root.
 var DefaultGateTemplates = map[string]string{
@@ -328,55 +326,3 @@ Use fest commit so task references are preserved:
 `,
 }
 
-// DefaultFestivalGatesConfig creates a festival config with gates/ prefixed template paths.
-// This is used when creating a new festival to set up default quality gates.
-// Gate templates are stored at festival_root/gates/{phase_type}/ for user customization.
-func DefaultFestivalGatesConfig() *config.FestivalConfig {
-	return &config.FestivalConfig{
-		Version: "1.0",
-		QualityGates: config.QualityGatesConfig{
-			Enabled:    true,
-			AutoAppend: true,
-			Tasks: []config.QualityGateTask{
-				{
-					ID:       "testing_and_verify",
-					Template: "gates/implementation/QUALITY_GATE_TESTING",
-					Name:     "Testing and Verification",
-					Enabled:  true,
-				},
-				{
-					ID:       "code_review",
-					Template: "gates/implementation/QUALITY_GATE_REVIEW",
-					Name:     "Code Review",
-					Enabled:  true,
-				},
-				{
-					ID:       "review_results_iterate",
-					Template: "gates/implementation/QUALITY_GATE_ITERATE",
-					Name:     "Review Results and Iterate",
-					Enabled:  true,
-				},
-				{
-					ID:       "commit",
-					Template: "gates/implementation/QUALITY_GATE_COMMIT",
-					Name:     "Commit Changes",
-					Enabled:  true,
-				},
-			},
-		},
-		ExcludedPatterns: []string{
-			"*_planning",
-			"*_research",
-			"*_requirements",
-			"*_docs",
-		},
-		Templates: config.TemplatePrefs{
-			TaskDefault:  "tasks/SIMPLE",
-			PreferSimple: true,
-		},
-		Tracking: config.TrackingConfig{
-			Enabled:      true,
-			ChecksumFile: ".festival-checksums.json",
-		},
-	}
-}

@@ -14,6 +14,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/ui/theme"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
@@ -65,6 +66,23 @@ func runStatusSet(ctx context.Context, cmd *cobra.Command, newStatus string, opt
 	}
 
 	display := ui.New(shared.IsNoColor(), shared.IsVerbose())
+
+	// If no status provided, prompt user to select one
+	if newStatus == "" {
+		entityType := detectEntityTypeForStatusPrompt(cwd, opts)
+		validStatuses := ValidStatuses[entityType]
+		options := theme.ToOptions(validStatuses)
+
+		title := fmt.Sprintf("Select %s status", entityType)
+		cancelled, err := theme.QuickSelect(ctx, title, options, &newStatus)
+		if err != nil {
+			return errors.Wrap(err, "status selection failed")
+		}
+		if cancelled || newStatus == "" {
+			display.Info("Selection cancelled.")
+			return nil
+		}
+	}
 
 	// Check if a level-specific flag was provided
 	if opts.task != "" {

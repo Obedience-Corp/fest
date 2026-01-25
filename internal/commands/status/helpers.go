@@ -237,3 +237,30 @@ func filterTasksByStatus(tasks []*TaskInfo, status string) []*TaskInfo {
 	}
 	return filtered
 }
+
+// detectEntityTypeForStatusPrompt determines the entity type for status prompting.
+// It checks level-specific flags first, then falls back to detecting from cwd.
+func detectEntityTypeForStatusPrompt(cwd string, opts *statusOptions) EntityType {
+	// Check if a level-specific flag was provided
+	if opts.task != "" {
+		return EntityTask
+	}
+	if opts.sequence != "" {
+		return EntitySequence
+	}
+	if opts.phase != "" {
+		return EntityPhase
+	}
+	if opts.path != "" {
+		return detectEntityType(opts.path)
+	}
+
+	// Try to detect from current working directory
+	entityType := detectEntityType(cwd)
+	if entityType != "" {
+		return entityType
+	}
+
+	// Default to festival
+	return EntityFestival
+}

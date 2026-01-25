@@ -9,10 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/huh"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	uitheme "github.com/Obedience-Corp/fest/internal/ui/theme"
+	"github.com/charmbracelet/huh"
 )
 
 func charmCreatePhase(ctx context.Context) error {
@@ -65,9 +65,9 @@ func createPhaseInFestival(ctx context.Context, festivalPath string) error {
 				Options(toOptions(phaseTypes)...).
 				Value(&phaseType),
 		),
-	).WithTheme(theme())
+	)
 
-	if err := form.Run(); err != nil {
+	if err := uitheme.RunForm(ctx, form); err != nil {
 		if uitheme.IsCancelled(err) {
 			return nil
 		}
@@ -79,14 +79,14 @@ func createPhaseInFestival(ctx context.Context, festivalPath string) error {
 	var posPhase string
 	var afterStr string
 
-	if err := huh.NewForm(huh.NewGroup(
+	if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(
 		huh.NewSelect[string]().
 			Title("Position").
 			Options(
 				huh.NewOption("Append at end", "append"),
 				huh.NewOption("Insert after number", "insert"),
 			).Value(&posPhase),
-	)).WithTheme(theme()).Run(); err != nil {
+	))); err != nil {
 		if uitheme.IsCancelled(err) {
 			return nil
 		}
@@ -95,11 +95,11 @@ func createPhaseInFestival(ctx context.Context, festivalPath string) error {
 
 	if posPhase == "insert" {
 		afterStr = fmt.Sprintf("%d", defAfter)
-		if err := huh.NewForm(huh.NewGroup(
+		if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(
 			huh.NewInput().
 				Title("Insert after number (0 to insert at beginning)").
 				Value(&afterStr),
-		)).WithTheme(theme()).Run(); err != nil {
+		))); err != nil {
 			if uitheme.IsCancelled(err) {
 				return nil
 			}
@@ -120,9 +120,9 @@ func createPhaseInFestival(ctx context.Context, festivalPath string) error {
 			continue
 		}
 		var v string
-		if err := huh.NewForm(huh.NewGroup(
+		if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(
 			huh.NewInput().Title(k).Value(&v),
-		)).WithTheme(theme()).Run(); err != nil {
+		))); err != nil {
 			if uitheme.IsCancelled(err) {
 				return nil
 			}
@@ -168,8 +168,8 @@ func charmCreatePhaseManual(ctx context.Context) error {
 			).Value(&phaseType),
 			huh.NewInput().Title("Festival directory (contains numbered phases)").Placeholder(".").Value(&path),
 		),
-	).WithTheme(theme())
-	if err := form.Run(); err != nil {
+	)
+	if err := uitheme.RunForm(ctx, form); err != nil {
 		if uitheme.IsCancelled(err) {
 			return nil
 		}
@@ -182,12 +182,12 @@ func charmCreatePhaseManual(ctx context.Context) error {
 	defAfter := nextPhaseAfter(ctx, basePath)
 	// Choose position for phase
 	var posPhase string
-	if err := huh.NewForm(huh.NewGroup(
+	if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(
 		huh.NewSelect[string]().Title("Position").Options(
 			huh.NewOption("Append at end", "append"),
 			huh.NewOption("Insert after number", "insert"),
 		).Value(&posPhase),
-	)).WithTheme(theme()).Run(); err != nil {
+	))); err != nil {
 		if uitheme.IsCancelled(err) {
 			return nil
 		}
@@ -195,7 +195,7 @@ func charmCreatePhaseManual(ctx context.Context) error {
 	}
 	if posPhase == "insert" {
 		afterStr = fmt.Sprintf("%d", defAfter)
-		if err := huh.NewForm(huh.NewGroup(huh.NewInput().Title("Insert after number (0 to insert at beginning)").Value(&afterStr))).WithTheme(theme()).Run(); err != nil {
+		if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(huh.NewInput().Title("Insert after number (0 to insert at beginning)").Value(&afterStr)))); err != nil {
 			if uitheme.IsCancelled(err) {
 				return nil
 			}
@@ -213,7 +213,7 @@ func charmCreatePhaseManual(ctx context.Context) error {
 			continue
 		}
 		var v string
-		if err := huh.NewForm(huh.NewGroup(huh.NewInput().Title(k).Value(&v))).WithTheme(theme()).Run(); err != nil {
+		if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(huh.NewInput().Title(k).Value(&v)))); err != nil {
 			if uitheme.IsCancelled(err) {
 				return nil
 			}
