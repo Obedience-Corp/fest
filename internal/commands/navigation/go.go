@@ -418,14 +418,18 @@ func resolveSequenceShortcut(shortcut, phaseDir string) (string, error) {
 func showFuzzyPicker(pattern string, matches []navigation.FuzzyMatch) (string, error) {
 	debug := os.Getenv("FEST_DEBUG") != ""
 
-	// Check if stdin is a TTY (picker needs interactive terminal for input)
+	// Check if both stdin (for input) and stderr (for rendering) are TTYs
+	// The picker needs stdin for keyboard input and stderr for TUI rendering
 	start := time.Now()
-	isTTY := term.IsTerminal(int(os.Stdin.Fd()))
+	stdinIsTTY := term.IsTerminal(int(os.Stdin.Fd()))
+	stderrIsTTY := term.IsTerminal(int(os.Stderr.Fd()))
+	canRunTUI := stdinIsTTY && stderrIsTTY
 	if debug {
-		log.Printf("[DEBUG] term.IsTerminal: %v (result: %v)", time.Since(start), isTTY)
+		log.Printf("[DEBUG] term.IsTerminal: %v (stdin=%v, stderr=%v, canRunTUI=%v)",
+			time.Since(start), stdinIsTTY, stderrIsTTY, canRunTUI)
 	}
 
-	if !isTTY {
+	if !canRunTUI {
 		// Not a TTY - return error with suggestions
 		suggestions := navigation.FormatMatchList(matches, 5)
 		msg := fmt.Sprintf("ambiguous pattern '%s' - matches: %s", pattern, strings.Join(suggestions, ", "))

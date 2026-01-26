@@ -199,16 +199,15 @@ fgo() {
             ;;
         *)
             # Normal navigation (festival/phase/status directories)
+            # Note: Don't use 2>&1 - stderr must flow to terminal for TUI picker to render
             local dest
-            dest=$(command fest go "$@" 2>&1)
+            dest=$(command fest go "$@")
             local exit_code=$?
             if [[ $exit_code -eq 0 && -n "$dest" && -d "$dest" ]]; then
                 cd "$dest"
             else
-                if [[ -n "$dest" ]]; then
-                    echo "$dest" >&2
-                fi
-                return 1
+                # Error messages already went to stderr from the command
+                return $exit_code
             fi
             ;;
     esac
