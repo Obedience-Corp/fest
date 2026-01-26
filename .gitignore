@@ -1,6 +1,5 @@
 # Binaries (all should go in bin/)
 bin/*
-buildutil
 fest
 
 # Test coverage files
