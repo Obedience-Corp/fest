@@ -39,6 +39,7 @@ The audit evaluates message clarity, consistency, and actionability to improve u
 | `source path not found` | 5/5 | Low | Clear with path field |
 
 **Recommendations:**
+
 - All NotFound errors now include context-aware hints via `hintForResource()`
 - Consider adding more specific hints for technical resources like "policy"
 
@@ -57,6 +58,7 @@ The audit evaluates message clarity, consistency, and actionability to improve u
 | `path is not a directory` | 5/5 | Low | Clear with path field |
 
 **Recommendations:**
+
 - Validation errors now include default `HintSeeHelp` hint
 - Messages are generally clear and actionable
 - Consider using typo detection for status/entity type validation
@@ -69,6 +71,7 @@ The audit evaluates message clarity, consistency, and actionability to improve u
 | Various operation-specific | 4/5 | Medium | Operation name provides context |
 
 **Recommendations:**
+
 - IO errors now include `HintCheckPermissions` by default
 - The operation name (Op field) provides good context
 - Consider more specific hints for common failures (disk full, locked files)
@@ -82,6 +85,7 @@ The audit evaluates message clarity, consistency, and actionability to improve u
 | `failed to parse JSON` | 4/5 | Medium | Could include position |
 
 **Recommendations:**
+
 - Parse errors now include `HintCheckConfig` by default
 - Consider extracting line numbers from underlying parse errors
 - Could add syntax highlighting or snippet context
@@ -111,6 +115,7 @@ New `suggestions.go` provides:
 - `ValidateWithSuggestions()` for validating against known values
 
 Example usage:
+
 ```go
 err := errors.ValidateWithSuggestions(status, ValidStatuses, "status")
 // Returns: invalid status: "actve"

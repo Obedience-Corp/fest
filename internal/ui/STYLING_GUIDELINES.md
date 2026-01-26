@@ -26,11 +26,13 @@ Use these colors to identify different festival methodology entities in output:
 | Orange (214) | `GateColor` | Quality gate names, gate requirements | "Gate: code_review" |
 
 **When to use:**
+
 - Apply entity colors when displaying hierarchical festival structure
 - Use in list views to visually distinguish entity types
 - Apply to labels, headers, and names
 
 **Example:**
+
 ```go
 fmt.Printf("%s: %s\n",
     ui.Label("Festival"),
@@ -49,11 +51,13 @@ Use these colors to indicate progress and status:
 | Green (42) | `SuccessColor` | Completed, passed, successful | Completed tasks, passing tests |
 
 **When to use:**
+
 - Progress bars and completion indicators
 - Status badges and labels
 - Task/sequence/phase state displays
 
 **Example:**
+
 ```go
 status := "in_progress"
 color := ui.InProgressColor
@@ -77,12 +81,14 @@ Use these colors for UI structure and metadata:
 | Red (196) | `ErrorColor` | Errors, failures, critical issues | "✗ Validation failed", "Error: file not found" |
 
 **When to use:**
+
 - Borders: Panel and border components
 - Values: Important data points requiring emphasis
 - Metadata: Supporting information that doesn't need emphasis
 - Success/Warning/Error: Semantic message highlighting
 
 **Example:**
+
 ```go
 // Metadata (dim)
 fmt.Printf("%s: %s\n",
@@ -153,11 +159,13 @@ Use borders to visually separate content or highlight important information.
 | `MinimalBorder(content)` | Maximum compatibility | Environments with limited UTF-8 support |
 
 **When to use:**
+
 - Highlighting important output (errors, warnings, summaries)
 - Visually separating sections in command output
 - Creating focus points in TUI interfaces
 
 **Example:**
+
 ```go
 // Simple rounded border
 output := ui.RoundedBorder("Status: All tests passed")
@@ -182,11 +190,13 @@ Use panels for grouped content with titles and semantic meaning.
 | `ErrorPanel(title, content)` | Errors, failures (red border) |
 
 **When to use:**
+
 - Displaying structured information with context
 - Grouping related data points
 - Semantic messaging (info/warning/error)
 
 **Example:**
+
 ```go
 // Info panel for status
 info := ui.InfoPanel("Status",
@@ -209,11 +219,13 @@ Use headers to create visual hierarchy in command output.
 | `Header(text, opts)` | Custom | Full control over styling |
 
 **When to use:**
+
 - Creating visual hierarchy in output
 - Separating major sections
 - Making output scannable
 
 **Example:**
+
 ```go
 fmt.Println(ui.H1("Festival Status Report"))
 fmt.Println()
@@ -235,11 +247,13 @@ Use progress bars to visualize completion and progress.
 | `Spinner(frame)` | Animated loading indicator |
 
 **When to use:**
+
 - Showing task/sequence/phase completion percentages
 - Long-running operations (with spinner)
 - Visual feedback for progress
 
 **Example:**
+
 ```go
 // Simple progress bar (0-100)
 bar := ui.SimpleProgressBar(42, 100)  // "42%"
@@ -395,6 +409,7 @@ func displayTasks(tasks []Task) {
 ### 7. Update Guidelines
 
 When adding new patterns:
+
 - **Document the pattern** in this file
 - **Add code examples** showing correct usage
 - **Update related commands** to follow the new pattern
@@ -453,6 +468,7 @@ Visual examples will demonstrate the impact of consistent styling:
 - **After:** Styled output with semantic colors and visual hierarchy
 
 Screenshots will be added for:
+
 - `fest status` - Festival status with progress bars and entity colors
 - `fest progress` - Progress tracking with state colors
 - `fest list` - Festival listing with color-coded states
@@ -464,6 +480,7 @@ Screenshots will be added for:
 ---
 
 *For implementation details, see:*
+
 - `internal/ui/styles.go` - Color definitions
 - `internal/ui/components.go` - Component implementations
 - `internal/ui/ui.go` - UI helper functions
