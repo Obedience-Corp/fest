@@ -1,0 +1,98 @@
+// Package guidance provides the command registry for mode-specific CLI commands.
+package guidance
+
+// ModeCommands defines the command strings for a specific guidance mode.
+// Each mode has its own set of commands for starting, navigating, and completing work.
+// This centralizes command strings that were previously hardcoded in navigators.
+type ModeCommands struct {
+	// DisplayName is the human-readable mode name (e.g., "Implementation Mode")
+	DisplayName string
+
+	// StartCommand is the command to start/enter this mode
+	StartCommand string
+
+	// NextCommand is the command to get the next step/item
+	NextCommand string
+
+	// CompleteCommand is the base command to mark work complete.
+	// Note: Callers typically append task paths or item IDs to this.
+	CompleteCommand string
+
+	// AdditionalCmds contains mode-specific commands beyond the core three.
+	// Keys: "pass", "fail", "skip", "approve", "reject", etc.
+	AdditionalCmds map[string]string
+}
+
+// DefaultModeCommands provides the standard command strings for each guidance mode.
+// Navigators should use this registry instead of hardcoding command strings.
+// This enables consistent command patterns across all modes and simplifies updates.
+var DefaultModeCommands = map[Mode]ModeCommands{
+	ModeImplementation: {
+		DisplayName:     "Implementation Mode",
+		StartCommand:    "fest execute",
+		NextCommand:     "fest next",
+		CompleteCommand: "fest progress --complete",
+		AdditionalCmds:  nil,
+	},
+	ModePlan: {
+		DisplayName:     "Planning Mode",
+		StartCommand:    "fest execute --mode plan",
+		NextCommand:     "fest next --mode plan",
+		CompleteCommand: "fest progress --complete",
+		AdditionalCmds:  nil,
+	},
+	ModeResearch: {
+		DisplayName:     "Research Mode",
+		StartCommand:    "fest execute --mode research",
+		NextCommand:     "fest next --mode research",
+		CompleteCommand: "fest progress --complete",
+		AdditionalCmds:  nil,
+	},
+	ModeReview: {
+		DisplayName:     "Review Mode",
+		StartCommand:    "fest execute --mode review",
+		NextCommand:     "fest next --mode review",
+		CompleteCommand: "fest progress --complete",
+		AdditionalCmds: map[string]string{
+			"pass": "fest review --pass",
+			"fail": "fest review --fail",
+			"skip": "fest review --skip",
+		},
+	},
+	ModeAction: {
+		DisplayName:     "Action Mode",
+		StartCommand:    "fest execute --mode action",
+		NextCommand:     "fest next --mode action",
+		CompleteCommand: "fest progress --complete",
+		AdditionalCmds: map[string]string{
+			"complete": "fest action --complete",
+			"fail":     "fest action --fail",
+			"skip":     "fest action --skip",
+		},
+	},
+	ModeIngest: {
+		DisplayName:     "Ingest Mode",
+		StartCommand:    "fest execute --mode ingest",
+		NextCommand:     "fest next --mode ingest",
+		CompleteCommand: "fest progress --complete",
+		AdditionalCmds: map[string]string{
+			"approve": "fest ingest approve",
+			"reject":  "fest ingest reject --reason",
+		},
+	},
+}
+
+// GetModeCommands returns the command configuration for a given mode.
+// Returns the implementation mode commands if the mode is not found.
+func GetModeCommands(mode Mode) ModeCommands {
+	if cmds, ok := DefaultModeCommands[mode]; ok {
+		return cmds
+	}
+	return DefaultModeCommands[ModeImplementation]
+}
+
+// FormatProgressCommand returns the full progress command for completing a task.
+// This centralizes the command format: fest progress --task <path> --complete
+func FormatProgressCommand(taskPath string) string {
+	return "fest progress --task " + taskPath + " --complete"
+}

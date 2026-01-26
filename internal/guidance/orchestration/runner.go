@@ -10,6 +10,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/embedded/templates/agent"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/ui"
 )
 
@@ -382,7 +383,7 @@ func buildProgressCommand(step *StepGroup) string {
 	}
 	// Use the first task to build the progress command
 	task := step.Tasks[0]
-	return ui.Value(fmt.Sprintf("fest progress --task %s --complete", task.Path))
+	return ui.Value(guidance.FormatProgressCommand(task.Path))
 }
 
 // FormatJSON returns the plan as JSON-serializable structure

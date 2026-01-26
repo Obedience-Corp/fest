@@ -165,5 +165,6 @@ func (s *NextStep) GetCompletionCommand() string {
 	if s.CompletionCommand != "" {
 		return s.CompletionCommand
 	}
-	return "fest progress --task " + s.Path + " --complete"
+	// Use centralized command formatting
+	return FormatProgressCommand(s.Path)
 }

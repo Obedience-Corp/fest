@@ -211,7 +211,7 @@ func (n *Navigator) buildNextStepFromTask(task *TaskInfo, contextFiles []string)
 	nextStep.AutonomyLevel = autonomy
 	nextStep.ContextFiles = contextFiles
 	nextStep.Dependencies = task.Dependencies
-	nextStep.CompletionCommand = "fest progress --task " + task.Path + " --complete"
+	nextStep.CompletionCommand = guidance.FormatProgressCommand(task.Path)
 
 	return nextStep
 }

@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Obedience-Corp/fest/embedded/templates/agent"
+	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/ui"
 )
 
@@ -261,7 +262,7 @@ func formatTextTask(result *NextTaskResult) string {
 		RecommendationLine: labelValue("Recommendation", ui.Info(result.Reason)),
 		ParallelSection:    parallelSection,
 		ActionInstruction:  ui.Info("Read this file and follow the instructions laid out exactly."),
-		ProgressCmd:        ui.Value(fmt.Sprintf("fest progress --task %s --complete", taskRelPath)),
+		ProgressCmd:        ui.Value(guidance.FormatProgressCommand(taskRelPath)),
 		ContextSection:     contextSection,
 	}
 
