@@ -1,0 +1,26 @@
+{{/*
+TEMPLATE: action/instructions.tmpl
+PURPOSE: Agent action instructions for deployment and operational tasks
+*/}}
+{{.Header}}
+
+## Action Mode
+
+{{.ActionSection}}
+
+{{.ProgressLine}}
+
+{{.PositionSection}}
+
+{{.ContextSection}}
+
+## Action Guidelines
+
+- Follow each step precisely in order
+- Verify each action before proceeding
+- Document any deviations from the plan
+- Confirm completion of each step
+
+When complete, mark it done with:
+  {{.ProgressCmd}}
+

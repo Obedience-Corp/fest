@@ -169,7 +169,7 @@ func (r *Runner) FormatDryRun() string {
 	}
 
 	var buf bytes.Buffer
-	agent.MustGet("execute/dry_run").Execute(&buf, data)
+	agent.MustGet("implementation/dry_run").Execute(&buf, data)
 	return buf.String()
 }
 
@@ -219,7 +219,7 @@ func (r *Runner) FormatAgentInstructions() (string, error) {
 	}
 
 	var buf bytes.Buffer
-	agent.MustGet("execute/instructions").Execute(&buf, data)
+	agent.MustGet("implementation/instructions").Execute(&buf, data)
 	return buf.String(), nil
 }
 
@@ -284,7 +284,7 @@ func formatExecutionComplete() string {
 	}
 
 	var buf bytes.Buffer
-	agent.MustGet("execute/complete").Execute(&buf, data)
+	agent.MustGet("implementation/complete").Execute(&buf, data)
 	return buf.String()
 }
 

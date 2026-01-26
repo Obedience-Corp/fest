@@ -537,7 +537,7 @@ func (n *Navigator) formatComplete() (string, error) {
 		"Message": "All tasks have been executed.\n\nPlease review the festival and ensure that the festival methodology was followed,\nand that tasks were not simply marked completed without having actually been completed.",
 	}
 
-	return agent.Render("execute/complete", data)
+	return agent.Render("implementation/complete", data)
 }
 
 // formatInstructions renders the instructions template with all sections.
@@ -565,7 +565,7 @@ func (n *Navigator) formatInstructions(ctx context.Context, nextStep *guidance.N
 		"ProgressCmd":       nextStep.GetCompletionCommand(),
 	}
 
-	return agent.Render("execute/instructions", data)
+	return agent.Render("implementation/instructions", data)
 }
 
 // formatActionInstruction generates the action instruction based on step type.
