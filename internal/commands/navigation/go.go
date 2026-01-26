@@ -3,9 +3,11 @@ package navigation
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -283,14 +285,24 @@ func resolveGoTarget(target, festivalsDir string) (string, error) {
 
 // resolveFuzzy attempts to match the target using fuzzy matching
 func resolveFuzzy(pattern, festivalsDir string) (string, error) {
+	debug := os.Getenv("FEST_DEBUG") != ""
+
 	// Collect all possible targets
+	start := time.Now()
 	targets := navigation.CollectNavigationTargets(festivalsDir)
+	if debug {
+		log.Printf("[DEBUG] CollectNavigationTargets: %v (%d targets)", time.Since(start), len(targets))
+	}
 	if len(targets) == 0 {
 		return "", errors.NotFound("target").WithField("pattern", pattern)
 	}
 
+	start = time.Now()
 	finder := navigation.NewFuzzyFinder(targets)
 	matches := finder.Find(pattern)
+	if debug {
+		log.Printf("[DEBUG] FuzzyFind: %v (%d matches)", time.Since(start), len(matches))
+	}
 
 	if len(matches) == 0 {
 		return "", errors.NotFound("target").WithField("pattern", pattern)
@@ -302,7 +314,12 @@ func resolveFuzzy(pattern, festivalsDir string) (string, error) {
 	}
 
 	// Multiple ambiguous matches - show interactive picker if in TTY
-	return showFuzzyPicker(pattern, matches)
+	start = time.Now()
+	result, err := showFuzzyPicker(pattern, matches)
+	if debug {
+		log.Printf("[DEBUG] showFuzzyPicker: %v", time.Since(start))
+	}
+	return result, err
 }
 
 // resolveFestivalByName searches for a festival by name in status directories
@@ -399,8 +416,16 @@ func resolveSequenceShortcut(shortcut, phaseDir string) (string, error) {
 // showFuzzyPicker displays an interactive picker for ambiguous matches.
 // Falls back to error message if not in a TTY.
 func showFuzzyPicker(pattern string, matches []navigation.FuzzyMatch) (string, error) {
+	debug := os.Getenv("FEST_DEBUG") != ""
+
 	// Check if stdin is a TTY (picker needs interactive terminal for input)
-	if !term.IsTerminal(int(os.Stdin.Fd())) {
+	start := time.Now()
+	isTTY := term.IsTerminal(int(os.Stdin.Fd()))
+	if debug {
+		log.Printf("[DEBUG] term.IsTerminal: %v (result: %v)", time.Since(start), isTTY)
+	}
+
+	if !isTTY {
 		// Not a TTY - return error with suggestions
 		suggestions := navigation.FormatMatchList(matches, 5)
 		msg := fmt.Sprintf("ambiguous pattern '%s' - matches: %s", pattern, strings.Join(suggestions, ", "))
@@ -408,6 +433,7 @@ func showFuzzyPicker(pattern string, matches []navigation.FuzzyMatch) (string, e
 	}
 
 	// Convert matches to picker items
+	start = time.Now()
 	items := make([]picker.Item, len(matches))
 	for i, m := range matches {
 		items[i] = picker.Item{
@@ -416,9 +442,16 @@ func showFuzzyPicker(pattern string, matches []navigation.FuzzyMatch) (string, e
 			Score: m.Score,
 		}
 	}
+	if debug {
+		log.Printf("[DEBUG] convertItems: %v (%d items)", time.Since(start), len(items))
+	}
 
 	// Run picker
+	start = time.Now()
 	selected, err := picker.Run(items, navigation.Score)
+	if debug {
+		log.Printf("[DEBUG] picker.Run: %v", time.Since(start))
+	}
 	if err != nil {
 		return "", errors.Wrap(err, "running picker")
 	}

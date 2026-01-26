@@ -3,8 +3,11 @@ package picker
 
 import (
 	"fmt"
+	"log"
 	"os"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -187,13 +190,9 @@ func (m *Model) filter() {
 	}
 
 	// Sort by score descending
-	for i := 0; i < len(matches)-1; i++ {
-		for j := i + 1; j < len(matches); j++ {
-			if matches[j].Score > matches[i].Score {
-				matches[i], matches[j] = matches[j], matches[i]
-			}
-		}
-	}
+	sort.Slice(matches, func(i, j int) bool {
+		return matches[i].Score > matches[j].Score
+	})
 
 	m.filtered = matches
 	m.selected = 0
@@ -286,10 +285,26 @@ func (m Model) Confirmed() bool {
 // Run runs the picker and returns the selected item.
 // The picker renders to stderr so stdout can capture the result for shell integration.
 func Run(items []Item, scorer Scorer) (*Item, error) {
+	debug := os.Getenv("FEST_DEBUG") != ""
+
+	start := time.Now()
 	m := New(items, scorer)
+	if debug {
+		log.Printf("[DEBUG] picker.New: %v", time.Since(start))
+	}
+
+	start = time.Now()
 	// Use stderr for rendering so stdout is clean for `cd $(fest go)`
 	p := tea.NewProgram(m, tea.WithOutput(os.Stderr), tea.WithInput(os.Stdin))
+	if debug {
+		log.Printf("[DEBUG] tea.NewProgram: %v", time.Since(start))
+	}
+
+	start = time.Now()
 	finalModel, err := p.Run()
+	if debug {
+		log.Printf("[DEBUG] tea.Run: %v", time.Since(start))
+	}
 	if err != nil {
 		return nil, err
 	}
