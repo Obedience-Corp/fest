@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-
-	"github.com/Obedience-Corp/fest/internal/id"
 )
 
 // FuzzyMatch represents a fuzzy match result
