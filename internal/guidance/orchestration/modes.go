@@ -1,5 +1,5 @@
 // Package execute provides execution mode management for festival automation.
-package execute
+package orchestration
 
 import (
 	"time"

@@ -10,7 +10,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
-	"github.com/Obedience-Corp/fest/internal/execute"
+	"github.com/Obedience-Corp/fest/internal/guidance/orchestration"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
@@ -111,7 +111,7 @@ func runExecute(cmd *cobra.Command, args []string) error {
 
 	// Handle reset
 	if reset {
-		stateManager := execute.NewStateManager(festivalPath)
+		stateManager := orchestration.NewStateManager(festivalPath)
 		if err := stateManager.Clear(ctx); err != nil {
 			return errors.IO("clearing execution state", err)
 		}
@@ -130,7 +130,7 @@ func runExecute(cmd *cobra.Command, args []string) error {
 	// for standard agent instructions.
 	if dryRun || jsonOutput || inlineContext {
 		// Create execution config for Runner
-		execCfg := execute.DefaultConfig()
+		execCfg := orchestration.DefaultConfig()
 		execCfg.DryRun = dryRun
 		execCfg.InlineContext = inlineContext
 		if globalCfg.Execute.ActionInstruction != "" {
@@ -138,7 +138,7 @@ func runExecute(cmd *cobra.Command, args []string) error {
 		}
 
 		// Use Runner for these modes
-		runner := execute.NewRunner(festivalPath, execCfg)
+		runner := orchestration.NewRunner(festivalPath, execCfg)
 		if err := runner.Initialize(ctx); err != nil {
 			return errors.Wrap(err, "initializing execution runner")
 		}
@@ -269,13 +269,13 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create execution config
-	execCfg := execute.DefaultConfig()
+	execCfg := orchestration.DefaultConfig()
 	if globalCfg.Execute.ActionInstruction != "" {
 		execCfg.ActionInstruction = globalCfg.Execute.ActionInstruction
 	}
 
 	// Create runner
-	runner := execute.NewRunner(festivalPath, execCfg)
+	runner := orchestration.NewRunner(festivalPath, execCfg)
 
 	// Initialize
 	if err := runner.Initialize(ctx); err != nil {
@@ -292,7 +292,7 @@ func outputJSON(data any) error {
 	return nil
 }
 
-func showStatus(runner *execute.Runner) error {
+func showStatus(runner *orchestration.Runner) error {
 	state := runner.GetState()
 	plan := runner.GetPlan()
 

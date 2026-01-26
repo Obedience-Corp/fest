@@ -1,4 +1,4 @@
-package execute
+package orchestration
 
 import (
 	"context"
@@ -21,7 +21,7 @@ func newPlanBuilderAdapter(festivalPath string) implementation.PlanBuilder {
 	}
 }
 
-// planBuilderAdapter adapts the execute.PlanBuilder to the implementation.PlanBuilder interface.
+// planBuilderAdapter adapts the orchestration.PlanBuilder to the implementation.PlanBuilder interface.
 type planBuilderAdapter struct {
 	builder *PlanBuilder
 }
