@@ -130,6 +130,12 @@ func CollectNavigationTargets(festivalsDir string) []FuzzyTarget {
 				continue
 			}
 			festivalName := entry.Name()
+
+			// Only include directories with valid festival ID suffix (e.g., -GS0001)
+			if _, err := id.ExtractIDFromDirName(festivalName); err != nil {
+				continue // Skip non-festival directories
+			}
+
 			festivalPath := filepath.Join(statusPath, festivalName)
 
 			// Add festival by full name
