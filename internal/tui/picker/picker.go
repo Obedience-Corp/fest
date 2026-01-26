@@ -295,7 +295,12 @@ func Run(items []Item, scorer Scorer) (*Item, error) {
 
 	start = time.Now()
 	// Use stderr for rendering so stdout is clean for `cd $(fest go)`
-	p := tea.NewProgram(m, tea.WithOutput(os.Stderr), tea.WithInput(os.Stdin))
+	// WithAltScreen ensures immediate rendering by using alternate screen buffer
+	p := tea.NewProgram(m,
+		tea.WithOutput(os.Stderr),
+		tea.WithInput(os.Stdin),
+		tea.WithAltScreen(),
+	)
 	if debug {
 		log.Printf("[DEBUG] tea.NewProgram: %v", time.Since(start))
 	}
