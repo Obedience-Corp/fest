@@ -325,4 +325,3 @@ Use fest commit so task references are preserved:
 - [ ] Sequence completion documented
 `,
 }
-

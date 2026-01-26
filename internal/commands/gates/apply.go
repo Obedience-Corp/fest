@@ -355,4 +355,3 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 
 	return nil
 }
-

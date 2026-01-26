@@ -83,3 +83,29 @@ func isValidFestival(dir string) bool {
 
 	return false
 }
+
+// ResolvePhasePath detects the current phase directory from the given path.
+// It walks up from cwd looking for a PHASE_GOAL.md file, stopping at the festival root.
+// Returns the phase path if found, empty string if not within a phase.
+func ResolvePhasePath(cwd, festivalPath string) string {
+	// Start from cwd and walk up to festival root
+	dir := cwd
+	for {
+		// Stop at festival root
+		if dir == festivalPath || dir == "" || dir == "/" || dir == "." {
+			return ""
+		}
+
+		// Check for PHASE_GOAL.md
+		phaseGoalPath := filepath.Join(dir, "PHASE_GOAL.md")
+		if _, err := os.Stat(phaseGoalPath); err == nil {
+			return dir
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
+}

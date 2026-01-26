@@ -29,11 +29,11 @@ type FestivalConfig struct {
 type QualityGatesConfig struct {
 	Enabled         bool              `yaml:"enabled"`
 	AutoAppend      bool              `yaml:"auto_append"`
-	Tasks           []QualityGateTask `yaml:"tasks,omitempty"`            // Legacy: implementation gates only
-	Implementation  []QualityGateTask `yaml:"implementation,omitempty"`   // Implementation phase gates
-	Planning        []QualityGateTask `yaml:"planning,omitempty"`         // Planning phase gates
-	Research        []QualityGateTask `yaml:"research,omitempty"`         // Research phase gates
-	Review          []QualityGateTask `yaml:"review,omitempty"`           // Review phase gates
+	Tasks           []QualityGateTask `yaml:"tasks,omitempty"`             // Legacy: implementation gates only
+	Implementation  []QualityGateTask `yaml:"implementation,omitempty"`    // Implementation phase gates
+	Planning        []QualityGateTask `yaml:"planning,omitempty"`          // Planning phase gates
+	Research        []QualityGateTask `yaml:"research,omitempty"`          // Research phase gates
+	Review          []QualityGateTask `yaml:"review,omitempty"`            // Review phase gates
 	NonCodingAction []QualityGateTask `yaml:"non_coding_action,omitempty"` // Non-coding action phase gates
 }
 

@@ -6,6 +6,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/Obedience-Corp/fest/internal/guidance/execution"
 )
 
 func TestNewParallelExecutor(t *testing.T) {
@@ -31,14 +33,14 @@ func TestNewParallelExecutor(t *testing.T) {
 
 func TestParallelExecutor_Execute_Sequential(t *testing.T) {
 	pe := NewParallelExecutor(1)
-	tasks := []*PlanTask{
+	tasks := []*execution.TaskInfo{
 		{ID: "task-1", Name: "Task 1"},
 		{ID: "task-2", Name: "Task 2"},
 		{ID: "task-3", Name: "Task 3"},
 	}
 
 	var order []string
-	executor := func(ctx context.Context, task *PlanTask) error {
+	executor := func(ctx context.Context, task *execution.TaskInfo) error {
 		order = append(order, task.ID)
 		return nil
 	}
@@ -56,7 +58,7 @@ func TestParallelExecutor_Execute_Sequential(t *testing.T) {
 
 func TestParallelExecutor_Execute_Parallel(t *testing.T) {
 	pe := NewParallelExecutor(3)
-	tasks := []*PlanTask{
+	tasks := []*execution.TaskInfo{
 		{ID: "task-1", Name: "Task 1"},
 		{ID: "task-2", Name: "Task 2"},
 		{ID: "task-3", Name: "Task 3"},
@@ -66,7 +68,7 @@ func TestParallelExecutor_Execute_Parallel(t *testing.T) {
 	var maxConcurrent int32
 	var currentConcurrent int32
 
-	executor := func(ctx context.Context, task *PlanTask) error {
+	executor := func(ctx context.Context, task *execution.TaskInfo) error {
 		atomic.AddInt32(&currentConcurrent, 1)
 		defer atomic.AddInt32(&currentConcurrent, -1)
 
@@ -105,13 +107,13 @@ func TestParallelExecutor_Execute_Parallel(t *testing.T) {
 
 func TestParallelExecutor_Execute_WithErrors(t *testing.T) {
 	pe := NewParallelExecutor(2)
-	tasks := []*PlanTask{
+	tasks := []*execution.TaskInfo{
 		{ID: "task-1", Name: "Task 1"},
 		{ID: "task-2", Name: "Task 2"},
 		{ID: "task-3", Name: "Task 3"},
 	}
 
-	executor := func(ctx context.Context, task *PlanTask) error {
+	executor := func(ctx context.Context, task *execution.TaskInfo) error {
 		if task.ID == "task-2" {
 			return errors.New("task-2 failed")
 		}
@@ -135,7 +137,7 @@ func TestParallelExecutor_Execute_WithErrors(t *testing.T) {
 
 func TestParallelExecutor_Execute_ContextCanceled(t *testing.T) {
 	pe := NewParallelExecutor(1)
-	tasks := []*PlanTask{
+	tasks := []*execution.TaskInfo{
 		{ID: "task-1", Name: "Task 1"},
 		{ID: "task-2", Name: "Task 2"},
 	}
@@ -144,7 +146,7 @@ func TestParallelExecutor_Execute_ContextCanceled(t *testing.T) {
 	cancel() // Cancel immediately
 
 	var executedCount int32
-	executor := func(ctx context.Context, task *PlanTask) error {
+	executor := func(ctx context.Context, task *execution.TaskInfo) error {
 		atomic.AddInt32(&executedCount, 1)
 		return nil
 	}
@@ -169,17 +171,17 @@ func TestParallelExecutor_Execute_ContextCanceled(t *testing.T) {
 
 func TestParallelExecutor_ExecuteStep_Sequential(t *testing.T) {
 	pe := NewParallelExecutor(4)
-	step := &StepGroup{
+	step := &execution.StepGroup{
 		Number:   1,
 		Parallel: false,
-		Tasks: []*PlanTask{
+		Tasks: []*execution.TaskInfo{
 			{ID: "task-1"},
 			{ID: "task-2"},
 		},
 	}
 
 	var count int32
-	executor := func(ctx context.Context, task *PlanTask) error {
+	executor := func(ctx context.Context, task *execution.TaskInfo) error {
 		atomic.AddInt32(&count, 1)
 		return nil
 	}
@@ -196,17 +198,17 @@ func TestParallelExecutor_ExecuteStep_Sequential(t *testing.T) {
 
 func TestParallelExecutor_ExecuteStep_Parallel(t *testing.T) {
 	pe := NewParallelExecutor(4)
-	step := &StepGroup{
+	step := &execution.StepGroup{
 		Number:   1,
 		Parallel: true,
-		Tasks: []*PlanTask{
+		Tasks: []*execution.TaskInfo{
 			{ID: "task-1"},
 			{ID: "task-2"},
 		},
 	}
 
 	var count int32
-	executor := func(ctx context.Context, task *PlanTask) error {
+	executor := func(ctx context.Context, task *execution.TaskInfo) error {
 		atomic.AddInt32(&count, 1)
 		return nil
 	}
@@ -223,12 +225,12 @@ func TestParallelExecutor_ExecuteStep_Parallel(t *testing.T) {
 
 func TestParallelExecutor_ExecuteWithResults(t *testing.T) {
 	pe := NewParallelExecutor(2)
-	tasks := []*PlanTask{
+	tasks := []*execution.TaskInfo{
 		{ID: "task-1", Name: "Task 1"},
 		{ID: "task-2", Name: "Task 2"},
 	}
 
-	executor := func(ctx context.Context, task *PlanTask) error {
+	executor := func(ctx context.Context, task *execution.TaskInfo) error {
 		if task.ID == "task-2" {
 			return errors.New("failed")
 		}
@@ -249,7 +251,7 @@ func TestParallelExecutor_ExecuteWithResults(t *testing.T) {
 }
 
 func TestGroupParallelTasks(t *testing.T) {
-	tasks := []*PlanTask{
+	tasks := []*execution.TaskInfo{
 		{ID: "task-1", Number: 1},
 		{ID: "task-2", Number: 1},
 		{ID: "task-3", Number: 2},
@@ -282,12 +284,12 @@ func TestGroupParallelTasks(t *testing.T) {
 func TestValidateParallelSafety(t *testing.T) {
 	tests := []struct {
 		name      string
-		tasks     []*PlanTask
+		tasks     []*execution.TaskInfo
 		wantError bool
 	}{
 		{
 			name: "safe - no dependencies",
-			tasks: []*PlanTask{
+			tasks: []*execution.TaskInfo{
 				{ID: "task-1", Name: "Task 1"},
 				{ID: "task-2", Name: "Task 2"},
 			},
@@ -295,7 +297,7 @@ func TestValidateParallelSafety(t *testing.T) {
 		},
 		{
 			name: "safe - external dependencies",
-			tasks: []*PlanTask{
+			tasks: []*execution.TaskInfo{
 				{ID: "task-1", Name: "Task 1", Dependencies: []string{"task-0"}},
 				{ID: "task-2", Name: "Task 2", Dependencies: []string{"task-0"}},
 			},
@@ -303,7 +305,7 @@ func TestValidateParallelSafety(t *testing.T) {
 		},
 		{
 			name: "unsafe - internal dependency",
-			tasks: []*PlanTask{
+			tasks: []*execution.TaskInfo{
 				{ID: "task-1", Name: "Task 1"},
 				{ID: "task-2", Name: "Task 2", Dependencies: []string{"task-1"}},
 			},
@@ -327,7 +329,7 @@ func TestValidateParallelSafety(t *testing.T) {
 func TestParallelExecutor_EmptyTasks(t *testing.T) {
 	pe := NewParallelExecutor(4)
 
-	executor := func(ctx context.Context, task *PlanTask) error {
+	executor := func(ctx context.Context, task *execution.TaskInfo) error {
 		return nil
 	}
 
@@ -336,7 +338,7 @@ func TestParallelExecutor_EmptyTasks(t *testing.T) {
 		t.Errorf("Execute(nil) should return nil, got %v", errs)
 	}
 
-	errs = pe.Execute(context.Background(), []*PlanTask{}, executor)
+	errs = pe.Execute(context.Background(), []*execution.TaskInfo{}, executor)
 	if errs != nil {
 		t.Errorf("Execute([]) should return nil, got %v", errs)
 	}

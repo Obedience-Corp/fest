@@ -138,7 +138,6 @@ func toOptions(values []string) []huh.Option[string] {
 	return opts
 }
 
-
 // fallbackDot returns "." if string is empty, otherwise returns the string
 func fallbackDot(s string) string {
 	if strings.TrimSpace(s) == "" {

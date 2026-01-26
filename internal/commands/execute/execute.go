@@ -2,6 +2,7 @@
 package execute
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,8 +11,16 @@ import (
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/execute"
+	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
+
+	// Import all navigator packages to trigger their registration.
+	_ "github.com/Obedience-Corp/fest/internal/guidance/action"
+	_ "github.com/Obedience-Corp/fest/internal/guidance/ingest"
+	_ "github.com/Obedience-Corp/fest/internal/guidance/planning"
+	_ "github.com/Obedience-Corp/fest/internal/guidance/research"
+	_ "github.com/Obedience-Corp/fest/internal/guidance/review"
 )
 
 var (
@@ -24,6 +33,7 @@ var (
 	seqName       string
 	reset         bool
 	inlineContext bool
+	modeFlag      string
 )
 
 // NewExecuteCommand creates the execute command
@@ -61,6 +71,7 @@ Examples:
 	cmd.Flags().StringVar(&seqName, "sequence", "", "execute specific sequence")
 	cmd.Flags().BoolVar(&reset, "reset", false, "clear saved execution state")
 	cmd.Flags().BoolVar(&inlineContext, "inline-context", false, "render goal file contents inline instead of paths")
+	cmd.Flags().StringVarP(&modeFlag, "mode", "m", "", "override phase type detection (execute|plan|research|review|action|ingest)")
 
 	// Add status subcommand
 	cmd.AddCommand(newStatusCommand())
@@ -83,6 +94,9 @@ This was the previous default behavior of 'fest execute'.`,
 
 func runExecute(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
+	if ctx == nil {
+		ctx = context.Background()
+	}
 
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -111,33 +125,110 @@ func runExecute(cmd *cobra.Command, args []string) error {
 		return errors.Wrap(err, "loading config")
 	}
 
-	// Create execution config
-	execCfg := execute.DefaultConfig()
-	execCfg.DryRun = dryRun
-	execCfg.InlineContext = inlineContext
-	if globalCfg.Execute.ActionInstruction != "" {
-		execCfg.ActionInstruction = globalCfg.Execute.ActionInstruction
-	}
+	// For dry-run, JSON output, or inline context, we use Runner since it provides
+	// the FormatDryRun method and inline context support. The Navigator is used
+	// for standard agent instructions.
+	if dryRun || jsonOutput || inlineContext {
+		// Create execution config for Runner
+		execCfg := execute.DefaultConfig()
+		execCfg.DryRun = dryRun
+		execCfg.InlineContext = inlineContext
+		if globalCfg.Execute.ActionInstruction != "" {
+			execCfg.ActionInstruction = globalCfg.Execute.ActionInstruction
+		}
 
-	// Create runner
-	runner := execute.NewRunner(festivalPath, execCfg)
+		// Use Runner for these modes
+		runner := execute.NewRunner(festivalPath, execCfg)
+		if err := runner.Initialize(ctx); err != nil {
+			return errors.Wrap(err, "initializing execution runner")
+		}
 
-	// Initialize
-	if err := runner.Initialize(ctx); err != nil {
-		return errors.Wrap(err, "initializing execution runner")
-	}
+		if dryRun {
+			if jsonOutput {
+				return outputJSON(runner.GetPlan())
+			}
+			fmt.Print(runner.FormatDryRun())
+			return nil
+		}
 
-	// Handle different output modes
-	if dryRun {
 		if jsonOutput {
 			return outputJSON(runner.GetPlan())
 		}
-		fmt.Print(runner.FormatDryRun())
+
+		// Inline context uses Runner's FormatAgentInstructions
+		if agentMode {
+			fmt.Fprintln(os.Stderr, ui.Warning("The --agent flag is deprecated. Agent-friendly output is now the default."))
+			fmt.Fprintln(os.Stderr, ui.Dim("  Use 'fest execute status' for progress statistics."))
+			fmt.Fprintln(os.Stderr, "")
+		}
+		instructions, err := runner.FormatAgentInstructions()
+		if err != nil {
+			return errors.Wrap(err, "formatting agent instructions")
+		}
+		fmt.Print(instructions)
 		return nil
 	}
 
-	if jsonOutput {
-		return outputJSON(runner.GetPlan())
+	// Validate mode flag if provided
+	var modeOverride guidance.Mode
+	if modeFlag != "" {
+		modeOverride = guidance.Mode(modeFlag)
+		if !modeOverride.IsValid() {
+			validModes := []string{}
+			for _, m := range guidance.AllModes() {
+				validModes = append(validModes, string(m))
+			}
+			return errors.Validation("invalid mode").
+				WithField("mode", modeFlag).
+				WithField("valid_modes", validModes)
+		}
+	}
+
+	// Use guidance.Navigator for standard agent instructions (primary path)
+	// Detect if we're within a phase directory for phase-type-aware navigation
+	phasePath := shared.ResolvePhasePath(cwd, festivalPath)
+
+	// Create navigator via factory - uses phase type detection when in a phase
+	var nav guidance.Navigator
+	if phasePath != "" {
+		// Within a phase - use NewNavigatorForPath for phase-type-aware navigation
+		nav, err = guidance.NewNavigatorForPath(ctx, festivalPath, phasePath, guidance.DefaultConfig())
+		if err != nil {
+			return errors.Wrap(err, "creating navigator for phase").
+				WithField("phase_path", phasePath)
+		}
+	} else {
+		// At festival root - use NewNavigator with default execution mode
+		mode := guidance.ModeExecute
+		if modeOverride != "" {
+			mode = modeOverride
+		}
+		gctx := &guidance.GuidanceContext{
+			FestivalPath: festivalPath,
+			FestivalName: filepath.Base(festivalPath),
+			Mode:         mode,
+			Config:       guidance.DefaultConfig(),
+		}
+		nav, err = guidance.NewNavigator(ctx, gctx)
+		if err != nil {
+			return errors.Wrap(err, "creating navigator")
+		}
+	}
+
+	// Apply mode override if flag was provided (overrides auto-detection)
+	if modeOverride != "" && nav.GetContext().Mode != modeOverride {
+		// Need to recreate navigator with overridden mode
+		gctx := nav.GetContext().WithMode(modeOverride)
+		nav, err = guidance.NewNavigator(ctx, gctx)
+		if err != nil {
+			return errors.Wrap(err, "creating navigator with mode override").
+				WithField("mode", modeOverride)
+		}
+	}
+
+	// Initialize the navigator
+	if err := nav.Initialize(ctx); err != nil {
+		return errors.Wrap(err, "initializing navigator")
 	}
 
 	// Show deprecation warning if --agent flag was explicitly used
@@ -147,10 +238,10 @@ func runExecute(cmd *cobra.Command, args []string) error {
 		fmt.Fprintln(os.Stderr, "")
 	}
 
-	// Default: show agent-friendly instructions (previously required --agent flag)
-	instructions, err := runner.FormatAgentInstructions()
+	// Use Navigator.FormatInstructions() for agent-friendly output
+	instructions, err := nav.FormatInstructions(ctx)
 	if err != nil {
-		return errors.Wrap(err, "formatting agent instructions")
+		return errors.Wrap(err, "formatting instructions")
 	}
 	fmt.Print(instructions)
 	return nil
@@ -194,7 +285,7 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	return showStatus(runner)
 }
 
-func outputJSON(data interface{}) error {
+func outputJSON(data any) error {
 	if err := shared.EncodeJSON(os.Stdout, data); err != nil {
 		return errors.Wrap(err, "encoding JSON output")
 	}

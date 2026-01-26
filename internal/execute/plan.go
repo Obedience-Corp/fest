@@ -2,79 +2,40 @@ package execute
 
 import (
 	"context"
+	"os"
 	"path/filepath"
 	"sort"
 
 	"github.com/Obedience-Corp/fest/internal/deps"
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
+	"github.com/Obedience-Corp/fest/internal/guidance/execution"
 	"github.com/Obedience-Corp/fest/internal/progress"
 )
 
-// ExecutionPlan represents the complete plan for executing a festival
-type ExecutionPlan struct {
-	FestivalPath string            `json:"festival_path"`
-	Phases       []*PhaseExecution `json:"phases"`
-	Summary      *ExecutionSummary `json:"summary"`
-}
+// Type aliases for backward compatibility - import from guidance/execution package
+type (
+	// ExecutionPlan represents the complete plan for executing a festival.
+	ExecutionPlan = execution.ExecutionPlan
 
-// PhaseExecution represents execution plan for a phase
-type PhaseExecution struct {
-	Name        string               `json:"name"`
-	Path        string               `json:"path"`
-	Number      int                  `json:"number"`
-	Sequences   []*SequenceExecution `json:"sequences"`
-	QualityGate *QualityGateInfo     `json:"quality_gate,omitempty"`
-	TotalTasks  int                  `json:"total_tasks"`
-	Status      string               `json:"status"`
-}
+	// PhaseExecution represents execution plan for a phase.
+	PhaseExecution = execution.PhaseExecution
 
-// SequenceExecution represents execution plan for a sequence
-type SequenceExecution struct {
-	Name       string       `json:"name"`
-	Path       string       `json:"path"`
-	Number     int          `json:"number"`
-	Steps      []*StepGroup `json:"steps"`
-	TotalTasks int          `json:"total_tasks"`
-	Status     string       `json:"status"`
-}
+	// SequenceExecution represents execution plan for a sequence.
+	SequenceExecution = execution.SequenceExecution
 
-// StepGroup represents a group of tasks to execute together
-type StepGroup struct {
-	Number   int         `json:"number"`
-	Type     string      `json:"type"` // "parallel" or "sequential"
-	Tasks    []*PlanTask `json:"tasks"`
-	Parallel bool        `json:"parallel"`
-}
+	// StepGroup represents a group of tasks to execute together.
+	StepGroup = execution.StepGroup
 
-// PlanTask represents a task in the execution plan
-type PlanTask struct {
-	ID            string   `json:"id"`
-	Name          string   `json:"name"`
-	Path          string   `json:"path"`
-	Number        int      `json:"number"`
-	AutonomyLevel string   `json:"autonomy_level"`
-	Dependencies  []string `json:"dependencies,omitempty"`
-	Status        string   `json:"status"`
-}
+	// QualityGateInfo describes a quality gate.
+	QualityGateInfo = execution.QualityGateInfo
 
-// QualityGateInfo describes a quality gate
-type QualityGateInfo struct {
-	PhaseName   string   `json:"phase_name"`
-	Type        string   `json:"type"`
-	Description string   `json:"description"`
-	Criteria    []string `json:"criteria,omitempty"`
-	Passed      bool     `json:"passed"`
-}
+	// ExecutionSummary provides summary statistics for the plan.
+	ExecutionSummary = execution.ExecutionSummary
+)
 
-// ExecutionSummary provides summary statistics for the plan
-type ExecutionSummary struct {
-	TotalPhases    int    `json:"total_phases"`
-	TotalSequences int    `json:"total_sequences"`
-	TotalTasks     int    `json:"total_tasks"`
-	TotalSteps     int    `json:"total_steps"`
-	ParallelGroups int    `json:"parallel_groups"`
-	QualityGates   int    `json:"quality_gates"`
-	EstimatedTime  string `json:"estimated_time,omitempty"`
-}
+// PlanTask is an alias for execution.TaskInfo.
+// It represents a task in the execution plan.
+type PlanTask = execution.TaskInfo
 
 // PlanBuilder builds execution plans from festival structure
 type PlanBuilder struct {
@@ -302,7 +263,26 @@ func (b *PlanBuilder) taskToPlanTask(task *deps.Task) *PlanTask {
 		AutonomyLevel: task.AutonomyLevel,
 		Dependencies:  task.Dependencies,
 		Status:        task.Status,
+		IsGate:        isGateTask(task.Path),
 	}
+}
+
+// isGateTask reads the task file's frontmatter to determine if it is a gate task.
+// Returns true if fest_type is "gate", false otherwise (including on any error).
+func isGateTask(taskPath string) bool {
+	content, err := os.ReadFile(taskPath)
+	if err != nil {
+		// File read error - default to not a gate
+		return false
+	}
+
+	fm, _, err := frontmatter.Parse(content)
+	if err != nil || fm == nil {
+		// Parse error or no frontmatter - default to not a gate
+		return false
+	}
+
+	return fm.Type == frontmatter.TypeGate
 }
 
 // extractPhaseNumber extracts the numeric prefix from a phase name
