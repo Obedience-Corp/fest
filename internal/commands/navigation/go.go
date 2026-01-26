@@ -10,8 +10,10 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/navigation"
+	"github.com/Obedience-Corp/fest/internal/tui/picker"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 type goOptions struct {
@@ -299,10 +301,8 @@ func resolveFuzzy(pattern, festivalsDir string) (string, error) {
 		return matches[0].Path, nil
 	}
 
-	// Multiple ambiguous matches - return error with suggestions
-	suggestions := navigation.FormatMatchList(matches, 5)
-	msg := fmt.Sprintf("ambiguous pattern '%s' - matches: %s", pattern, strings.Join(suggestions, ", "))
-	return "", errors.Validation(msg)
+	// Multiple ambiguous matches - show interactive picker if in TTY
+	return showFuzzyPicker(pattern, matches)
 }
 
 // resolveFestivalByName searches for a festival by name in status directories
@@ -394,4 +394,38 @@ func resolveSequenceShortcut(shortcut, phaseDir string) (string, error) {
 	}
 
 	return "", errors.NotFound("sequence").WithField("shortcut", shortcut).WithField("phase", filepath.Base(phaseDir))
+}
+
+// showFuzzyPicker displays an interactive picker for ambiguous matches.
+// Falls back to error message if not in a TTY.
+func showFuzzyPicker(pattern string, matches []navigation.FuzzyMatch) (string, error) {
+	// Check if stderr is a TTY (picker needs interactive terminal)
+	if !term.IsTerminal(int(os.Stderr.Fd())) {
+		// Not a TTY - return error with suggestions
+		suggestions := navigation.FormatMatchList(matches, 5)
+		msg := fmt.Sprintf("ambiguous pattern '%s' - matches: %s", pattern, strings.Join(suggestions, ", "))
+		return "", errors.Validation(msg)
+	}
+
+	// Convert matches to picker items
+	items := make([]picker.Item, len(matches))
+	for i, m := range matches {
+		items[i] = picker.Item{
+			Name:  m.Name,
+			Value: m.Path,
+			Score: m.Score,
+		}
+	}
+
+	// Run picker
+	selected, err := picker.Run(items, navigation.Score)
+	if err != nil {
+		return "", errors.Wrap(err, "running picker")
+	}
+
+	if selected == nil {
+		return "", errors.Validation("selection cancelled")
+	}
+
+	return selected.Value, nil
 }

@@ -97,13 +97,26 @@ func IsUnambiguous(matches []FuzzyMatch) bool {
 }
 
 // CollectNavigationTargets gathers all possible navigation targets from a festivals directory
+// Limited to status directories and festival names only (not phases/sequences)
 func CollectNavigationTargets(festivalsDir string) []FuzzyTarget {
 	var targets []FuzzyTarget
 
-	// Status directories to search
+	// Status directories as targets (for "fest go active", "fest go planned", etc.)
 	statusDirs := []string{"active", "planned", "completed", "dungeon"}
-
 	for _, status := range statusDirs {
+		statusPath := filepath.Join(festivalsDir, status)
+		if info, err := os.Stat(statusPath); err == nil && info.IsDir() {
+			targets = append(targets, FuzzyTarget{
+				Name: status,
+				Path: statusPath,
+			})
+		}
+	}
+
+	// Festival names from active and planned only (most commonly navigated)
+	// Completed and dungeon are archives, less frequently accessed via fuzzy search
+	primaryDirs := []string{"active", "planned"}
+	for _, status := range primaryDirs {
 		statusPath := filepath.Join(festivalsDir, status)
 		entries, err := os.ReadDir(statusPath)
 		if err != nil {
@@ -117,126 +130,17 @@ func CollectNavigationTargets(festivalsDir string) []FuzzyTarget {
 			festivalName := entry.Name()
 			festivalPath := filepath.Join(statusPath, festivalName)
 
-			// Add festival itself
+			// Add festival by full name
 			targets = append(targets, FuzzyTarget{
 				Name: festivalName,
 				Path: festivalPath,
 			})
-
-			// Add phases within festival
-			phaseTargets := collectPhases(festivalPath, festivalName)
-			targets = append(targets, phaseTargets...)
 		}
 	}
 
 	return targets
 }
 
-// collectPhases gathers phases and sequences from a festival
-func collectPhases(festivalPath, festivalName string) []FuzzyTarget {
-	var targets []FuzzyTarget
-
-	entries, err := os.ReadDir(festivalPath)
-	if err != nil {
-		return nil
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		// Skip non-phase directories
-		if !isPhaseDir(name) {
-			continue
-		}
-
-		phasePath := filepath.Join(festivalPath, name)
-		phaseDisplayName := festivalName + "/" + name
-
-		targets = append(targets, FuzzyTarget{
-			Name: phaseDisplayName,
-			Path: phasePath,
-		})
-
-		// Also add phase name alone for simpler matching
-		targets = append(targets, FuzzyTarget{
-			Name: name,
-			Path: phasePath,
-		})
-
-		// Add sequences within phase
-		seqTargets := collectSequences(phasePath, festivalName, name)
-		targets = append(targets, seqTargets...)
-	}
-
-	return targets
-}
-
-// collectSequences gathers sequences from a phase
-func collectSequences(phasePath, festivalName, phaseName string) []FuzzyTarget {
-	var targets []FuzzyTarget
-
-	entries, err := os.ReadDir(phasePath)
-	if err != nil {
-		return nil
-	}
-
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		// Skip non-sequence directories
-		if !isSequenceDir(name) {
-			continue
-		}
-
-		seqPath := filepath.Join(phasePath, name)
-		seqDisplayName := festivalName + "/" + phaseName + "/" + name
-
-		targets = append(targets, FuzzyTarget{
-			Name: seqDisplayName,
-			Path: seqPath,
-		})
-
-		// Also add shorter names for simpler matching
-		targets = append(targets, FuzzyTarget{
-			Name: phaseName + "/" + name,
-			Path: seqPath,
-		})
-	}
-
-	return targets
-}
-
-// isPhaseDir checks if a directory name looks like a phase (NNN_name)
-func isPhaseDir(name string) bool {
-	if len(name) < 4 {
-		return false
-	}
-	// Must start with 3 digits and underscore
-	for i := 0; i < 3; i++ {
-		if name[i] < '0' || name[i] > '9' {
-			return false
-		}
-	}
-	return name[3] == '_'
-}
-
-// isSequenceDir checks if a directory name looks like a sequence (NN_name)
-func isSequenceDir(name string) bool {
-	if len(name) < 3 {
-		return false
-	}
-	// Must start with 2 digits and underscore
-	for i := 0; i < 2; i++ {
-		if name[i] < '0' || name[i] > '9' {
-			return false
-		}
-	}
-	return name[2] == '_'
-}
 
 // SortMatchesByScore sorts matches by score in descending order
 func SortMatchesByScore(matches []FuzzyMatch) {

@@ -128,49 +128,9 @@ func TestIsUnambiguous(t *testing.T) {
 	}
 }
 
-func TestIsPhaseDir(t *testing.T) {
-	tests := []struct {
-		name string
-		want bool
-	}{
-		{"001_PHASE", true},
-		{"002_test", true},
-		{"999_last", true},
-		{"01_sequence", false}, // Only 2 digits
-		{"1_short", false},     // Only 1 digit
-		{"abc_name", false},    // No digits
-		{"00", false},          // Too short
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := isPhaseDir(tt.name)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
-
-func TestIsSequenceDir(t *testing.T) {
-	tests := []struct {
-		name string
-		want bool
-	}{
-		{"01_sequence", true},
-		{"02_test", true},
-		{"99_last", true},
-		{"001_phase", false}, // 3 digits
-		{"1_short", false},   // Only 1 digit
-		{"ab_name", false},   // No digits
-		{"0", false},         // Too short
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := isSequenceDir(tt.name)
-			assert.Equal(t, tt.want, got)
-		})
-	}
-}
+// Note: isPhaseDir and isSequenceDir tests removed as these functions
+// are no longer used in fuzzy matching. Phase/sequence navigation uses
+// numeric shortcuts (e.g., "fest go 1/1") instead of fuzzy matching.
 
 func TestFormatMatchList(t *testing.T) {
 	matches := []FuzzyMatch{
