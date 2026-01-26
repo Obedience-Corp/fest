@@ -1,4 +1,4 @@
-package next
+package selection
 
 import (
 	"bytes"

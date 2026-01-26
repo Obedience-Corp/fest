@@ -10,7 +10,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/guidance"
-	"github.com/Obedience-Corp/fest/internal/next"
+	"github.com/Obedience-Corp/fest/internal/guidance/selection"
 	"github.com/spf13/cobra"
 
 	// Import all navigator packages to trigger their registration.
@@ -90,9 +90,9 @@ func runNext(cmd *cobra.Command, args []string) error {
 	}
 
 	// Fall back to selector-based navigation
-	selector := next.NewSelector(festivalPath)
+	selector := selection.NewSelector(festivalPath)
 
-	var result *next.NextTaskResult
+	var result *selection.NextTaskResult
 	if sequenceOnly {
 		seqPath := findSequencePath(cwd, festivalPath)
 		if seqPath == "" {
@@ -109,7 +109,7 @@ func runNext(cmd *cobra.Command, args []string) error {
 
 	// Output formatting
 	if cdOutput {
-		output := next.FormatCD(result)
+		output := selection.FormatCD(result)
 		if output == "" {
 			return errors.NotFound("no task available to navigate to")
 		}
@@ -118,12 +118,12 @@ func runNext(cmd *cobra.Command, args []string) error {
 	}
 
 	if shortOutput {
-		fmt.Println(next.FormatShort(result))
+		fmt.Println(selection.FormatShort(result))
 		return nil
 	}
 
 	if jsonOutput {
-		output, err := next.FormatJSON(result)
+		output, err := selection.FormatJSON(result)
 		if err != nil {
 			return errors.Parse("formatting JSON", err)
 		}
@@ -132,11 +132,11 @@ func runNext(cmd *cobra.Command, args []string) error {
 	}
 
 	if verboseOutput {
-		fmt.Print(next.FormatVerbose(result))
+		fmt.Print(selection.FormatVerbose(result))
 		return nil
 	}
 
-	fmt.Print(next.FormatText(result))
+	fmt.Print(selection.FormatText(result))
 	return nil
 }
 

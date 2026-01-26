@@ -1,5 +1,5 @@
-// Package next provides task selection and navigation for festival workflows.
-package next
+// Package selection provides task selection and navigation for festival workflows.
+package selection
 
 import (
 	"bufio"
