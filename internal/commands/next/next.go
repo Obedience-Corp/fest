@@ -16,6 +16,7 @@ import (
 	// Import all navigator packages to trigger their registration.
 	_ "github.com/Obedience-Corp/fest/internal/guidance/action"
 	_ "github.com/Obedience-Corp/fest/internal/guidance/ingest"
+	_ "github.com/Obedience-Corp/fest/internal/guidance/orchestration"
 	_ "github.com/Obedience-Corp/fest/internal/guidance/planning"
 	_ "github.com/Obedience-Corp/fest/internal/guidance/research"
 	_ "github.com/Obedience-Corp/fest/internal/guidance/review"
@@ -61,7 +62,7 @@ Examples:
 	cmd.Flags().BoolVar(&shortOutput, "short", false, "output only the task path")
 	cmd.Flags().BoolVar(&cdOutput, "cd", false, "output directory path for cd command")
 	cmd.Flags().BoolVar(&sequenceOnly, "sequence", false, "only consider current sequence")
-	cmd.Flags().StringVarP(&modeFlag, "mode", "m", "", "override phase type detection (execute|plan|research|review|action|ingest)")
+	cmd.Flags().StringVarP(&modeFlag, "mode", "m", "", "override phase type detection (implementation|plan|research|review|action|ingest)")
 	cmd.Flags().BoolVar(&useNavigator, "navigator", false, "use guidance navigator for output formatting")
 
 	return cmd
