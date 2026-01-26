@@ -24,25 +24,25 @@ type Scorer func(query, target string) (score int, indices []int)
 
 // Model is the picker's bubbletea model.
 type Model struct {
-	items       []Item        // Original items
-	filtered    []Item        // Items after filtering
-	selected    int           // Currently selected index in filtered
+	items       []Item // Original items
+	filtered    []Item // Items after filtering
+	selected    int    // Currently selected index in filtered
 	input       textinput.Model
 	scorer      Scorer
-	maxVisible  int           // Max items to show
-	scrollStart int           // First visible item index
+	maxVisible  int // Max items to show
+	scrollStart int // First visible item index
 	width       int
 	height      int
 	cancelled   bool
 	confirmed   bool
 
 	// Styles
-	promptStyle    lipgloss.Style
-	cursorStyle    lipgloss.Style
-	matchStyle     lipgloss.Style
-	selectedStyle  lipgloss.Style
-	normalStyle    lipgloss.Style
-	countStyle     lipgloss.Style
+	promptStyle   lipgloss.Style
+	cursorStyle   lipgloss.Style
+	matchStyle    lipgloss.Style
+	selectedStyle lipgloss.Style
+	normalStyle   lipgloss.Style
+	countStyle    lipgloss.Style
 }
 
 // New creates a new picker with the given items and scorer.
@@ -62,12 +62,12 @@ func New(items []Item, scorer Scorer) Model {
 		width:      60,
 		height:     15,
 
-		promptStyle:   lipgloss.NewStyle().Foreground(lipgloss.Color("12")),  // Blue
-		cursorStyle:   lipgloss.NewStyle().Foreground(lipgloss.Color("11")),  // Yellow
-		matchStyle:    lipgloss.NewStyle().Foreground(lipgloss.Color("10")),  // Green
-		selectedStyle: lipgloss.NewStyle().Background(lipgloss.Color("8")),   // Gray bg
+		promptStyle:   lipgloss.NewStyle().Foreground(lipgloss.Color("12")), // Blue
+		cursorStyle:   lipgloss.NewStyle().Foreground(lipgloss.Color("11")), // Yellow
+		matchStyle:    lipgloss.NewStyle().Foreground(lipgloss.Color("10")), // Green
+		selectedStyle: lipgloss.NewStyle().Background(lipgloss.Color("8")),  // Gray bg
 		normalStyle:   lipgloss.NewStyle(),
-		countStyle:    lipgloss.NewStyle().Foreground(lipgloss.Color("8")),   // Gray
+		countStyle:    lipgloss.NewStyle().Foreground(lipgloss.Color("8")), // Gray
 	}
 
 	return m
