@@ -1,4 +1,4 @@
-package execution
+package implementation
 
 import (
 	"context"
@@ -446,8 +446,8 @@ func TestNavigator_GetProgress(t *testing.T) {
 		t.Fatal("GetProgress() returned nil")
 	}
 
-	if progress.Mode != guidance.ModeExecute {
-		t.Errorf("Mode = %v, want %v", progress.Mode, guidance.ModeExecute)
+	if progress.Mode != guidance.ModeImplementation {
+		t.Errorf("Mode = %v, want %v", progress.Mode, guidance.ModeImplementation)
 	}
 
 	if progress.Total != 3 {

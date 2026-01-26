@@ -67,7 +67,7 @@ func NewGuidanceContext(festivalPath string) *GuidanceContext {
 	return &GuidanceContext{
 		FestivalPath: festivalPath,
 		FestivalName: filepath.Base(festivalPath),
-		Mode:         ModeExecute, // Default mode
+		Mode:         ModeImplementation, // Default mode
 		Config:       DefaultConfig(),
 	}
 }

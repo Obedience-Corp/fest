@@ -5,10 +5,10 @@ import (
 )
 
 func TestNewProgress(t *testing.T) {
-	p := NewProgress(ModeExecute)
+	p := NewProgress(ModeImplementation)
 
-	if p.Mode != ModeExecute {
-		t.Errorf("Mode = %v, want ModeExecute", p.Mode)
+	if p.Mode != ModeImplementation {
+		t.Errorf("Mode = %v, want ModeImplementation", p.Mode)
 	}
 	if p.PhaseProgress == nil {
 		t.Error("PhaseProgress should not be nil")
@@ -38,7 +38,7 @@ func TestProgress_Calculate(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewProgress(ModeExecute)
+			p := NewProgress(ModeImplementation)
 			p.Completed = tt.completed
 			p.Total = tt.total
 			p.Calculate()
@@ -70,7 +70,7 @@ func TestProgress_IsComplete(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewProgress(ModeExecute)
+			p := NewProgress(ModeImplementation)
 			p.Completed = tt.completed
 			p.Total = tt.total
 			if got := p.IsComplete(); got != tt.want {
@@ -95,7 +95,7 @@ func TestProgress_IsStarted(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewProgress(ModeExecute)
+			p := NewProgress(ModeImplementation)
 			p.Completed = tt.completed
 			p.InProgress = tt.inProgress
 			if got := p.IsStarted(); got != tt.want {
@@ -121,7 +121,7 @@ func TestProgress_Remaining(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewProgress(ModeExecute)
+			p := NewProgress(ModeImplementation)
 			p.Total = tt.total
 			p.Completed = tt.completed
 			p.Skipped = tt.skipped
@@ -133,7 +133,7 @@ func TestProgress_Remaining(t *testing.T) {
 }
 
 func TestProgress_AddPhase(t *testing.T) {
-	p := NewProgress(ModeExecute)
+	p := NewProgress(ModeImplementation)
 	info := &PhaseProgressInfo{
 		Name:       "Implementation",
 		Type:       "implementation",
@@ -155,7 +155,7 @@ func TestProgress_AddPhase(t *testing.T) {
 }
 
 func TestProgress_AddPhase_NilMap(t *testing.T) {
-	p := &Progress{Mode: ModeExecute}
+	p := &Progress{Mode: ModeImplementation}
 	info := &PhaseProgressInfo{Name: "Test"}
 
 	// Should not panic with nil map
@@ -170,7 +170,7 @@ func TestProgress_AddPhase_NilMap(t *testing.T) {
 }
 
 func TestProgress_IncrementCompleted(t *testing.T) {
-	p := NewProgress(ModeExecute)
+	p := NewProgress(ModeImplementation)
 	p.Total = 10
 	p.Completed = 0
 
@@ -185,7 +185,7 @@ func TestProgress_IncrementCompleted(t *testing.T) {
 }
 
 func TestProgress_IncrementFailed(t *testing.T) {
-	p := NewProgress(ModeExecute)
+	p := NewProgress(ModeImplementation)
 	p.Failed = 0
 
 	p.IncrementFailed()
@@ -196,7 +196,7 @@ func TestProgress_IncrementFailed(t *testing.T) {
 }
 
 func TestProgress_IncrementSkipped(t *testing.T) {
-	p := NewProgress(ModeExecute)
+	p := NewProgress(ModeImplementation)
 	p.Skipped = 0
 
 	p.IncrementSkipped()
@@ -207,7 +207,7 @@ func TestProgress_IncrementSkipped(t *testing.T) {
 }
 
 func TestProgress_SetPosition(t *testing.T) {
-	p := NewProgress(ModeExecute)
+	p := NewProgress(ModeImplementation)
 	p.SetPosition("Phase1", "Sequence1", "Task1")
 
 	if p.CurrentPhase != "Phase1" {
@@ -238,7 +238,7 @@ func TestProgress_ProgressBar(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewProgress(ModeExecute)
+			p := NewProgress(ModeImplementation)
 			p.Percentage = tt.percentage
 			got := p.ProgressBar(tt.width)
 			if got != tt.want {
@@ -249,7 +249,7 @@ func TestProgress_ProgressBar(t *testing.T) {
 }
 
 func TestProgress_ProgressBar_OverFilled(t *testing.T) {
-	p := NewProgress(ModeExecute)
+	p := NewProgress(ModeImplementation)
 	p.Percentage = 150.0 // Over 100%
 
 	bar := p.ProgressBar(10)
@@ -275,7 +275,7 @@ func TestProgress_Summary(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			p := NewProgress(ModeExecute)
+			p := NewProgress(ModeImplementation)
 			p.Total = tt.total
 			p.Completed = tt.completed
 			p.Percentage = tt.percentage

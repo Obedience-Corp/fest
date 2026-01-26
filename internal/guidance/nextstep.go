@@ -73,7 +73,7 @@ func NewNextStep(mode Mode, stepType, id, title, path string) *NextStep {
 // NewTaskStep creates a NextStep for a standard task.
 func NewTaskStep(id, title, path string, autonomy AutonomyLevel) *NextStep {
 	return &NextStep{
-		Mode:          ModeExecute,
+		Mode:          ModeImplementation,
 		StepType:      StepTypeTask,
 		ID:            id,
 		Title:         title,
@@ -85,7 +85,7 @@ func NewTaskStep(id, title, path string, autonomy AutonomyLevel) *NextStep {
 // NewGateStep creates a NextStep for a quality gate.
 func NewGateStep(id, title, path string) *NextStep {
 	return &NextStep{
-		Mode:          ModeExecute,
+		Mode:          ModeImplementation,
 		StepType:      StepTypeGate,
 		ID:            id,
 		Title:         title,

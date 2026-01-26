@@ -9,7 +9,7 @@ import (
 
 func TestNewStateManager(t *testing.T) {
 	dir := t.TempDir()
-	sm := NewStateManager(dir, ModeExecute)
+	sm := NewStateManager(dir, ModeImplementation)
 
 	if sm.festivalPath != dir {
 		t.Errorf("festivalPath = %v, want %v", sm.festivalPath, dir)
@@ -21,8 +21,8 @@ func TestNewStateManager(t *testing.T) {
 	if sm.state.FestivalPath != dir {
 		t.Errorf("state.FestivalPath = %v, want %v", sm.state.FestivalPath, dir)
 	}
-	if sm.state.Mode != ModeExecute {
-		t.Errorf("state.Mode = %v, want %v", sm.state.Mode, ModeExecute)
+	if sm.state.Mode != ModeImplementation {
+		t.Errorf("state.Mode = %v, want %v", sm.state.Mode, ModeImplementation)
 	}
 	if sm.state.TaskStatuses == nil {
 		t.Error("TaskStatuses should be initialized")
@@ -34,7 +34,7 @@ func TestNewStateManager(t *testing.T) {
 
 func TestDefaultStateManager_Load_NewState(t *testing.T) {
 	dir := t.TempDir()
-	sm := NewStateManager(dir, ModeExecute)
+	sm := NewStateManager(dir, ModeImplementation)
 
 	state, err := sm.Load(context.Background())
 	if err != nil {
@@ -54,7 +54,7 @@ func TestDefaultStateManager_Load_NewState(t *testing.T) {
 
 func TestDefaultStateManager_LoadSave(t *testing.T) {
 	dir := t.TempDir()
-	sm := NewStateManager(dir, ModeExecute)
+	sm := NewStateManager(dir, ModeImplementation)
 
 	// Load creates new state
 	_, err := sm.Load(context.Background())
@@ -78,7 +78,7 @@ func TestDefaultStateManager_LoadSave(t *testing.T) {
 	}
 
 	// Create new manager and load
-	sm2 := NewStateManager(dir, ModeExecute)
+	sm2 := NewStateManager(dir, ModeImplementation)
 	state2, err := sm2.Load(context.Background())
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
@@ -100,7 +100,7 @@ func TestDefaultStateManager_LoadSave(t *testing.T) {
 }
 
 func TestDefaultStateManager_Counters(t *testing.T) {
-	sm := NewStateManager(t.TempDir(), ModeExecute)
+	sm := NewStateManager(t.TempDir(), ModeImplementation)
 	_, _ = sm.Load(context.Background())
 
 	sm.state.TotalTasks = 10
@@ -130,7 +130,7 @@ func TestDefaultStateManager_Counters(t *testing.T) {
 }
 
 func TestDefaultStateManager_CounterTransitions(t *testing.T) {
-	sm := NewStateManager(t.TempDir(), ModeExecute)
+	sm := NewStateManager(t.TempDir(), ModeImplementation)
 	_, _ = sm.Load(context.Background())
 
 	// Set initial status
@@ -160,7 +160,7 @@ func TestDefaultStateManager_CounterTransitions(t *testing.T) {
 
 func TestDefaultStateManager_Clear(t *testing.T) {
 	dir := t.TempDir()
-	sm := NewStateManager(dir, ModeExecute)
+	sm := NewStateManager(dir, ModeImplementation)
 
 	_, _ = sm.Load(context.Background())
 	sm.SetTaskStatus("t1", StatusCompleted)
@@ -189,14 +189,14 @@ func TestDefaultStateManager_Clear(t *testing.T) {
 	if sm.State().FestivalPath != dir {
 		t.Error("FestivalPath should be preserved after Clear")
 	}
-	if sm.State().Mode != ModeExecute {
+	if sm.State().Mode != ModeImplementation {
 		t.Error("Mode should be preserved after Clear")
 	}
 }
 
 func TestDefaultStateManager_Clear_NoFile(t *testing.T) {
 	dir := t.TempDir()
-	sm := NewStateManager(dir, ModeExecute)
+	sm := NewStateManager(dir, ModeImplementation)
 	_, _ = sm.Load(context.Background())
 
 	// Clear without saving first (no file exists)
@@ -206,7 +206,7 @@ func TestDefaultStateManager_Clear_NoFile(t *testing.T) {
 }
 
 func TestDefaultStateManager_GetTaskStatus(t *testing.T) {
-	sm := NewStateManager(t.TempDir(), ModeExecute)
+	sm := NewStateManager(t.TempDir(), ModeImplementation)
 	_, _ = sm.Load(context.Background())
 
 	// Unknown task returns pending
@@ -222,7 +222,7 @@ func TestDefaultStateManager_GetTaskStatus(t *testing.T) {
 }
 
 func TestDefaultStateManager_SetPosition(t *testing.T) {
-	sm := NewStateManager(t.TempDir(), ModeExecute)
+	sm := NewStateManager(t.TempDir(), ModeImplementation)
 	_, _ = sm.Load(context.Background())
 
 	sm.SetPosition(5, 3, 2)
@@ -240,7 +240,7 @@ func TestDefaultStateManager_SetPosition(t *testing.T) {
 }
 
 func TestDefaultStateManager_UpdatePhaseState(t *testing.T) {
-	sm := NewStateManager(t.TempDir(), ModeExecute)
+	sm := NewStateManager(t.TempDir(), ModeImplementation)
 	_, _ = sm.Load(context.Background())
 
 	// Update phase state
@@ -271,7 +271,7 @@ func TestDefaultStateManager_UpdatePhaseState(t *testing.T) {
 }
 
 func TestDefaultStateManager_UpdatePhaseState_NilMap(t *testing.T) {
-	sm := NewStateManager(t.TempDir(), ModeExecute)
+	sm := NewStateManager(t.TempDir(), ModeImplementation)
 	sm.state.PhaseState = nil
 
 	// Should not panic
@@ -284,7 +284,7 @@ func TestDefaultStateManager_UpdatePhaseState_NilMap(t *testing.T) {
 
 func TestGuidanceState_Progress(t *testing.T) {
 	state := &GuidanceState{
-		Mode:           ModeExecute,
+		Mode:           ModeImplementation,
 		TotalTasks:     10,
 		CompletedTasks: 5,
 		SkippedTasks:   1,
@@ -293,8 +293,8 @@ func TestGuidanceState_Progress(t *testing.T) {
 
 	p := state.Progress()
 
-	if p.Mode != ModeExecute {
-		t.Errorf("Mode = %v, want ModeExecute", p.Mode)
+	if p.Mode != ModeImplementation {
+		t.Errorf("Mode = %v, want ModeImplementation", p.Mode)
 	}
 	if p.Total != 10 {
 		t.Errorf("Total = %d, want 10", p.Total)
@@ -355,7 +355,7 @@ func TestDefaultStateManager_Load_CorruptedFile(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	sm := NewStateManager(dir, ModeExecute)
+	sm := NewStateManager(dir, ModeImplementation)
 	_, err := sm.Load(context.Background())
 
 	if err == nil {
@@ -364,7 +364,7 @@ func TestDefaultStateManager_Load_CorruptedFile(t *testing.T) {
 }
 
 func TestDefaultStateManager_SetTaskStatus_NilMap(t *testing.T) {
-	sm := NewStateManager(t.TempDir(), ModeExecute)
+	sm := NewStateManager(t.TempDir(), ModeImplementation)
 	sm.state.TaskStatuses = nil
 
 	// Should not panic

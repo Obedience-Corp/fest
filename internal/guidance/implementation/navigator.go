@@ -1,6 +1,6 @@
 // Package execution provides the ExecutionNavigator for navigating
 // implementation phases in festivals.
-package execution
+package implementation
 
 import (
 	"context"
@@ -34,7 +34,7 @@ var _ guidance.Navigator = (*Navigator)(nil)
 // The planBuilder parameter allows for dependency injection; pass nil
 // to use the default plan builder (which requires SetPlanBuilder before Initialize).
 func NewNavigator(gctx *guidance.GuidanceContext, planBuilder PlanBuilder) (*Navigator, error) {
-	base, err := guidance.NewBaseNavigator(gctx, guidance.ModeExecute)
+	base, err := guidance.NewBaseNavigator(gctx, guidance.ModeImplementation)
 	if err != nil {
 		return nil, errors.Wrap(err, "creating base navigator")
 	}
@@ -207,7 +207,7 @@ func (n *Navigator) buildNextStepFromTask(task *TaskInfo, contextFiles []string)
 	stepType := n.getStepType(task)
 	autonomy := n.getAutonomyLevel(task.AutonomyLevel)
 
-	nextStep := guidance.NewNextStep(guidance.ModeExecute, stepType, task.ID, task.Name, task.Path)
+	nextStep := guidance.NewNextStep(guidance.ModeImplementation, stepType, task.ID, task.Name, task.Path)
 	nextStep.AutonomyLevel = autonomy
 	nextStep.ContextFiles = contextFiles
 	nextStep.Dependencies = task.Dependencies
@@ -223,7 +223,7 @@ func (n *Navigator) buildParallelNextStep(step *StepGroup, contextFiles []string
 	stepType := n.getStepType(primary)
 	autonomy := n.getAutonomyLevel(primary.AutonomyLevel)
 
-	nextStep := guidance.NewNextStep(guidance.ModeExecute, stepType, primary.ID, primary.Name, primary.Path)
+	nextStep := guidance.NewNextStep(guidance.ModeImplementation, stepType, primary.ID, primary.Name, primary.Path)
 	nextStep.AutonomyLevel = autonomy
 	nextStep.ContextFiles = contextFiles
 	nextStep.Parallel = true
@@ -383,7 +383,7 @@ func (n *Navigator) GetProgress(ctx context.Context) (*guidance.Progress, error)
 // buildProgress creates a Progress struct from the current state and plan.
 func (n *Navigator) buildProgress() *guidance.Progress {
 	state := n.StateManager.State()
-	progress := guidance.NewProgress(guidance.ModeExecute)
+	progress := guidance.NewProgress(guidance.ModeImplementation)
 
 	progress.Total = state.TotalTasks
 	progress.Completed = state.CompletedTasks

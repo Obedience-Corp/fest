@@ -199,7 +199,7 @@ func runExecute(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		// At festival root - use NewNavigator with default execution mode
-		mode := guidance.ModeExecute
+		mode := guidance.ModeImplementation
 		if modeOverride != "" {
 			mode = modeOverride
 		}

@@ -10,7 +10,7 @@ func TestModeFromPhaseType(t *testing.T) {
 		phaseType string
 		want      Mode
 	}{
-		{"implementation maps to execute", "implementation", ModeExecute},
+		{"implementation maps to execute", "implementation", ModeImplementation},
 		{"planning maps to plan", "planning", ModePlan},
 		{"research maps to research", "research", ModeResearch},
 		{"review maps to review", "review", ModeReview},
@@ -18,9 +18,9 @@ func TestModeFromPhaseType(t *testing.T) {
 		{"action maps to action", "action", ModeAction},
 		{"non_coding_action maps to action", "non_coding_action", ModeAction},
 		{"ingest maps to ingest", "ingest", ModeIngest},
-		{"unknown defaults to execute", "unknown", ModeExecute},
-		{"empty defaults to execute", "", ModeExecute},
-		{"random string defaults to execute", "foobar", ModeExecute},
+		{"unknown defaults to execute", "unknown", ModeImplementation},
+		{"empty defaults to execute", "", ModeImplementation},
+		{"random string defaults to execute", "foobar", ModeImplementation},
 	}
 
 	for _, tt := range tests {
@@ -39,7 +39,7 @@ func TestPhaseTypeFromMode(t *testing.T) {
 		mode Mode
 		want string
 	}{
-		{"execute maps to implementation", ModeExecute, "implementation"},
+		{"execute maps to implementation", ModeImplementation, "implementation"},
 		{"plan maps to planning", ModePlan, "planning"},
 		{"research maps to research", ModeResearch, "research"},
 		{"review maps to review", ModeReview, "review"},
@@ -65,7 +65,7 @@ func TestModeIsValid(t *testing.T) {
 		mode Mode
 		want bool
 	}{
-		{"execute is valid", ModeExecute, true},
+		{"execute is valid", ModeImplementation, true},
 		{"plan is valid", ModePlan, true},
 		{"ingest is valid", ModeIngest, true},
 		{"research is valid", ModeResearch, true},
@@ -90,7 +90,7 @@ func TestModeString(t *testing.T) {
 		mode Mode
 		want string
 	}{
-		{ModeExecute, "execute"},
+		{ModeImplementation, "implementation"},
 		{ModePlan, "plan"},
 		{ModeIngest, "ingest"},
 		{ModeResearch, "research"},
@@ -135,7 +135,7 @@ func TestAllModes(t *testing.T) {
 
 	// Verify all expected modes are present
 	expected := map[Mode]bool{
-		ModeExecute:  false,
+		ModeImplementation:  false,
 		ModePlan:     false,
 		ModeIngest:   false,
 		ModeResearch: false,

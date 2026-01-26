@@ -8,34 +8,34 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/deps"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
-	"github.com/Obedience-Corp/fest/internal/guidance/execution"
+	"github.com/Obedience-Corp/fest/internal/guidance/implementation"
 	"github.com/Obedience-Corp/fest/internal/progress"
 )
 
-// Type aliases for backward compatibility - import from guidance/execution package
+// Type aliases for backward compatibility - import from guidance/implementation package
 type (
 	// ExecutionPlan represents the complete plan for executing a festival.
-	ExecutionPlan = execution.ExecutionPlan
+	ExecutionPlan = implementation.ExecutionPlan
 
 	// PhaseExecution represents execution plan for a phase.
-	PhaseExecution = execution.PhaseExecution
+	PhaseExecution = implementation.PhaseExecution
 
 	// SequenceExecution represents execution plan for a sequence.
-	SequenceExecution = execution.SequenceExecution
+	SequenceExecution = implementation.SequenceExecution
 
 	// StepGroup represents a group of tasks to execute together.
-	StepGroup = execution.StepGroup
+	StepGroup = implementation.StepGroup
 
 	// QualityGateInfo describes a quality gate.
-	QualityGateInfo = execution.QualityGateInfo
+	QualityGateInfo = implementation.QualityGateInfo
 
 	// ExecutionSummary provides summary statistics for the plan.
-	ExecutionSummary = execution.ExecutionSummary
+	ExecutionSummary = implementation.ExecutionSummary
 )
 
-// PlanTask is an alias for execution.TaskInfo.
+// PlanTask is an alias for implementation.TaskInfo.
 // It represents a task in the execution plan.
-type PlanTask = execution.TaskInfo
+type PlanTask = implementation.TaskInfo
 
 // PlanBuilder builds execution plans from festival structure
 type PlanBuilder struct {

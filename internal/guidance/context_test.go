@@ -15,8 +15,8 @@ func TestNewGuidanceContext(t *testing.T) {
 	if ctx.FestivalName != "festival" {
 		t.Errorf("FestivalName = %v, want festival", ctx.FestivalName)
 	}
-	if ctx.Mode != ModeExecute {
-		t.Errorf("Mode = %v, want ModeExecute", ctx.Mode)
+	if ctx.Mode != ModeImplementation {
+		t.Errorf("Mode = %v, want ModeImplementation", ctx.Mode)
 	}
 	if ctx.Config == nil {
 		t.Error("Config should not be nil")
@@ -55,7 +55,7 @@ func TestGuidanceContext_WithPhase(t *testing.T) {
 		phaseType string
 		wantMode  Mode
 	}{
-		{"implementation phase sets execute mode", "implementation", ModeExecute},
+		{"implementation phase sets execute mode", "implementation", ModeImplementation},
 		{"planning phase sets plan mode", "planning", ModePlan},
 		{"research phase sets research mode", "research", ModeResearch},
 		{"review phase sets review mode", "review", ModeReview},
@@ -144,7 +144,7 @@ func TestGuidanceContext_WithMode(t *testing.T) {
 	ctx := original.WithMode(ModePlan)
 
 	// Verify copy semantics - original unchanged
-	if original.Mode != ModeExecute {
+	if original.Mode != ModeImplementation {
 		t.Error("WithMode mutated original context")
 	}
 

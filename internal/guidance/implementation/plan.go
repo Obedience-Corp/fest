@@ -1,6 +1,6 @@
 // Package execution provides the ExecutionNavigator and plan types
 // for navigating implementation phases in festivals.
-package execution
+package implementation
 
 // ExecutionPlan represents the complete plan for executing a festival.
 // It contains all phases, sequences, and tasks organized in execution order.

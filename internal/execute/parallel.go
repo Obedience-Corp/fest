@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
-	"github.com/Obedience-Corp/fest/internal/guidance/execution"
+	"github.com/Obedience-Corp/fest/internal/guidance/implementation"
 )
 
 // ParallelExecutor handles parallel task execution
@@ -24,10 +24,10 @@ func NewParallelExecutor(maxParallel int) *ParallelExecutor {
 }
 
 // TaskExecutor is a function that executes a single task
-type TaskExecutor func(ctx context.Context, task *execution.TaskInfo) error
+type TaskExecutor func(ctx context.Context, task *implementation.TaskInfo) error
 
 // Execute runs tasks in parallel up to maxParallel limit
-func (p *ParallelExecutor) Execute(ctx context.Context, tasks []*execution.TaskInfo, executor TaskExecutor) []error {
+func (p *ParallelExecutor) Execute(ctx context.Context, tasks []*implementation.TaskInfo, executor TaskExecutor) []error {
 	if len(tasks) == 0 {
 		return nil
 	}
@@ -52,7 +52,7 @@ func (p *ParallelExecutor) Execute(ctx context.Context, tasks []*execution.TaskI
 		}
 
 		wg.Add(1)
-		go func(idx int, t *execution.TaskInfo) {
+		go func(idx int, t *implementation.TaskInfo) {
 			defer wg.Done()
 			defer func() { <-sem }()
 
@@ -84,7 +84,7 @@ func (p *ParallelExecutor) Execute(ctx context.Context, tasks []*execution.TaskI
 }
 
 // ExecuteStep runs all tasks in a step group with parallel support
-func (p *ParallelExecutor) ExecuteStep(ctx context.Context, step *execution.StepGroup, executor TaskExecutor) []error {
+func (p *ParallelExecutor) ExecuteStep(ctx context.Context, step *implementation.StepGroup, executor TaskExecutor) []error {
 	if !step.Parallel {
 		// Execute sequentially
 		var errors []error
@@ -112,13 +112,13 @@ func (p *ParallelExecutor) ExecuteStep(ctx context.Context, step *execution.Step
 
 // ParallelResult holds the result of parallel execution
 type ParallelResult struct {
-	Task    *execution.TaskInfo
+	Task    *implementation.TaskInfo
 	Success bool
 	Error   error
 }
 
 // ExecuteWithResults runs tasks in parallel and returns detailed results
-func (p *ParallelExecutor) ExecuteWithResults(ctx context.Context, tasks []*execution.TaskInfo, executor TaskExecutor) []*ParallelResult {
+func (p *ParallelExecutor) ExecuteWithResults(ctx context.Context, tasks []*implementation.TaskInfo, executor TaskExecutor) []*ParallelResult {
 	if len(tasks) == 0 {
 		return nil
 	}
@@ -143,7 +143,7 @@ func (p *ParallelExecutor) ExecuteWithResults(ctx context.Context, tasks []*exec
 		}
 
 		wg.Add(1)
-		go func(idx int, t *execution.TaskInfo) {
+		go func(idx int, t *implementation.TaskInfo) {
 			defer wg.Done()
 			defer func() { <-sem }()
 
@@ -164,15 +164,15 @@ func (p *ParallelExecutor) ExecuteWithResults(ctx context.Context, tasks []*exec
 }
 
 // GroupParallelTasks groups tasks that can be executed in parallel
-func GroupParallelTasks(tasks []*execution.TaskInfo) [][]*execution.TaskInfo {
+func GroupParallelTasks(tasks []*implementation.TaskInfo) [][]*implementation.TaskInfo {
 	// Group by task number
-	byNumber := make(map[int][]*execution.TaskInfo)
+	byNumber := make(map[int][]*implementation.TaskInfo)
 	for _, task := range tasks {
 		byNumber[task.Number] = append(byNumber[task.Number], task)
 	}
 
 	// Convert to sorted groups
-	var groups [][]*execution.TaskInfo
+	var groups [][]*implementation.TaskInfo
 	var numbers []int
 	for num := range byNumber {
 		numbers = append(numbers, num)
@@ -195,7 +195,7 @@ func GroupParallelTasks(tasks []*execution.TaskInfo) [][]*execution.TaskInfo {
 }
 
 // ValidateParallelSafety checks if tasks can safely run in parallel
-func ValidateParallelSafety(tasks []*execution.TaskInfo) error {
+func ValidateParallelSafety(tasks []*implementation.TaskInfo) error {
 	// Check for conflicting dependencies
 	taskIDs := make(map[string]bool)
 	for _, task := range tasks {

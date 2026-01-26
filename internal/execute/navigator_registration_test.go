@@ -9,10 +9,10 @@ import (
 )
 
 func TestNavigatorRegistration(t *testing.T) {
-	// Verify that ModeExecute is registered
+	// Verify that ModeImplementation is registered
 	modes := guidance.GetRegisteredModes()
-	if !slices.Contains(modes, guidance.ModeExecute) {
-		t.Error("ModeExecute not registered with guidance factory")
+	if !slices.Contains(modes, guidance.ModeImplementation) {
+		t.Error("ModeImplementation not registered with guidance factory")
 	}
 }
 
@@ -22,7 +22,7 @@ func TestNavigatorFactory_CreateNavigator(t *testing.T) {
 
 	gctx := &guidance.GuidanceContext{
 		FestivalPath: tmpDir,
-		Mode:         guidance.ModeExecute,
+		Mode:         guidance.ModeImplementation,
 		Config:       guidance.DefaultConfig(),
 	}
 
@@ -37,8 +37,8 @@ func TestNavigatorFactory_CreateNavigator(t *testing.T) {
 	}
 
 	// Verify it's the correct type
-	if nav.GetContext().Mode != guidance.ModeExecute {
-		t.Errorf("Navigator mode = %v, want %v", nav.GetContext().Mode, guidance.ModeExecute)
+	if nav.GetContext().Mode != guidance.ModeImplementation {
+		t.Errorf("Navigator mode = %v, want %v", nav.GetContext().Mode, guidance.ModeImplementation)
 	}
 }
 

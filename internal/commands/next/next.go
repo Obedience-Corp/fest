@@ -172,7 +172,7 @@ func runNavigatorMode(ctx context.Context, cwd, festivalPath string) error {
 		}
 	} else {
 		// At festival root - use NewNavigator with default execution mode
-		mode := guidance.ModeExecute
+		mode := guidance.ModeImplementation
 		if modeOverride != "" {
 			mode = modeOverride
 		}
