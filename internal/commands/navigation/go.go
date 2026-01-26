@@ -399,8 +399,8 @@ func resolveSequenceShortcut(shortcut, phaseDir string) (string, error) {
 // showFuzzyPicker displays an interactive picker for ambiguous matches.
 // Falls back to error message if not in a TTY.
 func showFuzzyPicker(pattern string, matches []navigation.FuzzyMatch) (string, error) {
-	// Check if stderr is a TTY (picker needs interactive terminal)
-	if !term.IsTerminal(int(os.Stderr.Fd())) {
+	// Check if stdin is a TTY (picker needs interactive terminal for input)
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		// Not a TTY - return error with suggestions
 		suggestions := navigation.FormatMatchList(matches, 5)
 		msg := fmt.Sprintf("ambiguous pattern '%s' - matches: %s", pattern, strings.Join(suggestions, ", "))
