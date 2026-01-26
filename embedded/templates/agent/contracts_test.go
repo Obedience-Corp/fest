@@ -78,9 +78,9 @@ func TestForbiddenTokensDetection(t *testing.T) {
 	}
 
 	tests := []struct {
-		name     string
-		output   string
-		hasViol  bool
+		name    string
+		output  string
+		hasViol bool
 	}{
 		{"clean output", "This is clean output", false},
 		{"has template var", "Value: {{.Missing}}", true},

@@ -135,12 +135,12 @@ func TestAllModes(t *testing.T) {
 
 	// Verify all expected modes are present
 	expected := map[Mode]bool{
-		ModeImplementation:  false,
-		ModePlan:     false,
-		ModeIngest:   false,
-		ModeResearch: false,
-		ModeReview:   false,
-		ModeAction:   false,
+		ModeImplementation: false,
+		ModePlan:           false,
+		ModeIngest:         false,
+		ModeResearch:       false,
+		ModeReview:         false,
+		ModeAction:         false,
 	}
 
 	for _, m := range modes {

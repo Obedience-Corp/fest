@@ -82,8 +82,8 @@ func TestRenderError(t *testing.T) {
 
 // forbiddenTokens are markers that indicate template rendering problems.
 var forbiddenTokens = []string{
-	"{{.",       // Unrendered template variable
-	"{{",        // Any unrendered template syntax
+	"{{.",        // Unrendered template variable
+	"{{",         // Any unrendered template syntax
 	"<no value>", // Go template's default for missing values
 }
 

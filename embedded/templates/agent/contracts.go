@@ -50,9 +50,9 @@ var Contracts = map[string]TemplateContract{
 			"ContextSection",
 			"ProgressCmd",
 		},
-		ExpectedSections:  []string{"## ", "ACTION REQUIRED"},
-		ForbiddenTokens:   DefaultForbiddenTokens,
-		MinimumLength:     100,
+		ExpectedSections: []string{"## ", "ACTION REQUIRED"},
+		ForbiddenTokens:  DefaultForbiddenTokens,
+		MinimumLength:    100,
 	},
 	"implementation/complete": {
 		Name:             "implementation/complete",

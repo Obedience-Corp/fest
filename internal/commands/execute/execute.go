@@ -10,8 +10,8 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
-	"github.com/Obedience-Corp/fest/internal/guidance/orchestration"
 	"github.com/Obedience-Corp/fest/internal/guidance"
+	"github.com/Obedience-Corp/fest/internal/guidance/orchestration"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
 
@@ -34,6 +34,7 @@ var (
 	reset         bool
 	inlineContext bool
 	modeFlag      string
+	roadmap       bool
 )
 
 // NewExecuteCommand creates the execute command
@@ -72,6 +73,7 @@ Examples:
 	cmd.Flags().BoolVar(&reset, "reset", false, "clear saved execution state")
 	cmd.Flags().BoolVar(&inlineContext, "inline-context", false, "render goal file contents inline instead of paths")
 	cmd.Flags().StringVarP(&modeFlag, "mode", "m", "", "override phase type detection (implementation|plan|research|review|action|ingest)")
+	cmd.Flags().BoolVar(&roadmap, "roadmap", false, "display complete festival execution roadmap")
 
 	// Add status subcommand
 	cmd.AddCommand(newStatusCommand())
@@ -117,6 +119,11 @@ func runExecute(cmd *cobra.Command, args []string) error {
 		}
 		fmt.Println(ui.Success("Execution state cleared."))
 		return nil
+	}
+
+	// Handle roadmap display
+	if roadmap {
+		return generateRoadmap(ctx, festivalPath)
 	}
 
 	// Load global config for action instruction
