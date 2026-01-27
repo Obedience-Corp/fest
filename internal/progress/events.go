@@ -13,13 +13,16 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
+// EventType represents the type of progress event.
+type EventType string
+
 // Event type constants for JSONL progress events.
 const (
-	EventStarted   = "started"
-	EventCompleted = "completed"
-	EventProgress  = "progress"
-	EventBlocked   = "blocked"
-	EventUnblocked = "unblocked"
+	EventStarted   EventType = "started"
+	EventCompleted EventType = "completed"
+	EventProgress  EventType = "progress"
+	EventBlocked   EventType = "blocked"
+	EventUnblocked EventType = "unblocked"
 )
 
 // ProgressEvent represents a single progress event in JSONL format.
@@ -27,7 +30,7 @@ const (
 // replaying events in timestamp order.
 type ProgressEvent struct {
 	Timestamp time.Time `json:"ts"`
-	Event     string    `json:"event"`
+	Event     EventType `json:"event"`
 	Task      string    `json:"task"`
 
 	// Event-specific fields (omitempty)

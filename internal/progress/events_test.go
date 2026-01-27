@@ -378,7 +378,7 @@ func TestStore_MultipleEventsAppend(t *testing.T) {
 
 	// Queue and save multiple events
 	events := []struct {
-		event   string
+		event   EventType
 		task    string
 		minutes int
 	}{
