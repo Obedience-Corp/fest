@@ -40,6 +40,7 @@ Festival (the project)
 Fest is both a **project scaffolding tool** and an **agent guidance system**. It teaches agents how to work with Festival Methodology and guides them through execution with minimal context overhead.
 
 **Agent Guidance System:**
+
 - Built-in documentation teaches agents the methodology on-demand (`fest intro`, `fest understand`)
 - Agents learn what they need, when they need it - no upfront context dump
 - `fest next` shows agents exactly what to work on next with just the context they need
@@ -47,6 +48,7 @@ Fest is both a **project scaffolding tool** and an **agent guidance system**. It
 - Self-documenting commands guide agents through proper usage
 
 **Project Management:**
+
 - **Create**: Interactive TUI for scaffolding festivals, phases, sequences, and tasks
 - **Validate**: Check festival structure for issues and auto-fix common problems
 - **Navigate**: Quick commands to jump between festivals, phases, and sequences
@@ -80,6 +82,7 @@ fest shell-init fish | source
 ```
 
 This gives you:
+
 - `fgo` - Quick navigation (`fest go`)
 - `fls` - Quick listing (`fest list`)
 - Tab completion for all fest commands

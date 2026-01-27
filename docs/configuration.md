@@ -27,6 +27,7 @@ fest system config
 ```
 
 This opens a menu-driven interface where you can:
+
 - Navigate categories with arrow keys or j/k
 - Press Enter to select a category
 - Press Esc to go back

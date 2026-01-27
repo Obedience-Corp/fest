@@ -27,8 +27,8 @@ func TestNewNextStep(t *testing.T) {
 func TestNewTaskStep(t *testing.T) {
 	step := NewTaskStep("task1", "Test Task", "/path/to/task.md", AutonomyHigh)
 
-	if step.Mode != ModeExecute {
-		t.Errorf("Mode = %v, want ModeExecute", step.Mode)
+	if step.Mode != ModeImplementation {
+		t.Errorf("Mode = %v, want ModeImplementation", step.Mode)
 	}
 	if step.StepType != StepTypeTask {
 		t.Errorf("StepType = %v, want %v", step.StepType, StepTypeTask)
@@ -50,8 +50,8 @@ func TestNewTaskStep(t *testing.T) {
 func TestNewGateStep(t *testing.T) {
 	step := NewGateStep("gate1", "Test Gate", "/path/to/gate.md")
 
-	if step.Mode != ModeExecute {
-		t.Errorf("Mode = %v, want ModeExecute", step.Mode)
+	if step.Mode != ModeImplementation {
+		t.Errorf("Mode = %v, want ModeImplementation", step.Mode)
 	}
 	if step.StepType != StepTypeGate {
 		t.Errorf("StepType = %v, want %v", step.StepType, StepTypeGate)
@@ -107,7 +107,7 @@ func TestNextStep_IsParallel(t *testing.T) {
 		{
 			name: "parallel flag without group is not parallel",
 			step: func() *NextStep {
-				s := NewNextStep(ModeExecute, StepTypeTask, "p1", "Parallel", "")
+				s := NewNextStep(ModeImplementation, StepTypeTask, "p1", "Parallel", "")
 				s.Parallel = true // Flag set but no group
 				return s
 			}(),
@@ -116,7 +116,7 @@ func TestNextStep_IsParallel(t *testing.T) {
 		{
 			name: "step with group is parallel",
 			step: func() *NextStep {
-				s := NewNextStep(ModeExecute, StepTypeTask, "p1", "Parallel", "")
+				s := NewNextStep(ModeImplementation, StepTypeTask, "p1", "Parallel", "")
 				s.AddToGroup(NewTaskStep("t2", "T2", "/p2", AutonomyHigh))
 				s.AddToGroup(NewTaskStep("t3", "T3", "/p3", AutonomyHigh))
 				return s
@@ -185,7 +185,7 @@ func TestNextStep_TaskCount(t *testing.T) {
 		{
 			name: "parallel step returns group count",
 			step: func() *NextStep {
-				s := NewNextStep(ModeExecute, StepTypeTask, "p1", "Parallel", "")
+				s := NewNextStep(ModeImplementation, StepTypeTask, "p1", "Parallel", "")
 				s.AddToGroup(NewTaskStep("t2", "T2", "/p2", AutonomyHigh))
 				s.AddToGroup(NewTaskStep("t3", "T3", "/p3", AutonomyHigh))
 				s.AddToGroup(NewTaskStep("t4", "T4", "/p4", AutonomyHigh))
@@ -303,7 +303,7 @@ func TestNextStep_WithMetadata(t *testing.T) {
 }
 
 func TestNextStep_AddToGroup(t *testing.T) {
-	parent := NewNextStep(ModeExecute, StepTypeTask, "parent", "Parent", "")
+	parent := NewNextStep(ModeImplementation, StepTypeTask, "parent", "Parent", "")
 	child1 := NewTaskStep("c1", "Child 1", "/c1", AutonomyHigh)
 	child2 := NewTaskStep("c2", "Child 2", "/c2", AutonomyHigh)
 

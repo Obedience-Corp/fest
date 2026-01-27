@@ -1,0 +1,26 @@
+{{/*
+TEMPLATE: plan/instructions.tmpl
+PURPOSE: Agent planning instructions showing objectives, progress, and guidance
+*/}}
+{{.Header}}
+
+## Planning Mode
+
+{{.ObjectivesSection}}
+
+{{.ProgressLine}}
+
+{{.PositionSection}}
+
+{{.ContextSection}}
+
+## Guidelines
+
+- Focus on answering questions and making decisions
+- Document your reasoning in the appropriate files
+- Mark objectives as resolved when complete
+- Run `fest next` after completing each objective
+
+When complete, mark it done with:
+  {{.ProgressCmd}}
+

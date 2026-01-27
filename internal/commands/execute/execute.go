@@ -10,8 +10,8 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
-	"github.com/Obedience-Corp/fest/internal/execute"
 	"github.com/Obedience-Corp/fest/internal/guidance"
+	"github.com/Obedience-Corp/fest/internal/guidance/orchestration"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
 
@@ -34,6 +34,7 @@ var (
 	reset         bool
 	inlineContext bool
 	modeFlag      string
+	roadmap       bool
 )
 
 // NewExecuteCommand creates the execute command
@@ -71,7 +72,8 @@ Examples:
 	cmd.Flags().StringVar(&seqName, "sequence", "", "execute specific sequence")
 	cmd.Flags().BoolVar(&reset, "reset", false, "clear saved execution state")
 	cmd.Flags().BoolVar(&inlineContext, "inline-context", false, "render goal file contents inline instead of paths")
-	cmd.Flags().StringVarP(&modeFlag, "mode", "m", "", "override phase type detection (execute|plan|research|review|action|ingest)")
+	cmd.Flags().StringVarP(&modeFlag, "mode", "m", "", "override phase type detection (implementation|plan|research|review|action|ingest)")
+	cmd.Flags().BoolVar(&roadmap, "roadmap", false, "display complete festival execution roadmap")
 
 	// Add status subcommand
 	cmd.AddCommand(newStatusCommand())
@@ -111,12 +113,17 @@ func runExecute(cmd *cobra.Command, args []string) error {
 
 	// Handle reset
 	if reset {
-		stateManager := execute.NewStateManager(festivalPath)
+		stateManager := orchestration.NewStateManager(festivalPath)
 		if err := stateManager.Clear(ctx); err != nil {
 			return errors.IO("clearing execution state", err)
 		}
 		fmt.Println(ui.Success("Execution state cleared."))
 		return nil
+	}
+
+	// Handle roadmap display
+	if roadmap {
+		return generateRoadmap(ctx, festivalPath)
 	}
 
 	// Load global config for action instruction
@@ -130,7 +137,7 @@ func runExecute(cmd *cobra.Command, args []string) error {
 	// for standard agent instructions.
 	if dryRun || jsonOutput || inlineContext {
 		// Create execution config for Runner
-		execCfg := execute.DefaultConfig()
+		execCfg := orchestration.DefaultConfig()
 		execCfg.DryRun = dryRun
 		execCfg.InlineContext = inlineContext
 		if globalCfg.Execute.ActionInstruction != "" {
@@ -138,7 +145,7 @@ func runExecute(cmd *cobra.Command, args []string) error {
 		}
 
 		// Use Runner for these modes
-		runner := execute.NewRunner(festivalPath, execCfg)
+		runner := orchestration.NewRunner(festivalPath, execCfg)
 		if err := runner.Initialize(ctx); err != nil {
 			return errors.Wrap(err, "initializing execution runner")
 		}
@@ -199,7 +206,7 @@ func runExecute(cmd *cobra.Command, args []string) error {
 		}
 	} else {
 		// At festival root - use NewNavigator with default execution mode
-		mode := guidance.ModeExecute
+		mode := guidance.ModeImplementation
 		if modeOverride != "" {
 			mode = modeOverride
 		}
@@ -269,13 +276,13 @@ func runStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create execution config
-	execCfg := execute.DefaultConfig()
+	execCfg := orchestration.DefaultConfig()
 	if globalCfg.Execute.ActionInstruction != "" {
 		execCfg.ActionInstruction = globalCfg.Execute.ActionInstruction
 	}
 
 	// Create runner
-	runner := execute.NewRunner(festivalPath, execCfg)
+	runner := orchestration.NewRunner(festivalPath, execCfg)
 
 	// Initialize
 	if err := runner.Initialize(ctx); err != nil {
@@ -292,7 +299,7 @@ func outputJSON(data any) error {
 	return nil
 }
 
-func showStatus(runner *execute.Runner) error {
+func showStatus(runner *orchestration.Runner) error {
 	state := runner.GetState()
 	plan := runner.GetPlan()
 

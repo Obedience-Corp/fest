@@ -6,9 +6,9 @@ package guidance
 type Mode string
 
 const (
-	// ModeExecute is for implementation phases.
+	// ModeImplementation is for implementation phases.
 	// Tasks are code-focused with testing, review, iterate, commit gates.
-	ModeExecute Mode = "execute"
+	ModeImplementation Mode = "implementation"
 
 	// ModePlan is for planning phases.
 	// Tasks create festival structure (phases, sequences, task documents).
@@ -40,7 +40,7 @@ func (m Mode) String() string {
 // IsValid returns true if the mode is a known valid mode.
 func (m Mode) IsValid() bool {
 	switch m {
-	case ModeExecute, ModePlan, ModeIngest, ModeResearch, ModeReview, ModeAction:
+	case ModeImplementation, ModePlan, ModeIngest, ModeResearch, ModeReview, ModeAction:
 		return true
 	default:
 		return false
@@ -77,7 +77,7 @@ func ModeFromPhaseType(phaseType string) Mode {
 	case "planning":
 		return ModePlan
 	case "implementation":
-		return ModeExecute
+		return ModeImplementation
 	case "research":
 		return ModeResearch
 	case "review":
@@ -88,7 +88,7 @@ func ModeFromPhaseType(phaseType string) Mode {
 		return ModeIngest
 	default:
 		// Default to execution for unknown types
-		return ModeExecute
+		return ModeImplementation
 	}
 }
 
@@ -98,7 +98,7 @@ func PhaseTypeFromMode(mode Mode) string {
 	switch mode {
 	case ModePlan:
 		return "planning"
-	case ModeExecute:
+	case ModeImplementation:
 		return "implementation"
 	case ModeResearch:
 		return "research"
@@ -116,7 +116,7 @@ func PhaseTypeFromMode(mode Mode) string {
 // AllModes returns all valid modes.
 func AllModes() []Mode {
 	return []Mode{
-		ModeExecute,
+		ModeImplementation,
 		ModePlan,
 		ModeIngest,
 		ModeResearch,

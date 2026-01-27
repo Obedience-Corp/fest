@@ -3,9 +3,11 @@
 **Festival:** Todo App MVP | **Status:** active | **Created:** 2026-01-02
 
 ## Festival Objective
+
 Build a minimal viable product (MVP) todo application that allows users to create, complete, and manage their daily tasks with a clean, intuitive interface.
 
 ## Success Criteria
+
 - [ ] **Core Functionality**: Users can add, complete, delete, and view todo items
 - [ ] **Data Persistence**: Todo items persist across browser sessions
 - [ ] **Clean UI**: Simple, intuitive interface following modern design principles
@@ -13,6 +15,7 @@ Build a minimal viable product (MVP) todo application that allows users to creat
 - [ ] **Documentation**: Complete user and developer documentation
 
 ## Phase Goal Alignment
+
 | Phase | Goal | Success Criteria |
 |-------|------|------------------|
 | 001_PLAN | Define requirements and architecture | Requirements doc + Architecture design complete |
@@ -20,6 +23,7 @@ Build a minimal viable product (MVP) todo application that allows users to creat
 | 003_POLISH | Finalize and document | Documentation complete, code clean |
 
 ## Key Performance Indicators
+
 | KPI | Target | Current |
 |-----|--------|---------|
 | Test Coverage | >80% | TBD |
@@ -27,6 +31,7 @@ Build a minimal viable product (MVP) todo application that allows users to creat
 | Documentation | Complete | 0% |
 
 ## Risk Register
+
 | Risk | Probability | Impact | Mitigation |
 |------|-------------|--------|------------|
 | Scope creep | Medium | High | Stick to MVP scope, defer features |
@@ -34,6 +39,7 @@ Build a minimal viable product (MVP) todo application that allows users to creat
 | Testing gaps | Medium | High | Write tests alongside features |
 
 ## Pre-Festival Checklist
+
 - [x] Festival goal defined
 - [x] Success criteria established
 - [x] Phases planned

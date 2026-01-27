@@ -149,7 +149,6 @@ func CollectNavigationTargets(festivalsDir string) []FuzzyTarget {
 	return targets
 }
 
-
 // SortMatchesByScore sorts matches by score in descending order
 func SortMatchesByScore(matches []FuzzyMatch) {
 	sort.Slice(matches, func(i, j int) bool {

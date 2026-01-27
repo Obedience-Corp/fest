@@ -1,0 +1,26 @@
+{{/*
+TEMPLATE: ingest/instructions.tmpl
+PURPOSE: Agent ingest instructions for importing and processing external content
+*/}}
+{{.Header}}
+
+## Ingest Mode
+
+{{.InputSection}}
+
+{{.ProgressLine}}
+
+{{.PositionSection}}
+
+{{.ContextSection}}
+
+## Ingest Guidelines
+
+- Process input systematically
+- Validate data quality during import
+- Transform content to match project standards
+- Review output before finalizing
+
+When complete, mark it done with:
+  {{.ProgressCmd}}
+

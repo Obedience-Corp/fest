@@ -16,8 +16,8 @@ func TestRegisterNavigator(t *testing.T) {
 	ClearNavigatorRegistry()
 
 	// Register a factory
-	RegisterNavigator(ModeExecute, func(gctx *GuidanceContext) (Navigator, error) {
-		return &mockNavigator{mode: ModeExecute}, nil
+	RegisterNavigator(ModeImplementation, func(gctx *GuidanceContext) (Navigator, error) {
+		return &mockNavigator{mode: ModeImplementation}, nil
 	})
 
 	// Verify it was registered
@@ -25,8 +25,8 @@ func TestRegisterNavigator(t *testing.T) {
 	if len(modes) != 1 {
 		t.Errorf("Expected 1 mode registered, got %d", len(modes))
 	}
-	if modes[0] != ModeExecute {
-		t.Errorf("Expected ModeExecute, got %v", modes[0])
+	if modes[0] != ModeImplementation {
+		t.Errorf("Expected ModeImplementation, got %v", modes[0])
 	}
 }
 
@@ -44,14 +44,14 @@ func TestMustRegisterNavigator(t *testing.T) {
 				t.Error("Expected panic for nil factory")
 			}
 		}()
-		MustRegisterNavigator(ModeExecute, nil)
+		MustRegisterNavigator(ModeImplementation, nil)
 	})
 
 	ClearNavigatorRegistry()
 
 	// Test duplicate registration panics
 	t.Run("duplicate registration panics", func(t *testing.T) {
-		MustRegisterNavigator(ModeExecute, func(gctx *GuidanceContext) (Navigator, error) {
+		MustRegisterNavigator(ModeImplementation, func(gctx *GuidanceContext) (Navigator, error) {
 			return &mockNavigator{}, nil
 		})
 
@@ -60,7 +60,7 @@ func TestMustRegisterNavigator(t *testing.T) {
 				t.Error("Expected panic for duplicate registration")
 			}
 		}()
-		MustRegisterNavigator(ModeExecute, func(gctx *GuidanceContext) (Navigator, error) {
+		MustRegisterNavigator(ModeImplementation, func(gctx *GuidanceContext) (Navigator, error) {
 			return &mockNavigator{}, nil
 		})
 	})
@@ -72,8 +72,8 @@ func TestNewNavigator(t *testing.T) {
 	defer func() { navigatorFactories = original }()
 
 	ClearNavigatorRegistry()
-	RegisterNavigator(ModeExecute, func(gctx *GuidanceContext) (Navigator, error) {
-		return &mockNavigator{mode: ModeExecute, ctx: gctx}, nil
+	RegisterNavigator(ModeImplementation, func(gctx *GuidanceContext) (Navigator, error) {
+		return &mockNavigator{mode: ModeImplementation, ctx: gctx}, nil
 	})
 
 	tests := []struct {
@@ -144,7 +144,7 @@ func TestNewNavigator_UnknownMode(t *testing.T) {
 
 	gctx := &GuidanceContext{
 		FestivalPath: "/path/to/festival",
-		Mode:         ModeExecute, // Mode is set but no factory registered
+		Mode:         ModeImplementation, // Mode is set but no factory registered
 	}
 
 	_, err := NewNavigator(context.Background(), gctx)
@@ -159,8 +159,8 @@ func TestNewNavigatorForPath(t *testing.T) {
 	defer func() { navigatorFactories = original }()
 
 	ClearNavigatorRegistry()
-	RegisterNavigator(ModeExecute, func(gctx *GuidanceContext) (Navigator, error) {
-		return &mockNavigator{mode: ModeExecute, ctx: gctx}, nil
+	RegisterNavigator(ModeImplementation, func(gctx *GuidanceContext) (Navigator, error) {
+		return &mockNavigator{mode: ModeImplementation, ctx: gctx}, nil
 	})
 
 	// Create a temp festival directory
@@ -263,7 +263,7 @@ func TestGetRegisteredModes(t *testing.T) {
 	}
 
 	// Register some modes
-	RegisterNavigator(ModeExecute, func(gctx *GuidanceContext) (Navigator, error) {
+	RegisterNavigator(ModeImplementation, func(gctx *GuidanceContext) (Navigator, error) {
 		return &mockNavigator{}, nil
 	})
 	RegisterNavigator(ModePlan, func(gctx *GuidanceContext) (Navigator, error) {
@@ -282,7 +282,7 @@ func TestClearNavigatorRegistry(t *testing.T) {
 	defer func() { navigatorFactories = original }()
 
 	// Register some modes
-	RegisterNavigator(ModeExecute, func(gctx *GuidanceContext) (Navigator, error) {
+	RegisterNavigator(ModeImplementation, func(gctx *GuidanceContext) (Navigator, error) {
 		return &mockNavigator{}, nil
 	})
 

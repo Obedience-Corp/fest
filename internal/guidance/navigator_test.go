@@ -123,7 +123,7 @@ func TestNewBaseNavigator(t *testing.T) {
 		{
 			name:    "nil context returns error",
 			gctx:    nil,
-			mode:    ModeExecute,
+			mode:    ModeImplementation,
 			wantErr: true,
 		},
 		{
@@ -131,7 +131,7 @@ func TestNewBaseNavigator(t *testing.T) {
 			gctx: &GuidanceContext{
 				FestivalPath: "/path/to/festival",
 			},
-			mode:    ModeExecute,
+			mode:    ModeImplementation,
 			wantErr: false,
 		},
 		{
@@ -140,7 +140,7 @@ func TestNewBaseNavigator(t *testing.T) {
 				FestivalPath: "/path/to/festival",
 				Config:       nil,
 			},
-			mode:    ModeExecute,
+			mode:    ModeImplementation,
 			wantErr: false,
 		},
 	}
@@ -171,7 +171,7 @@ func TestBaseNavigator_Initialize(t *testing.T) {
 	gctx := &GuidanceContext{
 		FestivalPath: t.TempDir(),
 	}
-	nav, err := NewBaseNavigator(gctx, ModeExecute)
+	nav, err := NewBaseNavigator(gctx, ModeImplementation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -196,7 +196,7 @@ func TestBaseNavigator_Reset(t *testing.T) {
 	gctx := &GuidanceContext{
 		FestivalPath: t.TempDir(),
 	}
-	nav, err := NewBaseNavigator(gctx, ModeExecute)
+	nav, err := NewBaseNavigator(gctx, ModeImplementation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -227,7 +227,7 @@ func TestBaseNavigator_GetState(t *testing.T) {
 	gctx := &GuidanceContext{
 		FestivalPath: t.TempDir(),
 	}
-	nav, err := NewBaseNavigator(gctx, ModeExecute)
+	nav, err := NewBaseNavigator(gctx, ModeImplementation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -247,7 +247,7 @@ func TestBaseNavigator_GetConfig(t *testing.T) {
 		FestivalPath: "/path/to/festival",
 		Config:       config,
 	}
-	nav, err := NewBaseNavigator(gctx, ModeExecute)
+	nav, err := NewBaseNavigator(gctx, ModeImplementation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +266,7 @@ func TestBaseNavigator_GetContext(t *testing.T) {
 		FestivalPath: "/path/to/festival",
 		PhaseName:    "Implementation",
 	}
-	nav, err := NewBaseNavigator(gctx, ModeExecute)
+	nav, err := NewBaseNavigator(gctx, ModeImplementation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,7 +343,7 @@ func TestBaseNavigator_ShouldDemote(t *testing.T) {
 				FestivalPath: "/path/to/festival",
 				Config:       tt.config,
 			}
-			nav, err := NewBaseNavigator(gctx, ModeExecute)
+			nav, err := NewBaseNavigator(gctx, ModeImplementation)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -360,7 +360,7 @@ func TestBaseNavigator_MarkTaskStatus(t *testing.T) {
 	gctx := &GuidanceContext{
 		FestivalPath: t.TempDir(),
 	}
-	nav, err := NewBaseNavigator(gctx, ModeExecute)
+	nav, err := NewBaseNavigator(gctx, ModeImplementation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -386,7 +386,7 @@ func TestBaseNavigator_EnsureInitialized(t *testing.T) {
 	gctx := &GuidanceContext{
 		FestivalPath: t.TempDir(),
 	}
-	nav, err := NewBaseNavigator(gctx, ModeExecute)
+	nav, err := NewBaseNavigator(gctx, ModeImplementation)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -413,13 +413,13 @@ func TestBaseNavigator_ModeSet(t *testing.T) {
 		FestivalPath: "/path/to/festival",
 		Mode:         "", // empty mode
 	}
-	nav, err := NewBaseNavigator(gctx, ModeExecute)
+	nav, err := NewBaseNavigator(gctx, ModeImplementation)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if nav.Ctx.Mode != ModeExecute {
-		t.Errorf("Mode = %v, want %v", nav.Ctx.Mode, ModeExecute)
+	if nav.Ctx.Mode != ModeImplementation {
+		t.Errorf("Mode = %v, want %v", nav.Ctx.Mode, ModeImplementation)
 	}
 }
 

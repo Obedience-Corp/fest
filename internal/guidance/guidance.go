@@ -90,7 +90,7 @@ var navigatorFactories = make(map[Mode]NavigatorFactory)
 // Example:
 //
 //	func init() {
-//	    guidance.RegisterNavigator(guidance.ModeExecute, func(gctx *guidance.GuidanceContext) (guidance.Navigator, error) {
+//	    guidance.RegisterNavigator(guidance.ModeImplementation, func(gctx *guidance.GuidanceContext) (guidance.Navigator, error) {
 //	        return NewNavigator(gctx)
 //	    })
 //	}
@@ -165,7 +165,7 @@ func NewNavigator(ctx context.Context, gctx *GuidanceContext) (Navigator, error)
 // This is a convenience wrapper that extracts phase type from the filesystem.
 //
 // The phase type is detected by reading PHASE_GOAL.md frontmatter in the phase directory.
-// If no phase type is specified, it defaults to "implementation" (ModeExecute).
+// If no phase type is specified, it defaults to "implementation" (ModeImplementation).
 func NewNavigatorForPath(ctx context.Context, festivalPath, phasePath string, config *GuidanceConfig) (Navigator, error) {
 	// Detect phase type from path
 	phaseType := DetectPhaseType(phasePath)
