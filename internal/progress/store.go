@@ -191,12 +191,9 @@ func (s *Store) migrateFromLegacy(ctx context.Context) error {
 		}
 	}
 
-	// 4. Remove legacy file
+	// 4. Remove legacy file (ignore errors - JSONL is written, YAML removal is cleanup)
 	legacyPath := s.legacyFilePath()
-	if err := os.Remove(legacyPath); err != nil {
-		// Log warning but don't fail - JSONL is written, YAML removal is cleanup
-		// The important thing is that JSONL exists now
-	}
+	_ = os.Remove(legacyPath)
 
 	return nil
 }

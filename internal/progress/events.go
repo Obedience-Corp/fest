@@ -60,17 +60,24 @@ func (s *Store) appendEvent(ctx context.Context, event *ProgressEvent) error {
 		return errors.IO("opening events file for append", err).
 			WithField("path", eventsPath)
 	}
-	defer f.Close()
 
 	// Marshal and write with newline
 	data, err := json.Marshal(event)
 	if err != nil {
+		_ = f.Close()
 		return errors.Wrap(err, "marshaling progress event")
 	}
 	data = append(data, '\n')
 
 	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
 		return errors.IO("appending progress event", err).
+			WithField("path", eventsPath)
+	}
+
+	// Close and check for errors (some filesystems report write errors on close)
+	if err := f.Close(); err != nil {
+		return errors.IO("closing events file", err).
 			WithField("path", eventsPath)
 	}
 
@@ -90,7 +97,7 @@ func (s *Store) loadFromEvents(ctx context.Context) error {
 		return errors.IO("opening events file", err).
 			WithField("path", eventsPath)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var events []ProgressEvent
 	scanner := bufio.NewScanner(f)
@@ -331,19 +338,26 @@ func (s *Store) writeEvents(ctx context.Context, events []ProgressEvent) error {
 		return errors.IO("creating events file", err).
 			WithField("path", eventsPath)
 	}
-	defer f.Close()
 
 	for _, event := range events {
 		data, err := json.Marshal(event)
 		if err != nil {
+			_ = f.Close()
 			return errors.Wrap(err, "marshaling progress event")
 		}
 		data = append(data, '\n')
 
 		if _, err := f.Write(data); err != nil {
+			_ = f.Close()
 			return errors.IO("writing progress event", err).
 				WithField("path", eventsPath)
 		}
+	}
+
+	// Close and check for errors (some filesystems report write errors on close)
+	if err := f.Close(); err != nil {
+		return errors.IO("closing events file", err).
+			WithField("path", eventsPath)
 	}
 
 	return nil

@@ -171,7 +171,9 @@ func TestManager_ClearBlocker(t *testing.T) {
 	}
 
 	// Report blocker
-	mgr.ReportBlocker(ctx, "01_test.md", "Blocker")
+	if err := mgr.ReportBlocker(ctx, "01_test.md", "Blocker"); err != nil {
+		t.Fatalf("ReportBlocker() error = %v", err)
+	}
 
 	// Clear it
 	err = mgr.ClearBlocker(ctx, "01_test.md")
