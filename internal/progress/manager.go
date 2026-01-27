@@ -44,10 +44,11 @@ func (m *Manager) UpdateProgress(ctx context.Context, taskID string, progress in
 		}
 	}
 
+	now := time.Now().UTC()
+
 	// Start tracking time on first progress update
 	// Use current time - we only track actual work time, not time since file creation
 	if task.StartedAt == nil {
-		now := time.Now().UTC()
 		task.StartedAt = &now
 	}
 
@@ -59,13 +60,28 @@ func (m *Manager) UpdateProgress(ctx context.Context, taskID string, progress in
 	// If progress is 100, mark as completed
 	if progress == 100 {
 		task.Status = StatusCompleted
-		now := time.Now().UTC()
 		task.CompletedAt = &now
 
 		// Calculate time spent
 		if task.StartedAt != nil {
 			task.TimeSpentMinutes = int(now.Sub(*task.StartedAt).Minutes())
 		}
+
+		// Queue completed event
+		m.store.QueueEvent(&ProgressEvent{
+			Timestamp: now,
+			Event:     EventCompleted,
+			Task:      taskID,
+			Minutes:   task.TimeSpentMinutes,
+		})
+	} else {
+		// Queue progress event
+		m.store.QueueEvent(&ProgressEvent{
+			Timestamp: now,
+			Event:     EventProgress,
+			Task:      taskID,
+			Percent:   progress,
+		})
 	}
 
 	task.Progress = progress
@@ -110,6 +126,14 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 	task.BlockerMessage = ""
 	task.BlockedAt = nil
 
+	// Queue completed event
+	m.store.QueueEvent(&ProgressEvent{
+		Timestamp: now,
+		Event:     EventCompleted,
+		Task:      taskID,
+		Minutes:   task.TimeSpentMinutes,
+	})
+
 	m.store.SetTask(task)
 	return m.store.Save(ctx)
 }
@@ -127,14 +151,22 @@ func (m *Manager) MarkInProgress(ctx context.Context, taskID string) error {
 		}
 	}
 
+	now := time.Now().UTC()
+
 	// Set start time if not already set
 	// For MarkInProgress, use current time (user explicitly starting work)
 	if task.StartedAt == nil {
-		now := time.Now().UTC()
 		task.StartedAt = &now
 	}
 
 	task.Status = StatusInProgress
+
+	// Queue started event
+	m.store.QueueEvent(&ProgressEvent{
+		Timestamp: now,
+		Event:     EventStarted,
+		Task:      taskID,
+	})
 
 	m.store.SetTask(task)
 	return m.store.Save(ctx)
@@ -168,6 +200,14 @@ func (m *Manager) ReportBlocker(ctx context.Context, taskID, message string) err
 		task.StartedAt = &now
 	}
 
+	// Queue blocked event
+	m.store.QueueEvent(&ProgressEvent{
+		Timestamp: now,
+		Event:     EventBlocked,
+		Task:      taskID,
+		Reason:    message,
+	})
+
 	m.store.SetTask(task)
 	return m.store.Save(ctx)
 }
@@ -187,6 +227,7 @@ func (m *Manager) ClearBlocker(ctx context.Context, taskID string) error {
 		return nil // No blocker to clear
 	}
 
+	now := time.Now().UTC()
 	task.BlockerMessage = ""
 	task.BlockedAt = nil
 
@@ -194,6 +235,13 @@ func (m *Manager) ClearBlocker(ctx context.Context, taskID string) error {
 	if task.Status == StatusBlocked {
 		task.Status = StatusInProgress
 	}
+
+	// Queue unblocked event
+	m.store.QueueEvent(&ProgressEvent{
+		Timestamp: now,
+		Event:     EventUnblocked,
+		Task:      taskID,
+	})
 
 	m.store.SetTask(task)
 	return m.store.Save(ctx)
