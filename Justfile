@@ -19,6 +19,9 @@ mod test '.justfiles/test.just'
 [doc('Release packaging')]
 mod release '.justfiles/release.just'
 
+[doc('Git tag management')]
+mod tags '.justfiles/tags.just'
+
 [private]
 default:
     #!/usr/bin/env bash
