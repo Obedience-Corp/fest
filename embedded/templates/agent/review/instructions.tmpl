@@ -1,0 +1,26 @@
+{{/*
+TEMPLATE: review/instructions.tmpl
+PURPOSE: Agent review instructions for quality assurance and validation tasks
+*/}}
+{{.Header}}
+
+## Review Mode
+
+{{.ChecklistSection}}
+
+{{.ProgressLine}}
+
+{{.PositionSection}}
+
+{{.ContextSection}}
+
+## Review Guidelines
+
+- Work through each checklist item systematically
+- Document any issues found
+- Provide specific, actionable feedback
+- Verify fixes meet quality standards
+
+When complete, mark it done with:
+  {{.ProgressCmd}}
+

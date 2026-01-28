@@ -1,0 +1,51 @@
+{{/*
+TEMPLATE: implementation/instructions.tmpl
+PURPOSE: Agent implementation instructions showing current position, tasks, and completion commands
+
+EXAMPLE OUTPUT:
+  Agent Execution Instructions
+  ────────────────────────────
+
+  ⚠️ ACTION REQUIRED
+  Read the task file and follow its instructions exactly.
+
+  Tasks to Execute
+  ────────────────
+  ○ implement_feature
+    Path           /path/to/implement_feature.md
+    Autonomy       high
+
+  Progress       45.0% (9/20 tasks)
+
+  Current Position
+  ────────────────
+  Phase          002_IMPLEMENTATION
+  Sequence       03_core_features
+  Step           2
+
+  Context Files
+  ─────────────
+    - /path/to/FESTIVAL_GOAL.md
+    - /path/to/PHASE_GOAL.md
+    - /path/to/SEQUENCE_GOAL.md
+
+  When complete, mark it done with:
+    fest progress --task 002_.../03_.../implement_feature.md --complete
+*/}}
+{{.Header}}
+
+## !! ACTION REQUIRED !!
+{{.ActionInstruction}}
+
+{{.TasksSection}}
+
+{{.ProgressLine}}
+
+{{.PositionSection}}
+
+{{.ContextSection}}
+
+When complete, mark it done with:
+  {{.ProgressCmd}}
+
+

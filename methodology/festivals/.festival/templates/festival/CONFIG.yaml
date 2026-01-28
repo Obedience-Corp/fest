@@ -1,0 +1,105 @@
+# fest.yaml - Festival Configuration Template
+#
+# Place this file at the root of your festival directory.
+# It customizes quality gate behavior and template preferences.
+#
+# Usage:
+#   1. Copy this file to your festival root as "fest.yaml"
+#   2. Customize the settings below
+#   3. Run "fest gates apply --approve" to apply gates to sequences
+
+version: "1.0"
+
+# Quality gates are organized by phase type
+quality_gates:
+  # Enable/disable quality gates entirely
+  enabled: true
+
+  # Auto-add quality gates when creating sequences via CLI
+  auto_append: true
+
+  # Implementation phase gates (for code changes)
+  implementation:
+    - id: testing
+      template: gates/implementation/QUALITY_GATE_TESTING
+      name: "Testing and Verification"
+      enabled: true
+    - id: review
+      template: gates/implementation/QUALITY_GATE_REVIEW
+      name: "Code Review"
+      enabled: true
+    - id: iterate
+      template: gates/implementation/QUALITY_GATE_ITERATE
+      name: "Review Results and Iterate"
+      enabled: true
+    - id: commit
+      template: gates/implementation/QUALITY_GATE_COMMIT
+      name: "Commit Changes"
+      enabled: true
+
+  # Planning phase gates
+  planning:
+    - id: plan_review
+      template: gates/planning/QUALITY_GATE_PLAN_REVIEW
+      name: "Planning Review"
+      enabled: true
+    - id: approval
+      template: gates/planning/QUALITY_GATE_APPROVAL
+      name: "Planning Approval"
+      enabled: true
+
+  # Research phase gates
+  research:
+    - id: findings_review
+      template: gates/research/QUALITY_GATE_FINDINGS_REVIEW
+      name: "Findings Review"
+      enabled: true
+    - id: documentation
+      template: gates/research/QUALITY_GATE_DOCUMENTATION
+      name: "Documentation"
+      enabled: true
+
+  # Review/QA phase gates
+  review:
+    - id: checklist
+      template: gates/review/QUALITY_GATE_CHECKLIST
+      name: "Review Checklist"
+      enabled: true
+    - id: sign_off
+      template: gates/review/QUALITY_GATE_SIGN_OFF
+      name: "Sign-off"
+      enabled: true
+
+  # Non-coding action phase gates (deployment, config, etc.)
+  non_coding_action:
+    - id: action_verify
+      template: gates/non_coding_action/QUALITY_GATE_ACTION_VERIFY
+      name: "Execution and Verify"
+      enabled: true
+    - id: completion
+      template: gates/non_coding_action/QUALITY_GATE_COMPLETION
+      name: "Completion"
+      enabled: true
+
+# Sequences matching these patterns won't get quality gates
+excluded_patterns:
+  - "*_planning"
+  - "*_research"
+  - "*_requirements"
+  - "*_docs"
+
+# Template preferences
+templates:
+  # Default task template (TASK_TEMPLATE or TASK_TEMPLATE_SIMPLE)
+  task_default: TASK_TEMPLATE_SIMPLE
+
+  # Prefer simple templates when creating elements
+  prefer_simple: true
+
+# File tracking for modification detection
+tracking:
+  # Enable checksum tracking to detect manual modifications
+  enabled: true
+
+  # File to store checksums (relative to festival root)
+  checksum_file: ".festival-checksums.json"

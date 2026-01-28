@@ -1,0 +1,334 @@
+package show
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	festctx "github.com/Obedience-Corp/fest/internal/context"
+	"github.com/Obedience-Corp/fest/internal/progress"
+	"github.com/Obedience-Corp/fest/internal/taskfilter"
+	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/charmbracelet/lipgloss"
+)
+
+// DisplayNode represents a node in the festival tree hierarchy.
+type DisplayNode struct {
+	Name     string       // Directory/file name
+	Goal     string       // Primary goal from *_GOAL.md
+	Status   string       // pending/in_progress/completed
+	Stats    StatusCounts // Task counts for this level
+	NodeType string       // "festival", "phase", "sequence"
+	Children []*DisplayNode
+}
+
+// TreeOptions configures how the tree is rendered.
+type TreeOptions struct {
+	ShowGoals bool // Show primary goals (default: true)
+	Width     int  // Terminal width for alignment (0 = auto)
+}
+
+// DefaultTreeOptions returns sensible defaults for tree rendering.
+func DefaultTreeOptions() TreeOptions {
+	return TreeOptions{
+		ShowGoals: true,
+		Width:     80,
+	}
+}
+
+// BuildFestivalTree constructs a hierarchical DisplayNode tree from a festival directory.
+func BuildFestivalTree(ctx context.Context, festivalDir string) (*DisplayNode, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	festivalRoot := resolveFestivalRoot(festivalDir)
+	var store *progress.Store
+	if mgr, err := progress.NewManager(ctx, festivalRoot); err == nil {
+		store = mgr.Store()
+	}
+
+	// Create festival root node
+	root := &DisplayNode{
+		Name:     filepath.Base(festivalDir),
+		NodeType: "festival",
+		Status:   "pending",
+	}
+
+	// Try to read festival goal
+	root.Goal = readPrimaryGoal(festivalDir, "FESTIVAL_GOAL.md")
+	if root.Goal == "" {
+		root.Goal = readPrimaryGoal(festivalDir, "FESTIVAL_OVERVIEW.md")
+	}
+
+	// Find and process phases
+	entries, err := os.ReadDir(festivalDir)
+	if err != nil {
+		return root, nil
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		phaseDir := filepath.Join(festivalDir, entry.Name())
+		if !isPhaseDir(phaseDir) && !hasNumericPrefix(entry.Name()) {
+			continue
+		}
+
+		phaseNode := buildPhaseNode(phaseDir, store, festivalRoot)
+		root.Children = append(root.Children, phaseNode)
+
+		// Aggregate stats to root
+		root.Stats.Total += phaseNode.Stats.Total
+		root.Stats.Completed += phaseNode.Stats.Completed
+		root.Stats.InProgress += phaseNode.Stats.InProgress
+		root.Stats.Pending += phaseNode.Stats.Pending
+		root.Stats.Blocked += phaseNode.Stats.Blocked
+	}
+
+	// Determine festival status based on children
+	root.Status = determineStatus(root.Stats)
+
+	return root, nil
+}
+
+func buildPhaseNode(phaseDir string, store *progress.Store, festivalRoot string) *DisplayNode {
+	node := &DisplayNode{
+		Name:     filepath.Base(phaseDir),
+		NodeType: "phase",
+		Goal:     readPrimaryGoal(phaseDir, "PHASE_GOAL.md"),
+		Status:   "pending",
+	}
+
+	entries, err := os.ReadDir(phaseDir)
+	if err != nil {
+		return node
+	}
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		seqDir := filepath.Join(phaseDir, entry.Name())
+		if !isSequenceDir(seqDir) && !hasNumericPrefix(entry.Name()) {
+			continue
+		}
+
+		seqNode := buildSequenceNode(seqDir, store, festivalRoot)
+		node.Children = append(node.Children, seqNode)
+
+		// Aggregate stats
+		node.Stats.Total += seqNode.Stats.Total
+		node.Stats.Completed += seqNode.Stats.Completed
+		node.Stats.InProgress += seqNode.Stats.InProgress
+		node.Stats.Pending += seqNode.Stats.Pending
+		node.Stats.Blocked += seqNode.Stats.Blocked
+	}
+
+	node.Status = determineStatus(node.Stats)
+	return node
+}
+
+func buildSequenceNode(seqDir string, store *progress.Store, festivalRoot string) *DisplayNode {
+	node := &DisplayNode{
+		Name:     filepath.Base(seqDir),
+		NodeType: "sequence",
+		Goal:     readPrimaryGoal(seqDir, "SEQUENCE_GOAL.md"),
+		Status:   "pending",
+	}
+
+	entries, err := os.ReadDir(seqDir)
+	if err != nil {
+		return node
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".md") {
+			continue
+		}
+
+		// Use taskfilter for unified file classification
+		if !taskfilter.ShouldTrack(name) {
+			continue
+		}
+
+		taskPath := filepath.Join(seqDir, name)
+		if !progress.IsTracked(taskPath) {
+			continue
+		}
+
+		node.Stats.Total++
+		status := progress.ResolveTaskStatus(store, festivalRoot, taskPath)
+		switch status {
+		case progress.StatusCompleted:
+			node.Stats.Completed++
+		case progress.StatusInProgress:
+			node.Stats.InProgress++
+		case progress.StatusBlocked:
+			node.Stats.Blocked++
+		default:
+			node.Stats.Pending++
+		}
+	}
+
+	node.Status = determineStatus(node.Stats)
+	return node
+}
+
+func readPrimaryGoal(dir, filename string) string {
+	goalPath := filepath.Join(dir, filename)
+	content, err := os.ReadFile(goalPath)
+	if err != nil {
+		return ""
+	}
+	return festctx.ExtractPrimaryGoal(content)
+}
+
+func determineStatus(stats StatusCounts) string {
+	if stats.Total == 0 {
+		return "pending"
+	}
+	if stats.Completed == stats.Total {
+		return "completed"
+	}
+	if stats.InProgress > 0 || stats.Completed > 0 {
+		return "in_progress"
+	}
+	return "pending"
+}
+
+// RenderTree renders a DisplayNode tree to a string.
+func RenderTree(node *DisplayNode, opts TreeOptions) string {
+	var sb strings.Builder
+
+	// Festival header
+	progress := float64(0)
+	if node.Stats.Total > 0 {
+		progress = float64(node.Stats.Completed) / float64(node.Stats.Total) * 100
+	}
+
+	// Festival name with progress
+	festivalStyle := lipgloss.NewStyle().Foreground(ui.FestivalColor).Bold(true)
+	sb.WriteString(festivalStyle.Render(node.Name))
+	sb.WriteString("  ")
+	sb.WriteString(ui.Dim(formatPercent(progress)))
+	sb.WriteString("\n")
+
+	// Festival goal if present
+	if opts.ShowGoals && node.Goal != "" {
+		sb.WriteString(ui.Dim("Goal: " + truncateGoal(node.Goal, opts.Width-6)))
+		sb.WriteString("\n")
+	}
+
+	// Render children (phases)
+	for i, child := range node.Children {
+		isLast := i == len(node.Children)-1
+		renderPhaseNode(&sb, child, "", isLast, opts)
+	}
+
+	return sb.String()
+}
+
+func renderPhaseNode(sb *strings.Builder, node *DisplayNode, prefix string, isLast bool, opts TreeOptions) {
+	// Box drawing characters
+	connector := "├── "
+	childPrefix := "│   "
+	if isLast {
+		connector = "└── "
+		childPrefix = "    "
+	}
+
+	// Phase line with status
+	phaseStyle := lipgloss.NewStyle().Foreground(ui.PhaseColor).Bold(true)
+	sb.WriteString(prefix)
+	sb.WriteString(ui.Dim(connector))
+	sb.WriteString(phaseStyle.Render(node.Name))
+	sb.WriteString("  ")
+	sb.WriteString(formatNodeStatus(node))
+	sb.WriteString("\n")
+
+	// Goal line
+	if opts.ShowGoals && node.Goal != "" {
+		sb.WriteString(prefix)
+		sb.WriteString(ui.Dim(childPrefix))
+		sb.WriteString(ui.Dim("Goal: " + truncateGoal(node.Goal, opts.Width-len(prefix)-10)))
+		sb.WriteString("\n")
+	}
+
+	// Render sequences
+	newPrefix := prefix + childPrefix
+	for i, child := range node.Children {
+		childIsLast := i == len(node.Children)-1
+		renderSequenceNode(sb, child, newPrefix, childIsLast, opts)
+	}
+}
+
+func renderSequenceNode(sb *strings.Builder, node *DisplayNode, prefix string, isLast bool, opts TreeOptions) {
+	connector := "├── "
+	childPrefix := "│   "
+	if isLast {
+		connector = "└── "
+		childPrefix = "    "
+	}
+
+	// Sequence line with task count
+	seqStyle := lipgloss.NewStyle().Foreground(ui.SequenceColor)
+	sb.WriteString(prefix)
+	sb.WriteString(ui.Dim(connector))
+	sb.WriteString(seqStyle.Render(node.Name))
+	sb.WriteString("  ")
+	sb.WriteString(formatSequenceStatus(node))
+	sb.WriteString("\n")
+
+	// Goal line
+	if opts.ShowGoals && node.Goal != "" {
+		sb.WriteString(prefix)
+		sb.WriteString(ui.Dim(childPrefix))
+		sb.WriteString(ui.Dim("Goal: " + truncateGoal(node.Goal, opts.Width-len(prefix)-10)))
+		sb.WriteString("\n")
+	}
+}
+
+func formatNodeStatus(node *DisplayNode) string {
+	icon := ui.StateIcon(node.Status)
+	return icon + " " + ui.Dim(node.Status)
+}
+
+func formatSequenceStatus(node *DisplayNode) string {
+	icon := ui.StateIcon(node.Status)
+	if node.Stats.Total == 0 {
+		return icon + " " + ui.Dim("no tasks")
+	}
+	return icon + " " + ui.Dim(formatFraction(node.Stats.Completed, node.Stats.Total)+" tasks")
+}
+
+func formatPercent(p float64) string {
+	if p == 0 {
+		return "0%"
+	}
+	if p == 100 {
+		return "100%"
+	}
+	// Format with one decimal place, trim trailing zeros
+	s := strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.1f", p), "0"), ".")
+	return s + "%"
+}
+
+func formatFraction(completed, total int) string {
+	return ui.Value(fmt.Sprintf("%d/%d", completed, total), ui.MetadataColor)
+}
+
+func truncateGoal(goal string, _ int) string {
+	// Don't truncate goals - let them display fully and wrap naturally
+	return goal
+}

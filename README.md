@@ -1,334 +1,191 @@
-# Festival Methodology
+# Fest CLI
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Development Status](https://img.shields.io/badge/status-pre--release-orange)](CHANGELOG.md)
+![Festival Methodology Banner](docs/images/banner.jpg)
 
-A goal-based methodology that helps you **collaboratively create actionable tasks** for AI agents to execute in long-running autonomous sessions. Festival transforms high-level objectives into structured, executable work that AI can complete independently.
+Fest is a CLI tool for working with **Festival Methodology** - a hierarchical agentic planning and execution system designed for AI agent workflows.
 
-## What Festival Does
+## What is Festival Methodology?
 
-Festival bridges the gap between what you want to build and what AI agents can actually execute:
+Festival Methodology is a structured approach to **hierarchical agentic planning and execution**. It organizes complex projects into a three-level hierarchy that AI agents can systematically work through:
 
-```mermaid
-graph LR
-    G[Your Goal] --> P[Plan Together]
-    P --> T[Create Tasks]
-    T --> E[AI Executes]
-    E --> D[Delivered System]
+```
+Festival (the project)
+├── Phase (major milestone)
+│   ├── Sequence (related tasks)
+│   │   ├── Task 1
+│   │   ├── Task 2
+│   │   └── Task 3
+│   └── Sequence
+└── Phase
 ```
 
-## Core Benefits
+**Why this structure?**
 
-Festival enables:
+- **Context Management**: AI agents have limited context windows. Festivals break work into digestible chunks that fit within agent context limits.
+- **Goal-Oriented**: Each level (festival, phase, sequence, task) has explicit goals. Agents always know what they're working toward.
+- **Resumable**: Work can be paused and resumed. A new agent session can pick up exactly where the last one left off.
+- **Traceable**: Every task links to its parent sequence and phase. Progress is trackable across the entire project.
+- **Just-in-Time Context**: Agents only load the context they need for the current task, minimizing token usage while maintaining full awareness of the project structure.
 
-- **Long-running autonomous builds** - AI agents work for hours or days, not minutes
-- **Goal-driven development** - Hierarchical goals with built-in evaluation frameworks
-- **Executable specifications** - Every task includes concrete steps AI can follow
-- **Context preservation** - Decisions and rationale maintained across sessions
-- **Autonomy awareness** - Tasks marked for independent vs collaborative work
-- **Parallel execution** - Multiple agents work simultaneously on different parts
+**Key Concepts:**
 
-## What Makes Festival Different
+- **Festival**: A complete project or initiative with a defined outcome
+- **Phase**: A major milestone (e.g., "Design", "Implementation", "Testing")
+- **Sequence**: A group of related tasks that accomplish a specific goal
+- **Task**: A markdown document containing a unit of work. Similar to a Claude Code plan - each task document contains multiple actions, acceptance criteria, and context. Tasks are not single to-dos; they're comprehensive work units that may include many steps.
+- **Quality Gates**: Validation checkpoints at the end of sequences (testing, code review, etc.)
 
-### 🎯 Hierarchical Goal System
+## What fest Does
 
-Every level of your project has clear, measurable goals:
+Fest is both a **project scaffolding tool** and an **agent guidance system**. It teaches agents how to work with Festival Methodology and guides them through execution with minimal context overhead.
 
-- **Festival Goals** - Overall success criteria and KPIs
-- **Phase Goals** - Stage-specific objectives that build toward the festival goal
-- **Sequence Goals** - Granular targets that ensure phase completion
+**Agent Guidance System:**
 
-Each goal includes evaluation frameworks, so you always know if you've succeeded.
+- Built-in documentation teaches agents the methodology on-demand (`fest intro`, `fest understand`)
+- Agents learn what they need, when they need it - no upfront context dump
+- `fest next` shows agents exactly what to work on next with just the context they need
+- `fest execute` orchestrates task execution, guiding agents through the festival systematically
+- Self-documenting commands guide agents through proper usage
 
-### 🧠 Context Preservation
+**Project Management:**
 
-The `CONTEXT.md` file captures:
+- **Create**: Interactive TUI for scaffolding festivals, phases, sequences, and tasks
+- **Validate**: Check festival structure for issues and auto-fix common problems
+- **Navigate**: Quick commands to jump between festivals, phases, and sequences
+- **Track**: Monitor completion status across all levels
 
-- Key decisions and rationale
-- Session handoff notes
-- Open questions for human review
-- Lessons learned during execution
-
-This maintains continuity across AI sessions and human reviews.
-
-### 🤖 Autonomy Levels
-
-Every task is marked with an autonomy level:
-
-- **High** - Agent completes independently
-- **Medium** - May need edge case clarification
-- **Low** - Expect human collaboration
-
-This helps agents know when to proceed vs when to ask for help.
-
-### 📚 Just-In-Time Documentation
-
-Agents read templates and examples only when needed, preserving context window for actual work.
-
-## How It Works: From Goal to Execution
-
-### 1. Define Your Goal
-
-You specify what you want to achieve - a complete feature, system, or product.
-
-### 2. Create Goal Hierarchy
-
-Festival helps structure your goal into measurable objectives at every level.
-
-### 3. Plan with Autonomy Levels
-
-Break down work into tasks, marking which can be done autonomously.
-
-### 4. Execute with Context Tracking
-
-AI agents work independently, documenting decisions in CONTEXT.md.
-
-### 5. Evaluate Against Goals
-
-Review progress using built-in evaluation frameworks.
-
-### 6. Iterate or Complete
-
-Based on goal achievement, refine and continue or mark complete.
-
-## The Three-Level Structure
-
-```text
-Goal: Build E-Commerce Platform
-├── FESTIVAL_GOAL.md            # Overall success metrics
-├── Phase 1: Planning
-│   ├── PHASE_GOAL.md           # Planning objectives
-│   └── Sequences with goals
-├── Phase 2: Design
-│   ├── PHASE_GOAL.md           # Design objectives
-│   └── Sequences with goals
-├── Phase 3: Implementation
-│   ├── PHASE_GOAL.md           # Implementation objectives
-│   ├── Sequence 1: Backend
-│   │   ├── SEQUENCE_GOAL.md    # Backend targets
-│   │   ├── Task: User API (autonomy: high)
-│   │   ├── Task: Auth Service (autonomy: medium)
-│   │   └── Task: Database (autonomy: high)
-│   └── Sequence 2: Frontend
-│       └── SEQUENCE_GOAL.md    # Frontend targets
-└── Phase 4: Validation
-    └── PHASE_GOAL.md           # Validation criteria
-```
-
-## Creating Actionable Tasks
-
-Festival tasks aren't vague descriptions - they're complete specifications AI can execute:
-
-```markdown
-# Task: 01_implement_user_authentication.md
-
-**Autonomy Level:** high # Agent can complete independently
-
-## Objective
-
-Create JWT-based authentication with email/password login
-
-## Requirements
-
-- [ ] User registration endpoint
-- [ ] Login with email/password
-- [ ] JWT token generation (15min access, 7day refresh)
-- [ ] Password hashing with bcrypt
-- [ ] Rate limiting (5 attempts/minute)
-
-## Implementation Steps
-
-1. Install dependencies:
-   npm install jsonwebtoken bcrypt express-rate-limit
-
-2. Create database schema:
-   - users table (id, email, password_hash, created_at)
-   - refresh_tokens table (token, user_id, expires_at)
-
-3. Implement endpoints:
-   - POST /api/auth/register
-   - POST /api/auth/login
-   - POST /api/auth/refresh
-   - POST /api/auth/logout
-
-## Validation
-
-- Test registration with: curl -X POST localhost:3000/api/auth/register ...
-- Verify JWT expiration times
-- Check rate limiting blocks after 5 attempts
-- Ensure passwords are hashed, not plain text
-
-## Deliverables
-
-- [ ] src/routes/auth.js - Authentication endpoints
-- [ ] src/middleware/auth.js - JWT verification
-- [ ] src/models/User.js - User model with password hashing
-- [ ] tests/auth.test.js - Complete test coverage
-```
-
-This level of detail, combined with autonomy levels, enables AI agents to work independently while knowing when to seek help.
-
-## Real-World Usage
-
-Festival Methodology is **actively used and refined through daily development**. It's a living system that evolves based on practical experience:
-
-- Extends autonomous AI coding sessions from hours to multiple days
-- Reduces context switching between human and AI work
-- Enables complex feature development with minimal supervision
-- Particularly effective with tools like Claude Code, Cursor, and Windsurf
-
-### Realistic Expectations
-
-- **Festival gets you 90% there autonomously** - AI agents handle the bulk of implementation
-- **Human expertise guides the final 10%** - Your insight ensures quality and correctness
-- **Goals evolve as you learn** - Multiple festivals may be needed as requirements clarify
-- **Best for complex, multi-day projects** - Not needed for simple, single-task work
-
-## Getting Started
-
-### 1. Verify and Install Festival Structure
+## Installation
 
 ```bash
-# Clone or copy the festival structure
-cp -r festivals/ /your/workspace/
-cd /your/workspace/festivals/
-
-# CRITICAL: Agents must verify methodology exists
-ls -la .festival/
-
-# Read the agent instructions
-cat README.md
+# Install from source
+git clone https://github.com/festival-methodology/fest
+cd fest
+just install
 ```
 
-### 2. Define Your Goal Hierarchy
-
-Create goal documents at each level:
-
-- `FESTIVAL_GOAL.md` - Overall project success criteria
-- `PHASE_GOAL.md` - Goals for each phase
-- `SEQUENCE_GOAL.md` - Goals for each sequence
-
-### 3. Use Planning Agent
-
-The Festival planning agent helps structure your project:
+Or with Go:
 
 ```bash
-# Point AI agent to the planning agent
-# It will guide you through structured planning
-festivals/.festival/agents/festival_planning_agent.md
+go install github.com/festival-methodology/fest/cmd/fest@latest
 ```
 
-### 4. Mark Autonomy Levels
+## Shell Integration (Recommended)
 
-As you create tasks, assign autonomy levels:
+Add to your shell config for quick navigation commands:
 
-- Review similar past tasks to gauge complexity
-- Start conservative (low autonomy) for unfamiliar work
-- Increase autonomy as patterns emerge
+```bash
+# Zsh/Bash
+eval "$(fest shell-init zsh)"
 
-### 5. Launch Autonomous Execution
-
-AI agents read tasks and work independently, updating CONTEXT.md with decisions and progress.
-
-### 6. Review and Iterate
-
-Use goal evaluation frameworks to assess progress and determine next steps.
-
-## Festival vs Other Approaches
-
-| Aspect              | Festival                      | Traditional PM | Ad-hoc AI          |
-| ------------------- | ----------------------------- | -------------- | ------------------ |
-| **Focus**           | Goal achievement via tasks    | Task tracking  | Quick answers      |
-| **Task Detail**     | Complete executable specs     | User stories   | Vague prompts      |
-| **Execution Time**  | Hours to days                 | Sprint cycles  | Minutes            |
-| **Context**         | Persists in CONTEXT.md        | Meeting notes  | Lost between chats |
-| **AI Autonomy**     | Guided by autonomy levels     | N/A            | Constant prompting |
-| **Collaboration**   | Human-AI task creation        | Human teams    | Human directs      |
-| **Success Metrics** | Built-in evaluation framework | Retrospectives | Undefined          |
-
-## Directory Structure
-
-```
-festivals/
-├── active/                          # Current projects
-│   └── auth_system/
-│       ├── CONTEXT.md               # Decision tracking & handoff notes
-│       ├── FESTIVAL_GOAL.md         # Overall success criteria
-│       ├── FESTIVAL_OVERVIEW.md     # Project description
-│       ├── 001_PLAN/                # Research & requirements
-│       │   ├── PHASE_GOAL.md        # Planning phase objectives
-│       │   ├── 01_requirements/     # Requirement gathering
-│       │   │   └── SEQUENCE_GOAL.md # Sequence-specific goals
-│       │   └── 02_research/         # Technical research
-│       │       └── SEQUENCE_GOAL.md
-│       ├── 002_DESIGN/              # System design
-│       │   ├── PHASE_GOAL.md        # Design phase objectives
-│       │   ├── 01_api_design/       # API specifications
-│       │   └── 02_data_model/       # Database schema
-│       ├── 003_IMPLEMENT/           # Build phase
-│       │   ├── PHASE_GOAL.md        # Implementation objectives
-│       │   ├── 01_backend/          # Backend tasks
-│       │   ├── 02_frontend/         # Frontend tasks
-│       │   └── 03_testing/          # Test tasks
-│       └── 004_VALIDATE/            # Validation phase
-│           └── PHASE_GOAL.md        # Validation criteria
-├── planned/                         # Festivals being designed
-├── completed/                       # Finished projects
-├── dungeon/                         # Archived: paused or cancelled work
-└── .festival/                       # Methodology resources
-    ├── agents/                      # AI agent prompts
-    ├── templates/                   # Document templates
-    └── examples/                    # Real-world examples
+# Fish
+fest shell-init fish | source
 ```
 
-## What's Included
+This gives you:
 
-### Templates
+- `fgo` - Quick navigation (`fest go`)
+- `fls` - Quick listing (`fest list`)
+- Tab completion for all fest commands
 
-- **Goal Templates** - Festival, Phase, and Sequence goal tracking
-- **Task Templates** - With autonomy level support
-- **Context Template** - For decision and rationale tracking
-- **Interface Templates** - For defining system contracts
-- **Tracking Templates** - For progress monitoring
+## Agent Workflow
 
-### AI Agents
+The typical workflow for AI agents:
 
-- **Planning Agent** - Guides festival structure creation
-- **Review Agent** - Validates methodology compliance
-- **Manager Agent** - Enforces process during execution
+### 1. Learn the Methodology
 
-### Examples & Documentation
+```bash
+fest intro                    # Start here - getting started guide
+fest understand methodology   # Core principles
+fest understand structure     # 3-level hierarchy
+```
 
-- **15+ Real Task Examples** - Showing concrete implementations
-- **Goal Examples** - Demonstrating evaluation frameworks
-- **Complete Methodology Guide** - Detailed principles and practices
+### 2. Initialize & Create
 
-## Why Festival Works
+```bash
+fest init                     # Initialize festivals directory
+fest create festival          # Create a new festival (TUI)
+fest create phase             # Add phases
+fest create sequence          # Add sequences
+```
 
-1. **Goals drive everything** - Clear success criteria at every level
-2. **Tasks are complete** - No ambiguity, full specifications with autonomy guidance
-3. **Context persists** - CONTEXT.md maintains continuity across sessions
-4. **Parallel execution** - Multiple agents work simultaneously
-5. **Human judgment preserved** - You guide strategy while AI handles implementation
-6. **Living methodology** - Continuously refined through real-world use
+### 3. Plan & Validate
 
-## Support & Documentation
+```bash
+fest validate                 # Check structure for issues
+fest validate --fix           # Auto-fix common problems
+fest status                   # View festival progress
+```
 
-- **Complete Guide**: `festivals/.festival/FESTIVAL_SOFTWARE_PROJECT_MANAGEMENT.md`
-- **Implementation Guide**: `festivals/.festival/README.md`
-- **Templates**: `festivals/.festival/templates/`
-- **Examples**: `festivals/.festival/examples/`
+### 4. Execute
 
-## Community
+```bash
+fest execute                  # Execute festival tasks
+fest next                     # Find next task to work on
+fest progress                 # Track execution progress
+```
 
-- [Issues](../../issues) - Report problems or suggestions
-- [Discussions](../../discussions) - Share experiences
-- [Contributing](CONTRIBUTING.md) - Help improve the methodology
+## Quick Commands
+
+After shell integration:
+
+| Command | Full Form | Purpose |
+|---------|-----------|---------|
+| `fgo` | `fest go` | Navigate to festivals directory |
+| `fgo 2` | `fest go 2` | Go to phase 002 |
+| `fgo 2/1` | `fest go 2/1` | Go to phase 2, sequence 1 |
+| `fgo active` | `fest go active` | Go to active festivals |
+| `fls` | `fest list` | List festivals by status |
+| `fls active` | `fest list active` | List active festivals |
+
+## Core Commands
+
+| Command | Purpose |
+|---------|---------|
+| `fest intro` | Getting started guide (run first!) |
+| `fest understand` | Learn methodology concepts |
+| `fest create` | Create festivals/phases/sequences (TUI) |
+| `fest validate` | Check structure for issues |
+| `fest execute` | Execute festival tasks |
+| `fest status` | View progress |
+| `fest next` | Find next task |
+
+Run `fest --help` for all commands grouped by workflow.
+
+## Configuration
+
+Config stored at `~/.config/fest/config.json`. Run `fest config show` to view.
+
+## Development
+
+Uses `just` for all build/test commands:
+
+```bash
+just              # List all commands
+just build        # Build fest binary
+just test::all    # Run all tests
+just install      # Install to $GOBIN
+just lint         # Format and vet
+just clean        # Clean build artifacts
+```
+
+Subcommand modules:
+
+```bash
+just test::       # Testing commands
+just xbuild::     # Cross-platform builds
+just release::    # Release packaging
+```
+
+## Learn More
+
+The CLI is self-documenting:
+
+```bash
+fest --help              # All commands with workflows
+fest understand          # Methodology learning hub
+fest [command] --help    # Detailed command help
+```
 
 ## License
 
-MIT - Use it, adapt it, make it yours.
-
----
-
-**The Bottom Line**: Festival Methodology enables AI agents to work autonomously for extended periods on complex projects by providing hierarchical goals, executable task specifications, and context preservation. It's not magic - it's structured collaboration that gets you 90% of the way there autonomously, with human expertise guiding the critical final steps.
+Angry Goat License v0.2 - See [LICENSE](LICENSE) for details.
