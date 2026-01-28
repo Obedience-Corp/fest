@@ -120,3 +120,78 @@ func Task(name string) string {
 func Gate(name string) string {
 	return lipgloss.NewStyle().Foreground(Current().Gate).Bold(true).Render(name)
 }
+
+// Accent styles accent text (cyan/sequence color) for commands and highlights.
+func Accent(text string) string {
+	return lipgloss.NewStyle().Foreground(Current().Sequence).Bold(true).Render(text)
+}
+
+// Category styles category/section headers (blue/phase color).
+func Category(text string) string {
+	return lipgloss.NewStyle().Foreground(Current().Phase).Bold(true).Render(text)
+}
+
+// BoldText renders bold text without color.
+func BoldText(text string) string {
+	return lipgloss.NewStyle().Bold(true).Render(text)
+}
+
+// StyleHelpText styles help text by highlighting section headers.
+// Lines that are all-caps (with optional trailing colon or parenthetical) are styled as category headers.
+// This is useful for cobra Long descriptions to add visual structure.
+func StyleHelpText(text string) string {
+	lines := strings.Split(text, "\n")
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if isSectionHeader(trimmed) {
+			// Preserve leading whitespace, style the text
+			leadingSpace := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+			lines[i] = leadingSpace + Category(trimmed)
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// isSectionHeader checks if a line looks like a section header.
+// Matches patterns like "GETTING STARTED:", "NAVIGATION (using cgo):", "Examples:"
+func isSectionHeader(line string) bool {
+	if len(line) < 3 {
+		return false
+	}
+
+	// Must end with : (possibly after parenthetical)
+	if !strings.HasSuffix(line, ":") {
+		return false
+	}
+
+	// Remove trailing : and any parenthetical for checking
+	check := strings.TrimSuffix(line, ":")
+	if idx := strings.Index(check, "("); idx > 0 {
+		check = strings.TrimSpace(check[:idx])
+	}
+
+	// Check if primarily uppercase letters (allowing spaces)
+	// Also allow capitalized single words like "Examples:"
+	hasUpper := false
+	hasLower := false
+	for _, r := range check {
+		if r >= 'A' && r <= 'Z' {
+			hasUpper = true
+		} else if r >= 'a' && r <= 'z' {
+			hasLower = true
+		}
+	}
+
+	// All caps (with spaces) = header
+	if hasUpper && !hasLower {
+		return true
+	}
+
+	// Capitalized single word like "Examples:" = header
+	if hasUpper && hasLower && !strings.Contains(check, " ") {
+		firstRune := rune(check[0])
+		return firstRune >= 'A' && firstRune <= 'Z'
+	}
+
+	return false
+}
