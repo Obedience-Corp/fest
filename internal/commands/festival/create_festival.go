@@ -338,8 +338,8 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 	}
 	created = append(created, festConfigPath)
 
-	// Update ID registry
-	regPath := registry.GetRegistryPath(festivalsRoot)
+	// Update ID registry with event logging
+	regPath := registry.GetEventsPath(festivalsRoot)
 	reg, regErr := registry.Load(ctx, regPath)
 	if regErr == nil {
 		regEntry := registry.RegistryEntry{
@@ -350,9 +350,8 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 			CreatedAt: now,
 			UpdatedAt: now,
 		}
-		if addErr := reg.Add(ctx, regEntry); addErr == nil {
-			_ = reg.Save(ctx) // Non-blocking - registry is optional
-		}
+		// Use AddWithEvent to write JSONL event
+		_ = reg.AddWithEvent(ctx, regEntry) // Non-blocking - registry is optional
 	}
 
 	// Process REPLACE markers in all created files

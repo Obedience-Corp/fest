@@ -62,11 +62,12 @@ func AtomicStatusChange(ctx context.Context, festivalPath, fromStatus, toStatus 
 
 // updateRegistry updates the ID registry with the new festival status and path.
 // This is best-effort - registry updates are non-blocking.
+// Writes a move event to the JSONL events log.
 func updateRegistry(ctx context.Context, festivalsRoot, festivalName, newStatus, newPath string) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	regPath := registry.GetRegistryPath(festivalsRoot)
+	regPath := registry.GetEventsPath(festivalsRoot)
 	reg, err := registry.Load(ctx, regPath)
 	if err != nil {
 		return
@@ -78,22 +79,17 @@ func updateRegistry(ctx context.Context, festivalsRoot, festivalName, newStatus,
 		return
 	}
 
-	// Update existing entry or add new one
+	// Get existing entry to determine old status
 	entry, err := reg.Get(ctx, festivalID)
 	if err != nil {
 		// Entry doesn't exist - this shouldn't happen for proper festivals
 		return
 	}
 
-	entry.Status = newStatus
-	entry.Path = newPath
-	entry.UpdatedAt = time.Now()
+	oldStatus := entry.Status
 
-	if err := reg.Update(ctx, entry); err != nil {
-		return
-	}
-
-	_ = reg.Save(ctx)
+	// Update with event logging
+	_ = reg.UpdateStatusWithEvent(ctx, festivalID, oldStatus, newStatus)
 }
 
 // CopyDeleteMove performs a copy+delete operation for cross-filesystem moves.
