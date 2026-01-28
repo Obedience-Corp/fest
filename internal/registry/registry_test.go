@@ -257,10 +257,11 @@ func TestLoad_NewRegistry(t *testing.T) {
 func TestRegistry_SaveLoad(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
-	path := filepath.Join(tmpDir, "id_registry.yaml")
+	// Use JSONL events path instead of YAML
+	eventsPath := filepath.Join(tmpDir, EventsFileName)
 
-	// Create and save registry
-	reg := New(path)
+	// Create registry with events path
+	reg := New(eventsPath)
 	entry := RegistryEntry{
 		ID:        "GU0001",
 		Name:      "guild-usable",
@@ -269,19 +270,19 @@ func TestRegistry_SaveLoad(t *testing.T) {
 		CreatedAt: time.Now().Truncate(time.Second),
 		UpdatedAt: time.Now().Truncate(time.Second),
 	}
-	_ = reg.Add(ctx, entry)
 
-	if err := reg.Save(ctx); err != nil {
-		t.Fatalf("Save() error = %v", err)
+	// Use AddWithEvent to add entry and write event
+	if err := reg.AddWithEvent(ctx, entry); err != nil {
+		t.Fatalf("AddWithEvent() error = %v", err)
 	}
 
-	// Verify file exists
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		t.Fatal("Registry file not created")
+	// Verify events file exists
+	if _, err := os.Stat(eventsPath); os.IsNotExist(err) {
+		t.Fatal("Events file not created")
 	}
 
 	// Load and verify
-	loaded, err := Load(ctx, path)
+	loaded, err := Load(ctx, eventsPath)
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
