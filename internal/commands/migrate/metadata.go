@@ -225,7 +225,7 @@ func performMigration(migCtx *migrationContext) error {
 // updateRegistryAfterMigration updates the registry with the migrated festival
 // This is non-blocking - errors are printed as warnings
 func updateRegistryAfterMigration(ctx context.Context, migCtx *migrationContext) {
-	regPath := registry.GetRegistryPath(migCtx.festivalsRoot)
+	regPath := registry.GetEventsPath(migCtx.festivalsRoot)
 	reg, err := registry.Load(ctx, regPath)
 	if err != nil {
 		fmt.Println(ui.Warning(fmt.Sprintf("Could not load registry: %v", err)))
@@ -241,13 +241,9 @@ func updateRegistryAfterMigration(ctx context.Context, migCtx *migrationContext)
 		UpdatedAt: time.Now(),
 	}
 
-	if err := reg.Add(ctx, entry); err != nil {
+	// AddWithEvent writes event to JSONL and updates in-memory state
+	if err := reg.AddWithEvent(ctx, entry); err != nil {
 		fmt.Println(ui.Warning(fmt.Sprintf("Could not add to registry: %v", err)))
-		return
-	}
-
-	if err := reg.Save(ctx); err != nil {
-		fmt.Println(ui.Warning(fmt.Sprintf("Could not save registry: %v", err)))
 	}
 }
 
