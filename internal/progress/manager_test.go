@@ -171,7 +171,9 @@ func TestManager_ClearBlocker(t *testing.T) {
 	}
 
 	// Report blocker
-	mgr.ReportBlocker(ctx, "01_test.md", "Blocker")
+	if err := mgr.ReportBlocker(ctx, "01_test.md", "Blocker"); err != nil {
+		t.Fatalf("ReportBlocker() error = %v", err)
+	}
 
 	// Clear it
 	err = mgr.ClearBlocker(ctx, "01_test.md")
@@ -296,5 +298,127 @@ func TestManager_MarkComplete_PreservesExistingStartTime(t *testing.T) {
 	// StartedAt should NOT have changed
 	if !task.StartedAt.Equal(originalStartedAt) {
 		t.Errorf("StartedAt changed from %v to %v, should be preserved", originalStartedAt, task.StartedAt)
+	}
+}
+
+// TestManager_PersistenceRoundtrip verifies that Manager operations persist to JSONL
+// and can be reloaded by a new Manager instance.
+func TestManager_PersistenceRoundtrip(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	// First manager: create and modify tasks
+	mgr1, err := NewManager(ctx, tmpDir)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	// Mark a task in progress
+	if err := mgr1.MarkInProgress(ctx, "01_task.md"); err != nil {
+		t.Fatalf("MarkInProgress() error = %v", err)
+	}
+
+	// Mark another task complete
+	if err := mgr1.MarkComplete(ctx, "02_task.md"); err != nil {
+		t.Fatalf("MarkComplete() error = %v", err)
+	}
+
+	// Verify JSONL file was created
+	eventsPath := filepath.Join(tmpDir, ProgressDir, ProgressEventsFile)
+	if _, err := os.Stat(eventsPath); os.IsNotExist(err) {
+		t.Fatal("JSONL events file was not created by Manager")
+	}
+
+	// Second manager: reload and verify state
+	mgr2, err := NewManager(ctx, tmpDir)
+	if err != nil {
+		t.Fatalf("NewManager() reload error = %v", err)
+	}
+
+	task1, found := mgr2.GetTaskProgress("01_task.md")
+	if !found {
+		t.Fatal("Task 01_task.md not found after reload")
+	}
+	if task1.Status != StatusInProgress {
+		t.Errorf("Task 1 status = %q, want %q", task1.Status, StatusInProgress)
+	}
+
+	task2, found := mgr2.GetTaskProgress("02_task.md")
+	if !found {
+		t.Fatal("Task 02_task.md not found after reload")
+	}
+	if task2.Status != StatusCompleted {
+		t.Errorf("Task 2 status = %q, want %q", task2.Status, StatusCompleted)
+	}
+}
+
+// TestManager_BlockerPersistence verifies blocker events persist correctly.
+func TestManager_BlockerPersistence(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	// First manager: report and clear blocker
+	mgr1, err := NewManager(ctx, tmpDir)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	if err := mgr1.ReportBlocker(ctx, "01_task.md", "Waiting for review"); err != nil {
+		t.Fatalf("ReportBlocker() error = %v", err)
+	}
+
+	// Clear the blocker
+	if err := mgr1.ClearBlocker(ctx, "01_task.md"); err != nil {
+		t.Fatalf("ClearBlocker() error = %v", err)
+	}
+
+	// Reload and verify unblocked state
+	mgr2, err := NewManager(ctx, tmpDir)
+	if err != nil {
+		t.Fatalf("NewManager() reload error = %v", err)
+	}
+
+	task, found := mgr2.GetTaskProgress("01_task.md")
+	if !found {
+		t.Fatal("Task not found after reload")
+	}
+	if task.Status != StatusInProgress {
+		t.Errorf("Status = %q, want %q (should be unblocked)", task.Status, StatusInProgress)
+	}
+	if task.BlockerMessage != "" {
+		t.Errorf("BlockerMessage = %q, want empty", task.BlockerMessage)
+	}
+}
+
+// TestManager_ProgressUpdatePersistence verifies progress events persist correctly.
+func TestManager_ProgressUpdatePersistence(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	// First manager: update progress
+	mgr1, err := NewManager(ctx, tmpDir)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	if err := mgr1.UpdateProgress(ctx, "01_task.md", 50); err != nil {
+		t.Fatalf("UpdateProgress() error = %v", err)
+	}
+
+	// Reload and verify progress
+	mgr2, err := NewManager(ctx, tmpDir)
+	if err != nil {
+		t.Fatalf("NewManager() reload error = %v", err)
+	}
+
+	task, found := mgr2.GetTaskProgress("01_task.md")
+	if !found {
+		t.Fatal("Task not found after reload")
+	}
+	if task.Progress != 50 {
+		t.Errorf("Progress = %d, want 50", task.Progress)
+	}
+	if task.Status != StatusInProgress {
+		t.Errorf("Status = %q, want %q", task.Status, StatusInProgress)
 	}
 }

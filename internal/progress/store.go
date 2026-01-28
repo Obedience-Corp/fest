@@ -13,11 +13,21 @@ import (
 )
 
 const (
-	// ProgressFileName is the name of the progress file
-	ProgressFileName = "progress.yaml"
-
 	// ProgressDir is the directory within festival for progress data
 	ProgressDir = ".fest"
+
+	// ProgressEventsFile is the JSONL event log format.
+	// This is the only supported format for progress tracking.
+	ProgressEventsFile = "progress_events.jsonl"
+
+	// legacyProgressFile is the old YAML format.
+	// Only used for migration - converted to JSONL on first access.
+	// Unexported to discourage external use.
+	legacyProgressFile = "progress.yaml"
+
+	// ProgressFileName is kept for backward compatibility in tests.
+	// Deprecated: Use ProgressEventsFile for new code.
+	ProgressFileName = legacyProgressFile
 
 	// Status values
 	StatusPending    = "pending"
@@ -78,6 +88,7 @@ type FestivalProgressData struct {
 type Store struct {
 	festivalPath string
 	data         *FestivalProgressData
+	pendingEvent *ProgressEvent // Event to append on next Save()
 }
 
 // NewStore creates a new progress store for a festival
@@ -87,42 +98,124 @@ func NewStore(festivalPath string) *Store {
 	}
 }
 
-// progressFilePath returns the path to the progress file
-func (s *Store) progressFilePath() string {
-	return filepath.Join(s.festivalPath, ProgressDir, ProgressFileName)
+// eventsFilePath returns the path to the JSONL events file
+func (s *Store) eventsFilePath() string {
+	return filepath.Join(s.festivalPath, ProgressDir, ProgressEventsFile)
 }
 
-// Load loads progress data from disk
+// legacyFilePath returns the path to the legacy YAML progress file
+func (s *Store) legacyFilePath() string {
+	return filepath.Join(s.festivalPath, ProgressDir, legacyProgressFile)
+}
+
+// Load loads progress data from disk.
+// Uses JSONL event format as primary, with convert-on-access for legacy YAML.
 func (s *Store) Load(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
 	}
 
-	progressPath := s.progressFilePath()
+	eventsPath := s.eventsFilePath()
+	legacyPath := s.legacyFilePath()
 
-	// Check if file exists
-	if _, err := os.Stat(progressPath); os.IsNotExist(err) {
-		// Create empty progress data with initialized time metrics
-		now := time.Now().UTC()
-		s.data = &FestivalProgressData{
-			Festival:  filepath.Base(s.festivalPath),
-			UpdatedAt: now,
-			TimeMetrics: &FestivalTimeMetrics{
-				CreatedAt: now,
-			},
-			Tasks: make(map[string]*TaskProgress),
+	// Preferred: JSONL exists - load from events
+	if fileExists(eventsPath) {
+		return s.loadFromEvents(ctx)
+	}
+
+	// Legacy: YAML exists - convert it to JSONL
+	if fileExists(legacyPath) {
+		if err := s.migrateFromLegacy(ctx); err != nil {
+			return errors.Wrap(err, "migrating legacy progress format")
 		}
 		return nil
 	}
 
-	data, err := os.ReadFile(progressPath)
+	// No progress data exists - create empty state
+	s.initializeEmptyState()
+	return nil
+}
+
+// fileExists checks if a file exists and is not a directory
+func fileExists(path string) bool {
+	info, err := os.Stat(path)
+	if os.IsNotExist(err) {
+		return false
+	}
+	return err == nil && !info.IsDir()
+}
+
+// initializeEmptyState creates empty progress data with initialized time metrics
+func (s *Store) initializeEmptyState() {
+	now := time.Now().UTC()
+	s.data = &FestivalProgressData{
+		Festival:  filepath.Base(s.festivalPath),
+		UpdatedAt: now,
+		TimeMetrics: &FestivalTimeMetrics{
+			CreatedAt: now,
+		},
+		Tasks: make(map[string]*TaskProgress),
+	}
+}
+
+// migrateFromLegacy converts a legacy YAML progress file to JSONL format.
+// After successful migration, the YAML file is deleted.
+func (s *Store) migrateFromLegacy(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled")
+	}
+
+	// 1. Load YAML
+	if err := s.loadLegacyYAML(ctx); err != nil {
+		return err
+	}
+
+	// 2. Generate synthetic events from current state
+	events := generateEventsFromState(s.data.Tasks)
+
+	// 3. Write JSONL (only if we have events to write)
+	if len(events) > 0 {
+		if err := s.writeEvents(ctx, events); err != nil {
+			return err
+		}
+	} else {
+		// Create empty events file to mark migration complete
+		eventsPath := s.eventsFilePath()
+		if err := os.MkdirAll(filepath.Dir(eventsPath), 0755); err != nil {
+			return errors.IO("creating progress directory", err).
+				WithField("path", filepath.Dir(eventsPath))
+		}
+		if err := os.WriteFile(eventsPath, []byte{}, 0644); err != nil {
+			return errors.IO("creating empty events file", err).
+				WithField("path", eventsPath)
+		}
+	}
+
+	// 4. Remove legacy file (ignore errors - JSONL is written, YAML removal is cleanup)
+	legacyPath := s.legacyFilePath()
+	_ = os.Remove(legacyPath)
+
+	return nil
+}
+
+// loadLegacyYAML reads the legacy YAML progress file.
+func (s *Store) loadLegacyYAML(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled")
+	}
+
+	legacyPath := s.legacyFilePath()
+
+	data, err := os.ReadFile(legacyPath)
 	if err != nil {
-		return errors.IO("reading progress file", err).WithField("path", progressPath)
+		return errors.IO("reading legacy progress file", err).
+			WithField("path", legacyPath)
 	}
 
 	var progressData FestivalProgressData
 	if err := yaml.Unmarshal(data, &progressData); err != nil {
-		return errors.Parse("parsing progress file", err).WithField("path", progressPath)
+		return errors.Parse("parsing legacy progress file", err).
+			WithField("path", legacyPath)
 	}
 
 	// Initialize maps if nil
@@ -141,36 +234,34 @@ func (s *Store) Load(ctx context.Context) error {
 	return nil
 }
 
-// Save writes progress data to disk
+// Save writes progress data to disk by appending pending events to JSONL.
+// Only JSONL is written - no YAML output.
 func (s *Store) Save(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
 	}
 
-	if s.data == nil {
-		return errors.Validation("no progress data to save")
+	// If no pending event, nothing to save
+	if s.pendingEvent == nil {
+		return nil
 	}
 
+	// Append the pending event to JSONL
+	if err := s.appendEvent(ctx, s.pendingEvent); err != nil {
+		return errors.Wrap(err, "appending progress event")
+	}
+
+	// Clear pending event after successful write
+	s.pendingEvent = nil
 	s.data.UpdatedAt = time.Now().UTC()
 
-	data, err := yaml.Marshal(s.data)
-	if err != nil {
-		return errors.Wrap(err, "marshaling progress data")
-	}
-
-	progressPath := s.progressFilePath()
-
-	// Ensure directory exists
-	progressDir := filepath.Dir(progressPath)
-	if err := os.MkdirAll(progressDir, 0755); err != nil {
-		return errors.IO("creating progress directory", err).WithField("path", progressDir)
-	}
-
-	if err := os.WriteFile(progressPath, data, 0644); err != nil {
-		return errors.IO("writing progress file", err).WithField("path", progressPath)
-	}
-
 	return nil
+}
+
+// QueueEvent sets an event to be written on the next Save() call.
+// The event will be appended to the JSONL file when Save() is called.
+func (s *Store) QueueEvent(event *ProgressEvent) {
+	s.pendingEvent = event
 }
 
 // Data returns the current progress data

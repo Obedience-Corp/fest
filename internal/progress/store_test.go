@@ -45,14 +45,22 @@ func TestStore_SaveAndLoad(t *testing.T) {
 		StartedAt: &now,
 	})
 
+	// Queue a progress event (required for JSONL format)
+	store1.QueueEvent(&ProgressEvent{
+		Timestamp: now,
+		Event:     EventProgress,
+		Task:      "01_test.md",
+		Percent:   50,
+	})
+
 	if err := store1.Save(ctx); err != nil {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	// Verify file exists
-	progressPath := filepath.Join(tmpDir, ProgressDir, ProgressFileName)
-	if _, err := os.Stat(progressPath); os.IsNotExist(err) {
-		t.Fatalf("Progress file not created at %s", progressPath)
+	// Verify JSONL events file exists
+	eventsPath := filepath.Join(tmpDir, ProgressDir, ProgressEventsFile)
+	if _, err := os.Stat(eventsPath); os.IsNotExist(err) {
+		t.Fatalf("Events file not created at %s", eventsPath)
 	}
 
 	// Load in new store
@@ -166,31 +174,52 @@ tasks:
 	}
 }
 
-// TestStore_TimeMetricsRoundtrip verifies FestivalTimeMetrics saves and loads correctly
+// TestStore_TimeMetricsRoundtrip verifies FestivalTimeMetrics are derived from events correctly
 func TestStore_TimeMetricsRoundtrip(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
 
-	// Create with time metrics
+	// Create store and add events that will produce time metrics
 	store1 := NewStore(tmpDir)
 	if err := store1.Load(ctx); err != nil {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	now := time.Now().UTC()
-	completed := now.Add(24 * time.Hour)
-	store1.data.TimeMetrics = &FestivalTimeMetrics{
-		CreatedAt:         now,
-		CompletedAt:       &completed,
-		LifecycleDuration: 1,
-		TotalWorkMinutes:  120,
-	}
+	// Create timestamps: started 2 hours ago, completed now
+	startTime := time.Now().UTC().Add(-2 * time.Hour)
+	completedTime := time.Now().UTC()
 
+	// Set task state
+	store1.SetTask(&TaskProgress{
+		TaskID:           "01_task.md",
+		Status:           StatusCompleted,
+		Progress:         100,
+		StartedAt:        &startTime,
+		CompletedAt:      &completedTime,
+		TimeSpentMinutes: 120, // 2 hours
+	})
+
+	// Write events in chronological order: started first, then completed
+	store1.QueueEvent(&ProgressEvent{
+		Timestamp: startTime,
+		Event:     EventStarted,
+		Task:      "01_task.md",
+	})
 	if err := store1.Save(ctx); err != nil {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	// Load in new store and verify
+	store1.QueueEvent(&ProgressEvent{
+		Timestamp: completedTime,
+		Event:     EventCompleted,
+		Task:      "01_task.md",
+		Minutes:   120,
+	})
+	if err := store1.Save(ctx); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	// Load in new store and verify time metrics are derived from events
 	store2 := NewStore(tmpDir)
 	if err := store2.Load(ctx); err != nil {
 		t.Fatalf("Load() error = %v", err)
@@ -203,11 +232,9 @@ func TestStore_TimeMetricsRoundtrip(t *testing.T) {
 	if metrics.TotalWorkMinutes != 120 {
 		t.Errorf("TotalWorkMinutes = %d, want 120", metrics.TotalWorkMinutes)
 	}
-	if metrics.LifecycleDuration != 1 {
-		t.Errorf("LifecycleDuration = %d, want 1", metrics.LifecycleDuration)
-	}
+	// Task is completed, so CompletedAt should be set
 	if metrics.CompletedAt == nil {
-		t.Error("CompletedAt should not be nil")
+		t.Error("CompletedAt should not be nil for completed festival")
 	}
 }
 
