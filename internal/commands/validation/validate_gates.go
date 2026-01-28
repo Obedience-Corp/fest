@@ -2,6 +2,7 @@ package validation
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 
@@ -83,26 +84,30 @@ func runValidateQualityGates(ctx context.Context, opts *validateOptions) error {
 func validateQualityGatesChecks(ctx context.Context, festivalPath string, result *ValidationResult, autoFix bool) {
 	parser := festival.NewParser()
 	phases, _ := parser.ParsePhases(ctx, festivalPath)
-	policy := gates.DefaultPolicy()
-
-	gateIDs := map[string]bool{}
-	for _, gate := range policy.GetEnabledTasks() {
-		gateIDs[gate.ID] = true
-	}
-
-	// Phase name patterns that don't require quality gates
-	nonImplPhasePatterns := []string{"PLAN", "DESIGN", "REVIEW", "UAT", "FINALIZE", "DOCS", "RESEARCH"}
+	defaultPolicy := gates.DefaultPolicy()
 
 	for _, phase := range phases {
-		// Skip non-implementation phases entirely
-		if isNonImplementationPhase(phase.Name, nonImplPhasePatterns) {
+		// Detect the actual phase type from frontmatter or directory name
+		phaseType := gates.DetectPhaseType(phase.Path)
+
+		// Skip phases where type can't be determined (require explicit PHASE_GOAL.md)
+		if phaseType == "" {
 			continue
+		}
+
+		// Get the expected gates for this phase type
+		expectedGates := gates.GetGatesForPhaseType(phaseType)
+		gateIDs := make(map[string]bool)
+		for _, gate := range expectedGates {
+			if gate.Enabled {
+				gateIDs[gate.ID] = true
+			}
 		}
 
 		sequences, _ := parser.ParseSequences(ctx, phase.Path)
 		for _, seq := range sequences {
-			// Check if this is an implementation sequence
-			if isExcludedSequence(seq.Name, policy.ExcludePatterns) {
+			// Check sequence exclusion patterns from default policy
+			if isExcludedSequence(seq.Name, defaultPolicy.ExcludePatterns) {
 				continue
 			}
 
@@ -122,11 +127,13 @@ func validateQualityGatesChecks(ctx context.Context, festivalPath string, result
 
 			if !hasGates && len(tasks) > 0 {
 				relPath, _ := filepath.Rel(festivalPath, seq.Path)
+				// Phase-type-aware error message
+				phaseTypeTitle := titleCase(phaseType)
 				result.Issues = append(result.Issues, ValidationIssue{
 					Level:       LevelError,
 					Code:        CodeMissingQualityGate,
 					Path:        relPath,
-					Message:     "Implementation sequence missing quality gates",
+					Message:     fmt.Sprintf("%s sequence missing quality gates", phaseTypeTitle),
 					Fix:         "fest gates apply --sequence " + relPath + " --approve",
 					AutoFixable: true,
 				})
@@ -144,15 +151,20 @@ func validateQualityGatesChecks(ctx context.Context, festivalPath string, result
 	}
 }
 
-// isNonImplementationPhase checks if a phase is for planning/review rather than implementation
-func isNonImplementationPhase(phaseName string, patterns []string) bool {
-	upperName := strings.ToUpper(phaseName)
-	for _, pattern := range patterns {
-		if strings.Contains(upperName, pattern) {
-			return true
+// titleCase converts a string to title case (first letter uppercase)
+func titleCase(s string) string {
+	if s == "" {
+		return s
+	}
+	// Handle snake_case by replacing underscores with spaces and capitalizing
+	s = strings.ReplaceAll(s, "_", " ")
+	words := strings.Fields(s)
+	for i, word := range words {
+		if len(word) > 0 {
+			words[i] = strings.ToUpper(string(word[0])) + strings.ToLower(word[1:])
 		}
 	}
-	return false
+	return strings.Join(words, " ")
 }
 
 // isExcludedSequence checks if a sequence name matches exclusion patterns

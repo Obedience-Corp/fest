@@ -11,7 +11,13 @@ import (
 	"github.com/Obedience-Corp/fest/internal/gates"
 )
 
-// ValidateQualityGates checks that implementation sequences have quality gate tasks
+// ValidateQualityGates checks that sequences have appropriate quality gate tasks
+// based on their phase type. Each phase type has its own set of required gates:
+//   - implementation: testing, review, iterate, commit
+//   - planning: plan_review, approval
+//   - research: findings_review, documentation
+//   - review: checklist, sign_off
+//   - non_coding_action: action_verify, completion
 func ValidateQualityGates(ctx context.Context, festivalPath string) ([]Issue, error) {
 	issues := []Issue{}
 
@@ -21,25 +27,34 @@ func ValidateQualityGates(ctx context.Context, festivalPath string) ([]Issue, er
 		return issues, errors.Wrap(err, "parsing phases").WithField("path", festivalPath)
 	}
 
-	policy := gates.DefaultPolicy()
-	gateIDs := map[string]bool{}
-	for _, gate := range policy.GetEnabledTasks() {
-		gateIDs[gate.ID] = true
-	}
-
-	// Phase name patterns that don't require quality gates
-	nonImplPhasePatterns := []string{"PLAN", "DESIGN", "REVIEW", "UAT", "FINALIZE", "DOCS", "RESEARCH"}
+	defaultPolicy := gates.DefaultPolicy()
 
 	for _, phase := range phases {
-		if isNonImplementationPhase(phase.Name, nonImplPhasePatterns) {
+		// Detect the actual phase type from frontmatter or directory name
+		phaseType := gates.DetectPhaseType(phase.Path)
+
+		// Skip phases where type can't be determined (require explicit PHASE_GOAL.md)
+		if phaseType == "" {
 			continue
 		}
+
+		// Get the expected gates for this phase type
+		expectedGates := gates.GetGatesForPhaseType(phaseType)
+		gateIDs := make(map[string]bool)
+		for _, gate := range expectedGates {
+			if gate.Enabled {
+				gateIDs[gate.ID] = true
+			}
+		}
+
 		sequences, err := parser.ParseSequences(ctx, phase.Path)
 		if err != nil {
 			return issues, errors.Wrap(err, "parsing sequences").WithField("phase", phase.Name)
 		}
+
 		for _, seq := range sequences {
-			if isExcludedSequence(seq.Name, policy.ExcludePatterns) {
+			// Check sequence exclusion patterns from default policy
+			if isExcludedSequence(seq.Name, defaultPolicy.ExcludePatterns) {
 				continue
 			}
 
@@ -47,6 +62,7 @@ func ValidateQualityGates(ctx context.Context, festivalPath string) ([]Issue, er
 			if err != nil {
 				return issues, errors.Wrap(err, "parsing tasks").WithField("sequence", seq.Name)
 			}
+
 			hasGates := false
 			for _, task := range tasks {
 				for gateID := range gateIDs {
@@ -60,13 +76,16 @@ func ValidateQualityGates(ctx context.Context, festivalPath string) ([]Issue, er
 					break
 				}
 			}
+
 			if !hasGates && len(tasks) > 0 {
 				rel, _ := filepath.Rel(festivalPath, seq.Path)
+				// Phase-type-aware error message
+				phaseTypeTitle := titleCase(phaseType)
 				issues = append(issues, Issue{
 					Level:       LevelError,
 					Code:        CodeMissingQualityGate,
 					Path:        rel,
-					Message:     "Implementation sequence missing quality gates",
+					Message:     fmt.Sprintf("%s sequence missing quality gates", phaseTypeTitle),
 					Fix:         fmt.Sprintf("fest gates apply --sequence %s --approve", rel),
 					AutoFixable: true,
 				})
@@ -77,13 +96,19 @@ func ValidateQualityGates(ctx context.Context, festivalPath string) ([]Issue, er
 	return issues, nil
 }
 
-// isNonImplementationPhase checks if a phase is for planning/review rather than implementation
-func isNonImplementationPhase(phaseName string, patterns []string) bool {
-	upper := strings.ToUpper(phaseName)
-	for _, p := range patterns {
-		if strings.Contains(upper, p) {
-			return true
+// titleCase converts a string to title case (first letter uppercase)
+func titleCase(s string) string {
+	if s == "" {
+		return s
+	}
+	// Handle snake_case by replacing underscores with spaces and capitalizing
+	s = strings.ReplaceAll(s, "_", " ")
+	words := strings.Fields(s)
+	for i, word := range words {
+		if len(word) > 0 {
+			words[i] = strings.ToUpper(string(word[0])) + strings.ToLower(word[1:])
 		}
 	}
-	return false
+	return strings.Join(words, " ")
 }
+
