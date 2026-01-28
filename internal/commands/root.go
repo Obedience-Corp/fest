@@ -61,28 +61,8 @@ func IsVerbose() bool {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "fest",
-	Short: "Festival Methodology CLI - goal-oriented project management for AI agents",
-	Long: `fest manages Festival Methodology - a goal-oriented project management
-system designed for AI agent development workflows.
-
-GETTING STARTED (for AI agents):
-  fest understand methodology    Learn core principles first
-  fest understand structure      Understand the 3-level hierarchy
-  fest understand tasks          Learn when/how to create task files
-  fest validate                  Check if a festival is properly structured
-
-COMMON WORKFLOWS:
-  fest create festival           Create a new festival (interactive TUI)
-  fest create phase/sequence     Add phases or sequences to existing festival
-  fest validate --fix            Fix common structure issues automatically
-  fest go                        Navigate to festivals directory
-
-SYSTEM MAINTENANCE:
-  fest system sync               Download latest templates from source
-  fest system update             Update .festival/ methodology files
-
-Run 'fest understand' to learn the methodology before executing tasks.`,
+	Use:     "fest",
+	Short:   "Festival Methodology CLI - goal-oriented project management for AI agents",
 	Version: fmt.Sprintf("%s (built %s, commit %s)", Version, BuildTime, GitCommit),
 }
 
@@ -92,6 +72,21 @@ func Execute() error {
 }
 
 func init() {
+	// Register template functions for styled help
+	cobra.AddTemplateFunc("styleLabel", ui.Label)
+	cobra.AddTemplateFunc("styleCategory", ui.Category)
+	cobra.AddTemplateFunc("styleDim", ui.Dim)
+	cobra.AddTemplateFunc("styleAccent", ui.Accent)
+	cobra.AddTemplateFunc("styleBold", ui.BoldText)
+	cobra.AddTemplateFunc("styleHelp", ui.StyleHelpText)
+
+	// Set styled Long description for root command
+	rootCmd.Long = styledLongDescription()
+
+	// Apply styled help and usage templates
+	rootCmd.SetHelpTemplate(styledHelpTemplate())
+	rootCmd.SetUsageTemplate(styledUsageTemplate())
+
 	// Disable the default completion command - we provide our own with better docs
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
 
@@ -102,13 +97,13 @@ func init() {
 
 	// Define command groups for organized help output
 	rootCmd.AddGroup(
-		&cobra.Group{ID: "learning", Title: "Learning Commands:"},
-		&cobra.Group{ID: "creation", Title: "Creation Commands:"},
-		&cobra.Group{ID: "structure", Title: "Structure Commands:"},
-		&cobra.Group{ID: "workflow", Title: "Workflow Commands:"},
-		&cobra.Group{ID: "query", Title: "Query Commands:"},
-		&cobra.Group{ID: "navigation", Title: "Navigation Commands:"},
-		&cobra.Group{ID: "system", Title: "System Commands:"},
+		&cobra.Group{ID: "learning", Title: ui.Category("Learning Commands:")},
+		&cobra.Group{ID: "creation", Title: ui.Category("Creation Commands:")},
+		&cobra.Group{ID: "structure", Title: ui.Category("Structure Commands:")},
+		&cobra.Group{ID: "workflow", Title: ui.Category("Workflow Commands:")},
+		&cobra.Group{ID: "query", Title: ui.Category("Query Commands:")},
+		&cobra.Group{ID: "navigation", Title: ui.Category("Navigation Commands:")},
+		&cobra.Group{ID: "system", Title: ui.Category("System Commands:")},
 	)
 
 	// Enforce being inside a festivals/ tree for most commands
@@ -335,4 +330,69 @@ func init() {
 	typesCmd := typescmd.NewTypesCommand()
 	typesCmd.GroupID = "query"
 	rootCmd.AddCommand(typesCmd)
+}
+
+// styledLongDescription returns the styled long description for the root command.
+func styledLongDescription() string {
+	return `fest manages Festival Methodology - a goal-oriented project management
+system designed for AI agent development workflows.
+
+` + ui.Category("GETTING STARTED (for AI agents):") + `
+  ` + ui.Accent("fest understand methodology") + `    Learn core principles first
+  ` + ui.Accent("fest understand structure") + `      Understand the 3-level hierarchy
+  ` + ui.Accent("fest understand tasks") + `          Learn when/how to create task files
+  ` + ui.Accent("fest validate") + `                  Check if a festival is properly structured
+
+` + ui.Category("COMMON WORKFLOWS:") + `
+  ` + ui.Accent("fest create festival") + `           Create a new festival (interactive TUI)
+  ` + ui.Accent("fest create phase/sequence") + `     Add phases or sequences to existing festival
+  ` + ui.Accent("fest validate --fix") + `            Fix common structure issues automatically
+  ` + ui.Accent("fest go") + `                        Navigate to festivals directory
+
+` + ui.Category("SYSTEM MAINTENANCE:") + `
+  ` + ui.Accent("fest system sync") + `               Download latest templates from source
+  ` + ui.Accent("fest system update") + `             Update .festival/ methodology files
+
+Run '` + ui.Accent("fest understand") + `' to learn the methodology before executing tasks.`
+}
+
+// styledHelpTemplate returns a styled help template for cobra commands.
+func styledHelpTemplate() string {
+	return `{{if .Long}}{{styleHelp .Long}}
+
+{{end}}{{if or .Runnable .HasSubCommands}}{{.UsageString}}{{end}}`
+}
+
+// styledUsageTemplate returns a styled usage template for cobra commands.
+func styledUsageTemplate() string {
+	return `{{styleCategory "Usage:"}}
+  {{.UseLine}}{{if .HasAvailableSubCommands}}
+  {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
+
+{{styleCategory "Aliases:"}}
+  {{.NameAndAliases}}{{end}}{{if .HasExample}}
+
+{{styleCategory "Examples:"}}
+{{.Example}}{{end}}{{if .HasAvailableSubCommands}}{{$cmds := .Commands}}{{if eq (len .Groups) 0}}
+
+{{styleCategory "Available Commands:"}}{{range $cmds}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{styleAccent (rpad .Name .NamePadding)}} {{.Short}}{{end}}{{end}}{{else}}{{range $group := .Groups}}
+
+{{.Title}}{{range $cmds}}{{if (and (eq .GroupID $group.ID) (or .IsAvailableCommand (eq .Name "help")))}}
+  {{styleAccent (rpad .Name .NamePadding)}} {{.Short}}{{end}}{{end}}{{end}}{{if not .AllChildCommandsHaveGroup}}
+
+{{styleCategory "Additional Commands:"}}{{range $cmds}}{{if (and (eq .GroupID "") (or .IsAvailableCommand (eq .Name "help")))}}
+  {{styleAccent (rpad .Name .NamePadding)}} {{.Short}}{{end}}{{end}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+
+{{styleCategory "Flags:"}}
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
+
+{{styleCategory "Global Flags:"}}
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasHelpSubCommands}}
+
+{{styleCategory "Additional help topics:"}}{{range .Commands}}{{if .IsAdditionalHelpTopicCommand}}
+  {{rpad .CommandPath .CommandPathPadding}} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableSubCommands}}
+
+Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
+`
 }
