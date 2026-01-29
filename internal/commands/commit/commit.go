@@ -15,7 +15,6 @@ import (
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/scope"
-	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -199,9 +198,9 @@ func detectCurrentTaskRef(ctx context.Context) (string, error) {
 		return "", err
 	}
 
-	// Try to find fest.yaml to locate festival root
-	festivalPath, err := tpl.FindFestivalRoot(cwd)
-	if err != nil {
+	// Get festival path from scope context (resolved by PersistentPreRunE)
+	festivalPath, ok := scope.FestivalFrom(ctx)
+	if !ok || festivalPath == "" {
 		return "", errors.NotFound("festival")
 	}
 

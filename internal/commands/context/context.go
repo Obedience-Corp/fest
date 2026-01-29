@@ -3,12 +3,10 @@ package context
 
 import (
 	"fmt"
-	"os"
 
 	ctx "github.com/Obedience-Corp/fest/internal/context"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/scope"
-	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/spf13/cobra"
 )
 
@@ -58,15 +56,11 @@ Examples:
 }
 
 func runContext(cmd *cobra.Command, args []string) error {
-	// Find festival root
-	cwd, err := os.Getwd()
-	if err != nil {
-		return errors.IO("getting current directory", err)
-	}
-
-	festivalPath, err := tpl.FindFestivalRoot(cwd)
-	if err != nil {
-		return errors.Wrap(err, "not inside a festival")
+	// Get festival path from scope context (resolved by PersistentPreRunE)
+	festivalPath, ok := scope.FestivalFrom(cmd.Context())
+	if !ok || festivalPath == "" {
+		return errors.NotFound("festival context").
+			WithHint("The scope system should have resolved a festival path")
 	}
 
 	// Validate depth
@@ -84,6 +78,7 @@ func runContext(cmd *cobra.Command, args []string) error {
 	builder := ctx.NewBuilder(festivalPath, d)
 
 	var output *ctx.ContextOutput
+	var err error
 	if taskName != "" {
 		output, err = builder.BuildForTask(taskName)
 	} else {
