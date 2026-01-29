@@ -11,7 +11,6 @@ import (
 	"github.com/Obedience-Corp/fest/internal/deps"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/scope"
-	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -57,9 +56,11 @@ func runDeps(cmd *cobra.Command, args []string) error {
 		return errors.IO("getting current directory", err)
 	}
 
-	festivalPath, err := tpl.FindFestivalRoot(cwd)
-	if err != nil {
-		return errors.Wrap(err, "not inside a festival")
+	// Get festival path from scope context (resolved by PersistentPreRunE)
+	festivalPath, ok := scope.FestivalFrom(cmd.Context())
+	if !ok || festivalPath == "" {
+		return errors.NotFound("festival context").
+			WithHint("The scope system should have resolved a festival path")
 	}
 
 	resolver := deps.NewResolver(festivalPath)
