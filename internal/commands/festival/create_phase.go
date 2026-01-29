@@ -56,10 +56,10 @@ type createPhaseResult struct {
 func selectPhaseTemplate(phaseType string) (string, string, error) {
 	pt := strings.ToLower(phaseType)
 	switch pt {
-	case "planning", "implementation", "research", "review", "non_coding_action":
+	case "planning", "implementation", "research", "review", "non_coding_action", "ingest":
 		return fmt.Sprintf("phase-goal-%s", pt), filepath.Join("phases", pt, "GOAL.md"), nil
 	default:
-		return "", "", fmt.Errorf("unknown phase type %q: must be one of planning, implementation, research, review, non_coding_action", phaseType)
+		return "", "", fmt.Errorf("unknown phase type %q: must be one of planning, implementation, research, review, non_coding_action, ingest", phaseType)
 	}
 }
 
@@ -84,7 +84,7 @@ func NewCreatePhaseCommand() *cobra.Command {
 	}
 	cmd.Flags().IntVar(&opts.After, "after", -1, "Insert after this phase number (-1 or omit to append at end)")
 	cmd.Flags().StringVar(&opts.Name, "name", "", "Phase name (required)")
-	cmd.Flags().StringVar(&opts.PhaseType, "type", "planning", "Phase type (planning|implementation|review|deployment|research)")
+	cmd.Flags().StringVar(&opts.PhaseType, "type", "planning", "Phase type (planning|implementation|research|review|ingest|non_coding_action)")
 	cmd.Flags().StringVar(&opts.Path, "path", ".", "Path to festival root (directory containing numbered phases)")
 	cmd.Flags().StringVar(&opts.VarsFile, "vars-file", "", "JSON vars for rendering")
 	cmd.Flags().StringVar(&opts.Markers, "markers", "", "JSON string with REPLACE marker hint→value mappings")
