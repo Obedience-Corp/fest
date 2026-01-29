@@ -9,6 +9,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/festival"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -27,8 +28,11 @@ func NewRemoveCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "remove",
 		Short: "Remove festival elements and renumber",
+		Annotations: map[string]string{
+			"scope": string(scope.Festival),
+		},
 		Long: `Remove a phase, sequence, or task and automatically renumber subsequent elements.
-		
+
 This command safely removes elements and maintains proper numbering
 for all following elements in the hierarchy.`,
 	}

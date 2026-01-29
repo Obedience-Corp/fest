@@ -1,7 +1,9 @@
 package workspace
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -428,4 +430,287 @@ func TestFindFestivalsPrefersMark(t *testing.T) {
 	if result != outerFestivals {
 		t.Errorf("FindFestivals should prefer marked directory, got %q, want %q", result, outerFestivals)
 	}
+}
+
+// normalizePath resolves symlinks to handle macOS /var -> /private/var differences
+func normalizePath(path string) string {
+	resolved, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return path
+	}
+	return resolved
+}
+
+func TestFindWorkspace(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    func(t *testing.T) string
+		wantType WorkspaceType
+		wantErr  error
+	}{
+		{
+			name: "campaign from root",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
+				os.MkdirAll(filepath.Join(dir, "festivals", ".festival"), 0755)
+				return dir
+			},
+			wantType: WorkspaceTypeCampaign,
+		},
+		{
+			name: "campaign from nested project",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
+				os.MkdirAll(filepath.Join(dir, "festivals", ".festival"), 0755)
+				projectDir := filepath.Join(dir, "projects", "myproject")
+				os.MkdirAll(projectDir, 0755)
+				return projectDir
+			},
+			wantType: WorkspaceTypeCampaign,
+		},
+		{
+			name: "fallback to marker",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				os.MkdirAll(filepath.Join(dir, "festivals", ".festival"), 0755)
+				os.WriteFile(filepath.Join(dir, "festivals", ".festival", ".workspace"), []byte(`{"workspace":"test"}`), 0644)
+				return dir
+			},
+			wantType: WorkspaceTypeStandalone,
+		},
+		{
+			name: "fallback to nearest festivals",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				os.MkdirAll(filepath.Join(dir, "festivals", ".festival"), 0755)
+				return dir
+			},
+			wantType: WorkspaceTypeStandalone,
+		},
+		{
+			name: "no workspace",
+			setup: func(t *testing.T) string {
+				return t.TempDir()
+			},
+			wantErr: ErrNoWorkspace,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := tt.setup(t)
+			ws, err := FindWorkspace(context.Background(), dir)
+
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Errorf("got error %v, want %v", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if ws.Type != tt.wantType {
+				t.Errorf("got type %v, want %v", ws.Type, tt.wantType)
+			}
+		})
+	}
+}
+
+func TestFindWorkspace_CampaignPriority(t *testing.T) {
+	// Create a directory with BOTH campaign marker AND workspace marker
+	// Campaign should take priority
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
+	os.MkdirAll(filepath.Join(dir, "festivals", ".festival"), 0755)
+	os.WriteFile(filepath.Join(dir, "festivals", ".festival", ".workspace"), []byte(`{"workspace":"test"}`), 0644)
+
+	ws, err := FindWorkspace(context.Background(), dir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ws.Type != WorkspaceTypeCampaign {
+		t.Errorf("campaign should take priority over marker, got type %v", ws.Type)
+	}
+}
+
+func TestFindWorkspace_CAMP_ROOT(t *testing.T) {
+	campRoot := t.TempDir()
+	os.MkdirAll(filepath.Join(campRoot, ".campaign"), 0755)
+	os.MkdirAll(filepath.Join(campRoot, "festivals", ".festival"), 0755)
+
+	t.Setenv("CAMP_ROOT", campRoot)
+
+	// Search from a completely different directory
+	otherDir := t.TempDir()
+
+	ws, err := FindWorkspace(context.Background(), otherDir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ws.Type != WorkspaceTypeCampaign {
+		t.Errorf("got type %v, want campaign", ws.Type)
+	}
+	// Verify the correct root was used
+	if normalizePath(ws.Root) != normalizePath(campRoot) {
+		t.Errorf("got root %q, want %q", ws.Root, campRoot)
+	}
+}
+
+func TestFindWorkspace_CAMP_ROOT_Invalid(t *testing.T) {
+	// Set CAMP_ROOT to a directory without .campaign/
+	invalidDir := t.TempDir()
+	t.Setenv("CAMP_ROOT", invalidDir)
+
+	// Create a valid standalone workspace to fall back to
+	testDir := t.TempDir()
+	os.MkdirAll(filepath.Join(testDir, "festivals", ".festival"), 0755)
+
+	ws, err := FindWorkspace(context.Background(), testDir)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Should fall back to standalone detection
+	if ws.Type != WorkspaceTypeStandalone {
+		t.Errorf("should fall back to standalone when CAMP_ROOT is invalid, got type %v", ws.Type)
+	}
+}
+
+func TestFindWorkspace_ContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := FindWorkspace(ctx, t.TempDir())
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("expected context.Canceled, got %v", err)
+	}
+}
+
+func TestFindWorkspace_EmptyStartDir(t *testing.T) {
+	// When startDir is empty, should use current working directory
+	// Create a campaign structure in a temp dir and cd to it
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
+	os.MkdirAll(filepath.Join(dir, "festivals", ".festival"), 0755)
+
+	oldCwd, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(oldCwd)
+
+	ws, err := FindWorkspace(context.Background(), "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ws.Type != WorkspaceTypeCampaign {
+		t.Errorf("got type %v, want campaign", ws.Type)
+	}
+}
+
+func TestDetectCampaign(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(t *testing.T) string
+		wantErr error
+	}{
+		{
+			name: "finds campaign from root",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
+				return dir
+			},
+			wantErr: nil,
+		},
+		{
+			name: "finds campaign from nested directory",
+			setup: func(t *testing.T) string {
+				dir := t.TempDir()
+				os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
+				nested := filepath.Join(dir, "projects", "myproject", "src")
+				os.MkdirAll(nested, 0755)
+				return nested
+			},
+			wantErr: nil,
+		},
+		{
+			name: "no campaign",
+			setup: func(t *testing.T) string {
+				return t.TempDir()
+			},
+			wantErr: ErrNoCampaign,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := tt.setup(t)
+			_, err := detectCampaign(context.Background(), dir)
+
+			if tt.wantErr != nil {
+				if !errors.Is(err, tt.wantErr) {
+					t.Errorf("got error %v, want %v", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestDetectCampaign_ContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := detectCampaign(ctx, t.TempDir())
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("expected context.Canceled, got %v", err)
+	}
+}
+
+func TestWorkspaceType_String(t *testing.T) {
+	tests := []struct {
+		wt   WorkspaceType
+		want string
+	}{
+		{WorkspaceTypeCampaign, "campaign"},
+		{WorkspaceTypeStandalone, "standalone"},
+		{WorkspaceType(99), "unknown"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			if got := tt.wt.String(); got != tt.want {
+				t.Errorf("WorkspaceType.String() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsCampaignRoot(t *testing.T) {
+	t.Run("true when .campaign exists", func(t *testing.T) {
+		dir := t.TempDir()
+		os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
+		if !IsCampaignRoot(dir) {
+			t.Error("IsCampaignRoot should return true when .campaign exists")
+		}
+	})
+
+	t.Run("false when .campaign does not exist", func(t *testing.T) {
+		dir := t.TempDir()
+		if IsCampaignRoot(dir) {
+			t.Error("IsCampaignRoot should return false when .campaign does not exist")
+		}
+	})
+
+	t.Run("false when .campaign is a file", func(t *testing.T) {
+		dir := t.TempDir()
+		os.WriteFile(filepath.Join(dir, ".campaign"), []byte("not a dir"), 0644)
+		if IsCampaignRoot(dir) {
+			t.Error("IsCampaignRoot should return false when .campaign is a file")
+		}
+	})
 }

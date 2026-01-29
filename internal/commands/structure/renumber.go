@@ -7,6 +7,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/festival"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/spf13/cobra"
 )
 
@@ -24,8 +25,11 @@ func NewRenumberCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "renumber",
 		Short: "Renumber festival elements",
+		Annotations: map[string]string{
+			"scope": string(scope.Festival),
+		},
 		Long: `Renumber phases, sequences, or tasks in a festival structure.
-		
+
 This command helps maintain proper numbering when elements are added,
 removed, or reordered in the festival hierarchy.`,
 	}

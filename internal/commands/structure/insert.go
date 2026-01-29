@@ -8,6 +8,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/festival"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -27,8 +28,11 @@ func NewInsertCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "insert",
 		Short: "Insert new festival elements",
+		Annotations: map[string]string{
+			"scope": string(scope.Festival),
+		},
 		Long: `Insert a new phase, sequence, or task and renumber subsequent elements.
-		
+
 This command creates a new element and automatically renumbers all
 following elements to maintain proper ordering.`,
 	}

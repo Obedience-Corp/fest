@@ -16,6 +16,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/progress"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -48,6 +49,9 @@ func NewProgressCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "progress",
 		Short: "Track and display festival execution progress",
+		Annotations: map[string]string{
+			"scope": string(scope.Festival),
+		},
 		Long: `Track and display progress for festival execution.
 
 When run without flags, shows an overview of festival progress.

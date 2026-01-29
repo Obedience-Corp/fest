@@ -2,10 +2,20 @@
 package workspace
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"time"
+)
+
+var (
+	// ErrNoWorkspace is returned when no workspace could be found.
+	ErrNoWorkspace = errors.New("not in a fest workspace")
+
+	// ErrNoCampaign is returned when no campaign directory was found.
+	ErrNoCampaign = errors.New("not in a campaign")
 )
 
 const (
@@ -201,4 +211,116 @@ func FindFestivals(startDir string) (string, error) {
 
 	// Fall back to nearest festivals directory
 	return FindNearestFestivals(startDir)
+}
+
+// CampaignDir is the name of the campaign marker directory.
+const CampaignDir = ".campaign"
+
+// EnvCampaignRoot is the environment variable that can override campaign detection.
+const EnvCampaignRoot = "CAMP_ROOT"
+
+// detectCampaign walks up from startDir looking for a .campaign/ directory.
+// Checks CAMP_ROOT env var first for explicit override.
+func detectCampaign(ctx context.Context, startDir string) (string, error) {
+	// Check CAMP_ROOT env var first
+	if root := os.Getenv(EnvCampaignRoot); root != "" {
+		campaignDir := filepath.Join(root, CampaignDir)
+		if info, err := os.Stat(campaignDir); err == nil && info.IsDir() {
+			return root, nil
+		}
+		// If env var is set but invalid, continue with detection
+	}
+
+	// Start from given directory or cwd
+	dir := startDir
+	if dir == "" {
+		var err error
+		dir, err = os.Getwd()
+		if err != nil {
+			return "", err
+		}
+	}
+
+	// Resolve to absolute path
+	current, err := filepath.Abs(dir)
+	if err != nil {
+		return "", err
+	}
+
+	// Walk up directory tree
+	for {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
+
+		campaignDir := filepath.Join(current, CampaignDir)
+		if info, err := os.Stat(campaignDir); err == nil && info.IsDir() {
+			return current, nil
+		}
+
+		parent := filepath.Dir(current)
+		if parent == current {
+			break // Reached filesystem root
+		}
+		current = parent
+	}
+
+	return "", ErrNoCampaign
+}
+
+// FindWorkspace returns workspace information using available detection methods.
+// Priority: campaign (.campaign/) → marked (.workspace) → nearest (festivals/).
+func FindWorkspace(ctx context.Context, startDir string) (WorkspaceInfo, error) {
+	if err := ctx.Err(); err != nil {
+		return WorkspaceInfo{}, err
+	}
+
+	// Start from given directory or cwd
+	dir := startDir
+	if dir == "" {
+		var err error
+		dir, err = os.Getwd()
+		if err != nil {
+			return WorkspaceInfo{}, err
+		}
+	}
+
+	// 1. Try campaign detection first
+	if campaignRoot, err := detectCampaign(ctx, dir); err == nil {
+		festivalsPath := filepath.Join(campaignRoot, FestivalsDir)
+		if _, err := os.Stat(festivalsPath); err == nil {
+			return WorkspaceInfo{
+				Root:          campaignRoot,
+				FestivalsPath: festivalsPath,
+				Type:          WorkspaceTypeCampaign,
+			}, nil
+		}
+	}
+
+	// 2. Fall back to standalone .workspace marker detection
+	if festivalsPath, err := FindMarkedFestivals(dir); err == nil && festivalsPath != "" {
+		return WorkspaceInfo{
+			Root:          filepath.Dir(festivalsPath),
+			FestivalsPath: festivalsPath,
+			Type:          WorkspaceTypeStandalone,
+		}, nil
+	}
+
+	// 3. Try nearest festivals/ as last resort
+	if festivalsPath, err := FindNearestFestivals(dir); err == nil && festivalsPath != "" {
+		return WorkspaceInfo{
+			Root:          filepath.Dir(festivalsPath),
+			FestivalsPath: festivalsPath,
+			Type:          WorkspaceTypeStandalone,
+		}, nil
+	}
+
+	return WorkspaceInfo{}, ErrNoWorkspace
+}
+
+// IsCampaignRoot checks if the given directory is a campaign root (contains .campaign/).
+func IsCampaignRoot(dir string) bool {
+	campaignPath := filepath.Join(dir, CampaignDir)
+	info, err := os.Stat(campaignPath)
+	return err == nil && info.IsDir()
 }

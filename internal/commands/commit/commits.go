@@ -11,6 +11,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -30,6 +31,9 @@ func NewCommitsCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "commits",
 		Short: "Query commits by festival element",
+		Annotations: map[string]string{
+			"scope": string(scope.Festival),
+		},
 		Long: `Query git commits that reference festival elements.
 
 Search commits by task ID, sequence, or phase. Uses git log with grep

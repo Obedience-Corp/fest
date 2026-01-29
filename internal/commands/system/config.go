@@ -11,6 +11,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	uitheme "github.com/Obedience-Corp/fest/internal/ui/theme"
 )
@@ -20,6 +21,9 @@ func NewConfigCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Manage fest configuration settings",
+		Annotations: map[string]string{
+			"scope": string(scope.Global),
+		},
 		Long: `Interactive TUI for managing fest configuration.
 
 Navigate to a setting to edit it. Changes are saved immediately.

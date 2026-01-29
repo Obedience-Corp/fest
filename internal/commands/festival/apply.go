@@ -10,6 +10,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/fileops"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
@@ -42,7 +43,10 @@ func NewApplyCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "apply",
 		Short: "Apply a local template to a destination file (copy or render)",
-		Long:  "Apply a local template (from .festival/templates) to a destination file. Copy if no variables provided; render if variables exist.",
+		Annotations: map[string]string{
+			"scope": string(scope.Festival),
+		},
+		Long: "Apply a local template (from .festival/templates) to a destination file. Copy if no variables provided; render if variables exist.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return RunApply(cmd.Context(), opts)
 		},

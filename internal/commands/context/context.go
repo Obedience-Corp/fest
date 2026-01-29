@@ -7,6 +7,7 @@ import (
 
 	ctx "github.com/Obedience-Corp/fest/internal/context"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/spf13/cobra"
 )
@@ -23,6 +24,9 @@ func NewContextCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "context",
 		Short: "Get context for the current location or task",
+		Annotations: map[string]string{
+			"scope": string(scope.Festival),
+		},
 		Long: `Provides AI agents with context for the current location in a festival.
 
 Context includes:
