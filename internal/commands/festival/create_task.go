@@ -13,6 +13,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/festival"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
@@ -53,6 +54,9 @@ func NewCreateTaskCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "task",
 		Short: "Insert a new task file in a sequence",
+		Annotations: map[string]string{
+			"scope": string(scope.Festival),
+		},
 		Long: `Create new task file(s) with automatic numbering and template rendering.
 
 IMPORTANT: AI agents execute TASK FILES, not goals. If your sequences only

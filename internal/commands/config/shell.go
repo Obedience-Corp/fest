@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/spf13/cobra"
 )
 
@@ -12,6 +13,9 @@ func NewShellInitCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "shell-init <shell>",
 		Short: "Output shell integration code for festival helpers",
+		Annotations: map[string]string{
+			"scope": string(scope.Global),
+		},
 		Long: `Output shell code that provides shell helper functions.
 
 This command outputs shell-specific code that creates helper functions:

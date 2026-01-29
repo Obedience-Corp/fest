@@ -13,6 +13,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/festival"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
@@ -68,6 +69,9 @@ func NewCreatePhaseCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "phase",
 		Short: "Insert a new phase and render its goal file",
+		Annotations: map[string]string{
+			"scope": string(scope.Festival),
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().NFlag() == 0 {
 				return shared.StartCreatePhaseTUI(cmd.Context())

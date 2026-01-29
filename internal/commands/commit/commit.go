@@ -14,6 +14,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
@@ -31,6 +32,9 @@ func NewCommitCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "commit",
 		Short: "Create git commit with task reference",
+		Annotations: map[string]string{
+			"scope": string(scope.Festival),
+		},
 		Long: `Create a git commit with the current task ID embedded in the message.
 
 The fest commit command wraps git commit and automatically prepends the

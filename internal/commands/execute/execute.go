@@ -12,6 +12,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/guidance/orchestration"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
 
@@ -42,6 +43,9 @@ func NewExecuteCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "execute",
 		Short: "Execute festival tasks with orchestration",
+		Annotations: map[string]string{
+			"scope": string(scope.Festival),
+		},
 		Long: `Orchestrate festival execution with support for parallel tasks,
 quality gates, and execution modes.
 

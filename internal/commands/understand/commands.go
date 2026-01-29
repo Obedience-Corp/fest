@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	understanddocs "github.com/Obedience-Corp/fest/embedded/docs/understand"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/spf13/cobra"
 )
 
@@ -12,6 +13,9 @@ func NewUnderstandCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "understand",
 		Short: "Learn methodology FIRST - run before executing festival tasks",
+		Annotations: map[string]string{
+			"scope": string(scope.Global),
+		},
 		Long: `Learn about Festival Methodology - a goal-oriented project management
 system designed for AI agent development workflows.
 

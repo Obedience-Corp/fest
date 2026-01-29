@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	introdocs "github.com/Obedience-Corp/fest/embedded/docs/intro"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/spf13/cobra"
 )
 
@@ -13,6 +14,9 @@ func NewIntroCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "intro",
 		Short: "Getting started guide for fest CLI and common workflows",
+		Annotations: map[string]string{
+			"scope": string(scope.Global),
+		},
 		Long: `Display a getting started guide for AI agents using the fest CLI.
 
 This command provides essential information for quickly becoming productive

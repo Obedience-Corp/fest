@@ -3,6 +3,7 @@ package system
 import (
 	"os"
 
+	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/spf13/cobra"
 )
 
@@ -11,6 +12,9 @@ func NewCompletionCommand(rootCmd *cobra.Command) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "completion [bash|zsh|fish|powershell]",
 		Short: "Generate shell completion scripts",
+		Annotations: map[string]string{
+			"scope": string(scope.Global),
+		},
 		Long: `Generate shell completion scripts for fest.
 
 This command generates shell-specific completion scripts that enable

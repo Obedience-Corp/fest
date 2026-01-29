@@ -17,6 +17,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
 	"github.com/Obedience-Corp/fest/internal/registry"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/google/uuid"
@@ -64,6 +65,9 @@ func NewCreateFestivalCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "festival",
 		Short: "Create a new festival scaffold under festivals/(active|planned)",
+		Annotations: map[string]string{
+			"scope": string(scope.Workspace),
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// If no flags were provided, open TUI for this flow
 			if cmd.Flags().NFlag() == 0 {

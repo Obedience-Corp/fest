@@ -10,6 +10,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/deps"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
@@ -26,6 +27,9 @@ func NewDepsCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "deps [task]",
 		Short: "Show task dependencies",
+		Annotations: map[string]string{
+			"scope": string(scope.Festival),
+		},
 		Long: `Display dependency information for tasks in the festival.
 
 Without arguments, shows the dependency graph for the current sequence.

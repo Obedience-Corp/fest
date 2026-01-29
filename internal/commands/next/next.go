@@ -11,6 +11,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/guidance/selection"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/spf13/cobra"
 
 	// Import all navigator packages to trigger their registration.
@@ -37,6 +38,9 @@ func NewNextCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "next",
 		Short: "Find the next task to work on",
+		Annotations: map[string]string{
+			"scope": string(scope.Festival),
+		},
 		Long: `Determine the next task to work on based on dependencies and progress.
 
 The command analyzes the festival structure, checks task completion status,

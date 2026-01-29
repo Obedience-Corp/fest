@@ -8,6 +8,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/festival"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/spf13/cobra"
 )
 
@@ -25,6 +26,9 @@ func NewReorderCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "reorder",
 		Short: "Reorder festival elements",
+		Annotations: map[string]string{
+			"scope": string(scope.Festival),
+		},
 		Long: `Reorder phases, sequences, or tasks by moving an element from one position to another.
 
 This command moves an element to a new position and shifts other elements
