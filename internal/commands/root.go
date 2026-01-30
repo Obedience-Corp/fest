@@ -32,6 +32,7 @@ import (
 	understandcmd "github.com/Obedience-Corp/fest/internal/commands/understand"
 	"github.com/Obedience-Corp/fest/internal/commands/validation"
 	"github.com/Obedience-Corp/fest/internal/commands/wizard"
+	workflowcmd "github.com/Obedience-Corp/fest/internal/commands/workflow"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
@@ -211,6 +212,10 @@ func init() {
 	progressCmd := progresscmd.NewProgressCommand()
 	progressCmd.GroupID = "workflow"
 	rootCmd.AddCommand(progressCmd)
+
+	workflowCmd := workflowcmd.NewWorkflowCommand()
+	workflowCmd.GroupID = "workflow"
+	rootCmd.AddCommand(workflowCmd)
 
 	// === QUERY COMMANDS ===
 	showCmd := show.NewShowCommand()

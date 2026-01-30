@@ -585,6 +585,71 @@ func TestNavigator_GetSteps(t *testing.T) {
 	}
 }
 
+func TestNavigator_Reset(t *testing.T) {
+	gctx := createTestGuidanceContext(t)
+	createTestWorkflow(t, gctx.FestivalPath)
+
+	nav, err := NewNavigator(gctx, guidance.ModeIngest)
+	if err != nil {
+		t.Fatalf("NewNavigator() error = %v", err)
+	}
+
+	if err := nav.Initialize(context.Background()); err != nil {
+		t.Fatalf("Initialize() error = %v", err)
+	}
+
+	// Advance a few steps
+	if err := nav.Advance(context.Background()); err != nil {
+		t.Fatalf("Advance() error = %v", err)
+	}
+
+	state := nav.GetWorkflowState()
+	if state.CurrentStep != 2 {
+		t.Fatalf("CurrentStep = %d, want 2", state.CurrentStep)
+	}
+
+	// Reset the workflow
+	if err := nav.Reset(context.Background()); err != nil {
+		t.Fatalf("Reset() error = %v", err)
+	}
+
+	// Verify state is reset
+	state = nav.GetWorkflowState()
+	if state.CurrentStep != 1 {
+		t.Errorf("CurrentStep after reset = %d, want 1", state.CurrentStep)
+	}
+
+	// Verify all steps are pending
+	for _, stepState := range state.Steps {
+		if stepState.Status != StepStatusPending {
+			t.Errorf("Step %d status = %s, want pending", stepState.Number, stepState.Status)
+		}
+	}
+}
+
+func TestNavigator_Reset_ContextCancellation(t *testing.T) {
+	gctx := createTestGuidanceContext(t)
+	createTestWorkflow(t, gctx.FestivalPath)
+
+	nav, err := NewNavigator(gctx, guidance.ModeIngest)
+	if err != nil {
+		t.Fatalf("NewNavigator() error = %v", err)
+	}
+
+	if err := nav.Initialize(context.Background()); err != nil {
+		t.Fatalf("Initialize() error = %v", err)
+	}
+
+	// Test context cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err = nav.Reset(ctx)
+	if err == nil || err.Error() != "context canceled" {
+		t.Errorf("Reset() with cancelled context should return context canceled, got %v", err)
+	}
+}
+
 func TestNavigator_getAutonomyLevel(t *testing.T) {
 	gctx := createTestGuidanceContext(t)
 

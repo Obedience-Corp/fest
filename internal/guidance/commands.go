@@ -37,16 +37,28 @@ var DefaultModeCommands = map[Mode]ModeCommands{
 	ModePlan: {
 		DisplayName:     "Planning Mode",
 		StartCommand:    "fest execute --mode plan",
-		NextCommand:     "fest next --mode plan",
-		CompleteCommand: "fest progress --complete",
-		AdditionalCmds:  nil,
+		NextCommand:     "fest next",
+		CompleteCommand: "fest workflow advance",
+		AdditionalCmds: map[string]string{
+			"status":  "fest workflow status",
+			"advance": "fest workflow advance",
+			"approve": "fest workflow approve",
+			"reject":  "fest workflow reject --reason",
+			"show":    "fest workflow show",
+		},
 	},
 	ModeResearch: {
 		DisplayName:     "Research Mode",
 		StartCommand:    "fest execute --mode research",
-		NextCommand:     "fest next --mode research",
-		CompleteCommand: "fest progress --complete",
-		AdditionalCmds:  nil,
+		NextCommand:     "fest next",
+		CompleteCommand: "fest workflow advance",
+		AdditionalCmds: map[string]string{
+			"status":  "fest workflow status",
+			"advance": "fest workflow advance",
+			"approve": "fest workflow approve",
+			"reject":  "fest workflow reject --reason",
+			"show":    "fest workflow show",
+		},
 	},
 	ModeReview: {
 		DisplayName:     "Review Mode",
@@ -73,11 +85,14 @@ var DefaultModeCommands = map[Mode]ModeCommands{
 	ModeIngest: {
 		DisplayName:     "Ingest Mode",
 		StartCommand:    "fest execute --mode ingest",
-		NextCommand:     "fest next --mode ingest",
-		CompleteCommand: "fest progress --complete",
+		NextCommand:     "fest next",
+		CompleteCommand: "fest workflow advance",
 		AdditionalCmds: map[string]string{
-			"approve": "fest ingest approve",
-			"reject":  "fest ingest reject --reason",
+			"status":  "fest workflow status",
+			"advance": "fest workflow advance",
+			"approve": "fest workflow approve",
+			"reject":  "fest workflow reject --reason",
+			"show":    "fest workflow show",
 		},
 	},
 }

@@ -466,3 +466,19 @@ func (n *Navigator) GetWorkflowState() *WorkflowState {
 func (n *Navigator) GetSteps() []WorkflowStep {
 	return n.steps
 }
+
+// Reset resets the workflow to step 1 and clears all step states.
+func (n *Navigator) Reset(ctx context.Context) error {
+	if err := n.EnsureInitialized(); err != nil {
+		return err
+	}
+
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
+	n.workflowState.Reset()
+	return n.workflowState.Save(ctx, n.phaseDir)
+}
