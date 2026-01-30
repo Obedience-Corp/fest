@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/embedded/templates/agent"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 )
 
@@ -296,7 +297,7 @@ func (n *Navigator) GetProgress(ctx context.Context) (*guidance.Progress, error)
 	return progress, nil
 }
 
-// FormatInstructions generates agent-friendly workflow instructions.
+// FormatInstructions generates agent-friendly workflow instructions using templates.
 func (n *Navigator) FormatInstructions(ctx context.Context) (string, error) {
 	if err := n.EnsureInitialized(); err != nil {
 		return "", err
@@ -324,87 +325,126 @@ func (n *Navigator) FormatInstructions(ctx context.Context) (string, error) {
 	}
 
 	step := n.steps[currentStepNum-1]
-	progress, _ := n.GetProgress(ctx)
+	stepState := n.workflowState.GetStepState(currentStepNum)
 
-	return n.formatInstructions(step, progress), nil
+	// Check if this is a blocking step that's currently in progress (awaiting user action)
+	// A blocking checkpoint means the user needs to approve before advancing
+	if step.Checkpoint.IsBlocking() && stepState.Status == StepStatusInProgress {
+		return n.formatCheckpoint(step)
+	}
+
+	return n.formatStep(step, stepState)
 }
 
-// formatComplete renders the completion message.
+// formatComplete renders the completion message using templates.
 func (n *Navigator) formatComplete() string {
-	var sb strings.Builder
+	type stepSummary struct {
+		Number int
+		Name   string
+	}
 
-	sb.WriteString("# Workflow Complete\n")
-	sb.WriteString("────────────────────\n\n")
-	sb.WriteString("All workflow steps completed.\n\n")
-	sb.WriteString("Run `fest status` to view progress.\n")
+	steps := make([]stepSummary, len(n.steps))
+	for i, step := range n.steps {
+		steps[i] = stepSummary{
+			Number: step.Number,
+			Name:   step.Name,
+		}
+	}
 
-	return sb.String()
+	data := map[string]any{
+		"PhaseType":  strings.ToUpper(string(n.mode)),
+		"TotalSteps": n.workflowState.TotalSteps,
+		"Steps":      steps,
+	}
+
+	output, err := agent.Render("workflow/complete", data)
+	if err != nil {
+		// Fallback to simple message on error
+		return "# Workflow Complete\n\nAll steps completed. Run `fest status` to view progress.\n"
+	}
+	return output
 }
 
-// formatInstructions renders the workflow instructions.
-func (n *Navigator) formatInstructions(step WorkflowStep, progress *guidance.Progress) string {
-	var sb strings.Builder
-
-	// Header
-	sb.WriteString("# Workflow Guidance\n")
-	sb.WriteString("────────────────────────────────\n\n")
-
-	// Progress line
-	fmt.Fprintf(&sb, "Progress       %s\n\n", progress.Summary())
-
-	// Current step section
-	sb.WriteString("## Current Step\n")
-	sb.WriteString("────────────────\n")
-	fmt.Fprintf(&sb, "Step           %d of %d\n", step.Number, n.workflowState.TotalSteps)
-	fmt.Fprintf(&sb, "Name           %s\n", step.Name)
-	fmt.Fprintf(&sb, "Goal           %s\n", step.Goal)
-
-	if step.Output != "" {
-		fmt.Fprintf(&sb, "Output         %s\n", step.Output)
+// formatCheckpoint renders the checkpoint template for blocking steps.
+func (n *Navigator) formatCheckpoint(step WorkflowStep) (string, error) {
+	data := map[string]any{
+		"StepNumber": step.Number,
+		"StepName":   step.Name,
 	}
 
-	if step.HasCheckpoint() {
-		fmt.Fprintf(&sb, "Checkpoint     %s\n", step.Checkpoint)
+	return agent.Render("workflow/checkpoint", data)
+}
+
+// formatStep renders the step template for the current workflow step.
+func (n *Navigator) formatStep(step WorkflowStep, stepState *StepState) (string, error) {
+	status := string(stepState.Status)
+	feedback := stepState.Feedback
+
+	data := map[string]any{
+		"PhaseType":   strings.ToUpper(string(n.mode)),
+		"PhaseName":   n.Ctx.PhaseName,
+		"StepNumber":  step.Number,
+		"TotalSteps":  n.workflowState.TotalSteps,
+		"StepName":    step.Name,
+		"Goal":        step.Goal,
+		"Actions":     step.Actions,
+		"Output":      step.Output,
+		"IsBlocking":  step.Checkpoint.IsBlocking(),
+		"Status":      status,
+		"Feedback":    feedback,
+		"CurrentStep": n.workflowState.CurrentStep,
 	}
 
-	sb.WriteString("\n")
+	return agent.Render("workflow/step", data)
+}
 
-	// Actions section
-	if len(step.Actions) > 0 {
-		sb.WriteString("## Actions\n")
-		sb.WriteString("────────────────\n")
-		for i, action := range step.Actions {
-			fmt.Fprintf(&sb, "  %d. %s\n", i+1, action)
+// FormatProgress renders the progress template showing workflow status.
+func (n *Navigator) FormatProgress(ctx context.Context) (string, error) {
+	if err := n.EnsureInitialized(); err != nil {
+		return "", err
+	}
+
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return "", err
 		}
-		sb.WriteString("\n")
 	}
 
-	// Context files section
-	files := n.getContextFiles()
-	if len(files) > 0 {
-		sb.WriteString("## Context Files\n")
-		sb.WriteString("─────────────\n")
-		for _, file := range files {
-			fmt.Fprintf(&sb, "  - %s\n", file)
+	type stepInfo struct {
+		Number     int
+		Name       string
+		Status     string
+		IsBlocking bool
+	}
+
+	steps := make([]stepInfo, len(n.steps))
+	for i, step := range n.steps {
+		state := n.workflowState.GetStepState(step.Number)
+		steps[i] = stepInfo{
+			Number:     step.Number,
+			Name:       step.Name,
+			Status:     string(state.Status),
+			IsBlocking: step.Checkpoint.IsBlocking(),
 		}
-		sb.WriteString("\n")
 	}
 
-	// Checkpoint handling
-	if step.Checkpoint.IsBlocking() {
-		sb.WriteString("## Checkpoint Required\n")
-		sb.WriteString("────────────────────\n")
-		sb.WriteString("This step requires user approval before proceeding.\n")
-		sb.WriteString("  • fest workflow approve   # Approve and proceed\n")
-		sb.WriteString("  • fest workflow reject    # Request revisions\n\n")
+	currentStatus := ""
+	if n.workflowState.CurrentStep >= 1 && n.workflowState.CurrentStep <= len(n.steps) {
+		state := n.workflowState.GetStepState(n.workflowState.CurrentStep)
+		currentStatus = string(state.Status)
 	}
 
-	// Completion command
-	sb.WriteString("## When Complete\n")
-	sb.WriteString("────────────────\n")
-	sb.WriteString("Run: fest workflow advance\n")
+	data := map[string]any{
+		"PhaseName":     n.Ctx.PhaseName,
+		"PhaseType":     string(n.mode),
+		"Completed":     n.workflowState.CompletedCount(),
+		"Total":         n.workflowState.TotalSteps,
+		"CurrentStep":   n.workflowState.CurrentStep,
+		"CurrentStatus": currentStatus,
+		"Steps":         steps,
+	}
 
-	return sb.String()
+	return agent.Render("workflow/progress", data)
 }
 
 // GetContextFiles returns context files.

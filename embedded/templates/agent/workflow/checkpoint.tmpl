@@ -1,0 +1,48 @@
+{{/*
+TEMPLATE: workflow/checkpoint.tmpl
+PURPOSE: Shown when a step requires user approval
+
+EXAMPLE OUTPUT:
+  ═══════════════════════════════════════════════════════════════════════════════
+                      BLOCKING CHECKPOINT
+  ═══════════════════════════════════════════════════════════════════════════════
+
+  Step 2: ANALYZE — Process the data
+
+  This step requires explicit user confirmation before proceeding.
+
+  **What you should do:**
+  1. Present your work to the user
+  2. Summarize what you've completed
+  3. Highlight any questions or decisions
+  4. Wait for user response
+
+  **User commands:**
+  - Approve and continue: fest workflow approve
+  - Reject with feedback:  fest workflow reject --reason "..."
+
+  ───────────────────────────────────────────────────────────────────────────────
+  Cannot advance until user approves.
+  ═══════════════════════════════════════════════════════════════════════════════
+*/}}
+═══════════════════════════════════════════════════════════════════════════════
+                    BLOCKING CHECKPOINT
+═══════════════════════════════════════════════════════════════════════════════
+
+Step {{.StepNumber}}: {{.StepName}}
+
+This step requires explicit user confirmation before proceeding.
+
+**What you should do:**
+1. Present your work to the user
+2. Summarize what you've completed
+3. Highlight any questions or decisions
+4. Wait for user response
+
+**User commands:**
+- Approve and continue: fest workflow approve
+- Reject with feedback:  fest workflow reject --reason "..."
+
+───────────────────────────────────────────────────────────────────────────────
+Cannot advance until user approves.
+═══════════════════════════════════════════════════════════════════════════════

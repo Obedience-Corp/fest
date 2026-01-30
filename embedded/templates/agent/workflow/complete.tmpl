@@ -1,0 +1,34 @@
+{{/*
+TEMPLATE: workflow/complete.tmpl
+PURPOSE: Shown when workflow is complete
+
+EXAMPLE OUTPUT:
+  ═══════════════════════════════════════════════════════════════════════════════
+                      INGEST PHASE COMPLETE
+  ═══════════════════════════════════════════════════════════════════════════════
+
+  All 5 steps completed successfully.
+
+  **Summary:**
+    [Done] Step 1: REVIEW
+    [Done] Step 2: ANALYZE
+    [Done] Step 3: STRUCTURE
+    [Done] Step 4: VALIDATE
+    [Done] Step 5: FINALIZE
+
+  ───────────────────────────────────────────────────────────────────────────────
+  Run 'fest status' to view overall festival progress.
+  ═══════════════════════════════════════════════════════════════════════════════
+*/}}
+═══════════════════════════════════════════════════════════════════════════════
+                    {{.PhaseType}} PHASE COMPLETE
+═══════════════════════════════════════════════════════════════════════════════
+
+All {{.TotalSteps}} steps completed successfully.
+
+**Summary:**
+{{range .Steps}}  [Done] Step {{.Number}}: {{.Name}}
+{{end}}
+───────────────────────────────────────────────────────────────────────────────
+Run 'fest status' to view overall festival progress.
+═══════════════════════════════════════════════════════════════════════════════

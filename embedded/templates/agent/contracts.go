@@ -212,6 +212,51 @@ var Contracts = map[string]TemplateContract{
 		ForbiddenTokens:  DefaultForbiddenTokens,
 		MinimumLength:    30,
 	},
+
+	// Workflow templates
+	"workflow/step": {
+		Name: "workflow/step",
+		RequiredFields: []string{
+			"PhaseType",
+			"StepNumber",
+			"TotalSteps",
+			"StepName",
+			"Goal",
+			"PhaseName",
+			"Status",
+		},
+		ExpectedSections: []string{"## Step", "**Goal:**", "Progress:"},
+		ForbiddenTokens:  DefaultForbiddenTokens,
+		MinimumLength:    100,
+	},
+	"workflow/checkpoint": {
+		Name:             "workflow/checkpoint",
+		RequiredFields:   []string{"StepNumber", "StepName"},
+		ExpectedSections: []string{"BLOCKING CHECKPOINT", "**What you should do:**"},
+		ForbiddenTokens:  DefaultForbiddenTokens,
+		MinimumLength:    100,
+	},
+	"workflow/complete": {
+		Name:             "workflow/complete",
+		RequiredFields:   []string{"PhaseType", "TotalSteps", "Steps"},
+		ExpectedSections: []string{"PHASE COMPLETE", "**Summary:**"},
+		ForbiddenTokens:  DefaultForbiddenTokens,
+		MinimumLength:    50,
+	},
+	"workflow/progress": {
+		Name: "workflow/progress",
+		RequiredFields: []string{
+			"PhaseName",
+			"PhaseType",
+			"Completed",
+			"Total",
+			"CurrentStep",
+			"Steps",
+		},
+		ExpectedSections: []string{"Workflow Progress", "Progress:"},
+		ForbiddenTokens:  DefaultForbiddenTokens,
+		MinimumLength:    50,
+	},
 }
 
 // Validate checks if rendered output satisfies the contract.

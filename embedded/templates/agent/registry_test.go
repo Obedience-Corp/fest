@@ -129,6 +129,8 @@ func minimalTestData(templateName string) any {
 		return nextData(templateName, commonFields)
 	case strings.HasPrefix(templateName, "validate/"):
 		return validateData(templateName, commonFields)
+	case strings.HasPrefix(templateName, "workflow/"):
+		return workflowData(templateName, commonFields)
 	default:
 		// Fallback: return common fields for any unknown template
 		return commonFields
@@ -277,6 +279,57 @@ func validateData(name string, common map[string]any) map[string]any {
 				"All tests pass",
 				"Code compiles",
 				"Documentation updated",
+			},
+		}
+	}
+	return common
+}
+
+func workflowData(name string, common map[string]any) map[string]any {
+	// Common workflow fields
+	workflowCommon := map[string]any{
+		"PhaseType":   "ingest",
+		"PhaseName":   "001_INGEST",
+		"StepNumber":  2,
+		"StepName":    "ANALYZE",
+		"Goal":        "Analyze input data and extract key patterns",
+		"Actions":     []string{"Review input files", "Identify patterns"},
+		"Output":      "analysis_notes.md",
+		"IsBlocking":  false,
+		"Status":      "in_progress",
+		"Feedback":    "",
+		"TotalSteps":  5,
+		"CurrentStep": 2,
+	}
+
+	switch {
+	case strings.HasSuffix(name, "step"):
+		return workflowCommon
+	case strings.HasSuffix(name, "checkpoint"):
+		return map[string]any{
+			"StepNumber": workflowCommon["StepNumber"],
+			"StepName":   workflowCommon["StepName"],
+		}
+	case strings.HasSuffix(name, "complete"):
+		return map[string]any{
+			"PhaseType":  workflowCommon["PhaseType"],
+			"TotalSteps": workflowCommon["TotalSteps"],
+			"Steps": []map[string]any{
+				{"Number": 1, "Name": "REVIEW"},
+				{"Number": 2, "Name": "ANALYZE"},
+			},
+		}
+	case strings.HasSuffix(name, "progress"):
+		return map[string]any{
+			"PhaseName":     workflowCommon["PhaseName"],
+			"PhaseType":     workflowCommon["PhaseType"],
+			"Completed":     1,
+			"Total":         5,
+			"CurrentStep":   2,
+			"CurrentStatus": "in progress",
+			"Steps": []map[string]any{
+				{"Number": 1, "Name": "REVIEW", "Status": "completed", "IsBlocking": false},
+				{"Number": 2, "Name": "ANALYZE", "Status": "in_progress", "IsBlocking": true},
 			},
 		}
 	}

@@ -405,9 +405,9 @@ func TestNavigator_FormatInstructions(t *testing.T) {
 		t.Fatalf("FormatInstructions() error = %v", err)
 	}
 
-	// Check content
-	if !contains(instructions, "Workflow Guidance") {
-		t.Error("Instructions should contain 'Workflow Guidance'")
+	// Check content - uses workflow/step template
+	if !contains(instructions, "## Step") {
+		t.Error("Instructions should contain '## Step'")
 	}
 
 	if !contains(instructions, "READ") {
@@ -440,8 +440,9 @@ func TestNavigator_FormatInstructions_Complete(t *testing.T) {
 		t.Fatalf("FormatInstructions() error = %v", err)
 	}
 
-	if !contains(instructions, "Workflow Complete") {
-		t.Error("Instructions should contain 'Workflow Complete'")
+	// Uses workflow/complete template
+	if !contains(instructions, "PHASE COMPLETE") {
+		t.Error("Instructions should contain 'PHASE COMPLETE'")
 	}
 }
 
