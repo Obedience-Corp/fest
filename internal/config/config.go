@@ -62,13 +62,14 @@ type Local struct {
 
 // Behavior contains behavior configuration
 type Behavior struct {
-	AutoBackup  bool     `json:"auto_backup"`
-	Interactive bool     `json:"interactive"`
-	UseColor    bool     `json:"use_color"`
-	Verbose     bool     `json:"verbose"`
-	Editor      string   `json:"editor"`       // Preferred editor for wizard fill (default: vim)
-	EditorMode  string   `json:"editor_mode"`  // Editor window mode: buffer, tab, split, hsplit (default: buffer)
-	EditorFlags []string `json:"editor_flags"` // Custom editor flags (overrides mode)
+	AutoBackup           bool     `json:"auto_backup"`
+	Interactive          bool     `json:"interactive"`
+	UseColor             bool     `json:"use_color"`
+	Verbose              bool     `json:"verbose"`
+	Editor               string   `json:"editor"`                 // Preferred editor for wizard fill (default: vim)
+	EditorMode           string   `json:"editor_mode"`            // Editor window mode: buffer, tab, split, hsplit (default: buffer)
+	EditorFlags          []string `json:"editor_flags"`           // Custom editor flags (overrides mode)
+	InlineContextDefault bool     `json:"inline_context_default"` // Show task context inline by default (prevents batch-completing without reading)
 }
 
 // Network contains network configuration
@@ -178,13 +179,14 @@ func DefaultConfig() *Config {
 			ChecksumFile: ".fest-checksums.json",
 		},
 		Behavior: Behavior{
-			AutoBackup:  false,
-			Interactive: true,
-			UseColor:    true,
-			Verbose:     false,
-			Editor:      "",       // Empty default - falls back to $EDITOR then "vim"
-			EditorMode:  "buffer", // Default to buffer mode (clean single window)
-			EditorFlags: nil,      // No custom flags by default
+			AutoBackup:           false,
+			Interactive:          true,
+			UseColor:             true,
+			Verbose:              false,
+			Editor:               "",       // Empty default - falls back to $EDITOR then "vim"
+			EditorMode:           "buffer", // Default to buffer mode (clean single window)
+			EditorFlags:          nil,      // No custom flags by default
+			InlineContextDefault: true,     // Show context inline by default to prevent batch-completing
 		},
 		Network: Network{
 			Timeout:    30,

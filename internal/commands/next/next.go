@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/guidance/selection"
@@ -24,13 +25,15 @@ import (
 )
 
 var (
-	jsonOutput    bool
-	verboseOutput bool
-	shortOutput   bool
-	cdOutput      bool
-	sequenceOnly  bool
-	modeFlag      string
-	useNavigator  bool
+	jsonOutput      bool
+	verboseOutput   bool
+	shortOutput     bool
+	cdOutput        bool
+	sequenceOnly    bool
+	modeFlag        string
+	useNavigator    bool
+	inlineContext   bool
+	noInlineContext bool
 )
 
 // NewNextCommand creates the next command
@@ -57,7 +60,8 @@ Examples:
   fest next --json             # Output as JSON
   fest next --verbose          # Detailed output
   fest next --short            # Just the task path
-  fest next --cd               # Output directory for shell cd`,
+  fest next --cd               # Output directory for shell cd
+  fest next --context          # Show task content and goal summaries inline`,
 		RunE: runNext,
 	}
 
@@ -68,6 +72,8 @@ Examples:
 	cmd.Flags().BoolVar(&sequenceOnly, "sequence", false, "only consider current sequence")
 	cmd.Flags().StringVarP(&modeFlag, "mode", "m", "", "override phase type detection (implementation|plan|research|review|action|ingest)")
 	cmd.Flags().BoolVar(&useNavigator, "navigator", false, "use guidance navigator for output formatting")
+	cmd.Flags().BoolVar(&inlineContext, "context", false, "show task content inline (override config)")
+	cmd.Flags().BoolVar(&noInlineContext, "no-context", false, "hide task content (override config)")
 
 	return cmd
 }
@@ -81,6 +87,20 @@ func runNext(cmd *cobra.Command, args []string) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return errors.IO("getting current directory", err)
+	}
+
+	// Load config for inline context default
+	cfg, err := config.Load(ctx, "")
+	if err != nil {
+		return errors.Wrap(err, "loading config")
+	}
+
+	// Determine inline context setting: flags override config
+	showInlineContext := cfg.Behavior.InlineContextDefault
+	if inlineContext {
+		showInlineContext = true
+	} else if noInlineContext {
+		showInlineContext = false
 	}
 
 	// Resolve festival path (supports linked festivals via fest link)
@@ -137,11 +157,11 @@ func runNext(cmd *cobra.Command, args []string) error {
 	}
 
 	if verboseOutput {
-		fmt.Print(selection.FormatVerbose(result))
+		fmt.Print(selection.FormatVerbose(result, showInlineContext))
 		return nil
 	}
 
-	fmt.Print(selection.FormatText(result))
+	fmt.Print(selection.FormatText(result, showInlineContext))
 	return nil
 }
 

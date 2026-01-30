@@ -255,3 +255,86 @@ func TestInferCreatedTime_NonExistent(t *testing.T) {
 		t.Error("InferCreatedTime should return time.Now() for non-existent file")
 	}
 }
+
+func TestInferWorkType(t *testing.T) {
+	tests := []struct {
+		filename string
+		expected WorkType
+	}{
+		// Verification/testing
+		{"01_testing_and_verify.md", WorkTypeVerify},
+		{"02_test_coverage.md", WorkTypeVerify},
+		{"qa_validation.md", WorkTypeVerify},
+
+		// Review
+		{"code_review.md", WorkTypeReview},
+		{"review_results_iterate.md", WorkTypeReview},
+		{"approval_gate.md", WorkTypeReview},
+
+		// Analysis/research
+		{"01_analysis.md", WorkTypeAnalysis},
+		{"research_options.md", WorkTypeAnalysis},
+		{"investigate_issue.md", WorkTypeAnalysis},
+		{"discovery_phase.md", WorkTypeAnalysis},
+
+		// Documentation
+		{"update_docs.md", WorkTypeDocs},
+		{"readme_updates.md", WorkTypeDocs},
+		{"changelog_entry.md", WorkTypeDocs},
+
+		// Planning
+		{"design_system.md", WorkTypePlan},
+		{"architect_solution.md", WorkTypePlan},
+		{"scope_definition.md", WorkTypePlan},
+
+		// Configuration
+		{"config_setup.md", WorkTypeConfig},
+		{"environment_settings.md", WorkTypeConfig},
+
+		// Action
+		{"deploy_production.md", WorkTypeAction},
+		{"publish_release.md", WorkTypeAction},
+		{"migrate_data.md", WorkTypeAction},
+		{"commit_changes.md", WorkTypeAction},
+
+		// Default implementation
+		{"01_implement_feature.md", WorkTypeImplementation},
+		{"build_module.md", WorkTypeImplementation},
+		{"create_api.md", WorkTypeImplementation},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.filename, func(t *testing.T) {
+			got := InferWorkType(tc.filename)
+			if got != tc.expected {
+				t.Errorf("InferWorkType(%q) = %q, want %q", tc.filename, got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestWorkTypeLabel(t *testing.T) {
+	tests := []struct {
+		workType WorkType
+		expected string
+	}{
+		{WorkTypeImplementation, "[impl]"},
+		{WorkTypeAnalysis, "[analysis]"},
+		{WorkTypeReview, "[review]"},
+		{WorkTypeVerify, "[verify]"},
+		{WorkTypeConfig, "[config]"},
+		{WorkTypeDocs, "[docs]"},
+		{WorkTypePlan, "[plan]"},
+		{WorkTypeAction, "[action]"},
+		{WorkType("unknown"), ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(string(tc.workType), func(t *testing.T) {
+			got := tc.workType.Label()
+			if got != tc.expected {
+				t.Errorf("WorkType(%q).Label() = %q, want %q", tc.workType, got, tc.expected)
+			}
+		})
+	}
+}

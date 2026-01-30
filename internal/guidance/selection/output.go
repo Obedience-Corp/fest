@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -13,7 +14,8 @@ import (
 )
 
 // FormatText formats the result as human-readable text
-func FormatText(result *NextTaskResult) string {
+// If showInlineContext is true, task content summary is included in the output
+func FormatText(result *NextTaskResult, showInlineContext bool) string {
 	switch {
 	case result.FestivalComplete:
 		return formatTextComplete(result)
@@ -22,7 +24,7 @@ func FormatText(result *NextTaskResult) string {
 	case result.Task == nil:
 		return formatTextNoTask(result)
 	default:
-		return formatTextTask(result)
+		return formatTextTask(result, showInlineContext)
 	}
 }
 
@@ -36,7 +38,8 @@ func FormatJSON(result *NextTaskResult) (string, error) {
 }
 
 // FormatVerbose formats the result with additional details
-func FormatVerbose(result *NextTaskResult) string {
+// If showInlineContext is true, task content summary is included in the output
+func FormatVerbose(result *NextTaskResult, showInlineContext bool) string {
 	switch {
 	case result.FestivalComplete:
 		return formatVerboseComplete(result)
@@ -45,7 +48,7 @@ func FormatVerbose(result *NextTaskResult) string {
 	case result.Task == nil:
 		return formatVerboseNoTask(result)
 	default:
-		return formatVerboseTask(result)
+		return formatVerboseTask(result, showInlineContext)
 	}
 }
 
@@ -202,7 +205,7 @@ func formatTextPlanning(result *NextTaskResult) string {
 	return sb.String()
 }
 
-func formatTextTask(result *NextTaskResult) string {
+func formatTextTask(result *NextTaskResult, showInlineContext bool) string {
 	// Build parallel tasks section if present
 	var parallelSection string
 	if len(result.ParallelTasks) > 0 {
@@ -223,8 +226,8 @@ func formatTextTask(result *NextTaskResult) string {
 		autonomyLine = strings.TrimSuffix(sb.String(), "\n")
 	}
 
-	// Build context files section
-	contextSection := buildContextSection(result.Location, result.Task)
+	// Build context files section (with inline summaries if enabled)
+	contextSection := buildContextSection(result.Location, result.Task, showInlineContext)
 
 	// Build progress line if available
 	var progressLine string
@@ -233,6 +236,12 @@ func formatTextTask(result *NextTaskResult) string {
 			result.Progress.Percentage,
 			result.Progress.CompletedTasks,
 			result.Progress.TotalTasks)))
+	}
+
+	// Build task content section if inline context is enabled
+	var taskContentSection string
+	if showInlineContext {
+		taskContentSection = buildTaskContentSection(result.Task.Path)
 	}
 
 	// Build label lines
@@ -251,6 +260,7 @@ func formatTextTask(result *NextTaskResult) string {
 		ActionInstruction  string
 		ProgressCmd        string
 		ContextSection     string
+		TaskContentSection string
 	}{
 		Header:             ui.H1("Next Task"),
 		TaskLine:           labelValue("Task", ui.Value(result.Task.Name, ui.TaskColor)),
@@ -264,6 +274,7 @@ func formatTextTask(result *NextTaskResult) string {
 		ActionInstruction:  ui.Info("Read this file and follow the instructions laid out exactly."),
 		ProgressCmd:        ui.Value(guidance.FormatProgressCommand(taskRelPath)),
 		ContextSection:     contextSection,
+		TaskContentSection: taskContentSection,
 	}
 
 	var buf bytes.Buffer
@@ -272,7 +283,8 @@ func formatTextTask(result *NextTaskResult) string {
 }
 
 // buildContextSection creates the context files section showing goal files
-func buildContextSection(loc *LocationInfo, task *TaskInfo) string {
+// If showSummaries is true, includes first paragraph excerpts from each goal file
+func buildContextSection(loc *LocationInfo, task *TaskInfo, showSummaries bool) string {
 	var sb strings.Builder
 	sb.WriteString(ui.H3("Context Files"))
 	sb.WriteString("\n")
@@ -281,21 +293,151 @@ func buildContextSection(loc *LocationInfo, task *TaskInfo) string {
 	if loc != nil && loc.FestivalPath != "" {
 		festivalGoal := filepath.Join(loc.FestivalPath, "FESTIVAL_GOAL.md")
 		sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(festivalGoal)))
+		if showSummaries {
+			if summary := extractFirstParagraph(festivalGoal); summary != "" {
+				sb.WriteString(fmt.Sprintf("    %s\n", ui.Dim(summary)))
+			}
+		}
 	}
 
 	// Phase goal
 	if task.PhasePath != "" {
 		phaseGoal := filepath.Join(task.PhasePath, "PHASE_GOAL.md")
 		sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(phaseGoal)))
+		if showSummaries {
+			if summary := extractFirstParagraph(phaseGoal); summary != "" {
+				sb.WriteString(fmt.Sprintf("    %s\n", ui.Dim(summary)))
+			}
+		}
 	}
 
 	// Sequence goal
 	if task.SequencePath != "" {
 		sequenceGoal := filepath.Join(task.SequencePath, "SEQUENCE_GOAL.md")
 		sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(sequenceGoal)))
+		if showSummaries {
+			if summary := extractFirstParagraph(sequenceGoal); summary != "" {
+				sb.WriteString(fmt.Sprintf("    %s\n", ui.Dim(summary)))
+			}
+		}
 	}
 
 	return sb.String()
+}
+
+// extractFirstParagraph reads a markdown file and extracts its first non-header paragraph.
+// Returns a truncated version if the paragraph is too long.
+func extractFirstParagraph(filePath string) string {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return ""
+	}
+
+	lines := strings.Split(string(content), "\n")
+	var paragraphLines []string
+	inFrontmatter := false
+	frontmatterDone := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+
+		// Skip frontmatter
+		if trimmed == "---" {
+			if !frontmatterDone {
+				inFrontmatter = !inFrontmatter
+				if !inFrontmatter {
+					frontmatterDone = true
+				}
+			}
+			continue
+		}
+		if inFrontmatter {
+			continue
+		}
+
+		// Skip headers
+		if strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+
+		// Skip empty lines at the start
+		if trimmed == "" && len(paragraphLines) == 0 {
+			continue
+		}
+
+		// End of paragraph
+		if trimmed == "" && len(paragraphLines) > 0 {
+			break
+		}
+
+		paragraphLines = append(paragraphLines, trimmed)
+	}
+
+	if len(paragraphLines) == 0 {
+		return ""
+	}
+
+	paragraph := strings.Join(paragraphLines, " ")
+
+	// Truncate if too long
+	const maxLen = 120
+	if len(paragraph) > maxLen {
+		paragraph = paragraph[:maxLen-3] + "..."
+	}
+
+	return paragraph
+}
+
+// buildTaskContentSection reads the task file and formats its content for inline display.
+// This helps prevent agents from batch-completing tasks without reading them.
+func buildTaskContentSection(taskPath string) string {
+	content, err := os.ReadFile(taskPath)
+	if err != nil {
+		return ""
+	}
+
+	// Strip frontmatter
+	body := stripFrontmatter(string(content))
+
+	// Truncate if too long
+	const maxContentLen = 2000
+	if len(body) > maxContentLen {
+		body = body[:maxContentLen-20] + "\n\n... (truncated)"
+	}
+
+	if strings.TrimSpace(body) == "" {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("\n")
+	sb.WriteString(ui.H3("Task Content"))
+	sb.WriteString("\n")
+	sb.WriteString(ui.Dim(strings.Repeat("─", 60)))
+	sb.WriteString("\n")
+	sb.WriteString(body)
+	sb.WriteString("\n")
+	sb.WriteString(ui.Dim(strings.Repeat("─", 60)))
+	sb.WriteString("\n")
+
+	return sb.String()
+}
+
+// stripFrontmatter removes YAML frontmatter from markdown content
+func stripFrontmatter(content string) string {
+	if !strings.HasPrefix(content, "---") {
+		return content
+	}
+
+	// Find the closing ---
+	rest := content[3:]
+	idx := strings.Index(rest, "---")
+	if idx == -1 {
+		return content
+	}
+
+	// Return content after frontmatter
+	return strings.TrimSpace(rest[idx+3:])
 }
 
 // labelValue formats a label-value pair without trailing newline
@@ -352,7 +494,7 @@ func formatVerbosePlanning(result *NextTaskResult) string {
 	return formatTextPlanning(result)
 }
 
-func formatVerboseTask(result *NextTaskResult) string {
+func formatVerboseTask(result *NextTaskResult, showInlineContext bool) string {
 	var sb strings.Builder
 
 	sb.WriteString(ui.H1("Next Task"))
@@ -364,6 +506,15 @@ func formatVerboseTask(result *NextTaskResult) string {
 	writeRecommendation(&sb, result.Reason)
 	writeParallelTasks(&sb, result.ParallelTasks)
 	writeCurrentLocation(&sb, result.Location)
+
+	// Add task content section if inline context is enabled
+	if showInlineContext {
+		taskContent := buildTaskContentSection(result.Task.Path)
+		if taskContent != "" {
+			sb.WriteString("\n")
+			sb.WriteString(taskContent)
+		}
+	}
 
 	return sb.String()
 }

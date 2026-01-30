@@ -15,6 +15,8 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
+	"github.com/Obedience-Corp/fest/internal/gates"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -222,6 +224,43 @@ func handleTaskUpdate(ctx context.Context, mgr *progress.Manager, festivalPath s
 
 	// Handle complete
 	if opts.complete {
+		// Resolve task file path for gate evaluation
+		taskFilePath := filepath.Join(festivalPath, taskID)
+		if !strings.HasSuffix(taskFilePath, ".md") {
+			taskFilePath += ".md"
+		}
+
+		// Resolve phase and sequence paths from task path
+		phasePath, sequencePath := resolveTaskLocationPaths(festivalPath, taskID)
+
+		// Evaluate verification gates - these BLOCK completion if they fail
+		evaluator := gates.NewGateEvaluator(festivalPath, phasePath, sequencePath)
+		gateResult, err := evaluator.EvaluateForTask(ctx, taskFilePath)
+		if err != nil {
+			return errors.Wrap(err, "evaluating quality gates")
+		}
+
+		if !gateResult.Passed {
+			// Gates failed - BLOCK completion
+			if opts.json {
+				result := map[string]any{
+					"success":      false,
+					"task":         taskID,
+					"blocked":      true,
+					"failed_gates": gateResult.FailedGates,
+					"message":      "Task completion blocked by quality gates",
+				}
+				if err := shared.EncodeJSON(os.Stdout, result); err != nil {
+					return errors.Wrap(err, "encoding JSON output")
+				}
+			} else {
+				printGateFailures(gateResult)
+			}
+			return errors.Validation("task completion blocked by quality gates").
+				WithField("task", taskID).
+				WithField("failed_gates", len(gateResult.FailedGates))
+		}
+
 		if err := mgr.MarkComplete(ctx, taskID); err != nil {
 			return err
 		}
@@ -231,7 +270,7 @@ func handleTaskUpdate(ctx context.Context, mgr *progress.Manager, festivalPath s
 			if task != nil {
 				timeSpent = task.TimeSpentMinutes
 			}
-			result := map[string]interface{}{
+			result := map[string]any{
 				"success":            true,
 				"task":               taskID,
 				"status":             progress.StatusCompleted,
@@ -349,7 +388,18 @@ func printTaskProgress(title string, task *progress.TaskProgress) {
 		return
 	}
 	fmt.Println(ui.H1(title))
-	fmt.Printf("%s %s\n", ui.Label("Task"), ui.Value(task.TaskID, ui.TaskColor))
+
+	// Infer work type from task name for display
+	workType := frontmatter.InferWorkType(task.TaskID)
+	workTypeIndicator := ui.FormatWorkType(string(workType))
+
+	// Show task with work type indicator
+	taskDisplay := ui.Value(task.TaskID, ui.TaskColor)
+	if workTypeIndicator != "" {
+		taskDisplay = workTypeIndicator + " " + taskDisplay
+	}
+	fmt.Printf("%s %s\n", ui.Label("Task"), taskDisplay)
+
 	fmt.Printf("%s %s\n", ui.Label("Status"), ui.GetStateStyle(task.Status).Render(task.Status))
 	fmt.Printf("%s %s\n", ui.Label("Progress"), ui.Value(fmt.Sprintf("%d%%", task.Progress)))
 	if task.BlockerMessage != "" {
@@ -776,4 +826,49 @@ func findTaskMatches(festivalPath, taskID string) ([]string, error) {
 
 func isTaskFile(name string) bool {
 	return taskFilenamePattern.MatchString(name)
+}
+
+// resolveTaskLocationPaths extracts phase and sequence paths from a task ID path.
+// Task IDs are in the format: "phase/sequence/task.md"
+func resolveTaskLocationPaths(festivalPath, taskID string) (phasePath, sequencePath string) {
+	parts := strings.Split(taskID, "/")
+	if len(parts) >= 1 {
+		phasePath = filepath.Join(festivalPath, parts[0])
+	}
+	if len(parts) >= 2 {
+		sequencePath = filepath.Join(festivalPath, parts[0], parts[1])
+	}
+	return phasePath, sequencePath
+}
+
+// printGateFailures displays gate failures in a human-readable format.
+func printGateFailures(result *gates.GateEvaluationResult) {
+	fmt.Println()
+	fmt.Println(ui.H1("Quality Gates Failed"))
+	fmt.Println()
+	fmt.Println(ui.Error(fmt.Sprintf("Task completion BLOCKED - %d gate(s) failed", len(result.FailedGates))))
+	fmt.Println()
+
+	for _, failure := range result.FailedGates {
+		fmt.Println(ui.ErrorPanel(failure.Name, formatGateFailure(failure)))
+		fmt.Println()
+	}
+
+	fmt.Println(ui.Info("Fix the issues above and try again. Quality gates enforce code quality."))
+	fmt.Println()
+}
+
+// formatGateFailure formats a single gate failure for display.
+func formatGateFailure(failure gates.GateFailure) string {
+	var sb strings.Builder
+	sb.WriteString(failure.Reason)
+	if len(failure.Details) > 0 {
+		sb.WriteString("\n\nDetails:\n")
+		for _, detail := range failure.Details {
+			sb.WriteString("  • ")
+			sb.WriteString(detail)
+			sb.WriteString("\n")
+		}
+	}
+	return sb.String()
 }
