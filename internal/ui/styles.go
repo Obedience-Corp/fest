@@ -189,3 +189,49 @@ func GetTaskStyle() lipgloss.Style {
 func GetGateStyle() lipgloss.Style {
 	return lipgloss.NewStyle().Foreground(Current().Gate).Bold(true)
 }
+
+// Work type colors for visual indicators
+var (
+	WorkTypeImplColor     = lipgloss.Color("42")  // Green - implementation
+	WorkTypeAnalysisColor = lipgloss.Color("33")  // Blue - analysis/research
+	WorkTypeReviewColor   = lipgloss.Color("214") // Orange - review
+	WorkTypeVerifyColor   = lipgloss.Color("220") // Yellow - verification
+	WorkTypeConfigColor   = lipgloss.Color("250") // Grey - configuration
+	WorkTypeDocsColor     = lipgloss.Color("51")  // Cyan - documentation
+	WorkTypePlanColor     = lipgloss.Color("141") // Purple - planning
+	WorkTypeActionColor   = lipgloss.Color("205") // Magenta - action
+)
+
+// FormatWorkType returns a styled work type indicator string.
+// Work type indicates the kind of work a task involves (impl, analysis, review, verify, etc.)
+func FormatWorkType(workType string) string {
+	if workType == "" {
+		return ""
+	}
+
+	label := "[" + workType + "]"
+	var color lipgloss.Color
+
+	switch workType {
+	case "impl":
+		color = WorkTypeImplColor
+	case "analysis":
+		color = WorkTypeAnalysisColor
+	case "review":
+		color = WorkTypeReviewColor
+	case "verify":
+		color = WorkTypeVerifyColor
+	case "config":
+		color = WorkTypeConfigColor
+	case "docs":
+		color = WorkTypeDocsColor
+	case "plan":
+		color = WorkTypePlanColor
+	case "action":
+		color = WorkTypeActionColor
+	default:
+		color = MetadataColor
+	}
+
+	return lipgloss.NewStyle().Foreground(color).Bold(true).Render(label)
+}

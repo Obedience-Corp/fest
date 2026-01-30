@@ -3,11 +3,12 @@ package markers
 
 // Marker represents a single [REPLACE: hint] marker in content.
 type Marker struct {
-	FullMatch   string // "[REPLACE: hint text]"
-	Hint        string // "hint text"
-	LineNumber  int    // Line where marker appears (1-indexed)
-	StartOffset int    // Character offset in content
-	EndOffset   int    // End character offset
+	FullMatch   string     // "[REPLACE: hint text]"
+	Hint        string     // "hint text"
+	Type        MarkerType // REPLACE, FILL, or TODO
+	LineNumber  int        // Line where marker appears (1-indexed)
+	StartOffset int        // Character offset in content
+	EndOffset   int        // End character offset
 }
 
 // MarkerValue holds a marker and its replacement value.

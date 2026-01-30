@@ -296,3 +296,82 @@ func TestMarkersToJSON(t *testing.T) {
 		t.Errorf("expected line 1, got %v", result[0]["line"])
 	}
 }
+
+func TestScanAllMarkers(t *testing.T) {
+	content := `# Task
+
+[REPLACE: task name]
+
+## TODO
+[TODO: implement validation]
+[TODO: add error handling]
+
+## Notes
+[FILL: additional notes here]
+
+Regular text without markers.
+`
+
+	markers := ScanAllMarkers(content)
+
+	// Should find 4 markers: 1 REPLACE, 2 TODO, 1 FILL
+	if len(markers) != 4 {
+		t.Fatalf("expected 4 markers, got %d", len(markers))
+	}
+
+	// Count by type
+	counts := map[MarkerType]int{}
+	for _, m := range markers {
+		counts[m.Type]++
+	}
+
+	if counts[MarkerTypeReplace] != 1 {
+		t.Errorf("expected 1 REPLACE marker, got %d", counts[MarkerTypeReplace])
+	}
+	if counts[MarkerTypeTodo] != 2 {
+		t.Errorf("expected 2 TODO markers, got %d", counts[MarkerTypeTodo])
+	}
+	if counts[MarkerTypeFill] != 1 {
+		t.Errorf("expected 1 FILL marker, got %d", counts[MarkerTypeFill])
+	}
+}
+
+func TestHasUnfilledMarkers(t *testing.T) {
+	ctx := context.Background()
+
+	// Create temp file with markers
+	dir := t.TempDir()
+	withMarkers := filepath.Join(dir, "with_markers.md")
+	withoutMarkers := filepath.Join(dir, "without_markers.md")
+
+	if err := os.WriteFile(withMarkers, []byte("[REPLACE: test]"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+	if err := os.WriteFile(withoutMarkers, []byte("No markers here"), 0644); err != nil {
+		t.Fatalf("failed to write file: %v", err)
+	}
+
+	// Test file with markers
+	hasMarkers, markers, err := HasUnfilledMarkers(ctx, withMarkers)
+	if err != nil {
+		t.Fatalf("HasUnfilledMarkers failed: %v", err)
+	}
+	if !hasMarkers {
+		t.Error("expected hasMarkers to be true")
+	}
+	if len(markers) != 1 {
+		t.Errorf("expected 1 marker, got %d", len(markers))
+	}
+
+	// Test file without markers
+	hasMarkers, markers, err = HasUnfilledMarkers(ctx, withoutMarkers)
+	if err != nil {
+		t.Fatalf("HasUnfilledMarkers failed: %v", err)
+	}
+	if hasMarkers {
+		t.Error("expected hasMarkers to be false")
+	}
+	if len(markers) != 0 {
+		t.Errorf("expected 0 markers, got %d", len(markers))
+	}
+}
