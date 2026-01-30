@@ -1,0 +1,551 @@
+package workflow
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func TestNewWorkflowState(t *testing.T) {
+	state := NewWorkflowState(5)
+
+	if state.Version != 1 {
+		t.Errorf("Version = %d, want 1", state.Version)
+	}
+
+	if state.CurrentStep != 1 {
+		t.Errorf("CurrentStep = %d, want 1", state.CurrentStep)
+	}
+
+	if state.TotalSteps != 5 {
+		t.Errorf("TotalSteps = %d, want 5", state.TotalSteps)
+	}
+
+	if state.Steps == nil {
+		t.Error("Steps map should not be nil")
+	}
+
+	if state.CreatedAt.IsZero() {
+		t.Error("CreatedAt should not be zero")
+	}
+
+	if state.UpdatedAt.IsZero() {
+		t.Error("UpdatedAt should not be zero")
+	}
+}
+
+func TestWorkflowState_SaveLoad(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	state := NewWorkflowState(5)
+	state.CurrentStep = 3
+	state.Steps[1] = &StepState{
+		Number: 1,
+		Status: StepStatusCompleted,
+	}
+	state.Steps[2] = &StepState{
+		Number: 2,
+		Status: StepStatusCompleted,
+	}
+
+	ctx := context.Background()
+	if err := state.Save(ctx, tmpDir); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	// Verify file exists
+	statePath := filepath.Join(tmpDir, ".fest", "workflow_state.yaml")
+	if _, err := os.Stat(statePath); os.IsNotExist(err) {
+		t.Error("State file was not created")
+	}
+
+	// Load state
+	loaded, err := LoadState(ctx, tmpDir)
+	if err != nil {
+		t.Fatalf("LoadState() error = %v", err)
+	}
+
+	if loaded.CurrentStep != state.CurrentStep {
+		t.Errorf("Loaded CurrentStep = %d, want %d", loaded.CurrentStep, state.CurrentStep)
+	}
+
+	if loaded.TotalSteps != state.TotalSteps {
+		t.Errorf("Loaded TotalSteps = %d, want %d", loaded.TotalSteps, state.TotalSteps)
+	}
+
+	if len(loaded.Steps) != 2 {
+		t.Errorf("Loaded Steps has %d entries, want 2", len(loaded.Steps))
+	}
+
+	if loaded.Steps[1].Status != StepStatusCompleted {
+		t.Errorf("Loaded Steps[1].Status = %v, want StepStatusCompleted", loaded.Steps[1].Status)
+	}
+}
+
+func TestLoadState_NotExists(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	ctx := context.Background()
+	state, err := LoadState(ctx, tmpDir)
+	if err != nil {
+		t.Fatalf("LoadState() error = %v", err)
+	}
+
+	if state == nil {
+		t.Fatal("LoadState() returned nil for non-existent file")
+	}
+
+	if state.CurrentStep != 1 {
+		t.Errorf("Default CurrentStep = %d, want 1", state.CurrentStep)
+	}
+
+	if state.TotalSteps != 0 {
+		t.Errorf("Default TotalSteps = %d, want 0", state.TotalSteps)
+	}
+}
+
+func TestWorkflowState_Initialize(t *testing.T) {
+	state := NewWorkflowState(0)
+
+	steps := []WorkflowStep{
+		{Number: 1, Name: "READ"},
+		{Number: 2, Name: "PROCESS"},
+		{Number: 3, Name: "COMPLETE"},
+	}
+
+	state.Initialize(steps)
+
+	if state.TotalSteps != 3 {
+		t.Errorf("TotalSteps = %d, want 3", state.TotalSteps)
+	}
+
+	if len(state.Steps) != 3 {
+		t.Errorf("Steps has %d entries, want 3", len(state.Steps))
+	}
+
+	for i := 1; i <= 3; i++ {
+		step := state.Steps[i]
+		if step == nil {
+			t.Errorf("Steps[%d] is nil", i)
+			continue
+		}
+		if step.Number != i {
+			t.Errorf("Steps[%d].Number = %d, want %d", i, step.Number, i)
+		}
+		if step.Status != StepStatusPending {
+			t.Errorf("Steps[%d].Status = %v, want StepStatusPending", i, step.Status)
+		}
+	}
+}
+
+func TestWorkflowState_GetCurrentStepState(t *testing.T) {
+	state := NewWorkflowState(3)
+	state.Steps[1] = &StepState{Number: 1, Status: StepStatusInProgress}
+
+	current := state.GetCurrentStepState()
+	if current == nil {
+		t.Fatal("GetCurrentStepState() returned nil")
+	}
+
+	if current.Number != 1 {
+		t.Errorf("Current step number = %d, want 1", current.Number)
+	}
+}
+
+func TestWorkflowState_GetCurrentStepState_NoState(t *testing.T) {
+	state := NewWorkflowState(3)
+
+	current := state.GetCurrentStepState()
+	if current != nil {
+		t.Error("GetCurrentStepState() should return nil when no state exists")
+	}
+}
+
+func TestWorkflowState_StartCurrentStep(t *testing.T) {
+	state := NewWorkflowState(3)
+
+	state.StartCurrentStep()
+
+	current := state.GetCurrentStepState()
+	if current == nil {
+		t.Fatal("GetCurrentStepState() returned nil")
+	}
+
+	if current.Status != StepStatusInProgress {
+		t.Errorf("Status = %v, want StepStatusInProgress", current.Status)
+	}
+
+	if current.StartedAt == nil {
+		t.Error("StartedAt should not be nil")
+	}
+}
+
+func TestWorkflowState_CompleteCurrentStep(t *testing.T) {
+	state := NewWorkflowState(3)
+	state.StartCurrentStep()
+
+	state.CompleteCurrentStep()
+
+	current := state.GetCurrentStepState()
+	if current.Status != StepStatusCompleted {
+		t.Errorf("Status = %v, want StepStatusCompleted", current.Status)
+	}
+
+	if current.CompletedAt == nil {
+		t.Error("CompletedAt should not be nil")
+	}
+}
+
+func TestWorkflowState_Advance(t *testing.T) {
+	state := NewWorkflowState(3)
+	state.StartCurrentStep()
+	state.CompleteCurrentStep()
+
+	if err := state.Advance(); err != nil {
+		t.Fatalf("Advance() error = %v", err)
+	}
+
+	if state.CurrentStep != 2 {
+		t.Errorf("CurrentStep = %d, want 2", state.CurrentStep)
+	}
+
+	current := state.GetCurrentStepState()
+	if current.Status != StepStatusInProgress {
+		t.Errorf("New step Status = %v, want StepStatusInProgress", current.Status)
+	}
+}
+
+func TestWorkflowState_Advance_NotCompleted(t *testing.T) {
+	state := NewWorkflowState(3)
+	state.StartCurrentStep()
+
+	err := state.Advance()
+	if err == nil {
+		t.Error("Advance() should fail when current step is not completed")
+	}
+}
+
+func TestWorkflowState_Advance_AtLastStep(t *testing.T) {
+	state := NewWorkflowState(3)
+	state.CurrentStep = 3
+	state.Steps[3] = &StepState{Number: 3, Status: StepStatusCompleted}
+
+	err := state.Advance()
+	if err == nil {
+		t.Error("Advance() should fail when at last step")
+	}
+}
+
+func TestWorkflowState_Approve(t *testing.T) {
+	state := NewWorkflowState(3)
+	state.StartCurrentStep()
+
+	if err := state.Approve(); err != nil {
+		t.Fatalf("Approve() error = %v", err)
+	}
+
+	if state.Steps[1].Status != StepStatusCompleted {
+		t.Errorf("Step 1 Status = %v, want StepStatusCompleted", state.Steps[1].Status)
+	}
+
+	if state.CurrentStep != 2 {
+		t.Errorf("CurrentStep = %d, want 2", state.CurrentStep)
+	}
+}
+
+func TestWorkflowState_Approve_AtLastStep(t *testing.T) {
+	state := NewWorkflowState(2)
+	state.CurrentStep = 2
+	state.StartCurrentStep()
+
+	if err := state.Approve(); err != nil {
+		t.Fatalf("Approve() error = %v", err)
+	}
+
+	if state.Steps[2].Status != StepStatusCompleted {
+		t.Errorf("Step 2 Status = %v, want StepStatusCompleted", state.Steps[2].Status)
+	}
+
+	if state.CurrentStep != 2 {
+		t.Errorf("CurrentStep = %d, want 2 (should stay at last)", state.CurrentStep)
+	}
+}
+
+func TestWorkflowState_Reject(t *testing.T) {
+	state := NewWorkflowState(3)
+	state.StartCurrentStep()
+
+	state.Reject("needs more detail")
+
+	current := state.GetCurrentStepState()
+	if current.Status != StepStatusBlocked {
+		t.Errorf("Status = %v, want StepStatusBlocked", current.Status)
+	}
+
+	if current.Feedback != "needs more detail" {
+		t.Errorf("Feedback = %q, want 'needs more detail'", current.Feedback)
+	}
+}
+
+func TestWorkflowState_Reset(t *testing.T) {
+	state := NewWorkflowState(3)
+
+	// Complete some steps
+	state.StartCurrentStep()
+	state.CompleteCurrentStep()
+	if err := state.Advance(); err != nil {
+		t.Fatalf("Advance() error = %v", err)
+	}
+	state.StartCurrentStep()
+	state.CompleteCurrentStep()
+	state.CurrentStep = 3
+
+	state.Reset()
+
+	if state.CurrentStep != 1 {
+		t.Errorf("CurrentStep = %d, want 1", state.CurrentStep)
+	}
+
+	for i, step := range state.Steps {
+		if step.Status != StepStatusPending {
+			t.Errorf("Steps[%d].Status = %v, want StepStatusPending", i, step.Status)
+		}
+		if step.StartedAt != nil {
+			t.Errorf("Steps[%d].StartedAt should be nil", i)
+		}
+		if step.CompletedAt != nil {
+			t.Errorf("Steps[%d].CompletedAt should be nil", i)
+		}
+		if step.Feedback != "" {
+			t.Errorf("Steps[%d].Feedback should be empty", i)
+		}
+	}
+}
+
+func TestWorkflowState_IsComplete(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    func(*WorkflowState)
+		expected bool
+	}{
+		{
+			name: "all completed",
+			setup: func(s *WorkflowState) {
+				s.TotalSteps = 3
+				s.Steps[1] = &StepState{Number: 1, Status: StepStatusCompleted}
+				s.Steps[2] = &StepState{Number: 2, Status: StepStatusCompleted}
+				s.Steps[3] = &StepState{Number: 3, Status: StepStatusCompleted}
+			},
+			expected: true,
+		},
+		{
+			name: "some pending",
+			setup: func(s *WorkflowState) {
+				s.TotalSteps = 3
+				s.Steps[1] = &StepState{Number: 1, Status: StepStatusCompleted}
+				s.Steps[2] = &StepState{Number: 2, Status: StepStatusPending}
+				s.Steps[3] = &StepState{Number: 3, Status: StepStatusPending}
+			},
+			expected: false,
+		},
+		{
+			name: "some in progress",
+			setup: func(s *WorkflowState) {
+				s.TotalSteps = 3
+				s.Steps[1] = &StepState{Number: 1, Status: StepStatusCompleted}
+				s.Steps[2] = &StepState{Number: 2, Status: StepStatusInProgress}
+				s.Steps[3] = &StepState{Number: 3, Status: StepStatusPending}
+			},
+			expected: false,
+		},
+		{
+			name: "zero steps",
+			setup: func(s *WorkflowState) {
+				s.TotalSteps = 0
+			},
+			expected: false,
+		},
+		{
+			name: "missing step state",
+			setup: func(s *WorkflowState) {
+				s.TotalSteps = 3
+				s.Steps[1] = &StepState{Number: 1, Status: StepStatusCompleted}
+				// Steps 2 and 3 don't have state
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := NewWorkflowState(0)
+			tt.setup(state)
+
+			if got := state.IsComplete(); got != tt.expected {
+				t.Errorf("IsComplete() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestWorkflowState_CompletedCount(t *testing.T) {
+	state := NewWorkflowState(5)
+	state.Steps[1] = &StepState{Number: 1, Status: StepStatusCompleted}
+	state.Steps[2] = &StepState{Number: 2, Status: StepStatusCompleted}
+	state.Steps[3] = &StepState{Number: 3, Status: StepStatusInProgress}
+	state.Steps[4] = &StepState{Number: 4, Status: StepStatusPending}
+
+	count := state.CompletedCount()
+	if count != 2 {
+		t.Errorf("CompletedCount() = %d, want 2", count)
+	}
+}
+
+func TestWorkflowState_ProgressPercent(t *testing.T) {
+	tests := []struct {
+		name      string
+		total     int
+		completed int
+		expected  float64
+	}{
+		{"zero total", 0, 0, 0},
+		{"none completed", 5, 0, 0},
+		{"half completed", 4, 2, 50},
+		{"all completed", 5, 5, 100},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			state := NewWorkflowState(tt.total)
+			for i := 1; i <= tt.completed; i++ {
+				state.Steps[i] = &StepState{Number: i, Status: StepStatusCompleted}
+			}
+
+			percent := state.ProgressPercent()
+			if percent != tt.expected {
+				t.Errorf("ProgressPercent() = %f, want %f", percent, tt.expected)
+			}
+		})
+	}
+}
+
+func TestWorkflowState_ContextCancellation(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// LoadState should fail with cancelled context
+	_, err := LoadState(ctx, tmpDir)
+	if err == nil {
+		t.Error("LoadState() should fail with cancelled context")
+	}
+
+	// Save should fail with cancelled context
+	state := NewWorkflowState(3)
+	err = state.Save(ctx, tmpDir)
+	if err == nil {
+		t.Error("Save() should fail with cancelled context")
+	}
+}
+
+func TestWorkflowState_GetStepState(t *testing.T) {
+	state := NewWorkflowState(3)
+	state.Steps[2] = &StepState{Number: 2, Status: StepStatusInProgress}
+
+	step := state.GetStepState(2)
+	if step == nil {
+		t.Fatal("GetStepState(2) returned nil")
+	}
+
+	if step.Number != 2 {
+		t.Errorf("Step.Number = %d, want 2", step.Number)
+	}
+
+	// Non-existent step
+	step = state.GetStepState(99)
+	if step != nil {
+		t.Error("GetStepState(99) should return nil for non-existent step")
+	}
+}
+
+func TestStepStatus_Methods(t *testing.T) {
+	tests := []struct {
+		status     StepStatus
+		wantString string
+		wantValid  bool
+		wantTerm   bool
+	}{
+		{StepStatusPending, "pending", true, false},
+		{StepStatusInProgress, "in_progress", true, false},
+		{StepStatusCompleted, "completed", true, true},
+		{StepStatusBlocked, "blocked", true, false},
+		{StepStatus("invalid"), "invalid", false, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.status), func(t *testing.T) {
+			if got := tt.status.String(); got != tt.wantString {
+				t.Errorf("String() = %q, want %q", got, tt.wantString)
+			}
+			if got := tt.status.IsValid(); got != tt.wantValid {
+				t.Errorf("IsValid() = %v, want %v", got, tt.wantValid)
+			}
+			if got := tt.status.IsTerminal(); got != tt.wantTerm {
+				t.Errorf("IsTerminal() = %v, want %v", got, tt.wantTerm)
+			}
+		})
+	}
+}
+
+func TestCheckpointType_Methods(t *testing.T) {
+	tests := []struct {
+		ctype        CheckpointType
+		wantString   string
+		wantValid    bool
+		wantBlocking bool
+	}{
+		{CheckpointNone, "", true, false},
+		{CheckpointUserApproval, "user_approval", true, true},
+		{CheckpointDocumentation, "documentation", true, false},
+		{CheckpointVerification, "verification", true, false},
+		{CheckpointType("invalid"), "invalid", false, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(string(tt.ctype), func(t *testing.T) {
+			if got := tt.ctype.String(); got != tt.wantString {
+				t.Errorf("String() = %q, want %q", got, tt.wantString)
+			}
+			if got := tt.ctype.IsValid(); got != tt.wantValid {
+				t.Errorf("IsValid() = %v, want %v", got, tt.wantValid)
+			}
+			if got := tt.ctype.IsBlocking(); got != tt.wantBlocking {
+				t.Errorf("IsBlocking() = %v, want %v", got, tt.wantBlocking)
+			}
+		})
+	}
+}
+
+func TestWorkflowStep_HasCheckpoint(t *testing.T) {
+	tests := []struct {
+		name       string
+		checkpoint CheckpointType
+		expected   bool
+	}{
+		{"none", CheckpointNone, false},
+		{"user approval", CheckpointUserApproval, true},
+		{"documentation", CheckpointDocumentation, true},
+		{"verification", CheckpointVerification, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			step := WorkflowStep{Checkpoint: tt.checkpoint}
+			if got := step.HasCheckpoint(); got != tt.expected {
+				t.Errorf("HasCheckpoint() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
