@@ -244,3 +244,69 @@ func InferCreatedTime(path string) time.Time {
 	}
 	return info.ModTime()
 }
+
+// InferWorkType determines work type from task filename
+func InferWorkType(filename string) WorkType {
+	lower := strings.ToLower(filename)
+
+	switch {
+	// Verification/testing patterns
+	case strings.Contains(lower, "test"),
+		strings.Contains(lower, "verify"),
+		strings.Contains(lower, "validation"),
+		strings.Contains(lower, "qa"),
+		strings.Contains(lower, "quality"):
+		return WorkTypeVerify
+
+	// Review patterns
+	case strings.Contains(lower, "review"),
+		strings.Contains(lower, "iterate"),
+		strings.Contains(lower, "feedback"),
+		strings.Contains(lower, "approval"):
+		return WorkTypeReview
+
+	// Analysis/research patterns
+	case strings.Contains(lower, "analysis"),
+		strings.Contains(lower, "research"),
+		strings.Contains(lower, "investigate"),
+		strings.Contains(lower, "explore"),
+		strings.Contains(lower, "discovery"),
+		strings.Contains(lower, "assessment"),
+		strings.Contains(lower, "audit"):
+		return WorkTypeAnalysis
+
+	// Documentation patterns
+	case strings.Contains(lower, "doc"),
+		strings.Contains(lower, "readme"),
+		strings.Contains(lower, "changelog"),
+		strings.Contains(lower, "comment"):
+		return WorkTypeDocs
+
+	// Planning/design patterns
+	case strings.Contains(lower, "plan"),
+		strings.Contains(lower, "design"),
+		strings.Contains(lower, "architect"),
+		strings.Contains(lower, "scope"),
+		strings.Contains(lower, "spec"):
+		return WorkTypePlan
+
+	// Configuration patterns
+	case strings.Contains(lower, "config"),
+		strings.Contains(lower, "setup"),
+		strings.Contains(lower, "env"),
+		strings.Contains(lower, "setting"):
+		return WorkTypeConfig
+
+	// Action patterns (non-code)
+	case strings.Contains(lower, "deploy"),
+		strings.Contains(lower, "publish"),
+		strings.Contains(lower, "release"),
+		strings.Contains(lower, "migrate"),
+		strings.Contains(lower, "commit"):
+		return WorkTypeAction
+
+	// Default to implementation
+	default:
+		return WorkTypeImplementation
+	}
+}

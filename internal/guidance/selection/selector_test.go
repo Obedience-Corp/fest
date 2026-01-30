@@ -106,8 +106,8 @@ func TestNextTaskResult_Complete(t *testing.T) {
 		},
 	}
 
-	// Test text format
-	text := FormatText(result)
+	// Test text format (with inline context disabled for simpler test)
+	text := FormatText(result, false)
 	if text == "" {
 		t.Error("FormatText returned empty string")
 	}
@@ -138,7 +138,7 @@ func TestNextTaskResult_WithTask(t *testing.T) {
 		},
 	}
 
-	text := FormatText(result)
+	text := FormatText(result, false)
 	if !contains(text, "01_test_task") {
 		t.Error("Expected task name in output")
 	}

@@ -111,6 +111,45 @@ const (
 	TaskTypeDetailed TaskType = "detailed" // Full documentation
 )
 
+// WorkType represents the kind of work a task involves
+// Used for visual indicators like [impl], [analysis], [review], [verify]
+type WorkType string
+
+const (
+	WorkTypeImplementation WorkType = "impl"     // Code implementation
+	WorkTypeAnalysis       WorkType = "analysis" // Investigation/research
+	WorkTypeReview         WorkType = "review"   // Code or document review
+	WorkTypeVerify         WorkType = "verify"   // Testing and verification
+	WorkTypeConfig         WorkType = "config"   // Configuration changes
+	WorkTypeDocs           WorkType = "docs"     // Documentation
+	WorkTypePlan           WorkType = "plan"     // Planning/design
+	WorkTypeAction         WorkType = "action"   // Non-code action (deploy, publish, etc.)
+)
+
+// WorkTypeLabel returns a display label for the work type
+func (w WorkType) Label() string {
+	switch w {
+	case WorkTypeImplementation:
+		return "[impl]"
+	case WorkTypeAnalysis:
+		return "[analysis]"
+	case WorkTypeReview:
+		return "[review]"
+	case WorkTypeVerify:
+		return "[verify]"
+	case WorkTypeConfig:
+		return "[config]"
+	case WorkTypeDocs:
+		return "[docs]"
+	case WorkTypePlan:
+		return "[plan]"
+	case WorkTypeAction:
+		return "[action]"
+	default:
+		return ""
+	}
+}
+
 // Complexity represents task complexity level for routing
 type Complexity string
 
@@ -150,6 +189,7 @@ type Frontmatter struct {
 	// Task-specific fields
 	Dependencies  []string `yaml:"fest_dependencies,omitempty" json:"fest_dependencies,omitempty"`
 	ParallelGroup string   `yaml:"fest_parallel_group,omitempty" json:"fest_parallel_group,omitempty"`
+	WorkType      WorkType `yaml:"fest_work_type,omitempty" json:"fest_work_type,omitempty"` // Kind of work: impl, analysis, review, verify
 
 	// Future fields for task routing (reserved)
 	Agent           string     `yaml:"fest_agent,omitempty" json:"fest_agent,omitempty"`
