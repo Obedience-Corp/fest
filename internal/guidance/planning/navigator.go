@@ -5,11 +5,13 @@ package planning
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/guidance"
+	"github.com/Obedience-Corp/fest/internal/guidance/workflow"
 )
 
 func init() {
@@ -21,10 +23,18 @@ func init() {
 // Navigator implements guidance.Navigator for planning phases.
 // It guides users through the festival planning workflow from
 // requirements gathering to task specification.
+//
+// When a WORKFLOW.md file exists in the phase directory, the Navigator
+// delegates to a WorkflowNavigator for step-based guidance. Otherwise,
+// it uses the default planning steps.
 type Navigator struct {
 	*guidance.BaseNavigator
 	steps       []PlanningStep
 	currentStep int
+
+	// workflowNav is used when WORKFLOW.md exists in the phase directory
+	workflowNav   *workflow.Navigator
+	useWorkflowMd bool
 }
 
 // Ensure Navigator implements guidance.Navigator.
@@ -201,6 +211,28 @@ func (n *Navigator) Initialize(ctx context.Context) error {
 		return errors.Wrap(err, "initializing base navigator")
 	}
 
+	// Check if WORKFLOW.md exists in phase directory
+	phaseDir := n.Ctx.PhasePath
+	if phaseDir == "" {
+		phaseDir = n.Ctx.FestivalPath
+	}
+
+	workflowPath := filepath.Join(phaseDir, "WORKFLOW.md")
+	if _, err := os.Stat(workflowPath); err == nil {
+		// WORKFLOW.md exists, initialize WorkflowNavigator
+		wfNav, err := workflow.NewNavigator(n.Ctx, guidance.ModePlan)
+		if err != nil {
+			return errors.Wrap(err, "creating workflow navigator")
+		}
+		if err := wfNav.Initialize(ctx); err != nil {
+			return errors.Wrap(err, "initializing workflow navigator")
+		}
+		n.workflowNav = wfNav
+		n.useWorkflowMd = true
+		return nil
+	}
+
+	// No WORKFLOW.md, use default planning steps
 	// Restore current step from state
 	state := n.StateManager.State()
 	n.currentStep = state.CurrentStep
@@ -222,6 +254,11 @@ func (n *Navigator) GetNext(ctx context.Context) (*guidance.NextStep, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, errors.Wrap(err, "context cancelled")
 		}
+	}
+
+	// Delegate to WorkflowNavigator if WORKFLOW.md is being used
+	if n.useWorkflowMd && n.workflowNav != nil {
+		return n.workflowNav.GetNext(ctx)
 	}
 
 	if n.currentStep >= len(n.steps) {
@@ -277,6 +314,11 @@ func (n *Navigator) MarkComplete(ctx context.Context, stepID string) error {
 		}
 	}
 
+	// Delegate to WorkflowNavigator if WORKFLOW.md is being used
+	if n.useWorkflowMd && n.workflowNav != nil {
+		return n.workflowNav.MarkComplete(ctx, stepID)
+	}
+
 	// Find and validate step
 	stepFound := false
 	for i, step := range n.steps {
@@ -316,6 +358,11 @@ func (n *Navigator) MarkSkipped(ctx context.Context, stepID string) error {
 		}
 	}
 
+	// Delegate to WorkflowNavigator if WORKFLOW.md is being used
+	if n.useWorkflowMd && n.workflowNav != nil {
+		return n.workflowNav.MarkSkipped(ctx, stepID)
+	}
+
 	n.StateManager.SetTaskStatus(stepID, guidance.StatusSkipped)
 	n.currentStep++
 	n.StateManager.SetPosition(0, 0, n.currentStep)
@@ -336,6 +383,11 @@ func (n *Navigator) MarkFailed(ctx context.Context, stepID string) error {
 		}
 	}
 
+	// Delegate to WorkflowNavigator if WORKFLOW.md is being used
+	if n.useWorkflowMd && n.workflowNav != nil {
+		return n.workflowNav.MarkFailed(ctx, stepID)
+	}
+
 	n.StateManager.SetTaskStatus(stepID, guidance.StatusFailed)
 	return n.StateManager.Save(ctx)
 }
@@ -351,6 +403,11 @@ func (n *Navigator) Advance(ctx context.Context) error {
 		if err := ctx.Err(); err != nil {
 			return errors.Wrap(err, "context cancelled")
 		}
+	}
+
+	// Delegate to WorkflowNavigator if WORKFLOW.md is being used
+	if n.useWorkflowMd && n.workflowNav != nil {
+		return n.workflowNav.Advance(ctx)
 	}
 
 	if n.currentStep >= len(n.steps) {
@@ -373,6 +430,11 @@ func (n *Navigator) GetProgress(ctx context.Context) (*guidance.Progress, error)
 		if err := ctx.Err(); err != nil {
 			return nil, errors.Wrap(err, "context cancelled")
 		}
+	}
+
+	// Delegate to WorkflowNavigator if WORKFLOW.md is being used
+	if n.useWorkflowMd && n.workflowNav != nil {
+		return n.workflowNav.GetProgress(ctx)
 	}
 
 	progress := guidance.NewProgress(guidance.ModePlan)
@@ -399,6 +461,11 @@ func (n *Navigator) FormatInstructions(ctx context.Context) (string, error) {
 		if err := ctx.Err(); err != nil {
 			return "", errors.Wrap(err, "context cancelled")
 		}
+	}
+
+	// Delegate to WorkflowNavigator if WORKFLOW.md is being used
+	if n.useWorkflowMd && n.workflowNav != nil {
+		return n.workflowNav.FormatInstructions(ctx)
 	}
 
 	if n.currentStep >= len(n.steps) {
@@ -485,6 +552,11 @@ func (n *Navigator) GetContextFiles(ctx context.Context) ([]string, error) {
 		if err := ctx.Err(); err != nil {
 			return nil, errors.Wrap(err, "context cancelled")
 		}
+	}
+
+	// Delegate to WorkflowNavigator if WORKFLOW.md is being used
+	if n.useWorkflowMd && n.workflowNav != nil {
+		return n.workflowNav.GetContextFiles(ctx)
 	}
 
 	return n.getContextFiles(), nil
