@@ -7,3 +7,5 @@ coverage.out
 **/*.coverprofile
 
 .gocache/
+
+CLAUDE.md
