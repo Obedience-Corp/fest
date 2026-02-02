@@ -19,12 +19,14 @@ var (
 )
 
 const (
-	// MarkerFile is the name of the workspace marker file inside .festival/
+	// MarkerFile is the name of the workspace marker file inside .festival/.state/
 	MarkerFile = ".workspace"
 	// FestivalsDir is the expected name of the festivals directory
 	FestivalsDir = "festivals"
 	// DotFestival is the hidden directory inside festivals/
 	DotFestival = ".festival"
+	// StateDir is the subdirectory for local state files (never synced)
+	StateDir = ".state"
 )
 
 // Marker represents the .workspace file content
@@ -35,7 +37,12 @@ type Marker struct {
 
 // MarkerPath returns the full path to the marker file for a given festivals directory
 func MarkerPath(festivalsDir string) string {
-	return filepath.Join(festivalsDir, DotFestival, MarkerFile)
+	return filepath.Join(festivalsDir, DotFestival, StateDir, MarkerFile)
+}
+
+// StatePath returns the full path to the .state directory for a given festivals directory
+func StatePath(festivalsDir string) string {
+	return filepath.Join(festivalsDir, DotFestival, StateDir)
 }
 
 // HasMarker checks if a festivals directory has a workspace marker
@@ -85,9 +92,9 @@ func RegisterFestivals(festivalsDir string) error {
 		return err
 	}
 
-	// Ensure .festival directory exists
-	dotFestivalPath := filepath.Join(absPath, DotFestival)
-	if err := os.MkdirAll(dotFestivalPath, 0755); err != nil {
+	// Ensure .festival/.state directory exists
+	statePath := StatePath(absPath)
+	if err := os.MkdirAll(statePath, 0755); err != nil {
 		return err
 	}
 

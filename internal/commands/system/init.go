@@ -143,7 +143,14 @@ func RunInit(ctx context.Context, targetPath string, opts *InitOptions) error {
 	// Generate checksums unless disabled
 	if !opts.NoChecksums {
 		display.Info("Generating .festival checksums...")
-		checksumFile := filepath.Join(festivalPath, ".festival", ".fest-checksums.json")
+
+		// Ensure .state directory exists
+		stateDir := filepath.Join(festivalPath, ".festival", workspace.StateDir)
+		if err := os.MkdirAll(stateDir, 0755); err != nil {
+			return errors.IO("creating state directory", err).WithField("path", stateDir)
+		}
+
+		checksumFile := filepath.Join(stateDir, ".fest-checksums.json")
 
 		// Only checksum the .festival directory
 		festivalMetaDir := filepath.Join(festivalPath, ".festival")

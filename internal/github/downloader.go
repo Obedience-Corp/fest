@@ -739,17 +739,13 @@ func (d *Downloader) DownloadWithGit(targetDir string, progress ProgressFunc) er
 	return nil
 }
 
-// protectedFiles are state files that should never be deleted during sync.
-var protectedFiles = map[string]bool{
-	".fest-checksums.json": true,
-	".workspace":           true,
-	"id_registry.yaml":     true,
-}
+// stateDir is the subdirectory for local state files (never synced).
+const stateDir = ".state"
 
-// clearTargetDir removes all files from target except protected state files.
+// clearTargetDir removes all files from target except the .state directory.
 // This ensures the target directory exactly mirrors the source after copying.
 // It handles the .festival directory specially - clearing its contents while
-// preserving protected state files.
+// preserving the .state/ subdirectory which contains local state files.
 func clearTargetDir(targetDir string) error {
 	entries, err := os.ReadDir(targetDir)
 	if err != nil {
@@ -783,7 +779,7 @@ func clearTargetDir(targetDir string) error {
 }
 
 // clearFestivalDir clears the .festival directory contents while preserving
-// protected state files like .fest-checksums.json and .workspace.
+// the .state/ subdirectory which contains local state files.
 func clearFestivalDir(festivalDir string) error {
 	entries, err := os.ReadDir(festivalDir)
 	if err != nil {
@@ -791,8 +787,8 @@ func clearFestivalDir(festivalDir string) error {
 	}
 
 	for _, entry := range entries {
-		// Skip protected state files
-		if protectedFiles[entry.Name()] {
+		// Skip .state directory which contains local state files
+		if entry.Name() == stateDir {
 			continue
 		}
 		path := filepath.Join(festivalDir, entry.Name())

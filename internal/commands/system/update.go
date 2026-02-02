@@ -14,6 +14,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/fileops"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -24,14 +25,6 @@ type updateOptions struct {
 	interactive   bool
 	noInteractive bool
 	diff          bool
-}
-
-// protectedStateFiles are local state files that should never be deleted by update.
-// These files are workspace-specific and don't exist in the source templates.
-var protectedStateFiles = map[string]bool{
-	".workspace":           true, // Workspace registration marker
-	".fest-checksums.json": true, // Checksum tracking (managed separately)
-	"id_registry.yaml":     true, // Festival ID registry
 }
 
 // NewUpdateCommand creates the update command
@@ -94,9 +87,10 @@ func runUpdate(ctx context.Context, targetPath string, opts *updateOptions) erro
 		return err
 	}
 	festivalDir := filepath.Join(festivalsRoot, ".festival")
+	stateDir := filepath.Join(festivalDir, workspace.StateDir)
 
-	// Load checksums (stored in .festival/ directory)
-	checksumFile := filepath.Join(festivalDir, ".fest-checksums.json")
+	// Load checksums (stored in .festival/.state/ directory)
+	checksumFile := filepath.Join(stateDir, ".fest-checksums.json")
 	if !fileops.Exists(checksumFile) {
 		return errors.NotFound("checksum file").WithField("path", checksumFile).WithField("hint", "run 'fest init' first")
 	}
@@ -337,9 +331,9 @@ func categorizeChanges(ctx context.Context, stored, current map[string]fileops.C
 	}
 
 	// Check for orphaned files (exist locally but not in source)
-	// Skip protected state files that should never be deleted
+	// Skip .state/ directory which contains local state files
 	for path := range current {
-		if !sourceFilesSet[path] && !protectedStateFiles[path] {
+		if !sourceFilesSet[path] && !strings.HasPrefix(path, workspace.StateDir+"/") && path != workspace.StateDir {
 			changes.orphaned = append(changes.orphaned, path)
 		}
 	}

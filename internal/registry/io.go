@@ -23,18 +23,26 @@ const (
 	// DefaultRegistryFileName is kept for backward compatibility.
 	// Deprecated: Use EventsFileName for new code.
 	DefaultRegistryFileName = LegacyRegistryFileName
+
+	// StateDir is the subdirectory for local state files (never synced)
+	StateDir = ".state"
 )
 
 // GetEventsPath returns the full path to the JSONL events file.
 func GetEventsPath(festivalsRoot string) string {
-	return filepath.Join(festivalsRoot, ".festival", EventsFileName)
+	return filepath.Join(festivalsRoot, ".festival", StateDir, EventsFileName)
 }
 
 // GetRegistryPath returns the full path to the registry file
-// within the .festival directory of the festivals root.
+// within the .festival/.state directory of the festivals root.
 // Deprecated: Use GetEventsPath for new code.
 func GetRegistryPath(festivalsRoot string) string {
-	return filepath.Join(festivalsRoot, ".festival", LegacyRegistryFileName)
+	return filepath.Join(festivalsRoot, ".festival", StateDir, LegacyRegistryFileName)
+}
+
+// GetStatePath returns the full path to the .state directory.
+func GetStatePath(festivalsRoot string) string {
+	return filepath.Join(festivalsRoot, ".festival", StateDir)
 }
 
 // Load reads the registry using JSONL events as primary format.

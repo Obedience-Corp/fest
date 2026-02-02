@@ -12,10 +12,19 @@ import (
 
 func TestMarkerPath(t *testing.T) {
 	festivalsDir := "/path/to/festivals"
-	expected := "/path/to/festivals/.festival/.workspace"
+	expected := "/path/to/festivals/.festival/.state/.workspace"
 	result := MarkerPath(festivalsDir)
 	if result != expected {
 		t.Errorf("MarkerPath(%q) = %q, want %q", festivalsDir, result, expected)
+	}
+}
+
+func TestStatePath(t *testing.T) {
+	festivalsDir := "/path/to/festivals"
+	expected := "/path/to/festivals/.festival/.state"
+	result := StatePath(festivalsDir)
+	if result != expected {
+		t.Errorf("StatePath(%q) = %q, want %q", festivalsDir, result, expected)
 	}
 }
 
@@ -24,8 +33,8 @@ func TestHasMarker(t *testing.T) {
 
 	// Create festivals structure without marker
 	festivalsDir := filepath.Join(tmpDir, "festivals")
-	dotFestival := filepath.Join(festivalsDir, ".festival")
-	if err := os.MkdirAll(dotFestival, 0755); err != nil {
+	stateDir := filepath.Join(festivalsDir, ".festival", ".state")
+	if err := os.MkdirAll(stateDir, 0755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -34,8 +43,8 @@ func TestHasMarker(t *testing.T) {
 		t.Error("HasMarker returned true when marker does not exist")
 	}
 
-	// Create marker file
-	markerPath := filepath.Join(dotFestival, ".workspace")
+	// Create marker file in .state directory
+	markerPath := filepath.Join(stateDir, ".workspace")
 	if err := os.WriteFile(markerPath, []byte("{}"), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -49,10 +58,10 @@ func TestHasMarker(t *testing.T) {
 func TestReadMarker(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create festivals structure with marker
+	// Create festivals structure with marker in .state directory
 	festivalsDir := filepath.Join(tmpDir, "festivals")
-	dotFestival := filepath.Join(festivalsDir, ".festival")
-	if err := os.MkdirAll(dotFestival, 0755); err != nil {
+	stateDir := filepath.Join(festivalsDir, ".festival", ".state")
+	if err := os.MkdirAll(stateDir, 0755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -62,7 +71,7 @@ func TestReadMarker(t *testing.T) {
 		Registered: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC),
 	}
 	data, _ := json.Marshal(marker)
-	markerPath := filepath.Join(dotFestival, ".workspace")
+	markerPath := filepath.Join(stateDir, ".workspace")
 	if err := os.WriteFile(markerPath, data, 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -475,7 +484,8 @@ func TestFindWorkspace(t *testing.T) {
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
 				os.MkdirAll(filepath.Join(dir, "festivals", ".festival"), 0755)
-				os.WriteFile(filepath.Join(dir, "festivals", ".festival", ".workspace"), []byte(`{"workspace":"test"}`), 0644)
+				os.MkdirAll(filepath.Join(dir, "festivals", ".festival", ".state"), 0755)
+				os.WriteFile(filepath.Join(dir, "festivals", ".festival", ".state", ".workspace"), []byte(`{"workspace":"test"}`), 0644)
 				return dir
 			},
 			wantType: WorkspaceTypeStandalone,
@@ -525,7 +535,8 @@ func TestFindWorkspace_CampaignPriority(t *testing.T) {
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
 	os.MkdirAll(filepath.Join(dir, "festivals", ".festival"), 0755)
-	os.WriteFile(filepath.Join(dir, "festivals", ".festival", ".workspace"), []byte(`{"workspace":"test"}`), 0644)
+	os.MkdirAll(filepath.Join(dir, "festivals", ".festival", ".state"), 0755)
+				os.WriteFile(filepath.Join(dir, "festivals", ".festival", ".state", ".workspace"), []byte(`{"workspace":"test"}`), 0644)
 
 	ws, err := FindWorkspace(context.Background(), dir)
 	if err != nil {
