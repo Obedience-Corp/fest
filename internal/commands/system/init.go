@@ -31,6 +31,9 @@ func NewInitCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init [path]",
 		Short: "Initialize a new festival directory structure",
+		Annotations: map[string]string{
+			"scope": "global",
+		},
 		Long: `Initialize a new festival directory structure in the current or specified directory.
 
 This command copies the festival template structure from your local cache

@@ -12,4 +12,5 @@ import "embed"
 //go:embed action/*.tmpl
 //go:embed ingest/*.tmpl
 //go:embed validate/*.tmpl
+//go:embed workflow/*.tmpl
 var Templates embed.FS

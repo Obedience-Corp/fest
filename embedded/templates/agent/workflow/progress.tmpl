@@ -1,0 +1,28 @@
+{{/*
+TEMPLATE: workflow/progress.tmpl
+PURPOSE: Shows workflow progress summary
+
+EXAMPLE OUTPUT:
+  Workflow Progress
+  ─────────────────
+  Phase: 001_INGEST (ingest)
+
+  Progress: 2/5 steps (40%)
+
+    [Done] Step 1: REVIEW
+    [Current] Step 2: ANALYZE (checkpoint)
+    [ ] Step 3: STRUCTURE
+    [ ] Step 4: VALIDATE
+    [ ] Step 5: FINALIZE
+
+  Current: Step 2 — ANALYZE
+*/}}
+Workflow Progress
+─────────────────
+Phase: {{.PhaseName}} ({{.PhaseType}})
+
+Progress: {{.Completed}}/{{.Total}} steps
+{{range .Steps}}
+{{- if eq .Status "completed" }}  [Done]{{else if eq .Status "in_progress" }}  [Current]{{else if eq .Status "blocked" }}  [Blocked]{{else }}  [ ]{{end}} Step {{.Number}}: {{.Name}}{{if .IsBlocking}} (checkpoint){{end}}
+{{end}}
+Current: Step {{.CurrentStep}}{{if .CurrentStatus}} — {{.CurrentStatus}}{{end}}

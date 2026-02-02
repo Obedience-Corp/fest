@@ -1,0 +1,62 @@
+{{/*
+TEMPLATE: workflow/step.tmpl
+PURPOSE: Shown when displaying current workflow step to agent
+
+EXAMPLE OUTPUT:
+  ═══════════════════════════════════════════════════════════════════════════════
+                      INGEST PHASE - Step 2 of 5
+  ═══════════════════════════════════════════════════════════════════════════════
+
+  ## Step 2: ANALYZE — Process the data
+
+  **Goal:** Analyze input data and extract key patterns
+
+  **Actions:**
+  1. Review all input files
+  2. Identify common patterns
+  3. Create analysis notes
+
+  **Output:** analysis_notes.md
+
+  **Checkpoint:** None — proceed to Step 3 when complete
+
+  ───────────────────────────────────────────────────────────────────────────────
+  Progress: Step 2/5 | Phase: 001_INGEST | Type: ingest
+
+  When complete, run: fest workflow advance
+  ═══════════════════════════════════════════════════════════════════════════════
+*/}}
+═══════════════════════════════════════════════════════════════════════════════
+                    {{.PhaseType}} PHASE - Step {{.StepNumber}} of {{.TotalSteps}}
+═══════════════════════════════════════════════════════════════════════════════
+
+## Step {{.StepNumber}}: {{.StepName}}
+
+**Goal:** {{.Goal}}
+{{if .Actions}}
+**Actions:**
+{{range .Actions}}  - {{.}}
+{{end}}{{end}}
+{{- if .Output}}
+**Output:** {{.Output}}
+{{end}}
+{{- if .IsBlocking}}
+**Checkpoint:** This step requires user approval before proceeding
+{{else}}
+**Checkpoint:** None — proceed when complete
+{{end}}
+───────────────────────────────────────────────────────────────────────────────
+Progress: Step {{.StepNumber}}/{{.TotalSteps}} | Phase: {{.PhaseName}} | Type: {{.PhaseType}}
+{{if eq .Status "blocked"}}
+This step is BLOCKED: {{.Feedback}}
+
+Address the feedback and try again.
+{{else if .IsBlocking}}
+When work is complete, submit for review:
+  fest workflow advance
+
+This will require user approval before proceeding.
+{{else}}
+When complete, run: fest workflow advance
+{{end}}
+═══════════════════════════════════════════════════════════════════════════════
