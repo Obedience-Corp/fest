@@ -254,7 +254,7 @@ func runSync(ctx context.Context, _ *cobra.Command, opts *syncOptions) error {
 	}
 
 	// Delete orphaned files (files that exist locally but not in remote)
-	// Note: Only works with HTTP method, git clone replaces everything
+	// Note: Git method handles this in DownloadWithGit; HTTP method needs explicit cleanup
 	if opts.force && !useGit {
 		display.Info("Removing orphaned files...")
 		deleted, err := downloader.DeleteOrphaned(owner, repo, targetDir)

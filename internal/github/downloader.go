@@ -721,6 +721,12 @@ func (d *Downloader) DownloadWithGit(targetDir string, progress ProgressFunc) er
 		return errors.IO("creating target directory", err).WithField("path", targetDir)
 	}
 
+	// Clear target directory (except protected hidden files) before copying
+	// This ensures deleted files from source are also deleted from target
+	if err := clearTargetDir(targetDir); err != nil {
+		return errors.IO("clearing target directory", err).WithField("path", targetDir)
+	}
+
 	// Copy files from source to target
 	if err := copyDir(sourceDir, targetDir); err != nil {
 		return errors.Wrap(err, "copying files")
@@ -730,6 +736,70 @@ func (d *Downloader) DownloadWithGit(targetDir string, progress ProgressFunc) er
 		progress(3, 3, "Done")
 	}
 
+	return nil
+}
+
+// protectedFiles are state files that should never be deleted during sync.
+var protectedFiles = map[string]bool{
+	".fest-checksums.json": true,
+	".workspace":           true,
+	"id_registry.yaml":     true,
+}
+
+// clearTargetDir removes all files from target except protected state files.
+// This ensures the target directory exactly mirrors the source after copying.
+// It handles the .festival directory specially - clearing its contents while
+// preserving protected state files.
+func clearTargetDir(targetDir string) error {
+	entries, err := os.ReadDir(targetDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // Nothing to clear
+		}
+		return err
+	}
+
+	for _, entry := range entries {
+		path := filepath.Join(targetDir, entry.Name())
+
+		// Handle .festival directory specially - clear its contents
+		if entry.Name() == ".festival" && entry.IsDir() {
+			if err := clearFestivalDir(path); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// Skip other hidden files (not .festival)
+		if strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+
+		if err := os.RemoveAll(path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// clearFestivalDir clears the .festival directory contents while preserving
+// protected state files like .fest-checksums.json and .workspace.
+func clearFestivalDir(festivalDir string) error {
+	entries, err := os.ReadDir(festivalDir)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		// Skip protected state files
+		if protectedFiles[entry.Name()] {
+			continue
+		}
+		path := filepath.Join(festivalDir, entry.Name())
+		if err := os.RemoveAll(path); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
