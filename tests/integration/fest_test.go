@@ -451,9 +451,9 @@ func setupComplexFestival(tc *TestContainer) error {
   return fmt.Errorf("failed to create festival directory")
  }
 
- // Create the festivals root .festival directory (required by FindFestivalsRoot)
- if exitCode, _, err := tc.container.Exec(tc.ctx, []string{"mkdir", "-p", "/festivals/.festival"}); err != nil || exitCode != 0 {
-  return fmt.Errorf("failed to create .festival directory")
+ // Create the festivals root .festival/.state directory (required by FindFestivalsRoot)
+ if exitCode, _, err := tc.container.Exec(tc.ctx, []string{"mkdir", "-p", "/festivals/.festival/.state"}); err != nil || exitCode != 0 {
+  return fmt.Errorf("failed to create .festival/.state directory")
  }
 
  // Create FESTIVAL_GOAL.md using a simple echo command

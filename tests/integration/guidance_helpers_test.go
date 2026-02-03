@@ -402,3 +402,123 @@ func setupMultiModeFestival(t *testing.T, tc *TestContainer, festName string) st
 
 	return festPath
 }
+
+// ============================================================================
+// LIFECYCLE TEST HELPERS
+// ============================================================================
+
+// setupLifecycleFestival creates a complete lifecycle test festival with all phase types.
+// This is used for comprehensive lifecycle testing across phase types.
+func setupLifecycleFestival(t *testing.T, tc *TestContainer, festName string) string {
+	t.Helper()
+	festPath := "/festivals/" + festName
+
+	// Create festival
+	_, err := tc.RunFest("create", "festival", "--name", festName, "--path", "/festivals")
+	require.NoError(t, err, "should create festival")
+
+	// Create ingest phase
+	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "INGEST", "--type", "ingest")
+	require.NoError(t, err, "should create ingest phase")
+
+	// Create planning phase
+	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "PLANNING", "--type", "planning")
+	require.NoError(t, err, "should create planning phase")
+
+	// Create implementation phase with tasks
+	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "IMPLEMENTATION", "--type", "implementation")
+	require.NoError(t, err, "should create implementation phase")
+
+	phasePath := festPath + "/003_IMPLEMENTATION"
+	_, err = tc.RunFestInDir(phasePath, "create", "sequence", "--name", "core_work")
+	require.NoError(t, err, "should create sequence")
+
+	seqPath := phasePath + "/01_core_work"
+	_, err = tc.RunFestInDir(seqPath, "create", "task", "--name", "first_task")
+	require.NoError(t, err, "should create first task")
+	_, err = tc.RunFestInDir(seqPath, "create", "task", "--name", "second_task")
+	require.NoError(t, err, "should create second task")
+
+	// Create review phase
+	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "REVIEW", "--type", "review")
+	require.NoError(t, err, "should create review phase")
+
+	return festPath
+}
+
+// VerifyWorkflowNavigation checks fest next returns workflow step format.
+func VerifyWorkflowNavigation(t *testing.T, output string) {
+	t.Helper()
+	lowerOutput := strings.ToLower(output)
+	isWorkflow := strings.Contains(lowerOutput, "workflow") ||
+		strings.Contains(lowerOutput, "step") ||
+		strings.Contains(output, "fest workflow")
+	if isWorkflow {
+		require.NotContains(t, lowerOutput, "fest progress --complete",
+			"workflow mode should not show task completion command")
+	}
+}
+
+// VerifyTaskNavigation checks fest next returns task format.
+func VerifyTaskNavigation(t *testing.T, output string) {
+	t.Helper()
+	lowerOutput := strings.ToLower(output)
+	isTaskBased := strings.Contains(lowerOutput, "task") ||
+		strings.Contains(lowerOutput, ".md") ||
+		strings.Contains(lowerOutput, "progress")
+	if isTaskBased {
+		require.NotContains(t, lowerOutput, "fest workflow advance",
+			"task mode should not show workflow advance command")
+	}
+}
+
+// VerifyPhaseStructure validates phase directory has required files for the given type.
+func VerifyPhaseStructure(t *testing.T, tc *TestContainer, phasePath string, phaseType string) {
+	t.Helper()
+
+	// Common files - all phases should have PHASE_GOAL.md
+	exists, err := tc.CheckFileExists(phasePath + "/PHASE_GOAL.md")
+	require.NoError(t, err)
+	require.True(t, exists, "PHASE_GOAL.md should exist in %s", phasePath)
+
+	// Type-specific verification
+	switch phaseType {
+	case "ingest":
+		// Ingest phases may have WORKFLOW.md or input/output spec directories
+		// These are optional scaffolded items
+		t.Logf("Verifying ingest phase structure at %s", phasePath)
+
+	case "implementation":
+		// Implementation phases should have sequences with tasks
+		t.Logf("Verifying implementation phase structure at %s", phasePath)
+
+	case "planning":
+		// Planning phases typically have planning objectives in PHASE_GOAL.md
+		content, err := tc.ReadFile(phasePath + "/PHASE_GOAL.md")
+		require.NoError(t, err)
+		require.Contains(t, strings.ToLower(content), "planning",
+			"planning phase should have planning content")
+
+	case "review":
+		// Review phases typically have review checklist in PHASE_GOAL.md
+		content, err := tc.ReadFile(phasePath + "/PHASE_GOAL.md")
+		require.NoError(t, err)
+		require.Contains(t, strings.ToLower(content), "review",
+			"review phase should have review content")
+	}
+}
+
+// VerifyFestivalStructure validates the complete festival structure is valid.
+func VerifyFestivalStructure(t *testing.T, tc *TestContainer, festPath string) {
+	t.Helper()
+
+	// Festival should have FESTIVAL_GOAL.md
+	exists, err := tc.CheckFileExists(festPath + "/FESTIVAL_GOAL.md")
+	require.NoError(t, err)
+	require.True(t, exists, "FESTIVAL_GOAL.md should exist")
+
+	// Count phases
+	phaseCount, err := tc.CountPhases(festPath)
+	require.NoError(t, err)
+	require.Greater(t, phaseCount, 0, "festival should have at least one phase")
+}

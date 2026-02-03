@@ -52,8 +52,8 @@ func TestSystemUpdate_DeletesOrphanedFiles(t *testing.T) {
 	// Step 3: Create the checksums file (required by update command)
 	// The checksums should match the current workspace files so they appear "unchanged"
 	_, err = tc.runCommand([]string{"sh", "-c", `
-		mkdir -p /workspace/festivals/.festival
-		cat > /workspace/festivals/.festival/.fest-checksums.json << 'EOF'
+		mkdir -p /workspace/festivals/.festival/.state
+		cat > /workspace/festivals/.festival/.state/.fest-checksums.json << 'EOF'
 {
   "templates/festival/GOAL.md": {"hash": "abc123", "modified": "2024-01-01T00:00:00Z"},
   "templates/phases/implementation/GOAL.md": {"hash": "def456", "modified": "2024-01-01T00:00:00Z"},
@@ -127,10 +127,11 @@ func TestSystemUpdate_ShowsOrphanedInDryRun(t *testing.T) {
 		echo "# Festival Goal" > /root/.config/fest/festivals/.festival/templates/festival/GOAL.md
 
 		mkdir -p /workspace/festivals/.festival/templates/festival
+		mkdir -p /workspace/festivals/.festival/.state
 		echo "# Festival Goal" > /workspace/festivals/.festival/templates/festival/GOAL.md
 		echo "OLD FILE" > /workspace/festivals/.festival/templates/OLD_ORPHAN.md
 
-		cat > /workspace/festivals/.festival/.fest-checksums.json << 'EOF'
+		cat > /workspace/festivals/.festival/.state/.fest-checksums.json << 'EOF'
 {
   "templates/festival/GOAL.md": {"hash": "abc", "modified": "2024-01-01T00:00:00Z"},
   "templates/OLD_ORPHAN.md": {"hash": "xyz", "modified": "2024-01-01T00:00:00Z"}

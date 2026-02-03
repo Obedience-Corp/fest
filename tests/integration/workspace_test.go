@@ -51,13 +51,13 @@ func TestFestGoAndWorkspaceCommands(t *testing.T) {
 		require.Contains(t, output, "Registered", "Output should confirm registration")
 		require.Contains(t, output, "testproject", "Output should show workspace name derived from parent")
 
-		// Verify marker file was created
-		exists, err := container.CheckFileExists("/testproject/festivals/.festival/.workspace")
+		// Verify marker file was created (in .festival/.state/ directory)
+		exists, err := container.CheckFileExists("/testproject/festivals/.festival/.state/.workspace")
 		require.NoError(t, err)
-		require.True(t, exists, ".workspace marker should exist")
+		require.True(t, exists, ".workspace marker should exist in .state directory")
 
 		// Read marker contents
-		content, err := container.ReadFile("/testproject/festivals/.festival/.workspace")
+		content, err := container.ReadFile("/testproject/festivals/.festival/.state/.workspace")
 		require.NoError(t, err)
 		require.Contains(t, content, "testproject", "Marker should contain workspace name")
 	})
@@ -168,8 +168,8 @@ func TestFestGoAndWorkspaceCommands(t *testing.T) {
 
 	// Test 9: Unregister workspace
 	t.Run("UnregisterWorkspace", func(t *testing.T) {
-		// Verify marker exists first
-		exists, err := container.CheckFileExists("/testproject/festivals/.festival/.workspace")
+		// Verify marker exists first (in .festival/.state/ directory)
+		exists, err := container.CheckFileExists("/testproject/festivals/.festival/.state/.workspace")
 		require.NoError(t, err)
 		require.True(t, exists, "Marker should exist before unregistering")
 
@@ -179,7 +179,7 @@ func TestFestGoAndWorkspaceCommands(t *testing.T) {
 		require.Contains(t, output, "Unregistered", "Output should confirm unregistration")
 
 		// Verify marker was removed
-		exists, err = container.CheckFileExists("/testproject/festivals/.festival/.workspace")
+		exists, err = container.CheckFileExists("/testproject/festivals/.festival/.state/.workspace")
 		require.NoError(t, err)
 		require.False(t, exists, ".workspace marker should be removed")
 	})

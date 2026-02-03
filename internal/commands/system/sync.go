@@ -31,7 +31,7 @@ func NewSyncCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sync",
 		Short: "System: Download latest fest templates from GitHub",
-		Long: `Download the latest fest methodology templates from GitHub to ~/.config/fest/
+		Long: `Download the latest fest methodology templates from GitHub to ~/.config/obey/fest/
 
 This is a SYSTEM command that maintains fest itself, not your festival content.
 It fetches the complete .festival/ template structure from the configured

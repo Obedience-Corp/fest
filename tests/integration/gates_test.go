@@ -316,8 +316,9 @@ func requireGateTasks(t *testing.T, files []string) {
 
 // setupGatesTestFestival creates a test festival structure for gates testing
 func setupGatesTestFestival(tc *TestContainer) error {
-	// Create base structure
+	// Create base structure (including .state directory for workspace marker)
 	dirs := []string{
+		"/festivals/.festival/.state",
 		"/festivals/.festival/gates/policies",
 		"/festivals/.festival/templates",
 		"/festivals/.festival/templates/gates",
@@ -384,9 +385,9 @@ Implementation task.
 
 // createMinimalFestival creates a minimal festival structure
 func createMinimalFestival(tc *TestContainer, path string) error {
-	// Create directories including the root .festival (required by FindFestivalsRoot)
+	// Create directories including the root .festival/.state (required by FindFestivalsRoot)
 	dirs := []string{
-		"/festivals/.festival", // Root .festival directory
+		"/festivals/.festival/.state", // Root .festival/.state directory for workspace marker
 		filepath.Join(path, ".festival"),
 		filepath.Join(path, "001_PHASE/01_seq"),
 	}
