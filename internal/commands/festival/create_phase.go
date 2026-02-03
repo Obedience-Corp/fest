@@ -248,18 +248,19 @@ func RunCreatePhase(ctx context.Context, opts *CreatePhaseOptions) error {
 		}
 		content = contentWithFM
 
+		// Load config markers for marker processing (used for PHASE_GOAL and copied files)
+		var configMarkers map[string]string
+		if festivalPath != "" {
+			festCfg, cfgErr := config.LoadFestivalConfig(festivalPath)
+			if cfgErr == nil && festCfg != nil {
+				configMarkers = extractConfigMarkers(festCfg)
+			}
+		}
+
 		// Auto-fill [REPLACE: ...] markers from context (before writing)
 		// This fills Category A (structure) markers automatically
 		if !effectiveSkipMarkers {
 			renderer := tpl.NewRenderer()
-			// Load config markers for Category B markers
-			var configMarkers map[string]string
-			if festivalPath != "" {
-				festCfg, cfgErr := config.LoadFestivalConfig(festivalPath)
-				if cfgErr == nil && festCfg != nil {
-					configMarkers = extractConfigMarkers(festCfg)
-				}
-			}
 			renderedContent, renderErr := renderer.RenderWithMarkerReplacement(content, tmplCtx, configMarkers)
 			if renderErr == nil {
 				content = renderedContent
@@ -268,6 +269,63 @@ func RunCreatePhase(ctx context.Context, opts *CreatePhaseOptions) error {
 
 		if err := os.WriteFile(goalPath, []byte(content), 0644); err != nil {
 			return emitCreatePhaseError(opts, errors.IO("writing phase goal", err).WithField("path", goalPath))
+		}
+
+		// Copy additional phase structure from template directory
+		// Files are processed with marker replacement using the same template context
+		templateDir := filepath.Join(tmplRoot, "phases", opts.PhaseType)
+		if entries, readErr := os.ReadDir(templateDir); readErr == nil {
+			renderer := tpl.NewRenderer()
+			for _, entry := range entries {
+				// Skip GOAL.md (already handled as PHASE_GOAL.md)
+				if entry.Name() == "GOAL.md" {
+					continue
+				}
+
+				src := filepath.Join(templateDir, entry.Name())
+				dst := filepath.Join(phaseDir, entry.Name())
+
+				// Don't overwrite existing files/directories
+				if _, statErr := os.Stat(dst); statErr == nil {
+					if shared.IsVerbose() {
+						display.Info("Skipping %s: already exists", entry.Name())
+					}
+					continue
+				}
+
+				if entry.IsDir() {
+					// Copy directory recursively with marker processing
+					if copyErr := copyDirectoryWithMarkers(ctx, src, dst, renderer, tmplCtx, configMarkers); copyErr != nil {
+						// Log warning but don't fail phase creation
+						if shared.IsVerbose() {
+							display.Warning("Failed to copy directory %s: %v", entry.Name(), copyErr)
+						}
+					}
+				} else {
+					// Copy file with marker processing
+					fileContent, readFileErr := os.ReadFile(src)
+					if readFileErr != nil {
+						if shared.IsVerbose() {
+							display.Warning("Failed to read %s: %v", entry.Name(), readFileErr)
+						}
+						continue
+					}
+					// Process markers in content
+					processed, procErr := renderer.RenderWithMarkerReplacement(string(fileContent), tmplCtx, configMarkers)
+					if procErr != nil {
+						// Fall back to original content if processing fails
+						processed = string(fileContent)
+						if shared.IsVerbose() {
+							display.Warning("Marker processing failed for %s: %v", entry.Name(), procErr)
+						}
+					}
+					if writeErr := os.WriteFile(dst, []byte(processed), 0644); writeErr != nil {
+						if shared.IsVerbose() {
+							display.Warning("Failed to write %s: %v", entry.Name(), writeErr)
+						}
+					}
+				}
+			}
 		}
 
 		// Process REPLACE markers in the created file
@@ -427,4 +485,58 @@ func stripTemplateFrontmatter(content string) string {
 		}
 	}
 	return content
+}
+
+// copyDirectoryWithMarkers recursively copies a directory, processing markers in all files.
+func copyDirectoryWithMarkers(ctx context.Context, src, dst string, renderer tpl.Renderer, tmplCtx *tpl.Context, configMarkers map[string]string) error {
+	// Check context
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	// Create destination directory
+	if err := os.MkdirAll(dst, 0755); err != nil {
+		return errors.IO("creating directory", err).WithField("path", dst)
+	}
+
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return errors.IO("reading directory", err).WithField("path", src)
+	}
+
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+
+		// Don't overwrite existing files
+		if _, statErr := os.Stat(dstPath); statErr == nil {
+			continue
+		}
+
+		if entry.IsDir() {
+			// Recursively copy subdirectory
+			if err := copyDirectoryWithMarkers(ctx, srcPath, dstPath, renderer, tmplCtx, configMarkers); err != nil {
+				return err
+			}
+		} else {
+			// Copy file with marker processing
+			content, readErr := os.ReadFile(srcPath)
+			if readErr != nil {
+				return errors.IO("reading file", readErr).WithField("path", srcPath)
+			}
+
+			// Process markers in content
+			processed, procErr := renderer.RenderWithMarkerReplacement(string(content), tmplCtx, configMarkers)
+			if procErr != nil {
+				// Fall back to original content if processing fails
+				processed = string(content)
+			}
+
+			if err := os.WriteFile(dstPath, []byte(processed), 0644); err != nil {
+				return errors.IO("writing file", err).WithField("path", dstPath)
+			}
+		}
+	}
+
+	return nil
 }

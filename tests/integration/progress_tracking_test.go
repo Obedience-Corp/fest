@@ -95,21 +95,6 @@ type BlockerJSON struct {
 	BlockerMessage string `json:"blocker_message"`
 }
 
-// writeFileInContainer writes content to a file in the container
-func writeFileInContainer(tc *TestContainer, path, content string) error {
-	// Escape single quotes for shell
-	escapedContent := strings.ReplaceAll(content, "'", "'\\''")
-	cmd := []string{"sh", "-c", fmt.Sprintf("printf '%%s' '%s' > %s", escapedContent, path)}
-	exitCode, _, err := tc.container.Exec(tc.ctx, cmd)
-	if err != nil {
-		return fmt.Errorf("failed to execute write command: %w", err)
-	}
-	if exitCode != 0 {
-		return fmt.Errorf("write command exited with code %d", exitCode)
-	}
-	return nil
-}
-
 // setupTodoAppFestival creates the complete festival structure
 func setupTodoAppFestival(t *testing.T, tc *TestContainer, festivalPath string) error {
 	t.Helper()
