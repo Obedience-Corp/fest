@@ -536,7 +536,7 @@ func TestFindWorkspace_CampaignPriority(t *testing.T) {
 	os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
 	os.MkdirAll(filepath.Join(dir, "festivals", ".festival"), 0755)
 	os.MkdirAll(filepath.Join(dir, "festivals", ".festival", ".state"), 0755)
-				os.WriteFile(filepath.Join(dir, "festivals", ".festival", ".state", ".workspace"), []byte(`{"workspace":"test"}`), 0644)
+	os.WriteFile(filepath.Join(dir, "festivals", ".festival", ".state", ".workspace"), []byte(`{"workspace":"test"}`), 0644)
 
 	ws, err := FindWorkspace(context.Background(), dir)
 	if err != nil {

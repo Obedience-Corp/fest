@@ -12,7 +12,6 @@ import (
 	feedbackcmd "github.com/Obedience-Corp/fest/internal/commands/feedback"
 	"github.com/Obedience-Corp/fest/internal/commands/festival"
 	"github.com/Obedience-Corp/fest/internal/commands/gates"
-	graduatecmd "github.com/Obedience-Corp/fest/internal/commands/graduate"
 	introcmd "github.com/Obedience-Corp/fest/internal/commands/intro"
 	listcmd "github.com/Obedience-Corp/fest/internal/commands/list"
 	"github.com/Obedience-Corp/fest/internal/commands/markers"
@@ -305,11 +304,6 @@ func init() {
 	wizardCmd := wizard.NewWizardCommand()
 	wizardCmd.GroupID = "learning"
 	rootCmd.AddCommand(wizardCmd)
-
-	// Graduate command for transitioning planning to implementation
-	graduateCmd := graduatecmd.NewGraduateCommand()
-	graduateCmd.GroupID = "creation"
-	rootCmd.AddCommand(graduateCmd)
 
 	// Templates command for agent-created templates
 	templatesCmd := templatescmd.NewTemplatesCommand()
