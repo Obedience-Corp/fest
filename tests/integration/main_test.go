@@ -14,6 +14,9 @@ import (
 var sharedContainer *TestContainer
 
 func TestMain(m *testing.M) {
+	// Disable ryuk reaper for Colima compatibility
+	os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
+
 	var err error
 	sharedContainer, err = NewSharedContainer()
 	if err != nil {
