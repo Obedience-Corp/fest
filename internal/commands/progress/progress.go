@@ -224,6 +224,7 @@ func handleTaskUpdate(ctx context.Context, mgr *progress.Manager, festivalPath s
 
 	// Handle complete
 	if opts.complete {
+		// Evaluate verification gates
 		// Resolve task file path for gate evaluation
 		taskFilePath := filepath.Join(festivalPath, taskID)
 		if !strings.HasSuffix(taskFilePath, ".md") {

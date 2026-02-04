@@ -48,8 +48,8 @@ type TaskProgressState struct {
 }
 
 type YAMLProgressData struct {
-	Festival  string                 `yaml:"festival"`
-	UpdatedAt string                 `yaml:"updated_at"`
+	Festival  string                  `yaml:"festival"`
+	UpdatedAt string                  `yaml:"updated_at"`
 	Tasks     map[string]YAMLTaskData `yaml:"tasks"`
 }
 
@@ -58,6 +58,16 @@ type YAMLTaskData struct {
 	Status           string `yaml:"status"`
 	Progress         int    `yaml:"progress"`
 	TimeSpentMinutes int    `yaml:"time_spent_minutes,omitempty"`
+}
+
+// ProgressEvent represents a single progress event in JSONL format
+type ProgressEvent struct {
+	Timestamp string `json:"ts"`
+	Event     string `json:"event"`
+	Task      string `json:"task"`
+	Minutes   int    `json:"minutes,omitempty"`
+	Percent   int    `json:"percent,omitempty"`
+	Reason    string `json:"reason,omitempty"`
 }
 
 // JSON response structures for parsing fest output
@@ -95,26 +105,18 @@ type BlockerJSON struct {
 	BlockerMessage string `json:"blocker_message"`
 }
 
-// writeFileInContainer writes content to a file in the container
-func writeFileInContainer(tc *TestContainer, path, content string) error {
-	// Escape single quotes for shell
-	escapedContent := strings.ReplaceAll(content, "'", "'\\''")
-	cmd := []string{"sh", "-c", fmt.Sprintf("printf '%%s' '%s' > %s", escapedContent, path)}
-	exitCode, _, err := tc.container.Exec(tc.ctx, cmd)
-	if err != nil {
-		return fmt.Errorf("failed to execute write command: %w", err)
-	}
-	if exitCode != 0 {
-		return fmt.Errorf("write command exited with code %d", exitCode)
-	}
-	return nil
-}
-
 // setupTodoAppFestival creates the complete festival structure
 func setupTodoAppFestival(t *testing.T, tc *TestContainer, festivalPath string) error {
 	t.Helper()
 
-	// Create directory structure
+	// Initialize workspace using fest init (templates are mounted in container)
+	festivalsRoot := filepath.Dir(festivalPath)
+	output, err := tc.RunFest("init", festivalsRoot)
+	if err != nil {
+		return fmt.Errorf("failed to initialize workspace: %s: %w", output, err)
+	}
+
+	// Create directory structure for the festival itself
 	dirs := []string{
 		festivalPath,
 		filepath.Join(festivalPath, ".fest"),
@@ -261,13 +263,22 @@ func captureProgressSnapshot(t *testing.T, tc *TestContainer, festivalPath strin
 		}
 	}
 
-	// Read YAML progress file directly
-	yamlPath := filepath.Join(festivalPath, ".fest/progress.yaml")
-	yamlContent, err := tc.ReadFile(yamlPath)
-	if err == nil && yamlContent != "" {
-		var yamlData YAMLProgressData
-		if err := yaml.Unmarshal([]byte(yamlContent), &yamlData); err == nil {
-			snapshot.YAMLData = &yamlData
+	// Read progress from JSONL events file (new format)
+	// The YAML format is legacy and has been migrated to JSONL
+	jsonlPath := filepath.Join(festivalPath, ".fest/progress_events.jsonl")
+	jsonlContent, err := tc.ReadFile(jsonlPath)
+	if err == nil && jsonlContent != "" {
+		// Parse JSONL events and build state
+		snapshot.YAMLData = parseJSONLEvents(jsonlContent)
+	} else {
+		// Fallback to legacy YAML if JSONL doesn't exist
+		yamlPath := filepath.Join(festivalPath, ".fest/progress.yaml")
+		yamlContent, err := tc.ReadFile(yamlPath)
+		if err == nil && yamlContent != "" {
+			var yamlData YAMLProgressData
+			if err := yaml.Unmarshal([]byte(yamlContent), &yamlData); err == nil {
+				snapshot.YAMLData = &yamlData
+			}
 		}
 	}
 
@@ -412,6 +423,63 @@ func parseMarkdownCheckboxes(t *testing.T, tc *TestContainer, taskPath string) (
 		return priorityChecked, priorityTotal
 	}
 	return allChecked, allTotal
+}
+
+// parseJSONLEvents parses JSONL progress events and materializes the state
+// into a YAMLProgressData structure for compatibility with existing tests
+func parseJSONLEvents(content string) *YAMLProgressData {
+	lines := strings.Split(content, "\n")
+	tasks := make(map[string]YAMLTaskData)
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		var event ProgressEvent
+		if err := json.Unmarshal([]byte(line), &event); err != nil {
+			continue // Skip malformed lines
+		}
+
+		// Get or create task state
+		task, ok := tasks[event.Task]
+		if !ok {
+			task = YAMLTaskData{
+				TaskID: event.Task,
+				Status: "pending",
+			}
+		}
+
+		// Apply event to task state
+		switch event.Event {
+		case "started":
+			if task.Status == "pending" {
+				task.Status = "in_progress"
+			}
+		case "completed":
+			task.Status = "completed"
+			task.Progress = 100
+			task.TimeSpentMinutes = event.Minutes
+		case "progress":
+			task.Progress = event.Percent
+			if task.Status == "pending" {
+				task.Status = "in_progress"
+			}
+		case "blocked":
+			task.Status = "blocked"
+		case "unblocked":
+			if task.Status == "blocked" {
+				task.Status = "in_progress"
+			}
+		}
+
+		tasks[event.Task] = task
+	}
+
+	return &YAMLProgressData{
+		Tasks: tasks,
+	}
 }
 
 // verifyProgressConsistency logs any divergence between YAML and markdown

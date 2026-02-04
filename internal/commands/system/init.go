@@ -62,7 +62,7 @@ Workspace Registration:
 	}
 
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "overwrite existing festival directory")
-	cmd.Flags().StringVar(&opts.From, "from", "", "source directory (default: ~/.config/fest)")
+	cmd.Flags().StringVar(&opts.From, "from", "", "source directory (default: ~/.config/obey/fest)")
 	cmd.Flags().BoolVar(&opts.Minimal, "minimal", false, "create minimal structure only")
 	cmd.Flags().BoolVar(&opts.NoChecksums, "no-checksums", false, "skip checksum generation")
 	cmd.Flags().BoolVar(&opts.Register, "register", false, "register existing festivals as active workspace")
@@ -107,9 +107,26 @@ func RunInit(ctx context.Context, targetPath string, opts *InitOptions) error {
 		sourceDir = filepath.Join(config.ConfigDir(), "festivals")
 	}
 
-	// Check if source exists
+	// Check if source exists - if not, auto-sync to populate it
 	if !fileops.Exists(sourceDir) {
-		return errors.NotFound("source directory").WithField("path", sourceDir).WithField("hint", "run 'fest sync' first")
+		display.Info("Template cache not found, syncing from GitHub...")
+
+		// Run sync to populate the source directory
+		syncOpts := &syncOptions{
+			dryRun: false,
+		}
+		if err := runSync(ctx, nil, syncOpts); err != nil {
+			return errors.Wrap(err, "auto-sync failed").
+				WithField("path", sourceDir).
+				WithField("hint", "check your internet connection or run 'fest sync' manually")
+		}
+
+		// Verify sync worked
+		if !fileops.Exists(sourceDir) {
+			return errors.NotFound("source directory after sync").
+				WithField("path", sourceDir).
+				WithField("hint", "sync completed but templates not found - check 'fest sync' output")
+		}
 	}
 
 	display.Info("Initializing festival structure at %s...", festivalPath)
@@ -143,7 +160,14 @@ func RunInit(ctx context.Context, targetPath string, opts *InitOptions) error {
 	// Generate checksums unless disabled
 	if !opts.NoChecksums {
 		display.Info("Generating .festival checksums...")
-		checksumFile := filepath.Join(festivalPath, ".festival", ".fest-checksums.json")
+
+		// Ensure .state directory exists
+		stateDir := filepath.Join(festivalPath, ".festival", workspace.StateDir)
+		if err := os.MkdirAll(stateDir, 0755); err != nil {
+			return errors.IO("creating state directory", err).WithField("path", stateDir)
+		}
+
+		checksumFile := filepath.Join(stateDir, ".fest-checksums.json")
 
 		// Only checksum the .festival directory
 		festivalMetaDir := filepath.Join(festivalPath, ".festival")

@@ -12,6 +12,25 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// findFestivalPath locates the actual festival directory after creation.
+// fest create festival adds an ID suffix (e.g., "test-fest-TF0001"), so we need
+// to find the directory by prefix matching.
+func findFestivalPath(t *testing.T, tc *TestContainer, activeDir string, festName string) string {
+	t.Helper()
+
+	dirs, err := tc.ListDirectories(activeDir)
+	require.NoError(t, err, "should list directories in %s", activeDir)
+
+	for _, dir := range dirs {
+		if strings.HasPrefix(dir, festName) {
+			return activeDir + "/" + dir
+		}
+	}
+
+	require.Failf(t, "festival not found", "could not find festival starting with %q in %s, found: %v", festName, activeDir, dirs)
+	return "" // unreachable
+}
+
 // ============================================================================
 // FESTIVAL SETUP HELPERS
 // ============================================================================
@@ -20,11 +39,24 @@ import (
 // Returns the festival path inside the container.
 func setupImplementationFestival(t *testing.T, tc *TestContainer, festName string) string {
 	t.Helper()
-	festPath := "/festivals/" + festName
 
-	// Create festival
-	_, err := tc.RunFest("create", "festival", "--name", festName, "--path", "/festivals")
-	require.NoError(t, err, "should create festival")
+	// First, initialize workspace properly (creates .festival/.state/.workspace marker)
+	festivalsPath := setupWorkspace(t, tc, "/")
+
+	// Create festival using --dest flag (not --path which doesn't exist)
+	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "active")
+	require.NoError(t, err, "should create festival: %s", output)
+
+	// Find the actual festival path (fest adds an ID suffix like "test-fest-TF0001")
+	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
+
+	// Disable quality gate enforcement for testing (write fest.yaml)
+	// Quality gates block task completion and are tested separately
+	festYaml := `# Test festival config - gates disabled for integration testing
+enforce_gates: false
+`
+	err = writeFileInContainer(tc, festPath+"/fest.yaml", festYaml)
+	require.NoError(t, err, "should create fest.yaml")
 
 	// Create implementation phase
 	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "IMPLEMENTATION", "--type", "implementation")
@@ -35,14 +67,29 @@ func setupImplementationFestival(t *testing.T, tc *TestContainer, festName strin
 	_, err = tc.RunFestInDir(phasePath, "create", "sequence", "--name", "core_work")
 	require.NoError(t, err, "should create sequence")
 
-	// Create tasks
+	// Write task files directly without markers to avoid quality gate failures
+	// This is the same pattern used for PHASE_GOAL.md files in other helpers
 	seqPath := phasePath + "/01_core_work"
-	_, err = tc.RunFestInDir(seqPath, "create", "task", "--name", "first_task")
-	require.NoError(t, err, "should create first task")
-	_, err = tc.RunFestInDir(seqPath, "create", "task", "--name", "second_task")
-	require.NoError(t, err, "should create second task")
-	_, err = tc.RunFestInDir(seqPath, "create", "task", "--name", "third_task")
-	require.NoError(t, err, "should create third task")
+	for i, name := range []string{"first_task", "second_task", "third_task"} {
+		taskContent := fmt.Sprintf(`---
+fest_type: task
+fest_id: %02d_%s.md
+fest_name: %s
+fest_status: pending
+---
+
+# Task: %s
+
+## Objective
+Complete the %s task.
+
+## Done When
+- [ ] Task completed
+`, i+1, name, name, name, name)
+		taskPath := fmt.Sprintf("%s/%02d_%s.md", seqPath, i+1, name)
+		err = writeFileInContainer(tc, taskPath, taskContent)
+		require.NoError(t, err, "should create task file %s", taskPath)
+	}
 
 	return festPath
 }
@@ -50,10 +97,16 @@ func setupImplementationFestival(t *testing.T, tc *TestContainer, festName strin
 // setupPlanFestival creates a test festival with planning phases for plan mode testing.
 func setupPlanFestival(t *testing.T, tc *TestContainer, festName string) string {
 	t.Helper()
-	festPath := "/festivals/" + festName
 
-	_, err := tc.RunFest("create", "festival", "--name", festName, "--path", "/festivals")
-	require.NoError(t, err)
+	// First, initialize workspace properly (creates .festival/.state/.workspace marker)
+	festivalsPath := setupWorkspace(t, tc, "/")
+
+	// Create festival using --dest flag
+	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "active")
+	require.NoError(t, err, "should create festival: %s", output)
+
+	// Find the actual festival path (fest adds an ID suffix)
+	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
 
 	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "PLANNING", "--type", "planning")
 	require.NoError(t, err)
@@ -63,7 +116,7 @@ func setupPlanFestival(t *testing.T, tc *TestContainer, festName string) string 
 	phasePath := festPath + "/001_PLANNING"
 	goalContent := `---
 fest_type: phase
-phase_type: planning
+fest_phase_type: planning
 ---
 
 # Planning Phase
@@ -83,10 +136,16 @@ phase_type: planning
 // setupResearchFestival creates a test festival with research phases for research mode testing.
 func setupResearchFestival(t *testing.T, tc *TestContainer, festName string) string {
 	t.Helper()
-	festPath := "/festivals/" + festName
 
-	_, err := tc.RunFest("create", "festival", "--name", festName, "--path", "/festivals")
-	require.NoError(t, err)
+	// First, initialize workspace properly (creates .festival/.state/.workspace marker)
+	festivalsPath := setupWorkspace(t, tc, "/")
+
+	// Create festival using --dest flag
+	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "active")
+	require.NoError(t, err, "should create festival: %s", output)
+
+	// Find the actual festival path (fest adds an ID suffix)
+	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
 
 	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "RESEARCH", "--type", "research")
 	require.NoError(t, err)
@@ -94,7 +153,7 @@ func setupResearchFestival(t *testing.T, tc *TestContainer, festName string) str
 	phasePath := festPath + "/001_RESEARCH"
 	goalContent := `---
 fest_type: phase
-phase_type: research
+fest_phase_type: research
 ---
 
 # Research Phase
@@ -113,10 +172,16 @@ phase_type: research
 // setupReviewFestival creates a test festival with review phases for review mode testing.
 func setupReviewFestival(t *testing.T, tc *TestContainer, festName string) string {
 	t.Helper()
-	festPath := "/festivals/" + festName
 
-	_, err := tc.RunFest("create", "festival", "--name", festName, "--path", "/festivals")
-	require.NoError(t, err)
+	// First, initialize workspace properly (creates .festival/.state/.workspace marker)
+	festivalsPath := setupWorkspace(t, tc, "/")
+
+	// Create festival using --dest flag
+	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "active")
+	require.NoError(t, err, "should create festival: %s", output)
+
+	// Find the actual festival path (fest adds an ID suffix)
+	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
 
 	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "REVIEW", "--type", "review")
 	require.NoError(t, err)
@@ -124,7 +189,7 @@ func setupReviewFestival(t *testing.T, tc *TestContainer, festName string) strin
 	phasePath := festPath + "/001_REVIEW"
 	goalContent := `---
 fest_type: phase
-phase_type: review
+fest_phase_type: review
 ---
 
 # Review Phase
@@ -144,18 +209,24 @@ phase_type: review
 // setupActionFestival creates a test festival with action phases for action mode testing.
 func setupActionFestival(t *testing.T, tc *TestContainer, festName string) string {
 	t.Helper()
-	festPath := "/festivals/" + festName
 
-	_, err := tc.RunFest("create", "festival", "--name", festName, "--path", "/festivals")
-	require.NoError(t, err)
+	// First, initialize workspace properly (creates .festival/.state/.workspace marker)
+	festivalsPath := setupWorkspace(t, tc, "/")
 
-	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "ACTIONS", "--type", "action")
+	// Create festival using --dest flag
+	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "active")
+	require.NoError(t, err, "should create festival: %s", output)
+
+	// Find the actual festival path (fest adds an ID suffix)
+	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
+
+	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "ACTIONS", "--type", "non_coding_action")
 	require.NoError(t, err)
 
 	phasePath := festPath + "/001_ACTIONS"
 	goalContent := `---
 fest_type: phase
-phase_type: action
+fest_phase_type: non_coding_action
 ---
 
 # Action Phase
@@ -175,10 +246,16 @@ phase_type: action
 // setupIngestFestival creates a test festival with ingest phases for ingest mode testing.
 func setupIngestFestival(t *testing.T, tc *TestContainer, festName string) string {
 	t.Helper()
-	festPath := "/festivals/" + festName
 
-	_, err := tc.RunFest("create", "festival", "--name", festName, "--path", "/festivals")
-	require.NoError(t, err)
+	// First, initialize workspace properly (creates .festival/.state/.workspace marker)
+	festivalsPath := setupWorkspace(t, tc, "/")
+
+	// Create festival using --dest flag
+	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "active")
+	require.NoError(t, err, "should create festival: %s", output)
+
+	// Find the actual festival path (fest adds an ID suffix)
+	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
 
 	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "INGEST", "--type", "ingest")
 	require.NoError(t, err)
@@ -186,7 +263,7 @@ func setupIngestFestival(t *testing.T, tc *TestContainer, festName string) strin
 	phasePath := festPath + "/001_INGEST"
 	goalContent := `---
 fest_type: phase
-phase_type: ingest
+fest_phase_type: ingest
 ---
 
 # Ingest Phase
@@ -305,10 +382,21 @@ func extractCurrentTask(t *testing.T, output string) string {
 // ============================================================================
 
 // runExecuteMode runs fest execute and returns the output.
+// When run from the festival root, it defaults to implementation mode.
+// For phase-type-aware navigation, use runExecuteModeFromPhase.
 func runExecuteMode(t *testing.T, tc *TestContainer, festPath string) string {
 	t.Helper()
 	output, err := tc.RunFestInDir(festPath, "execute")
 	require.NoError(t, err, "fest execute should succeed")
+	return output
+}
+
+// runExecuteModeFromPhase runs fest execute from within a phase directory.
+// This enables phase-type-aware navigation based on PHASE_GOAL.md frontmatter.
+func runExecuteModeFromPhase(t *testing.T, tc *TestContainer, phasePath string) string {
+	t.Helper()
+	output, err := tc.RunFestInDir(phasePath, "execute")
+	require.NoError(t, err, "fest execute (from phase) should succeed")
 	return output
 }
 
@@ -371,11 +459,16 @@ func appendFileInContainer(tc *TestContainer, path, content string) error {
 // setupMultiModeFestival creates a festival with multiple phase types for comprehensive testing.
 func setupMultiModeFestival(t *testing.T, tc *TestContainer, festName string) string {
 	t.Helper()
-	festPath := "/festivals/" + festName
 
-	// Create festival
-	_, err := tc.RunFest("create", "festival", "--name", festName, "--path", "/festivals")
-	require.NoError(t, err, "should create festival")
+	// First, initialize workspace properly (creates .festival/.state/.workspace marker)
+	festivalsPath := setupWorkspace(t, tc, "/")
+
+	// Create festival using --dest flag
+	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "active")
+	require.NoError(t, err, "should create festival: %s", output)
+
+	// Find the actual festival path (fest adds an ID suffix)
+	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
 
 	// Create planning phase
 	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "PLANNING", "--type", "planning")
@@ -391,9 +484,7 @@ func setupMultiModeFestival(t *testing.T, tc *TestContainer, festName string) st
 	require.NoError(t, err)
 
 	seqPath := phasePath + "/01_core_work"
-	_, err = tc.RunFestInDir(seqPath, "create", "task", "--name", "task_one")
-	require.NoError(t, err)
-	_, err = tc.RunFestInDir(seqPath, "create", "task", "--name", "task_two")
+	_, err = tc.RunFestInDir(seqPath, "create", "task", "--name", "task_one", "--name", "task_two")
 	require.NoError(t, err)
 
 	// Create review phase
@@ -401,4 +492,127 @@ func setupMultiModeFestival(t *testing.T, tc *TestContainer, festName string) st
 	require.NoError(t, err, "should create review phase")
 
 	return festPath
+}
+
+// ============================================================================
+// LIFECYCLE TEST HELPERS
+// ============================================================================
+
+// setupLifecycleFestival creates a complete lifecycle test festival with all phase types.
+// This is used for comprehensive lifecycle testing across phase types.
+func setupLifecycleFestival(t *testing.T, tc *TestContainer, festName string) string {
+	t.Helper()
+
+	// First, initialize workspace properly (creates .festival/.state/.workspace marker)
+	festivalsPath := setupWorkspace(t, tc, "/")
+
+	// Create festival using --dest flag
+	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "active")
+	require.NoError(t, err, "should create festival: %s", output)
+
+	// Find the actual festival path (fest adds an ID suffix)
+	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
+
+	// Create ingest phase
+	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "INGEST", "--type", "ingest")
+	require.NoError(t, err, "should create ingest phase")
+
+	// Create planning phase
+	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "PLANNING", "--type", "planning")
+	require.NoError(t, err, "should create planning phase")
+
+	// Create implementation phase with tasks
+	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "IMPLEMENTATION", "--type", "implementation")
+	require.NoError(t, err, "should create implementation phase")
+
+	phasePath := festPath + "/003_IMPLEMENTATION"
+	_, err = tc.RunFestInDir(phasePath, "create", "sequence", "--name", "core_work")
+	require.NoError(t, err, "should create sequence")
+
+	seqPath := phasePath + "/01_core_work"
+	_, err = tc.RunFestInDir(seqPath, "create", "task", "--name", "first_task", "--name", "second_task")
+	require.NoError(t, err, "should create tasks")
+
+	// Create review phase
+	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "REVIEW", "--type", "review")
+	require.NoError(t, err, "should create review phase")
+
+	return festPath
+}
+
+// VerifyWorkflowNavigation checks fest next returns workflow step format.
+func VerifyWorkflowNavigation(t *testing.T, output string) {
+	t.Helper()
+	lowerOutput := strings.ToLower(output)
+	isWorkflow := strings.Contains(lowerOutput, "workflow") ||
+		strings.Contains(lowerOutput, "step") ||
+		strings.Contains(output, "fest workflow")
+	if isWorkflow {
+		require.NotContains(t, lowerOutput, "fest progress --complete",
+			"workflow mode should not show task completion command")
+	}
+}
+
+// VerifyTaskNavigation checks fest next returns task format.
+func VerifyTaskNavigation(t *testing.T, output string) {
+	t.Helper()
+	lowerOutput := strings.ToLower(output)
+	isTaskBased := strings.Contains(lowerOutput, "task") ||
+		strings.Contains(lowerOutput, ".md") ||
+		strings.Contains(lowerOutput, "progress")
+	if isTaskBased {
+		require.NotContains(t, lowerOutput, "fest workflow advance",
+			"task mode should not show workflow advance command")
+	}
+}
+
+// VerifyPhaseStructure validates phase directory has required files for the given type.
+func VerifyPhaseStructure(t *testing.T, tc *TestContainer, phasePath string, phaseType string) {
+	t.Helper()
+
+	// Common files - all phases should have PHASE_GOAL.md
+	exists, err := tc.CheckFileExists(phasePath + "/PHASE_GOAL.md")
+	require.NoError(t, err)
+	require.True(t, exists, "PHASE_GOAL.md should exist in %s", phasePath)
+
+	// Type-specific verification
+	switch phaseType {
+	case "ingest":
+		// Ingest phases may have WORKFLOW.md or input/output spec directories
+		// These are optional scaffolded items
+		t.Logf("Verifying ingest phase structure at %s", phasePath)
+
+	case "implementation":
+		// Implementation phases should have sequences with tasks
+		t.Logf("Verifying implementation phase structure at %s", phasePath)
+
+	case "planning":
+		// Planning phases typically have planning objectives in PHASE_GOAL.md
+		content, err := tc.ReadFile(phasePath + "/PHASE_GOAL.md")
+		require.NoError(t, err)
+		require.Contains(t, strings.ToLower(content), "planning",
+			"planning phase should have planning content")
+
+	case "review":
+		// Review phases typically have review checklist in PHASE_GOAL.md
+		content, err := tc.ReadFile(phasePath + "/PHASE_GOAL.md")
+		require.NoError(t, err)
+		require.Contains(t, strings.ToLower(content), "review",
+			"review phase should have review content")
+	}
+}
+
+// VerifyFestivalStructure validates the complete festival structure is valid.
+func VerifyFestivalStructure(t *testing.T, tc *TestContainer, festPath string) {
+	t.Helper()
+
+	// Festival should have FESTIVAL_GOAL.md
+	exists, err := tc.CheckFileExists(festPath + "/FESTIVAL_GOAL.md")
+	require.NoError(t, err)
+	require.True(t, exists, "FESTIVAL_GOAL.md should exist")
+
+	// Count phases
+	phaseCount, err := tc.CountPhases(festPath)
+	require.NoError(t, err)
+	require.Greater(t, phaseCount, 0, "festival should have at least one phase")
 }

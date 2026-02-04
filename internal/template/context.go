@@ -347,6 +347,8 @@ func (c *Context) ToReplacementMap() map[string]string {
 	}
 	if c.PhaseID != "" {
 		m["[REPLACE: Phase ID]"] = c.PhaseID
+		m["[REPLACE: PHASE_ID]"] = c.PhaseID
+		m["[REPLACE: phase_id]"] = c.PhaseID
 	}
 
 	// Sequence-level replacements
@@ -361,6 +363,8 @@ func (c *Context) ToReplacementMap() map[string]string {
 	}
 	if c.SequenceID != "" {
 		m["[REPLACE: Sequence ID]"] = c.SequenceID
+		m["[REPLACE: SEQUENCE_ID]"] = c.SequenceID
+		m["[REPLACE: sequence_id]"] = c.SequenceID
 	}
 
 	// Task-level replacements

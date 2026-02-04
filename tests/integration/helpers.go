@@ -42,6 +42,13 @@ func NewTestContainer(t *testing.T) (*TestContainer, error) {
   return nil, fmt.Errorf("failed to get absolute path: %w", err)
  }
 
+ // Get path to templates (used by fest init)
+ templatesPath := filepath.Join(cwd, "../../methodology/festivals/.festival")
+ templatesPath, err = filepath.Abs(templatesPath)
+ if err != nil {
+  return nil, fmt.Errorf("failed to get templates path: %w", err)
+ }
+
  // Create Linux binary directory if it doesn't exist
  linuxBinDir := filepath.Dir(festBinaryPath)
  if err := os.MkdirAll(linuxBinDir, 0755); err != nil {
@@ -63,6 +70,12 @@ func NewTestContainer(t *testing.T) (*TestContainer, error) {
     Source:   testcontainers.GenericBindMountSource{HostPath: festBinaryPath},
     Target:   "/fest",
     ReadOnly: false,
+   },
+   {
+    // Mount templates so fest init can use them without network
+    Source:   testcontainers.GenericBindMountSource{HostPath: templatesPath},
+    Target:   "/root/.config/obey/fest/festivals/.festival",
+    ReadOnly: true,
    },
   },
  }
@@ -125,7 +138,29 @@ func (tc *TestContainer) RunFest(args ...string) (string, error) {
 func (tc *TestContainer) RunFestInDir(dir string, args ...string) (string, error) {
  // Use sh -c to change directory and run fest
  cmd := []string{"sh", "-c", "cd " + dir + " && /fest " + strings.Join(args, " ")}
- return tc.runCommand(cmd)
+
+ exitCode, reader, err := tc.container.Exec(tc.ctx, cmd)
+ if err != nil {
+  return "", fmt.Errorf("failed to execute fest in dir: %w", err)
+ }
+
+ // Demultiplex Docker stream
+ var stdout, stderr bytes.Buffer
+ if _, err := stdcopy.StdCopy(&stdout, &stderr, reader); err != nil {
+  return "", fmt.Errorf("failed to demultiplex output: %w", err)
+ }
+
+ output := stdout.String()
+ if stderr.Len() > 0 {
+  output += stderr.String()
+ }
+
+ // Return error on non-zero exit (like RunFest does)
+ if exitCode != 0 {
+  return output, fmt.Errorf("fest exited with code %d: %s", exitCode, output)
+ }
+
+ return output, nil
 }
 
 // runCommand executes a command in the container
@@ -456,6 +491,12 @@ func NewSharedContainer() (*TestContainer, error) {
   return nil, fmt.Errorf("failed to build fest binary: %w", err)
  }
 
+ // Get path to templates (used by fest init)
+ templatesPath, err := buildTemplatesPathShared()
+ if err != nil {
+  return nil, fmt.Errorf("failed to get templates path: %w", err)
+ }
+
  req := testcontainers.ContainerRequest{
   Image:      "alpine:latest",
   Cmd:        []string{"sleep", "3600"},
@@ -466,6 +507,12 @@ func NewSharedContainer() (*TestContainer, error) {
     Source:   testcontainers.GenericBindMountSource{HostPath: festBinary},
     Target:   "/fest",
     ReadOnly: false,
+   },
+   {
+    // Mount templates so fest init can use them without network
+    Source:   testcontainers.GenericBindMountSource{HostPath: templatesPath},
+    Target:   "/root/.config/obey/fest/festivals/.festival",
+    ReadOnly: true,
    },
   },
  }
@@ -512,11 +559,31 @@ func buildFestBinaryShared() (string, error) {
  return festBinaryPath, nil
 }
 
+// buildTemplatesPathShared returns the path to the templates directory without testing.T
+func buildTemplatesPathShared() (string, error) {
+ cwd, err := os.Getwd()
+ if err != nil {
+  return "", fmt.Errorf("failed to get working directory: %w", err)
+ }
+ templatesPath := filepath.Join(cwd, "../../methodology/festivals/.festival")
+ templatesPath, err = filepath.Abs(templatesPath)
+ if err != nil {
+  return "", fmt.Errorf("failed to get templates path: %w", err)
+ }
+
+ // Check if templates exist
+ if _, err := os.Stat(templatesPath); err != nil {
+  return "", fmt.Errorf("templates not found at %s: %w", templatesPath, err)
+ }
+
+ return templatesPath, nil
+}
+
 // Reset clears container state between tests.
 // This removes all test artifacts while keeping the container and binary intact.
 func (tc *TestContainer) Reset() error {
  exitCode, _, err := tc.container.Exec(tc.ctx, []string{
-  "sh", "-c", "rm -rf /test /output /festivals /workspace /testproject /outer /tmp/* 2>/dev/null; mkdir -p /test /festivals",
+  "sh", "-c", "rm -rf /test /output /festivals /workspace /testproject /outer /tmp/* 2>/dev/null; mkdir -p /test",
  })
  if err != nil {
   return fmt.Errorf("failed to reset container: %w", err)
@@ -659,4 +726,35 @@ This is a test task for %s.
 - Test passes
 - Code reviewed
 `, strings.ToUpper(taskName), taskName, taskName)
+}
+
+// setupWorkspace creates a minimal workspace structure for testing.
+// We create the structure manually instead of using fest init because
+// fest init requires network access for auto-sync which isn't available in containers.
+//
+// Note: This creates a festivals/ directory UNDER the given path.
+// So setupWorkspace(t, tc, "/") creates /festivals/.
+//
+// Returns the path to the festivals directory.
+func setupWorkspace(t *testing.T, tc *TestContainer, basePath string) string {
+	t.Helper()
+
+	festivalsPath := filepath.Join(basePath, "festivals")
+
+	// Create minimal workspace structure
+	_, err := tc.runCommand([]string{
+		"sh", "-c",
+		fmt.Sprintf("mkdir -p %s/.festival/.state %s/active %s/planned",
+			festivalsPath, festivalsPath, festivalsPath),
+	})
+	require.NoError(t, err, "should create workspace directories")
+
+	// Create .workspace marker file to register as workspace (JSON format expected by workspace.ReadMarker)
+	markerPath := filepath.Join(festivalsPath, ".festival", ".state", ".workspace")
+	markerContent := `{"workspace": "` + filepath.Base(basePath) + `", "registered": "2024-01-01T00:00:00Z"}`
+	cmd := fmt.Sprintf("cat > %s << 'EOF'\n%s\nEOF", markerPath, markerContent)
+	_, err = tc.runCommand([]string{"sh", "-c", cmd})
+	require.NoError(t, err, "should create workspace marker")
+
+	return festivalsPath
 }

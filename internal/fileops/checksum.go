@@ -245,7 +245,12 @@ func shouldSkipFile(path, rootPath string) bool {
 		return true
 	}
 
-	// Skip checksum file itself
+	// Skip .state directory (local state files, not synced)
+	if strings.HasPrefix(relPath, ".state/") || relPath == ".state" {
+		return true
+	}
+
+	// Skip checksum file itself (legacy location)
 	if strings.HasSuffix(relPath, ".fest-checksums.json") {
 		return true
 	}

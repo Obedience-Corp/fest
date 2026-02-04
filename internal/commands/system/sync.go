@@ -31,7 +31,7 @@ func NewSyncCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sync",
 		Short: "System: Download latest fest templates from GitHub",
-		Long: `Download the latest fest methodology templates from GitHub to ~/.config/fest/
+		Long: `Download the latest fest methodology templates from GitHub to ~/.config/obey/fest/
 
 This is a SYSTEM command that maintains fest itself, not your festival content.
 It fetches the complete .festival/ template structure from the configured
@@ -254,7 +254,7 @@ func runSync(ctx context.Context, _ *cobra.Command, opts *syncOptions) error {
 	}
 
 	// Delete orphaned files (files that exist locally but not in remote)
-	// Note: Only works with HTTP method, git clone replaces everything
+	// Note: Git method handles this in DownloadWithGit; HTTP method needs explicit cleanup
 	if opts.force && !useGit {
 		display.Info("Removing orphaned files...")
 		deleted, err := downloader.DeleteOrphaned(owner, repo, targetDir)

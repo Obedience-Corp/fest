@@ -30,6 +30,11 @@ const (
 	// ModeAction is for deployment and non-coding action phases.
 	// Tasks are operational with action_verify, completion gates.
 	ModeAction Mode = "action"
+
+	// ModeWorkflow is for workflow-based navigation using WORKFLOW.md.
+	// Steps are parsed from WORKFLOW.md and tracked via workflow state.
+	// This mode is auto-selected when a WORKFLOW.md exists in the phase.
+	ModeWorkflow Mode = "workflow"
 )
 
 // String returns the string representation of the mode.
@@ -40,7 +45,7 @@ func (m Mode) String() string {
 // IsValid returns true if the mode is a known valid mode.
 func (m Mode) IsValid() bool {
 	switch m {
-	case ModeImplementation, ModePlan, ModeIngest, ModeResearch, ModeReview, ModeAction:
+	case ModeImplementation, ModePlan, ModeIngest, ModeResearch, ModeReview, ModeAction, ModeWorkflow:
 		return true
 	default:
 		return false
@@ -122,5 +127,6 @@ func AllModes() []Mode {
 		ModeResearch,
 		ModeReview,
 		ModeAction,
+		ModeWorkflow,
 	}
 }

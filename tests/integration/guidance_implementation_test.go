@@ -84,11 +84,14 @@ func TestImplementationMode_StatePersistence(t *testing.T) {
 func TestImplementationMode_PhaseBoundaries(t *testing.T) {
 	container := GetSharedContainer(t)
 
-	festPath := "/festivals/test-impl-phases"
+	// Set up workspace first
+	festivalsPath := setupWorkspace(t, container, "/")
 
 	// Create festival with multiple phases
-	_, err := container.RunFest("create", "festival", "--name", "test-impl-phases", "--path", "/festivals")
+	_, err := container.RunFestInDir(festivalsPath, "create", "festival", "--name", "test-impl-phases", "--dest", "active")
 	require.NoError(t, err)
+
+	festPath := findFestivalPath(t, container, festivalsPath+"/active", "test-impl-phases")
 
 	// Create two phases
 	_, err = container.RunFestInDir(festPath, "create", "phase", "--name", "PHASE_ONE", "--type", "implementation")
@@ -96,15 +99,49 @@ func TestImplementationMode_PhaseBoundaries(t *testing.T) {
 	_, err = container.RunFestInDir(festPath, "create", "phase", "--name", "PHASE_TWO", "--type", "implementation")
 	require.NoError(t, err)
 
-	// Create sequence and task in each phase
+	// Create sequence and task in each phase (use --skip-markers to avoid quality gate blocks)
 	_, err = container.RunFestInDir(festPath+"/001_PHASE_ONE", "create", "sequence", "--name", "seq1")
 	require.NoError(t, err)
-	_, err = container.RunFestInDir(festPath+"/001_PHASE_ONE/01_seq1", "create", "task", "--name", "phase1_task")
+
+	// Write task file directly without markers to pass quality gates
+	phase1TaskContent := `---
+fest_type: task
+fest_id: 01_phase1_task.md
+fest_name: phase1_task
+fest_status: pending
+---
+
+# Task: phase1_task
+
+## Objective
+Complete the phase1_task task.
+
+## Done When
+- [ ] Task completed
+`
+	err = writeFileInContainer(container, festPath+"/001_PHASE_ONE/01_seq1/01_phase1_task.md", phase1TaskContent)
 	require.NoError(t, err)
 
 	_, err = container.RunFestInDir(festPath+"/002_PHASE_TWO", "create", "sequence", "--name", "seq2")
 	require.NoError(t, err)
-	_, err = container.RunFestInDir(festPath+"/002_PHASE_TWO/01_seq2", "create", "task", "--name", "phase2_task")
+
+	// Write task file directly without markers to pass quality gates
+	phase2TaskContent := `---
+fest_type: task
+fest_id: 01_phase2_task.md
+fest_name: phase2_task
+fest_status: pending
+---
+
+# Task: phase2_task
+
+## Objective
+Complete the phase2_task task.
+
+## Done When
+- [ ] Task completed
+`
+	err = writeFileInContainer(container, festPath+"/002_PHASE_TWO/01_seq2/01_phase2_task.md", phase2TaskContent)
 	require.NoError(t, err)
 
 	// Run execute - should show phase 1 task
@@ -124,16 +161,37 @@ func TestImplementationMode_PhaseBoundaries(t *testing.T) {
 func TestImplementationMode_Completion(t *testing.T) {
 	container := GetSharedContainer(t)
 
-	festPath := "/festivals/test-impl-done"
+	// Set up workspace first
+	festivalsPath := setupWorkspace(t, container, "/")
 
 	// Create minimal festival with one task
-	_, err := container.RunFest("create", "festival", "--name", "test-impl-done", "--path", "/festivals")
+	_, err := container.RunFestInDir(festivalsPath, "create", "festival", "--name", "test-impl-done", "--dest", "active")
 	require.NoError(t, err)
+
+	festPath := findFestivalPath(t, container, festivalsPath+"/active", "test-impl-done")
+
 	_, err = container.RunFestInDir(festPath, "create", "phase", "--name", "ONLY_PHASE", "--type", "implementation")
 	require.NoError(t, err)
 	_, err = container.RunFestInDir(festPath+"/001_ONLY_PHASE", "create", "sequence", "--name", "only_seq")
 	require.NoError(t, err)
-	_, err = container.RunFestInDir(festPath+"/001_ONLY_PHASE/01_only_seq", "create", "task", "--name", "only_task")
+
+	// Write task file directly without markers to pass quality gates
+	onlyTaskContent := `---
+fest_type: task
+fest_id: 01_only_task.md
+fest_name: only_task
+fest_status: pending
+---
+
+# Task: only_task
+
+## Objective
+Complete the only_task task.
+
+## Done When
+- [ ] Task completed
+`
+	err = writeFileInContainer(container, festPath+"/001_ONLY_PHASE/01_only_seq/01_only_task.md", onlyTaskContent)
 	require.NoError(t, err)
 
 	// Run execute
@@ -155,11 +213,15 @@ func TestImplementationMode_Completion(t *testing.T) {
 func TestImplementationMode_EmptyFestival(t *testing.T) {
 	container := GetSharedContainer(t)
 
-	festPath := "/festivals/test-impl-empty"
+	// Set up workspace first
+	festivalsPath := setupWorkspace(t, container, "/")
 
 	// Create festival with phase but no tasks
-	_, err := container.RunFest("create", "festival", "--name", "test-impl-empty", "--path", "/festivals")
+	_, err := container.RunFestInDir(festivalsPath, "create", "festival", "--name", "test-impl-empty", "--dest", "active")
 	require.NoError(t, err)
+
+	festPath := findFestivalPath(t, container, festivalsPath+"/active", "test-impl-empty")
+
 	_, err = container.RunFestInDir(festPath, "create", "phase", "--name", "EMPTY_PHASE", "--type", "implementation")
 	require.NoError(t, err)
 

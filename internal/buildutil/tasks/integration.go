@@ -266,20 +266,35 @@ func Integration(verbose bool) error {
 	}
 	totalTests := totalTestsPassed + totalTestsFailed
 
-	// Display summary - show failed tests as individual rows
+	// Display summary grouped by suite
 	rows := [][]string{}
-	hasFailures := failures > 0
 
+	// Show each suite with its results
 	for _, r := range results {
+		// Suite header row
+		suiteStatus := fmt.Sprintf("%d/%d passed", r.TestsPassed, r.TestsPassed+r.TestsFailed)
+		if ui.ColourEnabled() {
+			if r.TestsFailed > 0 {
+				suiteStatus = ui.Red + suiteStatus + ui.Reset
+			} else {
+				suiteStatus = ui.Green + suiteStatus + ui.Reset
+			}
+		}
+		rows = append(rows, []string{
+			"━━ " + r.Suite,
+			suiteStatus,
+			fmt.Sprintf("%.1fs", r.Duration.Seconds()),
+		})
+
+		// Show failed tests for this suite (indented)
 		if !r.Pass && len(r.FailedTests) > 0 {
-			// Show each failed test as a row
 			for _, testName := range r.FailedTests {
 				status := "✗ FAILED"
 				if ui.ColourEnabled() {
 					status = ui.Red + status + ui.Reset
 				}
 				rows = append(rows, []string{
-					testName,
+					"   " + testName,
 					status,
 					"",
 				})
@@ -287,10 +302,8 @@ func Integration(verbose bool) error {
 		}
 	}
 
-	// Add header only if there are failures to show
-	if hasFailures && len(rows) > 0 {
-		rows = append([][]string{{"Failed Test", "Status", ""}}, rows...)
-	}
+	// Add separator before totals
+	rows = append(rows, []string{"", "", ""})
 
 	// Add totals row
 	totalStatus := fmt.Sprintf("%d/%d tests passed", totalTestsPassed, totalTests)
@@ -303,7 +316,7 @@ func Integration(verbose bool) error {
 	}
 
 	rows = append(rows, []string{
-		fmt.Sprintf("%d suites", len(results)),
+		fmt.Sprintf("Total (%d suites)", len(results)),
 		totalStatus,
 		fmt.Sprintf("%.2fs", totalTime.Seconds()),
 	})

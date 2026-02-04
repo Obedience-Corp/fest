@@ -721,6 +721,12 @@ func (d *Downloader) DownloadWithGit(targetDir string, progress ProgressFunc) er
 		return errors.IO("creating target directory", err).WithField("path", targetDir)
 	}
 
+	// Clear target directory (except protected hidden files) before copying
+	// This ensures deleted files from source are also deleted from target
+	if err := clearTargetDir(targetDir); err != nil {
+		return errors.IO("clearing target directory", err).WithField("path", targetDir)
+	}
+
 	// Copy files from source to target
 	if err := copyDir(sourceDir, targetDir); err != nil {
 		return errors.Wrap(err, "copying files")
@@ -730,6 +736,66 @@ func (d *Downloader) DownloadWithGit(targetDir string, progress ProgressFunc) er
 		progress(3, 3, "Done")
 	}
 
+	return nil
+}
+
+// stateDir is the subdirectory for local state files (never synced).
+const stateDir = ".state"
+
+// clearTargetDir removes all files from target except the .state directory.
+// This ensures the target directory exactly mirrors the source after copying.
+// It handles the .festival directory specially - clearing its contents while
+// preserving the .state/ subdirectory which contains local state files.
+func clearTargetDir(targetDir string) error {
+	entries, err := os.ReadDir(targetDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // Nothing to clear
+		}
+		return err
+	}
+
+	for _, entry := range entries {
+		path := filepath.Join(targetDir, entry.Name())
+
+		// Handle .festival directory specially - clear its contents
+		if entry.Name() == ".festival" && entry.IsDir() {
+			if err := clearFestivalDir(path); err != nil {
+				return err
+			}
+			continue
+		}
+
+		// Skip other hidden files (not .festival)
+		if strings.HasPrefix(entry.Name(), ".") {
+			continue
+		}
+
+		if err := os.RemoveAll(path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// clearFestivalDir clears the .festival directory contents while preserving
+// the .state/ subdirectory which contains local state files.
+func clearFestivalDir(festivalDir string) error {
+	entries, err := os.ReadDir(festivalDir)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		// Skip .state directory which contains local state files
+		if entry.Name() == stateDir {
+			continue
+		}
+		path := filepath.Join(festivalDir, entry.Name())
+		if err := os.RemoveAll(path); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

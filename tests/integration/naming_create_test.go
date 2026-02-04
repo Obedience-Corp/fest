@@ -99,6 +99,10 @@ required_variables:
 		require.NoError(t, os.WriteFile(fullPath, []byte(content), 0644))
 	}
 
+	// Also create the .state directory for workspace marker
+	stateDir := filepath.Join(tmpDir, ".festival", ".state")
+	require.NoError(t, os.MkdirAll(stateDir, 0755))
+
 	require.NoError(t, container.CopyDirToContainer(filepath.Join(tmpDir, ".festival"), "/festivals/.festival"))
 }
 

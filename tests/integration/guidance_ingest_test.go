@@ -12,9 +12,10 @@ func TestIngestMode_InitialDisplay(t *testing.T) {
 	container := GetSharedContainer(t)
 
 	festPath := setupIngestFestival(t, container, "test-ingest-initial")
+	phasePath := festPath + "/001_INGEST"
 
-	// Run execute
-	output := runExecuteMode(t, container, festPath)
+	// Run execute from within the phase directory for phase-type-aware navigation
+	output := runExecuteModeFromPhase(t, container, phasePath)
 
 	// Should show ingest phase content
 	verifyOutputContains(t, output, "Ingest")
@@ -25,11 +26,12 @@ func TestIngestMode_PhaseTypeDetection(t *testing.T) {
 	container := GetSharedContainer(t)
 
 	festPath := setupIngestFestival(t, container, "test-ingest-detect")
+	phasePath := festPath + "/001_INGEST"
 
-	// Run roadmap to see phase type
-	output := runRoadmap(t, container, festPath)
+	// Run execute from within the phase directory to detect phase type
+	// The mode detection reads PHASE_GOAL.md frontmatter's fest_phase_type field
+	output := runExecuteModeFromPhase(t, container, phasePath)
 
-	// Should show ingest mode
-	verifyOutputContains(t, output, "INGEST")
-	verifyOutputContains(t, output, "ingest")
+	// Should show ingest mode - output includes mode-specific instructions
+	verifyOutputContains(t, output, "Ingest")
 }

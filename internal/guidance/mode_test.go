@@ -71,6 +71,7 @@ func TestModeIsValid(t *testing.T) {
 		{"research is valid", ModeResearch, true},
 		{"review is valid", ModeReview, true},
 		{"action is valid", ModeAction, true},
+		{"workflow is valid", ModeWorkflow, true},
 		{"invalid mode is not valid", Mode("invalid"), false},
 		{"empty mode is not valid", Mode(""), false},
 		{"random string is not valid", Mode("foobar"), false},
@@ -129,8 +130,8 @@ func TestAutonomyLevelString(t *testing.T) {
 func TestAllModes(t *testing.T) {
 	modes := AllModes()
 
-	if len(modes) != 6 {
-		t.Errorf("AllModes() returned %d modes, want 6", len(modes))
+	if len(modes) != 7 {
+		t.Errorf("AllModes() returned %d modes, want 7", len(modes))
 	}
 
 	// Verify all expected modes are present
@@ -141,6 +142,7 @@ func TestAllModes(t *testing.T) {
 		ModeResearch:       false,
 		ModeReview:         false,
 		ModeAction:         false,
+		ModeWorkflow:       false,
 	}
 
 	for _, m := range modes {
@@ -159,7 +161,11 @@ func TestAllModes(t *testing.T) {
 
 func TestModeRoundTrip(t *testing.T) {
 	// Test that going from mode -> phase type -> mode gives consistent results
+	// Skip ModeWorkflow as it's triggered by WORKFLOW.md presence, not phase type
 	for _, mode := range AllModes() {
+		if mode == ModeWorkflow {
+			continue // ModeWorkflow has no phase type mapping
+		}
 		phaseType := PhaseTypeFromMode(mode)
 		roundTripped := ModeFromPhaseType(phaseType)
 		if roundTripped != mode {

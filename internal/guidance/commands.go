@@ -95,6 +95,19 @@ var DefaultModeCommands = map[Mode]ModeCommands{
 			"show":    "fest workflow show",
 		},
 	},
+	ModeWorkflow: {
+		DisplayName:     "Workflow Mode",
+		StartCommand:    "fest next",
+		NextCommand:     "fest next",
+		CompleteCommand: "fest workflow advance",
+		AdditionalCmds: map[string]string{
+			"status":  "fest workflow status",
+			"advance": "fest workflow advance",
+			"approve": "fest workflow approve",
+			"reject":  "fest workflow reject --reason",
+			"show":    "fest workflow show",
+		},
+	},
 }
 
 // GetModeCommands returns the command configuration for a given mode.

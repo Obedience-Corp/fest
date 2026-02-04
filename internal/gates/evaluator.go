@@ -12,12 +12,12 @@ import (
 
 // GateEvaluationResult represents the result of evaluating gates for a task
 type GateEvaluationResult struct {
-	TaskID       string         `json:"task_id"`
-	Passed       bool           `json:"passed"`
-	FailedGates  []GateFailure  `json:"failed_gates,omitempty"`
-	PassedGates  []string       `json:"passed_gates,omitempty"`
-	SkippedGates []string       `json:"skipped_gates,omitempty"`
-	Warnings     []string       `json:"warnings,omitempty"`
+	TaskID       string        `json:"task_id"`
+	Passed       bool          `json:"passed"`
+	FailedGates  []GateFailure `json:"failed_gates,omitempty"`
+	PassedGates  []string      `json:"passed_gates,omitempty"`
+	SkippedGates []string      `json:"skipped_gates,omitempty"`
+	Warnings     []string      `json:"warnings,omitempty"`
 }
 
 // GateFailure describes why a gate failed

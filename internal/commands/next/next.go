@@ -22,6 +22,7 @@ import (
 	_ "github.com/Obedience-Corp/fest/internal/guidance/planning"
 	_ "github.com/Obedience-Corp/fest/internal/guidance/research"
 	_ "github.com/Obedience-Corp/fest/internal/guidance/review"
+	_ "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 )
 
 var (
@@ -112,6 +113,16 @@ func runNext(cmd *cobra.Command, args []string) error {
 	// If mode flag is provided or --navigator flag is set, use guidance navigator
 	if modeFlag != "" || useNavigator {
 		return runNavigatorMode(ctx, cwd, festivalPath)
+	}
+
+	// Auto-detect WORKFLOW.md in current phase and route to workflow navigator
+	phasePath := shared.ResolvePhasePath(cwd, festivalPath)
+	if phasePath != "" {
+		workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
+		if _, err := os.Stat(workflowPath); err == nil {
+			// WORKFLOW.md exists - use workflow navigator
+			return runWorkflowMode(ctx, festivalPath, phasePath)
+		}
 	}
 
 	// Fall back to selector-based navigation
@@ -232,6 +243,70 @@ func runNavigatorMode(ctx context.Context, cwd, festivalPath string) error {
 	instructions, err := nav.FormatInstructions(ctx)
 	if err != nil {
 		return errors.Wrap(err, "formatting instructions")
+	}
+	fmt.Print(instructions)
+	return nil
+}
+
+// runWorkflowMode uses the workflow navigator for WORKFLOW.md-based navigation.
+func runWorkflowMode(ctx context.Context, festivalPath, phasePath string) error {
+	// Create guidance context for workflow navigation
+	gctx := &guidance.GuidanceContext{
+		FestivalPath: festivalPath,
+		FestivalName: filepath.Base(festivalPath),
+		PhasePath:    phasePath,
+		PhaseName:    filepath.Base(phasePath),
+		PhaseType:    guidance.DetectPhaseType(phasePath),
+		Mode:         guidance.ModeWorkflow,
+		Config:       guidance.DefaultConfig(),
+	}
+
+	// Create workflow navigator
+	nav, err := guidance.NewNavigator(ctx, gctx)
+	if err != nil {
+		return errors.Wrap(err, "creating workflow navigator").
+			WithField("phase_path", phasePath)
+	}
+
+	// Initialize the navigator
+	if err := nav.Initialize(ctx); err != nil {
+		return errors.Wrap(err, "initializing workflow navigator")
+	}
+
+	// Check if we got a valid next step
+	nextStep, err := nav.GetNext(ctx)
+	if err != nil {
+		return errors.Wrap(err, "getting next workflow step")
+	}
+
+	// If no next step and not complete, WORKFLOW.md may be malformed
+	if nextStep == nil {
+		progress, _ := nav.GetProgress(ctx)
+		if progress != nil && progress.Completed == progress.Total && progress.Total > 0 {
+			// Workflow is complete
+			fmt.Println("WORKFLOW COMPLETE")
+			fmt.Println("─────────────────")
+			fmt.Printf("All %d steps have been completed.\n", progress.Total)
+			return nil
+		}
+
+		// No steps found - likely malformed WORKFLOW.md
+		workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
+		return errors.Validation("WORKFLOW.md has no valid steps").
+			WithField("path", workflowPath).
+			WithHint("WORKFLOW.md must contain step headers in format:\n" +
+				"  ## Step 1: STEP_NAME\n" +
+				"  **Goal:** Description of what this step achieves\n" +
+				"  **Actions:**\n" +
+				"  1. First action\n" +
+				"  2. Second action\n" +
+				"  **Output:** Expected output from this step")
+	}
+
+	// Use Navigator.FormatInstructions() for output
+	instructions, err := nav.FormatInstructions(ctx)
+	if err != nil {
+		return errors.Wrap(err, "formatting workflow instructions")
 	}
 	fmt.Print(instructions)
 	return nil

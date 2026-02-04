@@ -30,11 +30,24 @@ func TestValidateStructureNamingViolations(t *testing.T) {
 
 	container := GetSharedContainer(t)
 
+	// Create workspace structure manually (fest init requires network access unavailable in containers)
+	exitCode, _, err := container.container.Exec(container.ctx, []string{
+		"sh", "-c",
+		"mkdir -p /festivals/.festival/.state /festivals/active /festivals/planned",
+	})
+	require.NoError(t, err)
+	require.Equal(t, 0, exitCode)
+
+	// Create .workspace marker file to register as workspace
+	err = writeFileInContainer(container, "/festivals/.festival/.state/.workspace",
+		`{"workspace": "root", "registered": "2024-01-01T00:00:00Z"}`)
+	require.NoError(t, err, "should create workspace marker")
+
 	festivalPath := "/festivals/naming-violations"
 	phasePath := filepath.Join(festivalPath, "001_plan")
 	sequencePath := filepath.Join(phasePath, "01_Design")
 
-	exitCode, _, err := container.container.Exec(container.ctx, []string{"mkdir", "-p", sequencePath})
+	exitCode, _, err = container.container.Exec(container.ctx, []string{"mkdir", "-p", sequencePath})
 	require.NoError(t, err)
 	require.Equal(t, 0, exitCode)
 
