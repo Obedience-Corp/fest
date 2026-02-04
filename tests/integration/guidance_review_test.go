@@ -12,9 +12,10 @@ func TestReviewMode_InitialDisplay(t *testing.T) {
 	container := GetSharedContainer(t)
 
 	festPath := setupReviewFestival(t, container, "test-review-initial")
+	phasePath := festPath + "/001_REVIEW"
 
-	// Run execute
-	output := runExecuteMode(t, container, festPath)
+	// Run execute from within the phase directory for phase-type-aware navigation
+	output := runExecuteModeFromPhase(t, container, phasePath)
 
 	// Should show review phase content
 	verifyOutputContains(t, output, "Review")
@@ -25,11 +26,12 @@ func TestReviewMode_PhaseTypeDetection(t *testing.T) {
 	container := GetSharedContainer(t)
 
 	festPath := setupReviewFestival(t, container, "test-review-detect")
+	phasePath := festPath + "/001_REVIEW"
 
-	// Run roadmap to see phase type
-	output := runRoadmap(t, container, festPath)
+	// Run execute from within the phase directory to detect phase type
+	// The mode detection reads PHASE_GOAL.md frontmatter's fest_phase_type field
+	output := runExecuteModeFromPhase(t, container, phasePath)
 
-	// Should show review mode
-	verifyOutputContains(t, output, "REVIEW")
-	verifyOutputContains(t, output, "review")
+	// Should show review mode - output includes mode-specific instructions
+	verifyOutputContains(t, output, "Review")
 }

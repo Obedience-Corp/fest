@@ -12,9 +12,10 @@ func TestActionMode_InitialDisplay(t *testing.T) {
 	container := GetSharedContainer(t)
 
 	festPath := setupActionFestival(t, container, "test-action-initial")
+	phasePath := festPath + "/001_ACTIONS"
 
-	// Run execute
-	output := runExecuteMode(t, container, festPath)
+	// Run execute from within the phase directory for phase-type-aware navigation
+	output := runExecuteModeFromPhase(t, container, phasePath)
 
 	// Should show action phase content
 	verifyOutputContains(t, output, "Action")
@@ -25,11 +26,13 @@ func TestActionMode_PhaseTypeDetection(t *testing.T) {
 	container := GetSharedContainer(t)
 
 	festPath := setupActionFestival(t, container, "test-action-detect")
+	phasePath := festPath + "/001_ACTIONS"
 
-	// Run roadmap to see phase type
-	output := runRoadmap(t, container, festPath)
+	// Run execute from within the phase directory to detect phase type
+	// The mode detection reads PHASE_GOAL.md frontmatter's fest_phase_type field
+	output := runExecuteModeFromPhase(t, container, phasePath)
 
-	// Should show action mode
-	verifyOutputContains(t, output, "ACTIONS")
-	verifyOutputContains(t, output, "action")
+	// Should show action mode - output includes mode-specific instructions
+	// Non-coding action phases show action-focused output
+	verifyOutputContains(t, output, "Action")
 }

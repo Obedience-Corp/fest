@@ -43,18 +43,15 @@ func TestMultiPhaseNavigation(t *testing.T) {
 func TestWorkflowMode(t *testing.T) {
 	container := GetSharedContainer(t)
 
-	// Setup festivals root with .festival/.state marker
-	_, err := container.runCommand([]string{
-		"sh", "-c",
-		"mkdir -p /festivals/.festival/.state /festivals/active /festivals/planned",
-	})
+	// Setup workspace properly
+	festivalsPath := setupWorkspace(t, container, "/")
+
+	// Create festival
+	_, err := container.RunFestInDir(festivalsPath, "create", "festival", "--name", "workflow-test", "--dest", "active")
 	require.NoError(t, err)
 
-	festPath := "/festivals/active/workflow-test"
-
-	// Create festival from within festivals root
-	_, err = container.RunFestInDir("/festivals", "create", "festival", "--name", "workflow-test", "--dest", "active")
-	require.NoError(t, err)
+	// Find the actual festival path (fest adds an ID suffix)
+	festPath := findFestivalPath(t, container, festivalsPath+"/active", "workflow-test")
 
 	// Create an implementation phase
 	_, err = container.RunFestInDir(festPath, "create", "phase", "--name", "WORKFLOW_PHASE", "--type", "implementation")

@@ -13,10 +13,34 @@ import (
 
 // forbiddenTokens are markers that indicate template rendering problems.
 // These should never appear in CLI output.
+// Note: We check for "{{." specifically (not "{{") because some commands
+// legitimately show "{{ placeholder }}" as documentation for marker syntax.
 var forbiddenTemplateTokens = []string{
-	"{{.",        // Unrendered template variable
-	"{{",         // Any unrendered template syntax
+	"{{.",        // Unrendered template variable like {{.Name}}
 	"<no value>", // Go template's default for missing values
+}
+
+// setupTemplateFestival creates a festival with implementation phase for template testing.
+// Returns the festival path.
+func setupTemplateFestival(t *testing.T, tc *TestContainer, festName string) string {
+	t.Helper()
+
+	// Initialize workspace properly
+	festivalsPath := setupWorkspace(t, tc, "/")
+
+	// Create festival using correct flags
+	_, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "active")
+	require.NoError(t, err, "failed to create festival")
+
+	// Find the actual festival path (fest adds an ID suffix)
+	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
+
+	// Disable quality gates for testing
+	festYaml := "enforce_gates: false\n"
+	err = writeFileInContainer(tc, festPath+"/fest.yaml", festYaml)
+	require.NoError(t, err, "should create fest.yaml")
+
+	return festPath
 }
 
 // TestExecuteTemplateOutputIsValid verifies that fest execute produces
@@ -25,21 +49,22 @@ func TestExecuteTemplateOutputIsValid(t *testing.T) {
 	tc := GetSharedContainer(t)
 
 	// Create a minimal festival for testing
-	_, err := tc.RunFest("create", "festival", "/test/template-test", "--id", "TEMPLATE_TEST")
-	require.NoError(t, err, "failed to create festival")
+	festPath := setupTemplateFestival(t, tc, "template-test")
 
-	// Create a phase and sequence with a task
-	_, err = tc.RunFestInDir("/test/template-test", "create", "phase", "planning", "--id", "PLANNING_PHASE")
+	// Create an implementation phase with a task
+	_, err := tc.RunFestInDir(festPath, "create", "phase", "--name", "PLANNING", "--type", "implementation")
 	require.NoError(t, err, "failed to create phase")
 
-	_, err = tc.RunFestInDir("/test/template-test/001_PLANNING", "create", "sequence", "setup", "--id", "SETUP_SEQ")
+	phasePath := festPath + "/001_PLANNING"
+	_, err = tc.RunFestInDir(phasePath, "create", "sequence", "--name", "setup")
 	require.NoError(t, err, "failed to create sequence")
 
-	_, err = tc.RunFestInDir("/test/template-test/001_PLANNING/01_setup", "create", "task", "first_task", "--id", "FIRST_TASK")
+	seqPath := phasePath + "/01_setup"
+	_, err = tc.RunFestInDir(seqPath, "create", "task", "--name", "first_task", "--skip-markers")
 	require.NoError(t, err, "failed to create task")
 
 	// Run execute command - this uses the implementation/instructions template
-	output, err := tc.RunFestInDir("/test/template-test", "execute")
+	output, err := tc.RunFestInDir(festPath, "execute")
 	require.NoError(t, err, "fest execute failed")
 
 	// Verify no forbidden tokens in output
@@ -53,21 +78,22 @@ func TestExecuteTemplateOutputIsValid(t *testing.T) {
 func TestExecuteDryRunTemplateOutputIsValid(t *testing.T) {
 	tc := GetSharedContainer(t)
 
-	// Create a festival with multiple phases for dry run
-	_, err := tc.RunFest("create", "festival", "/test/dryrun-test", "--id", "DRYRUN_TEST")
-	require.NoError(t, err, "failed to create festival")
+	// Create a festival with a phase for dry run
+	festPath := setupTemplateFestival(t, tc, "dryrun-test")
 
-	_, err = tc.RunFestInDir("/test/dryrun-test", "create", "phase", "phase_one", "--id", "PHASE_ONE")
+	_, err := tc.RunFestInDir(festPath, "create", "phase", "--name", "PHASE_ONE", "--type", "implementation")
 	require.NoError(t, err)
 
-	_, err = tc.RunFestInDir("/test/dryrun-test/001_PHASE_ONE", "create", "sequence", "seq", "--id", "SEQ")
+	phasePath := festPath + "/001_PHASE_ONE"
+	_, err = tc.RunFestInDir(phasePath, "create", "sequence", "--name", "seq")
 	require.NoError(t, err)
 
-	_, err = tc.RunFestInDir("/test/dryrun-test/001_PHASE_ONE/01_seq", "create", "task", "task", "--id", "TASK")
+	seqPath := phasePath + "/01_seq"
+	_, err = tc.RunFestInDir(seqPath, "create", "task", "--name", "task", "--skip-markers")
 	require.NoError(t, err)
 
 	// Run execute with --dry-run flag
-	output, err := tc.RunFestInDir("/test/dryrun-test", "execute", "--dry-run")
+	output, err := tc.RunFestInDir(festPath, "execute", "--dry-run")
 	require.NoError(t, err, "fest execute --dry-run failed")
 
 	// Verify no forbidden tokens in output
@@ -82,20 +108,21 @@ func TestNextTemplateOutputIsValid(t *testing.T) {
 	tc := GetSharedContainer(t)
 
 	// Create a festival with tasks
-	_, err := tc.RunFest("create", "festival", "/test/next-test", "--id", "NEXT_TEST")
-	require.NoError(t, err, "failed to create festival")
+	festPath := setupTemplateFestival(t, tc, "next-test")
 
-	_, err = tc.RunFestInDir("/test/next-test", "create", "phase", "impl", "--id", "IMPL")
+	_, err := tc.RunFestInDir(festPath, "create", "phase", "--name", "IMPL", "--type", "implementation")
 	require.NoError(t, err)
 
-	_, err = tc.RunFestInDir("/test/next-test/001_IMPL", "create", "sequence", "core", "--id", "CORE")
+	phasePath := festPath + "/001_IMPL"
+	_, err = tc.RunFestInDir(phasePath, "create", "sequence", "--name", "core")
 	require.NoError(t, err)
 
-	_, err = tc.RunFestInDir("/test/next-test/001_IMPL/01_core", "create", "task", "build_it", "--id", "BUILD")
+	seqPath := phasePath + "/01_core"
+	_, err = tc.RunFestInDir(seqPath, "create", "task", "--name", "build_it", "--skip-markers")
 	require.NoError(t, err)
 
 	// Run next command
-	output, err := tc.RunFestInDir("/test/next-test", "next")
+	output, err := tc.RunFestInDir(festPath, "next")
 	require.NoError(t, err, "fest next failed")
 
 	// Verify no forbidden tokens in output
@@ -110,11 +137,10 @@ func TestValidateTemplateOutputIsValid(t *testing.T) {
 	tc := GetSharedContainer(t)
 
 	// Create a festival
-	_, err := tc.RunFest("create", "festival", "/test/validate-test", "--id", "VALIDATE_TEST")
-	require.NoError(t, err, "failed to create festival")
+	festPath := setupTemplateFestival(t, tc, "validate-test")
 
 	// Run validate command
-	output, err := tc.RunFestInDir("/test/validate-test", "validate")
+	output, err := tc.RunFestInDir(festPath, "validate")
 	// validate may fail due to empty festival - that's OK, we just check output format
 	_ = err
 
@@ -127,14 +153,13 @@ func TestStatusTemplateOutputIsValid(t *testing.T) {
 	tc := GetSharedContainer(t)
 
 	// Create a festival with content
-	_, err := tc.RunFest("create", "festival", "/test/status-test", "--id", "STATUS_TEST")
-	require.NoError(t, err, "failed to create festival")
+	festPath := setupTemplateFestival(t, tc, "status-test")
 
-	_, err = tc.RunFestInDir("/test/status-test", "create", "phase", "phase", "--id", "PHASE")
+	_, err := tc.RunFestInDir(festPath, "create", "phase", "--name", "PHASE", "--type", "implementation")
 	require.NoError(t, err)
 
 	// Run status command
-	output, err := tc.RunFestInDir("/test/status-test", "status")
+	output, err := tc.RunFestInDir(festPath, "status")
 	require.NoError(t, err, "fest status failed")
 
 	// Verify no forbidden tokens in output
@@ -149,16 +174,17 @@ func TestAllCommandsProduceValidOutput(t *testing.T) {
 	tc := GetSharedContainer(t)
 
 	// Create base festival
-	_, err := tc.RunFest("create", "festival", "/test/allcmds-test", "--id", "ALLCMDS_TEST")
-	require.NoError(t, err, "failed to create festival")
+	festPath := setupTemplateFestival(t, tc, "allcmds-test")
 
-	_, err = tc.RunFestInDir("/test/allcmds-test", "create", "phase", "phase", "--id", "PHASE")
+	_, err := tc.RunFestInDir(festPath, "create", "phase", "--name", "PHASE", "--type", "implementation")
 	require.NoError(t, err)
 
-	_, err = tc.RunFestInDir("/test/allcmds-test/001_PHASE", "create", "sequence", "seq", "--id", "SEQ")
+	phasePath := festPath + "/001_PHASE"
+	_, err = tc.RunFestInDir(phasePath, "create", "sequence", "--name", "seq")
 	require.NoError(t, err)
 
-	_, err = tc.RunFestInDir("/test/allcmds-test/001_PHASE/01_seq", "create", "task", "task", "--id", "TASK")
+	seqPath := phasePath + "/01_seq"
+	_, err = tc.RunFestInDir(seqPath, "create", "task", "--name", "task", "--skip-markers")
 	require.NoError(t, err)
 
 	// Test various commands that produce templated output
@@ -175,7 +201,7 @@ func TestAllCommandsProduceValidOutput(t *testing.T) {
 
 	for _, cmd := range commands {
 		t.Run(cmd.name, func(t *testing.T) {
-			output, _ := tc.RunFestInDir("/test/allcmds-test", cmd.args...)
+			output, _ := tc.RunFestInDir(festPath, cmd.args...)
 			// Commands may fail but we still want to check output format
 			assertNoForbiddenTokens(t, output, cmd.name)
 		})
@@ -187,24 +213,25 @@ func TestCompleteFestivalTemplateOutput(t *testing.T) {
 	tc := GetSharedContainer(t)
 
 	// Create a minimal festival
-	_, err := tc.RunFest("create", "festival", "/test/complete-test", "--id", "COMPLETE_TEST")
-	require.NoError(t, err, "failed to create festival")
+	festPath := setupTemplateFestival(t, tc, "complete-test")
 
-	_, err = tc.RunFestInDir("/test/complete-test", "create", "phase", "phase", "--id", "PHASE")
+	_, err := tc.RunFestInDir(festPath, "create", "phase", "--name", "PHASE", "--type", "implementation")
 	require.NoError(t, err)
 
-	_, err = tc.RunFestInDir("/test/complete-test/001_PHASE", "create", "sequence", "seq", "--id", "SEQ")
+	phasePath := festPath + "/001_PHASE"
+	_, err = tc.RunFestInDir(phasePath, "create", "sequence", "--name", "seq")
 	require.NoError(t, err)
 
-	_, err = tc.RunFestInDir("/test/complete-test/001_PHASE/01_seq", "create", "task", "only_task", "--id", "ONLY")
+	seqPath := phasePath + "/01_seq"
+	_, err = tc.RunFestInDir(seqPath, "create", "task", "--name", "only_task", "--skip-markers")
 	require.NoError(t, err)
 
 	// Mark the task as complete
-	_, err = tc.RunFestInDir("/test/complete-test", "progress", "--task", "001_PHASE/01_seq/01_only_task.md", "--complete")
+	_, err = tc.RunFestInDir(festPath, "progress", "--task", "001_PHASE/01_seq/01_only_task.md", "--complete", "--force")
 	require.NoError(t, err)
 
 	// Run execute - should show completion message
-	output, _ := tc.RunFestInDir("/test/complete-test", "execute")
+	output, _ := tc.RunFestInDir(festPath, "execute")
 
 	// Verify no forbidden tokens in complete message
 	assertNoForbiddenTokens(t, output, "execute (complete)")

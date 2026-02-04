@@ -18,9 +18,17 @@ func TestValidateOrderingIntegration(t *testing.T) {
 	// Get shared container (reset between tests)
 	container := GetSharedContainer(t)
 
-	// Create base festivals directory
-	_, _, err := container.container.Exec(container.ctx, []string{"mkdir", "-p", "/festivals"})
+	// Create workspace structure manually (fest init requires network access unavailable in containers)
+	_, _, err := container.container.Exec(container.ctx, []string{
+		"sh", "-c",
+		"mkdir -p /festivals/.festival/.state /festivals/active /festivals/planned",
+	})
 	require.NoError(t, err)
+
+	// Create .workspace marker file to register as workspace
+	err = writeFileInContainer(container, "/festivals/.festival/.state/.workspace",
+		`{"workspace": "root", "registered": "2024-01-01T00:00:00Z"}`)
+	require.NoError(t, err, "should create workspace marker")
 
 	t.Run("ValidOrderingPasses", func(t *testing.T) {
 		// Create a festival with valid sequential numbering

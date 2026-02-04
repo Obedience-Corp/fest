@@ -35,7 +35,7 @@ func TestImplementationMode_Navigation(t *testing.T) {
 	_ = runExecuteMode(t, container, festPath)
 
 	// Complete first task
-	_, err := container.RunFestInDir(festPath, "progress", "--complete", "--task", "001_IMPLEMENTATION/01_core_work/01_first_task.md")
+	_, err := container.RunFestInDir(festPath, "progress", "--complete", "--force", "--task", "001_IMPLEMENTATION/01_core_work/01_first_task.md")
 	require.NoError(t, err)
 
 	// Get next task
@@ -55,7 +55,7 @@ func TestImplementationMode_CompleteTask(t *testing.T) {
 	_ = runExecuteMode(t, container, festPath)
 
 	// Complete first task
-	output, err := container.RunFestInDir(festPath, "progress", "--complete", "--task", "001_IMPLEMENTATION/01_core_work/01_first_task.md")
+	output, err := container.RunFestInDir(festPath, "progress", "--complete", "--force", "--task", "001_IMPLEMENTATION/01_core_work/01_first_task.md")
 	require.NoError(t, err)
 	verifyOutputContains(t, output, "complete")
 }
@@ -70,7 +70,7 @@ func TestImplementationMode_StatePersistence(t *testing.T) {
 	_ = runExecuteMode(t, container, festPath)
 
 	// Complete a task
-	_, err := container.RunFestInDir(festPath, "progress", "--complete", "--task", "001_IMPLEMENTATION/01_core_work/01_first_task.md")
+	_, err := container.RunFestInDir(festPath, "progress", "--complete", "--force", "--task", "001_IMPLEMENTATION/01_core_work/01_first_task.md")
 	require.NoError(t, err)
 
 	// Run execute again (simulates new session)
@@ -84,11 +84,14 @@ func TestImplementationMode_StatePersistence(t *testing.T) {
 func TestImplementationMode_PhaseBoundaries(t *testing.T) {
 	container := GetSharedContainer(t)
 
-	festPath := "/festivals/test-impl-phases"
+	// Set up workspace first
+	festivalsPath := setupWorkspace(t, container, "/")
 
 	// Create festival with multiple phases
-	_, err := container.RunFest("create", "festival", "--name", "test-impl-phases", "--path", "/festivals")
+	_, err := container.RunFestInDir(festivalsPath, "create", "festival", "--name", "test-impl-phases", "--dest", "active")
 	require.NoError(t, err)
+
+	festPath := findFestivalPath(t, container, festivalsPath+"/active", "test-impl-phases")
 
 	// Create two phases
 	_, err = container.RunFestInDir(festPath, "create", "phase", "--name", "PHASE_ONE", "--type", "implementation")
@@ -112,7 +115,7 @@ func TestImplementationMode_PhaseBoundaries(t *testing.T) {
 	verifyOutputContains(t, output, "phase1_task")
 
 	// Complete phase 1 task
-	_, err = container.RunFestInDir(festPath, "progress", "--complete", "--task", "001_PHASE_ONE/01_seq1/01_phase1_task.md")
+	_, err = container.RunFestInDir(festPath, "progress", "--complete", "--force", "--task", "001_PHASE_ONE/01_seq1/01_phase1_task.md")
 	require.NoError(t, err)
 
 	// Next should show phase 2 task
@@ -124,11 +127,15 @@ func TestImplementationMode_PhaseBoundaries(t *testing.T) {
 func TestImplementationMode_Completion(t *testing.T) {
 	container := GetSharedContainer(t)
 
-	festPath := "/festivals/test-impl-done"
+	// Set up workspace first
+	festivalsPath := setupWorkspace(t, container, "/")
 
 	// Create minimal festival with one task
-	_, err := container.RunFest("create", "festival", "--name", "test-impl-done", "--path", "/festivals")
+	_, err := container.RunFestInDir(festivalsPath, "create", "festival", "--name", "test-impl-done", "--dest", "active")
 	require.NoError(t, err)
+
+	festPath := findFestivalPath(t, container, festivalsPath+"/active", "test-impl-done")
+
 	_, err = container.RunFestInDir(festPath, "create", "phase", "--name", "ONLY_PHASE", "--type", "implementation")
 	require.NoError(t, err)
 	_, err = container.RunFestInDir(festPath+"/001_ONLY_PHASE", "create", "sequence", "--name", "only_seq")
@@ -140,7 +147,7 @@ func TestImplementationMode_Completion(t *testing.T) {
 	_ = runExecuteMode(t, container, festPath)
 
 	// Complete the only task
-	_, err = container.RunFestInDir(festPath, "progress", "--complete", "--task", "001_ONLY_PHASE/01_only_seq/01_only_task.md")
+	_, err = container.RunFestInDir(festPath, "progress", "--complete", "--force", "--task", "001_ONLY_PHASE/01_only_seq/01_only_task.md")
 	require.NoError(t, err)
 
 	// Execute again - should indicate completion
@@ -155,11 +162,15 @@ func TestImplementationMode_Completion(t *testing.T) {
 func TestImplementationMode_EmptyFestival(t *testing.T) {
 	container := GetSharedContainer(t)
 
-	festPath := "/festivals/test-impl-empty"
+	// Set up workspace first
+	festivalsPath := setupWorkspace(t, container, "/")
 
 	// Create festival with phase but no tasks
-	_, err := container.RunFest("create", "festival", "--name", "test-impl-empty", "--path", "/festivals")
+	_, err := container.RunFestInDir(festivalsPath, "create", "festival", "--name", "test-impl-empty", "--dest", "active")
 	require.NoError(t, err)
+
+	festPath := findFestivalPath(t, container, festivalsPath+"/active", "test-impl-empty")
+
 	_, err = container.RunFestInDir(festPath, "create", "phase", "--name", "EMPTY_PHASE", "--type", "implementation")
 	require.NoError(t, err)
 

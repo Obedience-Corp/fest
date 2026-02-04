@@ -21,17 +21,12 @@ func TestFestCompleteWorkflow(t *testing.T) {
  // Get shared container (reset between tests)
  container := GetSharedContainer(t)
 
- // Test 1: Initialize fest
+ // Test 1: Verify fest binary works
  t.Run("Initialize", func(t *testing.T) {
-  // Create the festivals directory manually since fest init expects pre-synced data
-  exitCode, _, err := container.container.Exec(container.ctx, []string{"mkdir", "-p", "/festivals"})
-  require.NoError(t, err)
-  require.Equal(t, 0, exitCode, "Failed to create festivals directory")
-
-  // Verify festivals directory was created
-  exists, err := container.CheckDirExists("/festivals")
-  require.NoError(t, err)
-  require.True(t, exists, "festivals directory should exist")
+  // Verify fest binary is available and working
+  output, err := container.RunFest("--version")
+  require.NoError(t, err, "fest --version should work")
+  require.Contains(t, output, "fest", "version output should mention fest")
  })
 
  // Test 2: Create a complex test festival
@@ -54,6 +49,12 @@ func TestFestCompleteWorkflow(t *testing.T) {
   content, err := container.ReadFile("/festivals/test-festival/FESTIVAL_GOAL.md")
   require.NoError(t, err)
   require.Contains(t, content, "Complex Test Festival", "FESTIVAL_GOAL.md should contain expected content")
+
+  // Verify fest.yaml exists (required for scope resolution)
+  festYamlExists, err := container.CheckFileExists("/festivals/test-festival/fest.yaml")
+  require.NoError(t, err)
+  require.True(t, festYamlExists, "fest.yaml should exist")
+  t.Log("fest.yaml verified")
  })
 
  // Test 3: Test sync command (even if it fails, we should test it)
@@ -446,14 +447,22 @@ func TestFestCompleteWorkflow(t *testing.T) {
 func setupComplexFestival(tc *TestContainer) error {
  festivalPath := "/festivals/test-festival"
 
- // Create festival root
- if exitCode, _, err := tc.container.Exec(tc.ctx, []string{"mkdir", "-p", festivalPath}); err != nil || exitCode != 0 {
-  return fmt.Errorf("failed to create festival directory")
+ // Create workspace structure manually (fest init has network requirements in containers)
+ // This mimics what fest init would create
+ if exitCode, _, err := tc.container.Exec(tc.ctx, []string{
+  "sh", "-c",
+  "mkdir -p /festivals/.festival/.state /festivals/active /festivals/planned " + festivalPath,
+ }); err != nil || exitCode != 0 {
+  return fmt.Errorf("failed to create workspace directories")
  }
 
- // Create the festivals root .festival/.state directory (required by FindFestivalsRoot)
- if exitCode, _, err := tc.container.Exec(tc.ctx, []string{"mkdir", "-p", "/festivals/.festival/.state"}); err != nil || exitCode != 0 {
-  return fmt.Errorf("failed to create .festival/.state directory")
+ // Create workspace marker file (required for workspace detection)
+ markerContent := `{"workspace": "root", "registered": "2024-01-01T00:00:00Z"}`
+ if exitCode, _, err := tc.container.Exec(tc.ctx, []string{
+  "sh", "-c",
+  fmt.Sprintf("printf '%%s' %q > /festivals/.festival/.state/.workspace", markerContent),
+ }); err != nil || exitCode != 0 {
+  return fmt.Errorf("failed to create workspace marker")
  }
 
  // Create FESTIVAL_GOAL.md using a simple echo command
@@ -466,6 +475,21 @@ func setupComplexFestival(tc *TestContainer) error {
  })
  if err != nil || exitCode != 0 {
   return fmt.Errorf("failed to create FESTIVAL_GOAL.md: %w", err)
+ }
+
+ // Create fest.yaml (required by scope resolver to identify festival root)
+ festYamlPath := filepath.Join(festivalPath, "fest.yaml")
+ festYamlContent := `version: "1.0"
+metadata:
+  name: "test-festival"
+  created_at: "2024-01-01T00:00:00Z"
+`
+ exitCode, _, err = tc.container.Exec(tc.ctx, []string{
+  "sh", "-c",
+  fmt.Sprintf("printf '%%s' %q > %s", festYamlContent, festYamlPath),
+ })
+ if err != nil || exitCode != 0 {
+  return fmt.Errorf("failed to create fest.yaml: %w", err)
  }
 
  // Create phases with their structure
