@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/config"
@@ -22,7 +23,7 @@ import (
 	_ "github.com/Obedience-Corp/fest/internal/guidance/planning"
 	_ "github.com/Obedience-Corp/fest/internal/guidance/research"
 	_ "github.com/Obedience-Corp/fest/internal/guidance/review"
-	_ "github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/guidance/workflow"
 )
 
 var (
@@ -122,6 +123,14 @@ func runNext(cmd *cobra.Command, args []string) error {
 		if _, err := os.Stat(workflowPath); err == nil {
 			// WORKFLOW.md exists - use workflow navigator
 			return runWorkflowMode(ctx, festivalPath, phasePath)
+		}
+	}
+
+	// If at festival root (no phase detected), check for incomplete workflow phases in order
+	if phasePath == "" {
+		incompletePhase, err := findFirstIncompleteWorkflowPhase(ctx, festivalPath)
+		if err == nil && incompletePhase != "" {
+			return runWorkflowMode(ctx, festivalPath, incompletePhase)
 		}
 	}
 
@@ -344,4 +353,42 @@ func isNumberedDir(name string) bool {
 		return false
 	}
 	return name[0] >= '0' && name[0] <= '9'
+}
+
+// findFirstIncompleteWorkflowPhase scans phases in numerical order for the first with incomplete workflow.
+// Returns the phase path if found, empty string if all workflow phases are complete or no workflow phases exist.
+func findFirstIncompleteWorkflowPhase(ctx context.Context, festivalPath string) (string, error) {
+	entries, err := os.ReadDir(festivalPath)
+	if err != nil {
+		return "", err
+	}
+
+	var phases []string
+	for _, entry := range entries {
+		if entry.IsDir() && isNumberedDir(entry.Name()) {
+			phases = append(phases, filepath.Join(festivalPath, entry.Name()))
+		}
+	}
+
+	// Sort to ensure numerical order (001_, 002_, etc.)
+	sort.Strings(phases)
+
+	for _, phasePath := range phases {
+		workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
+		if _, err := os.Stat(workflowPath); err != nil {
+			continue // No WORKFLOW.md, skip (selector handles task-based)
+		}
+
+		state, err := workflow.LoadState(ctx, phasePath)
+		if err != nil {
+			return phasePath, nil // Can't load state, assume incomplete
+		}
+
+		// A workflow phase is incomplete if it has no steps initialized yet or isn't complete
+		if state.TotalSteps == 0 || !state.IsComplete() {
+			return phasePath, nil
+		}
+	}
+
+	return "", nil // All workflow phases complete (or no workflow phases exist)
 }
