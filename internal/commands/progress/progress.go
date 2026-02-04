@@ -40,7 +40,6 @@ type progressOptions struct {
 	sequence   string
 	festival   string
 	inProgress bool
-	force      bool // Skip quality gate checks
 }
 
 var taskFilenamePattern = regexp.MustCompile(`^\d{2}[\._].*\.md$`)
@@ -99,7 +98,6 @@ Use --festival to run outside a festival directory.`,
 	cmd.Flags().StringVar(&opts.sequence, "sequence", "", "sequence directory name for task path")
 	cmd.Flags().StringVar(&opts.festival, "festival", "", "festival root path (directory containing fest.yaml)")
 	cmd.Flags().BoolVar(&opts.inProgress, "in-progress", false, "mark task as in progress")
-	cmd.Flags().BoolVar(&opts.force, "force", false, "skip quality gate checks (use with caution)")
 
 	return cmd
 }
@@ -226,44 +224,42 @@ func handleTaskUpdate(ctx context.Context, mgr *progress.Manager, festivalPath s
 
 	// Handle complete
 	if opts.complete {
-		// Evaluate verification gates (unless --force is specified)
-		if !opts.force {
-			// Resolve task file path for gate evaluation
-			taskFilePath := filepath.Join(festivalPath, taskID)
-			if !strings.HasSuffix(taskFilePath, ".md") {
-				taskFilePath += ".md"
-			}
+		// Evaluate verification gates
+		// Resolve task file path for gate evaluation
+		taskFilePath := filepath.Join(festivalPath, taskID)
+		if !strings.HasSuffix(taskFilePath, ".md") {
+			taskFilePath += ".md"
+		}
 
-			// Resolve phase and sequence paths from task path
-			phasePath, sequencePath := resolveTaskLocationPaths(festivalPath, taskID)
+		// Resolve phase and sequence paths from task path
+		phasePath, sequencePath := resolveTaskLocationPaths(festivalPath, taskID)
 
-			// Evaluate verification gates - these BLOCK completion if they fail
-			evaluator := gates.NewGateEvaluator(festivalPath, phasePath, sequencePath)
-			gateResult, err := evaluator.EvaluateForTask(ctx, taskFilePath)
-			if err != nil {
-				return errors.Wrap(err, "evaluating quality gates")
-			}
+		// Evaluate verification gates - these BLOCK completion if they fail
+		evaluator := gates.NewGateEvaluator(festivalPath, phasePath, sequencePath)
+		gateResult, err := evaluator.EvaluateForTask(ctx, taskFilePath)
+		if err != nil {
+			return errors.Wrap(err, "evaluating quality gates")
+		}
 
-			if !gateResult.Passed {
-				// Gates failed - BLOCK completion
-				if opts.json {
-					result := map[string]any{
-						"success":      false,
-						"task":         taskID,
-						"blocked":      true,
-						"failed_gates": gateResult.FailedGates,
-						"message":      "Task completion blocked by quality gates",
-					}
-					if err := shared.EncodeJSON(os.Stdout, result); err != nil {
-						return errors.Wrap(err, "encoding JSON output")
-					}
-				} else {
-					printGateFailures(gateResult)
+		if !gateResult.Passed {
+			// Gates failed - BLOCK completion
+			if opts.json {
+				result := map[string]any{
+					"success":      false,
+					"task":         taskID,
+					"blocked":      true,
+					"failed_gates": gateResult.FailedGates,
+					"message":      "Task completion blocked by quality gates",
 				}
-				return errors.Validation("task completion blocked by quality gates").
-					WithField("task", taskID).
-					WithField("failed_gates", len(gateResult.FailedGates))
+				if err := shared.EncodeJSON(os.Stdout, result); err != nil {
+					return errors.Wrap(err, "encoding JSON output")
+				}
+			} else {
+				printGateFailures(gateResult)
 			}
+			return errors.Validation("task completion blocked by quality gates").
+				WithField("task", taskID).
+				WithField("failed_gates", len(gateResult.FailedGates))
 		}
 
 		if err := mgr.MarkComplete(ctx, taskID); err != nil {

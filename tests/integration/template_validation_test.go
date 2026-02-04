@@ -223,11 +223,28 @@ func TestCompleteFestivalTemplateOutput(t *testing.T) {
 	require.NoError(t, err)
 
 	seqPath := phasePath + "/01_seq"
-	_, err = tc.RunFestInDir(seqPath, "create", "task", "--name", "only_task", "--skip-markers")
+
+	// Write task file directly without markers to pass quality gates
+	taskContent := `---
+fest_type: task
+fest_id: 01_only_task.md
+fest_name: only_task
+fest_status: pending
+---
+
+# Task: only_task
+
+## Objective
+Complete the only_task task.
+
+## Done When
+- [ ] Task completed
+`
+	err = writeFileInContainer(tc, seqPath+"/01_only_task.md", taskContent)
 	require.NoError(t, err)
 
 	// Mark the task as complete
-	_, err = tc.RunFestInDir(festPath, "progress", "--task", "001_PHASE/01_seq/01_only_task.md", "--complete", "--force")
+	_, err = tc.RunFestInDir(festPath, "progress", "--task", "001_PHASE/01_seq/01_only_task.md", "--complete")
 	require.NoError(t, err)
 
 	// Run execute - should show completion message

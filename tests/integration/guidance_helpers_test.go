@@ -67,11 +67,29 @@ enforce_gates: false
 	_, err = tc.RunFestInDir(phasePath, "create", "sequence", "--name", "core_work")
 	require.NoError(t, err, "should create sequence")
 
-	// Create tasks using batch creation for proper sequential numbering
-	// Use --skip-markers to avoid REPLACE markers that would block task completion
+	// Write task files directly without markers to avoid quality gate failures
+	// This is the same pattern used for PHASE_GOAL.md files in other helpers
 	seqPath := phasePath + "/01_core_work"
-	_, err = tc.RunFestInDir(seqPath, "create", "task", "--name", "first_task", "--name", "second_task", "--name", "third_task", "--skip-markers")
-	require.NoError(t, err, "should create tasks")
+	for i, name := range []string{"first_task", "second_task", "third_task"} {
+		taskContent := fmt.Sprintf(`---
+fest_type: task
+fest_id: %02d_%s.md
+fest_name: %s
+fest_status: pending
+---
+
+# Task: %s
+
+## Objective
+Complete the %s task.
+
+## Done When
+- [ ] Task completed
+`, i+1, name, name, name, name)
+		taskPath := fmt.Sprintf("%s/%02d_%s.md", seqPath, i+1, name)
+		err = writeFileInContainer(tc, taskPath, taskContent)
+		require.NoError(t, err, "should create task file %s", taskPath)
+	}
 
 	return festPath
 }

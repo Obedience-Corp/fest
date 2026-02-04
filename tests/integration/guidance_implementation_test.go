@@ -35,7 +35,7 @@ func TestImplementationMode_Navigation(t *testing.T) {
 	_ = runExecuteMode(t, container, festPath)
 
 	// Complete first task
-	_, err := container.RunFestInDir(festPath, "progress", "--complete", "--force", "--task", "001_IMPLEMENTATION/01_core_work/01_first_task.md")
+	_, err := container.RunFestInDir(festPath, "progress", "--complete", "--task", "001_IMPLEMENTATION/01_core_work/01_first_task.md")
 	require.NoError(t, err)
 
 	// Get next task
@@ -55,7 +55,7 @@ func TestImplementationMode_CompleteTask(t *testing.T) {
 	_ = runExecuteMode(t, container, festPath)
 
 	// Complete first task
-	output, err := container.RunFestInDir(festPath, "progress", "--complete", "--force", "--task", "001_IMPLEMENTATION/01_core_work/01_first_task.md")
+	output, err := container.RunFestInDir(festPath, "progress", "--complete", "--task", "001_IMPLEMENTATION/01_core_work/01_first_task.md")
 	require.NoError(t, err)
 	verifyOutputContains(t, output, "complete")
 }
@@ -70,7 +70,7 @@ func TestImplementationMode_StatePersistence(t *testing.T) {
 	_ = runExecuteMode(t, container, festPath)
 
 	// Complete a task
-	_, err := container.RunFestInDir(festPath, "progress", "--complete", "--force", "--task", "001_IMPLEMENTATION/01_core_work/01_first_task.md")
+	_, err := container.RunFestInDir(festPath, "progress", "--complete", "--task", "001_IMPLEMENTATION/01_core_work/01_first_task.md")
 	require.NoError(t, err)
 
 	// Run execute again (simulates new session)
@@ -99,15 +99,49 @@ func TestImplementationMode_PhaseBoundaries(t *testing.T) {
 	_, err = container.RunFestInDir(festPath, "create", "phase", "--name", "PHASE_TWO", "--type", "implementation")
 	require.NoError(t, err)
 
-	// Create sequence and task in each phase
+	// Create sequence and task in each phase (use --skip-markers to avoid quality gate blocks)
 	_, err = container.RunFestInDir(festPath+"/001_PHASE_ONE", "create", "sequence", "--name", "seq1")
 	require.NoError(t, err)
-	_, err = container.RunFestInDir(festPath+"/001_PHASE_ONE/01_seq1", "create", "task", "--name", "phase1_task")
+
+	// Write task file directly without markers to pass quality gates
+	phase1TaskContent := `---
+fest_type: task
+fest_id: 01_phase1_task.md
+fest_name: phase1_task
+fest_status: pending
+---
+
+# Task: phase1_task
+
+## Objective
+Complete the phase1_task task.
+
+## Done When
+- [ ] Task completed
+`
+	err = writeFileInContainer(container, festPath+"/001_PHASE_ONE/01_seq1/01_phase1_task.md", phase1TaskContent)
 	require.NoError(t, err)
 
 	_, err = container.RunFestInDir(festPath+"/002_PHASE_TWO", "create", "sequence", "--name", "seq2")
 	require.NoError(t, err)
-	_, err = container.RunFestInDir(festPath+"/002_PHASE_TWO/01_seq2", "create", "task", "--name", "phase2_task")
+
+	// Write task file directly without markers to pass quality gates
+	phase2TaskContent := `---
+fest_type: task
+fest_id: 01_phase2_task.md
+fest_name: phase2_task
+fest_status: pending
+---
+
+# Task: phase2_task
+
+## Objective
+Complete the phase2_task task.
+
+## Done When
+- [ ] Task completed
+`
+	err = writeFileInContainer(container, festPath+"/002_PHASE_TWO/01_seq2/01_phase2_task.md", phase2TaskContent)
 	require.NoError(t, err)
 
 	// Run execute - should show phase 1 task
@@ -115,7 +149,7 @@ func TestImplementationMode_PhaseBoundaries(t *testing.T) {
 	verifyOutputContains(t, output, "phase1_task")
 
 	// Complete phase 1 task
-	_, err = container.RunFestInDir(festPath, "progress", "--complete", "--force", "--task", "001_PHASE_ONE/01_seq1/01_phase1_task.md")
+	_, err = container.RunFestInDir(festPath, "progress", "--complete", "--task", "001_PHASE_ONE/01_seq1/01_phase1_task.md")
 	require.NoError(t, err)
 
 	// Next should show phase 2 task
@@ -140,14 +174,31 @@ func TestImplementationMode_Completion(t *testing.T) {
 	require.NoError(t, err)
 	_, err = container.RunFestInDir(festPath+"/001_ONLY_PHASE", "create", "sequence", "--name", "only_seq")
 	require.NoError(t, err)
-	_, err = container.RunFestInDir(festPath+"/001_ONLY_PHASE/01_only_seq", "create", "task", "--name", "only_task")
+
+	// Write task file directly without markers to pass quality gates
+	onlyTaskContent := `---
+fest_type: task
+fest_id: 01_only_task.md
+fest_name: only_task
+fest_status: pending
+---
+
+# Task: only_task
+
+## Objective
+Complete the only_task task.
+
+## Done When
+- [ ] Task completed
+`
+	err = writeFileInContainer(container, festPath+"/001_ONLY_PHASE/01_only_seq/01_only_task.md", onlyTaskContent)
 	require.NoError(t, err)
 
 	// Run execute
 	_ = runExecuteMode(t, container, festPath)
 
 	// Complete the only task
-	_, err = container.RunFestInDir(festPath, "progress", "--complete", "--force", "--task", "001_ONLY_PHASE/01_only_seq/01_only_task.md")
+	_, err = container.RunFestInDir(festPath, "progress", "--complete", "--task", "001_ONLY_PHASE/01_only_seq/01_only_task.md")
 	require.NoError(t, err)
 
 	// Execute again - should indicate completion
