@@ -9,7 +9,6 @@ import (
 	"sort"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
-	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/guidance/selection"
@@ -31,11 +30,10 @@ var (
 	verboseOutput   bool
 	shortOutput     bool
 	cdOutput        bool
-	pathOnly        bool
+	pathFlag        bool
 	sequenceOnly    bool
 	modeFlag        string
 	useNavigator    bool
-	inlineContext   bool
 	noInlineContext bool
 )
 
@@ -57,23 +55,27 @@ and recommends the next task following the priority order:
 3. First incomplete task in earliest phase
 4. Quality gates before phase transitions
 
+By default, shows layered goals and full task content inline to provide
+complete context for execution.
+
 Output Modes:
-  --path-only    Just the task file path (for piping)
+  (default)      Layered goals + full task content inline
+  --no-context   Hide inline content, show minimal output
+  --path         Just the task file path (relative, for piping)
   --short        Task path with status message
   --cd           Directory path for shell cd
   --json         Full result as JSON
   --verbose      Detailed human-readable output
-  --context      Layered goals + full task content inline
 
 Examples:
-  fest next                    # Find next task in festival
+  fest next                    # Find next task with full context
+  fest next --no-context       # Minimal output without task content
   fest next --sequence         # Only consider current sequence
   fest next --json             # Output as JSON
   fest next --verbose          # Detailed output
   fest next --short            # Just the task path
   fest next --cd               # Output directory for shell cd
-  fest next --path-only        # Just the file path, nothing else
-  fest next --context          # Show layered goals and full task content`,
+  fest next --path             # Just the relative file path`,
 		RunE: runNext,
 	}
 
@@ -81,12 +83,11 @@ Examples:
 	cmd.Flags().BoolVar(&verboseOutput, "verbose", false, "show detailed information")
 	cmd.Flags().BoolVar(&shortOutput, "short", false, "output only the task path")
 	cmd.Flags().BoolVar(&cdOutput, "cd", false, "output directory path for cd command")
-	cmd.Flags().BoolVar(&pathOnly, "path-only", false, "output only the task file path")
+	cmd.Flags().BoolVar(&pathFlag, "path", false, "output only the relative task file path")
 	cmd.Flags().BoolVar(&sequenceOnly, "sequence", false, "only consider current sequence")
 	cmd.Flags().StringVarP(&modeFlag, "mode", "m", "", "override phase type detection (implementation|plan|research|review|action|ingest)")
 	cmd.Flags().BoolVar(&useNavigator, "navigator", false, "use guidance navigator for output formatting")
-	cmd.Flags().BoolVar(&inlineContext, "context", false, "show layered goals and full task content inline (override config)")
-	cmd.Flags().BoolVar(&noInlineContext, "no-context", false, "hide inline content (override config)")
+	cmd.Flags().BoolVar(&noInlineContext, "no-context", false, "hide inline content (show minimal output)")
 
 	return cmd
 }
@@ -102,19 +103,8 @@ func runNext(cmd *cobra.Command, args []string) error {
 		return errors.IO("getting current directory", err)
 	}
 
-	// Load config for inline context default
-	cfg, err := config.Load(ctx, "")
-	if err != nil {
-		return errors.Wrap(err, "loading config")
-	}
-
-	// Determine inline context setting: flags override config
-	showInlineContext := cfg.Behavior.InlineContextDefault
-	if inlineContext {
-		showInlineContext = true
-	} else if noInlineContext {
-		showInlineContext = false
-	}
+	// Context is shown by default, --no-context disables it
+	showInlineContext := !noInlineContext
 
 	// Resolve festival path (supports linked festivals via fest link)
 	festivalPath, err := shared.ResolveFestivalPath(cwd, "")
@@ -164,11 +154,13 @@ func runNext(cmd *cobra.Command, args []string) error {
 	}
 
 	// Output formatting
-	if pathOnly {
+	if pathFlag {
 		if result.Task == nil {
 			return errors.NotFound("no task available")
 		}
-		fmt.Println(result.Task.Path)
+		// Output relative path from festival root
+		relPath := filepath.Join(result.Task.PhaseName, result.Task.SequenceName, result.Task.Name+".md")
+		fmt.Println(relPath)
 		return nil
 	}
 
