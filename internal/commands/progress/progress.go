@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
@@ -40,6 +41,8 @@ type progressOptions struct {
 	sequence   string
 	festival   string
 	inProgress bool
+	watch      bool
+	interval   time.Duration
 }
 
 var taskFilenamePattern = regexp.MustCompile(`^\d{2}[\._].*\.md$`)
@@ -98,6 +101,8 @@ Use --festival to run outside a festival directory.`,
 	cmd.Flags().StringVar(&opts.sequence, "sequence", "", "sequence directory name for task path")
 	cmd.Flags().StringVar(&opts.festival, "festival", "", "festival root path (directory containing fest.yaml)")
 	cmd.Flags().BoolVar(&opts.inProgress, "in-progress", false, "mark task as in progress")
+	cmd.Flags().BoolVar(&opts.watch, "watch", false, "continuously refresh progress display")
+	cmd.Flags().DurationVar(&opts.interval, "interval", 2*time.Second, "refresh interval for watch mode")
 
 	return cmd
 }
@@ -158,6 +163,11 @@ func runProgress(ctx context.Context, opts *progressOptions) error {
 	// Handle task updates
 	if opts.taskID != "" || opts.taskPath != "" {
 		return handleTaskUpdate(ctx, mgr, loc.Festival.Path, opts)
+	}
+
+	// Watch mode - continuously refresh progress
+	if opts.watch {
+		return runWatchMode(ctx, mgr, loc, opts)
 	}
 
 	// Show progress overview
@@ -873,3 +883,4 @@ func formatGateFailure(failure gates.GateFailure) string {
 	}
 	return sb.String()
 }
+
