@@ -122,21 +122,28 @@ func isFreeformPhase(phaseName string) bool {
 }
 
 func emitPhaseProgress(ctx context.Context, loc *show.LocationInfo) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	phasePath := filepath.Join(loc.Festival.Path, loc.Phase)
+
+	// Check if this is a workflow phase (has WORKFLOW.md)
+	if shared.HasWorkflowFile(phasePath) {
+		return emitWorkflowPhaseProgress(ctx, loc)
+	}
+
 	// Check if this is a freeform phase
 	if isFreeformPhase(loc.Phase) {
 		return emitFreeformPhaseProgress(loc)
 	}
 
-	if ctx == nil {
-		ctx = context.Background()
-	}
 	mgr, err := progress.NewManager(ctx, loc.Festival.Path)
 	if err != nil {
 		// Fall back to festival stats if progress manager fails
 		return emitFestivalProgress(loc)
 	}
 
-	phasePath := filepath.Join(loc.Festival.Path, loc.Phase)
 	phaseProgress, err := mgr.GetPhaseProgress(ctx, phasePath)
 	if err != nil {
 		// Fall back to festival stats if phase progress fails
@@ -164,6 +171,32 @@ func emitPhaseProgress(ctx context.Context, loc *show.LocationInfo) error {
 			ui.Label("Blocked"),
 			ui.GetStateStyle("blocked").Render(fmt.Sprintf("%d", prog.Blocked)))
 	}
+
+	return nil
+}
+
+// emitWorkflowPhaseProgress displays progress for workflow-based phases.
+func emitWorkflowPhaseProgress(ctx context.Context, loc *show.LocationInfo) error {
+	phasePath := filepath.Join(loc.Festival.Path, loc.Phase)
+	steps, err := shared.LoadWorkflowStepsForPhase(ctx, loc.Festival.Path, phasePath)
+	if err != nil {
+		return emitFestivalProgress(loc)
+	}
+
+	completed, total := shared.WorkflowStepCounts(steps)
+	percentage := 0
+	if total > 0 {
+		percentage = completed * 100 / total
+	}
+
+	fmt.Printf("\n%s %s %s\n",
+		ui.Label("Progress"),
+		ui.Value(fmt.Sprintf("%d%%", percentage)),
+		ui.Dim(fmt.Sprintf("(%d/%d steps)", completed, total)))
+
+	// Render compact step list
+	fmt.Printf("\n%s\n", ui.Label("Steps"))
+	fmt.Print(shared.RenderWorkflowSteps(steps, true))
 
 	return nil
 }

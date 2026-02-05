@@ -52,6 +52,28 @@ func runStatus(ctx context.Context) error {
 		return nil
 	}
 
+	// Convert to shared view format
+	views := make([]shared.WorkflowStepView, len(steps))
+	for i, step := range steps {
+		stepState := state.GetStepState(step.Number)
+		status := wf.StepStatusPending
+		feedback := ""
+		if stepState != nil {
+			status = stepState.Status
+			feedback = stepState.Feedback
+		}
+
+		views[i] = shared.WorkflowStepView{
+			Number:        step.Number,
+			Name:          step.Name,
+			Status:        status,
+			IsCurrent:     step.Number == state.CurrentStep && !state.IsComplete(),
+			HasCheckpoint: step.HasCheckpoint(),
+			Goal:          step.Goal,
+			Feedback:      feedback,
+		}
+	}
+
 	// Build output
 	var sb strings.Builder
 
@@ -70,59 +92,16 @@ func runStatus(ctx context.Context) error {
 	}
 	sb.WriteString("\n\n")
 
-	// Steps list
+	// Steps list using shared renderer
 	sb.WriteString(ui.Label("Steps:"))
 	sb.WriteString("\n")
-
-	for _, step := range steps {
-		stepState := state.GetStepState(step.Number)
-		status := wf.StepStatusPending
-		if stepState != nil {
-			status = stepState.Status
-		}
-
-		// Build step line
-		icon := statusIcon(status)
-		isCurrent := step.Number == state.CurrentStep && !state.IsComplete()
-
-		// Step name - highlight current
-		stepName := step.Name
-		if isCurrent {
-			stepName = ui.Accent(step.Name)
-		}
-
-		// Checkpoint indicator
-		checkpoint := ""
-		if step.HasCheckpoint() {
-			checkpoint = ui.Warning(" [checkpoint]")
-		}
-
-		// Current marker
-		marker := "  "
-		if isCurrent {
-			marker = ui.Accent("→ ")
-		}
-
-		sb.WriteString(fmt.Sprintf("%s%s Step %d: %s%s\n",
-			marker, icon, step.Number, stepName, checkpoint))
-
-		// Show goal if current step
-		if isCurrent && step.Goal != "" {
-			sb.WriteString(fmt.Sprintf("     %s: %s\n", ui.Dim("Goal"), step.Goal))
-		}
-
-		// Show rejection feedback if blocked
-		if stepState != nil && stepState.Status == wf.StepStatusBlocked && stepState.Feedback != "" {
-			sb.WriteString(fmt.Sprintf("     %s: %s\n", ui.Error("Feedback"), stepState.Feedback))
-		}
-	}
+	sb.WriteString(shared.RenderWorkflowSteps(views, false))
 
 	// Progress summary
 	sb.WriteString("\n")
-	completed := state.CompletedCount()
-	percent := state.ProgressPercent()
 	sb.WriteString(ui.Label("Progress: "))
-	sb.WriteString(fmt.Sprintf("%d/%d (%.0f%%)\n", completed, state.TotalSteps, percent))
+	sb.WriteString(shared.RenderWorkflowProgress(state.CompletedCount(), state.TotalSteps))
+	sb.WriteString("\n")
 
 	// Completion status
 	if state.IsComplete() {
@@ -133,22 +112,6 @@ func runStatus(ctx context.Context) error {
 
 	fmt.Print(sb.String())
 	return nil
-}
-
-// statusIcon returns a styled icon for the given step status.
-func statusIcon(status wf.StepStatus) string {
-	switch status {
-	case wf.StepStatusCompleted:
-		return ui.Success("✓")
-	case wf.StepStatusInProgress:
-		return ui.ColoredText("●", ui.InProgressColor)
-	case wf.StepStatusBlocked:
-		return ui.Error("✗")
-	case wf.StepStatusPending:
-		return ui.Dim("○")
-	default:
-		return ui.Dim("○")
-	}
 }
 
 // getWorkflowNavigator creates and initializes a workflow navigator for the current context.

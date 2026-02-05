@@ -18,6 +18,7 @@ type showOptions struct {
 	summary  bool          // Show aggregate summary instead of tree view
 	watch    bool          // Continuously refresh display
 	interval time.Duration // Refresh interval for watch mode
+	goals    bool          // Show goals for phases and sequences
 }
 
 // NewShowCommand creates the show command with all subcommands.
@@ -53,6 +54,7 @@ SUBCOMMANDS:
 	cmd.Flags().BoolVar(&opts.summary, "summary", false, "show aggregate summary instead of tree view")
 	cmd.Flags().BoolVar(&opts.watch, "watch", false, "continuously refresh display")
 	cmd.Flags().DurationVar(&opts.interval, "interval", 2*time.Second, "refresh interval for watch mode")
+	cmd.Flags().BoolVar(&opts.goals, "goals", true, "show goals for phases and sequences")
 
 	// Add subcommands for status directories
 	cmd.AddCommand(newShowActiveCommand(opts))
@@ -162,7 +164,7 @@ func runShowCurrent(ctx context.Context, opts *showOptions) error {
 	if opts.json {
 		return emitFestivalJSON(festival)
 	}
-	return emitFestivalText(festival, opts.summary)
+	return emitFestivalText(festival, opts)
 }
 
 func runShow(ctx context.Context, target string, opts *showOptions) error {
@@ -192,7 +194,7 @@ func runShow(ctx context.Context, target string, opts *showOptions) error {
 	if opts.json {
 		return emitFestivalJSON(festival)
 	}
-	return emitFestivalText(festival, opts.summary)
+	return emitFestivalText(festival, opts)
 }
 
 func runShowStatus(ctx context.Context, status string, opts *showOptions) error {
@@ -268,11 +270,11 @@ func emitFestivalJSON(festival *FestivalInfo) error {
 	return nil
 }
 
-func emitFestivalText(festival *FestivalInfo, summary bool) error {
+func emitFestivalText(festival *FestivalInfo, showOpts *showOptions) error {
 	verbose := shared.IsVerbose()
 
 	// Use tree view by default, summary view with --summary flag
-	if summary {
+	if showOpts.summary {
 		fmt.Println(FormatFestivalDetails(festival, verbose))
 		return nil
 	}
@@ -286,6 +288,7 @@ func emitFestivalText(festival *FestivalInfo, summary bool) error {
 	}
 
 	opts := DefaultTreeOptions()
+	opts.ShowGoals = showOpts.goals
 	fmt.Println(RenderTree(tree, opts))
 	return nil
 }

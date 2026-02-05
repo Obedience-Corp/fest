@@ -90,6 +90,33 @@ func showFestivalProgress(ctx context.Context, mgr *progress.Manager, loc *show.
 		fmt.Printf("\n%s\n", ui.H2("Phases"))
 		fmt.Println(ui.Dim(strings.Repeat("─", 60)))
 		for _, phase := range festProgress.Phases {
+			phasePath := filepath.Join(loc.Festival.Path, phase.PhaseName)
+
+			// Check if this is a workflow phase
+			if shared.HasWorkflowFile(phasePath) {
+				steps, err := shared.LoadWorkflowStepsForPhase(ctx, loc.Festival.Path, phasePath)
+				if err == nil && len(steps) > 0 {
+					completed, total := shared.WorkflowStepCounts(steps)
+					percentage := 0
+					if total > 0 {
+						percentage = completed * 100 / total
+					}
+					state := "pending"
+					if completed == total && total > 0 {
+						state = "completed"
+					} else if completed > 0 {
+						state = "in_progress"
+					}
+					fmt.Printf("%s %s %s %s\n",
+						ui.StateIcon(state),
+						ui.Value(phase.PhaseName, ui.PhaseColor),
+						ui.Dim(fmt.Sprintf("%3d%%", percentage)),
+						ui.Dim(fmt.Sprintf("(%d/%d steps)", completed, total)))
+					continue
+				}
+			}
+
+			// Implementation phase - show task counts
 			state := "pending"
 			if phase.Progress.Completed == phase.Progress.Total && phase.Progress.Total > 0 {
 				state = "completed"
@@ -100,7 +127,7 @@ func showFestivalProgress(ctx context.Context, mgr *progress.Manager, loc *show.
 				ui.StateIcon(state),
 				ui.Value(phase.PhaseName, ui.PhaseColor),
 				ui.Dim(fmt.Sprintf("%3d%%", phase.Progress.Percentage)),
-				ui.Dim(fmt.Sprintf("(%d/%d)", phase.Progress.Completed, phase.Progress.Total)))
+				ui.Dim(fmt.Sprintf("(%d/%d tasks)", phase.Progress.Completed, phase.Progress.Total)))
 		}
 	}
 
@@ -121,6 +148,12 @@ func showFestivalProgress(ctx context.Context, mgr *progress.Manager, loc *show.
 
 func showPhaseProgress(ctx context.Context, mgr *progress.Manager, loc *show.LocationInfo, opts *progressOptions) error {
 	phasePath := filepath.Join(loc.Festival.Path, loc.Phase)
+
+	// Check if this is a workflow phase
+	if shared.HasWorkflowFile(phasePath) {
+		return showWorkflowPhaseProgress(ctx, loc, opts)
+	}
+
 	phaseProgress, err := mgr.GetPhaseProgress(ctx, phasePath)
 	if err != nil {
 		return errors.Wrap(err, "calculating phase progress")
@@ -176,6 +209,56 @@ func showPhaseProgress(ctx context.Context, mgr *progress.Manager, loc *show.Loc
 				ui.Dim(blocker.BlockerMessage))
 		}
 	}
+
+	return nil
+}
+
+func showWorkflowPhaseProgress(ctx context.Context, loc *show.LocationInfo, opts *progressOptions) error {
+	phasePath := filepath.Join(loc.Festival.Path, loc.Phase)
+	steps, err := shared.LoadWorkflowStepsForPhase(ctx, loc.Festival.Path, phasePath)
+	if err != nil {
+		return errors.Wrap(err, "loading workflow steps")
+	}
+
+	completed, total := shared.WorkflowStepCounts(steps)
+	percentage := 0
+	if total > 0 {
+		percentage = completed * 100 / total
+	}
+
+	if opts.json {
+		result := map[string]any{
+			"phase_name": loc.Phase,
+			"phase_type": "workflow",
+			"steps":      steps,
+			"progress": map[string]any{
+				"completed":  completed,
+				"total":      total,
+				"percentage": percentage,
+			},
+		}
+		if err := shared.EncodeJSON(os.Stdout, result); err != nil {
+			return errors.Wrap(err, "encoding JSON output")
+		}
+		return nil
+	}
+
+	// Human-readable output
+	fmt.Println(ui.H2("Workflow Progress"))
+	fmt.Printf("%s %s\n", ui.Label("Phase"), ui.Value(loc.Phase, ui.PhaseColor))
+	fmt.Printf("%s %s\n", ui.Label("Festival"), ui.Value(loc.Festival.Name, ui.FestivalColor))
+	fmt.Println(ui.Dim(strings.Repeat("─", 60)))
+
+	// Progress bar
+	fmt.Printf("\n%s %s %s %s\n",
+		ui.Label("Progress"),
+		renderProgressBar(percentage),
+		ui.Value(fmt.Sprintf("%d%%", percentage)),
+		ui.Dim(fmt.Sprintf("(%d/%d steps)", completed, total)))
+
+	// Render steps
+	fmt.Printf("\n%s\n", ui.H3("Steps"))
+	fmt.Print(shared.RenderWorkflowSteps(steps, false))
 
 	return nil
 }

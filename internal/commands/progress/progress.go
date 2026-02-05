@@ -125,7 +125,7 @@ func runProgress(ctx context.Context, opts *progressOptions) error {
 		return errors.Wrap(err, "detecting festival location")
 	}
 
-	targetPath := resolvedFestivalPath
+	targetPath := cwd // Use current directory for location detection
 	if opts.taskPath != "" {
 		resolvedTaskPath, err := resolveTaskPath(opts.taskPath, resolvedFestivalPath, cwd)
 		if err != nil {
@@ -135,7 +135,7 @@ func runProgress(ctx context.Context, opts *progressOptions) error {
 		targetPath = resolvedTaskPath
 	}
 
-	// Detect current location
+	// Detect current location based on working directory (or task path if specified)
 	loc, err := show.DetectCurrentLocation(ctx, targetPath)
 	if err != nil {
 		return errors.Wrap(err, "detecting festival location")
