@@ -2,12 +2,14 @@
 package navigation
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"gopkg.in/yaml.v3"
 )
 
@@ -32,14 +34,23 @@ type Link struct {
 	LinkedAt     time.Time `yaml:"linked_at"`
 }
 
-// NavigationPath returns the path to the navigation state file
-func NavigationPath() string {
-	return filepath.Join(config.ConfigDir(), NavigationFileName)
+// NavigationPath returns the path to the navigation state file.
+// Navigation is stored in .campaign/fest/navigation.yaml, requiring campaign context.
+func NavigationPath() (string, error) {
+	ctx := context.Background()
+	root, err := workspace.DetectCampaign(ctx, "")
+	if err != nil {
+		return "", fmt.Errorf("fest navigation requires campaign context: %w", err)
+	}
+	return filepath.Join(root, ".campaign", "fest", NavigationFileName), nil
 }
 
 // LoadNavigation loads navigation state from disk
 func LoadNavigation() (*Navigation, error) {
-	navPath := NavigationPath()
+	navPath, err := NavigationPath()
+	if err != nil {
+		return nil, err
+	}
 
 	// Check if file exists
 	if _, err := os.Stat(navPath); os.IsNotExist(err) {
@@ -89,9 +100,12 @@ func (n *Navigation) Save() error {
 		return errors.Wrap(err, "marshaling navigation state")
 	}
 
-	navPath := NavigationPath()
+	navPath, err := NavigationPath()
+	if err != nil {
+		return err
+	}
 
-	// Ensure config directory exists
+	// Ensure directory exists
 	configDir := filepath.Dir(navPath)
 	if err := os.MkdirAll(configDir, 0755); err != nil {
 		return errors.IO("creating config directory", err).WithField("path", configDir)
