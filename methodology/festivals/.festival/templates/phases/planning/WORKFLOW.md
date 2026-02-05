@@ -119,14 +119,19 @@ This document guides the agent through the planning phase. Follow these steps in
 
 **Actions:**
 1. If user rejects: Note feedback, return to relevant step
-2. If user approves:
+2. If user approves, **first learn the structure rules:**
+   a. Run `fest understand structure` — learn the 3-level hierarchy, required files, and what a well-formed festival looks like
+   b. Run `fest understand rules` — learn mandatory naming conventions (phase/sequence/task prefixes), required files at each level, and quality gate placement
+   c. Run `fest understand tasks` — learn when task files are required (implementation phases MUST have them) vs. optional (planning/review/research phases)
+   d. Run `fest understand templates` — learn template variables you can pass to `fest create` to generate pre-filled documents and avoid post-creation editing
+3. **Then scaffold the structure using fest CLI:**
    a. Create phases: `fest create phase --type <type> <name>`
    b. Create sequences: `fest create sequence <name>`
    c. Create tasks: `fest create task --name "<name>"`
-   d. **For each created file:**
-      - Read the template that was used
-      - Replace ALL `[REPLACE: ...]` markers with actual values
-      - Ensure no markers remain unfilled
+4. **For each created file:**
+   - Read the template that was used
+   - Replace ALL `[REPLACE: ...]` markers with actual values
+   - Ensure no markers remain unfilled
 
 **Output:** Scaffolded festival structure with all markers filled
 
