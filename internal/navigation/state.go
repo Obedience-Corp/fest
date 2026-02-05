@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -22,8 +23,8 @@ const (
 type Navigation struct {
 	Version      int               `yaml:"version"`
 	UpdatedAt    time.Time         `yaml:"updated_at"`
-	Links        map[string]*Link  `yaml:"links"`                   // festival name -> project path
-	ProjectLinks map[string]string `yaml:"project_links,omitempty"` // project path -> festival name (reverse lookup)
+	Links        map[string]*Link  `yaml:"links"`              // festival name -> project path
+	ProjectLinks map[string]string `yaml:"-"`                  // project path -> festival name (rebuilt on load, not serialized)
 	Shortcuts    map[string]string `yaml:"shortcuts,omitempty"`
 }
 
@@ -45,9 +46,42 @@ func NavigationPath() (string, error) {
 	return filepath.Join(root, ".campaign", "fest", NavigationFileName), nil
 }
 
+// getCampaignRoot returns the campaign root directory.
+func getCampaignRoot() (string, error) {
+	ctx := context.Background()
+	return workspace.DetectCampaign(ctx, "")
+}
+
+// toRelativePath converts an absolute path to campaign-relative if possible.
+// Returns the original path if it's outside the campaign or already relative.
+func toRelativePath(absPath, campaignRoot string) string {
+	if !filepath.IsAbs(absPath) {
+		return absPath // Already relative
+	}
+	rel, err := filepath.Rel(campaignRoot, absPath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return absPath // Outside campaign, keep absolute
+	}
+	return rel
+}
+
+// toAbsolutePath converts a campaign-relative path to absolute.
+// Returns the original path if it's already absolute.
+func toAbsolutePath(path, campaignRoot string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(campaignRoot, path)
+}
+
 // LoadNavigation loads navigation state from disk
 func LoadNavigation() (*Navigation, error) {
 	navPath, err := NavigationPath()
+	if err != nil {
+		return nil, err
+	}
+
+	campaignRoot, err := getCampaignRoot()
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +119,15 @@ func LoadNavigation() (*Navigation, error) {
 		nav.Shortcuts = make(map[string]string)
 	}
 
-	// Rebuild ProjectLinks from Links for backward compatibility
+	// Convert relative paths to absolute for in-memory usage
+	for _, link := range nav.Links {
+		link.Path = toAbsolutePath(link.Path, campaignRoot)
+		if link.FestivalPath != "" {
+			link.FestivalPath = toAbsolutePath(link.FestivalPath, campaignRoot)
+		}
+	}
+
+	// Rebuild ProjectLinks from Links (using absolute paths)
 	nav.rebuildProjectLinks()
 
 	return &nav, nil
@@ -95,14 +137,36 @@ func LoadNavigation() (*Navigation, error) {
 func (n *Navigation) Save() error {
 	n.UpdatedAt = time.Now().UTC()
 
-	data, err := yaml.Marshal(n)
-	if err != nil {
-		return errors.Wrap(err, "marshaling navigation state")
-	}
-
 	navPath, err := NavigationPath()
 	if err != nil {
 		return err
+	}
+
+	campaignRoot, err := getCampaignRoot()
+	if err != nil {
+		return err
+	}
+
+	// Create a copy with relative paths for serialization
+	saveCopy := &Navigation{
+		Version:   n.Version,
+		UpdatedAt: n.UpdatedAt,
+		Links:     make(map[string]*Link, len(n.Links)),
+		Shortcuts: n.Shortcuts,
+		// ProjectLinks is not serialized (yaml:"-")
+	}
+
+	for name, link := range n.Links {
+		saveCopy.Links[name] = &Link{
+			Path:         toRelativePath(link.Path, campaignRoot),
+			FestivalPath: toRelativePath(link.FestivalPath, campaignRoot),
+			LinkedAt:     link.LinkedAt,
+		}
+	}
+
+	data, err := yaml.Marshal(saveCopy)
+	if err != nil {
+		return errors.Wrap(err, "marshaling navigation state")
 	}
 
 	// Ensure directory exists
