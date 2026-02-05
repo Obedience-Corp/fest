@@ -6,7 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/taskfilter"
 )
@@ -78,7 +80,7 @@ func CalculateFestivalStats(ctx context.Context, festivalDir string) (*FestivalS
 		stats.Phases.Total++
 
 		// Count sequences within the phase
-		phaseStats, err := calculatePhaseStats(phaseDir, store, festivalRoot)
+		phaseStats, err := calculatePhaseStats(ctx, phaseDir, store, festivalRoot)
 		if err != nil {
 			continue
 		}
@@ -118,7 +120,12 @@ func CalculateFestivalStats(ctx context.Context, festivalDir string) (*FestivalS
 	return stats, nil
 }
 
-func calculatePhaseStats(phaseDir string, store *progress.Store, festivalRoot string) (*FestivalStats, error) {
+func calculatePhaseStats(ctx context.Context, phaseDir string, store *progress.Store, festivalRoot string) (*FestivalStats, error) {
+	// Check for workflow phase first
+	if shared.HasWorkflowFile(phaseDir) {
+		return calculateWorkflowPhaseStats(ctx, festivalRoot, phaseDir)
+	}
+
 	stats := &FestivalStats{}
 
 	entries, err := os.ReadDir(phaseDir)
@@ -278,4 +285,31 @@ func hasNumericPrefix(name string) bool {
 // Keeping for compatibility with tests that may reference it
 func isGateFile(name string) bool {
 	return taskfilter.IsGate(name)
+}
+
+// calculateWorkflowPhaseStats calculates stats for a workflow-based phase
+// by loading workflow steps and counting their statuses.
+func calculateWorkflowPhaseStats(ctx context.Context, festivalRoot, phaseDir string) (*FestivalStats, error) {
+	stats := &FestivalStats{}
+
+	steps, err := shared.LoadWorkflowStepsForPhase(ctx, festivalRoot, phaseDir)
+	if err != nil {
+		return stats, nil
+	}
+
+	stats.Tasks.Total = len(steps)
+	for _, step := range steps {
+		switch step.Status {
+		case wf.StepStatusCompleted:
+			stats.Tasks.Completed++
+		case wf.StepStatusInProgress:
+			stats.Tasks.InProgress++
+		case wf.StepStatusBlocked:
+			stats.Tasks.Blocked++
+		default:
+			stats.Tasks.Pending++
+		}
+	}
+
+	return stats, nil
 }
