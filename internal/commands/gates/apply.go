@@ -97,15 +97,18 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 		return emitApplyError(opts, errors.IO("getting working directory", err))
 	}
 
-	festivalsRoot, err := tpl.FindFestivalsRoot(cwd)
-	if err != nil {
-		return emitApplyError(opts, errors.Wrap(err, "finding festivals root").WithOp("runGatesApply"))
-	}
+	// Try to get festivals root (may fail from linked project, that's ok)
+	festivalsRoot, _ := tpl.FindFestivalsRoot(cwd)
 
-	// Resolve paths
+	// Resolve paths (handles linked festivals via shared.ResolveFestivalPath)
 	festivalPath, phasePath, sequencePath, err := resolvePaths(festivalsRoot, cwd, opts.phase, opts.sequence)
 	if err != nil {
 		return emitApplyError(opts, errors.Wrap(err, "resolving paths").WithOp("runGatesApply"))
+	}
+
+	// Derive festivalsRoot from festivalPath if needed (for linked festivals)
+	if festivalsRoot == "" {
+		festivalsRoot = filepath.Dir(filepath.Dir(festivalPath))
 	}
 
 	// Load festival config for gate configuration

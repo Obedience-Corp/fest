@@ -102,12 +102,10 @@ func runGatesRemove(ctx context.Context, cmd *cobra.Command, opts *removeOptions
 		return emitRemoveError(opts, errors.IO("getting working directory", err))
 	}
 
-	festivalsRoot, err := tpl.FindFestivalsRoot(cwd)
-	if err != nil {
-		return emitRemoveError(opts, errors.Wrap(err, "finding festivals root").WithOp("runGatesRemove"))
-	}
+	// Try to get festivals root (may fail from linked project, that's ok)
+	festivalsRoot, _ := tpl.FindFestivalsRoot(cwd)
 
-	// Resolve paths
+	// Resolve paths (handles linked festivals via shared.ResolveFestivalPath)
 	festivalPath, phasePath, sequencePath, err := resolvePaths(festivalsRoot, cwd, opts.phase, opts.sequence)
 	if err != nil {
 		return emitRemoveError(opts, errors.Wrap(err, "resolving paths").WithOp("runGatesRemove"))
