@@ -52,6 +52,11 @@ func runGatesInit(ctx context.Context, cmd *cobra.Command, phase, sequence strin
 	// Resolve paths (handles linked festivals via shared.ResolveFestivalPath)
 	festivalPath, phasePath, sequencePath, err := resolvePaths(festivalsRoot, cwd, phase, sequence)
 	if err != nil {
+		// For festival-level init (no phase/sequence), fest.yaml may not exist yet
+		// since this command creates it. Fall back to detecting festival by markers.
+		if phase == "" && sequence == "" && looksLikeFestival(cwd) {
+			return createFestYAMLFile(cmd, cwd)
+		}
 		return errors.Wrap(err, "resolving paths").WithOp("runGatesInit")
 	}
 
@@ -105,6 +110,18 @@ inherit: true  # Set to false to not inherit from parent levels
 	fmt.Fprintln(out, ui.Success("✓ Override file created"))
 	fmt.Fprintf(out, "%s %s\n", ui.Label("Path"), ui.Dim(overridePath))
 	return nil
+}
+
+// looksLikeFestival checks if a directory appears to be a festival root
+// by looking for FESTIVAL_GOAL.md or FESTIVAL_OVERVIEW.md.
+// Used by gates init which needs to work before fest.yaml exists.
+func looksLikeFestival(dir string) bool {
+	for _, marker := range []string{"FESTIVAL_GOAL.md", "FESTIVAL_OVERVIEW.md"} {
+		if _, err := os.Stat(filepath.Join(dir, marker)); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func createFestYAMLFile(cmd *cobra.Command, festivalPath string) error {
