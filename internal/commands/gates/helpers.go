@@ -5,30 +5,20 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	gatescore "github.com/Obedience-Corp/fest/internal/gates"
 )
 
 // resolvePaths resolves festival, phase, and sequence paths from flags or cwd.
+// Uses shared.ResolveFestivalPath which handles both linked festivals and direct detection.
 func resolvePaths(festivalsRoot, cwd, phase, sequence string) (festivalPath, phasePath, sequencePath string, err error) {
-	// Try to detect current festival from cwd
-	festivalPath = findCurrentFestival(festivalsRoot, cwd)
-	if festivalPath == "" {
-		// Default to first active festival
-		activeDir := filepath.Join(festivalsRoot, "active")
-		entries, err := os.ReadDir(activeDir)
-		if err == nil {
-			for _, e := range entries {
-				if e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
-					festivalPath = filepath.Join(activeDir, e.Name())
-					break
-				}
-			}
-		}
-	}
+	// Use shared resolution which handles both linked festivals and direct detection
+	festivalPath, _ = shared.ResolveFestivalPath(cwd, "")
 
 	if festivalPath == "" {
-		return "", "", "", errors.NotFound("festival")
+		return "", "", "", errors.NotFound("festival").
+			WithHint("Run from within a festival or link a festival with 'fest link'")
 	}
 
 	if sequence != "" {
@@ -56,30 +46,6 @@ func resolvePaths(festivalsRoot, cwd, phase, sequence string) (festivalPath, pha
 	}
 
 	return festivalPath, phasePath, sequencePath, nil
-}
-
-// findCurrentFestival finds the festival directory containing cwd.
-func findCurrentFestival(festivalsRoot, cwd string) string {
-	// Check if we're inside a festival directory
-	rel, err := filepath.Rel(festivalsRoot, cwd)
-	if err != nil {
-		return ""
-	}
-
-	// Walk up from cwd looking for festival markers
-	parts := strings.Split(rel, string(filepath.Separator))
-	for i := len(parts); i > 0; i-- {
-		candidate := filepath.Join(festivalsRoot, filepath.Join(parts[:i]...))
-		// Check for FESTIVAL_GOAL.md or FESTIVAL_OVERVIEW.md
-		if _, err := os.Stat(filepath.Join(candidate, "FESTIVAL_GOAL.md")); err == nil {
-			return candidate
-		}
-		if _, err := os.Stat(filepath.Join(candidate, "FESTIVAL_OVERVIEW.md")); err == nil {
-			return candidate
-		}
-	}
-
-	return ""
 }
 
 // getConfigRoot returns the user config root directory.

@@ -3,14 +3,31 @@ package navigation
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
 
-func TestLoadNavigation_NewFile(t *testing.T) {
-	// Create a temporary directory for test config
+// setupTestCampaign creates a temporary campaign directory structure for testing.
+// Returns the campaign root path. Sets CAMP_ROOT env var.
+func setupTestCampaign(t *testing.T) string {
+	t.Helper()
 	tmpDir := t.TempDir()
-	t.Setenv("FEST_CONFIG_DIR", tmpDir)
+
+	// Create .campaign directory
+	campaignDir := filepath.Join(tmpDir, ".campaign")
+	if err := os.MkdirAll(campaignDir, 0755); err != nil {
+		t.Fatalf("Failed to create .campaign dir: %v", err)
+	}
+
+	// Set CAMP_ROOT so DetectCampaign finds it
+	t.Setenv("CAMP_ROOT", tmpDir)
+
+	return tmpDir
+}
+
+func TestLoadNavigation_NewFile(t *testing.T) {
+	setupTestCampaign(t)
 
 	nav, err := LoadNavigation()
 	if err != nil {
@@ -35,8 +52,7 @@ func TestLoadNavigation_NewFile(t *testing.T) {
 }
 
 func TestNavigation_SetAndGetLink(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("FEST_CONFIG_DIR", tmpDir)
+	setupTestCampaign(t)
 
 	nav, err := LoadNavigation()
 	if err != nil {
@@ -63,24 +79,24 @@ func TestNavigation_SetAndGetLink(t *testing.T) {
 }
 
 func TestNavigation_SaveAndLoad(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("FEST_CONFIG_DIR", tmpDir)
+	campaignRoot := setupTestCampaign(t)
 
-	// Create and save navigation with a link
+	// Create and save navigation with a link using path within campaign
 	nav1, err := LoadNavigation()
 	if err != nil {
 		t.Fatalf("LoadNavigation() error = %v", err)
 	}
 
-	nav1.SetLink("my-festival", "/home/user/projects/my-project")
+	projectPath := filepath.Join(campaignRoot, "projects", "my-project")
+	nav1.SetLink("my-festival", projectPath)
 	nav1.Shortcuts["p"] = "/path/to/shortcut"
 
 	if err := nav1.Save(); err != nil {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	// Verify file was created
-	navPath := filepath.Join(tmpDir, NavigationFileName)
+	// Verify file was created in .campaign/fest/
+	navPath := filepath.Join(campaignRoot, ".campaign", "fest", NavigationFileName)
 	if _, err := os.Stat(navPath); os.IsNotExist(err) {
 		t.Fatalf("Navigation file was not created at %s", navPath)
 	}
@@ -91,14 +107,14 @@ func TestNavigation_SaveAndLoad(t *testing.T) {
 		t.Fatalf("LoadNavigation() error = %v", err)
 	}
 
-	// Verify link was preserved
+	// Verify link was preserved (should be absolute path in memory)
 	link, found := nav2.GetLink("my-festival")
 	if !found {
 		t.Fatal("Link was not preserved after save/load")
 	}
 
-	if link.Path != "/home/user/projects/my-project" {
-		t.Errorf("Link.Path = %q, want %q", link.Path, "/home/user/projects/my-project")
+	if link.Path != projectPath {
+		t.Errorf("Link.Path = %q, want %q", link.Path, projectPath)
 	}
 
 	// Verify shortcut was preserved
@@ -108,8 +124,7 @@ func TestNavigation_SaveAndLoad(t *testing.T) {
 }
 
 func TestNavigation_RemoveLink(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("FEST_CONFIG_DIR", tmpDir)
+	setupTestCampaign(t)
 
 	nav, err := LoadNavigation()
 	if err != nil {
@@ -143,8 +158,7 @@ func TestNavigation_RemoveLink(t *testing.T) {
 }
 
 func TestNavigation_ListLinks(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("FEST_CONFIG_DIR", tmpDir)
+	setupTestCampaign(t)
 
 	nav, err := LoadNavigation()
 	if err != nil {
@@ -181,20 +195,39 @@ func TestNavigation_ListLinks(t *testing.T) {
 }
 
 func TestNavigationPath(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("FEST_CONFIG_DIR", tmpDir)
+	campaignRoot := setupTestCampaign(t)
 
-	path := NavigationPath()
-	expected := filepath.Join(tmpDir, NavigationFileName)
+	path, err := NavigationPath()
+	if err != nil {
+		t.Fatalf("NavigationPath() error = %v", err)
+	}
 
+	expected := filepath.Join(campaignRoot, ".campaign", "fest", NavigationFileName)
 	if path != expected {
 		t.Errorf("NavigationPath() = %q, want %q", path, expected)
 	}
 }
 
-func TestNavigation_BidirectionalLinks(t *testing.T) {
+func TestNavigationPath_NoCampaign(t *testing.T) {
+	// Don't set up a campaign - should return error
+	t.Setenv("CAMP_ROOT", "")
+
+	// Change to a temp directory with no .campaign/
 	tmpDir := t.TempDir()
-	t.Setenv("FEST_CONFIG_DIR", tmpDir)
+	oldWd, _ := os.Getwd()
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chdir(oldWd)
+
+	_, err := NavigationPath()
+	if err == nil {
+		t.Error("NavigationPath() should return error when not in a campaign")
+	}
+}
+
+func TestNavigation_BidirectionalLinks(t *testing.T) {
+	setupTestCampaign(t)
 
 	nav, err := LoadNavigation()
 	if err != nil {
@@ -226,11 +259,10 @@ func TestNavigation_BidirectionalLinks(t *testing.T) {
 }
 
 func TestNavigation_FindFestivalForPath(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("FEST_CONFIG_DIR", tmpDir)
+	campaignRoot := setupTestCampaign(t)
 
 	// Create actual directories for the test
-	projectRoot := filepath.Join(tmpDir, "projects", "my-project")
+	projectRoot := filepath.Join(campaignRoot, "projects", "my-project")
 	subDir := filepath.Join(projectRoot, "src", "components")
 	if err := os.MkdirAll(subDir, 0755); err != nil {
 		t.Fatal(err)
@@ -253,7 +285,7 @@ func TestNavigation_FindFestivalForPath(t *testing.T) {
 		// Subdirectory should find parent's linked festival
 		{subDir, "my-festival"},
 		// Unlinked path
-		{filepath.Join(tmpDir, "other"), ""},
+		{filepath.Join(campaignRoot, "other"), ""},
 	}
 
 	for _, tc := range tests {
@@ -265,8 +297,7 @@ func TestNavigation_FindFestivalForPath(t *testing.T) {
 }
 
 func TestNavigation_SetLinkUpdatesReverse(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("FEST_CONFIG_DIR", tmpDir)
+	setupTestCampaign(t)
 
 	nav, err := LoadNavigation()
 	if err != nil {
@@ -306,8 +337,7 @@ func TestNavigation_SetLinkUpdatesReverse(t *testing.T) {
 // 2. Re-link Project P to Festival B (from Festival B)
 // 3. Verify `fgo project` works from Festival B
 func TestNavigation_RelinkProjectToDifferentFestival(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("FEST_CONFIG_DIR", tmpDir)
+	setupTestCampaign(t)
 
 	nav, err := LoadNavigation()
 	if err != nil {
@@ -360,8 +390,7 @@ func TestNavigation_RelinkProjectToDifferentFestival(t *testing.T) {
 
 // TestNavigation_SetLinkWithPath tests that festival path is stored correctly
 func TestNavigation_SetLinkWithPath(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("FEST_CONFIG_DIR", tmpDir)
+	setupTestCampaign(t)
 
 	nav, err := LoadNavigation()
 	if err != nil {
@@ -405,10 +434,126 @@ func TestNavigation_SetLinkWithPath(t *testing.T) {
 	}
 }
 
+// TestNavigation_RelativePathStorage tests that paths are stored as relative in YAML
+func TestNavigation_RelativePathStorage(t *testing.T) {
+	campaignRoot := setupTestCampaign(t)
+
+	nav, err := LoadNavigation()
+	if err != nil {
+		t.Fatalf("LoadNavigation() error = %v", err)
+	}
+
+	// Set link with absolute path within campaign
+	projectPath := filepath.Join(campaignRoot, "projects", "my-project")
+	festivalPath := filepath.Join(campaignRoot, "festivals", "active", "my-festival")
+	nav.SetLinkWithPath("my-festival", projectPath, festivalPath)
+
+	if err := nav.Save(); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	// Read raw YAML to verify paths are relative
+	navPath := filepath.Join(campaignRoot, ".campaign", "fest", NavigationFileName)
+	data, err := os.ReadFile(navPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+
+	yamlContent := string(data)
+
+	// Paths should be relative (not contain campaign root)
+	if strings.Contains(yamlContent, campaignRoot) {
+		t.Errorf("YAML should contain relative paths, but found campaign root:\n%s", yamlContent)
+	}
+
+	// Should contain relative paths
+	if !strings.Contains(yamlContent, "projects/my-project") {
+		t.Errorf("YAML should contain relative path 'projects/my-project':\n%s", yamlContent)
+	}
+	if !strings.Contains(yamlContent, "festivals/active/my-festival") {
+		t.Errorf("YAML should contain relative path 'festivals/active/my-festival':\n%s", yamlContent)
+	}
+
+	// Should NOT contain project_links (not serialized)
+	if strings.Contains(yamlContent, "project_links") {
+		t.Errorf("YAML should NOT contain project_links section:\n%s", yamlContent)
+	}
+
+	// Reload and verify paths are expanded to absolute
+	nav2, err := LoadNavigation()
+	if err != nil {
+		t.Fatalf("LoadNavigation() error = %v", err)
+	}
+
+	link, found := nav2.GetLink("my-festival")
+	if !found {
+		t.Fatal("Link should exist after reload")
+	}
+
+	// In-memory paths should be absolute
+	if link.Path != projectPath {
+		t.Errorf("After reload, Link.Path = %q, want %q", link.Path, projectPath)
+	}
+	if link.FestivalPath != festivalPath {
+		t.Errorf("After reload, Link.FestivalPath = %q, want %q", link.FestivalPath, festivalPath)
+	}
+
+	// Verify ProjectLinks is rebuilt correctly
+	if nav2.GetLinkedFestival(projectPath) != "my-festival" {
+		t.Error("ProjectLinks should be rebuilt from Links after load")
+	}
+}
+
+// TestNavigation_PathsOutsideCampaign tests that paths outside campaign remain absolute
+func TestNavigation_PathsOutsideCampaign(t *testing.T) {
+	campaignRoot := setupTestCampaign(t)
+
+	nav, err := LoadNavigation()
+	if err != nil {
+		t.Fatalf("LoadNavigation() error = %v", err)
+	}
+
+	// Set link with absolute path OUTSIDE campaign
+	outsidePath := "/some/external/path"
+	nav.SetLink("external-festival", outsidePath)
+
+	if err := nav.Save(); err != nil {
+		t.Fatalf("Save() error = %v", err)
+	}
+
+	// Read raw YAML to verify path is kept absolute
+	navPath := filepath.Join(campaignRoot, ".campaign", "fest", NavigationFileName)
+	data, err := os.ReadFile(navPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+
+	yamlContent := string(data)
+
+	// Path outside campaign should remain absolute
+	if !strings.Contains(yamlContent, outsidePath) {
+		t.Errorf("YAML should keep absolute path for path outside campaign:\n%s", yamlContent)
+	}
+
+	// Reload and verify path is preserved
+	nav2, err := LoadNavigation()
+	if err != nil {
+		t.Fatalf("LoadNavigation() error = %v", err)
+	}
+
+	link, found := nav2.GetLink("external-festival")
+	if !found {
+		t.Fatal("Link should exist after reload")
+	}
+
+	if link.Path != outsidePath {
+		t.Errorf("After reload, Link.Path = %q, want %q", link.Path, outsidePath)
+	}
+}
+
 // TestNavigation_RelinkWithSaveLoadCycle tests the relinking scenario with persistence
 func TestNavigation_RelinkWithSaveLoadCycle(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("FEST_CONFIG_DIR", tmpDir)
+	setupTestCampaign(t)
 
 	projectPath := "/path/to/shared-project"
 

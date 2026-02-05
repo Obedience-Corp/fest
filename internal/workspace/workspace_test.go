@@ -657,7 +657,7 @@ func TestDetectCampaign(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := tt.setup(t)
-			_, err := detectCampaign(context.Background(), dir)
+			_, err := DetectCampaign(context.Background(), dir)
 
 			if tt.wantErr != nil {
 				if !errors.Is(err, tt.wantErr) {
@@ -676,7 +676,7 @@ func TestDetectCampaign_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, err := detectCampaign(ctx, t.TempDir())
+	_, err := DetectCampaign(ctx, t.TempDir())
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("expected context.Canceled, got %v", err)
 	}

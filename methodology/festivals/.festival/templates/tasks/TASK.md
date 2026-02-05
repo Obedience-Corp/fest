@@ -15,7 +15,7 @@ fest_order: [REPLACE: N]
 fest_status: pending
 fest_autonomy: [REPLACE: high|medium|low]
 fest_tracking: true
-fest_created: {{ .created_date }}
+fest_created: { { .created_date } }
 # Future task routing fields (reserved):
 # fest_agent: null
 # fest_complexity: medium
@@ -38,13 +38,6 @@ TEMPLATE USAGE:
 ## Objective
 
 [REPLACE: One clear sentence describing what will be accomplished with specific deliverables]
-
-## Rules Compliance
-
-Before starting this task, review [FESTIVAL_RULES.md]({{.festival_root}}/FESTIVAL_RULES.md), particularly:
-
-- [REPLACE: Relevant section 1]
-- [REPLACE: Relevant section 2]
 
 ## Context
 
@@ -70,7 +63,6 @@ Before starting this task, review [FESTIVAL_RULES.md]({{.festival_root}}/FESTIVA
 
 ## Pre-Task Checklist
 
-- [ ] Read [FESTIVAL_RULES.md]({{.festival_root}}/FESTIVAL_RULES.md) completely
 - [ ] Understand task requirements
 - [ ] Review existing code/content and patterns
 - [ ] Verify dependencies are complete

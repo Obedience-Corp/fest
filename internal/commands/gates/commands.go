@@ -79,14 +79,18 @@ func runGatesShow(ctx context.Context, cmd *cobra.Command, phase, sequence strin
 		return errors.IO("getting working directory", err)
 	}
 
-	festivalsRoot, err := tpl.FindFestivalsRoot(cwd)
-	if err != nil {
-		return errors.Wrap(err, "finding festivals root").WithOp("runGatesShow")
-	}
+	// Try to get festivals root (may fail from linked project, that's ok)
+	festivalsRoot, _ := tpl.FindFestivalsRoot(cwd)
 
+	// Resolve paths (handles linked festivals via shared.ResolveFestivalPath)
 	festivalPath, phasePath, sequencePath, err := resolvePaths(festivalsRoot, cwd, phase, sequence)
 	if err != nil {
 		return errors.Wrap(err, "resolving paths").WithOp("runGatesShow")
+	}
+
+	// Derive festivalsRoot from festivalPath if needed (for linked festivals)
+	if festivalsRoot == "" {
+		festivalsRoot = filepath.Dir(filepath.Dir(festivalPath))
 	}
 
 	// Use ConfigMerger with nil registry (registry is no longer needed)
@@ -283,9 +287,18 @@ func runGatesValidate(ctx context.Context, cmd *cobra.Command, fix, jsonOutput b
 		return errors.IO("getting working directory", err)
 	}
 
-	festivalsRoot, err := tpl.FindFestivalsRoot(cwd)
-	if err != nil {
-		return errors.Wrap(err, "finding festivals root").WithOp("runGatesValidate")
+	// Try to get festivals root (may fail from linked project, that's ok)
+	festivalsRoot, _ := tpl.FindFestivalsRoot(cwd)
+
+	// For validate, we need a festival path to derive festivalsRoot if needed
+	festivalPath, _, _, pathErr := resolvePaths(festivalsRoot, cwd, "", "")
+	if pathErr != nil {
+		return errors.Wrap(pathErr, "resolving festival").WithOp("runGatesValidate")
+	}
+
+	// Derive festivalsRoot from festivalPath if needed (for linked festivals)
+	if festivalsRoot == "" {
+		festivalsRoot = filepath.Dir(filepath.Dir(festivalPath))
 	}
 
 	var issues []validationIssue

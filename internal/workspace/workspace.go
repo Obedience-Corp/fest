@@ -226,9 +226,9 @@ const CampaignDir = ".campaign"
 // EnvCampaignRoot is the environment variable that can override campaign detection.
 const EnvCampaignRoot = "CAMP_ROOT"
 
-// detectCampaign walks up from startDir looking for a .campaign/ directory.
+// DetectCampaign walks up from startDir looking for a .campaign/ directory.
 // Checks CAMP_ROOT env var first for explicit override.
-func detectCampaign(ctx context.Context, startDir string) (string, error) {
+func DetectCampaign(ctx context.Context, startDir string) (string, error) {
 	// Check CAMP_ROOT env var first
 	if root := os.Getenv(EnvCampaignRoot); root != "" {
 		campaignDir := filepath.Join(root, CampaignDir)
@@ -293,7 +293,7 @@ func FindWorkspace(ctx context.Context, startDir string) (WorkspaceInfo, error) 
 	}
 
 	// 1. Try campaign detection first
-	if campaignRoot, err := detectCampaign(ctx, dir); err == nil {
+	if campaignRoot, err := DetectCampaign(ctx, dir); err == nil {
 		festivalsPath := filepath.Join(campaignRoot, FestivalsDir)
 		if _, err := os.Stat(festivalsPath); err == nil {
 			return WorkspaceInfo{

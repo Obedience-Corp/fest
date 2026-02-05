@@ -46,11 +46,10 @@ func runGatesInit(ctx context.Context, cmd *cobra.Command, phase, sequence strin
 		return errors.IO("getting working directory", err)
 	}
 
-	festivalsRoot, err := tpl.FindFestivalsRoot(cwd)
-	if err != nil {
-		return errors.Wrap(err, "finding festivals root").WithOp("runGatesInit")
-	}
+	// Try to get festivals root (may fail from linked project, that's ok)
+	festivalsRoot, _ := tpl.FindFestivalsRoot(cwd)
 
+	// Resolve paths (handles linked festivals via shared.ResolveFestivalPath)
 	festivalPath, phasePath, sequencePath, err := resolvePaths(festivalsRoot, cwd, phase, sequence)
 	if err != nil {
 		return errors.Wrap(err, "resolving paths").WithOp("runGatesInit")
