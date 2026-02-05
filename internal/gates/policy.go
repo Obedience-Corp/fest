@@ -185,105 +185,13 @@ func ImplementationGates() []GateTask {
 	}
 }
 
-// PlanningGates returns quality gates for planning phases.
-// These focus on reviewing decisions and preparing for implementation.
-// IDs match template filenames in embedded/templates/agent/gates/planning/
-func PlanningGates() []GateTask {
-	return []GateTask{
-		{
-			ID:       "plan_review",
-			Template: "agent/gates/planning/plan_review",
-			Name:     "Planning Review",
-			Enabled:  true,
-		},
-		{
-			ID:       "approval",
-			Template: "agent/gates/planning/approval",
-			Name:     "Planning Approval",
-			Enabled:  true,
-		},
-	}
-}
-
-// ResearchGates returns quality gates for research phases.
-// These focus on documenting findings and knowledge transfer.
-// IDs match template filenames in embedded/templates/agent/gates/research/
-func ResearchGates() []GateTask {
-	return []GateTask{
-		{
-			ID:       "findings_review",
-			Template: "agent/gates/research/findings_review",
-			Name:     "Findings Review",
-			Enabled:  true,
-		},
-		{
-			ID:       "documentation",
-			Template: "agent/gates/research/documentation",
-			Name:     "Documentation",
-			Enabled:  true,
-		},
-	}
-}
-
-// ReviewGates returns quality gates for review/QA phases.
-// These focus on verification and sign-off.
-// IDs match template filenames in embedded/templates/agent/gates/review/
-func ReviewGates() []GateTask {
-	return []GateTask{
-		{
-			ID:       "checklist",
-			Template: "agent/gates/review/checklist",
-			Name:     "Review Checklist",
-			Enabled:  true,
-		},
-		{
-			ID:       "sign_off",
-			Template: "agent/gates/review/sign_off",
-			Name:     "Sign-off",
-			Enabled:  true,
-		},
-	}
-}
-
-// ActionGates returns quality gates for action/operational phases.
-// These phases handle deployment, configuration, publishing, migrations, and other
-// non-coding tasks. No code review gates since there's no code to review.
-// IDs match template filenames in embedded/templates/agent/gates/non_coding_action/
-func ActionGates() []GateTask {
-	return []GateTask{
-		{
-			ID:       "action_verify",
-			Template: "agent/gates/non_coding_action/action_verify",
-			Name:     "Execution and Verify",
-			Enabled:  true,
-		},
-		{
-			ID:       "completion",
-			Template: "agent/gates/non_coding_action/completion",
-			Name:     "Completion",
-			Enabled:  true,
-		},
-	}
-}
-
-// GetGatesForPhaseType returns the appropriate quality gates for a phase type.
-// Defaults to implementation gates for unknown types.
-// Note: Prefer DiscoverGatesForPhaseType() which reads from the template root's phases/{type}/gates/ directory.
+// GetGatesForPhaseType returns quality gates for implementation phases.
+// Only implementation phases have quality gates. Returns nil for all other phase types.
 func GetGatesForPhaseType(phaseType string) []GateTask {
-	switch phaseType {
-	case "planning":
-		return PlanningGates()
-	case "research":
-		return ResearchGates()
-	case "review":
-		return ReviewGates()
-	case "action", "non_coding_action":
-		return ActionGates()
-	case "implementation":
-		return ImplementationGates()
-	default:
+	if phaseType == "implementation" {
 		return ImplementationGates()
 	}
+	return nil
 }
 
 // LoadPolicy loads a gate policy from a file
@@ -420,30 +328,25 @@ func LoadGatesFromFestConfig(festivalPath string) ([]GateTask, []string, bool, e
 		Name:  "fest.yaml",
 	}
 
-	// Collect gates from all phase types
+	// Collect implementation gates only
 	var tasks []GateTask
+	for _, qt := range cfg.QualityGates.Implementation {
+		if qt.Enabled {
+			task := GateTaskFromQualityGateTask(qt)
+			task.Source = source
+			tasks = append(tasks, task)
+		}
+	}
 
-	// Helper to add gates from a phase
-	addPhaseGates := func(phaseTasks []config.QualityGateTask) {
-		for _, qt := range phaseTasks {
+	// Backwards compatibility: if no implementation gates, use legacy Tasks field
+	if len(tasks) == 0 {
+		for _, qt := range cfg.QualityGates.Tasks {
 			if qt.Enabled {
 				task := GateTaskFromQualityGateTask(qt)
 				task.Source = source
 				tasks = append(tasks, task)
 			}
 		}
-	}
-
-	// Collect from all phase-specific fields
-	addPhaseGates(cfg.QualityGates.Implementation)
-	addPhaseGates(cfg.QualityGates.Planning)
-	addPhaseGates(cfg.QualityGates.Research)
-	addPhaseGates(cfg.QualityGates.Review)
-	addPhaseGates(cfg.QualityGates.NonCodingAction)
-
-	// Backwards compatibility: if no phase-specific gates, use legacy Tasks field
-	if len(tasks) == 0 {
-		addPhaseGates(cfg.QualityGates.Tasks)
 	}
 
 	return tasks, cfg.ExcludedPatterns, true, nil

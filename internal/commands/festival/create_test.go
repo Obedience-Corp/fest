@@ -304,12 +304,9 @@ func TestCreateFestival_GatesDirectory(t *testing.T) {
 	phasesTemplatesDir := filepath.Join(templatesDir, "phases")
 
 	// Create phase-type subdirectories with gates/ subdirectory containing gate templates
+	// Only implementation phases have quality gates
 	phaseTypes := map[string][]string{
-		"planning":          {"approval.md", "plan_review.md"},
-		"implementation":    {"QUALITY_GATE_TESTING.md", "QUALITY_GATE_REVIEW.md", "QUALITY_GATE_ITERATE.md", "QUALITY_GATE_COMMIT.md"},
-		"research":          {"documentation.md", "findings_review.md"},
-		"review":            {"checklist.md", "sign_off.md"},
-		"non_coding_action": {"action_verify.md", "completion.md"},
+		"implementation": {"QUALITY_GATE_TESTING.md", "QUALITY_GATE_REVIEW.md", "QUALITY_GATE_ITERATE.md", "QUALITY_GATE_COMMIT.md"},
 	}
 
 	for phaseType, gates := range phaseTypes {
@@ -497,21 +494,9 @@ func TestCreateFestival_GatesConfigHasCorrectStructure(t *testing.T) {
 		t.Error("quality gates should be enabled by default")
 	}
 
-	// Verify we have phase-type organized gates (new format)
+	// Verify only implementation gates are defined
 	if len(cfg.QualityGates.Implementation) != 4 {
 		t.Errorf("expected 4 implementation gates, got %d", len(cfg.QualityGates.Implementation))
-	}
-	if len(cfg.QualityGates.Planning) != 3 {
-		t.Errorf("expected 3 planning gates, got %d", len(cfg.QualityGates.Planning))
-	}
-	if len(cfg.QualityGates.Research) != 3 {
-		t.Errorf("expected 3 research gates, got %d", len(cfg.QualityGates.Research))
-	}
-	if len(cfg.QualityGates.Review) != 2 {
-		t.Errorf("expected 2 review gates, got %d", len(cfg.QualityGates.Review))
-	}
-	if len(cfg.QualityGates.NonCodingAction) != 2 {
-		t.Errorf("expected 2 non_coding_action gates, got %d", len(cfg.QualityGates.NonCodingAction))
 	}
 
 	// Verify implementation gates use correct template paths

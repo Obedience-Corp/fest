@@ -25,16 +25,13 @@ type FestivalConfig struct {
 	Agent            AgentConfig        `yaml:"agent,omitempty"`
 }
 
-// QualityGatesConfig contains quality gate settings
+// QualityGatesConfig contains quality gate settings.
+// Only implementation phases have quality gates.
 type QualityGatesConfig struct {
-	Enabled         bool              `yaml:"enabled"`
-	AutoAppend      bool              `yaml:"auto_append"`
-	Tasks           []QualityGateTask `yaml:"tasks,omitempty"`             // Legacy: implementation gates only
-	Implementation  []QualityGateTask `yaml:"implementation,omitempty"`    // Implementation phase gates
-	Planning        []QualityGateTask `yaml:"planning,omitempty"`          // Planning phase gates
-	Research        []QualityGateTask `yaml:"research,omitempty"`          // Research phase gates
-	Review          []QualityGateTask `yaml:"review,omitempty"`            // Review phase gates
-	NonCodingAction []QualityGateTask `yaml:"non_coding_action,omitempty"` // Non-coding action phase gates
+	Enabled        bool              `yaml:"enabled"`
+	AutoAppend     bool              `yaml:"auto_append"`
+	Tasks          []QualityGateTask `yaml:"tasks,omitempty"`          // Legacy: implementation gates only
+	Implementation []QualityGateTask `yaml:"implementation,omitempty"` // Implementation phase gates
 }
 
 // QualityGateTask represents a single quality gate task configuration
@@ -112,30 +109,11 @@ func DefaultFestivalConfig() *FestivalConfig {
 		QualityGates: QualityGatesConfig{
 			Enabled:    true,
 			AutoAppend: true,
-			// Phase-specific gate configurations
 			Implementation: []QualityGateTask{
 				{ID: "testing", Template: "gates/implementation/QUALITY_GATE_TESTING", Name: "Testing and Verification", Enabled: true},
 				{ID: "review", Template: "gates/implementation/QUALITY_GATE_REVIEW", Name: "Code Review", Enabled: true},
 				{ID: "iterate", Template: "gates/implementation/QUALITY_GATE_ITERATE", Name: "Review Results and Iterate", Enabled: true},
 				{ID: "commit", Template: "gates/implementation/QUALITY_GATE_COMMIT", Name: "Commit Changes", Enabled: true},
-			},
-			Planning: []QualityGateTask{
-				{ID: "plan_review", Template: "gates/planning/plan_review", Name: "Plan Review", Enabled: true},
-				{ID: "decision_validation", Template: "gates/planning/decision_validation", Name: "Decision Validation", Enabled: true},
-				{ID: "approval", Template: "gates/planning/approval", Name: "Approval", Enabled: true},
-			},
-			Research: []QualityGateTask{
-				{ID: "findings_review", Template: "gates/research/findings_review", Name: "Findings Review", Enabled: true},
-				{ID: "documentation", Template: "gates/research/documentation", Name: "Documentation", Enabled: true},
-				{ID: "summary", Template: "gates/research/summary", Name: "Summary", Enabled: true},
-			},
-			Review: []QualityGateTask{
-				{ID: "checklist", Template: "gates/review/checklist", Name: "Review Checklist", Enabled: true},
-				{ID: "sign_off", Template: "gates/review/sign_off", Name: "Sign-off", Enabled: true},
-			},
-			NonCodingAction: []QualityGateTask{
-				{ID: "action_verify", Template: "gates/non_coding_action/action_verify", Name: "Action Verify", Enabled: true},
-				{ID: "completion", Template: "gates/non_coding_action/completion", Name: "Completion", Enabled: true},
 			},
 		},
 		ExcludedPatterns: []string{
@@ -206,26 +184,18 @@ func (cfg *FestivalConfig) GetEnabledTasks() []QualityGateTask {
 	return enabled
 }
 
-// GetGatesForPhaseType returns configured gates for a phase type in order.
-// Falls back to Tasks (implementation) for backwards compatibility.
+// GetGatesForPhaseType returns configured gates for implementation phases.
+// Only implementation phases have quality gates. Returns nil for all other phase types.
+// Falls back to Tasks field for backwards compatibility.
 func (cfg *FestivalConfig) GetGatesForPhaseType(phaseType string) []QualityGateTask {
-	var gates []QualityGateTask
+	if phaseType != "implementation" {
+		return nil
+	}
 
-	switch phaseType {
-	case "implementation":
-		gates = cfg.QualityGates.Implementation
-		// Fallback to legacy Tasks field for backwards compatibility
-		if len(gates) == 0 && len(cfg.QualityGates.Tasks) > 0 {
-			gates = cfg.QualityGates.Tasks
-		}
-	case "planning":
-		gates = cfg.QualityGates.Planning
-	case "research":
-		gates = cfg.QualityGates.Research
-	case "review":
-		gates = cfg.QualityGates.Review
-	case "non_coding_action":
-		gates = cfg.QualityGates.NonCodingAction
+	gates := cfg.QualityGates.Implementation
+	// Fallback to legacy Tasks field for backwards compatibility
+	if len(gates) == 0 && len(cfg.QualityGates.Tasks) > 0 {
+		gates = cfg.QualityGates.Tasks
 	}
 
 	// Filter to enabled only

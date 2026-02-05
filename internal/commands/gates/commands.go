@@ -22,9 +22,8 @@ func NewGatesCommand() *cobra.Command {
 		Short: "Manage quality gates - validation steps at sequence end",
 		Long: `Manage quality gate policies for festivals.
 
-Quality gates are validation steps that run at the end of sequences.
-Gates are configured in fest.yaml by phase type (implementation, planning,
-research, review, non_coding_action).
+Quality gates are validation steps that run at the end of implementation sequences.
+Gates are configured in fest.yaml under the implementation section.
 
 Available Commands:
   show      Show effective gate policy from fest.yaml
@@ -199,7 +198,7 @@ func printGatesShowMergedTable(cmd *cobra.Command, merged *gatescore.MergedPolic
 	} else {
 		// Group gates by phase type from template path (e.g., gates/implementation/...)
 		phaseGates := make(map[string][]gatescore.GateTask)
-		phaseOrder := []string{"implementation", "planning", "research", "review", "non_coding_action"}
+		phaseOrder := []string{"implementation"}
 
 		for _, gate := range activeGates {
 			phaseType := extractPhaseFromTemplate(gate.Template)

@@ -31,19 +31,6 @@ func TestDefaultFestivalConfig(t *testing.T) {
 		}
 	}
 
-	// Check other phase types have gates defined
-	if len(cfg.QualityGates.Planning) == 0 {
-		t.Error("expected planning gates to be populated")
-	}
-	if len(cfg.QualityGates.Research) == 0 {
-		t.Error("expected research gates to be populated")
-	}
-	if len(cfg.QualityGates.Review) == 0 {
-		t.Error("expected review gates to be populated")
-	}
-	if len(cfg.QualityGates.NonCodingAction) == 0 {
-		t.Error("expected non_coding_action gates to be populated")
-	}
 }
 
 func TestLoadFestivalConfig_Default(t *testing.T) {

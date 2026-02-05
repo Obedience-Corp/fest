@@ -11,13 +11,9 @@ import (
 	"github.com/Obedience-Corp/fest/internal/gates"
 )
 
-// ValidateQualityGates checks that sequences have appropriate quality gate tasks
-// based on their phase type. Each phase type has its own set of required gates:
-//   - implementation: testing, review, iterate, commit
-//   - planning: plan_review, approval
-//   - research: findings_review, documentation
-//   - review: checklist, sign_off
-//   - non_coding_action: action_verify, completion
+// ValidateQualityGates checks that implementation sequences have quality gate tasks.
+// Only implementation phases are validated — other phase types are skipped.
+// Required implementation gates: testing, review, iterate, commit.
 func ValidateQualityGates(ctx context.Context, festivalPath string) ([]Issue, error) {
 	issues := []Issue{}
 
@@ -33,8 +29,8 @@ func ValidateQualityGates(ctx context.Context, festivalPath string) ([]Issue, er
 		// Detect the actual phase type from frontmatter or directory name
 		phaseType := gates.DetectPhaseType(phase.Path)
 
-		// Skip phases where type can't be determined (require explicit PHASE_GOAL.md)
-		if phaseType == "" {
+		// Only validate implementation phases
+		if phaseType != "implementation" {
 			continue
 		}
 
