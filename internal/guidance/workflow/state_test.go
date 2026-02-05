@@ -10,10 +10,6 @@ import (
 func TestNewWorkflowState(t *testing.T) {
 	state := NewWorkflowState(5)
 
-	if state.Version != 1 {
-		t.Errorf("Version = %d, want 1", state.Version)
-	}
-
 	if state.CurrentStep != 1 {
 		t.Errorf("CurrentStep = %d, want 1", state.CurrentStep)
 	}
@@ -35,8 +31,29 @@ func TestNewWorkflowState(t *testing.T) {
 	}
 }
 
+func TestNewFestivalWorkflowState(t *testing.T) {
+	festState := NewFestivalWorkflowState()
+
+	if festState.Version != stateVersion {
+		t.Errorf("Version = %d, want %d", festState.Version, stateVersion)
+	}
+
+	if festState.Phases == nil {
+		t.Error("Phases map should not be nil")
+	}
+
+	if festState.CreatedAt.IsZero() {
+		t.Error("CreatedAt should not be zero")
+	}
+
+	if festState.UpdatedAt.IsZero() {
+		t.Error("UpdatedAt should not be zero")
+	}
+}
+
 func TestWorkflowState_SaveLoad(t *testing.T) {
-	tmpDir := t.TempDir()
+	festivalDir := t.TempDir()
+	phaseName := "001_INGEST"
 
 	state := NewWorkflowState(5)
 	state.CurrentStep = 3
@@ -50,18 +67,18 @@ func TestWorkflowState_SaveLoad(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	if err := state.Save(ctx, tmpDir); err != nil {
+	if err := state.Save(ctx, festivalDir, phaseName); err != nil {
 		t.Fatalf("Save() error = %v", err)
 	}
 
-	// Verify file exists
-	statePath := filepath.Join(tmpDir, ".fest", "workflow_state.yaml")
+	// Verify file exists at festival level
+	statePath := filepath.Join(festivalDir, ".fest", "workflow_state.yaml")
 	if _, err := os.Stat(statePath); os.IsNotExist(err) {
 		t.Error("State file was not created")
 	}
 
 	// Load state
-	loaded, err := LoadState(ctx, tmpDir)
+	loaded, err := LoadState(ctx, festivalDir, phaseName)
 	if err != nil {
 		t.Fatalf("LoadState() error = %v", err)
 	}
@@ -83,11 +100,55 @@ func TestWorkflowState_SaveLoad(t *testing.T) {
 	}
 }
 
-func TestLoadState_NotExists(t *testing.T) {
-	tmpDir := t.TempDir()
+func TestWorkflowState_SaveLoad_MultiplePhases(t *testing.T) {
+	festivalDir := t.TempDir()
 
 	ctx := context.Background()
-	state, err := LoadState(ctx, tmpDir)
+
+	// Save state for phase 1
+	state1 := NewWorkflowState(3)
+	state1.CurrentStep = 2
+	if err := state1.Save(ctx, festivalDir, "001_INGEST"); err != nil {
+		t.Fatalf("Save phase 1 error = %v", err)
+	}
+
+	// Save state for phase 2
+	state2 := NewWorkflowState(5)
+	state2.CurrentStep = 4
+	if err := state2.Save(ctx, festivalDir, "002_RESEARCH"); err != nil {
+		t.Fatalf("Save phase 2 error = %v", err)
+	}
+
+	// Load and verify phase 1
+	loaded1, err := LoadState(ctx, festivalDir, "001_INGEST")
+	if err != nil {
+		t.Fatalf("LoadState phase 1 error = %v", err)
+	}
+	if loaded1.CurrentStep != 2 {
+		t.Errorf("Phase 1 CurrentStep = %d, want 2", loaded1.CurrentStep)
+	}
+	if loaded1.TotalSteps != 3 {
+		t.Errorf("Phase 1 TotalSteps = %d, want 3", loaded1.TotalSteps)
+	}
+
+	// Load and verify phase 2
+	loaded2, err := LoadState(ctx, festivalDir, "002_RESEARCH")
+	if err != nil {
+		t.Fatalf("LoadState phase 2 error = %v", err)
+	}
+	if loaded2.CurrentStep != 4 {
+		t.Errorf("Phase 2 CurrentStep = %d, want 4", loaded2.CurrentStep)
+	}
+	if loaded2.TotalSteps != 5 {
+		t.Errorf("Phase 2 TotalSteps = %d, want 5", loaded2.TotalSteps)
+	}
+}
+
+func TestLoadState_NotExists(t *testing.T) {
+	festivalDir := t.TempDir()
+
+	ctx := context.Background()
+	state, err := LoadState(ctx, festivalDir, "001_INGEST")
 	if err != nil {
 		t.Fatalf("LoadState() error = %v", err)
 	}
@@ -431,20 +492,21 @@ func TestWorkflowState_ProgressPercent(t *testing.T) {
 }
 
 func TestWorkflowState_ContextCancellation(t *testing.T) {
-	tmpDir := t.TempDir()
+	festivalDir := t.TempDir()
+	phaseName := "001_INGEST"
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
 	// LoadState should fail with cancelled context
-	_, err := LoadState(ctx, tmpDir)
+	_, err := LoadState(ctx, festivalDir, phaseName)
 	if err == nil {
 		t.Error("LoadState() should fail with cancelled context")
 	}
 
 	// Save should fail with cancelled context
 	state := NewWorkflowState(3)
-	err = state.Save(ctx, tmpDir)
+	err = state.Save(ctx, festivalDir, phaseName)
 	if err == nil {
 		t.Error("Save() should fail with cancelled context")
 	}

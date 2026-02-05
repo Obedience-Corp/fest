@@ -31,7 +31,7 @@ func runStatusShow(ctx context.Context, cmd *cobra.Command, opts *statusOptions)
 	}
 
 	// Resolve festival path (supports linked festivals via fest link)
-	festivalPath, err := shared.ResolveFestivalPath(cwd, opts.path)
+	_, err = shared.ResolveFestivalPath(cwd, opts.path)
 	if err != nil {
 		if opts.json {
 			return emitErrorJSON("not in a festival directory")
@@ -39,8 +39,8 @@ func runStatusShow(ctx context.Context, cmd *cobra.Command, opts *statusOptions)
 		return errors.Wrap(err, "not inside a festival")
 	}
 
-	// Detect current location
-	loc, err := show.DetectCurrentLocation(ctx, festivalPath)
+	// Detect current location using cwd for accurate location detection
+	loc, err := show.DetectCurrentLocation(ctx, cwd)
 	if err != nil {
 		if opts.json {
 			return emitErrorJSON("not in a festival directory")

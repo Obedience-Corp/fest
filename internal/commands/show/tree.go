@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	festctx "github.com/Obedience-Corp/fest/internal/context"
+	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/taskfilter"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -79,7 +81,7 @@ func BuildFestivalTree(ctx context.Context, festivalDir string) (*DisplayNode, e
 			continue
 		}
 
-		phaseNode := buildPhaseNode(phaseDir, store, festivalRoot)
+		phaseNode := buildPhaseNode(ctx, phaseDir, store, festivalRoot)
 		root.Children = append(root.Children, phaseNode)
 
 		// Aggregate stats to root
@@ -96,7 +98,7 @@ func BuildFestivalTree(ctx context.Context, festivalDir string) (*DisplayNode, e
 	return root, nil
 }
 
-func buildPhaseNode(phaseDir string, store *progress.Store, festivalRoot string) *DisplayNode {
+func buildPhaseNode(ctx context.Context, phaseDir string, store *progress.Store, festivalRoot string) *DisplayNode {
 	node := &DisplayNode{
 		Name:     filepath.Base(phaseDir),
 		NodeType: "phase",
@@ -104,6 +106,34 @@ func buildPhaseNode(phaseDir string, store *progress.Store, festivalRoot string)
 		Status:   "pending",
 	}
 
+	// Check if this is a workflow phase (has WORKFLOW.md)
+	if shared.HasWorkflowFile(phaseDir) {
+		// Load workflow steps as children
+		steps, err := shared.LoadWorkflowStepsForPhase(ctx, festivalRoot, phaseDir)
+		if err == nil && len(steps) > 0 {
+			for _, step := range steps {
+				stepNode := buildStepNode(step)
+				node.Children = append(node.Children, stepNode)
+
+				// Aggregate stats based on step status
+				node.Stats.Total++
+				switch step.Status {
+				case wf.StepStatusCompleted:
+					node.Stats.Completed++
+				case wf.StepStatusInProgress:
+					node.Stats.InProgress++
+				case wf.StepStatusBlocked:
+					node.Stats.Blocked++
+				default:
+					node.Stats.Pending++
+				}
+			}
+			node.Status = determineStatus(node.Stats)
+			return node
+		}
+	}
+
+	// Implementation phase - load sequences
 	entries, err := os.ReadDir(phaseDir)
 	if err != nil {
 		return node
@@ -132,6 +162,37 @@ func buildPhaseNode(phaseDir string, store *progress.Store, festivalRoot string)
 
 	node.Status = determineStatus(node.Stats)
 	return node
+}
+
+// buildStepNode creates a DisplayNode for a workflow step.
+func buildStepNode(step shared.WorkflowStepView) *DisplayNode {
+	status := "pending"
+	switch step.Status {
+	case wf.StepStatusCompleted:
+		status = "completed"
+	case wf.StepStatusInProgress:
+		status = "in_progress"
+	case wf.StepStatusBlocked:
+		status = "blocked"
+	}
+
+	return &DisplayNode{
+		Name:     fmt.Sprintf("Step %d: %s", step.Number, step.Name),
+		Goal:     step.Goal,
+		Status:   status,
+		NodeType: "step",
+		Stats: StatusCounts{
+			Total:     1,
+			Completed: boolToInt(step.Status == wf.StepStatusCompleted),
+		},
+	}
+}
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 func buildSequenceNode(seqDir string, store *progress.Store, festivalRoot string) *DisplayNode {
@@ -265,11 +326,15 @@ func renderPhaseNode(sb *strings.Builder, node *DisplayNode, prefix string, isLa
 		sb.WriteString("\n")
 	}
 
-	// Render sequences
+	// Render children (sequences or steps depending on phase type)
 	newPrefix := prefix + childPrefix
 	for i, child := range node.Children {
 		childIsLast := i == len(node.Children)-1
-		renderSequenceNode(sb, child, newPrefix, childIsLast, opts)
+		if child.NodeType == "step" {
+			renderStepNode(sb, child, newPrefix, childIsLast, opts)
+		} else {
+			renderSequenceNode(sb, child, newPrefix, childIsLast, opts)
+		}
 	}
 }
 
@@ -297,6 +362,34 @@ func renderSequenceNode(sb *strings.Builder, node *DisplayNode, prefix string, i
 		sb.WriteString(ui.Dim("Goal: " + truncateGoal(node.Goal, opts.Width-len(prefix)-10)))
 		sb.WriteString("\n")
 	}
+}
+
+func renderStepNode(sb *strings.Builder, node *DisplayNode, prefix string, isLast bool, opts TreeOptions) {
+	connector := "├── "
+	childPrefix := "│   "
+	if isLast {
+		connector = "└── "
+		childPrefix = "    "
+	}
+
+	// Step line with status icon
+	sb.WriteString(prefix)
+	sb.WriteString(ui.Dim(connector))
+	sb.WriteString(formatStepStatus(node))
+	sb.WriteString("\n")
+
+	// Goal line
+	if opts.ShowGoals && node.Goal != "" {
+		sb.WriteString(prefix)
+		sb.WriteString(ui.Dim(childPrefix))
+		sb.WriteString(ui.Dim("Goal: " + truncateGoal(node.Goal, opts.Width-len(prefix)-10)))
+		sb.WriteString("\n")
+	}
+}
+
+func formatStepStatus(node *DisplayNode) string {
+	icon := shared.WorkflowStepIcon(wf.StepStatus(node.Status))
+	return icon + " " + node.Name
 }
 
 func formatNodeStatus(node *DisplayNode) string {

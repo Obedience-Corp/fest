@@ -1,0 +1,230 @@
+package watch
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"sync/atomic"
+	"testing"
+	"time"
+)
+
+func TestNew(t *testing.T) {
+	// Create temp file to watch
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "test.txt")
+	if err := os.WriteFile(tmpFile, []byte("initial"), 0644); err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+
+	cfg := Config{
+		Paths:    []string{tmpFile},
+		Debounce: 50 * time.Millisecond,
+	}
+
+	w, err := New(cfg, func() {})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	defer w.Close()
+
+	if w.watcher == nil {
+		t.Error("watcher should not be nil")
+	}
+}
+
+func TestWatcher_Watch_DetectsChanges(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "test.txt")
+	if err := os.WriteFile(tmpFile, []byte("initial"), 0644); err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+
+	var callCount atomic.Int32
+
+	cfg := Config{
+		Paths:    []string{tmpFile},
+		Debounce: 50 * time.Millisecond,
+	}
+
+	w, err := New(cfg, func() {
+		callCount.Add(1)
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	defer w.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Start watching in goroutine
+	done := make(chan error, 1)
+	go func() {
+		done <- w.Watch(ctx)
+	}()
+
+	// Give watcher time to start
+	time.Sleep(50 * time.Millisecond)
+
+	// Modify the file
+	if err := os.WriteFile(tmpFile, []byte("modified"), 0644); err != nil {
+		t.Fatalf("failed to modify file: %v", err)
+	}
+
+	// Wait for debounce + some buffer
+	time.Sleep(150 * time.Millisecond)
+
+	if count := callCount.Load(); count != 1 {
+		t.Errorf("expected 1 callback, got %d", count)
+	}
+
+	// Cancel and verify clean shutdown
+	cancel()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Errorf("Watch() returned error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Error("Watch() did not return after context cancellation")
+	}
+}
+
+func TestWatcher_Debouncing(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "test.txt")
+	if err := os.WriteFile(tmpFile, []byte("initial"), 0644); err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+
+	var callCount atomic.Int32
+
+	cfg := Config{
+		Paths:    []string{tmpFile},
+		Debounce: 100 * time.Millisecond,
+	}
+
+	w, err := New(cfg, func() {
+		callCount.Add(1)
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	defer w.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		_ = w.Watch(ctx)
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+
+	// Make multiple rapid changes
+	for i := 0; i < 5; i++ {
+		if err := os.WriteFile(tmpFile, []byte("change"+string(rune('0'+i))), 0644); err != nil {
+			t.Fatalf("failed to modify file: %v", err)
+		}
+		time.Sleep(20 * time.Millisecond) // Less than debounce
+	}
+
+	// Wait for debounce to fire
+	time.Sleep(200 * time.Millisecond)
+
+	// Should have coalesced to 1 callback
+	if count := callCount.Load(); count != 1 {
+		t.Errorf("expected 1 callback (debounced), got %d", count)
+	}
+
+	cancel()
+}
+
+func TestWatcher_WatchDirectory(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	var callCount atomic.Int32
+
+	cfg := Config{
+		Paths:    []string{tmpDir},
+		Debounce: 50 * time.Millisecond,
+	}
+
+	w, err := New(cfg, func() {
+		callCount.Add(1)
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	defer w.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		_ = w.Watch(ctx)
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+
+	// Create a new file in the directory
+	newFile := filepath.Join(tmpDir, "new.txt")
+	if err := os.WriteFile(newFile, []byte("new file"), 0644); err != nil {
+		t.Fatalf("failed to create new file: %v", err)
+	}
+
+	time.Sleep(150 * time.Millisecond)
+
+	if count := callCount.Load(); count < 1 {
+		t.Errorf("expected at least 1 callback for new file, got %d", count)
+	}
+
+	cancel()
+}
+
+func TestWatchWithFallback_UsesPolling(t *testing.T) {
+	var callCount atomic.Int32
+
+	cfg := Config{
+		Paths:        []string{"/nonexistent/path/that/does/not/exist"},
+		Debounce:     50 * time.Millisecond,
+		FallbackPoll: 50 * time.Millisecond,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+	defer cancel()
+
+	err := WatchWithFallback(ctx, cfg, func() {
+		callCount.Add(1)
+	})
+
+	if err != nil {
+		t.Errorf("WatchWithFallback() error = %v", err)
+	}
+
+	// Should have been called at least once via polling
+	if count := callCount.Load(); count < 1 {
+		t.Errorf("expected at least 1 polling callback, got %d", count)
+	}
+}
+
+func TestRunPolling(t *testing.T) {
+	var callCount atomic.Int32
+
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+
+	err := runPolling(ctx, 50*time.Millisecond, func() {
+		callCount.Add(1)
+	})
+
+	if err != nil {
+		t.Errorf("runPolling() error = %v", err)
+	}
+
+	// Should have been called 2-3 times (at 50ms and 100ms, maybe 150ms)
+	if count := callCount.Load(); count < 2 {
+		t.Errorf("expected at least 2 polling callbacks, got %d", count)
+	}
+}

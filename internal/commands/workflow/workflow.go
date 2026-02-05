@@ -6,6 +6,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// phaseFlag holds the --phase flag value shared across workflow subcommands
+var phaseFlag string
+
 // NewWorkflowCommand creates the workflow command
 func NewWorkflowCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -28,17 +31,26 @@ Checkpoints:
   to approve or 'fest workflow reject' to request revisions.
 
 State:
-  Workflow progress is tracked in .fest/workflow_state.yaml within the phase directory.
+  Workflow progress is tracked in <festival>/.fest/workflow_state.yaml.
   Use 'fest workflow status' to view current progress.
 
+Running from Festival Root:
+  When run from the festival root (not inside a phase directory), the command
+  will auto-detect the first incomplete workflow phase. Use --phase to specify
+  a particular phase.
+
 Examples:
-  fest workflow status    # Show workflow progress
-  fest workflow advance   # Complete current step and move to next
-  fest workflow approve   # Approve a blocking checkpoint
-  fest workflow reject    # Reject checkpoint with feedback
-  fest workflow reset     # Reset workflow to step 1
-  fest workflow show      # Display the current step details`,
+  fest workflow status              # Show workflow progress
+  fest workflow status --phase 001_INGEST  # Show specific phase
+  fest workflow advance             # Complete current step and move to next
+  fest workflow approve             # Approve a blocking checkpoint
+  fest workflow reject              # Reject checkpoint with feedback
+  fest workflow reset               # Reset workflow to step 1
+  fest workflow show                # Display the current step details`,
 	}
+
+	// Add persistent --phase flag for all subcommands
+	cmd.PersistentFlags().StringVar(&phaseFlag, "phase", "", "specify phase directory (e.g., 001_INGEST)")
 
 	// Add subcommands
 	cmd.AddCommand(

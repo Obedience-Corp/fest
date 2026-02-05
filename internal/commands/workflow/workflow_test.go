@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 )
@@ -330,9 +331,9 @@ func TestStatusIcon(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(string(tt.status), func(t *testing.T) {
-			got := statusIcon(tt.status)
+			got := shared.WorkflowStepIcon(tt.status)
 			if !strings.Contains(got, tt.wantContains) {
-				t.Errorf("statusIcon(%v) = %q, want to contain %q", tt.status, got, tt.wantContains)
+				t.Errorf("WorkflowStepIcon(%v) = %q, want to contain %q", tt.status, got, tt.wantContains)
 			}
 		})
 	}
