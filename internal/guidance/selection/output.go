@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/Obedience-Corp/fest/embedded/templates/agent"
+	"github.com/Obedience-Corp/fest/internal/context"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/ui"
 )
@@ -226,9 +227,6 @@ func formatTextTask(result *NextTaskResult, showInlineContext bool) string {
 		autonomyLine = strings.TrimSuffix(sb.String(), "\n")
 	}
 
-	// Build context files section (with inline summaries if enabled)
-	contextSection := buildContextSection(result.Location, result.Task, showInlineContext)
-
 	// Build progress line if available
 	var progressLine string
 	if result.Progress != nil {
@@ -238,43 +236,59 @@ func formatTextTask(result *NextTaskResult, showInlineContext bool) string {
 			result.Progress.TotalTasks)))
 	}
 
-	// Build task content section if inline context is enabled
+	// When inline context is enabled, use layered prompts
+	var layeredGoalsSection string
 	var taskContentSection string
+	var contextSection string
+
 	if showInlineContext {
-		taskContentSection = buildTaskContentSection(result.Task.Path)
+		// Extract and format layered goals
+		goals := extractLayeredGoals(result.Location, result.Task)
+		layeredGoalsSection = buildLayeredGoalsSection(goals)
+
+		// Get full task content (no truncation)
+		taskContentSection = buildFullTaskContentSection(result.Task.Path)
+
+		// Don't show context files section in layered mode
+		contextSection = ""
+	} else {
+		// Standard mode: show context file paths only
+		contextSection = buildContextSection(result.Location, result.Task, false)
 	}
 
 	// Build label lines
 	taskRelPath := filepath.Join(result.Task.PhaseName, result.Task.SequenceName, result.Task.Name+".md")
 
 	data := struct {
-		Header             string
-		TaskLine           string
-		PathLine           string
-		SequenceLine       string
-		PhaseLine          string
-		AutonomyLine       string
-		ProgressLine       string
-		RecommendationLine string
-		ParallelSection    string
-		ActionInstruction  string
-		ProgressCmd        string
-		ContextSection     string
-		TaskContentSection string
+		Header              string
+		TaskLine            string
+		PathLine            string
+		SequenceLine        string
+		PhaseLine           string
+		AutonomyLine        string
+		ProgressLine        string
+		RecommendationLine  string
+		ParallelSection     string
+		ActionInstruction   string
+		ProgressCmd         string
+		ContextSection      string
+		LayeredGoalsSection string
+		TaskContentSection  string
 	}{
-		Header:             ui.H1("Next Task"),
-		TaskLine:           labelValue("Task", ui.Value(result.Task.Name, ui.TaskColor)),
-		PathLine:           labelValue("Path", ui.Dim(result.Task.Path)),
-		SequenceLine:       labelValue("Sequence", ui.Value(result.Task.SequenceName, ui.SequenceColor)),
-		PhaseLine:          labelValue("Phase", ui.Value(result.Task.PhaseName, ui.PhaseColor)),
-		AutonomyLine:       autonomyLine,
-		ProgressLine:       progressLine,
-		RecommendationLine: labelValue("Recommendation", ui.Info(result.Reason)),
-		ParallelSection:    parallelSection,
-		ActionInstruction:  ui.Info("Read this file and follow the instructions laid out exactly."),
-		ProgressCmd:        ui.Value(guidance.FormatProgressCommand(taskRelPath)),
-		ContextSection:     contextSection,
-		TaskContentSection: taskContentSection,
+		Header:              ui.H1("Next Task"),
+		TaskLine:            labelValue("Task", ui.Value(result.Task.Name, ui.TaskColor)),
+		PathLine:            labelValue("Path", ui.Dim(result.Task.Path)),
+		SequenceLine:        labelValue("Sequence", ui.Value(result.Task.SequenceName, ui.SequenceColor)),
+		PhaseLine:           labelValue("Phase", ui.Value(result.Task.PhaseName, ui.PhaseColor)),
+		AutonomyLine:        autonomyLine,
+		ProgressLine:        progressLine,
+		RecommendationLine:  labelValue("Recommendation", ui.Info(result.Reason)),
+		ParallelSection:     parallelSection,
+		ActionInstruction:   ui.Info("Read this file and follow the instructions laid out exactly."),
+		ProgressCmd:         ui.Value(guidance.FormatProgressCommand(taskRelPath)),
+		ContextSection:      contextSection,
+		LayeredGoalsSection: layeredGoalsSection,
+		TaskContentSection:  taskContentSection,
 	}
 
 	var buf bytes.Buffer
@@ -438,6 +452,81 @@ func stripFrontmatter(content string) string {
 
 	// Return content after frontmatter
 	return strings.TrimSpace(rest[idx+3:])
+}
+
+// LayeredGoals holds extracted primary goals from the festival hierarchy
+type LayeredGoals struct {
+	FestivalGoal string
+	PhaseGoal    string
+	SequenceGoal string
+}
+
+// extractLayeredGoals extracts primary goals from all goal files.
+func extractLayeredGoals(loc *LocationInfo, task *TaskInfo) *LayeredGoals {
+	goals := &LayeredGoals{}
+
+	if loc != nil && loc.FestivalPath != "" {
+		path := filepath.Join(loc.FestivalPath, "FESTIVAL_GOAL.md")
+		if content, err := os.ReadFile(path); err == nil {
+			goals.FestivalGoal = context.ExtractPrimaryGoal(content)
+		}
+	}
+	if task.PhasePath != "" {
+		path := filepath.Join(task.PhasePath, "PHASE_GOAL.md")
+		if content, err := os.ReadFile(path); err == nil {
+			goals.PhaseGoal = context.ExtractPrimaryGoal(content)
+		}
+	}
+	if task.SequencePath != "" {
+		path := filepath.Join(task.SequencePath, "SEQUENCE_GOAL.md")
+		if content, err := os.ReadFile(path); err == nil {
+			goals.SequenceGoal = context.ExtractPrimaryGoal(content)
+		}
+	}
+	return goals
+}
+
+// buildLayeredGoalsSection creates the hierarchical goal context section.
+func buildLayeredGoalsSection(goals *LayeredGoals) string {
+	if goals == nil {
+		return ""
+	}
+	hasGoals := goals.FestivalGoal != "" || goals.PhaseGoal != "" || goals.SequenceGoal != ""
+	if !hasGoals {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("Context about the task you will be doing:\n")
+	if goals.FestivalGoal != "" {
+		sb.WriteString(fmt.Sprintf("Festival Goal: %s\n", goals.FestivalGoal))
+	}
+	if goals.PhaseGoal != "" {
+		sb.WriteString(fmt.Sprintf("Phase Goal: %s\n", goals.PhaseGoal))
+	}
+	if goals.SequenceGoal != "" {
+		sb.WriteString(fmt.Sprintf("Sequence Goal: %s\n", goals.SequenceGoal))
+	}
+	return sb.String()
+}
+
+// buildFullTaskContentSection reads the entire task file without truncation.
+func buildFullTaskContentSection(taskPath string) string {
+	content, err := os.ReadFile(taskPath)
+	if err != nil {
+		return ""
+	}
+
+	body := stripFrontmatter(string(content))
+	if strings.TrimSpace(body) == "" {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("\nNow here is your task document, follow the instructions exactly:\n\n")
+	sb.WriteString(body)
+	sb.WriteString("\n")
+	return sb.String()
 }
 
 // labelValue formats a label-value pair without trailing newline

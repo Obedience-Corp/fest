@@ -54,8 +54,13 @@ EXAMPLE OUTPUT:
 
 When complete, mark it done with:
   {{.ProgressCmd}}
+{{- if .LayeredGoalsSection}}
 
+{{.LayeredGoalsSection}}
+{{- end}}
+{{- if .ContextSection}}
 {{.ContextSection}}
+{{- end}}
 {{- if .TaskContentSection}}
 {{.TaskContentSection}}
 {{- end}}
