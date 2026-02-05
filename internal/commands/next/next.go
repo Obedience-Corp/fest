@@ -390,7 +390,8 @@ func findFirstIncompleteWorkflowPhase(ctx context.Context, festivalPath string) 
 			continue // No WORKFLOW.md, skip (selector handles task-based)
 		}
 
-		state, err := workflow.LoadState(ctx, phasePath)
+		phaseName := filepath.Base(phasePath)
+		state, err := workflow.LoadState(ctx, festivalPath, phaseName)
 		if err != nil {
 			return phasePath, nil // Can't load state, assume incomplete
 		}

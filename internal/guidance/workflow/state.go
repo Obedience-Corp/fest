@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -13,6 +14,7 @@ import (
 const (
 	stateFileName = "workflow_state.yaml"
 	stateDirName  = ".fest"
+	stateVersion  = 2 // Version 2 uses festival-level storage
 )
 
 // StepState tracks the state of a single workflow step.
@@ -33,11 +35,24 @@ type StepState struct {
 	Feedback string `yaml:"feedback,omitempty" json:"feedback,omitempty"`
 }
 
-// WorkflowState tracks the overall workflow progress.
-type WorkflowState struct {
+// FestivalWorkflowState contains workflow state for all phases in a festival.
+// Stored at <festival>/.fest/workflow_state.yaml
+type FestivalWorkflowState struct {
 	// Version for future migrations.
 	Version int `yaml:"version" json:"version"`
 
+	// Phases maps phase directory name to phase workflow state.
+	Phases map[string]*WorkflowState `yaml:"phases" json:"phases"`
+
+	// UpdatedAt is the last time any phase state was modified.
+	UpdatedAt time.Time `yaml:"updated_at" json:"updated_at"`
+
+	// CreatedAt is when the festival workflow state was created.
+	CreatedAt time.Time `yaml:"created_at" json:"created_at"`
+}
+
+// WorkflowState tracks the workflow progress for a single phase.
+type WorkflowState struct {
 	// CurrentStep is the step number currently being executed.
 	CurrentStep int `yaml:"current_step" json:"current_step"`
 
@@ -54,11 +69,13 @@ type WorkflowState struct {
 	CreatedAt time.Time `yaml:"created_at" json:"created_at"`
 }
 
+// festivalStateMu protects concurrent access to festival workflow state files
+var festivalStateMu sync.Mutex
+
 // NewWorkflowState creates a new workflow state with the given total steps.
 func NewWorkflowState(totalSteps int) *WorkflowState {
 	now := time.Now().UTC()
 	return &WorkflowState{
-		Version:     1,
 		CurrentStep: 1,
 		TotalSteps:  totalSteps,
 		Steps:       make(map[int]*StepState),
@@ -67,60 +84,120 @@ func NewWorkflowState(totalSteps int) *WorkflowState {
 	}
 }
 
-// LoadState loads workflow state from the phase directory.
+// NewFestivalWorkflowState creates a new festival-level workflow state.
+func NewFestivalWorkflowState() *FestivalWorkflowState {
+	now := time.Now().UTC()
+	return &FestivalWorkflowState{
+		Version:   stateVersion,
+		Phases:    make(map[string]*WorkflowState),
+		UpdatedAt: now,
+		CreatedAt: now,
+	}
+}
+
+// loadFestivalState loads the festival-level workflow state file.
 // Returns a new state if the file doesn't exist.
-func LoadState(ctx context.Context, phaseDir string) (*WorkflowState, error) {
+func loadFestivalState(ctx context.Context, festivalPath string) (*FestivalWorkflowState, error) {
 	select {
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	default:
 	}
 
-	statePath := filepath.Join(phaseDir, stateDirName, stateFileName)
+	statePath := filepath.Join(festivalPath, stateDirName, stateFileName)
 
 	data, err := os.ReadFile(statePath)
 	if os.IsNotExist(err) {
-		return NewWorkflowState(0), nil
+		return NewFestivalWorkflowState(), nil
 	}
 	if err != nil {
 		return nil, err
 	}
 
-	var state WorkflowState
+	var state FestivalWorkflowState
 	if err := yaml.Unmarshal(data, &state); err != nil {
 		return nil, err
 	}
 
 	// Ensure maps are initialized
-	if state.Steps == nil {
-		state.Steps = make(map[int]*StepState)
+	if state.Phases == nil {
+		state.Phases = make(map[string]*WorkflowState)
+	}
+	for _, phaseState := range state.Phases {
+		if phaseState.Steps == nil {
+			phaseState.Steps = make(map[int]*StepState)
+		}
 	}
 
 	return &state, nil
 }
 
-// Save persists the workflow state to the phase directory.
-func (s *WorkflowState) Save(ctx context.Context, phaseDir string) error {
+// saveFestivalState persists the festival-level workflow state file.
+func saveFestivalState(ctx context.Context, festivalPath string, state *FestivalWorkflowState) error {
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
 
-	s.UpdatedAt = time.Now().UTC()
+	state.UpdatedAt = time.Now().UTC()
 
-	stateDir := filepath.Join(phaseDir, stateDirName)
+	stateDir := filepath.Join(festivalPath, stateDirName)
 	if err := os.MkdirAll(stateDir, 0755); err != nil {
 		return err
 	}
 
-	data, err := yaml.Marshal(s)
+	data, err := yaml.Marshal(state)
 	if err != nil {
 		return err
 	}
 
 	statePath := filepath.Join(stateDir, stateFileName)
 	return os.WriteFile(statePath, data, 0644)
+}
+
+// LoadState loads workflow state for a specific phase from the festival-level state file.
+// Returns a new state if no state exists for this phase.
+func LoadState(ctx context.Context, festivalPath, phaseName string) (*WorkflowState, error) {
+	festivalStateMu.Lock()
+	defer festivalStateMu.Unlock()
+
+	festState, err := loadFestivalState(ctx, festivalPath)
+	if err != nil {
+		return nil, err
+	}
+
+	phaseState, ok := festState.Phases[phaseName]
+	if !ok {
+		return NewWorkflowState(0), nil
+	}
+
+	// Ensure maps are initialized
+	if phaseState.Steps == nil {
+		phaseState.Steps = make(map[int]*StepState)
+	}
+
+	return phaseState, nil
+}
+
+// Save persists the workflow state for a specific phase to the festival-level state file.
+func (s *WorkflowState) Save(ctx context.Context, festivalPath, phaseName string) error {
+	festivalStateMu.Lock()
+	defer festivalStateMu.Unlock()
+
+	s.UpdatedAt = time.Now().UTC()
+
+	// Load existing festival state
+	festState, err := loadFestivalState(ctx, festivalPath)
+	if err != nil {
+		return err
+	}
+
+	// Update phase entry
+	festState.Phases[phaseName] = s
+
+	// Save back to file
+	return saveFestivalState(ctx, festivalPath, festState)
 }
 
 // Initialize sets up the workflow state with step information.

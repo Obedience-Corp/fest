@@ -21,6 +21,8 @@ type Navigator struct {
 	parser        *Parser
 	steps         []WorkflowStep
 	workflowState *WorkflowState
+	festivalPath  string
+	phaseName     string
 	phaseDir      string
 	mode          guidance.Mode
 }
@@ -56,12 +58,18 @@ func (n *Navigator) Initialize(ctx context.Context) error {
 		return err
 	}
 
+	// Store festival path for state management
+	n.festivalPath = n.Ctx.FestivalPath
+
 	// Determine phase directory from context
 	n.phaseDir = n.Ctx.PhasePath
 	if n.phaseDir == "" {
 		// If no phase path, try festival path
 		n.phaseDir = n.Ctx.FestivalPath
 	}
+
+	// Extract phase name from phase directory
+	n.phaseName = filepath.Base(n.phaseDir)
 
 	// Load WORKFLOW.md from phase directory
 	workflowPath := filepath.Join(n.phaseDir, "WORKFLOW.md")
@@ -79,8 +87,8 @@ func (n *Navigator) Initialize(ctx context.Context) error {
 
 	n.steps = steps
 
-	// Load or initialize workflow state
-	state, err := LoadState(ctx, n.phaseDir)
+	// Load or initialize workflow state from festival-level file
+	state, err := LoadState(ctx, n.festivalPath, n.phaseName)
 	if err != nil {
 		return fmt.Errorf("loading workflow state: %w", err)
 	}
@@ -200,7 +208,7 @@ func (n *Navigator) MarkComplete(ctx context.Context, stepID string) error {
 	}
 
 	// Save state
-	return n.workflowState.Save(ctx, n.phaseDir)
+	return n.workflowState.Save(ctx, n.festivalPath, n.phaseName)
 }
 
 // MarkSkipped marks a step as skipped.
@@ -223,7 +231,7 @@ func (n *Navigator) MarkSkipped(ctx context.Context, stepID string) error {
 		_ = n.workflowState.Advance()
 	}
 
-	return n.workflowState.Save(ctx, n.phaseDir)
+	return n.workflowState.Save(ctx, n.festivalPath, n.phaseName)
 }
 
 // MarkFailed marks a step as failed.
@@ -239,7 +247,7 @@ func (n *Navigator) MarkFailed(ctx context.Context, stepID string) error {
 	}
 
 	n.workflowState.Reject("step failed")
-	return n.workflowState.Save(ctx, n.phaseDir)
+	return n.workflowState.Save(ctx, n.festivalPath, n.phaseName)
 }
 
 // Advance moves to the next step.
@@ -268,7 +276,7 @@ func (n *Navigator) Advance(ctx context.Context) error {
 		}
 	}
 
-	return n.workflowState.Save(ctx, n.phaseDir)
+	return n.workflowState.Save(ctx, n.festivalPath, n.phaseName)
 }
 
 // GetProgress returns workflow progress.
@@ -478,7 +486,7 @@ func (n *Navigator) Approve(ctx context.Context) error {
 		return err
 	}
 
-	return n.workflowState.Save(ctx, n.phaseDir)
+	return n.workflowState.Save(ctx, n.festivalPath, n.phaseName)
 }
 
 // Reject rejects the current step with feedback.
@@ -494,7 +502,7 @@ func (n *Navigator) Reject(ctx context.Context, reason string) error {
 	}
 
 	n.workflowState.Reject(reason)
-	return n.workflowState.Save(ctx, n.phaseDir)
+	return n.workflowState.Save(ctx, n.festivalPath, n.phaseName)
 }
 
 // GetWorkflowState returns the current workflow state.
@@ -520,5 +528,5 @@ func (n *Navigator) Reset(ctx context.Context) error {
 	}
 
 	n.workflowState.Reset()
-	return n.workflowState.Save(ctx, n.phaseDir)
+	return n.workflowState.Save(ctx, n.festivalPath, n.phaseName)
 }

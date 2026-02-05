@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -13,8 +14,10 @@ import (
 )
 
 type showOptions struct {
-	json    bool
-	summary bool // Show aggregate summary instead of tree view
+	json     bool
+	summary  bool          // Show aggregate summary instead of tree view
+	watch    bool          // Continuously refresh display
+	interval time.Duration // Refresh interval for watch mode
 }
 
 // NewShowCommand creates the show command with all subcommands.
@@ -48,6 +51,8 @@ SUBCOMMANDS:
 
 	cmd.Flags().BoolVar(&opts.json, "json", false, "output in JSON format")
 	cmd.Flags().BoolVar(&opts.summary, "summary", false, "show aggregate summary instead of tree view")
+	cmd.Flags().BoolVar(&opts.watch, "watch", false, "continuously refresh display")
+	cmd.Flags().DurationVar(&opts.interval, "interval", 2*time.Second, "refresh interval for watch mode")
 
 	// Add subcommands for status directories
 	cmd.AddCommand(newShowActiveCommand(opts))
@@ -147,6 +152,11 @@ func runShowCurrent(ctx context.Context, opts *showOptions) error {
 				WithField("hint", "navigate to a festival directory, use 'fest link' to link a project, or specify a festival name")
 		}
 		return err
+	}
+
+	// Watch mode - continuously refresh display
+	if opts.watch {
+		return runWatchMode(ctx, festival, opts)
 	}
 
 	if opts.json {
