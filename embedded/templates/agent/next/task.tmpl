@@ -24,9 +24,6 @@ Without inline context (--no-context):
 
 {{.ParallelSection}}
 {{- end}}
-
-When complete, run:
-  {{.ProgressCmd}}
 {{- if .LayeredGoalsSection}}
 
 {{.LayeredGoalsSection}}
@@ -40,3 +37,6 @@ When complete, run:
 {{- if .TaskContentSection}}
 {{.TaskContentSection}}
 {{- end}}
+
+When complete, run:
+  {{.ProgressCmd}}
