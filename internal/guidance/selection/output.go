@@ -239,7 +239,11 @@ func formatTextTask(result *NextTaskResult, showInlineContext bool) string {
 	// When inline context is enabled, use layered prompts
 	var layeredGoalsSection string
 	var taskContentSection string
+	var festivalRulesSection string
 	var contextSection string
+
+	// Build relative path for display
+	taskRelPath := filepath.Join(result.Task.PhaseName, result.Task.SequenceName, result.Task.Name+".md")
 
 	if showInlineContext {
 		// Extract and format layered goals
@@ -249,6 +253,11 @@ func formatTextTask(result *NextTaskResult, showInlineContext bool) string {
 		// Get full task content (no truncation)
 		taskContentSection = buildFullTaskContentSection(result.Task.Path)
 
+		// Include festival rules since tasks reference them
+		if result.Location != nil && result.Location.FestivalPath != "" {
+			festivalRulesSection = buildFestivalRulesSection(result.Location.FestivalPath)
+		}
+
 		// Don't show context files section in layered mode
 		contextSection = ""
 	} else {
@@ -256,39 +265,36 @@ func formatTextTask(result *NextTaskResult, showInlineContext bool) string {
 		contextSection = buildContextSection(result.Location, result.Task, false)
 	}
 
-	// Build label lines
-	taskRelPath := filepath.Join(result.Task.PhaseName, result.Task.SequenceName, result.Task.Name+".md")
-
 	data := struct {
-		Header              string
-		TaskLine            string
-		PathLine            string
-		SequenceLine        string
-		PhaseLine           string
-		AutonomyLine        string
-		ProgressLine        string
-		RecommendationLine  string
-		ParallelSection     string
-		ActionInstruction   string
-		ProgressCmd         string
-		ContextSection      string
-		LayeredGoalsSection string
-		TaskContentSection  string
+		Header               string
+		TaskLine             string
+		PathLine             string
+		SequenceLine         string
+		PhaseLine            string
+		AutonomyLine         string
+		ProgressLine         string
+		ParallelSection      string
+		ProgressCmd          string
+		ContextSection       string
+		LayeredGoalsSection  string
+		TaskContentSection   string
+		FestivalRulesSection string
+		ShowInlineContext    bool
 	}{
-		Header:              ui.H1("Next Task"),
-		TaskLine:            labelValue("Task", ui.Value(result.Task.Name, ui.TaskColor)),
-		PathLine:            labelValue("Path", ui.Dim(result.Task.Path)),
-		SequenceLine:        labelValue("Sequence", ui.Value(result.Task.SequenceName, ui.SequenceColor)),
-		PhaseLine:           labelValue("Phase", ui.Value(result.Task.PhaseName, ui.PhaseColor)),
-		AutonomyLine:        autonomyLine,
-		ProgressLine:        progressLine,
-		RecommendationLine:  labelValue("Recommendation", ui.Info(result.Reason)),
-		ParallelSection:     parallelSection,
-		ActionInstruction:   ui.Info("Read this file and follow the instructions laid out exactly."),
-		ProgressCmd:         ui.Value(guidance.FormatProgressCommand(taskRelPath)),
-		ContextSection:      contextSection,
-		LayeredGoalsSection: layeredGoalsSection,
-		TaskContentSection:  taskContentSection,
+		Header:               ui.H1("Next Task"),
+		TaskLine:             labelValue("Task", ui.Value(result.Task.Name, ui.TaskColor)),
+		PathLine:             labelValue("Path", ui.Dim(taskRelPath)),
+		SequenceLine:         labelValue("Sequence", ui.Value(result.Task.SequenceName, ui.SequenceColor)),
+		PhaseLine:            labelValue("Phase", ui.Value(result.Task.PhaseName, ui.PhaseColor)),
+		AutonomyLine:         autonomyLine,
+		ProgressLine:         progressLine,
+		ParallelSection:      parallelSection,
+		ProgressCmd:          ui.Value(guidance.FormatProgressCommand(taskRelPath)),
+		ContextSection:       contextSection,
+		LayeredGoalsSection:  layeredGoalsSection,
+		TaskContentSection:   taskContentSection,
+		FestivalRulesSection: festivalRulesSection,
+		ShowInlineContext:    showInlineContext,
 	}
 
 	var buf bytes.Buffer
@@ -523,7 +529,28 @@ func buildFullTaskContentSection(taskPath string) string {
 	}
 
 	var sb strings.Builder
-	sb.WriteString("\nNow here is your task document, follow the instructions exactly:\n\n")
+	sb.WriteString("\n## Task Document\n\n")
+	sb.WriteString(body)
+	sb.WriteString("\n")
+	return sb.String()
+}
+
+// buildFestivalRulesSection reads and includes FESTIVAL_RULES.md content.
+func buildFestivalRulesSection(festivalPath string) string {
+	rulesPath := filepath.Join(festivalPath, "FESTIVAL_RULES.md")
+	content, err := os.ReadFile(rulesPath)
+	if err != nil {
+		return ""
+	}
+
+	body := stripFrontmatter(string(content))
+	if strings.TrimSpace(body) == "" {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("\n## Festival Rules\n\n")
+	sb.WriteString("These rules apply to all tasks in this festival:\n\n")
 	sb.WriteString(body)
 	sb.WriteString("\n")
 	return sb.String()
