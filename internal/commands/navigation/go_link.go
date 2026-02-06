@@ -331,43 +331,37 @@ func resolveFestivalPath(festivalsDir, festivalName string) string {
 	return ""
 }
 
-// selectProjectDirectory shows an interactive directory picker for selecting a project directory.
-// It starts from the campaign root (parent of festivals/ directory) and allows selecting
-// any directory except the festivals/ directory itself.
+// selectProjectDirectory shows an interactive picker for selecting a project directory.
+// It lists only the directories inside campaignRoot/projects/.
 func selectProjectDirectory(festivalPath, festivalName string) (string, error) {
 	// Find campaign root by walking up from festival path
-	// festivalPath is like: /path/to/guild-framework/festivals/active/festival-name
-	// We want campaign root: /path/to/guild-framework
-	festivalsDir := filepath.Dir(filepath.Dir(festivalPath)) // → festivals/
-	campaignRoot := filepath.Dir(festivalsDir)               // → guild-framework/
+	// festivalPath is like: /path/to/campaign/festivals/active/festival-name
+	// We want campaign root: /path/to/campaign
+	campaignRoot := campaignRootFromFestival(festivalPath)
 
-	// Collect directories from campaign root (excluding festivals/)
-	directories, err := collectDirectories(campaignRoot, festivalsDir)
+	directories, err := collectProjectDirectories(campaignRoot)
 	if err != nil {
-		return "", festErrors.Wrap(err, "collecting directories")
+		return "", festErrors.Wrap(err, "collecting project directories")
 	}
 
 	if len(directories) == 0 {
 		return "", festErrors.NotFound("project directories").
-			WithField("hint", "no suitable directories found in campaign root")
+			WithField("hint", "no directories found in projects/")
 	}
 
-	// Build options for picker
+	// Build options — show just the project name
 	options := make([]huh.Option[string], 0, len(directories))
 	for _, dir := range directories {
-		// Show relative path from campaign root for cleaner display
-		relPath, _ := filepath.Rel(campaignRoot, dir)
-		label := pathStyle.Render(relPath)
+		label := pathStyle.Render(filepath.Base(dir))
 		options = append(options, huh.NewOption(label, dir))
 	}
 
-	// Show picker
 	var selectedDir string
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewSelect[string]().
-				Title(fmt.Sprintf("Select project directory to link to '%s'", festivalName)).
-				Description(pathStyle.Render("Campaign: " + campaignRoot)).
+				Title(fmt.Sprintf("Select project to link to '%s'", festivalName)).
+				Description(pathStyle.Render("Projects: " + filepath.Join(campaignRoot, "projects"))).
 				Options(options...).
 				Value(&selectedDir),
 		),
@@ -384,55 +378,28 @@ func selectProjectDirectory(festivalPath, festivalName string) (string, error) {
 	return selectedDir, nil
 }
 
-// collectDirectories recursively collects directories from root, excluding excludePath
-func collectDirectories(root, excludePath string) ([]string, error) {
-	var dirs []string
+// campaignRootFromFestival derives the campaign root from a festival path.
+// festivalPath is like: /path/to/campaign/festivals/active/festival-name
+// Returns: /path/to/campaign
+func campaignRootFromFestival(festivalPath string) string {
+	festivalsDir := filepath.Dir(filepath.Dir(festivalPath)) // → festivals/
+	return filepath.Dir(festivalsDir)                        // → campaign root
+}
 
-	entries, err := os.ReadDir(root)
+// collectProjectDirectories returns the directories inside campaignRoot/projects/.
+func collectProjectDirectories(campaignRoot string) ([]string, error) {
+	projectsDir := filepath.Join(campaignRoot, "projects")
+	entries, err := os.ReadDir(projectsDir)
 	if err != nil {
 		return nil, err
 	}
 
+	var dirs []string
 	for _, entry := range entries {
-		if !entry.IsDir() {
+		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
 			continue
 		}
-
-		// Skip hidden directories
-		if strings.HasPrefix(entry.Name(), ".") {
-			continue
-		}
-
-		fullPath := filepath.Join(root, entry.Name())
-
-		// Skip the festivals directory
-		if fullPath == excludePath {
-			continue
-		}
-
-		// Add this directory
-		dirs = append(dirs, fullPath)
-
-		// Recursively add subdirectories (one level deep for performance)
-		subEntries, err := os.ReadDir(fullPath)
-		if err != nil {
-			continue
-		}
-		for _, subEntry := range subEntries {
-			if !subEntry.IsDir() {
-				continue
-			}
-			if strings.HasPrefix(subEntry.Name(), ".") {
-				continue
-			}
-			subPath := filepath.Join(fullPath, subEntry.Name())
-			// Skip festivals subdirectory if somehow inside
-			if strings.Contains(subPath, "festivals") {
-				continue
-			}
-			dirs = append(dirs, subPath)
-		}
+		dirs = append(dirs, filepath.Join(projectsDir, entry.Name()))
 	}
-
 	return dirs, nil
 }
