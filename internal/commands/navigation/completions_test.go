@@ -187,5 +187,134 @@ func BenchmarkFindCompletedFestivals(b *testing.B) {
 	}
 }
 
+func TestStatusFromPath(t *testing.T) {
+	festivalsDir := "/home/user/campaigns/festivals"
+
+	tests := []struct {
+		name         string
+		path         string
+		festivalsDir string
+		want         string
+	}{
+		{
+			name:         "active festival",
+			path:         filepath.Join(festivalsDir, "active", "my-fest-AB0001"),
+			festivalsDir: festivalsDir,
+			want:         "active",
+		},
+		{
+			name:         "planned festival",
+			path:         filepath.Join(festivalsDir, "planned", "other-fest-CD0002"),
+			festivalsDir: festivalsDir,
+			want:         "planned",
+		},
+		{
+			name:         "completed festival",
+			path:         filepath.Join(festivalsDir, "completed", "done-fest-EF0003"),
+			festivalsDir: festivalsDir,
+			want:         "completed",
+		},
+		{
+			name:         "same directory returns festival",
+			path:         festivalsDir,
+			festivalsDir: festivalsDir,
+			want:         "festival",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := statusFromPath(tt.path, tt.festivalsDir)
+			if got != tt.want {
+				t.Errorf("statusFromPath() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCompleteGoTarget_WithFestivals(t *testing.T) {
+	// Create a temp festivals directory with valid festival dirs
+	tmpDir := t.TempDir()
+	festivalsDir := filepath.Join(tmpDir, "festivals")
+
+	// Create .festival/.state/.workspace marker so FindFestivals works
+	statePath := filepath.Join(festivalsDir, ".festival", ".state")
+	if err := os.MkdirAll(statePath, 0755); err != nil {
+		t.Fatal(err)
+	}
+	marker := `{"workspace":"test","registered":"2026-01-01T00:00:00Z"}`
+	if err := os.WriteFile(filepath.Join(statePath, ".workspace"), []byte(marker), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create status directories
+	for _, status := range []string{"active", "planned", "completed", "dungeon"} {
+		if err := os.MkdirAll(filepath.Join(festivalsDir, status), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Create festivals with valid ID suffixes (required by CollectNavigationTargets)
+	activeFest := filepath.Join(festivalsDir, "active", "my-feature-MF0001")
+	plannedFest := filepath.Join(festivalsDir, "planned", "next-task-NT0002")
+	for _, dir := range []string{activeFest, plannedFest} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Change to tmpDir so FindFestivals can discover the festivals directory
+	origDir, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(tmpDir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(origDir) })
+
+	// Test with no partial input - should return all targets
+	results, directive := CompleteGoTarget(nil, nil, "")
+	if directive != 0 { // cobra.ShellCompDirectiveNoFileComp = 4, but the enum value is checked
+		// Just ensure we got results
+	}
+
+	// Should include status directories AND festival names
+	resultSet := make(map[string]bool)
+	for _, r := range results {
+		resultSet[r] = true
+	}
+
+	// Status directories should be present
+	for _, status := range []string{"active", "planned", "completed", "dungeon"} {
+		if !resultSet[status] {
+			t.Errorf("expected status directory %q in completions, got: %v", status, results)
+		}
+	}
+
+	// Festival names should be present
+	if !resultSet["my-feature-MF0001"] {
+		t.Errorf("expected active festival 'my-feature-MF0001' in completions, got: %v", results)
+	}
+	if !resultSet["next-task-NT0002"] {
+		t.Errorf("expected planned festival 'next-task-NT0002' in completions, got: %v", results)
+	}
+
+	// Test with partial input - should fuzzy filter
+	filtered, _ := CompleteGoTarget(nil, nil, "my-feat")
+	if len(filtered) == 0 {
+		t.Error("expected fuzzy match for 'my-feat' but got no results")
+	}
+	foundMyFeature := false
+	for _, r := range filtered {
+		if r == "my-feature-MF0001" {
+			foundMyFeature = true
+		}
+	}
+	if !foundMyFeature {
+		t.Errorf("expected 'my-feature-MF0001' in fuzzy results for 'my-feat', got: %v", filtered)
+	}
+}
+
 // Note: isDateDirectory, findCompletedFestivals, and isValidFestivalDir
 // are implemented in completions.go

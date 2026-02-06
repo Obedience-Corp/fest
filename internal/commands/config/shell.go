@@ -101,7 +101,7 @@ complete -F _fgo_completions fgo
 if [[ -n "$ZSH_VERSION" ]]; then
     _fgo_zsh() {
         local -a completions
-        completions=(${(f)"$(command fest go completions 2>/dev/null)"})
+        completions=(${(f)"$(command fest go completions --descriptions 2>/dev/null)"})
         _describe 'fgo targets' completions
     }
     compdef _fgo_zsh fgo 2>/dev/null

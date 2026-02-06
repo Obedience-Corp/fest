@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/navigation"
 	"github.com/Obedience-Corp/fest/internal/workspace"
@@ -16,19 +17,23 @@ var dateDirectoryPattern = regexp.MustCompile(`^\d{4}-\d{2}$`)
 
 // NewGoCompletionsCommand creates the hidden completions subcommand for shell integration
 func NewGoCompletionsCommand() *cobra.Command {
+	var descriptions bool
+
 	cmd := &cobra.Command{
 		Use:    "completions",
 		Short:  "Output completion words for shell integration",
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runGoCompletions()
+			return runGoCompletions(descriptions)
 		},
 	}
+
+	cmd.Flags().BoolVar(&descriptions, "descriptions", false, "include descriptions for zsh _describe")
 
 	return cmd
 }
 
-func runGoCompletions() error {
+func runGoCompletions(descriptions bool) error {
 	// Subcommands
 	subcommands := []string{
 		"list",
@@ -48,29 +53,79 @@ func runGoCompletions() error {
 		"dungeon",
 	}
 
+	statusSet := make(map[string]bool, len(statuses))
+	for _, s := range statuses {
+		statusSet[s] = true
+	}
+
 	// Output subcommands
 	for _, cmd := range subcommands {
-		fmt.Println(cmd)
+		if descriptions {
+			fmt.Printf("%s:subcommand\n", cmd)
+		} else {
+			fmt.Println(cmd)
+		}
 	}
 
 	// Output status directories
 	for _, status := range statuses {
-		fmt.Println(status)
+		if descriptions {
+			fmt.Printf("%s:status directory\n", status)
+		} else {
+			fmt.Println(status)
+		}
 	}
 
 	// Load navigation state for shortcuts
 	nav, err := navigation.LoadNavigation()
-	if err != nil {
-		// Silently skip shortcuts if navigation fails
-		return nil
+	if err == nil {
+		for name := range nav.Shortcuts {
+			if descriptions {
+				fmt.Printf("-%s:shortcut\n", name)
+			} else {
+				fmt.Printf("-%s\n", name)
+			}
+		}
 	}
 
-	// Output shortcuts with - prefix
-	for name := range nav.Shortcuts {
-		fmt.Printf("-%s\n", name)
+	// Collect festival names from active/ and planned/
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil // Silently skip on error
+	}
+	festivalsDir, err := workspace.FindFestivals(cwd)
+	if err != nil || festivalsDir == "" {
+		return nil // Silently skip if no workspace
+	}
+
+	targets := navigation.CollectNavigationTargets(festivalsDir)
+	for _, t := range targets {
+		// Skip status directories (already emitted above)
+		if statusSet[t.Name] {
+			continue
+		}
+		if descriptions {
+			status := statusFromPath(t.Path, festivalsDir)
+			fmt.Printf("%s:%s festival\n", t.Name, status)
+		} else {
+			fmt.Println(t.Name)
+		}
 	}
 
 	return nil
+}
+
+// statusFromPath extracts the status directory name (active, planned, etc.) from a festival path
+func statusFromPath(path, festivalsDir string) string {
+	rel, err := filepath.Rel(festivalsDir, path)
+	if err != nil || rel == "." {
+		return "festival"
+	}
+	parts := strings.SplitN(rel, string(filepath.Separator), 2)
+	if len(parts) > 0 {
+		return parts[0]
+	}
+	return "festival"
 }
 
 // isDateDirectory checks if a directory name matches YYYY-MM pattern
