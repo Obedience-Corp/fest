@@ -142,7 +142,7 @@ func linkFestivalToProject(ctx context.Context, cwd, targetPath string) error {
 		projectPath = absPath
 	} else {
 		// Show interactive directory picker
-		selectedPath, err := selectProjectDirectory(cwd, festivalName)
+		selectedPath, err := selectProjectDirectory(loc.Festival.Path, festivalName)
 		if err != nil {
 			// Silent exit on user cancel (Ctrl-C or Esc)
 			if errors.Is(err, huh.ErrUserAborted) {
