@@ -18,22 +18,51 @@ var dateDirectoryPattern = regexp.MustCompile(`^\d{4}-\d{2}$`)
 // NewGoCompletionsCommand creates the hidden completions subcommand for shell integration
 func NewGoCompletionsCommand() *cobra.Command {
 	var descriptions bool
+	var color bool
 
 	cmd := &cobra.Command{
 		Use:    "completions",
 		Short:  "Output completion words for shell integration",
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runGoCompletions(descriptions)
+			return runGoCompletions(descriptions, color)
 		},
 	}
 
 	cmd.Flags().BoolVar(&descriptions, "descriptions", false, "include descriptions for zsh _describe")
+	cmd.Flags().BoolVar(&color, "color", false, "output tab-separated value\\tcolorized_display for zsh compadd")
 
 	return cmd
 }
 
-func runGoCompletions(descriptions bool) error {
+// ANSI 256-color codes matching the fest dark palette (ui/palette.go)
+const (
+	ansiReset     = "\033[0m"
+	ansiDim       = "\033[2m"
+	ansiActive    = "\033[38;5;42m"  // bright green
+	ansiPlanned   = "\033[38;5;33m"  // blue
+	ansiCompleted = "\033[38;5;205m" // magenta
+	ansiDungeon   = "\033[38;5;248m" // light grey
+	ansiShortcut  = "\033[38;5;214m" // orange
+)
+
+// statusANSI returns the ANSI color escape for a status directory name
+func statusANSI(status string) string {
+	switch status {
+	case "active":
+		return ansiActive
+	case "planned":
+		return ansiPlanned
+	case "completed":
+		return ansiCompleted
+	case "dungeon":
+		return ansiDungeon
+	default:
+		return ansiDim
+	}
+}
+
+func runGoCompletions(descriptions, color bool) error {
 	// Subcommands
 	subcommands := []string{
 		"list",
@@ -60,18 +89,25 @@ func runGoCompletions(descriptions bool) error {
 
 	// Output subcommands
 	for _, cmd := range subcommands {
-		if descriptions {
+		switch {
+		case color:
+			fmt.Printf("%s\t%s %ssubcommand%s\n", cmd, cmd, ansiDim, ansiReset)
+		case descriptions:
 			fmt.Printf("%s:subcommand\n", cmd)
-		} else {
+		default:
 			fmt.Println(cmd)
 		}
 	}
 
 	// Output status directories
 	for _, status := range statuses {
-		if descriptions {
+		switch {
+		case color:
+			c := statusANSI(status)
+			fmt.Printf("%s\t%s%s%s\n", status, c, status, ansiReset)
+		case descriptions:
 			fmt.Printf("%s:status directory\n", status)
-		} else {
+		default:
 			fmt.Println(status)
 		}
 	}
@@ -80,9 +116,12 @@ func runGoCompletions(descriptions bool) error {
 	nav, err := navigation.LoadNavigation()
 	if err == nil {
 		for name := range nav.Shortcuts {
-			if descriptions {
+			switch {
+			case color:
+				fmt.Printf("-%s\t%s-%s%s %sshortcut%s\n", name, ansiShortcut, name, ansiReset, ansiDim, ansiReset)
+			case descriptions:
 				fmt.Printf("-%s:shortcut\n", name)
-			} else {
+			default:
 				fmt.Printf("-%s\n", name)
 			}
 		}
@@ -104,10 +143,14 @@ func runGoCompletions(descriptions bool) error {
 		if statusSet[t.Name] {
 			continue
 		}
-		if descriptions {
-			status := statusFromPath(t.Path, festivalsDir)
+		status := statusFromPath(t.Path, festivalsDir)
+		switch {
+		case color:
+			c := statusANSI(status)
+			fmt.Printf("%s\t%s %s%s%s\n", t.Name, t.Name, c, status, ansiReset)
+		case descriptions:
 			fmt.Printf("%s:%s festival\n", t.Name, status)
-		} else {
+		default:
 			fmt.Println(t.Name)
 		}
 	}

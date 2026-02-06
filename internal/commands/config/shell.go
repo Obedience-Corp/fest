@@ -97,12 +97,18 @@ _fgo_completions() {
 # Register completion (works for both bash and zsh with bashcompinit)
 complete -F _fgo_completions fgo
 
-# Zsh-specific: use compdef if available for better integration
+# Zsh-specific: colorized completions using compadd -d for ANSI display strings
 if [[ -n "$ZSH_VERSION" ]]; then
     _fgo_zsh() {
-        local -a completions
-        completions=(${(f)"$(command fest go completions --descriptions 2>/dev/null)"})
-        _describe 'fgo targets' completions
+        local -a vals displays
+        local line val display
+        while IFS=$'\t' read -r val display; do
+            vals+=("$val")
+            displays+=("$display")
+        done < <(command fest go completions --color 2>/dev/null)
+        if (( ${#vals} )); then
+            compadd -l -d displays -a vals
+        fi
     }
     compdef _fgo_zsh fgo 2>/dev/null
 fi
