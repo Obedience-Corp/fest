@@ -149,6 +149,32 @@ func CollectNavigationTargets(festivalsDir string) []FuzzyTarget {
 	return targets
 }
 
+// CollectFestivalsInStatus gathers festivals from a single status directory.
+// Returns only directories with valid festival ID suffixes.
+func CollectFestivalsInStatus(festivalsDir, status string) []FuzzyTarget {
+	statusPath := filepath.Join(festivalsDir, status)
+	entries, err := os.ReadDir(statusPath)
+	if err != nil {
+		return nil
+	}
+
+	var targets []FuzzyTarget
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if _, err := id.ExtractIDFromDirName(name); err != nil {
+			continue
+		}
+		targets = append(targets, FuzzyTarget{
+			Name: name,
+			Path: filepath.Join(statusPath, name),
+		})
+	}
+	return targets
+}
+
 // SortMatchesByScore sorts matches by score in descending order
 func SortMatchesByScore(matches []FuzzyMatch) {
 	sort.Slice(matches, func(i, j int) bool {

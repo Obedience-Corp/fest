@@ -87,10 +87,18 @@ func bashZshInit() string {
 #
 # Provides: fgo (navigation), fls (listing)
 
-# Tab completion for fgo
+# Tab completion for fgo (position-aware: status dirs trigger filtered completions)
 _fgo_completions() {
     local completions
-    completions=$(command fest go completions 2>/dev/null)
+    if [[ ${COMP_CWORD} -eq 1 ]]; then
+        completions=$(command fest go completions 2>/dev/null)
+    elif [[ ${COMP_CWORD} -eq 2 ]]; then
+        case "${COMP_WORDS[1]}" in
+            active|planned|completed|dungeon)
+                completions=$(command fest go completions --status "${COMP_WORDS[1]}" 2>/dev/null)
+                ;;
+        esac
+    fi
     COMPREPLY=($(compgen -W "$completions" -- "${COMP_WORDS[COMP_CWORD]}"))
 }
 
@@ -101,11 +109,27 @@ complete -F _fgo_completions fgo
 if [[ -n "$ZSH_VERSION" ]]; then
     _fgo_zsh() {
         local -a vals displays
-        local line val display
+        local line val display cmd_args
+
+        if (( CURRENT == 2 )); then
+            # First arg: show everything
+            cmd_args="--color"
+        elif (( CURRENT == 3 )); then
+            # Second arg: if first arg is a status dir, show its festivals
+            case "${words[2]}" in
+                active|planned|completed|dungeon)
+                    cmd_args="--color --status ${words[2]}"
+                    ;;
+                *) return ;;
+            esac
+        else
+            return
+        fi
+
         while IFS=$'\t' read -r val display; do
             vals+=("$val")
             displays+=("$display")
-        done < <(command fest go completions --color 2>/dev/null)
+        done < <(command fest go completions $cmd_args 2>/dev/null)
         if (( ${#vals} )); then
             compadd -l -d displays -a vals
         fi
@@ -211,7 +235,12 @@ fgo() {
             # Normal navigation (festival/phase/status directories)
             # Note: Don't use 2>&1 - stderr must flow to terminal for TUI picker to render
             local dest
-            dest=$(command fest go "$@")
+            if [[ -n "$2" && "$1" =~ ^(active|planned|completed|dungeon)$ ]]; then
+                # Status dir + festival name: combine (e.g., active my-fest → active/my-fest)
+                dest=$(command fest go "$1/$2")
+            else
+                dest=$(command fest go "$@")
+            fi
             local exit_code=$?
             if [[ $exit_code -eq 0 && -n "$dest" && -d "$dest" ]]; then
                 cd "$dest"
@@ -247,8 +276,22 @@ func fishInit() string {
 #
 # Provides: fgo (navigation), fls (listing)
 
-# Tab completion for fgo
-complete -c fgo -f -a "(command fest go completions 2>/dev/null)"
+# Tab completion for fgo (position-aware: status dirs trigger filtered completions)
+function __fgo_completions
+    set -l tokens (commandline -opc)
+    set -l count (count $tokens)
+    if test $count -eq 1
+        # First arg: show everything
+        command fest go completions 2>/dev/null
+    else if test $count -eq 2
+        # Second arg: if first arg is a status dir, show its festivals
+        switch $tokens[2]
+            case active planned completed dungeon
+                command fest go completions --status $tokens[2] 2>/dev/null
+        end
+    end
+end
+complete -c fgo -f -a "(__fgo_completions)"
 
 # Tab completion for fls
 complete -c fls -f -a "active planned completed dungeon"
@@ -314,7 +357,19 @@ function fgo
             end
         case '*'
             # Normal navigation (festival/phase/status directories)
-            set -l dest (command fest go $argv 2>&1)
+            # If first arg is a status dir and second arg exists, combine them
+            set -l target
+            if test (count $argv) -ge 2
+                switch $argv[1]
+                    case active planned completed dungeon
+                        set target "$argv[1]/$argv[2]"
+                    case '*'
+                        set target $argv
+                end
+            else
+                set target $argv
+            end
+            set -l dest (command fest go $target 2>&1)
             set -l exit_code $status
             if test $exit_code -eq 0 -a -n "$dest" -a -d "$dest"
                 cd $dest

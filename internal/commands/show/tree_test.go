@@ -147,6 +147,7 @@ func TestRenderTree(t *testing.T) {
 	}
 
 	opts := DefaultTreeOptions()
+	opts.ShowGoals = true
 	output := RenderTree(tree, opts)
 
 	// Verify output contains expected elements

@@ -19,18 +19,20 @@ var dateDirectoryPattern = regexp.MustCompile(`^\d{4}-\d{2}$`)
 func NewGoCompletionsCommand() *cobra.Command {
 	var descriptions bool
 	var color bool
+	var status string
 
 	cmd := &cobra.Command{
 		Use:    "completions",
 		Short:  "Output completion words for shell integration",
 		Hidden: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runGoCompletions(descriptions, color)
+			return runGoCompletions(descriptions, color, status)
 		},
 	}
 
 	cmd.Flags().BoolVar(&descriptions, "descriptions", false, "include descriptions for zsh _describe")
 	cmd.Flags().BoolVar(&color, "color", false, "output tab-separated value\\tcolorized_display for zsh compadd")
+	cmd.Flags().StringVar(&status, "status", "", "filter completions to festivals within a status directory")
 
 	return cmd
 }
@@ -62,7 +64,22 @@ func statusANSI(status string) string {
 	}
 }
 
-func runGoCompletions(descriptions, color bool) error {
+func runGoCompletions(descriptions, color bool, statusFilter string) error {
+	// Locate festivals directory (needed for both filtered and unfiltered modes)
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil // Silently skip on error
+	}
+	festivalsDir, err := workspace.FindFestivals(cwd)
+	if err != nil || festivalsDir == "" {
+		return nil // Silently skip if no workspace
+	}
+
+	// Status-filtered mode: only output festivals from the specified status directory
+	if statusFilter != "" {
+		return runStatusCompletions(festivalsDir, statusFilter, descriptions, color)
+	}
+
 	// Subcommands
 	subcommands := []string{
 		"list",
@@ -128,15 +145,6 @@ func runGoCompletions(descriptions, color bool) error {
 	}
 
 	// Collect festival names from active/ and planned/
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil // Silently skip on error
-	}
-	festivalsDir, err := workspace.FindFestivals(cwd)
-	if err != nil || festivalsDir == "" {
-		return nil // Silently skip if no workspace
-	}
-
 	targets := navigation.CollectNavigationTargets(festivalsDir)
 	for _, t := range targets {
 		// Skip status directories (already emitted above)
@@ -155,6 +163,23 @@ func runGoCompletions(descriptions, color bool) error {
 		}
 	}
 
+	return nil
+}
+
+// runStatusCompletions outputs only festivals from a specific status directory.
+func runStatusCompletions(festivalsDir, status string, descriptions, color bool) error {
+	targets := navigation.CollectFestivalsInStatus(festivalsDir, status)
+	c := statusANSI(status)
+	for _, t := range targets {
+		switch {
+		case color:
+			fmt.Printf("%s\t%s %s%s%s\n", t.Name, t.Name, c, status, ansiReset)
+		case descriptions:
+			fmt.Printf("%s:%s festival\n", t.Name, status)
+		default:
+			fmt.Println(t.Name)
+		}
+	}
 	return nil
 }
 
