@@ -52,6 +52,11 @@ func runGatesInit(ctx context.Context, cmd *cobra.Command, phase, sequence strin
 	// Resolve paths (handles linked festivals via shared.ResolveFestivalPath)
 	festivalPath, phasePath, sequencePath, err := resolvePaths(festivalsRoot, cwd, phase, sequence)
 	if err != nil {
+		// For festival-level init (no phase/sequence), fest.yaml may not exist yet
+		// since this command creates it. Fall back to detecting festival by markers.
+		if phase == "" && sequence == "" && looksLikeFestival(cwd) {
+			return createFestYAMLFile(cmd, cwd)
+		}
 		return errors.Wrap(err, "resolving paths").WithOp("runGatesInit")
 	}
 
@@ -107,6 +112,18 @@ inherit: true  # Set to false to not inherit from parent levels
 	return nil
 }
 
+// looksLikeFestival checks if a directory appears to be a festival root
+// by looking for FESTIVAL_GOAL.md or FESTIVAL_OVERVIEW.md.
+// Used by gates init which needs to work before fest.yaml exists.
+func looksLikeFestival(dir string) bool {
+	for _, marker := range []string{"FESTIVAL_GOAL.md", "FESTIVAL_OVERVIEW.md"} {
+		if _, err := os.Stat(filepath.Join(dir, marker)); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
 func createFestYAMLFile(cmd *cobra.Command, festivalPath string) error {
 	festYAMLPath := filepath.Join(festivalPath, "fest.yaml")
 
@@ -124,7 +141,7 @@ quality_gates:
   enabled: true
   auto_append: true
 
-  # Implementation phase gates (code changes)
+  # Implementation phase gates (only implementation phases have quality gates)
   implementation:
     - id: testing
       template: gates/implementation/QUALITY_GATE_TESTING
@@ -141,50 +158,6 @@ quality_gates:
     - id: commit
       template: gates/implementation/QUALITY_GATE_COMMIT
       name: Commit Changes
-      enabled: true
-
-  # Planning phase gates
-  planning:
-    - id: plan_review
-      template: gates/planning/QUALITY_GATE_PLAN_REVIEW
-      name: Planning Review
-      enabled: true
-    - id: approval
-      template: gates/planning/QUALITY_GATE_APPROVAL
-      name: Planning Approval
-      enabled: true
-
-  # Research phase gates
-  research:
-    - id: findings_review
-      template: gates/research/QUALITY_GATE_FINDINGS_REVIEW
-      name: Findings Review
-      enabled: true
-    - id: documentation
-      template: gates/research/QUALITY_GATE_DOCUMENTATION
-      name: Documentation
-      enabled: true
-
-  # Review/QA phase gates
-  review:
-    - id: checklist
-      template: gates/review/QUALITY_GATE_CHECKLIST
-      name: Review Checklist
-      enabled: true
-    - id: sign_off
-      template: gates/review/QUALITY_GATE_SIGN_OFF
-      name: Sign-off
-      enabled: true
-
-  # Non-coding action phase gates (deployment, config, etc.)
-  non_coding_action:
-    - id: action_verify
-      template: gates/non_coding_action/QUALITY_GATE_ACTION_VERIFY
-      name: Execution and Verify
-      enabled: true
-    - id: completion
-      template: gates/non_coding_action/QUALITY_GATE_COMPLETION
-      name: Completion
       enabled: true
 
 excluded_patterns:

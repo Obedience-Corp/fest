@@ -67,10 +67,13 @@ func TestGatesCommands(t *testing.T) {
 
 	// Test 4: gates init - create fest.yaml at festival level
 	t.Run("GatesInitFestival", func(t *testing.T) {
-		// First verify fest.yaml doesn't exist
+		// Remove fest.yaml created by setup so gates init can create it fresh
 		festYAMLPath := "/festivals/test-gates-festival/fest.yaml"
+		container.container.Exec(container.ctx, []string{"rm", "-f", festYAMLPath})
+
+		// Verify fest.yaml doesn't exist
 		exists, _ := container.CheckFileExists(festYAMLPath)
-		require.False(t, exists, "fest.yaml should not exist initially")
+		require.False(t, exists, "fest.yaml should not exist after removal")
 
 		// Run init
 		output, err := container.RunFestInDir("/festivals/test-gates-festival", "gates", "init")
@@ -355,6 +358,34 @@ Test the hierarchical quality gates system.
 		return err
 	}
 
+	// Create fest.yaml (required for FindFestivalRoot)
+	festYAMLContent := `version: "1.0"
+quality_gates:
+  enabled: true
+  auto_append: true
+  implementation:
+    - id: testing
+      template: gates/implementation/QUALITY_GATE_TESTING
+      enabled: true
+    - id: review
+      template: gates/implementation/QUALITY_GATE_REVIEW
+      enabled: true
+    - id: iterate
+      template: gates/implementation/QUALITY_GATE_ITERATE
+      enabled: true
+    - id: commit
+      template: gates/implementation/QUALITY_GATE_COMMIT
+      enabled: true
+`
+	festYAMLPath := "/festivals/test-gates-festival/fest.yaml"
+	exitCode, _, err = tc.container.Exec(tc.ctx, []string{
+		"sh", "-c",
+		"printf '%s' '" + festYAMLContent + "' > " + festYAMLPath,
+	})
+	if err != nil || exitCode != 0 {
+		return err
+	}
+
 	// Create task files
 	taskContent := `---
 id: TASK_01
@@ -405,6 +436,34 @@ func createMinimalFestival(tc *TestContainer, path string) error {
 	exitCode, _, err := tc.container.Exec(tc.ctx, []string{
 		"sh", "-c",
 		"printf '%s' '" + goalContent + "' > " + goalPath,
+	})
+	if err != nil || exitCode != 0 {
+		return err
+	}
+
+	// Create fest.yaml (required for FindFestivalRoot)
+	festYAMLContent := `version: "1.0"
+quality_gates:
+  enabled: true
+  auto_append: true
+  implementation:
+    - id: testing
+      template: gates/implementation/QUALITY_GATE_TESTING
+      enabled: true
+    - id: review
+      template: gates/implementation/QUALITY_GATE_REVIEW
+      enabled: true
+    - id: iterate
+      template: gates/implementation/QUALITY_GATE_ITERATE
+      enabled: true
+    - id: commit
+      template: gates/implementation/QUALITY_GATE_COMMIT
+      enabled: true
+`
+	festYAMLPath := filepath.Join(path, "fest.yaml")
+	exitCode, _, err = tc.container.Exec(tc.ctx, []string{
+		"sh", "-c",
+		"printf '%s' '" + festYAMLContent + "' > " + festYAMLPath,
 	})
 	if err != nil || exitCode != 0 {
 		return err

@@ -253,9 +253,12 @@ func formatTextTask(result *NextTaskResult, showInlineContext bool) string {
 		// Get full task content (no truncation)
 		taskContentSection = buildFullTaskContentSection(result.Task.Path)
 
-		// Include festival rules since tasks reference them
+		// Hint to run fest rules instead of dumping inline
 		if result.Location != nil && result.Location.FestivalPath != "" {
-			festivalRulesSection = buildFestivalRulesSection(result.Location.FestivalPath)
+			rulesPath := filepath.Join(result.Location.FestivalPath, "FESTIVAL_RULES.md")
+			if _, err := os.Stat(rulesPath); err == nil {
+				festivalRulesSection = "\n## Festival Rules\n\nReview festival rules before starting: `fest rules`\n"
+			}
 		}
 
 		// Don't show context files section in layered mode
@@ -536,25 +539,6 @@ func buildFullTaskContentSection(taskPath string) string {
 }
 
 // buildFestivalRulesSection reads and includes FESTIVAL_RULES.md content.
-func buildFestivalRulesSection(festivalPath string) string {
-	rulesPath := filepath.Join(festivalPath, "FESTIVAL_RULES.md")
-	content, err := os.ReadFile(rulesPath)
-	if err != nil {
-		return ""
-	}
-
-	body := stripFrontmatter(string(content))
-	if strings.TrimSpace(body) == "" {
-		return ""
-	}
-
-	var sb strings.Builder
-	sb.WriteString("\n## Festival Rules\n\n")
-	sb.WriteString("These rules apply to all tasks in this festival:\n\n")
-	sb.WriteString(body)
-	sb.WriteString("\n")
-	return sb.String()
-}
 
 // labelValue formats a label-value pair without trailing newline
 func labelValue(label, value string) string {

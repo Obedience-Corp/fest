@@ -21,14 +21,16 @@ func newValidateQualityGatesCmd(parentOpts *validateOptions) *cobra.Command {
 		Short: "Validate quality gates exist",
 		Long: `Validate that implementation sequences have quality gate tasks.
 
-Quality gates are required for implementation sequences:
-  • XX_testing_and_verify.md
-  • XX_code_review.md
-  • XX_review_results_iterate.md
-  • XX_commit.md
+Only implementation phases are checked. Other phase types are skipped.
+
+Required implementation gates:
+  • testing
+  • review
+  • iterate
+  • commit
 
 Use --fix to automatically add missing quality gates.
-Planning sequences (*_planning, *_research, etc.) are excluded.`,
+Sequences matching excluded patterns (*_planning, *_research, etc.) are skipped.`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
@@ -90,8 +92,8 @@ func validateQualityGatesChecks(ctx context.Context, festivalPath string, result
 		// Detect the actual phase type from frontmatter or directory name
 		phaseType := gates.DetectPhaseType(phase.Path)
 
-		// Skip phases where type can't be determined (require explicit PHASE_GOAL.md)
-		if phaseType == "" {
+		// Only validate implementation phases
+		if phaseType != "implementation" {
 			continue
 		}
 

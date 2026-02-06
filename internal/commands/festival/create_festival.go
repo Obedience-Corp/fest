@@ -20,6 +20,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
@@ -111,9 +112,13 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 	cwd, _ := os.Getwd()
 
 	// Resolve festivals root and template root
-	festivalsRoot, err := tpl.FindFestivalsRoot(cwd)
+	festivalsRoot, err := workspace.FindFestivals(cwd)
 	if err != nil {
 		return emitCreateFestivalError(opts, err)
+	}
+	if festivalsRoot == "" {
+		return emitCreateFestivalError(opts, errors.NotFound("festivals directory").
+			WithHint("Check the path and try again, or run from a different directory"))
 	}
 
 	// Load effective agent config (workspace config only for new festival)
@@ -122,10 +127,8 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 	// Determine effective skip-markers behavior
 	effectiveSkipMarkers := config.EffectiveSkipMarkers(agentCfg, opts.AgentMode, opts.SkipMarkers)
 
-	tmplRoot, err := tpl.LocalTemplateRoot(cwd)
-	if err != nil {
-		return emitCreateFestivalError(opts, err)
-	}
+	// Template root is inside the festivals directory we already found
+	tmplRoot := filepath.Join(festivalsRoot, ".festival", "templates")
 
 	// Load vars
 	vars := map[string]interface{}{}

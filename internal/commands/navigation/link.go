@@ -75,10 +75,10 @@ func runLink(ctx context.Context, targetPath string, opts *linkOptions) error {
 	}
 	display := ui.New(shared.IsNoColor(), shared.IsVerbose())
 
-	// Detect context: are we inside a festival?
-	loc, _ := show.DetectCurrentLocation(ctx, cwd)
-
-	if loc == nil || loc.Festival == nil {
+	// Detect context: are we physically inside a festival directory?
+	// Use physical path check, not navigation-link-aware detection,
+	// so linked project directories don't get routed to the wrong TUI.
+	if !isInsideFestival(cwd) {
 		// Not in a festival - show picker to select festival to link
 		// Use targetPath as project directory, or cwd if not specified
 		projectDir := cwd
@@ -91,6 +91,9 @@ func runLink(ctx context.Context, targetPath string, opts *linkOptions) error {
 		}
 		return linkProjectToFestival(projectDir)
 	}
+
+	// Inside a festival - detect location for festival metadata
+	loc, _ := show.DetectCurrentLocation(ctx, cwd)
 
 	// Inside a festival - if no path provided, use the TUI prompt from go_link
 	if targetPath == "" {

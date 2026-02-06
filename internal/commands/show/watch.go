@@ -120,6 +120,7 @@ func renderFestivalView(ctx context.Context, festival *FestivalInfo, opts *showO
 	}
 
 	treeOpts := DefaultTreeOptions()
+	treeOpts.ShowGoals = opts.goals
 	fmt.Println(RenderTree(tree, treeOpts))
 	return nil
 }

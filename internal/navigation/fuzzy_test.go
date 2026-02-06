@@ -1,6 +1,8 @@
 package navigation
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -156,4 +158,55 @@ func TestFormatMatchList(t *testing.T) {
 	// Test with limit > len
 	got = FormatMatchList(matches, 10)
 	assert.Len(t, got, 5)
+}
+
+func TestCollectFestivalsInStatus(t *testing.T) {
+	tmpDir := t.TempDir()
+	festivalsDir := tmpDir
+
+	// Create active/ with two valid festivals and one non-festival dir
+	activeDir := filepath.Join(festivalsDir, "active")
+	os.MkdirAll(filepath.Join(activeDir, "my-feature-MF0001"), 0755)
+	os.MkdirAll(filepath.Join(activeDir, "bug-fix-BF0002"), 0755)
+	os.MkdirAll(filepath.Join(activeDir, "random-dir"), 0755) // no valid ID suffix
+
+	// Create planned/ with one festival
+	plannedDir := filepath.Join(festivalsDir, "planned")
+	os.MkdirAll(filepath.Join(plannedDir, "next-task-NT0003"), 0755)
+
+	t.Run("active returns valid festivals only", func(t *testing.T) {
+		targets := CollectFestivalsInStatus(festivalsDir, "active")
+		assert.Len(t, targets, 2)
+		names := make(map[string]bool)
+		for _, tgt := range targets {
+			names[tgt.Name] = true
+		}
+		assert.True(t, names["my-feature-MF0001"])
+		assert.True(t, names["bug-fix-BF0002"])
+		assert.False(t, names["random-dir"])
+	})
+
+	t.Run("planned returns its festivals", func(t *testing.T) {
+		targets := CollectFestivalsInStatus(festivalsDir, "planned")
+		assert.Len(t, targets, 1)
+		assert.Equal(t, "next-task-NT0003", targets[0].Name)
+	})
+
+	t.Run("nonexistent status returns nil", func(t *testing.T) {
+		targets := CollectFestivalsInStatus(festivalsDir, "nonexistent")
+		assert.Nil(t, targets)
+	})
+
+	t.Run("empty status dir returns nil", func(t *testing.T) {
+		os.MkdirAll(filepath.Join(festivalsDir, "dungeon"), 0755)
+		targets := CollectFestivalsInStatus(festivalsDir, "dungeon")
+		assert.Nil(t, targets)
+	})
+
+	t.Run("paths are correct", func(t *testing.T) {
+		targets := CollectFestivalsInStatus(festivalsDir, "active")
+		for _, tgt := range targets {
+			assert.Equal(t, filepath.Join(activeDir, tgt.Name), tgt.Path)
+		}
+	})
 }

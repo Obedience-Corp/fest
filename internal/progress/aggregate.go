@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/taskfilter"
 )
 
@@ -128,6 +129,12 @@ func (m *Manager) GetPhaseProgress(ctx context.Context, phasePath string) (*Phas
 		return nil, errors.Wrap(err, "context cancelled")
 	}
 
+	// Check for workflow phase first
+	workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
+	if _, err := os.Stat(workflowPath); err == nil {
+		return m.getWorkflowPhaseProgress(ctx, phasePath)
+	}
+
 	phaseName := filepath.Base(phasePath)
 	aggregate := &AggregateProgress{}
 
@@ -237,5 +244,57 @@ func (m *Manager) GetSequenceProgress(ctx context.Context, seqPath string) (*Seq
 		SequenceID:   seqName,
 		SequenceName: seqName,
 		Progress:     aggregate,
+	}, nil
+}
+
+// getWorkflowPhaseProgress calculates progress for a workflow-based phase
+// by parsing WORKFLOW.md and loading workflow state.
+func (m *Manager) getWorkflowPhaseProgress(ctx context.Context, phasePath string) (*PhaseProgress, error) {
+	phaseName := filepath.Base(phasePath)
+	workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
+
+	// Parse WORKFLOW.md to get steps
+	parser := wf.NewParser()
+	steps, err := parser.Parse(ctx, workflowPath)
+	if err != nil {
+		return nil, errors.Wrap(err, "parsing workflow")
+	}
+
+	// Load workflow state
+	state, err := wf.LoadState(ctx, m.store.festivalPath, phaseName)
+	if err != nil {
+		return nil, errors.Wrap(err, "loading workflow state")
+	}
+
+	aggregate := &AggregateProgress{
+		Total: len(steps),
+	}
+
+	for _, step := range steps {
+		stepState := state.GetStepState(step.Number)
+		if stepState == nil {
+			aggregate.Pending++
+			continue
+		}
+		switch stepState.Status {
+		case wf.StepStatusCompleted:
+			aggregate.Completed++
+		case wf.StepStatusInProgress:
+			aggregate.InProgress++
+		case wf.StepStatusBlocked:
+			aggregate.Blocked++
+		default:
+			aggregate.Pending++
+		}
+	}
+
+	if aggregate.Total > 0 {
+		aggregate.Percentage = (aggregate.Completed * 100) / aggregate.Total
+	}
+
+	return &PhaseProgress{
+		PhaseID:   phaseName,
+		PhaseName: phaseName,
+		Progress:  aggregate,
 	}, nil
 }

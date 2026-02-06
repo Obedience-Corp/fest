@@ -447,12 +447,11 @@ func TestGetGatesForPhaseType(t *testing.T) {
 		expectedID  string // First gate ID to verify
 	}{
 		{"implementation", 4, "testing"},
-		{"planning", 2, "plan_review"},
-		{"research", 2, "findings_review"},
-		{"review", 2, "checklist"},
-		{"action", 2, "action_verify"},            // Action phases have 2 gates
-		{"non_coding_action", 2, "action_verify"}, // Alias for action
-		{"unknown", 4, "testing"},                 // Unknown defaults to implementation
+		{"planning", 0, ""},          // No gates for non-implementation phases
+		{"research", 0, ""},          // No gates for non-implementation phases
+		{"review", 0, ""},            // No gates for non-implementation phases
+		{"non_coding_action", 0, ""}, // No gates for non-implementation phases
+		{"unknown", 0, ""},           // Unknown types get no gates
 	}
 
 	for _, tc := range tests {
@@ -481,54 +480,3 @@ func TestImplementationGates(t *testing.T) {
 	}
 }
 
-func TestPlanningGates(t *testing.T) {
-	gates := PlanningGates()
-	if len(gates) != 2 {
-		t.Errorf("PlanningGates() returned %d gates, want 2", len(gates))
-	}
-	expectedIDs := []string{"plan_review", "approval"}
-	for i, expected := range expectedIDs {
-		if gates[i].ID != expected {
-			t.Errorf("PlanningGates()[%d].ID = %q, want %q", i, gates[i].ID, expected)
-		}
-	}
-}
-
-func TestResearchGates(t *testing.T) {
-	gates := ResearchGates()
-	if len(gates) != 2 {
-		t.Errorf("ResearchGates() returned %d gates, want 2", len(gates))
-	}
-	expectedIDs := []string{"findings_review", "documentation"}
-	for i, expected := range expectedIDs {
-		if gates[i].ID != expected {
-			t.Errorf("ResearchGates()[%d].ID = %q, want %q", i, gates[i].ID, expected)
-		}
-	}
-}
-
-func TestReviewGates(t *testing.T) {
-	gates := ReviewGates()
-	if len(gates) != 2 {
-		t.Errorf("ReviewGates() returned %d gates, want 2", len(gates))
-	}
-	expectedIDs := []string{"checklist", "sign_off"}
-	for i, expected := range expectedIDs {
-		if gates[i].ID != expected {
-			t.Errorf("ReviewGates()[%d].ID = %q, want %q", i, gates[i].ID, expected)
-		}
-	}
-}
-
-func TestActionGates(t *testing.T) {
-	gates := ActionGates()
-	if len(gates) != 2 {
-		t.Errorf("ActionGates() returned %d gates, want 2", len(gates))
-	}
-	expectedIDs := []string{"action_verify", "completion"}
-	for i, expected := range expectedIDs {
-		if gates[i].ID != expected {
-			t.Errorf("ActionGates()[%d].ID = %q, want %q", i, gates[i].ID, expected)
-		}
-	}
-}

@@ -46,8 +46,8 @@ func newGatesApplyCmd() *cobra.Command {
 By default, runs in dry-run mode showing what would change.
 Use --approve to actually apply the changes.
 
-Gates are read from fest.yaml phase-type sections (implementation, planning,
-research, review, non_coding_action). Each phase type can have its own gates.
+Gates are read from the fest.yaml implementation section.
+Only implementation phases have quality gates.
 
 Quality gates are only added to sequences not matching excluded_patterns.`,
 		Example: `  # Preview changes (dry-run is default)

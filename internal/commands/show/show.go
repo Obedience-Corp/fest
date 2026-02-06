@@ -54,7 +54,7 @@ SUBCOMMANDS:
 	cmd.Flags().BoolVar(&opts.summary, "summary", false, "show aggregate summary instead of tree view")
 	cmd.Flags().BoolVar(&opts.watch, "watch", false, "continuously refresh display")
 	cmd.Flags().DurationVar(&opts.interval, "interval", 2*time.Second, "refresh interval for watch mode")
-	cmd.Flags().BoolVar(&opts.goals, "goals", true, "show goals for phases and sequences")
+	cmd.Flags().BoolVar(&opts.goals, "goals", false, "show goals for phases and sequences")
 
 	// Add subcommands for status directories
 	cmd.AddCommand(newShowActiveCommand(opts))
