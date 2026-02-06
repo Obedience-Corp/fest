@@ -221,6 +221,10 @@ func init() {
 	showCmd.GroupID = "query"
 	rootCmd.AddCommand(showCmd)
 
+	rulesCmd := show.NewRulesCommand()
+	rulesCmd.GroupID = "query"
+	rootCmd.AddCommand(rulesCmd)
+
 	statusCmd := status.NewStatusCommand()
 	statusCmd.GroupID = "query"
 	rootCmd.AddCommand(statusCmd)

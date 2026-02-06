@@ -14,6 +14,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/guidance/selection"
 	"github.com/Obedience-Corp/fest/internal/scope"
+	"github.com/Obedience-Corp/fest/internal/validator"
 	"github.com/spf13/cobra"
 
 	// Import all navigator packages to trigger their registration.
@@ -111,6 +112,12 @@ func runNext(cmd *cobra.Command, args []string) error {
 	festivalPath, err := shared.ResolveFestivalPath(cwd, "")
 	if err != nil {
 		return errors.Wrap(err, "not inside a festival")
+	}
+
+	// Validation gate: block if festival has errors or unfilled template markers
+	vResult, vErr := validator.QuickValidate(ctx, festivalPath)
+	if vErr == nil && hasBlockingIssues(vResult) {
+		return emitValidationBlock(festivalPath, vResult)
 	}
 
 	// If mode flag is provided or --navigator flag is set, use guidance navigator
@@ -474,6 +481,42 @@ func hasSequenceDirs(phasePath string) bool {
 		}
 	}
 	return false
+}
+
+// hasBlockingIssues returns true if the result contains errors or unfilled template markers.
+func hasBlockingIssues(result *validator.Result) bool {
+	for _, issue := range result.Issues {
+		if issue.Level == validator.LevelError {
+			return true
+		}
+		if issue.Code == validator.CodeUnfilledTemplate {
+			return true
+		}
+	}
+	return false
+}
+
+// emitValidationBlock prints a blocking message when the festival fails validation.
+func emitValidationBlock(festivalPath string, result *validator.Result) error {
+	var sb strings.Builder
+	sb.WriteString("STOP — FESTIVAL VALIDATION FAILED\n")
+	sb.WriteString("──────────────────────────────────\n")
+	sb.WriteString("This festival has issues that must be fixed before continuing.\n\n")
+	sb.WriteString("Issues:\n")
+	for _, issue := range result.Issues {
+		if issue.Level == validator.LevelError || issue.Code == validator.CodeUnfilledTemplate {
+			path := issue.Path
+			if rel, err := filepath.Rel(festivalPath, path); err == nil {
+				path = rel
+			}
+			fmt.Fprintf(&sb, "  ✗ %s: %s\n", path, issue.Message)
+		}
+	}
+	sb.WriteString("\nRun 'fest validate' for full details, then fix the issues.\n")
+	sb.WriteString("Do not proceed with tasks until the festival passes validation.\n")
+	fmt.Print(sb.String())
+	return errors.Validation("festival has unfixed validation errors").
+		WithField("festival", filepath.Base(festivalPath))
 }
 
 // isPhaseMarkedComplete checks PHASE_GOAL.md frontmatter for fest_status: completed.
