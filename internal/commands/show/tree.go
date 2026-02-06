@@ -35,7 +35,7 @@ type TreeOptions struct {
 // DefaultTreeOptions returns sensible defaults for tree rendering.
 func DefaultTreeOptions() TreeOptions {
 	return TreeOptions{
-		ShowGoals: true,
+		ShowGoals: false,
 		Width:     80,
 	}
 }
