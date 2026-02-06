@@ -8,6 +8,8 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/navigation"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 const (
@@ -24,6 +26,7 @@ const (
 )
 
 // DetectCurrentFestival walks up from the given directory to find a festival root.
+// If no festival markers are found, checks navigation links for linked project directories.
 // Returns the festival information if found, or an error if not in a festival.
 func DetectCurrentFestival(ctx context.Context, startDir string) (*FestivalInfo, error) {
 	if ctx == nil {
@@ -34,6 +37,7 @@ func DetectCurrentFestival(ctx context.Context, startDir string) (*FestivalInfo,
 		return nil, errors.IO("getting absolute path", err)
 	}
 
+	// Step 1: Walk up from startDir looking for festival markers
 	dir := absStart
 	for {
 		if isValidFestival(dir) {
@@ -42,11 +46,38 @@ func DetectCurrentFestival(ctx context.Context, startDir string) (*FestivalInfo,
 
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			// Reached filesystem root
-			return nil, errors.NotFound("festival").WithHint(errors.HintFestivalNotFound)
+			break
 		}
 		dir = parent
 	}
+
+	// Step 2: Check navigation links (supports linked project directories)
+	nav, navErr := navigation.LoadNavigation()
+	if navErr == nil {
+		if linkedName := nav.FindFestivalForPath(absStart); linkedName != "" {
+			festivalsRoot, findErr := workspace.FindFestivals(absStart)
+			if findErr == nil && festivalsRoot != "" {
+				if festivalPath := findLinkedFestivalPath(festivalsRoot, linkedName); festivalPath != "" {
+					return parseFestivalInfo(ctx, festivalPath)
+				}
+			}
+		}
+	}
+
+	return nil, errors.NotFound("festival").WithHint(errors.HintFestivalNotFound)
+}
+
+// findLinkedFestivalPath searches for a festival by name in all status directories.
+func findLinkedFestivalPath(festivalsRoot, name string) string {
+	for _, status := range []string{"active", "planned", "completed", "dungeon"} {
+		festivalPath := filepath.Join(festivalsRoot, status, name)
+		if info, err := os.Stat(festivalPath); err == nil && info.IsDir() {
+			if isValidFestival(festivalPath) {
+				return festivalPath
+			}
+		}
+	}
+	return ""
 }
 
 // isValidFestival checks if a directory is a valid festival root.
