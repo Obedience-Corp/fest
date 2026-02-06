@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -122,17 +123,23 @@ func runNext(cmd *cobra.Command, args []string) error {
 	if phasePath != "" {
 		workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
 		if _, err := os.Stat(workflowPath); err == nil {
-			// WORKFLOW.md exists - use workflow navigator
-			return runWorkflowMode(ctx, festivalPath, phasePath)
+			// WORKFLOW.md exists - check if workflow is complete before routing
+			phaseName := filepath.Base(phasePath)
+			state, loadErr := workflow.LoadState(ctx, festivalPath, phaseName)
+			if loadErr != nil || state.TotalSteps == 0 || !state.IsComplete() {
+				return runWorkflowMode(ctx, festivalPath, phasePath)
+			}
+			// Workflow complete - fall through to selector for next task
 		}
 	}
 
-	// If at festival root (no phase detected), check for incomplete workflow phases in order
+	// If at festival root (no phase detected), find the first incomplete phase respecting numerical order
 	if phasePath == "" {
-		incompletePhase, err := findFirstIncompleteWorkflowPhase(ctx, festivalPath)
-		if err == nil && incompletePhase != "" {
-			return runWorkflowMode(ctx, festivalPath, incompletePhase)
+		nextPhase, isWorkflow, fipErr := findFirstIncompletePhase(ctx, festivalPath)
+		if fipErr == nil && nextPhase != "" && isWorkflow {
+			return runWorkflowMode(ctx, festivalPath, nextPhase)
 		}
+		// If nextPhase is task-based or empty, fall through to selector
 	}
 
 	// Fall back to selector-based navigation
@@ -151,6 +158,14 @@ func runNext(cmd *cobra.Command, args []string) error {
 
 	if err != nil {
 		return errors.Wrap(err, "finding next task")
+	}
+
+	// If selector says festival is complete, check for remaining incomplete workflow phases
+	if result.FestivalComplete {
+		incompleteWorkflow, wErr := findFirstIncompleteWorkflowPhase(ctx, festivalPath)
+		if wErr == nil && incompleteWorkflow != "" {
+			return runWorkflowMode(ctx, festivalPath, incompleteWorkflow)
+		}
 	}
 
 	// Output formatting
@@ -366,12 +381,13 @@ func isNumberedDir(name string) bool {
 	return name[0] >= '0' && name[0] <= '9'
 }
 
-// findFirstIncompleteWorkflowPhase scans phases in numerical order for the first with incomplete workflow.
-// Returns the phase path if found, empty string if all workflow phases are complete or no workflow phases exist.
-func findFirstIncompleteWorkflowPhase(ctx context.Context, festivalPath string) (string, error) {
+// findFirstIncompletePhase scans ALL phases in numerical order and returns the first incomplete phase.
+// It respects ordering across both workflow-based and task-based phases.
+// Returns (phasePath, isWorkflow, error). Empty phasePath means all phases are complete.
+func findFirstIncompletePhase(ctx context.Context, festivalPath string) (string, bool, error) {
 	entries, err := os.ReadDir(festivalPath)
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 
 	var phases []string
@@ -385,22 +401,97 @@ func findFirstIncompleteWorkflowPhase(ctx context.Context, festivalPath string) 
 	sort.Strings(phases)
 
 	for _, phasePath := range phases {
+		// Check for WORKFLOW.md first
+		workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
+		if _, err := os.Stat(workflowPath); err == nil {
+			// Workflow-based phase - check workflow state
+			phaseName := filepath.Base(phasePath)
+			state, loadErr := workflow.LoadState(ctx, festivalPath, phaseName)
+			if loadErr != nil {
+				return phasePath, true, nil // Can't load state, assume incomplete
+			}
+			if state.TotalSteps == 0 || !state.IsComplete() {
+				return phasePath, true, nil
+			}
+			continue // Workflow complete, check next phase
+		}
+
+		// Task-based phase - check if phase is complete via PHASE_GOAL.md frontmatter
+		if hasSequenceDirs(phasePath) && !isPhaseMarkedComplete(phasePath) {
+			return phasePath, false, nil
+		}
+	}
+
+	return "", false, nil // All phases complete
+}
+
+// findFirstIncompleteWorkflowPhase scans phases in numerical order for the first with incomplete workflow.
+// Used as a fallback when the selector reports all tasks complete but workflow phases remain.
+func findFirstIncompleteWorkflowPhase(ctx context.Context, festivalPath string) (string, error) {
+	entries, err := os.ReadDir(festivalPath)
+	if err != nil {
+		return "", err
+	}
+
+	var phases []string
+	for _, entry := range entries {
+		if entry.IsDir() && isNumberedDir(entry.Name()) {
+			phases = append(phases, filepath.Join(festivalPath, entry.Name()))
+		}
+	}
+
+	sort.Strings(phases)
+
+	for _, phasePath := range phases {
 		workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
 		if _, err := os.Stat(workflowPath); err != nil {
-			continue // No WORKFLOW.md, skip (selector handles task-based)
+			continue
 		}
 
 		phaseName := filepath.Base(phasePath)
 		state, err := workflow.LoadState(ctx, festivalPath, phaseName)
 		if err != nil {
-			return phasePath, nil // Can't load state, assume incomplete
+			return phasePath, nil
 		}
 
-		// A workflow phase is incomplete if it has no steps initialized yet or isn't complete
 		if state.TotalSteps == 0 || !state.IsComplete() {
 			return phasePath, nil
 		}
 	}
 
-	return "", nil // All workflow phases complete (or no workflow phases exist)
+	return "", nil
+}
+
+// hasSequenceDirs checks if a phase directory contains numbered subdirectories (sequences).
+func hasSequenceDirs(phasePath string) bool {
+	entries, err := os.ReadDir(phasePath)
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		if entry.IsDir() && isNumberedDir(entry.Name()) {
+			return true
+		}
+	}
+	return false
+}
+
+// isPhaseMarkedComplete checks PHASE_GOAL.md frontmatter for fest_status: completed.
+func isPhaseMarkedComplete(phasePath string) bool {
+	goalPath := filepath.Join(phasePath, "PHASE_GOAL.md")
+	data, err := os.ReadFile(goalPath)
+	if err != nil {
+		return false
+	}
+	content := string(data)
+	// Frontmatter is between --- delimiters at the start of the file
+	if !strings.HasPrefix(content, "---") {
+		return false
+	}
+	end := strings.Index(content[3:], "---")
+	if end < 0 {
+		return false
+	}
+	fm := content[3 : 3+end]
+	return strings.Contains(fm, "fest_status: completed")
 }
