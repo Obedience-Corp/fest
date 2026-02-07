@@ -34,6 +34,7 @@ type CreateFestivalOpts struct {
 	Name       string
 	Goal       string
 	Tags       string
+	Type       string
 	VarsFile   string
 	JSONOutput bool
 	Dest       string

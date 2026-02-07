@@ -30,6 +30,12 @@ func tuiCreateFestival(ctx context.Context, display *ui.UI) error {
 	}
 	goal := strings.TrimSpace(display.PromptDefault("Festival goal", ""))
 	tags := strings.TrimSpace(display.PromptDefault("Tags (comma-separated)", ""))
+	festTypes := []string{"standard", "implementation", "research", "quick", "ritual"}
+	tIdx := display.Choose("Festival type:", festTypes)
+	if tIdx < 0 || tIdx >= len(festTypes) {
+		tIdx = 0
+	}
+	festType := festTypes[tIdx]
 	dest := strings.ToLower(strings.TrimSpace(display.PromptDefault("Destination (active|planned)", "active")))
 	if dest != "planned" && dest != "active" {
 		dest = "active"
@@ -71,6 +77,7 @@ func tuiCreateFestival(ctx context.Context, display *ui.UI) error {
 		Name:     name,
 		Goal:     goal,
 		Tags:     tags,
+		Type:     festType,
 		VarsFile: varsFile,
 		Dest:     dest,
 	}
@@ -98,6 +105,12 @@ func tuiPlanFestivalWizard(ctx context.Context, display *ui.UI) error {
 	}
 	goal := strings.TrimSpace(display.PromptDefault("Festival goal", ""))
 	tags := strings.TrimSpace(display.PromptDefault("Tags (comma-separated)", ""))
+	festTypes := []string{"standard", "implementation", "research", "quick", "ritual"}
+	tIdx := display.Choose("Festival type:", festTypes)
+	if tIdx < 0 || tIdx >= len(festTypes) {
+		tIdx = 0
+	}
+	festType := festTypes[tIdx]
 	dest := strings.ToLower(strings.TrimSpace(display.PromptDefault("Destination (active|planned)", "planned")))
 	if dest != "planned" && dest != "active" {
 		dest = "planned"
@@ -123,7 +136,7 @@ func tuiPlanFestivalWizard(ctx context.Context, display *ui.UI) error {
 		return err
 	}
 
-	if err := shared.RunCreateFestival(ctx, &shared.CreateFestivalOpts{Name: name, Goal: goal, Tags: tags, VarsFile: varsFile, Dest: dest}); err != nil {
+	if err := shared.RunCreateFestival(ctx, &shared.CreateFestivalOpts{Name: name, Goal: goal, Tags: tags, Type: festType, VarsFile: varsFile, Dest: dest}); err != nil {
 		return err
 	}
 
@@ -144,7 +157,7 @@ func tuiPlanFestivalWizard(ctx context.Context, display *ui.UI) error {
 			if pname == "" {
 				pname = fmt.Sprintf("PHASE_%d", i+1)
 			}
-			ptype := strings.TrimSpace(display.PromptDefault("Phase type (planning|implementation|review|deployment|research)", "planning"))
+			ptype := strings.TrimSpace(display.PromptDefault("Phase type (planning|implementation|research|review|non_coding_action|ingest)", "planning"))
 			if ptype == "" {
 				ptype = "planning"
 			}

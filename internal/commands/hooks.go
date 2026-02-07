@@ -34,6 +34,7 @@ func runCreateFestivalHook(ctx context.Context, opts *shared.CreateFestivalOpts)
 		Name:       opts.Name,
 		Goal:       opts.Goal,
 		Tags:       opts.Tags,
+		Type:       opts.Type,
 		VarsFile:   opts.VarsFile,
 		JSONOutput: opts.JSONOutput,
 		Dest:       opts.Dest,

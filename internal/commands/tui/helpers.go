@@ -472,7 +472,7 @@ type PhaseInfo struct {
 	Name      string // Full directory name (e.g., "001_PLANNING")
 	ShortName string // Name without number (e.g., "PLANNING")
 	Path      string
-	Type      string // planning, implementation, research, review, deployment
+	Type      string // planning, implementation, research, review, non_coding_action, ingest
 	Goal      string // Extracted from PHASE_GOAL.md
 }
 
@@ -489,8 +489,10 @@ func getPhaseType(phaseName string) string {
 		return "implementation"
 	case strings.Contains(lower, "review") || strings.Contains(lower, "qa"):
 		return "review"
-	case strings.Contains(lower, "deployment") || strings.Contains(lower, "deploy"):
-		return "deployment"
+	case strings.Contains(lower, "ingest"):
+		return "ingest"
+	case strings.Contains(lower, "non_coding") || strings.Contains(lower, "action"):
+		return "non_coding_action"
 	default:
 		return "implementation" // Default
 	}
@@ -567,8 +569,10 @@ func phaseTypeIcon(phaseType string) string {
 		return "[impl]"
 	case "review":
 		return "[review]"
-	case "deployment":
-		return "[deploy]"
+	case "non_coding_action":
+		return "[action]"
+	case "ingest":
+		return "[ingest]"
 	default:
 		return "[phase]"
 	}

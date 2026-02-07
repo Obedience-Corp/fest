@@ -28,6 +28,8 @@ func charmCreateFestival(ctx context.Context) error {
 
 	var name, goal, tags string
 	var dest string = "active"
+	festivalTypes := []string{"standard", "implementation", "research", "quick", "ritual"}
+	var festType string = festivalTypes[0]
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().Title("Festival name").Placeholder("e.g., ecommerce-platform").Value(&name).Validate(notEmpty),
@@ -38,6 +40,9 @@ func charmCreateFestival(ctx context.Context) error {
 				Lines(3).
 				Value(&goal),
 			huh.NewInput().Title("Tags (comma-separated)").Placeholder("backend,security").Value(&tags),
+			huh.NewSelect[string]().Title("Festival type").
+				Options(toOptions(festivalTypes)...).
+				Value(&festType),
 			huh.NewSelect[string]().Title("Destination").Options(
 				huh.NewOption("active", "active"),
 				huh.NewOption("planned", "planned"),
@@ -79,7 +84,7 @@ func charmCreateFestival(ctx context.Context) error {
 		return err
 	}
 
-	opts := &shared.CreateFestivalOpts{Name: name, Goal: goal, Tags: tags, VarsFile: varsFile, Dest: dest}
+	opts := &shared.CreateFestivalOpts{Name: name, Goal: goal, Tags: tags, Type: festType, VarsFile: varsFile, Dest: dest}
 	return shared.RunCreateFestival(ctx, opts)
 }
 
@@ -99,6 +104,8 @@ func charmPlanFestivalWizard(ctx context.Context) error {
 	}
 	var name, goal, tags string
 	var dest string = "planned"
+	festivalTypes := []string{"standard", "implementation", "research", "quick", "ritual"}
+	var festType string = festivalTypes[0]
 	base := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().Title("Festival name").Placeholder("e.g., ecommerce-platform").Value(&name).Validate(notEmpty),
@@ -109,6 +116,9 @@ func charmPlanFestivalWizard(ctx context.Context) error {
 				Lines(3).
 				Value(&goal),
 			huh.NewInput().Title("Tags (comma-separated)").Placeholder("backend,security").Value(&tags),
+			huh.NewSelect[string]().Title("Festival type").
+				Options(toOptions(festivalTypes)...).
+				Value(&festType),
 			huh.NewSelect[string]().Title("Destination").Options(
 				huh.NewOption("planned", "planned"),
 				huh.NewOption("active", "active"),
@@ -147,7 +157,7 @@ func charmPlanFestivalWizard(ctx context.Context) error {
 		return err
 	}
 
-	if err := shared.RunCreateFestival(ctx, &shared.CreateFestivalOpts{Name: name, Goal: goal, Tags: tags, VarsFile: varsFile, Dest: dest}); err != nil {
+	if err := shared.RunCreateFestival(ctx, &shared.CreateFestivalOpts{Name: name, Goal: goal, Tags: tags, Type: festType, VarsFile: varsFile, Dest: dest}); err != nil {
 		return err
 	}
 	slug := slugify(name)
@@ -180,7 +190,7 @@ func charmPlanFestivalWizard(ctx context.Context) error {
 			pf := huh.NewForm(
 				huh.NewGroup(
 					huh.NewInput().Title(fmt.Sprintf("Phase %d name", i+1)).Placeholder("PLAN").Value(&pname).Validate(notEmpty),
-					huh.NewSelect[string]().Title("Phase type").Options(toOptions([]string{"planning", "implementation", "review", "deployment", "research"})...).Value(&ptype),
+					huh.NewSelect[string]().Title("Phase type").Options(toOptions([]string{"planning", "implementation", "research", "review", "non_coding_action", "ingest"})...).Value(&ptype),
 				),
 			)
 			if err := uitheme.RunForm(ctx, pf); err != nil {
