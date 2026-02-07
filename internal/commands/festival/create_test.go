@@ -525,6 +525,205 @@ func TestCreateFestival_GatesConfigHasCorrectStructure(t *testing.T) {
 	}
 }
 
+// TestCreateFestival_WithTypeStandard tests festival creation with --type standard
+func TestCreateFestival_WithTypeStandard(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create festivals directory structure with templates
+	festivalsDir := filepath.Join(tmpDir, "festivals")
+	setupFestivalTemplates(t, festivalsDir)
+
+	// Change working directory
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+	os.Chdir(festivalsDir)
+
+	// Run create festival with --type standard
+	opts := &CreateFestivalOptions{
+		Name:        "standard-test",
+		Goal:        "Test standard type",
+		Type:        "standard",
+		SkipMarkers: true,
+		Dest:        "active",
+		JSONOutput:  false,
+	}
+
+	err := RunCreateFestival(context.Background(), opts)
+	if err != nil {
+		t.Fatalf("RunCreateFestival failed: %v", err)
+	}
+
+	// Find created festival directory
+	activeDir := filepath.Join(festivalsDir, "active")
+	entries, err := os.ReadDir(activeDir)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("expected 1 entry in active/: %v", err)
+	}
+	festivalDir := filepath.Join(activeDir, entries[0].Name())
+
+	// Verify INGEST and PLAN phases were auto-created
+	ingestPhase := filepath.Join(festivalDir, "001_INGEST")
+	planPhase := filepath.Join(festivalDir, "002_PLAN")
+
+	if _, err := os.Stat(ingestPhase); err != nil {
+		t.Errorf("expected INGEST phase to be auto-created: %v", err)
+	}
+	if _, err := os.Stat(planPhase); err != nil {
+		t.Errorf("expected PLAN phase to be auto-created: %v", err)
+	}
+
+	// Verify fest.yaml contains festival type
+	festYAMLPath := filepath.Join(festivalDir, "fest.yaml")
+	content, err := os.ReadFile(festYAMLPath)
+	if err != nil {
+		t.Fatalf("failed to read fest.yaml: %v", err)
+	}
+	if !contains(string(content), "festival_type: standard") {
+		t.Error("fest.yaml should contain festival_type: standard")
+	}
+}
+
+// TestCreateFestival_WithoutType tests backward compatibility (no auto-scaffolding)
+func TestCreateFestival_WithoutType(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create festivals directory structure with templates
+	festivalsDir := filepath.Join(tmpDir, "festivals")
+	setupFestivalTemplates(t, festivalsDir)
+
+	// Change working directory
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+	os.Chdir(festivalsDir)
+
+	// Run create festival WITHOUT --type
+	opts := &CreateFestivalOptions{
+		Name:        "no-type-test",
+		Goal:        "Test without type",
+		SkipMarkers: true,
+		Dest:        "active",
+		JSONOutput:  false,
+	}
+
+	err := RunCreateFestival(context.Background(), opts)
+	if err != nil {
+		t.Fatalf("RunCreateFestival failed: %v", err)
+	}
+
+	// Find created festival directory
+	activeDir := filepath.Join(festivalsDir, "active")
+	entries, err := os.ReadDir(activeDir)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("expected 1 entry in active/: %v", err)
+	}
+	festivalDir := filepath.Join(activeDir, entries[0].Name())
+
+	// Verify NO phases were auto-created
+	phases, err := os.ReadDir(festivalDir)
+	if err != nil {
+		t.Fatalf("failed to read festival dir: %v", err)
+	}
+
+	// Count phase directories (should be 0)
+	// Phase directories start with 3 digits followed by underscore
+	phaseCount := 0
+	for _, entry := range phases {
+		name := entry.Name()
+		// Check if it's a phase directory: starts with 3 digits + underscore
+		if entry.IsDir() && len(name) >= 4 && name[0] >= '0' && name[0] <= '9' && name[3] == '_' {
+			phaseCount++
+		}
+	}
+
+	if phaseCount != 0 {
+		t.Errorf("expected no auto-created phases, found %d", phaseCount)
+	}
+
+	// Verify fest.yaml does NOT contain festival_type
+	festYAMLPath := filepath.Join(festivalDir, "fest.yaml")
+	content, err := os.ReadFile(festYAMLPath)
+	if err != nil {
+		t.Fatalf("failed to read fest.yaml: %v", err)
+	}
+	if contains(string(content), "festival_type:") {
+		t.Error("fest.yaml should NOT contain festival_type when not specified")
+	}
+}
+
+// TestCreateFestival_WithUnknownType tests error handling for unknown types
+func TestCreateFestival_WithUnknownType(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create festivals directory structure with templates
+	festivalsDir := filepath.Join(tmpDir, "festivals")
+	setupFestivalTemplates(t, festivalsDir)
+
+	// Change working directory
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+	os.Chdir(festivalsDir)
+
+	// Run create festival with unknown type
+	opts := &CreateFestivalOptions{
+		Name:        "bad-type-test",
+		Goal:        "Test bad type",
+		Type:        "unknown-type",
+		SkipMarkers: true,
+		Dest:        "active",
+		JSONOutput:  false,
+	}
+
+	err := RunCreateFestival(context.Background(), opts)
+	if err == nil {
+		t.Error("expected error for unknown festival type")
+	}
+}
+
+// setupFestivalTemplates creates a minimal template structure for testing
+func setupFestivalTemplates(t *testing.T, festivalsDir string) {
+	t.Helper()
+
+	festivalMetaDir := filepath.Join(festivalsDir, ".festival")
+	templatesDir := filepath.Join(festivalMetaDir, "templates")
+
+	// Create core festival templates
+	festivalTemplatesDir := filepath.Join(templatesDir, "festival")
+	if err := os.MkdirAll(festivalTemplatesDir, 0755); err != nil {
+		t.Fatalf("failed to create festival templates dir: %v", err)
+	}
+	for _, tmpl := range []string{"OVERVIEW.md", "GOAL.md", "RULES.md", "TODO.md"} {
+		content := "# {{.festival_name}}\n"
+		if err := os.WriteFile(filepath.Join(festivalTemplatesDir, tmpl), []byte(content), 0644); err != nil {
+			t.Fatalf("failed to create template festival/%s: %v", tmpl, err)
+		}
+	}
+
+	// Create phase templates for different phase types
+	phaseTypes := []string{"planning", "implementation", "research", "ingest"}
+	for _, phaseType := range phaseTypes {
+		phaseDir := filepath.Join(templatesDir, "phases", phaseType)
+		if err := os.MkdirAll(phaseDir, 0755); err != nil {
+			t.Fatalf("failed to create phase dir %s: %v", phaseType, err)
+		}
+		goalContent := "# Phase: {{.phase_name}}\n"
+		if err := os.WriteFile(filepath.Join(phaseDir, "GOAL.md"), []byte(goalContent), 0644); err != nil {
+			t.Fatalf("failed to create phase goal template: %v", err)
+		}
+	}
+
+	// Create gates for implementation phase
+	implGatesDir := filepath.Join(templatesDir, "phases", "implementation", "gates")
+	if err := os.MkdirAll(implGatesDir, 0755); err != nil {
+		t.Fatalf("failed to create implementation gates dir: %v", err)
+	}
+	for _, gate := range []string{"QUALITY_GATE_TESTING.md", "QUALITY_GATE_REVIEW.md", "QUALITY_GATE_ITERATE.md", "QUALITY_GATE_COMMIT.md"} {
+		content := "# Gate\n"
+		if err := os.WriteFile(filepath.Join(implGatesDir, gate), []byte(content), 0644); err != nil {
+			t.Fatalf("failed to create gate template: %v", err)
+		}
+	}
+}
+
 // contains checks if substr is in s (simple substring check)
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && findSubstr(s, substr)

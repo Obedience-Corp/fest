@@ -19,6 +19,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/registry"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
+	"github.com/Obedience-Corp/fest/internal/types"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/google/uuid"
@@ -31,6 +32,7 @@ type CreateFestivalOptions struct {
 	Goal        string
 	Tags        string
 	Project     string // Project directory path
+	Type        string // Festival type (standard, implementation, research, quick, ritual)
 	VarsFile    string
 	Markers     string // Inline JSON with hint→value mappings
 	MarkersFile string // JSON file path with hint→value mappings
@@ -42,22 +44,23 @@ type CreateFestivalOptions struct {
 }
 
 type createFestivalResult struct {
-	OK             bool                     `json:"ok"`
-	Action         string                   `json:"action"`
-	Festival       map[string]string        `json:"festival,omitempty"`
-	Created        []string                 `json:"created,omitempty"`
-	GatesDirectory string                   `json:"gates_directory,omitempty"`
-	FestYAML       string                   `json:"fest_yaml,omitempty"`
-	GateTemplates  []string                 `json:"gate_templates,omitempty"`
-	ProjectPath    string                   `json:"project_path,omitempty"`
-	ProjectLinked  bool                     `json:"project_linked,omitempty"`
-	Markers        []map[string]interface{} `json:"markers,omitempty"`
-	MarkersFilled  int                      `json:"markers_filled,omitempty"`
-	MarkersTotal   int                      `json:"markers_total,omitempty"`
-	Validation     *ValidationSummary       `json:"validation,omitempty"`
-	Errors         []map[string]any         `json:"errors,omitempty"`
-	Warnings       []string                 `json:"warnings,omitempty"`
-	Extra          map[string]interface{}   `json:"extra,omitempty"`
+	OK               bool                     `json:"ok"`
+	Action           string                   `json:"action"`
+	Festival         map[string]string        `json:"festival,omitempty"`
+	Created          []string                 `json:"created,omitempty"`
+	AutoPhasesCreated []string                `json:"auto_phases_created,omitempty"`
+	GatesDirectory   string                   `json:"gates_directory,omitempty"`
+	FestYAML         string                   `json:"fest_yaml,omitempty"`
+	GateTemplates    []string                 `json:"gate_templates,omitempty"`
+	ProjectPath      string                   `json:"project_path,omitempty"`
+	ProjectLinked    bool                     `json:"project_linked,omitempty"`
+	Markers          []map[string]interface{} `json:"markers,omitempty"`
+	MarkersFilled    int                      `json:"markers_filled,omitempty"`
+	MarkersTotal     int                      `json:"markers_total,omitempty"`
+	Validation       *ValidationSummary       `json:"validation,omitempty"`
+	Errors           []map[string]any         `json:"errors,omitempty"`
+	Warnings         []string                 `json:"warnings,omitempty"`
+	Extra            map[string]interface{}   `json:"extra,omitempty"`
 }
 
 // NewCreateFestivalCommand adds 'create festival'
@@ -85,6 +88,7 @@ func NewCreateFestivalCommand() *cobra.Command {
 	cmd.Flags().StringVar(&opts.Goal, "goal", "", "Festival goal")
 	cmd.Flags().StringVar(&opts.Tags, "tags", "", "Comma-separated tags")
 	cmd.Flags().StringVarP(&opts.Project, "project", "p", "", "Project directory path (auto-links to festival)")
+	cmd.Flags().StringVar(&opts.Type, "type", "", "Festival type (standard, implementation, research, quick, ritual)")
 	cmd.Flags().StringVar(&opts.VarsFile, "vars-file", "", "JSON file with variables")
 	cmd.Flags().StringVar(&opts.Markers, "markers", "", "JSON string with REPLACE marker hint→value mappings")
 	cmd.Flags().StringVar(&opts.MarkersFile, "markers-file", "", "JSON file with REPLACE marker hint→value mappings")
@@ -283,16 +287,34 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 		}
 	}
 
+	// Load festival type configuration and determine type
+	var festivalType *types.FestivalType
+	var festivalTypeName string
+	if opts.Type != "" {
+		// Type explicitly provided
+		typesCfg, typeErr := types.LoadFestivalTypesConfig(ctx)
+		if typeErr != nil {
+			return emitCreateFestivalError(opts, errors.Wrap(typeErr, "loading festival types config"))
+		}
+		ft, typeErr := typesCfg.GetFestivalType(opts.Type)
+		if typeErr != nil {
+			return emitCreateFestivalError(opts, typeErr)
+		}
+		festivalType = ft
+		festivalTypeName = ft.Name
+	}
+
 	// Generate fest.yaml with default gates configuration and metadata
 	festConfig := config.DefaultFestivalConfig()
 
 	// Populate metadata section
 	now := time.Now().UTC()
 	festConfig.Metadata = config.FestivalMetadata{
-		ID:        festivalID,
-		UUID:      uuid.New().String(),
-		Name:      opts.Name,
-		CreatedAt: now,
+		ID:           festivalID,
+		UUID:         uuid.New().String(),
+		Name:         opts.Name,
+		FestivalType: festivalTypeName,
+		CreatedAt:    now,
 		StatusHistory: []config.StatusChange{
 			{
 				Status:    destCategory,
@@ -344,6 +366,42 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 		return emitCreateFestivalError(opts, errors.Wrap(err, "writing fest.yaml").WithField("path", festConfigPath))
 	}
 	created = append(created, festConfigPath)
+
+	// Auto-scaffold phases if festival type has auto phases
+	autoPhasesCreated := []string{}
+	if festivalType != nil {
+		autoPhases := festivalType.GetAutoPhases()
+		for i, phaseSpec := range autoPhases {
+			// Map phase spec type to create phase --type flag
+			phaseType := mapPhaseSpecType(phaseSpec.Type)
+
+			// Create phase using RunCreatePhase
+			phaseOpts := &CreatePhaseOptions{
+				After:       i, // Insert phases sequentially
+				Name:        phaseSpec.Name,
+				PhaseType:   phaseType,
+				Path:        destDir,
+				SkipMarkers: effectiveSkipMarkers,
+				JSONOutput:  true, // Always use JSON for programmatic calls
+				AgentMode:   false,
+			}
+
+			if phaseErr := RunCreatePhase(ctx, phaseOpts); phaseErr != nil {
+				// Don't fail festival creation if phase creation fails
+				if !opts.JSONOutput {
+					display.Warning("Failed to auto-create phase %s: %v", phaseSpec.Name, phaseErr)
+				}
+				continue
+			}
+
+			phaseID := tpl.FormatPhaseID(i+1, phaseSpec.Name)
+			autoPhasesCreated = append(autoPhasesCreated, phaseID)
+
+			// Add phase goal to created files list
+			phaseGoalPath := filepath.Join(destDir, phaseID, "PHASE_GOAL.md")
+			created = append(created, phaseGoalPath)
+		}
+	}
 
 	// Update ID registry with event logging
 	regPath := registry.GetEventsPath(festivalsRoot)
@@ -429,26 +487,32 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 		}
 		warnings = append(warnings, "Next: Create phases with 'fest create phase --name PHASE_NAME'")
 
+		festivalMap := map[string]string{
+			"name":      opts.Name,
+			"slug":      slug,
+			"dest":      destCategory,
+			"id":        festivalID,
+			"directory": dirName,
+		}
+		if festivalTypeName != "" {
+			festivalMap["type"] = festivalTypeName
+		}
+
 		return emitCreateFestivalJSON(opts, createFestivalResult{
-			OK:     true,
-			Action: "create_festival",
-			Festival: map[string]string{
-				"name":      opts.Name,
-				"slug":      slug,
-				"dest":      destCategory,
-				"id":        festivalID,
-				"directory": dirName,
-			},
-			Created:        created,
-			GatesDirectory: gatesDir,
-			FestYAML:       festConfigPath,
-			GateTemplates:  copiedGates,
-			ProjectPath:    resolvedProjectPath,
-			ProjectLinked:  projectLinked,
-			MarkersFilled:  totalMarkersFilled,
-			MarkersTotal:   totalMarkersCount,
-			Validation:     validationResult,
-			Warnings:       warnings,
+			OK:                true,
+			Action:            "create_festival",
+			Festival:          festivalMap,
+			Created:           created,
+			AutoPhasesCreated: autoPhasesCreated,
+			GatesDirectory:    gatesDir,
+			FestYAML:          festConfigPath,
+			GateTemplates:     copiedGates,
+			ProjectPath:       resolvedProjectPath,
+			ProjectLinked:     projectLinked,
+			MarkersFilled:     totalMarkersFilled,
+			MarkersTotal:      totalMarkersCount,
+			Validation:        validationResult,
+			Warnings:          warnings,
 		})
 	}
 
@@ -464,6 +528,12 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 
 	display.Success("Created festival: %s (%s)", dirName, destCategory)
 	display.Info("  ID: %s", festivalID)
+	if festivalTypeName != "" {
+		display.Info("  Type: %s", festivalTypeName)
+	}
+	if len(autoPhasesCreated) > 0 {
+		display.Success("Auto-created %d phase(s): %s", len(autoPhasesCreated), strings.Join(autoPhasesCreated, ", "))
+	}
 	for _, p := range created {
 		display.Info("  • %s", p)
 	}
@@ -544,4 +614,28 @@ func Slugify(s string) string {
 		slug = "festival"
 	}
 	return slug
+}
+
+// mapPhaseSpecType maps festival type phase spec type to create phase command type.
+// This handles the mapping between type config phase types and the --type flag
+// expected by the create phase command.
+func mapPhaseSpecType(specType string) string {
+	// Type config uses "standard" for basic phases
+	// Create phase command uses specific types like "planning", "implementation", etc.
+	switch strings.ToLower(specType) {
+	case "standard":
+		return "planning"
+	case "implementation":
+		return "implementation"
+	case "research":
+		return "research"
+	case "review":
+		return "review"
+	case "ingest":
+		return "ingest"
+	case "non_coding_action":
+		return "non_coding_action"
+	default:
+		return "planning" // Default fallback
+	}
 }
