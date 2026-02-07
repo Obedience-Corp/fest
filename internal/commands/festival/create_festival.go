@@ -392,22 +392,26 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 	}
 	created = append(created, festConfigPath)
 
-	// Auto-scaffold phases if festival type has auto phases
+	// Auto-scaffold phases if festival type has auto phases.
+	// Suppress stdout during phase creation to keep festival JSON output clean.
 	autoPhasesCreated := []string{}
 	if festivalType != nil {
+		// Temporarily redirect stdout to suppress phase creation output
+		origStdout := os.Stdout
+		devNull, _ := os.Open(os.DevNull)
+		os.Stdout = devNull
+
 		autoPhases := festivalType.GetAutoPhases()
 		for i, phaseSpec := range autoPhases {
-			// Map phase spec type to create phase --type flag
 			phaseType := mapPhaseSpecType(phaseSpec.Type)
 
-			// Create phase using RunCreatePhase
 			phaseOpts := &CreatePhaseOptions{
-				After:       i, // Insert phases sequentially
+				After:       i,
 				Name:        phaseSpec.Name,
 				PhaseType:   phaseType,
 				Path:        destDir,
 				SkipMarkers: effectiveSkipMarkers,
-				JSONOutput:  true, // Always use JSON for programmatic calls
+				JSONOutput:  false,
 				AgentMode:   false,
 			}
 
@@ -426,6 +430,10 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 			phaseGoalPath := filepath.Join(destDir, phaseID, "PHASE_GOAL.md")
 			created = append(created, phaseGoalPath)
 		}
+
+		// Restore stdout
+		devNull.Close()
+		os.Stdout = origStdout
 	}
 
 	// Update ID registry with event logging

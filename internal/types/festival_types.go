@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"gopkg.in/yaml.v3"
 )
 
@@ -17,12 +18,12 @@ type FestivalTypesConfig struct {
 
 // FestivalType defines a festival type with its phase structure.
 type FestivalType struct {
-	Name           string      `yaml:"name"`
-	Description    string      `yaml:"description"`
-	Default        bool        `yaml:"default"`
-	SkipIngestion  bool        `yaml:"skip_ingestion"`
-	Phases         []PhaseSpec `yaml:"phases"`
-	Note           string      `yaml:"note,omitempty"`
+	Name          string      `yaml:"name"`
+	Description   string      `yaml:"description"`
+	Default       bool        `yaml:"default"`
+	SkipIngestion bool        `yaml:"skip_ingestion"`
+	Phases        []PhaseSpec `yaml:"phases"`
+	Note          string      `yaml:"note,omitempty"`
 }
 
 // PhaseSpec defines a phase within a festival type.
@@ -68,7 +69,7 @@ func LoadFestivalTypesConfig(ctx context.Context) (*FestivalTypesConfig, error) 
 			WithOp("LoadFestivalTypesConfig")
 	}
 
-	// Try project-level config
+	// Try project-level config (CWD/.festival/)
 	cwd, err := os.Getwd()
 	if err == nil {
 		projectPath := filepath.Join(cwd, ".festival", "festival_types.yaml")
@@ -77,7 +78,17 @@ func LoadFestivalTypesConfig(ctx context.Context) (*FestivalTypesConfig, error) 
 		}
 	}
 
-	// Try global config
+	// Try festivals root config (festivals/.festival/)
+	if cwd != "" {
+		if festivalsRoot, findErr := workspace.FindFestivals(cwd); findErr == nil && festivalsRoot != "" {
+			rootPath := filepath.Join(festivalsRoot, ".festival", "festival_types.yaml")
+			if config, err := loadConfigFromFile(ctx, rootPath); err == nil {
+				return config, nil
+			}
+		}
+	}
+
+	// Try global config (~/.fest/)
 	homeDir, err := os.UserHomeDir()
 	if err == nil {
 		globalPath := filepath.Join(homeDir, ".fest", "festival_types.yaml")
