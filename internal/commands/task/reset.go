@@ -19,7 +19,10 @@ func newResetCmd() *cobra.Command {
 		Use:   "reset [task]",
 		Short: "Reset a task to pending (requires confirmation)",
 		Args:  cobra.MaximumNArgs(1),
-		RunE:  runReset,
+		Annotations: map[string]string{
+			"scope": string(scope.Festival),
+		},
+		RunE: runReset,
 	}
 
 	cmd.Flags().BoolVar(&resetJSON, "json", false, "output as JSON (blocks: interactive confirmation required)")

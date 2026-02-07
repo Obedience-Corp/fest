@@ -21,7 +21,10 @@ func newCompletedCmd() *cobra.Command {
 		Use:   "completed [task]",
 		Short: "Mark a task as complete (requires confirmation)",
 		Args:  cobra.MaximumNArgs(1),
-		RunE:  runCompleted,
+		Annotations: map[string]string{
+			"scope": string(scope.Festival),
+		},
+		RunE: runCompleted,
 	}
 
 	cmd.Flags().BoolVar(&completedJSON, "json", false, "output as JSON (blocks: interactive confirmation required)")

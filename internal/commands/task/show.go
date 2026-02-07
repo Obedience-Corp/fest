@@ -25,7 +25,10 @@ func newShowCmd() *cobra.Command {
 		Use:   "show [task]",
 		Short: "Show task details and status",
 		Args:  cobra.MaximumNArgs(1),
-		RunE:  runShow,
+		Annotations: map[string]string{
+			"scope": string(scope.Festival),
+		},
+		RunE: runShow,
 	}
 
 	cmd.Flags().BoolVar(&showJSON, "json", false, "output as JSON")

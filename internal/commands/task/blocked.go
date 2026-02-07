@@ -22,7 +22,10 @@ func newBlockedCmd() *cobra.Command {
 		Use:   "blocked [task]",
 		Short: "Mark a task as blocked (requires confirmation)",
 		Args:  cobra.MaximumNArgs(1),
-		RunE:  runBlocked,
+		Annotations: map[string]string{
+			"scope": string(scope.Festival),
+		},
+		RunE: runBlocked,
 	}
 
 	cmd.Flags().StringVar(&blockedReason, "reason", "", "reason for the blocker (required)")
