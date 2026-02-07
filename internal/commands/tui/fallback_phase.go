@@ -29,7 +29,7 @@ func tuiCreatePhase(ctx context.Context, display *ui.UI) error {
 		return errors.Validation("phase name is required")
 	}
 	// Choose phase type
-	types := []string{"planning", "implementation", "review", "deployment", "research"}
+	types := []string{"planning", "implementation", "research", "review", "non_coding_action", "ingest"}
 	tIdx := display.Choose("Phase type:", types)
 	if tIdx < 0 || tIdx >= len(types) {
 		tIdx = 0

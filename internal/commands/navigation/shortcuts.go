@@ -222,6 +222,7 @@ When used with shell integration (fgo list), this will navigate to the selected 
 
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output in JSON format")
 	cmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "interactive picker mode")
+	cmd.Flags().Bool("print", false, "accepted for shell integration compatibility")
 
 	return cmd
 }
@@ -345,6 +346,8 @@ func NewGoShortcutCommand() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().Bool("print", false, "accepted for shell integration compatibility")
+
 	return cmd
 }
 
@@ -377,6 +380,8 @@ Use 'fest link <path>' to create a link from within a festival.`,
 			return runGoProject(cmd.Context())
 		},
 	}
+
+	cmd.Flags().Bool("print", false, "accepted for shell integration compatibility")
 
 	return cmd
 }
@@ -428,6 +433,8 @@ This is the reverse of 'fgo project'.`,
 			return runGoFest()
 		},
 	}
+
+	cmd.Flags().Bool("print", false, "accepted for shell integration compatibility")
 
 	return cmd
 }

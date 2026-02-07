@@ -48,7 +48,7 @@ func createPhaseInFestival(ctx context.Context, festivalPath string) error {
 	}
 
 	var name string
-	phaseTypes := []string{"planning", "implementation", "review", "deployment", "research"}
+	phaseTypes := []string{"planning", "implementation", "research", "review", "non_coding_action", "ingest"}
 	var phaseType string = phaseTypes[0]
 
 	// Phase name and type form
@@ -156,7 +156,7 @@ func charmCreatePhaseManual(ctx context.Context) error {
 		return err
 	}
 	var name, path, afterStr string
-	phaseTypes := []string{"planning", "implementation", "review", "deployment", "research"}
+	phaseTypes := []string{"planning", "implementation", "research", "review", "non_coding_action", "ingest"}
 	var phaseType string = phaseTypes[0]
 
 	// Two-step: first fields; then compute default 'after'

@@ -22,6 +22,7 @@ type goOptions struct {
 	showWorkspace bool
 	showAll       bool
 	json          bool
+	printOnly     bool
 }
 
 // NewGoCommand creates the go navigation command
@@ -36,9 +37,10 @@ func NewGoCommand() *cobra.Command {
 The go command finds the festivals/ directory that has been registered
 as your active workspace using 'fest init --register'.
 
-NOTE: This command prints the path. To actually change directories,
-set up shell integration (one-time):
+By default, outputs 'cd /path' for human-friendly display.
+Use --print to output just the bare path (for scripts, tools, and agents).
 
+SHELL INTEGRATION (recommended):
   # Add to ~/.zshrc or ~/.bashrc:
   eval "$(fest shell-init zsh)"
 
@@ -49,8 +51,8 @@ Then use 'fgo' to navigate:
   fgo fest_improv  Fuzzy match to fest-improvements-*
 
 Without shell integration, use command substitution:
-  cd $(fest go)
-  cd $(fest go 002)
+  cd "$(fest go --print)"
+  cd "$(fest go 002 --print)"
 
 Fuzzy matching is supported - partial names like "impl" will match
 phases containing "IMPLEMENT". Multiple words narrow the search.
@@ -70,6 +72,7 @@ If no registered festivals are found, falls back to nearest festivals/.`,
 	cmd.Flags().BoolVar(&opts.showWorkspace, "workspace", false, "show which workspace was detected")
 	cmd.Flags().BoolVar(&opts.showAll, "all", false, "list all registered festivals directories")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "output in JSON format")
+	cmd.Flags().BoolVar(&opts.printOnly, "print", false, "print path only (for shell integration, scripts, and agents)")
 
 	// Add subcommands for navigation shortcuts
 	cmd.AddCommand(NewGoMapCommand())
@@ -83,6 +86,17 @@ If no registered festivals are found, falls back to nearest festivals/.`,
 	cmd.AddCommand(NewGoMoveCommand())
 
 	return cmd
+}
+
+// outputPath writes a resolved path to stdout in the appropriate format.
+func outputPath(path string, opts *goOptions) {
+	if opts.json {
+		fmt.Printf(`{"path": "%s"}`+"\n", path)
+	} else if opts.printOnly {
+		fmt.Println(path)
+	} else {
+		fmt.Printf("cd %s\n", path)
+	}
 }
 
 func runGo(ctx context.Context, target string, opts *goOptions) error {
@@ -115,19 +129,11 @@ func runGo(ctx context.Context, target string, opts *goOptions) error {
 	if target == "" {
 		// Try smart bidirectional navigation
 		if resultPath := trySmartNavigation(ctx, cwd, festivalsDir); resultPath != "" {
-			if opts.json {
-				fmt.Printf(`{"path": "%s"}%s`, resultPath, "\n")
-			} else {
-				fmt.Println(resultPath)
-			}
+			outputPath(resultPath, opts)
 			return nil
 		}
 		// Fall back to festivals root
-		if opts.json {
-			fmt.Printf(`{"path": "%s"}%s`, festivalsDir, "\n")
-		} else {
-			fmt.Println(festivalsDir)
-		}
+		outputPath(festivalsDir, opts)
 		return nil
 	}
 
@@ -138,11 +144,7 @@ func runGo(ctx context.Context, target string, opts *goOptions) error {
 	}
 
 	// Output the path
-	if opts.json {
-		fmt.Printf(`{"path": "%s"}%s`, resolved, "\n")
-	} else {
-		fmt.Println(resolved)
-	}
+	outputPath(resolved, opts)
 
 	return nil
 }
