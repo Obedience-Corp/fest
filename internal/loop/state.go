@@ -11,7 +11,7 @@ import (
 
 // StateEvent represents a loop state event in JSONL.
 type StateEvent struct {
-	Type           string    `json:"type"`                      // "loop_check" or "loop_retry"
+	Type           string    `json:"type"` // "loop_check" or "loop_retry"
 	Timestamp      time.Time `json:"timestamp"`
 	Step           int       `json:"step"`
 	LoopIndex      int       `json:"loop_index"`
