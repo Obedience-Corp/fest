@@ -10,15 +10,15 @@ import (
 func NewTaskCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "task",
-		Short: "Manage task status (show, complete, block, reset)",
+		Short: "Manage task status (show, edit, complete, block, reset)",
 		Annotations: map[string]string{
 			"scope": string(scope.Festival),
 		},
 		Long: `Commands for managing individual task status within a festival.
 
-These commands provide a simpler interface for marking tasks complete,
-blocked, or resetting them. Each mutation requires interactive confirmation
-to ensure agents verify their work before proceeding.
+These commands provide a simpler interface for viewing, editing, marking
+tasks complete, blocked, or resetting them. Each mutation requires
+interactive confirmation to ensure agents verify their work before proceeding.
 
 Task Resolution:
   When [task] is omitted, the command auto-detects the current task:
@@ -33,6 +33,7 @@ Task Resolution:
 Examples:
   fest task show                          # Show current task details
   fest task show 01_design.md             # Show specific task
+  fest task edit                          # Open current task in editor
   fest task completed                     # Mark current task complete (Y/n)
   fest task blocked --reason "need API"   # Mark task blocked (Y/n)
   fest task reset                         # Reset task to pending (Y/n)`,
@@ -40,6 +41,7 @@ Examples:
 
 	cmd.AddCommand(
 		newShowCmd(),
+		newEditCmd(),
 		newCompletedCmd(),
 		newBlockedCmd(),
 		newResetCmd(),

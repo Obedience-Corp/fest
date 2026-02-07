@@ -91,17 +91,17 @@ func TestFormatProgressCommand(t *testing.T) {
 		{
 			name:     "simple path",
 			taskPath: "task.md",
-			want:     "fest progress --task task.md --complete",
+			want:     "fest task completed task.md",
 		},
 		{
 			name:     "nested path",
 			taskPath: "001_PHASE/01_seq/01_task.md",
-			want:     "fest progress --task 001_PHASE/01_seq/01_task.md --complete",
+			want:     "fest task completed 001_PHASE/01_seq/01_task.md",
 		},
 		{
 			name:     "absolute path",
 			taskPath: "/path/to/task.md",
-			want:     "fest progress --task /path/to/task.md --complete",
+			want:     "fest task completed /path/to/task.md",
 		},
 	}
 

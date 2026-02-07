@@ -42,7 +42,7 @@ func TestRunner_FormatAgentInstructions_IncludesCommands(t *testing.T) {
 		"01_SEQUENCE", // sequence name from test data
 		"/tmp/fest/001_PHASE/01_SEQUENCE/01_task.md", // task path from test data
 		runner.config.ActionInstruction,              // action instruction from config
-		"fest progress --task",                       // progress command
+		"fest task completed",                         // completion command
 	}
 
 	for _, snippet := range dynamicValues {

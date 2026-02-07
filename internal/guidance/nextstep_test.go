@@ -213,7 +213,7 @@ func TestNextStep_GetCompletionCommand(t *testing.T) {
 		{
 			name: "default completion command uses path",
 			step: NewTaskStep("t1", "Task", "/path/to/task.md", AutonomyHigh),
-			want: "fest progress --task /path/to/task.md --complete",
+			want: "fest task completed /path/to/task.md",
 		},
 		{
 			name: "custom completion command is used",

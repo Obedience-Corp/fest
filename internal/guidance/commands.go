@@ -31,7 +31,7 @@ var DefaultModeCommands = map[Mode]ModeCommands{
 		DisplayName:     "Implementation Mode",
 		StartCommand:    "fest execute",
 		NextCommand:     "fest next",
-		CompleteCommand: "fest progress --complete",
+		CompleteCommand: "fest task completed",
 		AdditionalCmds:  nil,
 	},
 	ModePlan: {
@@ -64,7 +64,7 @@ var DefaultModeCommands = map[Mode]ModeCommands{
 		DisplayName:     "Review Mode",
 		StartCommand:    "fest execute --mode review",
 		NextCommand:     "fest next --mode review",
-		CompleteCommand: "fest progress --complete",
+		CompleteCommand: "fest task completed",
 		AdditionalCmds: map[string]string{
 			"pass": "fest review --pass",
 			"fail": "fest review --fail",
@@ -75,7 +75,7 @@ var DefaultModeCommands = map[Mode]ModeCommands{
 		DisplayName:     "Action Mode",
 		StartCommand:    "fest execute --mode action",
 		NextCommand:     "fest next --mode action",
-		CompleteCommand: "fest progress --complete",
+		CompleteCommand: "fest task completed",
 		AdditionalCmds: map[string]string{
 			"complete": "fest action --complete",
 			"fail":     "fest action --fail",
@@ -119,8 +119,8 @@ func GetModeCommands(mode Mode) ModeCommands {
 	return DefaultModeCommands[ModeImplementation]
 }
 
-// FormatProgressCommand returns the full progress command for completing a task.
-// This centralizes the command format: fest progress --task <path> --complete
+// FormatProgressCommand returns the full command for completing a task.
+// This centralizes the command format: fest task completed <path>
 func FormatProgressCommand(taskPath string) string {
-	return "fest progress --task " + taskPath + " --complete"
+	return "fest task completed " + taskPath
 }

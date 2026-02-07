@@ -130,7 +130,7 @@ func sequenceSuggestions(loc *show.LocationInfo) []CommandSuggestion {
 	return []CommandSuggestion{
 		{"fest status", fmt.Sprintf("View %s sequence status", seq)},
 		{"fest next", "Show next task in this sequence"},
-		{"fest progress --complete", "Mark current task complete"},
+		{"fest task completed", "Mark current task complete"},
 		{"fest go ..", "Navigate to parent phase"},
 		{"fest create task", "Add a task to this sequence"},
 	}
@@ -138,7 +138,7 @@ func sequenceSuggestions(loc *show.LocationInfo) []CommandSuggestion {
 
 func taskSuggestions(loc *show.LocationInfo) []CommandSuggestion {
 	return []CommandSuggestion{
-		{"fest progress --complete", "Mark this task complete"},
+		{"fest task completed", "Mark this task complete"},
 		{"fest next", "Show next task after this one"},
 		{"fest go ..", "Navigate to parent sequence"},
 		{"fest markers fill", "Fill task markers"},

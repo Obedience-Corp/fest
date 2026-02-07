@@ -95,7 +95,7 @@ func TestGetSuggestedCommands(t *testing.T) {
 				Phase:    "001_PLANNING",
 				Sequence: "01_setup",
 			},
-			wantContains: []string{"fest progress", "fest next"},
+			wantContains: []string{"fest task completed", "fest next"},
 		},
 		{
 			name: "task location",
@@ -106,7 +106,7 @@ func TestGetSuggestedCommands(t *testing.T) {
 				Sequence: "01_setup",
 				Task:     "01_init.md",
 			},
-			wantContains: []string{"fest progress", "fest next"},
+			wantContains: []string{"fest task completed", "fest next"},
 		},
 	}
 

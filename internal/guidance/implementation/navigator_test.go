@@ -944,7 +944,7 @@ func TestNavigator_FormatInstructions(t *testing.T) {
 	if !strings.Contains(output, "Context Files") {
 		t.Error("FormatInstructions() missing context section")
 	}
-	if !strings.Contains(output, "fest progress") {
+	if !strings.Contains(output, "fest task completed") {
 		t.Error("FormatInstructions() missing completion command")
 	}
 }
