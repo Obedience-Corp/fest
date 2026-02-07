@@ -212,6 +212,40 @@ func (m *Manager) ReportBlocker(ctx context.Context, taskID, message string) err
 	return m.store.Save(ctx)
 }
 
+// ResetTask resets a task back to pending status, clearing all progress data.
+func (m *Manager) ResetTask(ctx context.Context, taskID string) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled")
+	}
+
+	task, exists := m.store.GetTask(taskID)
+	if !exists {
+		task = &TaskProgress{
+			TaskID: taskID,
+		}
+	}
+
+	now := time.Now().UTC()
+
+	task.Status = StatusPending
+	task.Progress = 0
+	task.StartedAt = nil
+	task.CompletedAt = nil
+	task.TimeSpentMinutes = 0
+	task.BlockerMessage = ""
+	task.BlockedAt = nil
+
+	// Queue reset event
+	m.store.QueueEvent(&ProgressEvent{
+		Timestamp: now,
+		Event:     EventReset,
+		Task:      taskID,
+	})
+
+	m.store.SetTask(task)
+	return m.store.Save(ctx)
+}
+
 // ClearBlocker clears a blocker for a task
 func (m *Manager) ClearBlocker(ctx context.Context, taskID string) error {
 	if err := ctx.Err(); err != nil {
