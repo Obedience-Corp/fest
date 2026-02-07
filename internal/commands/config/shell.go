@@ -266,6 +266,19 @@ fls() {
             ;;
     esac
 }
+
+# Wrap fest binary so 'fest go' changes directory like fgo
+fest() {
+    case "$1" in
+        go|g)
+            shift
+            fgo "$@"
+            ;;
+        *)
+            command fest "$@"
+            ;;
+    esac
+}
 `
 }
 
@@ -391,6 +404,16 @@ function fls
         case '*'
             # Pass all arguments through to fest list
             command fest list $argv
+    end
+end
+
+# Wrap fest binary so 'fest go' changes directory like fgo
+function fest
+    switch $argv[1]
+        case go g
+            fgo $argv[2..]
+        case '*'
+            command fest $argv
     end
 end
 `
