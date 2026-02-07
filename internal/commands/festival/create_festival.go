@@ -44,23 +44,23 @@ type CreateFestivalOptions struct {
 }
 
 type createFestivalResult struct {
-	OK               bool                     `json:"ok"`
-	Action           string                   `json:"action"`
-	Festival         map[string]string        `json:"festival,omitempty"`
-	Created          []string                 `json:"created,omitempty"`
-	AutoPhasesCreated []string                `json:"auto_phases_created,omitempty"`
-	GatesDirectory   string                   `json:"gates_directory,omitempty"`
-	FestYAML         string                   `json:"fest_yaml,omitempty"`
-	GateTemplates    []string                 `json:"gate_templates,omitempty"`
-	ProjectPath      string                   `json:"project_path,omitempty"`
-	ProjectLinked    bool                     `json:"project_linked,omitempty"`
-	Markers          []map[string]interface{} `json:"markers,omitempty"`
-	MarkersFilled    int                      `json:"markers_filled,omitempty"`
-	MarkersTotal     int                      `json:"markers_total,omitempty"`
-	Validation       *ValidationSummary       `json:"validation,omitempty"`
-	Errors           []map[string]any         `json:"errors,omitempty"`
-	Warnings         []string                 `json:"warnings,omitempty"`
-	Extra            map[string]interface{}   `json:"extra,omitempty"`
+	OK                bool                     `json:"ok"`
+	Action            string                   `json:"action"`
+	Festival          map[string]string        `json:"festival,omitempty"`
+	Created           []string                 `json:"created,omitempty"`
+	AutoPhasesCreated []string                 `json:"auto_phases_created,omitempty"`
+	GatesDirectory    string                   `json:"gates_directory,omitempty"`
+	FestYAML          string                   `json:"fest_yaml,omitempty"`
+	GateTemplates     []string                 `json:"gate_templates,omitempty"`
+	ProjectPath       string                   `json:"project_path,omitempty"`
+	ProjectLinked     bool                     `json:"project_linked,omitempty"`
+	Markers           []map[string]interface{} `json:"markers,omitempty"`
+	MarkersFilled     int                      `json:"markers_filled,omitempty"`
+	MarkersTotal      int                      `json:"markers_total,omitempty"`
+	Validation        *ValidationSummary       `json:"validation,omitempty"`
+	Errors            []map[string]any         `json:"errors,omitempty"`
+	Warnings          []string                 `json:"warnings,omitempty"`
+	Extra             map[string]interface{}   `json:"extra,omitempty"`
 }
 
 // NewCreateFestivalCommand adds 'create festival'
@@ -358,6 +358,31 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 					}
 				}
 			}
+		}
+	}
+
+	// Populate TypeConfig in fest.yaml if festival type is specified
+	if festivalType != nil {
+		autoPhaseNames := make([]string, 0, len(festivalType.GetAutoPhases()))
+		for _, p := range festivalType.GetAutoPhases() {
+			autoPhaseNames = append(autoPhaseNames, p.Name)
+		}
+
+		pendingPhases := make([]config.PendingPhase, 0, len(festivalType.GetPendingPhases()))
+		for _, p := range festivalType.GetPendingPhases() {
+			pendingPhases = append(pendingPhases, config.PendingPhase{
+				Name:      p.Name,
+				Type:      p.Type,
+				Role:      p.Role,
+				Trigger:   p.Trigger,
+				Generator: p.Generator,
+			})
+		}
+
+		festConfig.TypeConfig = &config.TypeConfigMetadata{
+			AutoPhases:    autoPhaseNames,
+			PendingPhases: pendingPhases,
+			SkipIngestion: festivalType.SkipIngestion,
 		}
 	}
 

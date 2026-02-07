@@ -111,9 +111,16 @@ func RunCreatePhase(ctx context.Context, opts *CreatePhaseOptions) error {
 	display := ui.New(shared.IsNoColor(), shared.IsVerbose())
 	cwd, _ := os.Getwd()
 
+	// Use opts.Path for resolution when available (programmatic calls),
+	// otherwise fall back to CWD (interactive CLI usage).
+	resolveDir := cwd
+	if opts.Path != "" {
+		resolveDir = opts.Path
+	}
+
 	// Resolve paths for config loading
-	festivalsRoot := ResolveFestivalsRoot(cwd)
-	festivalPath := ResolveFestivalPath(cwd)
+	festivalsRoot := ResolveFestivalsRoot(resolveDir)
+	festivalPath := ResolveFestivalPath(resolveDir)
 
 	// Load effective agent config (workspace + festival merged)
 	agentCfg := LoadEffectiveAgentConfig(festivalsRoot, festivalPath)
@@ -122,7 +129,7 @@ func RunCreatePhase(ctx context.Context, opts *CreatePhaseOptions) error {
 	effectiveSkipMarkers := config.EffectiveSkipMarkers(agentCfg, opts.AgentMode, opts.SkipMarkers)
 
 	// Resolve template root
-	tmplRoot, err := tpl.LocalTemplateRoot(cwd)
+	tmplRoot, err := tpl.LocalTemplateRoot(resolveDir)
 	if err != nil {
 		return emitCreatePhaseError(opts, err)
 	}
