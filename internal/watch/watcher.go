@@ -35,9 +35,9 @@ type Watcher struct {
 	onChange func()
 	watcher  *fsnotify.Watcher
 
-	mu       sync.Mutex
-	timer    *time.Timer
-	pending  bool
+	mu      sync.Mutex
+	timer   *time.Timer
+	pending bool
 }
 
 // ErrNoWatchablePaths is returned when none of the specified paths can be watched.

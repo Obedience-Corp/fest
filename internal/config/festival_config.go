@@ -18,7 +18,7 @@ type FestivalConfig struct {
 	Version          string              `yaml:"version"`
 	Metadata         FestivalMetadata    `yaml:"metadata,omitempty"`
 	ProjectPath      string              `yaml:"project_path,omitempty"` // Path to linked project directory
-	TypeConfig       *TypeConfigMetadata `yaml:"type_config,omitempty"` // Type-specific configuration
+	TypeConfig       *TypeConfigMetadata `yaml:"type_config,omitempty"`  // Type-specific configuration
 	QualityGates     QualityGatesConfig  `yaml:"quality_gates"`
 	ExcludedPatterns []string            `yaml:"excluded_patterns"`
 	Templates        TemplatePrefs       `yaml:"templates"`
@@ -37,8 +37,8 @@ type TypeConfigMetadata struct {
 type PendingPhase struct {
 	Name      string `yaml:"name"`                // Phase name (e.g., "IMPLEMENT")
 	Type      string `yaml:"type"`                // Phase type (e.g., "implement")
-	Role      string `yaml:"role,omitempty"`       // Agent role for this phase
-	Trigger   string `yaml:"trigger,omitempty"`    // When to create (e.g., "manual", "auto")
+	Role      string `yaml:"role,omitempty"`      // Agent role for this phase
+	Trigger   string `yaml:"trigger,omitempty"`   // When to create (e.g., "manual", "auto")
 	Generator string `yaml:"generator,omitempty"` // How to create (e.g., "phase_scaffold", "template")
 }
 

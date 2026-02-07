@@ -479,4 +479,3 @@ func TestImplementationGates(t *testing.T) {
 		}
 	}
 }
-
