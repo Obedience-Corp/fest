@@ -73,6 +73,10 @@ install:
     fi
     echo "✅ fest installed to {{gobin}}/{{binary_name}}"
 
+# Generate CLI reference docs
+docs: build-only
+    ./{{bin_dir}}/{{binary_name}} gendocs --output docs/cli-reference --format markdown --single
+
 # Uninstall fest from $GOBIN
 uninstall:
     #!/usr/bin/env bash
