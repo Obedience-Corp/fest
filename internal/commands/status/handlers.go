@@ -12,6 +12,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/commands/tui"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/navigation"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/ui/theme"
@@ -362,11 +363,46 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 		return errors.IO("moving festival directory", err)
 	}
 
-	return emitFestivalMoveSuccess(opts, festival, newStatus, newPath)
+	// Update navigation links after successful move
+	linkAction := updateNavigationAfterMove(festival.Name, newStatus, newPath)
+
+	return emitFestivalMoveSuccess(opts, festival, newStatus, newPath, linkAction)
+}
+
+// updateNavigationAfterMove updates the navigation link after a festival move.
+// On completion, the link is removed (project freed). On other transitions, the
+// festival path is updated so the link stays accurate.
+// Returns a human-readable description of the action taken, or empty string.
+func updateNavigationAfterMove(festivalName, newStatus, newPath string) string {
+	nav, err := navigation.LoadNavigation()
+	if err != nil {
+		// Navigation not available (no campaign context, etc.) - skip silently
+		return ""
+	}
+
+	link, linked := nav.GetLink(festivalName)
+	if !linked {
+		return ""
+	}
+
+	if newStatus == "completed" {
+		nav.RemoveLink(festivalName)
+		if saveErr := nav.Save(); saveErr != nil {
+			return fmt.Sprintf("warning: could not unlink project: %v", saveErr)
+		}
+		return fmt.Sprintf("unlinked project %s", link.Path)
+	}
+
+	// Non-terminal transition: update the festival path in the link
+	nav.SetLinkWithPath(festivalName, link.Path, newPath)
+	if saveErr := nav.Save(); saveErr != nil {
+		return fmt.Sprintf("warning: could not update link path: %v", saveErr)
+	}
+	return "link path updated"
 }
 
 // emitFestivalMoveSuccess outputs success message after moving a festival.
-func emitFestivalMoveSuccess(opts *statusOptions, festival *show.FestivalInfo, newStatus, newPath string) error {
+func emitFestivalMoveSuccess(opts *statusOptions, festival *show.FestivalInfo, newStatus, newPath, linkAction string) error {
 	if opts.json {
 		result := map[string]interface{}{
 			"success":    true,
@@ -375,6 +411,9 @@ func emitFestivalMoveSuccess(opts *statusOptions, festival *show.FestivalInfo, n
 			"new_status": newStatus,
 			"old_path":   festival.Path,
 			"new_path":   newPath,
+		}
+		if linkAction != "" {
+			result["link_action"] = linkAction
 		}
 		if err := shared.EncodeJSON(os.Stdout, result); err != nil {
 			return errors.Wrap(err, "encoding JSON output")
@@ -385,6 +424,9 @@ func emitFestivalMoveSuccess(opts *statusOptions, festival *show.FestivalInfo, n
 		fmt.Printf("%s %s\n", ui.Label("From"), ui.GetStateStyle(festival.Status).Render(festival.Status))
 		fmt.Printf("%s %s\n", ui.Label("To"), ui.GetStateStyle(newStatus).Render(newStatus))
 		fmt.Printf("%s %s\n", ui.Label("Path"), ui.Dim(newPath))
+		if linkAction != "" {
+			fmt.Printf("%s %s\n", ui.Label("Link"), ui.Dim(linkAction))
+		}
 	}
 	return nil
 }
