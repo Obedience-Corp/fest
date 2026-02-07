@@ -185,7 +185,7 @@ fgo() {
         list)
             # Interactive list - select and navigate to destination
             local dest
-            dest=$(command fest go list --interactive 2>/dev/null)
+            dest=$(command fest go list --interactive --print 2>/dev/null)
             local exit_code=$?
             if [[ $exit_code -eq 0 && -n "$dest" && -d "$dest" ]]; then
                 cd "$dest"
@@ -197,7 +197,7 @@ fgo() {
         project)
             # Navigate to linked project
             local dest
-            dest=$(command fest go project 2>&1)
+            dest=$(command fest go project --print 2>&1)
             local exit_code=$?
             if [[ $exit_code -eq 0 && -n "$dest" && -d "$dest" ]]; then
                 cd "$dest"
@@ -209,7 +209,7 @@ fgo() {
         fest)
             # Navigate back to festival from project
             local dest
-            dest=$(command fest go fest 2>&1)
+            dest=$(command fest go fest --print 2>&1)
             local exit_code=$?
             if [[ $exit_code -eq 0 && -n "$dest" && -d "$dest" ]]; then
                 cd "$dest"
@@ -222,7 +222,7 @@ fgo() {
             # Shortcut navigation: strip leading dash and lookup
             local name="${1#-}"
             local dest
-            dest=$(command fest go shortcut "$name" 2>&1)
+            dest=$(command fest go shortcut "$name" --print 2>&1)
             local exit_code=$?
             if [[ $exit_code -eq 0 && -n "$dest" && -d "$dest" ]]; then
                 cd "$dest"
@@ -237,9 +237,9 @@ fgo() {
             local dest
             if [[ -n "$2" && "$1" =~ ^(active|planned|completed|dungeon)$ ]]; then
                 # Status dir + festival name: combine (e.g., active my-fest → active/my-fest)
-                dest=$(command fest go "$1/$2")
+                dest=$(command fest go "$1/$2" --print)
             else
-                dest=$(command fest go "$@")
+                dest=$(command fest go "$@" --print)
             fi
             local exit_code=$?
             if [[ $exit_code -eq 0 && -n "$dest" && -d "$dest" ]]; then
@@ -316,7 +316,7 @@ function fgo
             command fest go $argv
         case list
             # Interactive list - select and navigate to destination
-            set -l dest (command fest go list --interactive 2>/dev/null)
+            set -l dest (command fest go list --interactive --print 2>/dev/null)
             set -l exit_code $status
             if test $exit_code -eq 0 -a -n "$dest" -a -d "$dest"
                 cd $dest
@@ -326,7 +326,7 @@ function fgo
             end
         case project
             # Navigate to linked project
-            set -l dest (command fest go project 2>&1)
+            set -l dest (command fest go project --print 2>&1)
             set -l exit_code $status
             if test $exit_code -eq 0 -a -n "$dest" -a -d "$dest"
                 cd $dest
@@ -336,7 +336,7 @@ function fgo
             end
         case fest
             # Navigate back to festival from project
-            set -l dest (command fest go fest 2>&1)
+            set -l dest (command fest go fest --print 2>&1)
             set -l exit_code $status
             if test $exit_code -eq 0 -a -n "$dest" -a -d "$dest"
                 cd $dest
@@ -347,7 +347,7 @@ function fgo
         case '-*'
             # Shortcut navigation: strip leading dash and lookup
             set -l name (string sub -s 2 $argv[1])
-            set -l dest (command fest go shortcut $name 2>&1)
+            set -l dest (command fest go shortcut $name --print 2>&1)
             set -l exit_code $status
             if test $exit_code -eq 0 -a -n "$dest" -a -d "$dest"
                 cd $dest
@@ -369,7 +369,7 @@ function fgo
             else
                 set target $argv
             end
-            set -l dest (command fest go $target 2>&1)
+            set -l dest (command fest go $target --print 2>&1)
             set -l exit_code $status
             if test $exit_code -eq 0 -a -n "$dest" -a -d "$dest"
                 cd $dest
