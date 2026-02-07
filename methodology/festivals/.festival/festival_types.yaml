@@ -1,0 +1,65 @@
+# Festival Types Configuration
+# Defines available festival types and their auto-scaffolded phase structures
+version: 1
+
+types:
+  # Standard festival type - balanced planning and execution
+  - name: standard
+    description: Default festival type with full planning and implementation phases
+    default: true
+    phases:
+      - name: INGEST
+        type: standard
+        auto: true
+      - name: PLAN
+        type: standard
+        auto: true
+      - name: IMPLEMENT
+        type: implementation
+        auto: false
+      - name: POLISH
+        type: standard
+        auto: false
+
+  # Implementation-focused festival - minimal planning, fast start
+  - name: implementation
+    description: Skip detailed planning, focus on execution. Auto-scaffolds INGEST only
+    skip_ingestion: false
+    phases:
+      - name: INGEST
+        type: standard
+        auto: true
+      - name: IMPLEMENT
+        type: implementation
+        auto: false
+
+  # Research festival - investigation and synthesis
+  - name: research
+    description: Research-oriented festival with investigation and synthesis phases
+    phases:
+      - name: INGEST
+        type: standard
+        auto: true
+      - name: RESEARCH
+        type: research
+        auto: true
+        role: investigate
+      - name: SYNTHESIZE
+        type: standard
+        auto: true
+        trigger: research_complete
+
+  # Quick festival - bypass ingestion, single execution phase
+  - name: quick
+    description: Quick execution without ingestion. Single DO phase auto-scaffolded
+    skip_ingestion: true
+    phases:
+      - name: DO
+        type: simple
+        auto: true
+
+  # Ritual festival - template-driven custom structure
+  - name: ritual
+    description: Custom festival structure defined by template. No default phases
+    note: Phase structure determined by ritual template configuration
+    phases: []
