@@ -119,8 +119,9 @@ func GetModeCommands(mode Mode) ModeCommands {
 	return DefaultModeCommands[ModeImplementation]
 }
 
-// FormatProgressCommand returns the full command for completing a task.
-// This centralizes the command format: fest task completed <path>
-func FormatProgressCommand(taskPath string) string {
-	return "fest task completed " + taskPath
+// FormatProgressCommand returns the command for completing a task.
+// The task path argument is accepted for backward compatibility but ignored;
+// fest task completed auto-detects the current task.
+func FormatProgressCommand(_ string) string {
+	return "fest task completed"
 }

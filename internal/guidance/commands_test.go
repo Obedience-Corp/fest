@@ -83,34 +83,23 @@ func TestGetModeCommands(t *testing.T) {
 }
 
 func TestFormatProgressCommand(t *testing.T) {
+	// FormatProgressCommand ignores the path arg and always returns the base command,
+	// since fest task completed auto-detects the current task.
 	tests := []struct {
 		name     string
 		taskPath string
-		want     string
 	}{
-		{
-			name:     "simple path",
-			taskPath: "task.md",
-			want:     "fest task completed task.md",
-		},
-		{
-			name:     "nested path",
-			taskPath: "001_PHASE/01_seq/01_task.md",
-			want:     "fest task completed 001_PHASE/01_seq/01_task.md",
-		},
-		{
-			name:     "absolute path",
-			taskPath: "/path/to/task.md",
-			want:     "fest task completed /path/to/task.md",
-		},
+		{name: "simple path", taskPath: "task.md"},
+		{name: "nested path", taskPath: "001_PHASE/01_seq/01_task.md"},
+		{name: "absolute path", taskPath: "/path/to/task.md"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := FormatProgressCommand(tt.taskPath)
-			if got != tt.want {
+			if got != "fest task completed" {
 				t.Errorf("FormatProgressCommand(%q) = %q, want %q",
-					tt.taskPath, got, tt.want)
+					tt.taskPath, got, "fest task completed")
 			}
 		})
 	}
