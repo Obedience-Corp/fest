@@ -15,14 +15,31 @@ const (
 
 // FestivalConfig represents per-festival configuration
 type FestivalConfig struct {
-	Version          string             `yaml:"version"`
-	Metadata         FestivalMetadata   `yaml:"metadata,omitempty"`
-	ProjectPath      string             `yaml:"project_path,omitempty"` // Path to linked project directory
-	QualityGates     QualityGatesConfig `yaml:"quality_gates"`
-	ExcludedPatterns []string           `yaml:"excluded_patterns"`
-	Templates        TemplatePrefs      `yaml:"templates"`
-	Tracking         TrackingConfig     `yaml:"tracking"`
-	Agent            AgentConfig        `yaml:"agent,omitempty"`
+	Version          string              `yaml:"version"`
+	Metadata         FestivalMetadata    `yaml:"metadata,omitempty"`
+	ProjectPath      string              `yaml:"project_path,omitempty"` // Path to linked project directory
+	TypeConfig       *TypeConfigMetadata `yaml:"type_config,omitempty"`  // Type-specific configuration
+	QualityGates     QualityGatesConfig  `yaml:"quality_gates"`
+	ExcludedPatterns []string            `yaml:"excluded_patterns"`
+	Templates        TemplatePrefs       `yaml:"templates"`
+	Tracking         TrackingConfig      `yaml:"tracking"`
+	Agent            AgentConfig         `yaml:"agent,omitempty"`
+}
+
+// TypeConfigMetadata holds festival type-specific configuration recorded at creation.
+type TypeConfigMetadata struct {
+	AutoPhases    []string       `yaml:"auto_phases,omitempty"`    // Phases auto-scaffolded at creation
+	PendingPhases []PendingPhase `yaml:"pending_phases,omitempty"` // Phases to be created later
+	SkipIngestion bool           `yaml:"skip_ingestion,omitempty"` // For quick type: skip ingest phase
+}
+
+// PendingPhase describes a phase that should be created later.
+type PendingPhase struct {
+	Name      string `yaml:"name"`                // Phase name (e.g., "IMPLEMENT")
+	Type      string `yaml:"type"`                // Phase type (e.g., "implement")
+	Role      string `yaml:"role,omitempty"`      // Agent role for this phase
+	Trigger   string `yaml:"trigger,omitempty"`   // When to create (e.g., "manual", "auto")
+	Generator string `yaml:"generator,omitempty"` // How to create (e.g., "phase_scaffold", "template")
 }
 
 // QualityGatesConfig contains quality gate settings.
@@ -141,6 +158,11 @@ func applyFestivalDefaults(cfg *FestivalConfig) {
 		cfg.Version = defaults.Version
 	}
 
+	// Default festival type to "standard" if metadata has no type set
+	if cfg.Metadata.FestivalType == "" {
+		cfg.Metadata.FestivalType = "standard"
+	}
+
 	// Apply defaults for phase-specific gates if not defined
 	// Note: We don't fill in defaults for phase gates - if not defined in fest.yaml,
 	// they simply won't have gates applied. This is intentional.
@@ -213,4 +235,49 @@ func FestivalConfigExists(festivalPath string) bool {
 	configPath := filepath.Join(festivalPath, FestivalConfigFileName)
 	_, err := os.Stat(configPath)
 	return err == nil
+}
+
+// HasPendingPhases returns true if the festival has phases pending creation.
+func (cfg *FestivalConfig) HasPendingPhases() bool {
+	return cfg.TypeConfig != nil && len(cfg.TypeConfig.PendingPhases) > 0
+}
+
+// GetPendingPhaseByName finds a pending phase by name.
+func (cfg *FestivalConfig) GetPendingPhaseByName(name string) (*PendingPhase, bool) {
+	if cfg.TypeConfig == nil {
+		return nil, false
+	}
+	for i := range cfg.TypeConfig.PendingPhases {
+		if cfg.TypeConfig.PendingPhases[i].Name == name {
+			return &cfg.TypeConfig.PendingPhases[i], true
+		}
+	}
+	return nil, false
+}
+
+// IsAutoPhase checks if a phase name was auto-scaffolded at creation.
+func (cfg *FestivalConfig) IsAutoPhase(phaseName string) bool {
+	if cfg.TypeConfig == nil {
+		return false
+	}
+	for _, name := range cfg.TypeConfig.AutoPhases {
+		if name == phaseName {
+			return true
+		}
+	}
+	return false
+}
+
+// RemovePendingPhase removes a phase from the pending list (e.g., after creation).
+func (cfg *FestivalConfig) RemovePendingPhase(name string) {
+	if cfg.TypeConfig == nil {
+		return
+	}
+	filtered := make([]PendingPhase, 0, len(cfg.TypeConfig.PendingPhases))
+	for _, phase := range cfg.TypeConfig.PendingPhases {
+		if phase.Name != name {
+			filtered = append(filtered, phase)
+		}
+	}
+	cfg.TypeConfig.PendingPhases = filtered
 }

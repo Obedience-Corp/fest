@@ -23,8 +23,8 @@ const (
 type Navigation struct {
 	Version      int               `yaml:"version"`
 	UpdatedAt    time.Time         `yaml:"updated_at"`
-	Links        map[string]*Link  `yaml:"links"`              // festival name -> project path
-	ProjectLinks map[string]string `yaml:"-"`                  // project path -> festival name (rebuilt on load, not serialized)
+	Links        map[string]*Link  `yaml:"links"` // festival name -> project path
+	ProjectLinks map[string]string `yaml:"-"`     // project path -> festival name (rebuilt on load, not serialized)
 	Shortcuts    map[string]string `yaml:"shortcuts,omitempty"`
 }
 

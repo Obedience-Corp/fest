@@ -204,10 +204,10 @@ func TestLinkRoutingUsesPhysicalPath(t *testing.T) {
 	}
 
 	tests := []struct {
-		name             string
-		path             string
-		wantInsideFest   bool
-		description      string
+		name           string
+		path           string
+		wantInsideFest bool
+		description    string
 	}{
 		{
 			"festival dir routes to project picker",

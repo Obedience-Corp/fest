@@ -26,6 +26,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/status"
 	"github.com/Obedience-Corp/fest/internal/commands/structure"
 	"github.com/Obedience-Corp/fest/internal/commands/system"
+	taskcmd "github.com/Obedience-Corp/fest/internal/commands/task"
 	templatescmd "github.com/Obedience-Corp/fest/internal/commands/templates"
 	typescmd "github.com/Obedience-Corp/fest/internal/commands/types"
 	understandcmd "github.com/Obedience-Corp/fest/internal/commands/understand"
@@ -215,6 +216,10 @@ func init() {
 	workflowCmd := workflowcmd.NewWorkflowCommand()
 	workflowCmd.GroupID = "workflow"
 	rootCmd.AddCommand(workflowCmd)
+
+	taskCmd := taskcmd.NewTaskCommand()
+	taskCmd.GroupID = "workflow"
+	rootCmd.AddCommand(taskCmd)
 
 	// === QUERY COMMANDS ===
 	showCmd := show.NewShowCommand()

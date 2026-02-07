@@ -31,7 +31,7 @@ var DefaultModeCommands = map[Mode]ModeCommands{
 		DisplayName:     "Implementation Mode",
 		StartCommand:    "fest execute",
 		NextCommand:     "fest next",
-		CompleteCommand: "fest progress --complete",
+		CompleteCommand: "fest task completed",
 		AdditionalCmds:  nil,
 	},
 	ModePlan: {
@@ -64,7 +64,7 @@ var DefaultModeCommands = map[Mode]ModeCommands{
 		DisplayName:     "Review Mode",
 		StartCommand:    "fest execute --mode review",
 		NextCommand:     "fest next --mode review",
-		CompleteCommand: "fest progress --complete",
+		CompleteCommand: "fest task completed",
 		AdditionalCmds: map[string]string{
 			"pass": "fest review --pass",
 			"fail": "fest review --fail",
@@ -75,7 +75,7 @@ var DefaultModeCommands = map[Mode]ModeCommands{
 		DisplayName:     "Action Mode",
 		StartCommand:    "fest execute --mode action",
 		NextCommand:     "fest next --mode action",
-		CompleteCommand: "fest progress --complete",
+		CompleteCommand: "fest task completed",
 		AdditionalCmds: map[string]string{
 			"complete": "fest action --complete",
 			"fail":     "fest action --fail",
@@ -119,8 +119,9 @@ func GetModeCommands(mode Mode) ModeCommands {
 	return DefaultModeCommands[ModeImplementation]
 }
 
-// FormatProgressCommand returns the full progress command for completing a task.
-// This centralizes the command format: fest progress --task <path> --complete
-func FormatProgressCommand(taskPath string) string {
-	return "fest progress --task " + taskPath + " --complete"
+// FormatProgressCommand returns the command for completing a task.
+// The task path argument is accepted for backward compatibility but ignored;
+// fest task completed auto-detects the current task.
+func FormatProgressCommand(_ string) string {
+	return "fest task completed"
 }

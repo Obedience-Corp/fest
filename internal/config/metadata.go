@@ -16,6 +16,9 @@ type FestivalMetadata struct {
 	// Name is the original festival name without the ID suffix.
 	Name string `yaml:"name,omitempty"`
 
+	// FestivalType is the type of festival (e.g., "standard", "implementation", "research", "quick", "ritual").
+	FestivalType string `yaml:"festival_type,omitempty"`
+
 	// CreatedAt is when the festival was first created.
 	CreatedAt time.Time `yaml:"created_at,omitempty"`
 

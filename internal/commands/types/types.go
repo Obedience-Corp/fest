@@ -24,6 +24,7 @@ Examples:
 
 	cmd.AddCommand(newListCmd())
 	cmd.AddCommand(newShowCmd())
+	cmd.AddCommand(newFestivalCmd())
 
 	return cmd
 }

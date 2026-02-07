@@ -23,6 +23,7 @@ const (
 	EventProgress  EventType = "progress"
 	EventBlocked   EventType = "blocked"
 	EventUnblocked EventType = "unblocked"
+	EventReset     EventType = "reset"
 )
 
 // ProgressEvent represents a single progress event in JSONL format.
@@ -183,6 +184,15 @@ func materializeState(events []ProgressEvent) map[string]*TaskProgress {
 			if task.Status == StatusBlocked {
 				task.Status = StatusInProgress
 			}
+			task.BlockerMessage = ""
+			task.BlockedAt = nil
+
+		case EventReset:
+			task.Status = StatusPending
+			task.Progress = 0
+			task.StartedAt = nil
+			task.CompletedAt = nil
+			task.TimeSpentMinutes = 0
 			task.BlockerMessage = ""
 			task.BlockedAt = nil
 		}
