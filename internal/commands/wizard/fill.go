@@ -107,6 +107,11 @@ EXAMPLES:
 
 The fill wizard transforms tedious manual editing into a guided experience,
 ensuring all template markers are properly completed.`,
+		Annotations: map[string]string{
+			"agent_allowed": "false",
+			"agent_reason":  "Interactive editor-based marker filling",
+			"interactive":   "true",
+		},
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.Path = "."

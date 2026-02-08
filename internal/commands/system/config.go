@@ -22,7 +22,10 @@ func NewConfigCommand() *cobra.Command {
 		Use:   "config",
 		Short: "Manage fest configuration settings",
 		Annotations: map[string]string{
-			"scope": string(scope.Global),
+			"scope":         string(scope.Global),
+			"agent_allowed": "false",
+			"agent_reason":  "Interactive configuration TUI",
+			"interactive":   "true",
 		},
 		Long: `Interactive TUI for managing fest configuration.
 
