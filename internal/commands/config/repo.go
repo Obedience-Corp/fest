@@ -18,6 +18,11 @@ func NewConfigCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Manage fest configuration repositories",
+		Annotations: map[string]string{
+			"agent_allowed": "false",
+			"agent_reason":  "Interactive TUI theme editor",
+			"interactive":   "true",
+		},
 		Long: `Manage fest configuration repositories.
 
 Config repos contain custom templates, policies, plugins, and extensions

@@ -14,7 +14,9 @@ func NewShellInitCommand() *cobra.Command {
 		Use:   "shell-init <shell>",
 		Short: "Output shell integration code for festival helpers",
 		Annotations: map[string]string{
-			"scope": string(scope.Global),
+			"scope":         string(scope.Global),
+			"agent_allowed": "false",
+			"agent_reason":  "Shell config output, irrelevant to agents",
 		},
 		Long: `Output shell code that provides shell helper functions.
 

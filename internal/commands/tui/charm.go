@@ -30,6 +30,11 @@ func NewTUICommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tui",
 		Short: "Interactive UI (Charm) for festival creation and editing",
+		Annotations: map[string]string{
+			"agent_allowed": "false",
+			"agent_reason":  "Full interactive Charm TUI",
+			"interactive":   "true",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runCharmTUI(cmd.Context())
 		},

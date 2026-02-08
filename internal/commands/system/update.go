@@ -34,6 +34,10 @@ func NewUpdateCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "update [path]",
 		Short: "System: Update fest methodology files from templates",
+		Annotations: map[string]string{
+			"agent_allowed": "false",
+			"agent_reason":  "Updates methodology files, destructive operation",
+		},
 		Long: `Update the .festival/ methodology files from latest templates.
 
 This is a SYSTEM command that updates fest's methodology files (templates,

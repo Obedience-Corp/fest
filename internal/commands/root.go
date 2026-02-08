@@ -14,6 +14,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/gates"
 	introcmd "github.com/Obedience-Corp/fest/internal/commands/intro"
 	listcmd "github.com/Obedience-Corp/fest/internal/commands/list"
+	manifestcmd "github.com/Obedience-Corp/fest/internal/commands/manifest"
 	"github.com/Obedience-Corp/fest/internal/commands/markers"
 	"github.com/Obedience-Corp/fest/internal/commands/migrate"
 	"github.com/Obedience-Corp/fest/internal/commands/navigation"
@@ -150,7 +151,10 @@ func init() {
 		Short:   "Create festivals, phases, sequences, or tasks (TUI)",
 		GroupID: "creation",
 		Annotations: map[string]string{
-			"scope": string(scope.Festival),
+			"scope":         string(scope.Festival),
+			"agent_allowed": "false",
+			"agent_reason":  "Launches interactive TUI picker when run without subcommand",
+			"interactive":   "true",
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return shared.StartCreateTUI(cmd.Context())
@@ -328,6 +332,10 @@ func init() {
 	typesCmd := typescmd.NewTypesCommand()
 	typesCmd.GroupID = "query"
 	rootCmd.AddCommand(typesCmd)
+
+	// Manifest command for daemon enforcement (hidden)
+	manifestCmd := manifestcmd.NewManifestCommand()
+	rootCmd.AddCommand(manifestCmd)
 }
 
 // styledLongDescription returns the styled long description for the root command.
