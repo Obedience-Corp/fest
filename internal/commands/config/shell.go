@@ -266,6 +266,37 @@ fls() {
             ;;
     esac
 }
+
+# Wrap fest binary so 'fest go' changes directory
+fest() {
+    case "$1" in
+        go|g)
+            shift
+            case "$1" in
+                --help|-h|help)
+                    command fest go --help
+                    ;;
+                link|unlink|map|unmap|move|completions)
+                    command fest go "$@"
+                    ;;
+                *)
+                    local dest
+                    if [ -n "$2" ] && echo "$1" | grep -qE '^(active|planned|completed|dungeon)$'; then
+                        dest=$(command fest go "$1/$2" --print 2>/dev/null)
+                    else
+                        dest=$(command fest go "$@" --print 2>/dev/null)
+                    fi
+                    if [ -n "$dest" ] && [ -d "$dest" ]; then
+                        cd "$dest" || return 1
+                    fi
+                    ;;
+            esac
+            ;;
+        *)
+            command fest "$@"
+            ;;
+    esac
+}
 `
 }
 
@@ -391,6 +422,37 @@ function fls
         case '*'
             # Pass all arguments through to fest list
             command fest list $argv
+    end
+end
+
+# Wrap fest binary so 'fest go' changes directory
+function fest
+    switch $argv[1]
+        case go g
+            set -e argv[1]
+            switch $argv[1]
+                case --help -h help
+                    command fest go --help
+                case link unlink map unmap move completions
+                    command fest go $argv
+                case '*'
+                    set -l dest
+                    if test (count $argv) -ge 2
+                        switch $argv[1]
+                            case active planned completed dungeon
+                                set dest (command fest go "$argv[1]/$argv[2]" --print 2>/dev/null)
+                            case '*'
+                                set dest (command fest go $argv --print 2>/dev/null)
+                        end
+                    else
+                        set dest (command fest go $argv --print 2>/dev/null)
+                    end
+                    if test -n "$dest" -a -d "$dest"
+                        cd $dest
+                    end
+            end
+        case '*'
+            command fest $argv
     end
 end
 `
