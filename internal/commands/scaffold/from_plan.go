@@ -104,7 +104,10 @@ func runFromPlan(ctx context.Context, opts *fromPlanOptions) error {
 	}
 
 	// Find festivals root
-	cwd, _ := os.Getwd()
+	cwd, err := os.Getwd()
+	if err != nil {
+		return emitError(opts, fmt.Errorf("getting current directory: %w", err))
+	}
 	festivalsRoot, err := workspace.FindFestivals(cwd)
 	if err != nil {
 		return emitError(opts, fmt.Errorf("finding festivals directory: %w", err))
@@ -134,10 +137,14 @@ func runFromPlan(ctx context.Context, opts *fromPlanOptions) error {
 		return emitError(opts, fmt.Errorf("festival directory already exists: %s", festivalDir))
 	}
 
+	// Template root is inside the festivals directory
+	tmplRoot := filepath.Join(festivalsRoot, ".festival", "templates")
+
 	// Run scaffold
 	runner := sc.NewRunner(sc.RunnerOptions{
-		FestivalDir: festivalDir,
-		DryRun:      opts.DryRun,
+		FestivalDir:  festivalDir,
+		TemplateRoot: tmplRoot,
+		DryRun:       opts.DryRun,
 	})
 
 	result, err := runner.Run(ctx, plan)
