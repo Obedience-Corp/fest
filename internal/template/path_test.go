@@ -146,6 +146,30 @@ func TestFindFestivalsRoot(t *testing.T) {
 			}
 		})
 	}
+
+	// Test relative path resolution (the "." case)
+	t.Run("resolves relative path from nested festival directory", func(t *testing.T) {
+		origDir, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("failed to get cwd: %v", err)
+		}
+		t.Cleanup(func() { os.Chdir(origDir) })
+
+		if err := os.Chdir(nestedDir); err != nil {
+			t.Fatalf("failed to chdir: %v", err)
+		}
+
+		got, err := FindFestivalsRoot(".")
+		if err != nil {
+			t.Errorf("unexpected error with relative path: %v", err)
+			return
+		}
+		// Resolve symlinks for macOS /var -> /private/var
+		wantResolved, _ := filepath.EvalSymlinks(festivalsDir)
+		if got != wantResolved {
+			t.Errorf("got %q, want %q", got, wantResolved)
+		}
+	})
 }
 
 func TestFindFestivalRoot(t *testing.T) {
@@ -239,6 +263,30 @@ func TestFindFestivalRoot(t *testing.T) {
 			}
 		})
 	}
+
+	// Test relative path resolution (the "." case)
+	t.Run("resolves relative path from inside a festival", func(t *testing.T) {
+		origDir, err := os.Getwd()
+		if err != nil {
+			t.Fatalf("failed to get cwd: %v", err)
+		}
+		t.Cleanup(func() { os.Chdir(origDir) })
+
+		if err := os.Chdir(nestedDir); err != nil {
+			t.Fatalf("failed to chdir: %v", err)
+		}
+
+		got, err := FindFestivalRoot(".")
+		if err != nil {
+			t.Errorf("unexpected error with relative path: %v", err)
+			return
+		}
+		// Resolve symlinks for macOS /var -> /private/var
+		wantResolved, _ := filepath.EvalSymlinks(festivalDir)
+		if got != wantResolved {
+			t.Errorf("got %q, want %q", got, wantResolved)
+		}
+	})
 }
 
 func TestLocalTemplateRoot(t *testing.T) {

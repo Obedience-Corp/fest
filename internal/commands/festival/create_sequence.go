@@ -124,11 +124,16 @@ func RunCreateSequence(ctx context.Context, opts *CreateSequenceOptions) error {
 	}
 
 	display := ui.New(shared.IsNoColor(), shared.IsVerbose())
-	cwd, _ := os.Getwd()
+
+	// Convert to absolute path first so resolution functions can walk the tree
+	absPath, err := filepath.Abs(opts.Path)
+	if err != nil {
+		return emitCreateSequenceError(opts, errors.Wrap(err, "resolving path").WithField("path", opts.Path))
+	}
 
 	// Resolve paths for config loading
-	festivalsRoot := ResolveFestivalsRoot(cwd)
-	festivalPath := ResolveFestivalPath(cwd)
+	festivalsRoot := ResolveFestivalsRoot(absPath)
+	festivalPath := ResolveFestivalPath(absPath)
 
 	// Load effective agent config (workspace + festival merged)
 	agentCfg := LoadEffectiveAgentConfig(festivalsRoot, festivalPath)
@@ -137,14 +142,9 @@ func RunCreateSequence(ctx context.Context, opts *CreateSequenceOptions) error {
 	effectiveSkipMarkers := config.EffectiveSkipMarkers(agentCfg, opts.AgentMode, opts.SkipMarkers)
 
 	// Resolve template root
-	tmplRoot, err := tpl.LocalTemplateRoot(cwd)
+	tmplRoot, err := tpl.LocalTemplateRoot(absPath)
 	if err != nil {
 		return emitCreateSequenceError(opts, err)
-	}
-
-	absPath, err := filepath.Abs(opts.Path)
-	if err != nil {
-		return emitCreateSequenceError(opts, errors.Wrap(err, "resolving path").WithField("path", opts.Path))
 	}
 
 	// Auto-detect last sequence number when --after is not specified (default -1)

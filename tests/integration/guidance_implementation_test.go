@@ -22,7 +22,7 @@ func TestImplementationMode_InitialTask(t *testing.T) {
 
 	// Assert: Should show first task
 	verifyOutputContains(t, output, "first_task")
-	verifyOutputContains(t, output, "fest progress")
+	verifyOutputContains(t, output, "fest task completed")
 }
 
 // TestImplementationMode_Navigation verifies fest next advances through tasks.
