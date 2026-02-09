@@ -8,10 +8,13 @@ import (
 	"path/filepath"
 	"strings"
 
+	"time"
+
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/commands/tui"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/navigation"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -268,25 +271,51 @@ func applyStatusToFestival(ctx context.Context, display *ui.UI, festival *show.F
 	return handleFestivalStatusChange(ctx, display, festival, newStatus, opts)
 }
 
-// emitStatusSetPlaceholder outputs a placeholder message for non-festival status changes.
-func emitStatusSetPlaceholder(display *ui.UI, opts *statusOptions, entityType, newStatus string) error {
-	if opts.json {
-		result := map[string]interface{}{
-			"success":    true,
-			"entity":     entityType,
-			"new_status": newStatus,
-			"note":       "frontmatter updates not yet implemented",
-		}
-		if err := shared.EncodeJSON(os.Stdout, result); err != nil {
-			return errors.Wrap(err, "encoding JSON output")
-		}
-	} else {
-		fmt.Println(ui.H1("Status Updated"))
-		fmt.Printf("%s %s\n", ui.Label("Entity"), ui.Value(string(entityType)))
-		fmt.Printf("%s %s\n", ui.Label("Status"), ui.GetStateStyle(newStatus).Render(newStatus))
-		fmt.Println(ui.Dim("Frontmatter updates pending implementation"))
+// updateGoalFrontmatter reads a goal file, updates its fest_status in frontmatter, and writes it back.
+func updateGoalFrontmatter(goalPath string, newStatus frontmatter.Status) error {
+	content, err := os.ReadFile(goalPath)
+	if err != nil {
+		return errors.IO("reading goal file", err)
+	}
+
+	fm, remaining, err := frontmatter.Parse(content)
+	if err != nil {
+		return errors.Wrap(err, "parsing frontmatter")
+	}
+	if fm == nil {
+		return errors.Validation("goal file has no frontmatter").WithField("path", goalPath)
+	}
+
+	fm.Status = newStatus
+	fm.Updated = time.Now()
+
+	updated, err := frontmatter.Inject(remaining, fm)
+	if err != nil {
+		return errors.Wrap(err, "injecting updated frontmatter")
+	}
+
+	if err := os.WriteFile(goalPath, updated, 0o644); err != nil {
+		return errors.IO("writing updated goal file", err)
 	}
 	return nil
+}
+
+// readGoalStatus reads the current status from a goal file's frontmatter.
+func readGoalStatus(goalPath string) (frontmatter.Status, error) {
+	content, err := os.ReadFile(goalPath)
+	if err != nil {
+		return "", errors.IO("reading goal file", err)
+	}
+
+	fm, _, err := frontmatter.Parse(content)
+	if err != nil {
+		return "", errors.Wrap(err, "parsing frontmatter")
+	}
+	if fm == nil {
+		return "", errors.Validation("goal file has no frontmatter").WithField("path", goalPath)
+	}
+
+	return fm.Status, nil
 }
 
 // handleFestivalStatusChange handles changing a festival's status by moving its directory.
@@ -361,6 +390,15 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 	// Move the directory
 	if err := os.Rename(festival.Path, newPath); err != nil {
 		return errors.IO("moving festival directory", err)
+	}
+
+	// Update FESTIVAL_GOAL.md frontmatter with the new status
+	festivalGoalPath := filepath.Join(newPath, "FESTIVAL_GOAL.md")
+	if _, err := os.Stat(festivalGoalPath); err == nil {
+		if fmErr := updateGoalFrontmatter(festivalGoalPath, frontmatter.Status(newStatus)); fmErr != nil {
+			// Log but don't fail — the directory move already succeeded
+			fmt.Printf("%s %s\n", ui.Dim("Warning: could not update FESTIVAL_GOAL.md frontmatter:"), ui.Dim(fmErr.Error()))
+		}
 	}
 
 	// Update navigation links after successful move
@@ -907,9 +945,21 @@ func handlePhaseStatusSetWithPath(ctx context.Context, display *ui.UI, festivalP
 		return err
 	}
 
-	// Phase status is stored in PHASE_GOAL.md frontmatter
-	_ = phasePath
-	return emitPhaseStatusPlaceholder(display, opts, phaseName, newStatus)
+	goalPath := filepath.Join(phasePath, "PHASE_GOAL.md")
+	oldStatus, err := readGoalStatus(goalPath)
+	if err != nil {
+		return err
+	}
+
+	if string(oldStatus) == newStatus {
+		return emitPhaseStatusAlready(display, opts, phaseName, newStatus)
+	}
+
+	if err := updateGoalFrontmatter(goalPath, frontmatter.Status(newStatus)); err != nil {
+		return err
+	}
+
+	return emitPhaseStatusSuccess(display, opts, phaseName, string(oldStatus), newStatus)
 }
 
 // handleTaskStatusSet handles setting status for a specific task.
@@ -1141,10 +1191,21 @@ func handlePhaseStatusSet(ctx context.Context, display *ui.UI, cwd, newStatus st
 		return err
 	}
 
-	// Phase status is stored in PHASE_GOAL.md frontmatter
-	// For now, emit a placeholder until frontmatter editing is implemented
-	_ = phasePath
-	return emitPhaseStatusPlaceholder(display, opts, phaseName, newStatus)
+	goalPath := filepath.Join(phasePath, "PHASE_GOAL.md")
+	oldStatus, err := readGoalStatus(goalPath)
+	if err != nil {
+		return err
+	}
+
+	if string(oldStatus) == newStatus {
+		return emitPhaseStatusAlready(display, opts, phaseName, newStatus)
+	}
+
+	if err := updateGoalFrontmatter(goalPath, frontmatter.Status(newStatus)); err != nil {
+		return err
+	}
+
+	return emitPhaseStatusSuccess(display, opts, phaseName, string(oldStatus), newStatus)
 }
 
 // resolvePhase finds a phase directory by name or number.
@@ -1185,24 +1246,42 @@ func resolvePhase(festivalPath, phaseInput string) (string, string, error) {
 	return filepath.Join(festivalPath, matches[0]), matches[0], nil
 }
 
-// emitPhaseStatusPlaceholder outputs a placeholder for phase status changes.
-func emitPhaseStatusPlaceholder(display *ui.UI, opts *statusOptions, phaseName, newStatus string) error {
+// emitPhaseStatusAlready outputs message when phase is already at the requested status.
+func emitPhaseStatusAlready(display *ui.UI, opts *statusOptions, phaseName, status string) error {
 	if opts.json {
 		result := map[string]interface{}{
-			"success":    true,
-			"phase":      phaseName,
-			"new_status": newStatus,
-			"note":       "phase status in frontmatter - implementation pending",
+			"success": true,
+			"message": "phase already at requested status",
+			"phase":   phaseName,
+			"status":  status,
 		}
 		if err := shared.EncodeJSON(os.Stdout, result); err != nil {
 			return errors.Wrap(err, "encoding JSON output")
 		}
 	} else {
-		fmt.Println(ui.H1("Phase Status"))
+		fmt.Printf("%s %s\n", ui.Info("Phase already at status"), ui.GetStateStyle(status).Render(status))
 		fmt.Printf("%s %s\n", ui.Label("Phase"), ui.Value(phaseName, ui.PhaseColor))
-		fmt.Printf("%s %s\n", ui.Label("Target"), ui.GetStateStyle(newStatus).Render(newStatus))
-		fmt.Println(ui.Dim("Phase status stored in PHASE_GOAL.md frontmatter"))
-		fmt.Println(ui.Dim("Frontmatter editing pending implementation"))
+	}
+	return nil
+}
+
+// emitPhaseStatusSuccess outputs success message after changing phase status.
+func emitPhaseStatusSuccess(display *ui.UI, opts *statusOptions, phaseName, oldStatus, newStatus string) error {
+	if opts.json {
+		result := map[string]interface{}{
+			"success":    true,
+			"phase":      phaseName,
+			"old_status": oldStatus,
+			"new_status": newStatus,
+		}
+		if err := shared.EncodeJSON(os.Stdout, result); err != nil {
+			return errors.Wrap(err, "encoding JSON output")
+		}
+	} else {
+		fmt.Println(ui.Success("✓ Phase status updated"))
+		fmt.Printf("%s %s\n", ui.Label("Phase"), ui.Value(phaseName, ui.PhaseColor))
+		fmt.Printf("%s %s\n", ui.Label("From"), ui.GetStateStyle(oldStatus).Render(oldStatus))
+		fmt.Printf("%s %s\n", ui.Label("To"), ui.GetStateStyle(newStatus).Render(newStatus))
 	}
 	return nil
 }
@@ -1234,10 +1313,21 @@ func handleSequenceStatusSet(ctx context.Context, display *ui.UI, cwd, newStatus
 		return err
 	}
 
-	// Sequence status is stored in SEQUENCE_GOAL.md frontmatter
-	// For now, emit a placeholder until frontmatter editing is implemented
-	_ = seqPath
-	return emitSequenceStatusPlaceholder(display, opts, seqName, newStatus)
+	goalPath := filepath.Join(seqPath, "SEQUENCE_GOAL.md")
+	oldStatus, err := readGoalStatus(goalPath)
+	if err != nil {
+		return err
+	}
+
+	if string(oldStatus) == newStatus {
+		return emitSequenceStatusAlready(display, opts, seqName, newStatus)
+	}
+
+	if err := updateGoalFrontmatter(goalPath, frontmatter.Status(newStatus)); err != nil {
+		return err
+	}
+
+	return emitSequenceStatusSuccess(display, opts, seqName, string(oldStatus), newStatus)
 }
 
 // resolveSequence finds a sequence directory by name or path.
@@ -1354,24 +1444,42 @@ func findSequenceGlobally(festivalPath, seqInput string) (string, string, error)
 	return filepath.Join(festivalPath, parts[0], parts[1]), matches[0], nil
 }
 
-// emitSequenceStatusPlaceholder outputs a placeholder for sequence status changes.
-func emitSequenceStatusPlaceholder(display *ui.UI, opts *statusOptions, seqName, newStatus string) error {
+// emitSequenceStatusAlready outputs message when sequence is already at the requested status.
+func emitSequenceStatusAlready(display *ui.UI, opts *statusOptions, seqName, status string) error {
 	if opts.json {
 		result := map[string]interface{}{
-			"success":    true,
-			"sequence":   seqName,
-			"new_status": newStatus,
-			"note":       "sequence status in frontmatter - implementation pending",
+			"success":  true,
+			"message":  "sequence already at requested status",
+			"sequence": seqName,
+			"status":   status,
 		}
 		if err := shared.EncodeJSON(os.Stdout, result); err != nil {
 			return errors.Wrap(err, "encoding JSON output")
 		}
 	} else {
-		fmt.Println(ui.H1("Sequence Status"))
+		fmt.Printf("%s %s\n", ui.Info("Sequence already at status"), ui.GetStateStyle(status).Render(status))
 		fmt.Printf("%s %s\n", ui.Label("Sequence"), ui.Value(seqName, ui.SequenceColor))
-		fmt.Printf("%s %s\n", ui.Label("Target"), ui.GetStateStyle(newStatus).Render(newStatus))
-		fmt.Println(ui.Dim("Sequence status stored in SEQUENCE_GOAL.md frontmatter"))
-		fmt.Println(ui.Dim("Frontmatter editing pending implementation"))
+	}
+	return nil
+}
+
+// emitSequenceStatusSuccess outputs success message after changing sequence status.
+func emitSequenceStatusSuccess(display *ui.UI, opts *statusOptions, seqName, oldStatus, newStatus string) error {
+	if opts.json {
+		result := map[string]interface{}{
+			"success":    true,
+			"sequence":   seqName,
+			"old_status": oldStatus,
+			"new_status": newStatus,
+		}
+		if err := shared.EncodeJSON(os.Stdout, result); err != nil {
+			return errors.Wrap(err, "encoding JSON output")
+		}
+	} else {
+		fmt.Println(ui.Success("✓ Sequence status updated"))
+		fmt.Printf("%s %s\n", ui.Label("Sequence"), ui.Value(seqName, ui.SequenceColor))
+		fmt.Printf("%s %s\n", ui.Label("From"), ui.GetStateStyle(oldStatus).Render(oldStatus))
+		fmt.Printf("%s %s\n", ui.Label("To"), ui.GetStateStyle(newStatus).Render(newStatus))
 	}
 	return nil
 }
