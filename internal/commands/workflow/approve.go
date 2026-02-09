@@ -64,5 +64,5 @@ func runApprove(ctx context.Context) error {
 	}
 
 	fmt.Printf("%s Step %d: %s approved\n", ui.Success("✓"), currentStepNum, step.Name)
-	return showNextStep(nav, steps)
+	return showNextStep(ctx, nav, steps)
 }
