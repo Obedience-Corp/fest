@@ -109,18 +109,16 @@ func RunCreatePhase(ctx context.Context, opts *CreatePhaseOptions) error {
 	}
 
 	display := ui.New(shared.IsNoColor(), shared.IsVerbose())
-	cwd, _ := os.Getwd()
 
-	// Use opts.Path for resolution when available (programmatic calls),
-	// otherwise fall back to CWD (interactive CLI usage).
-	resolveDir := cwd
-	if opts.Path != "" {
-		resolveDir = opts.Path
+	// Convert to absolute path first so resolution functions can walk the tree
+	absPath, err := filepath.Abs(opts.Path)
+	if err != nil {
+		return emitCreatePhaseError(opts, errors.Wrap(err, "resolving path").WithField("path", opts.Path))
 	}
 
 	// Resolve paths for config loading
-	festivalsRoot := ResolveFestivalsRoot(resolveDir)
-	festivalPath := ResolveFestivalPath(resolveDir)
+	festivalsRoot := ResolveFestivalsRoot(absPath)
+	festivalPath := ResolveFestivalPath(absPath)
 
 	// Load effective agent config (workspace + festival merged)
 	agentCfg := LoadEffectiveAgentConfig(festivalsRoot, festivalPath)
@@ -129,14 +127,9 @@ func RunCreatePhase(ctx context.Context, opts *CreatePhaseOptions) error {
 	effectiveSkipMarkers := config.EffectiveSkipMarkers(agentCfg, opts.AgentMode, opts.SkipMarkers)
 
 	// Resolve template root
-	tmplRoot, err := tpl.LocalTemplateRoot(resolveDir)
+	tmplRoot, err := tpl.LocalTemplateRoot(absPath)
 	if err != nil {
 		return emitCreatePhaseError(opts, err)
-	}
-
-	absPath, err := filepath.Abs(opts.Path)
-	if err != nil {
-		return emitCreatePhaseError(opts, errors.Wrap(err, "resolving path").WithField("path", opts.Path))
 	}
 
 	// Auto-detect last phase number when --after is not specified (default -1)

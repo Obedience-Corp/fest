@@ -12,9 +12,12 @@ import (
 // Some commands historically assumed this to be the project root. Newer commands should
 // prefer FindFestivalsRoot which anchors on festivals/.festival.
 func FindWorkspaceRoot(startDir string) (string, error) {
-	dir := startDir
+	dir, err := filepath.Abs(startDir)
+	if err != nil {
+		return "", errors.Wrap(err, "resolving absolute path").WithField("start_dir", startDir)
+	}
 	for {
-		if dir == "" || dir == "/" || dir == "." {
+		if dir == "" || dir == "/" {
 			break
 		}
 		if info, err := os.Stat(filepath.Join(dir, ".festival")); err == nil && info.IsDir() {
@@ -35,9 +38,12 @@ func FindWorkspaceRoot(startDir string) (string, error) {
 // festivals/ tree (or at the festivals directory itself). It will not match when
 // festivals/ exists only as a child of your current directory (enforces being inside).
 func FindFestivalsRoot(startDir string) (string, error) {
-	dir := startDir
+	dir, err := filepath.Abs(startDir)
+	if err != nil {
+		return "", errors.Wrap(err, "resolving absolute path").WithField("start_dir", startDir)
+	}
 	for {
-		if dir == "" || dir == "/" || dir == "." {
+		if dir == "" || dir == "/" {
 			break
 		}
 		if filepath.Base(dir) == "festivals" {
@@ -71,9 +77,12 @@ func LocalTemplateRoot(startDir string) (string, error) {
 // This identifies the root of an individual festival (not the festivals/ directory).
 // Returns the directory path that contains fest.yaml.
 func FindFestivalRoot(startDir string) (string, error) {
-	dir := startDir
+	dir, err := filepath.Abs(startDir)
+	if err != nil {
+		return "", errors.Wrap(err, "resolving absolute path").WithField("start_dir", startDir)
+	}
 	for {
-		if dir == "" || dir == "/" || dir == "." {
+		if dir == "" || dir == "/" {
 			break
 		}
 		// Check for fest.yaml in this directory
