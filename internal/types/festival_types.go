@@ -205,9 +205,7 @@ func getDefaultConfig() *FestivalTypesConfig {
 }
 
 // validPhaseTypes defines all recognized phase types.
-// Template types have a corresponding template directory in phases/{type}/.
-// Legacy types (standard, simple) are accepted for backward compatibility
-// but map to "planning" at creation time.
+// Each type has a corresponding template directory in phases/{type}/.
 var validPhaseTypes = map[string]bool{
 	"planning":          true,
 	"implementation":    true,
@@ -215,8 +213,6 @@ var validPhaseTypes = map[string]bool{
 	"review":            true,
 	"ingest":            true,
 	"non_coding_action": true,
-	"simple":            true, // Legacy: maps to "planning"
-	"standard":          true, // Legacy: maps to "planning"
 }
 
 // isValidPhaseType checks whether a phase type string is recognized.

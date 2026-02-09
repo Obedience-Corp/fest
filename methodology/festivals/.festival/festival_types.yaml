@@ -46,15 +46,6 @@ types:
         auto: true
         trigger: research_complete
 
-  # Quick festival - bypass ingestion, single execution phase
-  - name: quick
-    description: Quick execution without ingestion. Single DO phase auto-scaffolded
-    skip_ingestion: true
-    phases:
-      - name: DO
-        type: simple
-        auto: true
-
   # Ritual festival - template-driven custom structure
   - name: ritual
     description: Custom festival structure defined by template. No default phases

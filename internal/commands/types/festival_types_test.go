@@ -63,9 +63,6 @@ func TestRunFestivalList(t *testing.T) {
 				if !strings.Contains(output, "research") {
 					t.Error("output missing 'research' type")
 				}
-				if !strings.Contains(output, "quick") {
-					t.Error("output missing 'quick' type")
-				}
 				if !strings.Contains(output, "ritual") {
 					t.Error("output missing 'ritual' type")
 				}
@@ -94,8 +91,8 @@ func TestRunFestivalList(t *testing.T) {
 				if err := json.Unmarshal([]byte(output), &festTypes); err != nil {
 					t.Errorf("failed to parse JSON: %v", err)
 				}
-				if len(festTypes) != 5 {
-					t.Errorf("expected 5 types, got %d", len(festTypes))
+				if len(festTypes) != 4 {
+					t.Errorf("expected 4 types, got %d", len(festTypes))
 				}
 				// Check for standard type
 				found := false

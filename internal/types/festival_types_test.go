@@ -23,7 +23,7 @@ types:
     default: true
     phases:
       - name: DO
-        type: simple
+        type: planning
         auto: true
 `
 		if err := os.WriteFile(configPath, []byte(validYAML), 0644); err != nil {
@@ -66,8 +66,8 @@ func TestValidateConfig_DuplicateNames(t *testing.T) {
 		config := &FestivalTypesConfig{
 			Version: 1,
 			Types: []FestivalType{
-				{Name: "test", Description: "First", Default: true, Phases: []PhaseSpec{{Name: "DO", Type: "simple", Auto: true}}},
-				{Name: "test", Description: "Duplicate", Phases: []PhaseSpec{{Name: "DO", Type: "simple", Auto: true}}},
+				{Name: "test", Description: "First", Default: true, Phases: []PhaseSpec{{Name: "DO", Type: "planning", Auto: true}}},
+				{Name: "test", Description: "Duplicate", Phases: []PhaseSpec{{Name: "DO", Type: "planning", Auto: true}}},
 			},
 		}
 
@@ -105,7 +105,7 @@ func TestValidateConfig_RequiresPhases(t *testing.T) {
 				name:     "standard with phases succeeds",
 				typeName: "standard",
 				phases: []PhaseSpec{
-					{Name: "INGEST", Type: "standard", Auto: true},
+					{Name: "INGEST", Type: "ingest", Auto: true},
 				},
 				wantError: false,
 			},
@@ -142,15 +142,15 @@ func TestValidateConfig_ExactlyOneDefault(t *testing.T) {
 		{
 			name: "one default succeeds",
 			types: []FestivalType{
-				{Name: "standard", Description: "Default", Default: true, Phases: []PhaseSpec{{Name: "DO", Type: "simple", Auto: true}}},
-				{Name: "other", Description: "Not default", Phases: []PhaseSpec{{Name: "DO", Type: "simple", Auto: true}}},
+				{Name: "standard", Description: "Default", Default: true, Phases: []PhaseSpec{{Name: "DO", Type: "planning", Auto: true}}},
+				{Name: "other", Description: "Not default", Phases: []PhaseSpec{{Name: "DO", Type: "planning", Auto: true}}},
 			},
 			wantError: false,
 		},
 		{
 			name: "no defaults fails",
 			types: []FestivalType{
-				{Name: "standard", Description: "No default", Phases: []PhaseSpec{{Name: "DO", Type: "simple", Auto: true}}},
+				{Name: "standard", Description: "No default", Phases: []PhaseSpec{{Name: "DO", Type: "planning", Auto: true}}},
 			},
 			wantError:    true,
 			errorMessage: "exactly one default",
@@ -158,8 +158,8 @@ func TestValidateConfig_ExactlyOneDefault(t *testing.T) {
 		{
 			name: "multiple defaults fails",
 			types: []FestivalType{
-				{Name: "standard", Description: "Default 1", Default: true, Phases: []PhaseSpec{{Name: "DO", Type: "simple", Auto: true}}},
-				{Name: "other", Description: "Default 2", Default: true, Phases: []PhaseSpec{{Name: "DO", Type: "simple", Auto: true}}},
+				{Name: "standard", Description: "Default 1", Default: true, Phases: []PhaseSpec{{Name: "DO", Type: "planning", Auto: true}}},
+				{Name: "other", Description: "Default 2", Default: true, Phases: []PhaseSpec{{Name: "DO", Type: "planning", Auto: true}}},
 			},
 			wantError:    true,
 			errorMessage: "exactly one default",
@@ -193,7 +193,7 @@ func TestValidateConfig_RequiredFields(t *testing.T) {
 				Name:        "",
 				Description: "Has description",
 				Default:     true,
-				Phases:      []PhaseSpec{{Name: "DO", Type: "simple", Auto: true}},
+				Phases:      []PhaseSpec{{Name: "DO", Type: "planning", Auto: true}},
 			},
 			wantError: true,
 		},
@@ -202,7 +202,7 @@ func TestValidateConfig_RequiredFields(t *testing.T) {
 			festType: FestivalType{
 				Name:    "test",
 				Default: true,
-				Phases:  []PhaseSpec{{Name: "DO", Type: "simple", Auto: true}},
+				Phases:  []PhaseSpec{{Name: "DO", Type: "planning", Auto: true}},
 			},
 			wantError: true,
 		},
@@ -212,7 +212,7 @@ func TestValidateConfig_RequiredFields(t *testing.T) {
 				Name:        "test",
 				Description: "Test type",
 				Default:     true,
-				Phases:      []PhaseSpec{{Name: "DO", Type: "simple", Auto: true}},
+				Phases:      []PhaseSpec{{Name: "DO", Type: "planning", Auto: true}},
 			},
 			wantError: false,
 		},
@@ -277,8 +277,8 @@ func TestGetFestivalType(t *testing.T) {
 	config := &FestivalTypesConfig{
 		Version: 1,
 		Types: []FestivalType{
-			{Name: "standard", Description: "Standard type", Default: true, Phases: []PhaseSpec{{Name: "DO", Type: "simple", Auto: true}}},
-			{Name: "custom", Description: "Custom type", Phases: []PhaseSpec{{Name: "DO", Type: "simple", Auto: true}}},
+			{Name: "standard", Description: "Standard type", Default: true, Phases: []PhaseSpec{{Name: "DO", Type: "planning", Auto: true}}},
+			{Name: "custom", Description: "Custom type", Phases: []PhaseSpec{{Name: "DO", Type: "planning", Auto: true}}},
 		},
 	}
 
@@ -307,8 +307,8 @@ func TestGetDefaultType(t *testing.T) {
 	config := &FestivalTypesConfig{
 		Version: 1,
 		Types: []FestivalType{
-			{Name: "other", Description: "Not default", Phases: []PhaseSpec{{Name: "DO", Type: "simple", Auto: true}}},
-			{Name: "standard", Description: "Default type", Default: true, Phases: []PhaseSpec{{Name: "DO", Type: "simple", Auto: true}}},
+			{Name: "other", Description: "Not default", Phases: []PhaseSpec{{Name: "DO", Type: "planning", Auto: true}}},
+			{Name: "standard", Description: "Default type", Default: true, Phases: []PhaseSpec{{Name: "DO", Type: "planning", Auto: true}}},
 		},
 	}
 

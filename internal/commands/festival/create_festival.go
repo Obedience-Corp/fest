@@ -650,16 +650,12 @@ func Slugify(s string) string {
 }
 
 // mapPhaseSpecType maps festival type phase spec type to create phase command type.
-// Phase types in festival_types.yaml should match template directory names exactly
+// Phase types in festival_types.yaml must match template directory names exactly
 // (planning, implementation, research, review, ingest, non_coding_action).
-// Legacy "standard" and "simple" types are mapped to "planning" for backward compatibility.
 func mapPhaseSpecType(specType string) string {
 	switch strings.ToLower(specType) {
 	case "planning", "implementation", "research", "review", "ingest", "non_coding_action":
 		return strings.ToLower(specType)
-	case "standard", "simple":
-		// Legacy types — prefer using explicit types in festival_types.yaml
-		return "planning"
 	default:
 		return "planning"
 	}
