@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -23,6 +24,7 @@ type FestivalInfo struct {
 	Priority     string         `json:"priority,omitempty"`
 	Path         string         `json:"path"`
 	ProjectPath  string         `json:"project_path,omitempty"` // Linked project directory from fest.yaml
+	ModTime      time.Time      `json:"mod_time"`               // Directory modification time
 	Stats        *FestivalStats `json:"stats,omitempty"`
 }
 

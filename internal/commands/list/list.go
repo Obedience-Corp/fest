@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
@@ -26,6 +27,7 @@ type listOptions struct {
 	json     bool
 	all      bool
 	progress bool
+	date     bool
 }
 
 // NewListCommand creates the list command for listing festivals by status.
@@ -66,6 +68,7 @@ Use --all to include completed and dungeon festivals.`,
 	cmd.Flags().BoolVar(&opts.json, "json", false, "output in JSON format")
 	cmd.Flags().BoolVar(&opts.all, "all", false, "include completed and dungeon festivals")
 	cmd.Flags().BoolVar(&opts.progress, "progress", false, "show detailed progress for each festival")
+	cmd.Flags().BoolVar(&opts.date, "date", false, "sort by most recently modified first")
 
 	return cmd
 }
@@ -101,10 +104,20 @@ func runList(ctx context.Context, filterStatus string, opts *listOptions) error 
 	return listAll(ctx, festivalsDir, opts)
 }
 
+func sortByDate(festivals []*show.FestivalInfo) {
+	sort.Slice(festivals, func(i, j int) bool {
+		return festivals[i].ModTime.After(festivals[j].ModTime)
+	})
+}
+
 func listByStatus(ctx context.Context, festivalsDir, status string, opts *listOptions) error {
 	festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status)
 	if err != nil {
 		return err
+	}
+
+	if opts.date {
+		sortByDate(festivals)
 	}
 
 	// Fetch detailed progress if requested
@@ -150,6 +163,9 @@ func listAll(ctx context.Context, festivalsDir string, opts *listOptions) error 
 			continue
 		}
 		if len(festivals) > 0 {
+			if opts.date {
+				sortByDate(festivals)
+			}
 			allFestivals[status] = festivals
 			statusOrder = append(statusOrder, status)
 			totalCount += len(festivals)
