@@ -164,6 +164,16 @@ func validateConfig(config *FestivalTypesConfig) error {
 			return errors.Validation("festival type has no phases").
 				WithField("type", ft.Name)
 		}
+
+		// Validate phase types match known template types
+		for _, phase := range ft.Phases {
+			if !isValidPhaseType(phase.Type) {
+				return errors.Validation("unknown phase type").
+					WithField("type", ft.Name).
+					WithField("phase", phase.Name).
+					WithField("phase_type", phase.Type)
+			}
+		}
 	}
 
 	if defaultCount != 1 {
@@ -184,14 +194,30 @@ func getDefaultConfig() *FestivalTypesConfig {
 				Description: "Default festival type with full planning and implementation phases",
 				Default:     true,
 				Phases: []PhaseSpec{
-					{Name: "INGEST", Type: "standard", Auto: true},
-					{Name: "PLAN", Type: "standard", Auto: true},
+					{Name: "INGEST", Type: "ingest", Auto: true},
+					{Name: "PLAN", Type: "planning", Auto: true},
 					{Name: "IMPLEMENT", Type: "implementation", Auto: false},
-					{Name: "POLISH", Type: "standard", Auto: false},
+					{Name: "POLISH", Type: "planning", Auto: false},
 				},
 			},
 		},
 	}
+}
+
+// validPhaseTypes defines all recognized phase types.
+// Each type has a corresponding template directory in phases/{type}/.
+var validPhaseTypes = map[string]bool{
+	"planning":          true,
+	"implementation":    true,
+	"research":          true,
+	"review":            true,
+	"ingest":            true,
+	"non_coding_action": true,
+}
+
+// isValidPhaseType checks whether a phase type string is recognized.
+func isValidPhaseType(phaseType string) bool {
+	return validPhaseTypes[phaseType]
 }
 
 // GetFestivalType finds a festival type by name.

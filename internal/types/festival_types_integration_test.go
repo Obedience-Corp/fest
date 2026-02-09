@@ -49,7 +49,7 @@ func TestLoadFestivalTypesConfig_Integration(t *testing.T) {
 		}
 
 		// Verify all expected types exist
-		expectedTypes := []string{"standard", "implementation", "research", "quick", "ritual"}
+		expectedTypes := []string{"standard", "implementation", "research", "ritual"}
 		for _, typeName := range expectedTypes {
 			if _, err := config.GetFestivalType(typeName); err != nil {
 				t.Errorf("expected type %q not found: %v", typeName, err)

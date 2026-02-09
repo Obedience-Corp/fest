@@ -9,54 +9,42 @@ types:
     default: true
     phases:
       - name: INGEST
-        type: standard
+        type: ingest
         auto: true
       - name: PLAN
-        type: standard
+        type: planning
         auto: true
       - name: IMPLEMENT
         type: implementation
         auto: false
       - name: POLISH
-        type: standard
+        type: planning
         auto: false
 
-  # Implementation-focused festival - minimal planning, fast start
+  # Implementation-focused festival - for pre-planned work, execution only
   - name: implementation
-    description: Skip detailed planning, focus on execution. Auto-scaffolds INGEST only
-    skip_ingestion: false
+    description: Execution-only festival for work with existing detailed specs/plans
+    skip_ingestion: true
     phases:
-      - name: INGEST
-        type: standard
-        auto: true
       - name: IMPLEMENT
         type: implementation
-        auto: false
+        auto: true
 
   # Research festival - investigation and synthesis
   - name: research
     description: Research-oriented festival with investigation and synthesis phases
     phases:
       - name: INGEST
-        type: standard
+        type: ingest
         auto: true
       - name: RESEARCH
         type: research
         auto: true
         role: investigate
       - name: SYNTHESIZE
-        type: standard
+        type: planning
         auto: true
         trigger: research_complete
-
-  # Quick festival - bypass ingestion, single execution phase
-  - name: quick
-    description: Quick execution without ingestion. Single DO phase auto-scaffolded
-    skip_ingestion: true
-    phases:
-      - name: DO
-        type: simple
-        auto: true
 
   # Ritual festival - template-driven custom structure
   - name: ritual

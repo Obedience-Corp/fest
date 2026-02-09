@@ -11,6 +11,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/feedback"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/guidance/selection"
 	"github.com/Obedience-Corp/fest/internal/scope"
@@ -175,6 +176,12 @@ func runNext(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Populate feedback criteria if configured
+	feedbackCriteria := loadFeedbackCriteria(ctx, festivalPath)
+	if len(feedbackCriteria) > 0 {
+		result.FeedbackCriteria = feedbackCriteria
+	}
+
 	// Output formatting
 	if pathFlag {
 		if result.Task == nil {
@@ -211,10 +218,12 @@ func runNext(cmd *cobra.Command, args []string) error {
 
 	if verboseOutput {
 		fmt.Print(selection.FormatVerbose(result, showInlineContext))
+		printFeedbackReminder(result.FeedbackCriteria)
 		return nil
 	}
 
 	fmt.Print(selection.FormatText(result, showInlineContext))
+	printFeedbackReminder(result.FeedbackCriteria)
 	return nil
 }
 
@@ -537,4 +546,31 @@ func isPhaseMarkedComplete(phasePath string) bool {
 	}
 	fm := content[3 : 3+end]
 	return strings.Contains(fm, "fest_status: completed")
+}
+
+// loadFeedbackCriteria checks if feedback is configured for the festival and returns criteria names.
+func loadFeedbackCriteria(ctx context.Context, festivalPath string) []string {
+	store := feedback.NewStore(festivalPath)
+	if !store.IsInitialized() {
+		return nil
+	}
+
+	config, err := store.LoadConfig(ctx)
+	if err != nil {
+		return nil
+	}
+
+	names := make([]string, len(config.Criteria))
+	for i, c := range config.Criteria {
+		names[i] = c.Name
+	}
+	return names
+}
+
+// printFeedbackReminder appends a brief feedback criteria section to the output.
+func printFeedbackReminder(criteria []string) {
+	if len(criteria) == 0 {
+		return
+	}
+	fmt.Printf("\n%s\nFeedback: %s\n", strings.Repeat("─", 40), strings.Join(criteria, ", "))
 }

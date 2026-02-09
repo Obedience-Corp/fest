@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Obedience-Corp/fest/internal/chaining"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -76,7 +77,7 @@ func runAdvance(ctx context.Context, skip bool) error {
 		if err := nav.MarkSkipped(ctx, fmt.Sprintf("step_%d", currentStepNum)); err != nil {
 			return fmt.Errorf("skipping step: %w", err)
 		}
-		return showNextStep(nav, steps)
+		return showNextStep(ctx, nav, steps)
 	}
 
 	// Check for blocking checkpoint
@@ -95,17 +96,24 @@ func runAdvance(ctx context.Context, skip bool) error {
 
 	// Show result
 	fmt.Printf("%s Step %d: %s completed\n", ui.Success("✓"), currentStepNum, step.Name)
-	return showNextStep(nav, steps)
+	return showNextStep(ctx, nav, steps)
 }
 
 // showNextStep displays information about the next step or completion message.
-func showNextStep(nav *wf.Navigator, steps []wf.WorkflowStep) error {
+func showNextStep(ctx context.Context, nav *wf.Navigator, steps []wf.WorkflowStep) error {
 	state := nav.GetWorkflowState()
 
 	if state.IsComplete() {
 		fmt.Println()
 		fmt.Println(ui.Success("🎉 Workflow complete!"))
 		fmt.Println()
+
+		// Check for phase chaining
+		gctx := nav.GetContext()
+		if gctx.FestivalPath != "" && gctx.PhasePath != "" {
+			checkPhaseChaining(ctx, gctx.FestivalPath, gctx.PhasePath)
+		}
+
 		fmt.Println("Run " + ui.Accent("fest status") + " to view final state.")
 		return nil
 	}
@@ -130,4 +138,35 @@ func showNextStep(nav *wf.Navigator, steps []wf.WorkflowStep) error {
 	fmt.Println("Run " + ui.Accent("fest next") + " for step details.")
 
 	return nil
+}
+
+// checkPhaseChaining checks if a completed phase should trigger creation of the next phase.
+func checkPhaseChaining(ctx context.Context, festivalPath, phasePath string) {
+	ch := chaining.NewChainer(festivalPath)
+
+	target, err := ch.CheckChaining(ctx, phasePath)
+	if err != nil {
+		fmt.Printf("%s Phase chaining check failed: %v\n", ui.Warning("!"), err)
+		return
+	}
+
+	if target == nil {
+		return
+	}
+
+	fmt.Printf("%s Phase chaining: creating %s phase...\n", ui.Accent("->"), target.PendingPhase.Name)
+
+	result, err := ch.ExecuteChain(ctx, target)
+	if err != nil {
+		fmt.Printf("%s Failed to create chained phase: %v\n", ui.Warning("!"), err)
+		fmt.Printf("   You can create it manually: %s\n", ui.Accent(
+			fmt.Sprintf("fest create phase --name %s --type %s", target.PendingPhase.Name, target.PendingPhase.Type),
+		))
+		return
+	}
+
+	fmt.Printf("%s Created phase: %s (type: %s)\n", ui.Success("->"), result.PhaseName, result.PhaseType)
+	fmt.Println()
+	fmt.Println("Run " + ui.Accent("fest next") + " to continue with the new phase.")
+	fmt.Println()
 }

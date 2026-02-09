@@ -37,6 +37,9 @@ type NextTaskResult struct {
 
 	// Progress statistics
 	Progress *ProgressInfo `json:"progress,omitempty"`
+
+	// FeedbackCriteria lists active feedback criteria for this festival (if configured).
+	FeedbackCriteria []string `json:"feedback_criteria,omitempty"`
 }
 
 // PlanningPhaseResult contains information for planning/research phases
