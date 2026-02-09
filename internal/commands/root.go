@@ -22,6 +22,7 @@ import (
 	parsecmd "github.com/Obedience-Corp/fest/internal/commands/parse"
 	progresscmd "github.com/Obedience-Corp/fest/internal/commands/progress"
 	"github.com/Obedience-Corp/fest/internal/commands/research"
+	scaffoldcmd "github.com/Obedience-Corp/fest/internal/commands/scaffold"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/commands/status"
@@ -165,6 +166,10 @@ func init() {
 	createCmd.AddCommand(festival.NewCreateSequenceCommand())
 	createCmd.AddCommand(festival.NewCreateTaskCommand())
 	rootCmd.AddCommand(createCmd)
+
+	scaffoldCmd := scaffoldcmd.NewScaffoldCommand()
+	scaffoldCmd.GroupID = "creation"
+	rootCmd.AddCommand(scaffoldCmd)
 
 	insertCmd := structure.NewInsertCommand()
 	insertCmd.GroupID = "creation"
