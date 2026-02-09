@@ -27,7 +27,7 @@ type listOptions struct {
 	json     bool
 	all      bool
 	progress bool
-	date     bool
+	alpha    bool
 }
 
 // NewListCommand creates the list command for listing festivals by status.
@@ -68,7 +68,7 @@ Use --all to include completed and dungeon festivals.`,
 	cmd.Flags().BoolVar(&opts.json, "json", false, "output in JSON format")
 	cmd.Flags().BoolVar(&opts.all, "all", false, "include completed and dungeon festivals")
 	cmd.Flags().BoolVar(&opts.progress, "progress", false, "show detailed progress for each festival")
-	cmd.Flags().BoolVar(&opts.date, "date", false, "sort by most recently modified first")
+	cmd.Flags().BoolVar(&opts.alpha, "alpha", false, "sort alphabetically by name instead of by date")
 
 	return cmd
 }
@@ -116,7 +116,7 @@ func listByStatus(ctx context.Context, festivalsDir, status string, opts *listOp
 		return err
 	}
 
-	if opts.date {
+	if !opts.alpha {
 		sortByDate(festivals)
 	}
 
@@ -163,7 +163,7 @@ func listAll(ctx context.Context, festivalsDir string, opts *listOptions) error 
 			continue
 		}
 		if len(festivals) > 0 {
-			if opts.date {
+			if !opts.alpha {
 				sortByDate(festivals)
 			}
 			allFestivals[status] = festivals
