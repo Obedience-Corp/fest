@@ -203,6 +203,11 @@ func parseFestivalInfo(ctx context.Context, festivalDir string) (*FestivalInfo, 
 		info.Status = "unknown"
 	}
 
+	// Populate modification time from directory stat
+	if dirInfo, statErr := os.Stat(festivalDir); statErr == nil {
+		info.ModTime = dirInfo.ModTime()
+	}
+
 	// Try to load fest.yaml to get metadata ID and project path
 	festConfig, err := config.LoadFestivalConfig(festivalDir)
 	if err == nil && festConfig != nil {
