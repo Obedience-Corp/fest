@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Obedience-Corp/fest/internal/feedback"
 	"github.com/Obedience-Corp/fest/internal/validator"
 )
 
@@ -159,4 +160,122 @@ func TestNextBlocksOnUnfilledMarkers(t *testing.T) {
 	if !hasTemplateIssue {
 		t.Error("expected unfilled_template issue code")
 	}
+}
+
+func TestLoadFeedbackCriteria(t *testing.T) {
+	t.Run("no feedback configured", func(t *testing.T) {
+		festDir := t.TempDir()
+		ctx := context.Background()
+		criteria := loadFeedbackCriteria(ctx, festDir)
+		if criteria != nil {
+			t.Errorf("expected nil criteria, got %v", criteria)
+		}
+	})
+
+	t.Run("feedback configured", func(t *testing.T) {
+		festDir := t.TempDir()
+		ctx := context.Background()
+
+		// Initialize feedback with criteria
+		store := feedback.NewStore(festDir)
+		_, err := store.Init(ctx, []string{"usability", "performance", "documentation"})
+		if err != nil {
+			t.Fatalf("Init() error: %v", err)
+		}
+
+		criteria := loadFeedbackCriteria(ctx, festDir)
+		if len(criteria) != 3 {
+			t.Fatalf("expected 3 criteria, got %d", len(criteria))
+		}
+		if criteria[0] != "usability" {
+			t.Errorf("criteria[0] = %q, want %q", criteria[0], "usability")
+		}
+		if criteria[1] != "performance" {
+			t.Errorf("criteria[1] = %q, want %q", criteria[1], "performance")
+		}
+		if criteria[2] != "documentation" {
+			t.Errorf("criteria[2] = %q, want %q", criteria[2], "documentation")
+		}
+	})
+
+	t.Run("cancelled context", func(t *testing.T) {
+		festDir := t.TempDir()
+		ctx, cancel := context.WithCancel(context.Background())
+
+		// Initialize feedback first
+		store := feedback.NewStore(festDir)
+		_, err := store.Init(context.Background(), []string{"test"})
+		if err != nil {
+			t.Fatalf("Init() error: %v", err)
+		}
+
+		cancel()
+		criteria := loadFeedbackCriteria(ctx, festDir)
+		if criteria != nil {
+			t.Errorf("expected nil on cancelled context, got %v", criteria)
+		}
+	})
+}
+
+func TestPrintFeedbackReminder(t *testing.T) {
+	t.Run("no criteria", func(t *testing.T) {
+		// Capture stdout
+		old := os.Stdout
+		r, w, _ := os.Pipe()
+		os.Stdout = w
+
+		printFeedbackReminder(nil)
+
+		w.Close()
+		os.Stdout = old
+
+		var buf [4096]byte
+		n, _ := r.Read(buf[:])
+		output := string(buf[:n])
+
+		if output != "" {
+			t.Errorf("expected no output for nil criteria, got %q", output)
+		}
+	})
+
+	t.Run("with criteria", func(t *testing.T) {
+		old := os.Stdout
+		r, w, _ := os.Pipe()
+		os.Stdout = w
+
+		printFeedbackReminder([]string{"usability", "performance"})
+
+		w.Close()
+		os.Stdout = old
+
+		var buf [4096]byte
+		n, _ := r.Read(buf[:])
+		output := string(buf[:n])
+
+		if !strings.Contains(output, "Feedback:") {
+			t.Errorf("expected 'Feedback:' in output, got %q", output)
+		}
+		if !strings.Contains(output, "usability") {
+			t.Errorf("expected 'usability' in output, got %q", output)
+		}
+		if !strings.Contains(output, "performance") {
+			t.Errorf("expected 'performance' in output, got %q", output)
+		}
+	})
+}
+
+func TestFeedbackCriteriaInNextTaskResult(t *testing.T) {
+	// Verify that FeedbackCriteria is included in JSON output
+	result := &feedbackTestResult{
+		FeedbackCriteria: []string{"usability", "clarity"},
+	}
+
+	if len(result.FeedbackCriteria) != 2 {
+		t.Errorf("expected 2 criteria, got %d", len(result.FeedbackCriteria))
+	}
+}
+
+// feedbackTestResult mirrors the relevant field for testing.
+type feedbackTestResult struct {
+	FeedbackCriteria []string `json:"feedback_criteria,omitempty"`
 }

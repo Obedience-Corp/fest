@@ -34,18 +34,20 @@ type CreateTaskOptions struct {
 }
 
 type createTaskResult struct {
-	OK            bool                     `json:"ok"`
-	Action        string                   `json:"action"`
-	Task          map[string]interface{}   `json:"task,omitempty"`
-	Created       []string                 `json:"created,omitempty"`
-	Renumber      []string                 `json:"renumbered,omitempty"`
-	Markers       []map[string]interface{} `json:"markers,omitempty"`
-	MarkersFilled int                      `json:"markers_filled,omitempty"`
-	MarkersTotal  int                      `json:"markers_total,omitempty"`
-	Validation    *ValidationSummary       `json:"validation,omitempty"`
-	Errors        []map[string]any         `json:"errors,omitempty"`
-	Warnings      []string                 `json:"warnings,omitempty"`
-	Suggestions   []string                 `json:"suggestions,omitempty"`
+	OK              bool                     `json:"ok"`
+	Action          string                   `json:"action"`
+	Task            map[string]interface{}   `json:"task,omitempty"`
+	Created         []string                 `json:"created,omitempty"`
+	Renumber        []string                 `json:"renumbered,omitempty"`
+	Markers         []map[string]interface{} `json:"markers,omitempty"`
+	MarkersFilled   int                      `json:"markers_filled,omitempty"`
+	MarkersTotal    int                      `json:"markers_total,omitempty"`
+	MarkersUnfilled int                      `json:"markers_unfilled,omitempty"`
+	MarkersWarning  string                   `json:"markers_warning,omitempty"`
+	Validation      *ValidationSummary       `json:"validation,omitempty"`
+	Errors          []map[string]any         `json:"errors,omitempty"`
+	Warnings        []string                 `json:"warnings,omitempty"`
+	Suggestions     []string                 `json:"suggestions,omitempty"`
 }
 
 // NewCreateTaskCommand adds 'create task'
@@ -367,15 +369,19 @@ func RunCreateTask(ctx context.Context, opts *CreateTaskOptions) error {
 		}
 
 		result := createTaskResult{
-			OK:            true,
-			Action:        "create_task",
-			Created:       createdPaths,
-			Renumber:      []string{},
-			MarkersFilled: totalMarkersFilled,
-			MarkersTotal:  totalMarkersCount,
-			Validation:    validationResult,
-			Warnings:      warnings,
-			Suggestions:   suggestions,
+			OK:              true,
+			Action:          "create_task",
+			Created:         createdPaths,
+			Renumber:        []string{},
+			MarkersFilled:   totalMarkersFilled,
+			MarkersTotal:    totalMarkersCount,
+			MarkersUnfilled: remainingMarkers,
+			Validation:      validationResult,
+			Warnings:        warnings,
+			Suggestions:     suggestions,
+		}
+		if remainingMarkers > 0 {
+			result.MarkersWarning = fmt.Sprintf("%d unfilled markers across %d tasks. Fill with: fest wizard fill", remainingMarkers, len(createdTasks))
 		}
 		// For single task, use Task field for backward compatibility
 		if len(createdTasks) == 1 {
@@ -387,8 +393,12 @@ func RunCreateTask(ctx context.Context, opts *CreateTaskOptions) error {
 	// Show marker warning FIRST (before success message) for visibility
 	if remainingMarkers > 0 {
 		fmt.Println()
-		display.Error("🚫 CRITICAL: %d unfilled markers - task cannot be executed until resolved", remainingMarkers)
-		display.Info("   Edit task file(s) directly to replace [REPLACE: ...] markers")
+		if len(createdTasks) > 1 {
+			display.Warning("%d unfilled markers across %d tasks", remainingMarkers, len(createdTasks))
+		} else {
+			display.Warning("%d unfilled markers in task", remainingMarkers)
+		}
+		display.Info("   Fill markers: edit task files directly or use %s", ui.Value("fest wizard fill"))
 		fmt.Println()
 	}
 
