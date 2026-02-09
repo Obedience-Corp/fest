@@ -284,8 +284,8 @@ func RunCreatePhase(ctx context.Context, opts *CreatePhaseOptions) error {
 		if entries, readErr := os.ReadDir(templateDir); readErr == nil {
 			renderer := tpl.NewRenderer()
 			for _, entry := range entries {
-				// Skip GOAL.md (already handled as PHASE_GOAL.md)
-				if entry.Name() == "GOAL.md" {
+				// Skip GOAL.md (already handled as PHASE_GOAL.md) and gates/ (lives at festival root)
+				if entry.Name() == "GOAL.md" || entry.Name() == "gates" {
 					continue
 				}
 
