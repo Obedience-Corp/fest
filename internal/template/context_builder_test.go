@@ -236,6 +236,63 @@ func TestBuildContextFromPath(t *testing.T) {
 	})
 }
 
+func TestBuildContextFromPath_WithFestYAMLMetadata(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create festival with a directory name that differs from the original name
+	festivalDir := filepath.Join(tmpDir, "my-great-festival-MG0001")
+	phaseDir := filepath.Join(festivalDir, "001_PLANNING")
+	require.NoError(t, os.MkdirAll(phaseDir, 0755))
+
+	t.Run("reads name and goal from fest.yaml metadata", func(t *testing.T) {
+		// Write fest.yaml with full metadata (original name preserved with casing)
+		festYaml := `version: "1.0"
+metadata:
+  id: "MG0001"
+  name: "My Great Festival"
+  goal: "Build something amazing"
+  festival_type: "standard"
+`
+		require.NoError(t, os.WriteFile(filepath.Join(festivalDir, "fest.yaml"), []byte(festYaml), 0644))
+
+		ctx, err := BuildContextFromPath(phaseDir, festivalDir)
+		require.NoError(t, err)
+
+		// Should use exact name from fest.yaml, not lossy directory-name parse
+		assert.Equal(t, "My Great Festival", ctx.FestivalName)
+		assert.Equal(t, "Build something amazing", ctx.FestivalGoal)
+		assert.Equal(t, "MG0001", ctx.FestivalID)
+
+		// Phase parsing from directory name should still work
+		assert.Equal(t, 1, ctx.PhaseNumber)
+		assert.Equal(t, "Planning", ctx.PhaseName)
+	})
+
+	t.Run("falls back to directory parsing when fest.yaml has no metadata", func(t *testing.T) {
+		// Write minimal fest.yaml without metadata
+		require.NoError(t, os.WriteFile(filepath.Join(festivalDir, "fest.yaml"), []byte("version: \"1.0\"\n"), 0644))
+
+		ctx, err := BuildContextFromPath(festivalDir, festivalDir)
+		require.NoError(t, err)
+
+		// Should fall back to directory name parsing (lossy but functional)
+		assert.Equal(t, "my great festival", ctx.FestivalName)
+		assert.Equal(t, "", ctx.FestivalGoal)
+		assert.Equal(t, "MG0001", ctx.FestivalID)
+	})
+
+	t.Run("falls back to directory parsing when fest.yaml is missing", func(t *testing.T) {
+		noYamlDir := filepath.Join(tmpDir, "no-yaml-fest-NY0001")
+		require.NoError(t, os.MkdirAll(noYamlDir, 0755))
+
+		ctx, err := BuildContextFromPath(noYamlDir, noYamlDir)
+		require.NoError(t, err)
+
+		assert.Equal(t, "no yaml fest", ctx.FestivalName)
+		assert.Equal(t, "NY0001", ctx.FestivalID)
+	})
+}
+
 func TestBuildTaskContext(t *testing.T) {
 	// Create temp directory structure
 	tmpDir := t.TempDir()

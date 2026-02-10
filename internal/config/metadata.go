@@ -16,6 +16,9 @@ type FestivalMetadata struct {
 	// Name is the original festival name without the ID suffix.
 	Name string `yaml:"name,omitempty"`
 
+	// Goal is the festival's stated goal/objective.
+	Goal string `yaml:"goal,omitempty"`
+
 	// FestivalType is the type of festival (e.g., "standard", "implementation", "research", "quick", "ritual").
 	FestivalType string `yaml:"festival_type,omitempty"`
 
