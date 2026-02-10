@@ -10,6 +10,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/ui"
 )
 
@@ -122,10 +123,14 @@ func LoadWorkflowStepsForPhase(ctx context.Context, festivalPath, phasePath stri
 		return []WorkflowStepView{}, nil
 	}
 
-	// Load workflow state
-	state, err := wf.LoadState(ctx, festivalPath, phaseName)
-	if err != nil {
-		return nil, fmt.Errorf("loading workflow state: %w", err)
+	// Load workflow state from Store (JSONL-backed)
+	store := progress.NewStore(festivalPath)
+	if err := store.Load(ctx); err != nil {
+		return nil, fmt.Errorf("loading progress store: %w", err)
+	}
+	state, ok := store.WorkflowPhaseState(phaseName)
+	if !ok {
+		state = wf.NewWorkflowState(0)
 	}
 
 	// Build view models

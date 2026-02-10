@@ -25,6 +25,7 @@ type Navigator struct {
 	phaseName     string
 	phaseDir      string
 	mode          guidance.Mode
+	store         StateStore // optional: if set, use JSONL events instead of YAML
 }
 
 // Ensure Navigator implements guidance.Navigator.
@@ -42,6 +43,12 @@ func NewNavigator(gctx *guidance.GuidanceContext, mode guidance.Mode) (*Navigato
 		parser:        NewParser(),
 		mode:          mode,
 	}, nil
+}
+
+// SetStateStore sets the StateStore for JSONL-backed workflow state persistence.
+// When set, the navigator uses the progress event log instead of workflow_state.yaml.
+func (n *Navigator) SetStateStore(store StateStore) {
+	n.store = store
 }
 
 // Initialize loads the workflow and state.
@@ -87,15 +94,35 @@ func (n *Navigator) Initialize(ctx context.Context) error {
 
 	n.steps = steps
 
-	// Load or initialize workflow state from festival-level file
-	state, err := LoadState(ctx, n.festivalPath, n.phaseName)
-	if err != nil {
-		return fmt.Errorf("loading workflow state: %w", err)
+	// Load or initialize workflow state
+	var state *WorkflowState
+	if n.store != nil {
+		// Use JSONL-backed store
+		state, err = LoadStateFromStore(n.store, n.phaseName)
+		if err != nil {
+			return fmt.Errorf("loading workflow state from store: %w", err)
+		}
+	} else {
+		// Fall back to YAML file
+		state, err = LoadState(ctx, n.festivalPath, n.phaseName)
+		if err != nil {
+			return fmt.Errorf("loading workflow state: %w", err)
+		}
 	}
 
 	// If state is empty, initialize it with parsed steps
 	if state.TotalSteps == 0 && len(steps) > 0 {
 		state.Initialize(steps)
+
+		// Emit init event if using store
+		if n.store != nil {
+			n.store.QueueWorkflowEvents(EmitInitEvents(n.phaseName, len(steps)))
+			// Also emit step_start for step 1
+			n.store.QueueWorkflowEvents(EmitStepStartEvents(n.phaseName, 1))
+			if err := n.store.SaveEvents(ctx); err != nil {
+				return fmt.Errorf("saving workflow init events: %w", err)
+			}
+		}
 	}
 
 	n.workflowState = state
@@ -199,15 +226,22 @@ func (n *Navigator) MarkComplete(ctx context.Context, stepID string) error {
 		}
 	}
 
-	// Complete current step
+	currentStep := n.workflowState.CurrentStep
 	n.workflowState.CompleteCurrentStep()
 
-	// Try to advance to next step (ignore error if already at last step)
+	if n.store != nil {
+		n.store.QueueWorkflowEvents(EmitStepDoneEvents(n.phaseName, currentStep))
+		if n.workflowState.CurrentStep < n.workflowState.TotalSteps {
+			_ = n.workflowState.Advance()
+			n.store.QueueWorkflowEvents(EmitAdvanceEvents(n.phaseName, n.workflowState.CurrentStep))
+			n.store.QueueWorkflowEvents(EmitStepStartEvents(n.phaseName, n.workflowState.CurrentStep))
+		}
+		return n.store.SaveEvents(ctx)
+	}
+
 	if n.workflowState.CurrentStep < n.workflowState.TotalSteps {
 		_ = n.workflowState.Advance()
 	}
-
-	// Save state
 	return n.workflowState.Save(ctx, n.festivalPath, n.phaseName)
 }
 
@@ -223,14 +257,22 @@ func (n *Navigator) MarkSkipped(ctx context.Context, stepID string) error {
 		}
 	}
 
-	// Mark current as completed (skipped = completed for workflow purposes)
+	currentStep := n.workflowState.CurrentStep
 	n.workflowState.CompleteCurrentStep()
 
-	// Try to advance
+	if n.store != nil {
+		n.store.QueueWorkflowEvents(EmitStepDoneEvents(n.phaseName, currentStep))
+		if n.workflowState.CurrentStep < n.workflowState.TotalSteps {
+			_ = n.workflowState.Advance()
+			n.store.QueueWorkflowEvents(EmitAdvanceEvents(n.phaseName, n.workflowState.CurrentStep))
+			n.store.QueueWorkflowEvents(EmitStepStartEvents(n.phaseName, n.workflowState.CurrentStep))
+		}
+		return n.store.SaveEvents(ctx)
+	}
+
 	if n.workflowState.CurrentStep < n.workflowState.TotalSteps {
 		_ = n.workflowState.Advance()
 	}
-
 	return n.workflowState.Save(ctx, n.festivalPath, n.phaseName)
 }
 
@@ -247,6 +289,11 @@ func (n *Navigator) MarkFailed(ctx context.Context, stepID string) error {
 	}
 
 	n.workflowState.Reject("step failed")
+
+	if n.store != nil {
+		n.store.QueueWorkflowEvents(EmitStepBlockEvents(n.phaseName, n.workflowState.CurrentStep, "step failed"))
+		return n.store.SaveEvents(ctx)
+	}
 	return n.workflowState.Save(ctx, n.festivalPath, n.phaseName)
 }
 
@@ -266,16 +313,26 @@ func (n *Navigator) Advance(ctx context.Context) error {
 		return guidance.ErrAlreadyComplete
 	}
 
-	// Complete current step
+	currentStep := n.workflowState.CurrentStep
 	n.workflowState.CompleteCurrentStep()
 
-	// Try to advance to next step (will fail if at last step, which is OK)
+	if n.store != nil {
+		n.store.QueueWorkflowEvents(EmitStepDoneEvents(n.phaseName, currentStep))
+		if n.workflowState.CurrentStep < n.workflowState.TotalSteps {
+			if err := n.workflowState.Advance(); err != nil {
+				return err
+			}
+			n.store.QueueWorkflowEvents(EmitAdvanceEvents(n.phaseName, n.workflowState.CurrentStep))
+			n.store.QueueWorkflowEvents(EmitStepStartEvents(n.phaseName, n.workflowState.CurrentStep))
+		}
+		return n.store.SaveEvents(ctx)
+	}
+
 	if n.workflowState.CurrentStep < n.workflowState.TotalSteps {
 		if err := n.workflowState.Advance(); err != nil {
 			return err
 		}
 	}
-
 	return n.workflowState.Save(ctx, n.festivalPath, n.phaseName)
 }
 
@@ -482,10 +539,19 @@ func (n *Navigator) Approve(ctx context.Context) error {
 		}
 	}
 
+	currentStep := n.workflowState.CurrentStep
 	if err := n.workflowState.Approve(); err != nil {
 		return err
 	}
 
+	if n.store != nil {
+		n.store.QueueWorkflowEvents(EmitStepDoneEvents(n.phaseName, currentStep))
+		if n.workflowState.CurrentStep > currentStep {
+			n.store.QueueWorkflowEvents(EmitAdvanceEvents(n.phaseName, n.workflowState.CurrentStep))
+			n.store.QueueWorkflowEvents(EmitStepStartEvents(n.phaseName, n.workflowState.CurrentStep))
+		}
+		return n.store.SaveEvents(ctx)
+	}
 	return n.workflowState.Save(ctx, n.festivalPath, n.phaseName)
 }
 
@@ -502,6 +568,11 @@ func (n *Navigator) Reject(ctx context.Context, reason string) error {
 	}
 
 	n.workflowState.Reject(reason)
+
+	if n.store != nil {
+		n.store.QueueWorkflowEvents(EmitStepBlockEvents(n.phaseName, n.workflowState.CurrentStep, reason))
+		return n.store.SaveEvents(ctx)
+	}
 	return n.workflowState.Save(ctx, n.festivalPath, n.phaseName)
 }
 
@@ -528,5 +599,10 @@ func (n *Navigator) Reset(ctx context.Context) error {
 	}
 
 	n.workflowState.Reset()
+
+	if n.store != nil {
+		n.store.QueueWorkflowEvents(EmitResetEvents(n.phaseName))
+		return n.store.SaveEvents(ctx)
+	}
 	return n.workflowState.Save(ctx, n.festivalPath, n.phaseName)
 }

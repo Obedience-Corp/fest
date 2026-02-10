@@ -25,7 +25,7 @@ import (
 	_ "github.com/Obedience-Corp/fest/internal/guidance/planning"
 	_ "github.com/Obedience-Corp/fest/internal/guidance/research"
 	_ "github.com/Obedience-Corp/fest/internal/guidance/review"
-	"github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/progress"
 )
 
 var (
@@ -133,8 +133,12 @@ func runNext(cmd *cobra.Command, args []string) error {
 		if _, err := os.Stat(workflowPath); err == nil {
 			// WORKFLOW.md exists - check if workflow is complete before routing
 			phaseName := filepath.Base(phasePath)
-			state, loadErr := workflow.LoadState(ctx, festivalPath, phaseName)
-			if loadErr != nil || state.TotalSteps == 0 || !state.IsComplete() {
+			store := progress.NewStore(festivalPath)
+			if loadErr := store.Load(ctx); loadErr != nil {
+				return runWorkflowMode(ctx, festivalPath, phasePath)
+			}
+			state, ok := store.WorkflowPhaseState(phaseName)
+			if !ok || state.TotalSteps == 0 || !state.IsComplete() {
 				return runWorkflowMode(ctx, festivalPath, phasePath)
 			}
 			// Workflow complete - fall through to selector for next task
@@ -415,32 +419,33 @@ func findFirstIncompletePhase(ctx context.Context, festivalPath string) (string,
 		}
 	}
 
-	// Sort to ensure numerical order (001_, 002_, etc.)
 	sort.Strings(phases)
 
+	// Load Store once for all workflow state lookups
+	store := progress.NewStore(festivalPath)
+	storeLoaded := store.Load(ctx) == nil
+
 	for _, phasePath := range phases {
-		// Check for WORKFLOW.md first
 		workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
 		if _, err := os.Stat(workflowPath); err == nil {
-			// Workflow-based phase - check workflow state
 			phaseName := filepath.Base(phasePath)
-			state, loadErr := workflow.LoadState(ctx, festivalPath, phaseName)
-			if loadErr != nil {
-				return phasePath, true, nil // Can't load state, assume incomplete
+			if storeLoaded {
+				state, ok := store.WorkflowPhaseState(phaseName)
+				if !ok || state.TotalSteps == 0 || !state.IsComplete() {
+					return phasePath, true, nil
+				}
+			} else {
+				return phasePath, true, nil // Can't load store, assume incomplete
 			}
-			if state.TotalSteps == 0 || !state.IsComplete() {
-				return phasePath, true, nil
-			}
-			continue // Workflow complete, check next phase
+			continue
 		}
 
-		// Task-based phase - check if phase is complete via PHASE_GOAL.md frontmatter
 		if hasSequenceDirs(phasePath) && !isPhaseMarkedComplete(phasePath) {
 			return phasePath, false, nil
 		}
 	}
 
-	return "", false, nil // All phases complete
+	return "", false, nil
 }
 
 // findFirstIncompleteWorkflowPhase scans phases in numerical order for the first with incomplete workflow.
@@ -460,6 +465,9 @@ func findFirstIncompleteWorkflowPhase(ctx context.Context, festivalPath string) 
 
 	sort.Strings(phases)
 
+	store := progress.NewStore(festivalPath)
+	storeLoaded := store.Load(ctx) == nil
+
 	for _, phasePath := range phases {
 		workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
 		if _, err := os.Stat(workflowPath); err != nil {
@@ -467,12 +475,11 @@ func findFirstIncompleteWorkflowPhase(ctx context.Context, festivalPath string) 
 		}
 
 		phaseName := filepath.Base(phasePath)
-		state, err := workflow.LoadState(ctx, festivalPath, phaseName)
-		if err != nil {
+		if !storeLoaded {
 			return phasePath, nil
 		}
-
-		if state.TotalSteps == 0 || !state.IsComplete() {
+		state, ok := store.WorkflowPhaseState(phaseName)
+		if !ok || state.TotalSteps == 0 || !state.IsComplete() {
 			return phasePath, nil
 		}
 	}
