@@ -80,17 +80,6 @@ func runGoCompletions(descriptions, color bool, statusFilter string) error {
 		return runStatusCompletions(festivalsDir, statusFilter, descriptions, color)
 	}
 
-	// Subcommands
-	subcommands := []string{
-		"list",
-		"link",
-		"map",
-		"unmap",
-		"project",
-		"fest",
-		"help",
-	}
-
 	// Status directories
 	statuses := []string{
 		"active",
@@ -102,18 +91,6 @@ func runGoCompletions(descriptions, color bool, statusFilter string) error {
 	statusSet := make(map[string]bool, len(statuses))
 	for _, s := range statuses {
 		statusSet[s] = true
-	}
-
-	// Output subcommands
-	for _, cmd := range subcommands {
-		switch {
-		case color:
-			fmt.Printf("%s\t%s %ssubcommand%s\n", cmd, cmd, ansiDim, ansiReset)
-		case descriptions:
-			fmt.Printf("%s:subcommand\n", cmd)
-		default:
-			fmt.Println(cmd)
-		}
 	}
 
 	// Output status directories
