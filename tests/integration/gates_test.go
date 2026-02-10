@@ -297,12 +297,12 @@ Implement the features.
 func requireGateTasks(t *testing.T, files []string) {
 	t.Helper()
 
-	// Gate IDs from DefaultFestivalConfig: testing, review, iterate, commit
+	// Gate IDs from DefaultFestivalConfig: testing, review, iterate, fest-commit
 	expected := []string{
 		"_testing.md",
 		"_review.md",
 		"_iterate.md",
-		"_commit.md",
+		"_fest-commit.md",
 	}
 
 	for _, suffix := range expected {
@@ -373,8 +373,8 @@ quality_gates:
     - id: iterate
       template: gates/implementation/QUALITY_GATE_ITERATE
       enabled: true
-    - id: commit
-      template: gates/implementation/QUALITY_GATE_COMMIT
+    - id: fest-commit
+      template: gates/implementation/QUALITY_GATE_FEST_COMMIT
       enabled: true
 `
 	festYAMLPath := "/festivals/test-gates-festival/fest.yaml"
@@ -456,8 +456,8 @@ quality_gates:
     - id: iterate
       template: gates/implementation/QUALITY_GATE_ITERATE
       enabled: true
-    - id: commit
-      template: gates/implementation/QUALITY_GATE_COMMIT
+    - id: fest-commit
+      template: gates/implementation/QUALITY_GATE_FEST_COMMIT
       enabled: true
 `
 	festYAMLPath := filepath.Join(path, "fest.yaml")

@@ -219,8 +219,8 @@ quality_gates:
     - id: review_results_iterate
       template: gates/QUALITY_GATE_ITERATE
       enabled: true
-    - id: commit
-      template: gates/QUALITY_GATE_COMMIT
+    - id: fest-commit
+      template: gates/QUALITY_GATE_FEST_COMMIT
       enabled: true
 ```
 

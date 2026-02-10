@@ -21,7 +21,7 @@ func TestDefaultFestivalConfig(t *testing.T) {
 	}
 
 	// Check implementation gates
-	expectedIDs := []string{"testing", "review", "iterate", "commit"}
+	expectedIDs := []string{"testing", "review", "iterate", "fest-commit"}
 	if len(cfg.QualityGates.Implementation) != 4 {
 		t.Errorf("expected 4 implementation gates, got %d", len(cfg.QualityGates.Implementation))
 	}

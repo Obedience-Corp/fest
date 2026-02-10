@@ -1,15 +1,15 @@
 ---
 # Template metadata (for fest CLI discovery)
-id: QUALITY_GATE_COMMIT
+id: QUALITY_GATE_FEST_COMMIT
 aliases:
-  - commit
-  - qg-commit
-description: Standard quality gate task for committing sequence changes
+  - fest-commit
+  - qg-fest-commit
+description: Standard quality gate task for committing sequence changes with fest commit
 
 # Fest document metadata (becomes document frontmatter)
 fest_type: gate
 fest_id: {{ .GateID }}
-fest_name: Commit Sequence Changes
+fest_name: Fest Commit Sequence Changes
 fest_parent: {{ .SequenceID }}
 fest_order: {{ .TaskNumber }}
 fest_gate_type: iterate
@@ -18,7 +18,7 @@ fest_tracking: true
 fest_created: {{ .created_date }}
 ---
 
-# Task: Commit Sequence Changes
+# Task: Fest Commit Sequence Changes
 
 **Task Number:** {{ .TaskNumber }} | **Parallel Group:** None | **Dependencies:** Testing, Code Review, Iteration | **Autonomy:** medium
 
@@ -30,9 +30,9 @@ Create a clean, descriptive commit that captures all changes made in this sequen
 
 Before committing, verify:
 
-- [ ] All tests pass (`cargo test`)
-- [ ] Linting is clean (`cargo clippy -- -D warnings`)
-- [ ] Code is formatted (`cargo fmt --check`)
+- [ ] All tests pass
+- [ ] Linting is clean
+- [ ] Code is formatted
 - [ ] No debug code or temporary files included
 - [ ] No secrets or credentials in staged changes
 

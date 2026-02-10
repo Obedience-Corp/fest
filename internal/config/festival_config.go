@@ -130,7 +130,7 @@ func DefaultFestivalConfig() *FestivalConfig {
 				{ID: "testing", Template: "gates/implementation/QUALITY_GATE_TESTING", Name: "Testing and Verification", Enabled: true},
 				{ID: "review", Template: "gates/implementation/QUALITY_GATE_REVIEW", Name: "Code Review", Enabled: true},
 				{ID: "iterate", Template: "gates/implementation/QUALITY_GATE_ITERATE", Name: "Review Results and Iterate", Enabled: true},
-				{ID: "commit", Template: "gates/implementation/QUALITY_GATE_COMMIT", Name: "Commit Changes", Enabled: true},
+				{ID: "fest-commit", Template: "gates/implementation/QUALITY_GATE_FEST_COMMIT", Name: "Fest Commit Changes", Enabled: true},
 			},
 		},
 		ExcludedPatterns: []string{

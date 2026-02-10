@@ -90,7 +90,7 @@ required_variables:
 		"phases/implementation/gates/QUALITY_GATE_TESTING.md": "# Testing Gate\n",
 		"phases/implementation/gates/QUALITY_GATE_REVIEW.md":  "# Review Gate\n",
 		"phases/implementation/gates/QUALITY_GATE_ITERATE.md": "# Iterate Gate\n",
-		"phases/implementation/gates/QUALITY_GATE_COMMIT.md":  "# Commit Gate\n",
+		"phases/implementation/gates/QUALITY_GATE_FEST_COMMIT.md":  "# Commit Gate\n",
 	}
 
 	for path, content := range templates {
