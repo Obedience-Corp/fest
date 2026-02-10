@@ -15,6 +15,9 @@ import (
 // ProgressBarWidth defines the number of characters in the progress bar
 const ProgressBarWidth = 20
 
+// pollingInterval is the fixed interval for the polling fallback when fsnotify is unavailable.
+const pollingInterval = 2 * time.Second
+
 // runWatchMode watches for file changes and refreshes the festival display.
 // Falls back to polling if file watching is not available.
 func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions) error {
@@ -28,7 +31,7 @@ func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions
 	if err := renderFestivalView(ctx, festival, opts); err != nil {
 		return err
 	}
-	printWatchFooter(false, opts.interval)
+	printWatchFooter(false)
 
 	// Attempt file watching with fallback to polling
 	w, err := watch.New(watch.Config{
@@ -45,7 +48,7 @@ func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions
 			// Log error but don't fail - just show stale data
 			_ = err
 		}
-		printWatchFooter(false, opts.interval)
+		printWatchFooter(false)
 	})
 
 	if err != nil {
@@ -60,7 +63,7 @@ func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions
 // runPollingMode continuously refreshes the festival display at the specified interval.
 // Used as a fallback when file watching is not available.
 func runPollingMode(ctx context.Context, festival *FestivalInfo, opts *showOptions) error {
-	ticker := time.NewTicker(opts.interval)
+	ticker := time.NewTicker(pollingInterval)
 	defer ticker.Stop()
 
 	// Re-render with polling indicator
@@ -68,7 +71,7 @@ func runPollingMode(ctx context.Context, festival *FestivalInfo, opts *showOptio
 	if err := renderFestivalView(ctx, festival, opts); err != nil {
 		return err
 	}
-	printWatchFooter(true, opts.interval)
+	printWatchFooter(true)
 
 	for {
 		select {
@@ -87,7 +90,7 @@ func runPollingMode(ctx context.Context, festival *FestivalInfo, opts *showOptio
 			if err := renderFestivalView(ctx, festival, opts); err != nil {
 				return err
 			}
-			printWatchFooter(true, opts.interval)
+			printWatchFooter(true)
 		}
 	}
 }
@@ -122,6 +125,7 @@ func renderFestivalView(ctx context.Context, festival *FestivalInfo, opts *showO
 	treeOpts := DefaultTreeOptions()
 	treeOpts.ShowGoals = opts.goals
 	treeOpts.Collapsed = opts.collapsed
+	treeOpts.InProgress = opts.inProgress
 	fmt.Println(RenderTree(tree, treeOpts))
 	return nil
 }
@@ -145,10 +149,10 @@ func clearScreen() {
 }
 
 // printWatchFooter prints the watch mode footer with exit instructions.
-func printWatchFooter(polling bool, interval time.Duration) {
+func printWatchFooter(polling bool) {
 	fmt.Println()
 	if polling {
-		fmt.Println(ui.Dim(fmt.Sprintf("Press Ctrl+C to exit • Polling every %s", interval)))
+		fmt.Println(ui.Dim("Press Ctrl+C to exit • Polling for changes"))
 	} else {
 		fmt.Println(ui.Dim("Press Ctrl+C to exit • Watching for changes"))
 	}

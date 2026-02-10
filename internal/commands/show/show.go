@@ -5,8 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"time"
-
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/workspace"
@@ -17,7 +15,6 @@ type showOptions struct {
 	json       bool
 	summary    bool          // Show aggregate summary instead of tree view
 	watch      bool          // Continuously refresh display
-	interval   time.Duration // Refresh interval for watch mode
 	goals      bool          // Show goals for phases and sequences
 	collapsed  bool          // Show collapsed tree with counters only
 	inProgress bool          // Expand only in_progress phases/sequences
@@ -55,7 +52,6 @@ SUBCOMMANDS:
 	cmd.Flags().BoolVar(&opts.json, "json", false, "output in JSON format")
 	cmd.Flags().BoolVar(&opts.summary, "summary", false, "show aggregate summary instead of tree view")
 	cmd.Flags().BoolVar(&opts.watch, "watch", false, "continuously refresh display")
-	cmd.Flags().DurationVar(&opts.interval, "interval", 2*time.Second, "refresh interval for watch mode")
 	cmd.Flags().BoolVar(&opts.goals, "goals", false, "show goals for phases and sequences")
 	cmd.Flags().BoolVar(&opts.collapsed, "collapsed", false, "show collapsed tree with counters only")
 	cmd.Flags().BoolVar(&opts.inProgress, "inprogress", false, "expand only in-progress phases and sequences")
