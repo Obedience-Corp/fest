@@ -96,7 +96,21 @@ func runUpdate(ctx context.Context, targetPath string, opts *updateOptions) erro
 	// Load checksums (stored in .festival/.state/ directory)
 	checksumFile := filepath.Join(stateDir, ".fest-checksums.json")
 	if !fileops.Exists(checksumFile) {
-		return errors.NotFound("checksum file").WithField("path", checksumFile).WithField("hint", "run 'fest init' first")
+		if !opts.force {
+			return errors.NotFound("checksum file").WithField("path", checksumFile).WithField("hint", "run 'fest init' first")
+		}
+		// --force: bootstrap checksums from current state
+		display.Warning("No checksum file found — bootstrapping from current state (--force)")
+		if err := os.MkdirAll(stateDir, 0755); err != nil {
+			return errors.IO("creating state directory", err).WithField("path", stateDir)
+		}
+		bootstrapChecksums, err := fileops.GenerateChecksums(ctx, festivalDir)
+		if err != nil {
+			return errors.Wrap(err, "generating initial checksums").WithField("path", festivalDir)
+		}
+		if err := fileops.SaveChecksums(ctx, checksumFile, bootstrapChecksums); err != nil {
+			return errors.IO("saving initial checksums", err).WithField("path", checksumFile)
+		}
 	}
 
 	storedChecksums, err := fileops.LoadChecksums(ctx, checksumFile)
