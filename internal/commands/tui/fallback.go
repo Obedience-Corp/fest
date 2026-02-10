@@ -4,11 +4,10 @@ package tui
 
 import (
 	"context"
-	"os"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
-	tpl "github.com/Obedience-Corp/fest/internal/template"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -37,10 +36,9 @@ func NewTUICommand() *cobra.Command {
 
 func runTUI(ctx context.Context) error {
 	display := ui.New(shared.IsNoColor(), shared.IsVerbose())
-	cwd, _ := os.Getwd()
 
-	// Ensure we are inside a festivals workspace; if not, offer to init
-	if _, err := tpl.FindFestivalsRoot(cwd); err != nil {
+	// Ensure workspace is resolved (scope middleware already did this)
+	if _, ok := scope.WorkspaceFrom(ctx); !ok {
 		display.Warning("No festivals/ directory detected.")
 		if display.Confirm("Initialize a new festival workspace here?") {
 			if err := shared.RunInit(ctx, ".", &shared.InitOpts{}); err != nil {

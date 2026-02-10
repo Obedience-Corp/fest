@@ -176,7 +176,7 @@ func runNext(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Populate feedback criteria if configured
+	// Populate feedback criteria for JSON output
 	feedbackCriteria := loadFeedbackCriteria(ctx, festivalPath)
 	if len(feedbackCriteria) > 0 {
 		result.FeedbackCriteria = feedbackCriteria
@@ -218,12 +218,12 @@ func runNext(cmd *cobra.Command, args []string) error {
 
 	if verboseOutput {
 		fmt.Print(selection.FormatVerbose(result, showInlineContext))
-		printFeedbackReminder(result.FeedbackCriteria)
+		printFeedbackReminder(ctx, festivalPath)
 		return nil
 	}
 
 	fmt.Print(selection.FormatText(result, showInlineContext))
-	printFeedbackReminder(result.FeedbackCriteria)
+	printFeedbackReminder(ctx, festivalPath)
 	return nil
 }
 
@@ -296,6 +296,7 @@ func runNavigatorMode(ctx context.Context, cwd, festivalPath string) error {
 		return errors.Wrap(err, "formatting instructions")
 	}
 	fmt.Print(instructions)
+	printFeedbackReminder(ctx, festivalPath)
 	return nil
 }
 
@@ -360,6 +361,7 @@ func runWorkflowMode(ctx context.Context, festivalPath, phasePath string) error 
 		return errors.Wrap(err, "formatting workflow instructions")
 	}
 	fmt.Print(instructions)
+	printFeedbackReminder(ctx, festivalPath)
 	return nil
 }
 
@@ -567,10 +569,13 @@ func loadFeedbackCriteria(ctx context.Context, festivalPath string) []string {
 	return names
 }
 
-// printFeedbackReminder appends a brief feedback criteria section to the output.
-func printFeedbackReminder(criteria []string) {
-	if len(criteria) == 0 {
+// printFeedbackReminder appends the full feedback reminder (criteria + recording instructions)
+// to the output when feedback is initialized for the festival.
+func printFeedbackReminder(ctx context.Context, festivalPath string) {
+	store := feedback.NewStore(festivalPath)
+	text, err := store.GetReminderText(ctx)
+	if err != nil || text == "" {
 		return
 	}
-	fmt.Printf("\n%s\nFeedback: %s\n", strings.Repeat("─", 40), strings.Join(criteria, ", "))
+	fmt.Printf("\n%s%s", strings.Repeat("─", 60), text)
 }

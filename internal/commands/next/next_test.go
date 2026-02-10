@@ -218,13 +218,16 @@ func TestLoadFeedbackCriteria(t *testing.T) {
 }
 
 func TestPrintFeedbackReminder(t *testing.T) {
-	t.Run("no criteria", func(t *testing.T) {
+	t.Run("no feedback configured", func(t *testing.T) {
+		festDir := t.TempDir()
+		ctx := context.Background()
+
 		// Capture stdout
 		old := os.Stdout
 		r, w, _ := os.Pipe()
 		os.Stdout = w
 
-		printFeedbackReminder(nil)
+		printFeedbackReminder(ctx, festDir)
 
 		w.Close()
 		os.Stdout = old
@@ -234,16 +237,27 @@ func TestPrintFeedbackReminder(t *testing.T) {
 		output := string(buf[:n])
 
 		if output != "" {
-			t.Errorf("expected no output for nil criteria, got %q", output)
+			t.Errorf("expected no output when feedback not configured, got %q", output)
 		}
 	})
 
-	t.Run("with criteria", func(t *testing.T) {
+	t.Run("with feedback configured", func(t *testing.T) {
+		festDir := t.TempDir()
+		ctx := context.Background()
+
+		// Initialize feedback with criteria
+		store := feedback.NewStore(festDir)
+		_, err := store.Init(ctx, []string{"usability", "performance"})
+		if err != nil {
+			t.Fatalf("Init() error: %v", err)
+		}
+
+		// Capture stdout
 		old := os.Stdout
 		r, w, _ := os.Pipe()
 		os.Stdout = w
 
-		printFeedbackReminder([]string{"usability", "performance"})
+		printFeedbackReminder(ctx, festDir)
 
 		w.Close()
 		os.Stdout = old
@@ -252,14 +266,20 @@ func TestPrintFeedbackReminder(t *testing.T) {
 		n, _ := r.Read(buf[:])
 		output := string(buf[:n])
 
-		if !strings.Contains(output, "Feedback:") {
-			t.Errorf("expected 'Feedback:' in output, got %q", output)
+		if !strings.Contains(output, "Feedback Collection") {
+			t.Errorf("expected 'Feedback Collection' header in output, got %q", output)
 		}
-		if !strings.Contains(output, "usability") {
-			t.Errorf("expected 'usability' in output, got %q", output)
+		if !strings.Contains(output, "1. usability") {
+			t.Errorf("expected numbered 'usability' criterion in output, got %q", output)
 		}
-		if !strings.Contains(output, "performance") {
-			t.Errorf("expected 'performance' in output, got %q", output)
+		if !strings.Contains(output, "2. performance") {
+			t.Errorf("expected numbered 'performance' criterion in output, got %q", output)
+		}
+		if !strings.Contains(output, "fest feedback add --criteria") {
+			t.Errorf("expected recording command with --criteria flag in output, got %q", output)
+		}
+		if !strings.Contains(output, "--severity") {
+			t.Errorf("expected optional flags in output, got %q", output)
 		}
 	})
 }

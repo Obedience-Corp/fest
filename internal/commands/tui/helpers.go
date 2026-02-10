@@ -12,8 +12,27 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/festival"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 )
+
+// templateRootFromCtx derives the template root from the workspace already resolved by scope middleware.
+func templateRootFromCtx(ctx context.Context) (string, error) {
+	ws, ok := scope.WorkspaceFrom(ctx)
+	if !ok {
+		return "", errors.NotFound("workspace not in context")
+	}
+	return filepath.Join(ws.FestivalsPath, ".festival", "templates"), nil
+}
+
+// festivalsRootFromCtx derives the festivals root from the workspace already resolved by scope middleware.
+func festivalsRootFromCtx(ctx context.Context) (string, error) {
+	ws, ok := scope.WorkspaceFrom(ctx)
+	if !ok {
+		return "", errors.NotFound("workspace not in context")
+	}
+	return ws.FestivalsPath, nil
+}
 
 func collectRequiredVars(ctx context.Context, templateRoot string, paths []string) []string {
 	loader := tpl.NewLoader()
