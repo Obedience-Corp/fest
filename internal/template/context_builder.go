@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/Obedience-Corp/fest/internal/config"
 )
 
 // BuildContextFromPath builds a complete Context by parsing the directory hierarchy.
@@ -38,13 +40,17 @@ func BuildContextFromPath(targetPath, festivalPath string) (*Context, error) {
 
 	parts := strings.Split(relPath, string(filepath.Separator))
 
-	// Parse festival info from directory name
-	festivalName := filepath.Base(festivalPath)
-	ctx.SetFestival(parseFestivalName(festivalName), "", nil)
-
-	// Extract festival ID from directory name if it follows naming convention
-	if festID := extractFestivalID(festivalName); festID != "" {
-		ctx.SetFestivalID(festID)
+	// Try reading fest.yaml for accurate festival metadata
+	if festCfg, cfgErr := config.LoadFestivalConfig(festivalPath); cfgErr == nil && festCfg.Metadata.HasMetadata() {
+		ctx.SetFestival(festCfg.Metadata.Name, festCfg.Metadata.Goal, nil)
+		ctx.SetFestivalID(festCfg.Metadata.ID)
+	} else {
+		// Fall back to parsing festival info from directory name
+		festivalName := filepath.Base(festivalPath)
+		ctx.SetFestival(parseFestivalName(festivalName), "", nil)
+		if festID := extractFestivalID(festivalName); festID != "" {
+			ctx.SetFestivalID(festID)
+		}
 	}
 
 	// Parse phase info (first path component)

@@ -278,7 +278,17 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 				return emitCreateFestivalError(opts, errors.IO("reading gate template", err).WithField("path", srcPath))
 			}
 
-			if err := os.WriteFile(destPath, content, 0644); err != nil {
+			// Apply marker replacement to gate templates
+			processedContent := string(content)
+			if !effectiveSkipMarkers {
+				renderer := tpl.NewRenderer()
+				rendered, renderErr := renderer.RenderWithMarkerReplacement(processedContent, tmplCtx, nil)
+				if renderErr == nil {
+					processedContent = rendered
+				}
+			}
+
+			if err := os.WriteFile(destPath, []byte(processedContent), 0644); err != nil {
 				return emitCreateFestivalError(opts, errors.IO("writing gate template", err).WithField("path", destPath))
 			}
 
@@ -313,6 +323,7 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 		ID:           festivalID,
 		UUID:         uuid.New().String(),
 		Name:         opts.Name,
+		Goal:         opts.Goal,
 		FestivalType: festivalTypeName,
 		CreatedAt:    now,
 		StatusHistory: []config.StatusChange{
