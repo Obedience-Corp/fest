@@ -28,9 +28,10 @@ type DisplayNode struct {
 
 // TreeOptions configures how the tree is rendered.
 type TreeOptions struct {
-	ShowGoals bool // Show primary goals (default: true)
-	Collapsed bool // Show only phases with counters, no children
-	Width     int  // Terminal width for alignment (0 = auto)
+	ShowGoals  bool // Show primary goals (default: true)
+	Collapsed  bool // Show only phases with counters, no children
+	InProgress bool // Expand only in_progress phases/sequences, collapse rest
+	Width      int  // Terminal width for alignment (0 = auto)
 }
 
 // DefaultTreeOptions returns sensible defaults for tree rendering.
@@ -333,7 +334,8 @@ func renderPhaseNode(sb *strings.Builder, node *DisplayNode, prefix string, isLa
 	sb.WriteString(ui.Dim(connector))
 	sb.WriteString(phaseStyle.Render(node.Name))
 	sb.WriteString("  ")
-	if opts.Collapsed {
+	collapsePhase := opts.Collapsed || (opts.InProgress && node.Status != "in_progress")
+	if collapsePhase {
 		sb.WriteString(formatCollapsedPhaseStatus(node))
 	} else {
 		sb.WriteString(formatNodeStatus(node))
@@ -348,8 +350,12 @@ func renderPhaseNode(sb *strings.Builder, node *DisplayNode, prefix string, isLa
 		sb.WriteString("\n")
 	}
 
-	// Render children only when not collapsed
-	if !opts.Collapsed {
+	// Render children: collapsed hides all, inprogress hides non-active
+	showChildren := !opts.Collapsed
+	if opts.InProgress && node.Status != "in_progress" {
+		showChildren = false
+	}
+	if showChildren {
 		newPrefix := prefix + childPrefix
 		for i, child := range node.Children {
 			childIsLast := i == len(node.Children)-1
@@ -387,8 +393,12 @@ func renderSequenceNode(sb *strings.Builder, node *DisplayNode, prefix string, i
 		sb.WriteString("\n")
 	}
 
-	// Render task children when not collapsed
-	if !opts.Collapsed {
+	// Render task children: collapsed hides all, inprogress hides non-active
+	showTasks := !opts.Collapsed
+	if opts.InProgress && node.Status != "in_progress" {
+		showTasks = false
+	}
+	if showTasks {
 		newPrefix := prefix + childPrefix
 		for i, child := range node.Children {
 			childIsLast := i == len(node.Children)-1

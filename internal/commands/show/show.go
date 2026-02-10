@@ -14,12 +14,13 @@ import (
 )
 
 type showOptions struct {
-	json      bool
-	summary   bool          // Show aggregate summary instead of tree view
-	watch     bool          // Continuously refresh display
-	interval  time.Duration // Refresh interval for watch mode
-	goals     bool          // Show goals for phases and sequences
-	collapsed bool          // Show collapsed tree with counters only
+	json       bool
+	summary    bool          // Show aggregate summary instead of tree view
+	watch      bool          // Continuously refresh display
+	interval   time.Duration // Refresh interval for watch mode
+	goals      bool          // Show goals for phases and sequences
+	collapsed  bool          // Show collapsed tree with counters only
+	inProgress bool          // Expand only in_progress phases/sequences
 }
 
 // NewShowCommand creates the show command with all subcommands.
@@ -57,6 +58,7 @@ SUBCOMMANDS:
 	cmd.Flags().DurationVar(&opts.interval, "interval", 2*time.Second, "refresh interval for watch mode")
 	cmd.Flags().BoolVar(&opts.goals, "goals", false, "show goals for phases and sequences")
 	cmd.Flags().BoolVar(&opts.collapsed, "collapsed", false, "show collapsed tree with counters only")
+	cmd.Flags().BoolVar(&opts.inProgress, "inprogress", false, "expand only in-progress phases and sequences")
 
 	// Add subcommands for status directories
 	cmd.AddCommand(newShowActiveCommand(opts))
@@ -292,6 +294,7 @@ func emitFestivalText(festival *FestivalInfo, showOpts *showOptions) error {
 	opts := DefaultTreeOptions()
 	opts.ShowGoals = showOpts.goals
 	opts.Collapsed = showOpts.collapsed
+	opts.InProgress = showOpts.inProgress
 	fmt.Println(RenderTree(tree, opts))
 	return nil
 }
