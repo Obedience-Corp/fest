@@ -266,17 +266,20 @@ func TestPrintFeedbackReminder(t *testing.T) {
 		n, _ := r.Read(buf[:])
 		output := string(buf[:n])
 
-		if !strings.Contains(output, "usability") {
-			t.Errorf("expected 'usability' in output, got %q", output)
+		if !strings.Contains(output, "Feedback Collection") {
+			t.Errorf("expected 'Feedback Collection' header in output, got %q", output)
 		}
-		if !strings.Contains(output, "performance") {
-			t.Errorf("expected 'performance' in output, got %q", output)
+		if !strings.Contains(output, "1. usability") {
+			t.Errorf("expected numbered 'usability' criterion in output, got %q", output)
 		}
-		if !strings.Contains(output, "fest feedback add") {
-			t.Errorf("expected recording instructions in output, got %q", output)
+		if !strings.Contains(output, "2. performance") {
+			t.Errorf("expected numbered 'performance' criterion in output, got %q", output)
 		}
-		if !strings.Contains(output, "fest feedback view") {
-			t.Errorf("expected view command in output, got %q", output)
+		if !strings.Contains(output, "fest feedback add --criteria") {
+			t.Errorf("expected recording command with --criteria flag in output, got %q", output)
+		}
+		if !strings.Contains(output, "--severity") {
+			t.Errorf("expected optional flags in output, got %q", output)
 		}
 	})
 }

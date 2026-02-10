@@ -291,14 +291,14 @@ func (s *Store) GetReminderText(ctx context.Context) (string, error) {
 	}
 
 	var sb strings.Builder
-	sb.WriteString("\nRemember, you have been asked to supply feedback based on the below criteria:\n\n")
-	for _, c := range config.Criteria {
-		sb.WriteString(fmt.Sprintf("- %s\n", c.Name))
+	sb.WriteString("\n## Feedback Collection\n\n")
+	sb.WriteString("As you work, watch for observations matching these criteria:\n\n")
+	for i, c := range config.Criteria {
+		sb.WriteString(fmt.Sprintf("  %d. %s\n", i+1, c.Name))
 	}
-	sb.WriteString("\nWhen you have new feedback to add please use:\n")
-	sb.WriteString("  fest feedback add --json '{\"criteria\": \"...\", \"observation\": \"...\"}'\n")
-	sb.WriteString("\nExisting feedback can be viewed by running:\n")
-	sb.WriteString("  fest feedback view\n")
+	sb.WriteString("\nTo record feedback:\n")
+	sb.WriteString("  fest feedback add --criteria \"<criteria text>\" --observation \"<what you observed>\"\n")
+	sb.WriteString("\nOptional flags: --severity low|medium|high --suggestion \"<your suggestion>\"\n")
 
 	return sb.String(), nil
 }
