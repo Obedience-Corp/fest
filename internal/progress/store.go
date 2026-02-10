@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"gopkg.in/yaml.v3"
 )
 
@@ -86,10 +87,14 @@ type FestivalProgressData struct {
 
 // Store manages progress persistence
 type Store struct {
-	festivalPath string
-	data         *FestivalProgressData
-	pendingEvent *ProgressEvent // Event to append on next Save()
+	festivalPath  string
+	data          *FestivalProgressData
+	workflowData  *wf.FestivalWorkflowState
+	pendingEvents []*ProgressEvent // Events to append on next Save()
 }
+
+// Compile-time check that Store implements wf.StateStore.
+var _ wf.StateStore = (*Store)(nil)
 
 // NewStore creates a new progress store for a festival
 func NewStore(festivalPath string) *Store {
@@ -110,6 +115,7 @@ func (s *Store) legacyFilePath() string {
 
 // Load loads progress data from disk.
 // Uses JSONL event format as primary, with convert-on-access for legacy YAML.
+// Also migrates workflow_state.yaml into the JSONL event stream if present.
 func (s *Store) Load(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
@@ -120,7 +126,14 @@ func (s *Store) Load(ctx context.Context) error {
 
 	// Preferred: JSONL exists - load from events
 	if fileExists(eventsPath) {
-		return s.loadFromEvents(ctx)
+		if err := s.loadFromEvents(ctx); err != nil {
+			return err
+		}
+		// Migrate workflow_state.yaml if it exists alongside JSONL
+		if err := s.migrateWorkflowYAML(ctx); err != nil {
+			return errors.Wrap(err, "migrating workflow state")
+		}
+		return nil
 	}
 
 	// Legacy: YAML exists - convert it to JSONL
@@ -128,11 +141,19 @@ func (s *Store) Load(ctx context.Context) error {
 		if err := s.migrateFromLegacy(ctx); err != nil {
 			return errors.Wrap(err, "migrating legacy progress format")
 		}
+		// Also migrate workflow_state.yaml if present
+		if err := s.migrateWorkflowYAML(ctx); err != nil {
+			return errors.Wrap(err, "migrating workflow state")
+		}
 		return nil
 	}
 
 	// No progress data exists - create empty state
 	s.initializeEmptyState()
+	// Still check for workflow_state.yaml (could exist without progress data)
+	if err := s.migrateWorkflowYAML(ctx); err != nil {
+		return errors.Wrap(err, "migrating workflow state")
+	}
 	return nil
 }
 
@@ -156,6 +177,7 @@ func (s *Store) initializeEmptyState() {
 		},
 		Tasks: make(map[string]*TaskProgress),
 	}
+	s.workflowData = wf.NewFestivalWorkflowState()
 }
 
 // migrateFromLegacy converts a legacy YAML progress file to JSONL format.
@@ -241,27 +263,26 @@ func (s *Store) Save(ctx context.Context) error {
 		return errors.Wrap(err, "context cancelled")
 	}
 
-	// If no pending event, nothing to save
-	if s.pendingEvent == nil {
+	if len(s.pendingEvents) == 0 {
 		return nil
 	}
 
-	// Append the pending event to JSONL
-	if err := s.appendEvent(ctx, s.pendingEvent); err != nil {
-		return errors.Wrap(err, "appending progress event")
+	// Append all pending events to JSONL
+	if err := s.appendEvents(ctx, s.pendingEvents); err != nil {
+		return errors.Wrap(err, "appending progress events")
 	}
 
-	// Clear pending event after successful write
-	s.pendingEvent = nil
+	// Clear pending events after successful write
+	s.pendingEvents = nil
 	s.data.UpdatedAt = time.Now().UTC()
 
 	return nil
 }
 
-// QueueEvent sets an event to be written on the next Save() call.
+// QueueEvent queues an event to be written on the next Save() call.
 // The event will be appended to the JSONL file when Save() is called.
 func (s *Store) QueueEvent(event *ProgressEvent) {
-	s.pendingEvent = event
+	s.pendingEvents = append(s.pendingEvents, event)
 }
 
 // Data returns the current progress data
@@ -491,4 +512,123 @@ func FormatDurationWithStatus(metrics *FestivalTimeMetrics) string {
 		return "1 day (ongoing)"
 	}
 	return fmt.Sprintf("%d days (ongoing)", days)
+}
+
+// --- Workflow state accessors ---
+
+// WorkflowState returns the full festival workflow state materialized from events.
+func (s *Store) WorkflowState() *wf.FestivalWorkflowState {
+	if s.workflowData == nil {
+		s.workflowData = wf.NewFestivalWorkflowState()
+	}
+	return s.workflowData
+}
+
+// WorkflowPhaseState returns the workflow state for a specific phase.
+func (s *Store) WorkflowPhaseState(phaseName string) (*wf.WorkflowState, bool) {
+	if s.workflowData == nil {
+		return nil, false
+	}
+	state, ok := s.workflowData.Phases[phaseName]
+	return state, ok
+}
+
+// FestivalPath returns the festival path for this store.
+func (s *Store) FestivalPath() string {
+	return s.festivalPath
+}
+
+// --- wf.StateStore interface implementation ---
+
+// LoadWorkflowPhaseState returns the materialized workflow state for a phase.
+func (s *Store) LoadWorkflowPhaseState(phaseName string) (*wf.WorkflowState, bool) {
+	return s.WorkflowPhaseState(phaseName)
+}
+
+// QueueWorkflowEvents converts WorkflowEvents into ProgressEvents and queues them.
+func (s *Store) QueueWorkflowEvents(events []wf.WorkflowEvent) {
+	now := time.Now().UTC()
+	for _, we := range events {
+		pe := &ProgressEvent{
+			Timestamp:  now,
+			Event:      EventType(we.EventType),
+			Phase:      we.Phase,
+			Step:       we.Step,
+			TotalSteps: we.TotalSteps,
+			Feedback:   we.Feedback,
+		}
+		s.pendingEvents = append(s.pendingEvents, pe)
+	}
+}
+
+// SaveEvents persists all queued events to disk. Implements wf.StateStore.
+func (s *Store) SaveEvents(ctx context.Context) error {
+	return s.Save(ctx)
+}
+
+// --- Workflow YAML migration ---
+
+// workflowYAMLPath returns the path to the workflow_state.yaml file.
+func (s *Store) workflowYAMLPath() string {
+	return filepath.Join(s.festivalPath, ProgressDir, wf.StateFileName)
+}
+
+// migrateWorkflowYAML migrates workflow_state.yaml into the JSONL event stream.
+// If the YAML file doesn't exist, this is a no-op.
+func (s *Store) migrateWorkflowYAML(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled")
+	}
+
+	yamlPath := s.workflowYAMLPath()
+	if !fileExists(yamlPath) {
+		return nil
+	}
+
+	// Read and parse the YAML file
+	data, err := os.ReadFile(yamlPath)
+	if err != nil {
+		return errors.IO("reading workflow state YAML", err).
+			WithField("path", yamlPath)
+	}
+
+	var festState wf.FestivalWorkflowState
+	if err := yaml.Unmarshal(data, &festState); err != nil {
+		return errors.Parse("parsing workflow state YAML", err).
+			WithField("path", yamlPath)
+	}
+
+	// Ensure maps are initialized
+	if festState.Phases == nil {
+		festState.Phases = make(map[string]*wf.WorkflowState)
+	}
+	for _, phaseState := range festState.Phases {
+		if phaseState.Steps == nil {
+			phaseState.Steps = make(map[int]*wf.StepState)
+		}
+	}
+
+	// Generate synthetic events from the YAML state
+	syntheticEvents := generateWorkflowEventsFromYAML(&festState)
+
+	if len(syntheticEvents) > 0 {
+		// Append synthetic events to JSONL
+		ptrs := make([]*ProgressEvent, len(syntheticEvents))
+		for i := range syntheticEvents {
+			ptrs[i] = &syntheticEvents[i]
+		}
+		if err := s.appendEvents(ctx, ptrs); err != nil {
+			return errors.Wrap(err, "appending workflow migration events")
+		}
+	}
+
+	// Reload from events to get the merged state
+	if err := s.loadFromEvents(ctx); err != nil {
+		return errors.Wrap(err, "reloading after workflow migration")
+	}
+
+	// Remove the YAML file
+	_ = os.Remove(yamlPath)
+
+	return nil
 }

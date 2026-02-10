@@ -31,7 +31,7 @@ Checkpoints:
   to approve or 'fest workflow reject' to request revisions.
 
 State:
-  Workflow progress is tracked in <festival>/.fest/workflow_state.yaml.
+  Workflow progress is tracked in <festival>/.fest/progress_events.jsonl.
   Use 'fest workflow status' to view current progress.
 
 Running from Festival Root:

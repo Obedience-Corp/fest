@@ -19,9 +19,9 @@ func runWatchMode(ctx context.Context, mgr *progress.Manager, loc *show.Location
 	festDir := loc.Festival.Path
 
 	// Determine which files to watch for progress changes
+	// Workflow state is now merged into progress_events.jsonl, so only one file to watch.
 	watchPaths := []string{
 		filepath.Join(festDir, ".fest", "progress_events.jsonl"),
-		filepath.Join(festDir, ".fest", "workflow_state.yaml"),
 		filepath.Join(festDir, ".fest"), // Watch the directory for new files
 	}
 

@@ -581,9 +581,12 @@ func buildTemplatesPathShared() (string, error) {
 
 // Reset clears container state between tests.
 // This removes all test artifacts while keeping the container and binary intact.
+// The trailing `sync` ensures filesystem buffers are flushed before the next test
+// begins — required for consistency on macOS/Colima where Docker exec runs through
+// a virtualization layer (overlayfs in a Linux VM).
 func (tc *TestContainer) Reset() error {
  exitCode, _, err := tc.container.Exec(tc.ctx, []string{
-  "sh", "-c", "rm -rf /test /output /festivals /workspace /testproject /outer /tmp/* 2>/dev/null; mkdir -p /test",
+  "sh", "-c", "rm -rf /test /output /festivals /workspace /testproject /outer /tmp/* 2>/dev/null; mkdir -p /test; sync",
  })
  if err != nil {
   return fmt.Errorf("failed to reset container: %w", err)

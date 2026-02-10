@@ -12,6 +12,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
@@ -188,6 +189,13 @@ func getWorkflowNavigator(ctx context.Context) (*wf.Navigator, error) {
 		return nil, fmt.Errorf("creating navigator: %w", err)
 	}
 
+	// Create and load progress Store, inject into navigator for JSONL-backed state
+	store := progress.NewStore(festivalPath)
+	if err := store.Load(ctx); err != nil {
+		return nil, fmt.Errorf("loading progress store: %w", err)
+	}
+	nav.SetStateStore(store)
+
 	// Initialize the navigator
 	if err := nav.Initialize(ctx); err != nil {
 		return nil, fmt.Errorf("initializing navigator: %w", err)
@@ -238,20 +246,33 @@ func findFirstIncompleteWorkflowPhase(ctx context.Context, festivalPath string) 
 		return "", err
 	}
 
+	// Load Store once for all phases
+	store := progress.NewStore(festivalPath)
+	if err := store.Load(ctx); err != nil {
+		// Fall back to checking by file existence
+		return checkPhasesIncomplete(phases)
+	}
+
 	for _, phasePath := range phases {
 		phaseName := filepath.Base(phasePath)
-		state, err := wf.LoadState(ctx, festivalPath, phaseName)
-		if err != nil {
-			return phasePath, nil // Can't load state, assume incomplete
+		state, ok := store.WorkflowPhaseState(phaseName)
+		if !ok {
+			return phasePath, nil // No state, assume incomplete
 		}
-
-		// A workflow phase is incomplete if it has no steps initialized yet or isn't complete
 		if state.TotalSteps == 0 || !state.IsComplete() {
 			return phasePath, nil
 		}
 	}
 
-	return "", nil // All workflow phases complete (or no workflow phases exist)
+	return "", nil
+}
+
+// checkPhasesIncomplete returns the first phase path if any exist, as a fallback.
+func checkPhasesIncomplete(phases []string) (string, error) {
+	if len(phases) > 0 {
+		return phases[0], nil
+	}
+	return "", nil
 }
 
 // isNumberedDir checks if directory name starts with a number.

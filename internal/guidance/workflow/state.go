@@ -12,10 +12,38 @@ import (
 )
 
 const (
-	stateFileName = "workflow_state.yaml"
+	// StateFileName is the legacy YAML workflow state file name.
+	// Exported for migration detection in the progress package.
+	StateFileName = "workflow_state.yaml"
 	stateDirName  = ".fest"
 	stateVersion  = 2 // Version 2 uses festival-level storage
 )
+
+// StateStore is an interface for persisting workflow state via the progress event log.
+// The progress.Store implements this interface, allowing workflow state to be stored
+// as events in progress_events.jsonl instead of a separate YAML file.
+type StateStore interface {
+	// LoadWorkflowPhaseState returns the materialized workflow state for a phase.
+	// Returns nil, false if no workflow state exists for the phase.
+	LoadWorkflowPhaseState(phaseName string) (*WorkflowState, bool)
+
+	// QueueWorkflowEvents queues workflow events to be written on next save.
+	QueueWorkflowEvents(events []WorkflowEvent)
+
+	// SaveEvents persists all queued events to disk.
+	SaveEvents(ctx context.Context) error
+}
+
+// WorkflowEvent is a lightweight event representation used to communicate
+// workflow state changes from the workflow package to the progress store
+// without importing the progress package (avoiding import cycles).
+type WorkflowEvent struct {
+	EventType  string
+	Phase      string
+	Step       int
+	TotalSteps int
+	Feedback   string
+}
 
 // StepState tracks the state of a single workflow step.
 type StepState struct {
@@ -104,7 +132,7 @@ func loadFestivalState(ctx context.Context, festivalPath string) (*FestivalWorkf
 	default:
 	}
 
-	statePath := filepath.Join(festivalPath, stateDirName, stateFileName)
+	statePath := filepath.Join(festivalPath, stateDirName, StateFileName)
 
 	data, err := os.ReadFile(statePath)
 	if os.IsNotExist(err) {
@@ -152,7 +180,7 @@ func saveFestivalState(ctx context.Context, festivalPath string, state *Festival
 		return err
 	}
 
-	statePath := filepath.Join(stateDir, stateFileName)
+	statePath := filepath.Join(stateDir, StateFileName)
 	return os.WriteFile(statePath, data, 0644)
 }
 
@@ -178,6 +206,22 @@ func LoadState(ctx context.Context, festivalPath, phaseName string) (*WorkflowSt
 	}
 
 	return phaseState, nil
+}
+
+// LoadStateFromStore loads workflow state for a specific phase from a StateStore.
+// This reads from the JSONL-backed store instead of the YAML file.
+// Returns a new state if no state exists for this phase.
+func LoadStateFromStore(store StateStore, phaseName string) (*WorkflowState, error) {
+	state, ok := store.LoadWorkflowPhaseState(phaseName)
+	if !ok || state == nil {
+		return NewWorkflowState(0), nil
+	}
+
+	if state.Steps == nil {
+		state.Steps = make(map[int]*StepState)
+	}
+
+	return state, nil
 }
 
 // Save persists the workflow state for a specific phase to the festival-level state file.
@@ -226,7 +270,7 @@ func (s *WorkflowState) GetStepState(stepNum int) *StepState {
 
 // StartCurrentStep marks the current step as in progress.
 func (s *WorkflowState) StartCurrentStep() {
-	state := s.getOrCreateStepState(s.CurrentStep)
+	state := s.GetOrCreateStepState(s.CurrentStep)
 	if state.Status == StepStatusPending {
 		state.Status = StepStatusInProgress
 		now := time.Now().UTC()
@@ -236,7 +280,7 @@ func (s *WorkflowState) StartCurrentStep() {
 
 // CompleteCurrentStep marks the current step as completed.
 func (s *WorkflowState) CompleteCurrentStep() {
-	state := s.getOrCreateStepState(s.CurrentStep)
+	state := s.GetOrCreateStepState(s.CurrentStep)
 	state.Status = StepStatusCompleted
 	now := time.Now().UTC()
 	state.CompletedAt = &now
@@ -270,7 +314,7 @@ func (s *WorkflowState) Approve() error {
 
 // Reject rejects the current step with feedback and marks it as blocked.
 func (s *WorkflowState) Reject(feedback string) {
-	state := s.getOrCreateStepState(s.CurrentStep)
+	state := s.GetOrCreateStepState(s.CurrentStep)
 	state.Status = StepStatusBlocked
 	state.Feedback = feedback
 }
@@ -321,8 +365,8 @@ func (s *WorkflowState) ProgressPercent() float64 {
 	return float64(s.CompletedCount()) / float64(s.TotalSteps) * 100
 }
 
-// getOrCreateStepState returns existing step state or creates a new one.
-func (s *WorkflowState) getOrCreateStepState(stepNum int) *StepState {
+// GetOrCreateStepState returns existing step state or creates a new one.
+func (s *WorkflowState) GetOrCreateStepState(stepNum int) *StepState {
 	if s.Steps == nil {
 		s.Steps = make(map[int]*StepState)
 	}
@@ -337,4 +381,60 @@ func (s *WorkflowState) getOrCreateStepState(stepNum int) *StepState {
 	}
 	s.Steps[stepNum] = state
 	return state
+}
+
+// --- Event generation helpers for StateStore integration ---
+
+// EmitInitEvents generates events for workflow initialization.
+func EmitInitEvents(phaseName string, totalSteps int) []WorkflowEvent {
+	return []WorkflowEvent{{
+		EventType:  "wf_init",
+		Phase:      phaseName,
+		TotalSteps: totalSteps,
+	}}
+}
+
+// EmitStepStartEvents generates events for starting a step.
+func EmitStepStartEvents(phaseName string, step int) []WorkflowEvent {
+	return []WorkflowEvent{{
+		EventType: "wf_step_start",
+		Phase:     phaseName,
+		Step:      step,
+	}}
+}
+
+// EmitStepDoneEvents generates events for completing a step.
+func EmitStepDoneEvents(phaseName string, step int) []WorkflowEvent {
+	return []WorkflowEvent{{
+		EventType: "wf_step_done",
+		Phase:     phaseName,
+		Step:      step,
+	}}
+}
+
+// EmitStepBlockEvents generates events for blocking a step.
+func EmitStepBlockEvents(phaseName string, step int, feedback string) []WorkflowEvent {
+	return []WorkflowEvent{{
+		EventType: "wf_step_block",
+		Phase:     phaseName,
+		Step:      step,
+		Feedback:  feedback,
+	}}
+}
+
+// EmitAdvanceEvents generates events for advancing to a step.
+func EmitAdvanceEvents(phaseName string, step int) []WorkflowEvent {
+	return []WorkflowEvent{{
+		EventType: "wf_advance",
+		Phase:     phaseName,
+		Step:      step,
+	}}
+}
+
+// EmitResetEvents generates events for resetting a workflow.
+func EmitResetEvents(phaseName string) []WorkflowEvent {
+	return []WorkflowEvent{{
+		EventType: "wf_reset",
+		Phase:     phaseName,
+	}}
 }

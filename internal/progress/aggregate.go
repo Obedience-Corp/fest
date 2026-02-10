@@ -248,7 +248,7 @@ func (m *Manager) GetSequenceProgress(ctx context.Context, seqPath string) (*Seq
 }
 
 // getWorkflowPhaseProgress calculates progress for a workflow-based phase
-// by parsing WORKFLOW.md and loading workflow state.
+// by parsing WORKFLOW.md and loading workflow state from the Store.
 func (m *Manager) getWorkflowPhaseProgress(ctx context.Context, phasePath string) (*PhaseProgress, error) {
 	phaseName := filepath.Base(phasePath)
 	workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
@@ -260,10 +260,10 @@ func (m *Manager) getWorkflowPhaseProgress(ctx context.Context, phasePath string
 		return nil, errors.Wrap(err, "parsing workflow")
 	}
 
-	// Load workflow state
-	state, err := wf.LoadState(ctx, m.store.festivalPath, phaseName)
-	if err != nil {
-		return nil, errors.Wrap(err, "loading workflow state")
+	// Load workflow state from Store (JSONL-backed)
+	state, ok := m.store.WorkflowPhaseState(phaseName)
+	if !ok {
+		state = wf.NewWorkflowState(0)
 	}
 
 	aggregate := &AggregateProgress{
