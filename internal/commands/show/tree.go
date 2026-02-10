@@ -20,15 +20,16 @@ import (
 type DisplayNode struct {
 	Name     string       // Directory/file name
 	Goal     string       // Primary goal from *_GOAL.md
-	Status   string       // pending/in_progress/completed
+	Status   string       // pending/in_progress/completed/blocked
 	Stats    StatusCounts // Task counts for this level
-	NodeType string       // "festival", "phase", "sequence"
+	NodeType string       // "festival", "phase", "sequence", "step", "task"
 	Children []*DisplayNode
 }
 
 // TreeOptions configures how the tree is rendered.
 type TreeOptions struct {
 	ShowGoals bool // Show primary goals (default: true)
+	Collapsed bool // Show only phases with counters, no children
 	Width     int  // Terminal width for alignment (0 = auto)
 }
 
@@ -230,16 +231,33 @@ func buildSequenceNode(seqDir string, store *progress.Store, festivalRoot string
 
 		node.Stats.Total++
 		status := progress.ResolveTaskStatus(store, festivalRoot, taskPath)
+
+		displayStatus := "pending"
 		switch status {
 		case progress.StatusCompleted:
 			node.Stats.Completed++
+			displayStatus = "completed"
 		case progress.StatusInProgress:
 			node.Stats.InProgress++
+			displayStatus = "in_progress"
 		case progress.StatusBlocked:
 			node.Stats.Blocked++
+			displayStatus = "blocked"
 		default:
 			node.Stats.Pending++
 		}
+
+		// Create task child node
+		taskNode := &DisplayNode{
+			Name:     name,
+			NodeType: "task",
+			Status:   displayStatus,
+			Stats: StatusCounts{
+				Total:     1,
+				Completed: boolToInt(status == progress.StatusCompleted),
+			},
+		}
+		node.Children = append(node.Children, taskNode)
 	}
 
 	node.Status = determineStatus(node.Stats)
@@ -315,7 +333,11 @@ func renderPhaseNode(sb *strings.Builder, node *DisplayNode, prefix string, isLa
 	sb.WriteString(ui.Dim(connector))
 	sb.WriteString(phaseStyle.Render(node.Name))
 	sb.WriteString("  ")
-	sb.WriteString(formatNodeStatus(node))
+	if opts.Collapsed {
+		sb.WriteString(formatCollapsedPhaseStatus(node))
+	} else {
+		sb.WriteString(formatNodeStatus(node))
+	}
 	sb.WriteString("\n")
 
 	// Goal line
@@ -326,14 +348,16 @@ func renderPhaseNode(sb *strings.Builder, node *DisplayNode, prefix string, isLa
 		sb.WriteString("\n")
 	}
 
-	// Render children (sequences or steps depending on phase type)
-	newPrefix := prefix + childPrefix
-	for i, child := range node.Children {
-		childIsLast := i == len(node.Children)-1
-		if child.NodeType == "step" {
-			renderStepNode(sb, child, newPrefix, childIsLast, opts)
-		} else {
-			renderSequenceNode(sb, child, newPrefix, childIsLast, opts)
+	// Render children only when not collapsed
+	if !opts.Collapsed {
+		newPrefix := prefix + childPrefix
+		for i, child := range node.Children {
+			childIsLast := i == len(node.Children)-1
+			if child.NodeType == "step" {
+				renderStepNode(sb, child, newPrefix, childIsLast, opts)
+			} else {
+				renderSequenceNode(sb, child, newPrefix, childIsLast, opts)
+			}
 		}
 	}
 }
@@ -362,6 +386,15 @@ func renderSequenceNode(sb *strings.Builder, node *DisplayNode, prefix string, i
 		sb.WriteString(ui.Dim("Goal: " + truncateGoal(node.Goal, opts.Width-len(prefix)-10)))
 		sb.WriteString("\n")
 	}
+
+	// Render task children when not collapsed
+	if !opts.Collapsed {
+		newPrefix := prefix + childPrefix
+		for i, child := range node.Children {
+			childIsLast := i == len(node.Children)-1
+			renderTaskNode(sb, child, newPrefix, childIsLast, opts)
+		}
+	}
 }
 
 func renderStepNode(sb *strings.Builder, node *DisplayNode, prefix string, isLast bool, opts TreeOptions) {
@@ -387,9 +420,35 @@ func renderStepNode(sb *strings.Builder, node *DisplayNode, prefix string, isLas
 	}
 }
 
+func renderTaskNode(sb *strings.Builder, node *DisplayNode, prefix string, isLast bool, _ TreeOptions) {
+	connector := "├── "
+	if isLast {
+		connector = "└── "
+	}
+
+	sb.WriteString(prefix)
+	sb.WriteString(ui.Dim(connector))
+	sb.WriteString(formatTaskStatus(node))
+	sb.WriteString("\n")
+}
+
+func formatTaskStatus(node *DisplayNode) string {
+	icon := ui.StateIcon(node.Status)
+	taskStyle := lipgloss.NewStyle().Foreground(ui.TaskColor)
+	return icon + " " + taskStyle.Render(node.Name)
+}
+
 func formatStepStatus(node *DisplayNode) string {
 	icon := shared.WorkflowStepIcon(wf.StepStatus(node.Status))
 	return icon + " " + node.Name
+}
+
+func formatCollapsedPhaseStatus(node *DisplayNode) string {
+	icon := ui.StateIcon(node.Status)
+	if node.Stats.Total == 0 {
+		return icon + " " + ui.Dim("no items")
+	}
+	return icon + " " + ui.Dim(formatFraction(node.Stats.Completed, node.Stats.Total)+" items")
 }
 
 func formatNodeStatus(node *DisplayNode) string {

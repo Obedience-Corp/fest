@@ -116,6 +116,22 @@ fest_tracking: true
 	if seq.Stats.Total != 2 {
 		t.Errorf("expected 2 tasks, got %d", seq.Stats.Total)
 	}
+
+	// Verify task children are created
+	if len(seq.Children) != 2 {
+		t.Fatalf("expected 2 task children, got %d", len(seq.Children))
+	}
+	for _, taskNode := range seq.Children {
+		if taskNode.NodeType != "task" {
+			t.Errorf("expected NodeType 'task', got '%s'", taskNode.NodeType)
+		}
+	}
+	if seq.Children[0].Name != "01_task.md" {
+		t.Errorf("expected task name '01_task.md', got '%s'", seq.Children[0].Name)
+	}
+	if seq.Children[1].Name != "02_task.md" {
+		t.Errorf("expected task name '02_task.md', got '%s'", seq.Children[1].Name)
+	}
 }
 
 func TestRenderTree(t *testing.T) {
@@ -244,6 +260,102 @@ func TestTruncateGoal(t *testing.T) {
 				t.Errorf("truncateGoal(%q, %d) = %q, want %q", tt.goal, tt.maxLen, result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestRenderTree_WithTasks(t *testing.T) {
+	tree := &DisplayNode{
+		Name:     "test-festival",
+		NodeType: "festival",
+		Status:   "in_progress",
+		Stats:    StatusCounts{Total: 3, Completed: 1, Pending: 2},
+		Children: []*DisplayNode{
+			{
+				Name:     "001_PHASE",
+				NodeType: "phase",
+				Status:   "in_progress",
+				Stats:    StatusCounts{Total: 3, Completed: 1, Pending: 2},
+				Children: []*DisplayNode{
+					{
+						Name:     "01_sequence",
+						NodeType: "sequence",
+						Status:   "in_progress",
+						Stats:    StatusCounts{Total: 3, Completed: 1, Pending: 2},
+						Children: []*DisplayNode{
+							{Name: "01_analyze.md", NodeType: "task", Status: "completed",
+								Stats: StatusCounts{Total: 1, Completed: 1}},
+							{Name: "02_implement.md", NodeType: "task", Status: "pending",
+								Stats: StatusCounts{Total: 1, Pending: 1}},
+							{Name: "03_review.md", NodeType: "task", Status: "pending",
+								Stats: StatusCounts{Total: 1, Pending: 1}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	opts := DefaultTreeOptions()
+	output := RenderTree(tree, opts)
+
+	// Tasks should appear individually in expanded mode
+	if !strings.Contains(output, "01_analyze.md") {
+		t.Error("output should contain task name 01_analyze.md")
+	}
+	if !strings.Contains(output, "02_implement.md") {
+		t.Error("output should contain task name 02_implement.md")
+	}
+	if !strings.Contains(output, "03_review.md") {
+		t.Error("output should contain task name 03_review.md")
+	}
+}
+
+func TestRenderTree_Collapsed(t *testing.T) {
+	tree := &DisplayNode{
+		Name:     "test-festival",
+		NodeType: "festival",
+		Status:   "in_progress",
+		Stats:    StatusCounts{Total: 3, Completed: 1, Pending: 2},
+		Children: []*DisplayNode{
+			{
+				Name:     "001_PHASE",
+				NodeType: "phase",
+				Status:   "in_progress",
+				Stats:    StatusCounts{Total: 3, Completed: 1, Pending: 2},
+				Children: []*DisplayNode{
+					{
+						Name:     "01_sequence",
+						NodeType: "sequence",
+						Status:   "in_progress",
+						Stats:    StatusCounts{Total: 3, Completed: 1, Pending: 2},
+						Children: []*DisplayNode{
+							{Name: "01_task.md", NodeType: "task", Status: "completed"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	opts := DefaultTreeOptions()
+	opts.Collapsed = true
+	output := RenderTree(tree, opts)
+
+	// Phase should appear
+	if !strings.Contains(output, "001_PHASE") {
+		t.Error("output should contain phase name in collapsed mode")
+	}
+	// Sequence should NOT appear (children are hidden)
+	if strings.Contains(output, "01_sequence") {
+		t.Error("output should NOT contain sequence name in collapsed mode")
+	}
+	// Task should NOT appear
+	if strings.Contains(output, "01_task.md") {
+		t.Error("output should NOT contain task name in collapsed mode")
+	}
+	// Counter should appear
+	if !strings.Contains(output, "1/3") {
+		t.Error("output should contain aggregate counter 1/3 in collapsed mode")
 	}
 }
 
