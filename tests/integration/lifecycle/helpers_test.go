@@ -100,9 +100,12 @@ func (tc *TestContainer) Cleanup() {
 }
 
 // Reset clears container state between tests.
+// The trailing `sync` ensures filesystem buffers are flushed before the next test
+// begins — required for consistency on macOS/Colima where Docker exec runs through
+// a virtualization layer (overlayfs in a Linux VM).
 func (tc *TestContainer) Reset() error {
 	exitCode, _, err := tc.container.Exec(tc.ctx, []string{
-		"sh", "-c", "rm -rf /test /output /festivals /workspace /testproject /outer /tmp/* 2>/dev/null; mkdir -p /test /festivals",
+		"sh", "-c", "rm -rf /test /output /festivals /workspace /testproject /outer /tmp/* 2>/dev/null; mkdir -p /test /festivals; sync",
 	})
 	if err != nil {
 		return fmt.Errorf("failed to reset container: %w", err)
