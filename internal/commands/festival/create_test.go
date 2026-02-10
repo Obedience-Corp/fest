@@ -306,7 +306,7 @@ func TestCreateFestival_GatesDirectory(t *testing.T) {
 	// Create phase-type subdirectories with gates/ subdirectory containing gate templates
 	// Only implementation phases have quality gates
 	phaseTypes := map[string][]string{
-		"implementation": {"QUALITY_GATE_TESTING.md", "QUALITY_GATE_REVIEW.md", "QUALITY_GATE_ITERATE.md", "QUALITY_GATE_COMMIT.md"},
+		"implementation": {"QUALITY_GATE_TESTING.md", "QUALITY_GATE_REVIEW.md", "QUALITY_GATE_ITERATE.md", "QUALITY_GATE_FEST_COMMIT.md"},
 	}
 
 	for phaseType, gates := range phaseTypes {
@@ -410,7 +410,7 @@ func TestCreateFestival_FestYAMLGenerated(t *testing.T) {
 	}
 
 	// Create minimal implementation gate templates with correct names
-	for _, tmpl := range []string{"QUALITY_GATE_TESTING.md", "QUALITY_GATE_REVIEW.md", "QUALITY_GATE_ITERATE.md", "QUALITY_GATE_COMMIT.md"} {
+	for _, tmpl := range []string{"QUALITY_GATE_TESTING.md", "QUALITY_GATE_REVIEW.md", "QUALITY_GATE_ITERATE.md", "QUALITY_GATE_FEST_COMMIT.md"} {
 		if err := os.WriteFile(filepath.Join(implGatesDir, tmpl), []byte("# Gate"), 0644); err != nil {
 			t.Fatalf("failed to create template: %v", err)
 		}
@@ -475,8 +475,8 @@ func TestCreateFestival_FestYAMLGenerated(t *testing.T) {
 	if !contains(contentStr, "gates/implementation/QUALITY_GATE_ITERATE") {
 		t.Error("fest.yaml should contain gates/implementation/QUALITY_GATE_ITERATE")
 	}
-	if !contains(contentStr, "gates/implementation/QUALITY_GATE_COMMIT") {
-		t.Error("fest.yaml should contain gates/implementation/QUALITY_GATE_COMMIT")
+	if !contains(contentStr, "gates/implementation/QUALITY_GATE_FEST_COMMIT") {
+		t.Error("fest.yaml should contain gates/implementation/QUALITY_GATE_FEST_COMMIT")
 	}
 
 	// Verify quality_gates.enabled is true
@@ -504,7 +504,7 @@ func TestCreateFestival_GatesConfigHasCorrectStructure(t *testing.T) {
 		"gates/implementation/QUALITY_GATE_TESTING": false,
 		"gates/implementation/QUALITY_GATE_REVIEW":  false,
 		"gates/implementation/QUALITY_GATE_ITERATE": false,
-		"gates/implementation/QUALITY_GATE_COMMIT":  false,
+		"gates/implementation/QUALITY_GATE_FEST_COMMIT":  false,
 	}
 
 	for _, task := range cfg.QualityGates.Implementation {
@@ -716,7 +716,7 @@ func setupFestivalTemplates(t *testing.T, festivalsDir string) {
 	if err := os.MkdirAll(implGatesDir, 0755); err != nil {
 		t.Fatalf("failed to create implementation gates dir: %v", err)
 	}
-	for _, gate := range []string{"QUALITY_GATE_TESTING.md", "QUALITY_GATE_REVIEW.md", "QUALITY_GATE_ITERATE.md", "QUALITY_GATE_COMMIT.md"} {
+	for _, gate := range []string{"QUALITY_GATE_TESTING.md", "QUALITY_GATE_REVIEW.md", "QUALITY_GATE_ITERATE.md", "QUALITY_GATE_FEST_COMMIT.md"} {
 		content := "# Gate\n"
 		if err := os.WriteFile(filepath.Join(implGatesDir, gate), []byte(content), 0644); err != nil {
 			t.Fatalf("failed to create gate template: %v", err)

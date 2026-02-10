@@ -290,7 +290,7 @@ Document patterns or issues to avoid in future sequences:
 `,
 
 	// Commit gate for sequence completion tracking
-	"QUALITY_GATE_COMMIT.md": `# Task: Commit Changes
+	"QUALITY_GATE_FEST_COMMIT.md": `# Task: Fest Commit Changes
 
 **Task Number:** 04 | **Parallel Group:** None | **Dependencies:** Review Results and Iterate | **Autonomy:** high
 

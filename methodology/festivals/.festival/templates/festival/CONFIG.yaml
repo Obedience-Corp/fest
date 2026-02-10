@@ -32,9 +32,9 @@ quality_gates:
       template: gates/implementation/QUALITY_GATE_ITERATE
       name: "Review Results and Iterate"
       enabled: true
-    - id: commit
-      template: gates/implementation/QUALITY_GATE_COMMIT
-      name: "Commit Changes"
+    - id: fest-commit
+      template: gates/implementation/QUALITY_GATE_FEST_COMMIT
+      name: "Fest Commit Changes"
       enabled: true
 
 # Sequences matching these patterns won't get quality gates
