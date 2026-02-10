@@ -4,12 +4,11 @@ package tui
 
 import (
 	"context"
-	"os"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
-	tpl "github.com/Obedience-Corp/fest/internal/template"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	uitheme "github.com/Obedience-Corp/fest/internal/ui/theme"
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
@@ -43,9 +42,8 @@ func NewTUICommand() *cobra.Command {
 }
 
 func runCharmTUI(ctx context.Context) error {
-	// Validate inside festivals workspace; if absent, offer to init
-	cwd, _ := os.Getwd()
-	if _, err := tpl.FindFestivalsRoot(cwd); err != nil {
+	// Validate workspace is resolved (scope middleware already did this)
+	if _, ok := scope.WorkspaceFrom(ctx); !ok {
 		var initNow bool
 		form := huh.NewForm(
 			huh.NewGroup(

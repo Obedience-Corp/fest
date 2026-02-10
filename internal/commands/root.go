@@ -152,7 +152,7 @@ func init() {
 		Short:   "Create festivals, phases, sequences, or tasks (TUI)",
 		GroupID: "creation",
 		Annotations: map[string]string{
-			"scope":         string(scope.Festival),
+			"scope":         string(scope.Workspace),
 			"agent_allowed": "false",
 			"agent_reason":  "Launches interactive TUI picker when run without subcommand",
 			"interactive":   "true",

@@ -4,13 +4,12 @@ package tui
 
 import (
 	"context"
-	"os"
+	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
-	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 )
 
@@ -18,8 +17,7 @@ func tuiCreateFestival(ctx context.Context, display *ui.UI) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	cwd, _ := os.Getwd()
-	tmplRoot, err := tpl.LocalTemplateRoot(cwd)
+	tmplRoot, err := templateRootFromCtx(ctx)
 	if err != nil {
 		return err
 	}
@@ -89,13 +87,11 @@ func tuiPlanFestivalWizard(ctx context.Context, display *ui.UI) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	cwd, _ := os.Getwd()
-	festivalsRoot, err := tpl.FindFestivalsRoot(cwd)
+	festivalsRoot, err := festivalsRootFromCtx(ctx)
 	if err != nil {
 		return err
 	}
-	// First create festival (quick)
-	cwdTmpl, err := tpl.LocalTemplateRoot(cwd)
+	cwdTmpl, err := templateRootFromCtx(ctx)
 	if err != nil {
 		return err
 	}
@@ -173,8 +169,7 @@ func tuiPlanFestivalWizard(ctx context.Context, display *ui.UI) error {
 }
 
 func tuiGenerateFestivalGoal(ctx context.Context, display *ui.UI) error {
-	cwd, _ := os.Getwd()
-	if _, err := tpl.LocalTemplateRoot(cwd); err != nil {
+	if _, err := templateRootFromCtx(ctx); err != nil {
 		return err
 	}
 	festDir := strings.TrimSpace(display.PromptDefault("Festival directory (where to write FESTIVAL_GOAL.md)", "."))

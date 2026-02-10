@@ -5,12 +5,10 @@ package tui
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
-	tpl "github.com/Obedience-Corp/fest/internal/template"
 	uitheme "github.com/Obedience-Corp/fest/internal/ui/theme"
 	"github.com/charmbracelet/huh"
 )
@@ -20,8 +18,7 @@ func charmCreateFestival(ctx context.Context) error {
 		return err
 	}
 
-	cwd, _ := os.Getwd()
-	tmplRoot, err := tpl.LocalTemplateRoot(cwd)
+	tmplRoot, err := templateRootFromCtx(ctx)
 	if err != nil {
 		return err
 	}
@@ -93,12 +90,11 @@ func charmPlanFestivalWizard(ctx context.Context) error {
 		return err
 	}
 
-	cwd, _ := os.Getwd()
-	festivalsRoot, err := tpl.FindFestivalsRoot(cwd)
+	festivalsRoot, err := festivalsRootFromCtx(ctx)
 	if err != nil {
 		return err
 	}
-	tmplRoot, err := tpl.LocalTemplateRoot(cwd)
+	tmplRoot, err := templateRootFromCtx(ctx)
 	if err != nil {
 		return err
 	}
@@ -209,8 +205,7 @@ func charmPlanFestivalWizard(ctx context.Context) error {
 }
 
 func charmGenerateFestivalGoal(ctx context.Context) error {
-	cwd, _ := os.Getwd()
-	if _, err := tpl.LocalTemplateRoot(cwd); err != nil {
+	if _, err := templateRootFromCtx(ctx); err != nil {
 		return err
 	}
 	var festDir, name, goal string

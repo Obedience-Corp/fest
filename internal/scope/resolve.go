@@ -1,6 +1,7 @@
 package scope
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -78,7 +79,7 @@ func Resolve(cmd *cobra.Command) error {
 func resolveWorkspaceScope(cmd *cobra.Command) error {
 	ctx := cmd.Context()
 
-	ws, err := resolveWorkspace()
+	ws, err := resolveWorkspace(ctx)
 	if err != nil {
 		return workspaceScopeError()
 	}
@@ -88,24 +89,28 @@ func resolveWorkspaceScope(cmd *cobra.Command) error {
 	return nil
 }
 
-// resolveWorkspace finds the festivals/ directory using the existing detection chain.
-// This will be replaced with workspace.FindWorkspace() in sequence 02_workspace_detection.
-func resolveWorkspace() (*WorkspaceInfo, error) {
+// resolveWorkspace finds the workspace using the full detection chain:
+// campaign (.campaign/) → marked (.workspace) → nearest (festivals/).
+func resolveWorkspace(ctx context.Context) (*WorkspaceInfo, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, err
 	}
 
-	// Use existing workspace detection (marked workspace or nearest)
-	festivalsPath, err := workspace.FindFestivals(cwd)
-	if err != nil || festivalsPath == "" {
-		return nil, fmt.Errorf("no festivals directory found")
+	ws, err := workspace.FindWorkspace(ctx, cwd)
+	if err != nil {
+		return nil, fmt.Errorf("no workspace found")
+	}
+
+	wsType := WorkspaceTypeStandalone
+	if ws.Type == workspace.WorkspaceTypeCampaign {
+		wsType = WorkspaceTypeCampaign
 	}
 
 	return &WorkspaceInfo{
-		Root:          filepath.Dir(festivalsPath),
-		FestivalsPath: festivalsPath,
-		Type:          WorkspaceTypeStandalone, // Will be updated in sequence 02
+		Root:          ws.Root,
+		FestivalsPath: ws.FestivalsPath,
+		Type:          wsType,
 	}, nil
 }
 
@@ -127,7 +132,7 @@ func resolveFestivalScope(cmd *cobra.Command) error {
 	ctx := cmd.Context()
 
 	// First resolve workspace
-	ws, err := resolveWorkspace()
+	ws, err := resolveWorkspace(ctx)
 	if err != nil {
 		return workspaceScopeError()
 	}
