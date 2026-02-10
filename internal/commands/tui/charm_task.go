@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
-	tpl "github.com/Obedience-Corp/fest/internal/template"
 	uitheme "github.com/Obedience-Corp/fest/internal/ui/theme"
 	"github.com/charmbracelet/huh"
 )
@@ -21,7 +20,7 @@ func charmCreateTask(ctx context.Context) error {
 	}
 
 	// Use hierarchical selector to select festival, phase, and sequence
-	selector, err := NewHierarchySelectorFromCwd(SelectToSequence(true))
+	selector, err := NewHierarchySelectorFromCwd(ctx, SelectToSequence(true))
 	if err != nil {
 		// Fallback to manual path entry
 		return charmCreateTaskManual(ctx)
@@ -41,8 +40,7 @@ func charmCreateTask(ctx context.Context) error {
 
 // createTaskInSequence creates a task in the specified sequence.
 func createTaskInSequence(ctx context.Context, sequencePath string) error {
-	cwd, _ := os.Getwd()
-	tmplRoot, err := tpl.LocalTemplateRoot(cwd)
+	tmplRoot, err := templateRootFromCtx(ctx)
 	if err != nil {
 		return err
 	}
@@ -140,7 +138,7 @@ func createTaskInSequence(ctx context.Context, sequencePath string) error {
 // charmCreateTaskManual is the fallback when hierarchical selector can't initialize.
 func charmCreateTaskManual(ctx context.Context) error {
 	cwd, _ := os.Getwd()
-	tmplRoot, err := tpl.LocalTemplateRoot(cwd)
+	tmplRoot, err := templateRootFromCtx(ctx)
 	if err != nil {
 		return err
 	}

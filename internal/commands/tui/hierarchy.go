@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
-	tpl "github.com/Obedience-Corp/fest/internal/template"
 	uitheme "github.com/Obedience-Corp/fest/internal/ui/theme"
 	"github.com/charmbracelet/huh"
 )
@@ -70,16 +69,16 @@ func NewHierarchySelector(festivalsRoot string, config HierarchyConfig) *Hierarc
 }
 
 // NewHierarchySelectorFromCwd creates a selector initialized from current directory.
-func NewHierarchySelectorFromCwd(config HierarchyConfig) (*HierarchySelector, error) {
+func NewHierarchySelectorFromCwd(ctx context.Context, config HierarchyConfig) (*HierarchySelector, error) {
+	// Use workspace already resolved by scope middleware
+	festivalsRoot, err := festivalsRootFromCtx(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "finding festivals root")
+	}
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, errors.IO("getting working directory", err)
-	}
-
-	// Find festivals root
-	festivalsRoot, err := tpl.FindFestivalsRoot(cwd)
-	if err != nil {
-		return nil, errors.Wrap(err, "finding festivals root")
 	}
 
 	h := &HierarchySelector{
