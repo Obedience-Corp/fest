@@ -35,7 +35,7 @@ When run with a status argument, lists all festivals with that status.
 SUBCOMMANDS:
   fest show              Show current festival (detect from cwd)
   fest show active       List festivals in active/ directory
-  fest show planned      List festivals in planned/ directory
+  fest show planning     List festivals in planning/ directory
   fest show completed    List festivals in completed/ directory
   fest show dungeon      List festivals in dungeon/ directory
   fest show all          List all festivals grouped by status

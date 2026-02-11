@@ -271,7 +271,7 @@ func resolveGoTarget(target, festivalsDir string) (string, error) {
 		}
 	}
 
-	// Try to resolve as festival name (searches active/, planned/, completed/)
+	// Try to resolve as festival name (searches active/, planning/, completed/)
 	if festPath := resolveFestivalByName(target, festivalsDir); festPath != "" {
 		return festPath, nil
 	}

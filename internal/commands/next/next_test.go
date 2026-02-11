@@ -300,7 +300,7 @@ type feedbackTestResult struct {
 	FeedbackCriteria []string `json:"feedback_criteria,omitempty"`
 }
 
-func TestCheckPlannedStatus(t *testing.T) {
+func TestCheckPlanningStatus(t *testing.T) {
 	tests := []struct {
 		name          string
 		status        string
@@ -371,7 +371,7 @@ func TestCheckPlannedStatus(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			err := checkPlannedStatus(festDir, phaseDir)
+			err := checkPlanningStatus(festDir, phaseDir)
 
 			if tt.expectBlocked {
 				if err == nil {
@@ -388,16 +388,16 @@ func TestCheckPlannedStatus(t *testing.T) {
 	}
 }
 
-func TestCheckPlannedStatus_NoConfig(t *testing.T) {
+func TestCheckPlanningStatus_NoConfig(t *testing.T) {
 	festDir := t.TempDir()
 	// No fest.yaml — should not block
-	err := checkPlannedStatus(festDir, "")
+	err := checkPlanningStatus(festDir, "")
 	if err != nil {
 		t.Errorf("expected no error without config, got: %v", err)
 	}
 }
 
-func TestCheckPlannedStatus_NoPhasePath(t *testing.T) {
+func TestCheckPlanningStatus_NoPhasePath(t *testing.T) {
 	festDir := t.TempDir()
 	phaseDir := filepath.Join(festDir, "001_IMPL")
 	if err := os.MkdirAll(phaseDir, 0755); err != nil {
@@ -417,7 +417,7 @@ func TestCheckPlannedStatus_NoPhasePath(t *testing.T) {
 	}
 
 	// Pass empty phasePath — should auto-detect first phase
-	err := checkPlannedStatus(festDir, "")
+	err := checkPlanningStatus(festDir, "")
 	if err == nil {
 		t.Error("expected blocked error when auto-detecting implementation phase, got nil")
 	}

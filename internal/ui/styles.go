@@ -18,8 +18,8 @@ import (
 // GetActiveColor returns the color for active/executing items.
 func GetActiveColor() lipgloss.TerminalColor { return Current().Active }
 
-// GetPlannedColor returns the color for planned/future items.
-func GetPlannedColor() lipgloss.TerminalColor { return Current().Planned }
+// GetPlanningColor returns the color for planning/future items.
+func GetPlanningColor() lipgloss.TerminalColor { return Current().Planning }
 
 // GetCompletedColor returns the color for completed items.
 func GetCompletedColor() lipgloss.TerminalColor { return Current().Completed }
@@ -36,8 +36,8 @@ func GetDungeonColor() lipgloss.TerminalColor { return Current().Dungeon }
 // New code should use the Get*Color() functions instead.
 var (
 	ActiveColor    = lipgloss.Color("42")  // Green - currently executing
-	ReadyColor     = lipgloss.Color("33")  // Blue - ready for execution (shares planned color)
-	PlannedColor   = lipgloss.Color("33")  // Blue - future work
+	ReadyColor     = lipgloss.Color("33")  // Blue - ready for execution (shares planning color)
+	PlanningColor  = lipgloss.Color("33")  // Blue - future work
 	CompletedColor = lipgloss.Color("205") // Purple/Magenta - finished successfully
 	ArchivedColor  = lipgloss.Color("250") // Light grey - deprioritized/paused (updated from 245)
 	DungeonColor   = lipgloss.Color("248") // Light grey - deep archived (updated from 240)
@@ -47,7 +47,7 @@ var (
 // Each entity type gets a distinct color to make nested structures easier to scan.
 var (
 	FestivalColor = ActiveColor           // Green (42) - reuse active color for top-level entities
-	PhaseColor    = PlannedColor          // Blue (33) - reuse planned color for major divisions
+	PhaseColor    = PlanningColor         // Blue (33) - reuse planning color for major divisions
 	SequenceColor = lipgloss.Color("51")  // Cyan - distinct color for mid-level groupings
 	TaskColor     = lipgloss.Color("141") // Purple - for individual work items
 	GateColor     = lipgloss.Color("214") // Orange - for quality gates and checkpoints
@@ -80,7 +80,7 @@ func GetStatusStyle(status string) lipgloss.Style {
 	case "ready":
 		return lipgloss.NewStyle().Foreground(p.Ready).Bold(true)
 	case "planning":
-		return lipgloss.NewStyle().Foreground(p.Planned).Bold(true)
+		return lipgloss.NewStyle().Foreground(p.Planning).Bold(true)
 	case "completed":
 		return lipgloss.NewStyle().Foreground(p.Completed).Bold(true)
 	case "archived":
@@ -102,7 +102,7 @@ func GetStatusColor(status string) lipgloss.TerminalColor {
 	case "ready":
 		return p.Ready
 	case "planning":
-		return p.Planned
+		return p.Planning
 	case "completed":
 		return p.Completed
 	case "archived":
@@ -146,7 +146,7 @@ func GetStateStyle(state string) lipgloss.Style {
 var (
 	ActiveStyle    = lipgloss.NewStyle().Foreground(ActiveColor).Bold(true)
 	ReadyStyle     = lipgloss.NewStyle().Foreground(ReadyColor).Bold(true)
-	PlannedStyle   = lipgloss.NewStyle().Foreground(PlannedColor).Bold(true)
+	PlanningStyle  = lipgloss.NewStyle().Foreground(PlanningColor).Bold(true)
 	CompletedStyle = lipgloss.NewStyle().Foreground(CompletedColor).Bold(true)
 	ArchivedStyle  = lipgloss.NewStyle().Foreground(ArchivedColor).Bold(true)
 	DungeonStyle   = lipgloss.NewStyle().Foreground(DungeonColor).Bold(true)

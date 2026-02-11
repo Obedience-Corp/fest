@@ -22,7 +22,7 @@ import (
 // Styles for festival status in TUI
 var (
 	activeStyle  = lipgloss.NewStyle().Foreground(ui.ActiveColor).Bold(true)
-	plannedStyle = lipgloss.NewStyle().Foreground(ui.PlannedColor).Bold(true)
+	planningStyle = lipgloss.NewStyle().Foreground(ui.PlanningColor).Bold(true)
 	pathStyle    = lipgloss.NewStyle().Foreground(ui.MetadataColor)
 )
 
@@ -194,7 +194,7 @@ func linkProjectToFestival(cwd string) error {
 		return festErrors.NotFound("festivals directory").WithField("hint", "run 'fest init' first")
 	}
 
-	// Collect all festivals from active/ and planned/
+	// Collect all festivals from active/ and planning/
 	festivals, err := collectFestivals(festivalsDir)
 	if err != nil {
 		return festErrors.Wrap(err, "collecting festivals")
@@ -212,7 +212,7 @@ func linkProjectToFestival(cwd string) error {
 		if f.status == "active" {
 			label = activeStyle.Render("● "+f.name) + " " + pathStyle.Render("(active)")
 		} else {
-			label = plannedStyle.Render("○ "+f.name) + " " + pathStyle.Render("(planned)")
+			label = planningStyle.Render("○ "+f.name) + " " + pathStyle.Render("(planning)")
 		}
 		options = append(options, huh.NewOption(label, f.name))
 	}

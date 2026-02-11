@@ -198,7 +198,7 @@ func RunInit(ctx context.Context, targetPath string, opts *InitOptions) error {
 	display.Info("\nNext steps:")
 	display.Info("  1. cd %s", absPath)
 	display.Info("  2. Review festivals/.festival/README.md")
-	display.Info("  3. Start planning your festival in festivals/planned/")
+	display.Info("  3. Start planning your festival in festivals/planning/")
 	display.Info("\nWorkspace navigation:")
 	display.Info("  cd $(fest go)              # Navigate to festivals from anywhere")
 

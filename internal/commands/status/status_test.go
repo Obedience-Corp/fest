@@ -319,7 +319,7 @@ directories:
 	}{
 		{"allowed transition", "active", "completed", false},
 		{"allowed nested transition", "active", "dungeon/archived", false},
-		{"disallowed transition", "active", "planned", true},
+		{"disallowed transition", "active", "planning", true},
 		{"no transition_opts defined", "completed", "active", false},
 	}
 
@@ -377,8 +377,8 @@ directories:
 	}
 
 	// Status without transition_opts should return all directories
-	opts = transitionOptsForStatus(schema, "planned")
+	opts = transitionOptsForStatus(schema, "planning")
 	if len(opts) == 0 {
-		t.Error("expected all directories for planned (no transition_opts), got empty")
+		t.Error("expected all directories for planning (no transition_opts), got empty")
 	}
 }

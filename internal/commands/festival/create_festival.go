@@ -69,7 +69,7 @@ func NewCreateFestivalCommand() *cobra.Command {
 	opts := &CreateFestivalOptions{}
 	cmd := &cobra.Command{
 		Use:   "festival",
-		Short: "Create a new festival scaffold under festivals/(active|planned)",
+		Short: "Create a new festival scaffold under festivals/(active|planning)",
 		Annotations: map[string]string{
 			"scope": string(scope.Workspace),
 		},

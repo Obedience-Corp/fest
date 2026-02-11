@@ -32,10 +32,10 @@ If inside a festival directory, shows that festival's phase/sequence/task hierar
 If in the festivals/ directory, shows a list of festivals for the detected status.
 Otherwise, shows all active festivals by default.
 
-STATUS can be: active, planned, completed, dungeon`,
+STATUS can be: active, planning, completed, dungeon`,
 		Example: `  fest explore              # Auto-detect context and explore
   fest explore active       # Explore active festivals
-  fest explore planned      # Explore planned festivals
+  fest explore planning     # Explore planning festivals
   fest explore completed    # Explore completed festivals
   fest explore dungeon      # Explore dungeon festivals`,
 		Annotations: map[string]string{

@@ -89,7 +89,7 @@ func runPromote(ctx context.Context, opts *promoteOptions) error {
 		}
 		return errors.Validation("cannot promote festival").
 			WithField("status", currentStatus).
-			WithField("hint", "only planned, ready, and active festivals can be promoted")
+			WithField("hint", "only planning, ready, and active festivals can be promoted")
 	}
 
 	// Validate readiness unless forced

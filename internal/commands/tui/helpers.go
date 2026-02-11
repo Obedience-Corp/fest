@@ -382,7 +382,7 @@ func nextTaskAfter(ctx context.Context, seqDir string) int {
 type FestivalInfo struct {
 	Name   string // Directory name
 	Path   string // Full path
-	Status string // active, planned, completed, dungeon
+	Status string // active, planning, completed, dungeon
 	Goal   string // Extracted from FESTIVAL_GOAL.md if available
 }
 

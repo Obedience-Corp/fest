@@ -163,7 +163,7 @@ func tuiPlanFestivalWizard(ctx context.Context, display *ui.UI) error {
 			after++
 		}
 	}
-	display.Success("Festival planned: %s (%s)", slug, dest)
+	display.Success("Festival created: %s (%s)", slug, dest)
 	display.Info("Location: %s", festivalDir)
 	return nil
 }

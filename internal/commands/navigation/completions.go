@@ -158,7 +158,7 @@ func runStatusCompletions(festivalsDir, status string, descriptions, color bool)
 	return nil
 }
 
-// statusFromPath extracts the status directory name (active, planned, dungeon/completed, etc.) from a festival path
+// statusFromPath extracts the status directory name (active, planning, dungeon/completed, etc.) from a festival path
 func statusFromPath(path, festivalsDir string) string {
 	rel, err := filepath.Rel(festivalsDir, path)
 	if err != nil || rel == "." {

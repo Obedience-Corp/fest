@@ -53,15 +53,15 @@ func TestCollectFestivals(t *testing.T) {
 
 	// Create some festivals
 	activeFests := []string{"fest-a", "fest-b"}
-	plannedFests := []string{"fest-c"}
+	planningFests := []string{"fest-c"}
 
 	for _, f := range activeFests {
 		if err := os.MkdirAll(filepath.Join(festivalsDir, "active", f), 0755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for _, f := range plannedFests {
-		if err := os.MkdirAll(filepath.Join(festivalsDir, "planned", f), 0755); err != nil {
+	for _, f := range planningFests {
+		if err := os.MkdirAll(filepath.Join(festivalsDir, "planning", f), 0755); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -77,21 +77,21 @@ func TestCollectFestivals(t *testing.T) {
 
 	// Verify festivals are categorized correctly
 	activeCount := 0
-	plannedCount := 0
+	planningCount := 0
 	for _, f := range festivals {
 		switch f.status {
 		case "active":
 			activeCount++
-		case "planned":
-			plannedCount++
+		case "planning":
+			planningCount++
 		}
 	}
 
 	if activeCount != 2 {
 		t.Errorf("Expected 2 active festivals, got %d", activeCount)
 	}
-	if plannedCount != 1 {
-		t.Errorf("Expected 1 planned festival, got %d", plannedCount)
+	if planningCount != 1 {
+		t.Errorf("Expected 1 planning festival, got %d", planningCount)
 	}
 }
 
@@ -246,10 +246,10 @@ func TestResolveFestivalPath(t *testing.T) {
 
 	// Create festivals in different statuses
 	activeFest := filepath.Join(festivalsDir, "active", "my-active-fest")
-	plannedFest := filepath.Join(festivalsDir, "planned", "my-planned-fest")
+	planningFest := filepath.Join(festivalsDir, "planning", "my-planning-fest")
 	completedFest := filepath.Join(festivalsDir, "completed", "my-completed-fest")
 
-	for _, f := range []string{activeFest, plannedFest, completedFest} {
+	for _, f := range []string{activeFest, planningFest, completedFest} {
 		if err := os.MkdirAll(f, 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -260,7 +260,7 @@ func TestResolveFestivalPath(t *testing.T) {
 		expected string
 	}{
 		{"my-active-fest", activeFest},
-		{"my-planned-fest", plannedFest},
+		{"my-planning-fest", planningFest},
 		{"my-completed-fest", completedFest},
 		{"nonexistent", ""},
 	}

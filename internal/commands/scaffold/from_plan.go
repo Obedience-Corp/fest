@@ -19,7 +19,7 @@ import (
 type fromPlanOptions struct {
 	PlanPath   string
 	Name       string
-	Dest       string // "active" or "planned"
+	Dest       string // "active" or "planning"
 	DryRun     bool
 	JSONOutput bool
 	AgentMode  bool
@@ -74,7 +74,7 @@ Examples:
 
 	cmd.Flags().StringVar(&opts.PlanPath, "plan", "", "Path to the plan document (required)")
 	cmd.Flags().StringVar(&opts.Name, "name", "", "Festival name (required)")
-	cmd.Flags().StringVar(&opts.Dest, "dest", "active", "Destination: active or planned")
+	cmd.Flags().StringVar(&opts.Dest, "dest", "active", "Destination: active or planning")
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "Preview without creating files")
 	cmd.Flags().BoolVar(&opts.JSONOutput, "json", false, "Emit JSON output")
 	cmd.Flags().BoolVar(&opts.AgentMode, "agent", false, "Agent mode: JSON output")

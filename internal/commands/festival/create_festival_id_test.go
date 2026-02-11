@@ -142,7 +142,7 @@ func TestCreateFestival_MetadataPopulation(t *testing.T) {
 
 	// Create festivals directory structure
 	festivalsRoot := filepath.Join(tmpDir, "festivals")
-	for _, status := range []string{"planned", "active", "completed", "dungeon"} {
+	for _, status := range []string{"planning", "active", "completed", "dungeon"} {
 		if err := os.MkdirAll(filepath.Join(festivalsRoot, status), 0755); err != nil {
 			t.Fatalf("Failed to create status dir: %v", err)
 		}
@@ -218,8 +218,8 @@ func TestCreateFestival_MetadataPopulation(t *testing.T) {
 
 	if len(cfg.Metadata.StatusHistory) > 0 {
 		firstChange := cfg.Metadata.StatusHistory[0]
-		if firstChange.Status != "active" && firstChange.Status != "planned" {
-			t.Errorf("First status should be 'active' or 'planned', got %q", firstChange.Status)
+		if firstChange.Status != "active" && firstChange.Status != "planning" {
+			t.Errorf("First status should be 'active' or 'planning', got %q", firstChange.Status)
 		}
 		if firstChange.Timestamp.IsZero() {
 			t.Error("Status change timestamp should not be zero")
@@ -234,7 +234,7 @@ func TestCreateFestival_UniqueIDs(t *testing.T) {
 
 	// Create festivals directory structure
 	festivalsRoot := filepath.Join(tmpDir, "festivals")
-	for _, status := range []string{"planned", "active", "completed", "dungeon"} {
+	for _, status := range []string{"planning", "active", "completed", "dungeon"} {
 		if err := os.MkdirAll(filepath.Join(festivalsRoot, status), 0755); err != nil {
 			t.Fatalf("Failed to create status dir: %v", err)
 		}
@@ -288,14 +288,14 @@ func TestCreateFestival_UniqueIDs(t *testing.T) {
 
 	// Verify directory names
 	activeEntries, _ := os.ReadDir(filepath.Join(festivalsRoot, "active"))
-	plannedEntries, _ := os.ReadDir(filepath.Join(festivalsRoot, "planned"))
+	planningEntries, _ := os.ReadDir(filepath.Join(festivalsRoot, "planning"))
 
-	// Should have 2 in active, 1 in planned
+	// Should have 2 in active, 1 in planning
 	if len(activeEntries) != 2 {
 		t.Errorf("Expected 2 entries in active/, got %d", len(activeEntries))
 	}
-	if len(plannedEntries) != 1 {
-		t.Errorf("Expected 1 entry in planned/, got %d", len(plannedEntries))
+	if len(planningEntries) != 1 {
+		t.Errorf("Expected 1 entry in planning/, got %d", len(planningEntries))
 	}
 
 	// Collect all IDs (extract from end of directory name after last hyphen)
@@ -312,7 +312,7 @@ func TestCreateFestival_UniqueIDs(t *testing.T) {
 		}
 		ids[id] = true
 	}
-	for _, e := range plannedEntries {
+	for _, e := range planningEntries {
 		name := e.Name()
 		lastHyphen := strings.LastIndex(name, "-")
 		if lastHyphen == -1 {
@@ -341,7 +341,7 @@ func TestCreateFestival_BackwardsCompatibility(t *testing.T) {
 
 	// Create festivals directory structure
 	festivalsRoot := filepath.Join(tmpDir, "festivals")
-	for _, status := range []string{"planned", "active", "completed", "dungeon"} {
+	for _, status := range []string{"planning", "active", "completed", "dungeon"} {
 		if err := os.MkdirAll(filepath.Join(festivalsRoot, status), 0755); err != nil {
 			t.Fatalf("Failed to create status dir: %v", err)
 		}
