@@ -18,12 +18,13 @@ import (
 
 // DisplayNode represents a node in the festival tree hierarchy.
 type DisplayNode struct {
-	Name     string       // Directory/file name
-	Goal     string       // Primary goal from *_GOAL.md
-	Status   string       // pending/in_progress/completed/blocked
-	Stats    StatusCounts // Task counts for this level
-	NodeType string       // "festival", "phase", "sequence", "step", "task"
-	Children []*DisplayNode
+	Name          string       // Directory/file name
+	Goal          string       // Primary goal from *_GOAL.md
+	Status        string       // pending/in_progress/completed/blocked
+	Stats         StatusCounts // Task counts for this level
+	NodeType      string       // "festival", "phase", "sequence", "step", "task"
+	Children      []*DisplayNode
+	IsNextPending bool // First incomplete node at this level — expanded by --inprogress
 }
 
 // TreeOptions configures how the tree is rendered.
@@ -265,6 +266,19 @@ func buildSequenceNode(seqDir string, store *progress.Store, festivalRoot string
 	return node
 }
 
+// markNextPending walks the tree top-down and marks the first non-completed
+// child at each level as IsNextPending, recursing into it. Only one path
+// through the tree gets marked, giving --inprogress a "next up" expansion.
+func markNextPending(node *DisplayNode) {
+	for _, child := range node.Children {
+		if child.Status != "completed" {
+			child.IsNextPending = true
+			markNextPending(child)
+			return
+		}
+	}
+}
+
 func readPrimaryGoal(dir, filename string) string {
 	goalPath := filepath.Join(dir, filename)
 	content, err := os.ReadFile(goalPath)
@@ -310,6 +324,11 @@ func RenderTree(node *DisplayNode, opts TreeOptions) string {
 		sb.WriteString("\n")
 	}
 
+	// Mark the next pending path so --inprogress expands it
+	if opts.InProgress {
+		markNextPending(node)
+	}
+
 	// Render children (phases)
 	for i, child := range node.Children {
 		isLast := i == len(node.Children)-1
@@ -334,7 +353,7 @@ func renderPhaseNode(sb *strings.Builder, node *DisplayNode, prefix string, isLa
 	sb.WriteString(ui.Dim(connector))
 	sb.WriteString(phaseStyle.Render(node.Name))
 	sb.WriteString("  ")
-	collapsePhase := opts.Collapsed || (opts.InProgress && node.Status != "in_progress")
+	collapsePhase := opts.Collapsed || (opts.InProgress && node.Status != "in_progress" && !node.IsNextPending)
 	if collapsePhase {
 		sb.WriteString(formatCollapsedPhaseStatus(node))
 	} else {
@@ -352,7 +371,7 @@ func renderPhaseNode(sb *strings.Builder, node *DisplayNode, prefix string, isLa
 
 	// Render children: collapsed hides all, inprogress hides non-active
 	showChildren := !opts.Collapsed
-	if opts.InProgress && node.Status != "in_progress" {
+	if opts.InProgress && node.Status != "in_progress" && !node.IsNextPending {
 		showChildren = false
 	}
 	if showChildren {
@@ -395,7 +414,7 @@ func renderSequenceNode(sb *strings.Builder, node *DisplayNode, prefix string, i
 
 	// Render task children: collapsed hides all, inprogress hides non-active
 	showTasks := !opts.Collapsed
-	if opts.InProgress && node.Status != "in_progress" {
+	if opts.InProgress && node.Status != "in_progress" && !node.IsNextPending {
 		showTasks = false
 	}
 	if showTasks {
