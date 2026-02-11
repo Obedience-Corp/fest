@@ -98,25 +98,13 @@ func IsUnambiguous(matches []FuzzyMatch) bool {
 	return float64(matches[1].Score) < threshold
 }
 
-// CollectNavigationTargets gathers all possible navigation targets from a festivals directory
-// Limited to status directories and festival names only (not phases/sequences)
+// CollectNavigationTargets gathers all possible navigation targets from a festivals directory.
+// Limited to status directories and festival names only (not phases/sequences).
+// Festival names are collected first (highest navigation priority), then status directories.
 func CollectNavigationTargets(festivalsDir string) []FuzzyTarget {
 	var targets []FuzzyTarget
 
-	// Status directories as targets (for "fest go active", "fest go planned", etc.)
-	statusDirs := []string{"active", "ready", "planned", "completed", "dungeon", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
-	for _, status := range statusDirs {
-		statusPath := filepath.Join(festivalsDir, status)
-		if info, err := os.Stat(statusPath); err == nil && info.IsDir() {
-			targets = append(targets, FuzzyTarget{
-				Name: status,
-				Path: statusPath,
-			})
-		}
-	}
-
-	// Festival names from active, ready, and planned only (most commonly navigated)
-	// Completed and dungeon are archives, less frequently accessed via fuzzy search
+	// Festival names first (most commonly navigated)
 	primaryDirs := []string{"active", "ready", "planned"}
 	for _, status := range primaryDirs {
 		statusPath := filepath.Join(festivalsDir, status)
@@ -142,6 +130,18 @@ func CollectNavigationTargets(festivalsDir string) []FuzzyTarget {
 			targets = append(targets, FuzzyTarget{
 				Name: festivalName,
 				Path: festivalPath,
+			})
+		}
+	}
+
+	// Status directories after (for "fest go active", "fest go planned", etc.)
+	statusDirs := []string{"active", "ready", "planned", "completed", "dungeon", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
+	for _, status := range statusDirs {
+		statusPath := filepath.Join(festivalsDir, status)
+		if info, err := os.Stat(statusPath); err == nil && info.IsDir() {
+			targets = append(targets, FuzzyTarget{
+				Name: status,
+				Path: statusPath,
 			})
 		}
 	}
