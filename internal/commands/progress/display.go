@@ -10,6 +10,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
+	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -84,6 +85,38 @@ func showFestivalProgress(ctx context.Context, mgr *progress.Manager, loc *show.
 		ui.Label("Duration"),
 		ui.Value(durationStr),
 		ui.Dim("(calendar time)"))
+
+	// Phase-type time breakdown
+	if len(festProgress.PhaseTypeTimes) > 0 {
+		fmt.Printf("\n%s\n", ui.H3("Time by Phase Type"))
+		for _, pt := range festProgress.PhaseTypeTimes {
+			fmt.Printf("  %s %s\n",
+				ui.Label(fmt.Sprintf("%-16s", pt.PhaseType)),
+				ui.Value(ui.FormatDuration(pt.Minutes)))
+		}
+	}
+
+	// Content delta (token proxy)
+	festConfig, cfgErr := config.LoadFestivalConfig(loc.Festival.Path)
+	if cfgErr == nil && festConfig.Metadata.InitialSizeBytes > 0 {
+		delta, deltaErr := progress.ComputeContentDelta(ctx, loc.Festival.Path, festConfig.Metadata.InitialSizeBytes)
+		if deltaErr == nil {
+			fmt.Printf("\n%s\n", ui.H3("Content Delta"))
+			fmt.Printf("  %s %s\n",
+				ui.Label("Initial"),
+				ui.Dim(fmt.Sprintf("%s (~%d tokens)", formatBytes(delta.InitialBytes), delta.InitialBytes/4)))
+			fmt.Printf("  %s %s\n",
+				ui.Label("Current"),
+				ui.Dim(fmt.Sprintf("%s (~%d tokens)", formatBytes(delta.CurrentBytes), delta.CurrentBytes/4)))
+			sign := "+"
+			if delta.DeltaBytes < 0 {
+				sign = ""
+			}
+			fmt.Printf("  %s %s\n",
+				ui.Label("Delta"),
+				ui.Value(fmt.Sprintf("%s%s (~%s%d tokens)", sign, formatBytes(delta.DeltaBytes), sign, delta.DeltaTokens)))
+		}
+	}
 
 	// Phase breakdown
 	if len(festProgress.Phases) > 0 {
@@ -341,4 +374,16 @@ func renderProgressBar(percentage int) string {
 	opts.FilledColor = ui.SuccessColor
 	opts.EmptyColor = ui.BorderColor
 	return ui.RenderProgressBar(opts)
+}
+
+// formatBytes formats a byte count in a human-readable way.
+func formatBytes(b int64) string {
+	abs := b
+	if abs < 0 {
+		abs = -abs
+	}
+	if abs < 1024 {
+		return fmt.Sprintf("%d bytes", b)
+	}
+	return fmt.Sprintf("%.1f KB", float64(b)/1024)
 }

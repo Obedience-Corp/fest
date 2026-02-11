@@ -16,6 +16,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
+	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/registry"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
@@ -446,6 +447,13 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 		// Restore stdout
 		devNull.Close()
 		os.Stdout = origStdout
+	}
+
+	// Record initial content size for token delta tracking
+	initialSize, sizeErr := progress.ComputeDirectorySize(ctx, destDir)
+	if sizeErr == nil && initialSize > 0 {
+		festConfig.Metadata.InitialSizeBytes = initialSize
+		_ = config.SaveFestivalConfig(destDir, festConfig)
 	}
 
 	// Update ID registry with event logging

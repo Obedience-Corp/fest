@@ -501,10 +501,10 @@ func TestCreateFestival_GatesConfigHasCorrectStructure(t *testing.T) {
 
 	// Verify implementation gates use correct template paths
 	expectedTemplates := map[string]bool{
-		"gates/implementation/QUALITY_GATE_TESTING": false,
-		"gates/implementation/QUALITY_GATE_REVIEW":  false,
-		"gates/implementation/QUALITY_GATE_ITERATE": false,
-		"gates/implementation/QUALITY_GATE_FEST_COMMIT":  false,
+		"gates/implementation/QUALITY_GATE_TESTING":     false,
+		"gates/implementation/QUALITY_GATE_REVIEW":      false,
+		"gates/implementation/QUALITY_GATE_ITERATE":     false,
+		"gates/implementation/QUALITY_GATE_FEST_COMMIT": false,
 	}
 
 	for _, task := range cfg.QualityGates.Implementation {

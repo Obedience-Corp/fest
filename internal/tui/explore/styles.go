@@ -32,15 +32,15 @@ func StatusStyle(status string) lipgloss.Style {
 }
 
 var (
-	selectedStyle  = lipgloss.NewStyle().Foreground(colorFocus).Bold(true)
-	normalStyle    = lipgloss.NewStyle().Foreground(colorText)
-	dimStyle       = lipgloss.NewStyle().Foreground(colorDim)
-	cursorStyle    = lipgloss.NewStyle().Foreground(colorFocus)
-	headerStyle    = lipgloss.NewStyle().Foreground(colorBorder).Bold(true)
-	helpStyle      = lipgloss.NewStyle().Foreground(colorDim).Faint(true)
-	borderStyle    = lipgloss.NewStyle().Foreground(colorBorder)
+	selectedStyle   = lipgloss.NewStyle().Foreground(colorFocus).Bold(true)
+	normalStyle     = lipgloss.NewStyle().Foreground(colorText)
+	dimStyle        = lipgloss.NewStyle().Foreground(colorDim)
+	cursorStyle     = lipgloss.NewStyle().Foreground(colorFocus)
+	headerStyle     = lipgloss.NewStyle().Foreground(colorBorder).Bold(true)
+	helpStyle       = lipgloss.NewStyle().Foreground(colorDim).Faint(true)
+	borderStyle     = lipgloss.NewStyle().Foreground(colorBorder)
 	breadcrumbStyle = lipgloss.NewStyle().Foreground(colorDim)
-	previewBorder  = lipgloss.NewStyle().
+	previewBorder   = lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(colorBorder)
 	previewTitle = lipgloss.NewStyle().Foreground(colorBorder).Bold(true)

@@ -4,20 +4,20 @@ package show
 import (
 	"context"
 	"fmt"
-	"os"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
+	"os"
 )
 
 type showOptions struct {
 	json       bool
-	summary    bool          // Show aggregate summary instead of tree view
-	watch      bool          // Continuously refresh display
-	goals      bool          // Show goals for phases and sequences
-	collapsed  bool          // Show collapsed tree with counters only
-	inProgress bool          // Expand only in_progress phases/sequences
+	summary    bool // Show aggregate summary instead of tree view
+	watch      bool // Continuously refresh display
+	goals      bool // Show goals for phases and sequences
+	collapsed  bool // Show collapsed tree with counters only
+	inProgress bool // Expand only in_progress phases/sequences
 }
 
 // NewShowCommand creates the show command with all subcommands.

@@ -25,6 +25,10 @@ type FestivalMetadata struct {
 	// CreatedAt is when the festival was first created.
 	CreatedAt time.Time `yaml:"created_at,omitempty"`
 
+	// InitialSizeBytes is the total size of .md files at festival creation time.
+	// Used as a baseline for computing content delta (token proxy).
+	InitialSizeBytes int64 `yaml:"initial_size_bytes,omitempty"`
+
 	// StatusHistory tracks all status transitions for this festival.
 	StatusHistory []StatusChange `yaml:"status_history,omitempty"`
 }
