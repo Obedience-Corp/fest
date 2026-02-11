@@ -8,6 +8,7 @@ import (
 	contextcmd "github.com/Obedience-Corp/fest/internal/commands/context"
 	depscmd "github.com/Obedience-Corp/fest/internal/commands/deps"
 	executecmd "github.com/Obedience-Corp/fest/internal/commands/execute"
+	explorecmd "github.com/Obedience-Corp/fest/internal/commands/explore"
 	"github.com/Obedience-Corp/fest/internal/commands/extensions"
 	feedbackcmd "github.com/Obedience-Corp/fest/internal/commands/feedback"
 	"github.com/Obedience-Corp/fest/internal/commands/festival"
@@ -254,6 +255,10 @@ func init() {
 	listCmd := listcmd.NewListCommand()
 	listCmd.GroupID = "query"
 	rootCmd.AddCommand(listCmd)
+
+	exploreCmd := explorecmd.NewExploreCommand()
+	exploreCmd.GroupID = "navigation"
+	rootCmd.AddCommand(exploreCmd)
 
 	indexCmd := navigation.NewIndexCommand()
 	indexCmd.GroupID = "system"
