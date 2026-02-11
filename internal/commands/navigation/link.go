@@ -427,7 +427,7 @@ func runLinks(jsonOutput bool) error {
 // findFestivalStatus looks up a festival's status by searching status directories.
 // Returns empty string if festival not found.
 func findFestivalStatus(festivalsDir, festivalName string) string {
-	statuses := []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
+	statuses := []string{"active", "ready", "planning", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 	for _, status := range statuses {
 		statusDir := filepath.Join(festivalsDir, status)
 		festivalPath := filepath.Join(statusDir, festivalName)

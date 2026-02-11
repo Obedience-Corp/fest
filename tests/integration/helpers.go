@@ -747,7 +747,7 @@ func setupWorkspace(t *testing.T, tc *TestContainer, basePath string) string {
 	// Create minimal workspace structure
 	_, err := tc.runCommand([]string{
 		"sh", "-c",
-		fmt.Sprintf("mkdir -p %s/.festival/.state %s/active %s/planned",
+		fmt.Sprintf("mkdir -p %s/.festival/.state %s/active %s/planning",
 			festivalsPath, festivalsPath, festivalsPath),
 	})
 	require.NoError(t, err, "should create workspace directories")

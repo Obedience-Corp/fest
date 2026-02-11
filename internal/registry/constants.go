@@ -21,7 +21,7 @@ const (
 // Status constants for festival lifecycle
 const (
 	StatusActive    = "active"
-	StatusPlanned   = "planned"
+	StatusPlanning  = "planning"
 	StatusReady     = "ready"
 	StatusCompleted = "completed"
 	StatusDungeon   = "dungeon"

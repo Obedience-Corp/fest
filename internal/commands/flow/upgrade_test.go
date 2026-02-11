@@ -18,7 +18,7 @@ func setupFestivalsDir(t *testing.T) string {
 	// Create festivals structure with .festival metadata
 	os.MkdirAll(filepath.Join(festivalsDir, ".festival"), 0755)
 	os.MkdirAll(filepath.Join(festivalsDir, "active"), 0755)
-	os.MkdirAll(filepath.Join(festivalsDir, "planned"), 0755)
+	os.MkdirAll(filepath.Join(festivalsDir, "planning"), 0755)
 
 	return festivalsDir
 }

@@ -24,7 +24,7 @@ func TestFestivalMetadata_MarshalYAML(t *testing.T) {
 				CreatedAt: now,
 				StatusHistory: []StatusChange{
 					{
-						Status:    "planned",
+						Status:    "planning",
 						Timestamp: now,
 						Notes:     "Initial creation",
 					},
@@ -70,7 +70,7 @@ uuid: 550e8400-e29b-41d4-a716-446655440000
 name: guild-usable
 created_at: 2025-12-31T12:00:00Z
 status_history:
-  - status: planned
+  - status: planning
     timestamp: 2025-12-31T12:00:00Z
     notes: Initial creation
 `,
@@ -81,7 +81,7 @@ status_history:
 				CreatedAt: time.Date(2025, 12, 31, 12, 0, 0, 0, time.UTC),
 				StatusHistory: []StatusChange{
 					{
-						Status:    "planned",
+						Status:    "planning",
 						Timestamp: time.Date(2025, 12, 31, 12, 0, 0, 0, time.UTC),
 						Notes:     "Initial creation",
 					},
@@ -130,7 +130,7 @@ func TestFestivalMetadata_RoundTrip(t *testing.T) {
 		CreatedAt: now,
 		StatusHistory: []StatusChange{
 			{
-				Status:    "planned",
+				Status:    "planning",
 				Timestamp: now,
 				Notes:     "Initial creation",
 			},
@@ -290,7 +290,7 @@ metadata:
   name: guild-usable
   created_at: 2025-12-31T12:00:00Z
   status_history:
-    - status: planned
+    - status: planning
       timestamp: 2025-12-31T12:00:00Z
       notes: Initial creation
 quality_gates:
@@ -397,16 +397,16 @@ func TestFestivalMetadata_CurrentStatus(t *testing.T) {
 			name: "single status",
 			metadata: &FestivalMetadata{
 				StatusHistory: []StatusChange{
-					{Status: "planned", Timestamp: now},
+					{Status: "planning", Timestamp: now},
 				},
 			},
-			want: "planned",
+			want: "planning",
 		},
 		{
 			name: "multiple statuses returns last",
 			metadata: &FestivalMetadata{
 				StatusHistory: []StatusChange{
-					{Status: "planned", Timestamp: now},
+					{Status: "planning", Timestamp: now},
 					{Status: "active", Timestamp: now.Add(time.Hour)},
 					{Status: "completed", Timestamp: now.Add(2 * time.Hour)},
 				},
@@ -432,18 +432,18 @@ func TestFestivalMetadata_AddStatusChange(t *testing.T) {
 	}
 
 	// Add first status
-	metadata.AddStatusChange("planned", "/path/to/planned", "Initial creation")
+	metadata.AddStatusChange("planning", "/path/to/planning", "Initial creation")
 
 	if len(metadata.StatusHistory) != 1 {
 		t.Fatalf("Expected 1 status change, got %d", len(metadata.StatusHistory))
 	}
 
 	change := metadata.StatusHistory[0]
-	if change.Status != "planned" {
-		t.Errorf("Status = %v, want planned", change.Status)
+	if change.Status != "planning" {
+		t.Errorf("Status = %v, want planning", change.Status)
 	}
-	if change.Path != "/path/to/planned" {
-		t.Errorf("Path = %v, want /path/to/planned", change.Path)
+	if change.Path != "/path/to/planning" {
+		t.Errorf("Path = %v, want /path/to/planning", change.Path)
 	}
 	if change.Notes != "Initial creation" {
 		t.Errorf("Notes = %v, want 'Initial creation'", change.Notes)

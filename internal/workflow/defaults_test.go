@@ -192,7 +192,7 @@ func TestFestivalSchema(t *testing.T) {
 	})
 
 	t.Run("has festival lifecycle directories", func(t *testing.T) {
-		required := []string{"planned", "ready", "active", "dungeon"}
+		required := []string{"planning", "ready", "active", "dungeon"}
 		for _, name := range required {
 			if _, ok := schema.Directories[name]; !ok {
 				t.Errorf("missing required directory: %s", name)
@@ -200,21 +200,21 @@ func TestFestivalSchema(t *testing.T) {
 		}
 	})
 
-	t.Run("default status is planned", func(t *testing.T) {
-		if schema.DefaultStatus != "planned" {
-			t.Errorf("DefaultStatus = %q, want %q", schema.DefaultStatus, "planned")
+	t.Run("default status is planning", func(t *testing.T) {
+		if schema.DefaultStatus != "planning" {
+			t.Errorf("DefaultStatus = %q, want %q", schema.DefaultStatus, "planning")
 		}
 	})
 
-	t.Run("planned transitions to ready active and dungeon", func(t *testing.T) {
-		planned := schema.Directories["planned"]
+	t.Run("planning transitions to ready active and dungeon", func(t *testing.T) {
+		planning := schema.Directories["planning"]
 		found := make(map[string]bool)
-		for _, opt := range planned.TransitionOpts {
+		for _, opt := range planning.TransitionOpts {
 			found[opt] = true
 		}
 		for _, expected := range []string{"ready", "active", "dungeon"} {
 			if !found[expected] {
-				t.Errorf("planned should allow transition to %s", expected)
+				t.Errorf("planning should allow transition to %s", expected)
 			}
 		}
 	})
@@ -255,10 +255,10 @@ func TestFestivalSchema(t *testing.T) {
 
 	t.Run("has correct ordering", func(t *testing.T) {
 		expected := map[string]int{
-			"planned": 1,
-			"ready":   2,
-			"active":  3,
-			"dungeon": 4,
+			"planning": 1,
+			"ready":    2,
+			"active":   3,
+			"dungeon":  4,
 		}
 		for name, wantOrder := range expected {
 			dir := schema.Directories[name]
@@ -292,7 +292,7 @@ func TestFestivalSchema(t *testing.T) {
 	})
 
 	t.Run("no unexpected directories", func(t *testing.T) {
-		allowed := map[string]bool{"planned": true, "ready": true, "active": true, "dungeon": true}
+		allowed := map[string]bool{"planning": true, "ready": true, "active": true, "dungeon": true}
 		for name := range schema.Directories {
 			if !allowed[name] {
 				t.Errorf("unexpected directory: %q", name)

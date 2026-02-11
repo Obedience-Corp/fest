@@ -105,8 +105,7 @@ func CollectNavigationTargets(festivalsDir string) []FuzzyTarget {
 	var targets []FuzzyTarget
 
 	// Festival names first (most commonly navigated)
-	primaryDirs := []string{"active", "ready", "planned"}
-	for _, status := range primaryDirs {
+	for _, status := range id.PrimaryStatusDirs {
 		statusPath := filepath.Join(festivalsDir, status)
 		entries, err := os.ReadDir(statusPath)
 		if err != nil {
@@ -135,8 +134,7 @@ func CollectNavigationTargets(festivalsDir string) []FuzzyTarget {
 	}
 
 	// Primary status directories only (completed/dungeon available via "fgo completed <TAB>")
-	statusDirs := []string{"active", "ready", "planned"}
-	for _, status := range statusDirs {
+	for _, status := range id.PrimaryStatusDirs {
 		statusPath := filepath.Join(festivalsDir, status)
 		if info, err := os.Stat(statusPath); err == nil && info.IsDir() {
 			targets = append(targets, FuzzyTarget{

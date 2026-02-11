@@ -34,8 +34,8 @@ func tuiCreateFestival(ctx context.Context, display *ui.UI) error {
 		tIdx = 0
 	}
 	festType := festTypes[tIdx]
-	dest := strings.ToLower(strings.TrimSpace(display.PromptDefault("Destination (active|planned)", "active")))
-	if dest != "planned" && dest != "active" {
+	dest := strings.ToLower(strings.TrimSpace(display.PromptDefault("Destination (active|planning)", "active")))
+	if dest != "planning" && dest != "active" {
 		dest = "active"
 	}
 
@@ -107,9 +107,9 @@ func tuiPlanFestivalWizard(ctx context.Context, display *ui.UI) error {
 		tIdx = 0
 	}
 	festType := festTypes[tIdx]
-	dest := strings.ToLower(strings.TrimSpace(display.PromptDefault("Destination (active|planned)", "planned")))
-	if dest != "planned" && dest != "active" {
-		dest = "planned"
+	dest := strings.ToLower(strings.TrimSpace(display.PromptDefault("Destination (active|planning)", "planning")))
+	if dest != "planning" && dest != "active" {
+		dest = "planning"
 	}
 
 	// gather extra vars from templates

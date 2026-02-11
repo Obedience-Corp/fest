@@ -118,7 +118,7 @@ func runFromPlan(ctx context.Context, opts *fromPlanOptions) error {
 
 	// Determine destination
 	destCategory := strings.ToLower(strings.TrimSpace(opts.Dest))
-	if destCategory != "planned" && destCategory != "active" {
+	if destCategory != "planning" && destCategory != "active" {
 		destCategory = "active"
 	}
 

@@ -167,7 +167,7 @@ func TestCampaignRootFromFestival(t *testing.T) {
 		},
 		{
 			"planned festival",
-			"/home/user/campaign/festivals/planned/my-fest",
+			"/home/user/campaign/festivals/planning/my-fest",
 			"/home/user/campaign",
 		},
 		{

@@ -30,7 +30,7 @@ func TestFullFestivalLifecycle(t *testing.T) {
 		// So we create the minimal structure directly
 		_, err := container.runCommand([]string{
 			"sh", "-c",
-			"mkdir -p /workspace/festivals/.festival/.state /workspace/festivals/active /workspace/festivals/planned",
+			"mkdir -p /workspace/festivals/.festival/.state /workspace/festivals/active /workspace/festivals/planning",
 		})
 		require.NoError(t, err, "should create workspace directories")
 

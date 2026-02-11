@@ -29,7 +29,7 @@ type WorkspaceInfo struct {
 
 // FestivalsByStatus groups festivals by their status
 type FestivalsByStatus struct {
-	Planned   []FestivalNode `json:"planned"`
+	Planning  []FestivalNode `json:"planning"`
 	Active    []FestivalNode `json:"active"`
 	Completed []FestivalNode `json:"completed"`
 	Dungeon   []FestivalNode `json:"dungeon"`
@@ -102,8 +102,8 @@ func (t *TreeIndex) AddFestival(festival FestivalNode, status string) {
 	festival.Status = status
 
 	switch status {
-	case "planned":
-		t.Festivals.Planned = append(t.Festivals.Planned, festival)
+	case "planning":
+		t.Festivals.Planning = append(t.Festivals.Planning, festival)
 	case "active":
 		t.Festivals.Active = append(t.Festivals.Active, festival)
 	case "completed":
@@ -120,7 +120,7 @@ func (t *TreeIndex) AddFestival(festival FestivalNode, status string) {
 // GetAllFestivals returns all festivals across all statuses
 func (t *TreeIndex) GetAllFestivals() []FestivalNode {
 	var all []FestivalNode
-	all = append(all, t.Festivals.Planned...)
+	all = append(all, t.Festivals.Planning...)
 	all = append(all, t.Festivals.Active...)
 	all = append(all, t.Festivals.Completed...)
 	all = append(all, t.Festivals.Dungeon...)
@@ -134,9 +134,9 @@ func (t *TreeIndex) GetFestivalByID(id string) *FestivalNode {
 			return &t.Festivals.Active[i]
 		}
 	}
-	for i := range t.Festivals.Planned {
-		if t.Festivals.Planned[i].ID == id {
-			return &t.Festivals.Planned[i]
+	for i := range t.Festivals.Planning {
+		if t.Festivals.Planning[i].ID == id {
+			return &t.Festivals.Planning[i]
 		}
 	}
 	for i := range t.Festivals.Completed {
@@ -213,8 +213,8 @@ func (t *TreeIndex) SortFestivals() {
 	sortFn := func(a, b FestivalNode) bool {
 		return strings.ToLower(a.Name) < strings.ToLower(b.Name)
 	}
-	sort.Slice(t.Festivals.Planned, func(i, j int) bool {
-		return sortFn(t.Festivals.Planned[i], t.Festivals.Planned[j])
+	sort.Slice(t.Festivals.Planning, func(i, j int) bool {
+		return sortFn(t.Festivals.Planning[i], t.Festivals.Planning[j])
 	})
 	sort.Slice(t.Festivals.Active, func(i, j int) bool {
 		return sortFn(t.Festivals.Active[i], t.Festivals.Active[j])

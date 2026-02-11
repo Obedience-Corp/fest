@@ -46,7 +46,7 @@ func TestCreateFestival_DirectoryNaming(t *testing.T) {
 
 			// Create festivals directory structure
 			festivalsRoot := filepath.Join(tmpDir, "festivals")
-			for _, status := range []string{"planned", "active", "completed", "dungeon"} {
+			for _, status := range []string{"planning", "active", "completed", "dungeon"} {
 				if err := os.MkdirAll(filepath.Join(festivalsRoot, status), 0755); err != nil {
 					t.Fatalf("Failed to create status dir: %v", err)
 				}
@@ -267,7 +267,7 @@ func TestCreateFestival_UniqueIDs(t *testing.T) {
 	// Create second festival with same "GU" prefix
 	opts2 := &CreateFestivalOptions{
 		Name:        "guild ui",
-		Dest:        "planned",
+		Dest:        "planning",
 		SkipMarkers: true,
 		JSONOutput:  true,
 	}

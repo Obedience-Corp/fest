@@ -465,7 +465,7 @@ func extractFestivalGoal(festDir string) string {
 func listAllFestivals(festivalsRoot string) (map[string][]FestivalInfo, error) {
 	result := make(map[string][]FestivalInfo)
 
-	statuses := []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
+	statuses := []string{"active", "ready", "planning", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 	for _, status := range statuses {
 		statusDir := filepath.Join(festivalsRoot, status)
 		if !exists(statusDir) {

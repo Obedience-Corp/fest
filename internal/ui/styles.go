@@ -79,7 +79,7 @@ func GetStatusStyle(status string) lipgloss.Style {
 		return lipgloss.NewStyle().Foreground(p.Active).Bold(true)
 	case "ready":
 		return lipgloss.NewStyle().Foreground(p.Ready).Bold(true)
-	case "planned":
+	case "planning":
 		return lipgloss.NewStyle().Foreground(p.Planned).Bold(true)
 	case "completed":
 		return lipgloss.NewStyle().Foreground(p.Completed).Bold(true)
@@ -101,7 +101,7 @@ func GetStatusColor(status string) lipgloss.TerminalColor {
 		return p.Active
 	case "ready":
 		return p.Ready
-	case "planned":
+	case "planning":
 		return p.Planned
 	case "completed":
 		return p.Completed

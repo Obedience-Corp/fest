@@ -25,8 +25,11 @@ var commonWords = map[string]bool{
 // idPattern matches festival IDs in directory names (e.g., -GC0001)
 var idPattern = regexp.MustCompile(`-([A-Z]{2})(\d{4,})$`)
 
-// StatusDirectories are the directories that contain festivals
-var StatusDirectories = []string{"planned", "ready", "active", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
+// StatusDirectories are ALL directories that can contain festivals (full lifecycle)
+var StatusDirectories = []string{"planning", "ready", "active", "ritual", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
+
+// PrimaryStatusDirs are directories for active work (used in navigation, fuzzy search)
+var PrimaryStatusDirs = []string{"active", "ready", "planning"}
 
 // ExtractInitials extracts a 2-letter uppercase prefix from a festival name.
 // For multi-word names: first letter of first two significant words.
@@ -227,6 +230,90 @@ func GenerateID(name string, festivalsRoot string) (string, error) {
 	}
 
 	return FormatID(initials, counter), nil
+}
+
+// RitualPrefix is prepended to ritual festival IDs.
+const RitualPrefix = "RI-"
+
+// ritualRunPattern matches hex run counters appended to ritual directory names (e.g., -0001, -00FF)
+var ritualRunPattern = regexp.MustCompile(`-([0-9A-Fa-f]{4})$`)
+
+// GenerateRitualID creates a ritual festival ID with RI- prefix.
+// Format: RI-XX0001 where XX is derived from the festival name.
+func GenerateRitualID(name string, festivalsRoot string) (string, error) {
+	baseID, err := GenerateID(name, festivalsRoot)
+	if err != nil {
+		return "", err
+	}
+	return RitualPrefix + baseID, nil
+}
+
+// IsRitualID checks if an ID has the RI- prefix.
+func IsRitualID(id string) bool {
+	return strings.HasPrefix(id, RitualPrefix)
+}
+
+// FormatHexCounter formats a run number as a 4-digit zero-padded uppercase hex string.
+// Examples: 1 -> "0001", 10 -> "000A", 255 -> "00FF", 65535 -> "FFFF"
+func FormatHexCounter(n int) string {
+	if n < 0 {
+		n = 0
+	}
+	if n > 0xFFFF {
+		return fmt.Sprintf("%X", n) // No padding for overflow
+	}
+	return fmt.Sprintf("%04X", n)
+}
+
+// ParseHexCounter extracts the hex run counter from a ritual run directory name.
+// The counter is the last 4 hex characters after the final hyphen.
+// Returns 0 and an error if no valid counter is found.
+func ParseHexCounter(dirName string) (int, error) {
+	matches := ritualRunPattern.FindStringSubmatch(dirName)
+	if matches == nil {
+		return 0, errors.NotFound("no hex counter found").WithField("dirName", dirName)
+	}
+	n, err := strconv.ParseInt(matches[1], 16, 64)
+	if err != nil {
+		return 0, errors.Wrap(err, "parsing hex counter").WithField("counter", matches[1])
+	}
+	return int(n), nil
+}
+
+// FindNextRitualRun scans active/ and dungeon/completed/ for the highest existing
+// run counter for the given ritual directory name prefix, and returns the next one.
+func FindNextRitualRun(festivalsRoot, ritualDirName string) (int, error) {
+	maxRun := 0
+
+	// Scan directories where ritual runs could be
+	scanDirs := []string{"active", "dungeon/completed", "dungeon/archived"}
+	for _, status := range scanDirs {
+		statusPath := filepath.Join(festivalsRoot, status)
+		entries, err := os.ReadDir(statusPath)
+		if err != nil {
+			continue
+		}
+
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			name := entry.Name()
+			// Check if this directory is a run of the given ritual
+			if !strings.HasPrefix(name, ritualDirName+"-") {
+				continue
+			}
+			run, err := ParseHexCounter(name)
+			if err != nil {
+				continue
+			}
+			if run > maxRun {
+				maxRun = run
+			}
+		}
+	}
+
+	return maxRun + 1, nil
 }
 
 // taskRefPattern matches task references like FEST-123456 or [FEST-123456]

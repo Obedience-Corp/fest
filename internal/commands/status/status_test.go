@@ -16,7 +16,7 @@ func TestValidStatuses(t *testing.T) {
 		expected   bool
 	}{
 		// Festival statuses
-		{EntityFestival, "planned", true},
+		{EntityFestival, "planning", true},
 		{EntityFestival, "ready", true},
 		{EntityFestival, "active", true},
 		{EntityFestival, "completed", true},
@@ -100,7 +100,7 @@ func TestIsValidFestivalStatus_NoSchema(t *testing.T) {
 	}{
 		{"active", true},
 		{"ready", true},
-		{"planned", true},
+		{"planning", true},
 		{"completed", true},
 		{"dungeon", true},
 		{"dungeon/completed", true},
@@ -155,7 +155,7 @@ directories:
 		{"custom_status", true},
 		{"vault/archive", true},
 		{"vault/hold", true},
-		{"planned", false},     // Not in custom schema
+		{"planning", false},     // Not in custom schema
 		{"dungeon", false},     // Not in custom schema
 		{"nonexistent", false},
 	}
@@ -180,7 +180,7 @@ func TestGetValidFestivalStatuses_NoSchema(t *testing.T) {
 	expected := map[string]bool{
 		"active":            true,
 		"ready":             true,
-		"planned":           true,
+		"planning":          true,
 		"completed":         true,
 		"dungeon":           true,
 		"dungeon/completed": true,
@@ -257,9 +257,9 @@ func TestFestivalsRootFromPath(t *testing.T) {
 			expected: "/workspace/festivals",
 		},
 		{
-			name:     "planned status",
-			path:     "/workspace/festivals/planned/my-fest",
-			status:   "planned",
+			name:     "planning status",
+			path:     "/workspace/festivals/planning/my-fest",
+			status:   "planning",
 			expected: "/workspace/festivals",
 		},
 	}
@@ -346,8 +346,8 @@ directories:
     transition_opts:
       - completed
       - dungeon
-  planned:
-    description: Planned
+  planning:
+    description: Planning
     order: 2
   completed:
     description: Done

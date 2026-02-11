@@ -10,6 +10,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	festErrors "github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
@@ -280,13 +281,11 @@ type festivalInfo struct {
 	path        string
 }
 
-// collectFestivals finds all festivals in active/ and planned/ directories
+// collectFestivals finds all festivals in primary status directories
 func collectFestivals(festivalsDir string) ([]festivalInfo, error) {
 	var festivals []festivalInfo
 
-	statusDirs := []string{"active", "ready", "planned"}
-
-	for _, status := range statusDirs {
+	for _, status := range id.PrimaryStatusDirs {
 		statusPath := filepath.Join(festivalsDir, status)
 		entries, err := os.ReadDir(statusPath)
 		if err != nil {
@@ -318,9 +317,7 @@ func collectFestivals(festivalsDir string) ([]festivalInfo, error) {
 
 // resolveFestivalPath finds the full path of a festival by name
 func resolveFestivalPath(festivalsDir, festivalName string) string {
-	statusDirs := []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
-
-	for _, status := range statusDirs {
+	for _, status := range id.StatusDirectories {
 		statusPath := filepath.Join(festivalsDir, status)
 		festPath := filepath.Join(statusPath, festivalName)
 		if info, err := os.Stat(festPath); err == nil && info.IsDir() {

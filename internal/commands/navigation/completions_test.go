@@ -203,10 +203,10 @@ func TestStatusFromPath(t *testing.T) {
 			want:         "active",
 		},
 		{
-			name:         "planned festival",
-			path:         filepath.Join(festivalsDir, "planned", "other-fest-CD0002"),
+			name:         "planning festival",
+			path:         filepath.Join(festivalsDir, "planning", "other-fest-CD0002"),
 			festivalsDir: festivalsDir,
-			want:         "planned",
+			want:         "planning",
 		},
 		{
 			name:         "completed festival",
@@ -248,7 +248,7 @@ func TestCompleteGoTarget_WithFestivals(t *testing.T) {
 	}
 
 	// Create status directories
-	for _, status := range []string{"active", "planned", "completed", "dungeon"} {
+	for _, status := range []string{"active", "planning", "completed", "dungeon"} {
 		if err := os.MkdirAll(filepath.Join(festivalsDir, status), 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -256,8 +256,8 @@ func TestCompleteGoTarget_WithFestivals(t *testing.T) {
 
 	// Create festivals with valid ID suffixes (required by CollectNavigationTargets)
 	activeFest := filepath.Join(festivalsDir, "active", "my-feature-MF0001")
-	plannedFest := filepath.Join(festivalsDir, "planned", "next-task-NT0002")
-	for _, dir := range []string{activeFest, plannedFest} {
+	planningFest := filepath.Join(festivalsDir, "planning", "next-task-NT0002")
+	for _, dir := range []string{activeFest, planningFest} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -286,7 +286,7 @@ func TestCompleteGoTarget_WithFestivals(t *testing.T) {
 	}
 
 	// Primary status directories should be present (completed/dungeon excluded from default)
-	for _, status := range []string{"active", "planned"} {
+	for _, status := range []string{"active", "planning"} {
 		if !resultSet[status] {
 			t.Errorf("expected status directory %q in completions, got: %v", status, results)
 		}
@@ -304,7 +304,7 @@ func TestCompleteGoTarget_WithFestivals(t *testing.T) {
 		t.Errorf("expected active festival 'my-feature-MF0001' in completions, got: %v", results)
 	}
 	if !resultSet["next-task-NT0002"] {
-		t.Errorf("expected planned festival 'next-task-NT0002' in completions, got: %v", results)
+		t.Errorf("expected planning festival 'next-task-NT0002' in completions, got: %v", results)
 	}
 
 	// Test with partial input - should fuzzy filter

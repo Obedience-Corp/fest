@@ -19,7 +19,7 @@ func TestFrontmatterToReplacements_Festival(t *testing.T) {
 		Type:    frontmatter.TypeFestival,
 		ID:      "TF0001",
 		Name:    "Test Festival",
-		Status:  frontmatter.StatusPlanned,
+		Status:  frontmatter.StatusPlanning,
 		Created: time.Date(2024, 1, 15, 10, 0, 0, 0, time.UTC),
 	}
 
@@ -27,7 +27,7 @@ func TestFrontmatterToReplacements_Festival(t *testing.T) {
 
 	assert.Equal(t, "Test Festival", result["[REPLACE: Festival Name]"])
 	assert.Equal(t, "TF0001", result["[REPLACE: FESTIVAL_ID]"])
-	assert.Equal(t, "planned", result["[REPLACE: Status]"])
+	assert.Equal(t, "planning", result["[REPLACE: Status]"])
 	assert.Equal(t, "festival", result["[REPLACE: Document type]"])
 	assert.NotEmpty(t, result["[REPLACE: Created date]"])
 }

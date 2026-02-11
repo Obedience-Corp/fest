@@ -187,8 +187,8 @@ func (h *HierarchySelector) ListFestivals(ctx context.Context) ([]LevelOption, e
 
 	options := []LevelOption{}
 
-	// List festivals in standard locations (active, planned, etc.)
-	locations := []string{"active", "planned"}
+	// List festivals in standard locations (active, planning, etc.)
+	locations := []string{"active", "planning"}
 	if !h.config.FilterActive {
 		locations = append(locations, "completed", "dungeon")
 	}
@@ -324,8 +324,8 @@ func formatFestivalLabel(location, name string) string {
 	switch location {
 	case "active":
 		prefix = "[active] "
-	case "planned":
-		prefix = "[planned] "
+	case "planning":
+		prefix = "[planning] "
 	case "completed":
 		prefix = "[done] "
 	case "dungeon":

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/workspace"
@@ -186,9 +187,7 @@ func resolveFestival(ws *WorkspaceInfo) (string, error) {
 
 // findFestivalByName searches for a festival by name in all status directories.
 func findFestivalByName(festivalsRoot, name string) (string, error) {
-	statusDirs := []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
-
-	for _, status := range statusDirs {
+	for _, status := range id.StatusDirectories {
 		statusDir := filepath.Join(festivalsRoot, status)
 		festivalPath := filepath.Join(statusDir, name)
 

@@ -17,7 +17,7 @@ func setupFestivalTemplatesWithMarkers(t *testing.T, festivalsDir string) {
 	templatesDir := filepath.Join(festivalMetaDir, "templates")
 
 	// Create status directories
-	for _, status := range []string{"planned", "active", "completed", "dungeon"} {
+	for _, status := range []string{"planning", "active", "completed", "dungeon"} {
 		if err := os.MkdirAll(filepath.Join(festivalsDir, status), 0755); err != nil {
 			t.Fatalf("failed to create status dir: %v", err)
 		}

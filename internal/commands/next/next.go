@@ -600,7 +600,7 @@ func checkPlannedStatus(festivalPath, phasePath string) error {
 	}
 
 	status := festCfg.Metadata.CurrentStatus()
-	if status != "planned" {
+	if status != "planning" {
 		return nil
 	}
 

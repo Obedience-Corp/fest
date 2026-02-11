@@ -269,11 +269,11 @@ func TestListFestivalsByStatus(t *testing.T) {
 
 	// Create status directories with festivals
 	activeDir := filepath.Join(tmpDir, "active")
-	plannedDir := filepath.Join(tmpDir, "planned")
+	planningDir := filepath.Join(tmpDir, "planning")
 
 	festival1 := filepath.Join(activeDir, "fest1")
 	festival2 := filepath.Join(activeDir, "fest2")
-	festival3 := filepath.Join(plannedDir, "fest3")
+	festival3 := filepath.Join(planningDir, "fest3")
 
 	for _, d := range []string{festival1, festival2, festival3} {
 		if err := os.MkdirAll(d, 0755); err != nil {
@@ -294,13 +294,13 @@ func TestListFestivalsByStatus(t *testing.T) {
 		t.Errorf("ListFestivalsByStatus(active) returned %d festivals, want 2", len(active))
 	}
 
-	// Test planned festivals
-	planned, err := ListFestivalsByStatus(context.Background(), tmpDir, "planned")
+	// Test planning festivals
+	planning, err := ListFestivalsByStatus(context.Background(), tmpDir, "planning")
 	if err != nil {
-		t.Fatalf("ListFestivalsByStatus(planned) unexpected error: %v", err)
+		t.Fatalf("ListFestivalsByStatus(planning) unexpected error: %v", err)
 	}
-	if len(planned) != 1 {
-		t.Errorf("ListFestivalsByStatus(planned) returned %d festivals, want 1", len(planned))
+	if len(planning) != 1 {
+		t.Errorf("ListFestivalsByStatus(planning) returned %d festivals, want 1", len(planning))
 	}
 
 	// Test non-existent status

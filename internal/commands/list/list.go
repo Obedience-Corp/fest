@@ -18,10 +18,10 @@ import (
 )
 
 // Valid status values
-var validStatuses = []string{"active", "ready", "planned", "completed", "dungeon", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
+var validStatuses = []string{"active", "ready", "planning", "completed", "dungeon", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 
 // Default statuses shown without --all flag
-var defaultStatuses = []string{"active", "ready", "planned"}
+var defaultStatuses = []string{"active", "ready", "planning"}
 
 type listOptions struct {
 	json     bool
@@ -136,7 +136,7 @@ func statusOrder(s string) int {
 		return 0
 	case "ready":
 		return 1
-	case "planned":
+	case "planning":
 		return 2
 	case "completed":
 		return 3

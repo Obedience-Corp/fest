@@ -189,7 +189,7 @@ func parseStatus(s string) Status {
 	s = strings.ToLower(strings.TrimSpace(s))
 	switch s {
 	case "planned", "planning":
-		return StatusPlanned
+		return StatusPlanning
 	case "active", "in progress", "in_progress":
 		return StatusInProgress
 	case "complete", "completed":

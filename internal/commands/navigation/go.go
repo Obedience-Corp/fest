@@ -11,6 +11,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
 	"github.com/Obedience-Corp/fest/internal/tui/picker"
 	"github.com/Obedience-Corp/fest/internal/workspace"
@@ -326,8 +327,7 @@ func resolveFuzzy(pattern, festivalsDir string) (string, error) {
 
 // resolveFestivalByName searches for a festival by name in status directories
 func resolveFestivalByName(name, festivalsDir string) string {
-	statusDirs := []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
-	for _, status := range statusDirs {
+	for _, status := range id.StatusDirectories {
 		festPath := filepath.Join(festivalsDir, status, name)
 		if info, err := os.Stat(festPath); err == nil && info.IsDir() {
 			return festPath
@@ -372,12 +372,10 @@ func resolvePhaseShortcut(shortcut, festivalsDir string) (string, error) {
 		padded = fmt.Sprintf("%03d", n)
 	}
 
-	// Search in active/, planned/, completed/ subdirectories
-	searchDirs := []string{
-		filepath.Join(festivalsDir, "active"),
-		filepath.Join(festivalsDir, "planned"),
-		filepath.Join(festivalsDir, "completed"),
-		festivalsDir, // Also search root
+	// Search in primary status directories for navigation
+	searchDirs := []string{festivalsDir} // Start with root
+	for _, status := range id.PrimaryStatusDirs {
+		searchDirs = append(searchDirs, filepath.Join(festivalsDir, status))
 	}
 
 	for _, searchDir := range searchDirs {

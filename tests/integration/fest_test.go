@@ -451,7 +451,7 @@ func setupComplexFestival(tc *TestContainer) error {
  // This mimics what fest init would create
  if exitCode, _, err := tc.container.Exec(tc.ctx, []string{
   "sh", "-c",
-  "mkdir -p /festivals/.festival/.state /festivals/active /festivals/planned " + festivalPath,
+  "mkdir -p /festivals/.festival/.state /festivals/active /festivals/planning " + festivalPath,
  }); err != nil || exitCode != 0 {
   return fmt.Errorf("failed to create workspace directories")
  }

@@ -20,7 +20,7 @@ import (
 var statusPriority = map[string]int{
 	"active":            0, // Active festivals first
 	"ready":             1, // Then ready
-	"planned":           2, // Then planned
+	"planning":          2, // Then planning
 	"completed":         3, // Then completed
 	"dungeon/completed": 4, // Dungeon substatuses
 	"dungeon/archived":  5,
@@ -28,7 +28,7 @@ var statusPriority = map[string]int{
 }
 
 // allStatuses lists all valid festival statuses in priority order.
-var allStatuses = []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
+var allStatuses = []string{"active", "ready", "planning", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 
 // FestivalSelectorConfig configures the festival selector behavior.
 type FestivalSelectorConfig struct {
@@ -290,8 +290,8 @@ func statusBadge(status string) string {
 	switch status {
 	case "active":
 		return "[active]"
-	case "planned":
-		return "[planned]"
+	case "planning":
+		return "[planning]"
 	case "completed":
 		return "[completed]"
 	case "dungeon":
@@ -306,7 +306,7 @@ func statusIcon(status string) string {
 	switch status {
 	case "active":
 		return "🔥"
-	case "planned":
+	case "planning":
 		return "📋"
 	case "completed":
 		return "✅"

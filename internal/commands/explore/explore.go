@@ -55,7 +55,7 @@ STATUS can be: active, planned, completed, dungeon`,
 
 	// Add status subcommands for discoverability
 	cmd.AddCommand(newStatusSubcommand("active", "Explore active festivals"))
-	cmd.AddCommand(newStatusSubcommand("planned", "Explore planned festivals"))
+	cmd.AddCommand(newStatusSubcommand("planning", "Explore planning festivals"))
 	cmd.AddCommand(newStatusSubcommand("completed", "Explore completed festivals"))
 	cmd.AddCommand(newStatusSubcommand("dungeon", "Explore dungeon festivals"))
 

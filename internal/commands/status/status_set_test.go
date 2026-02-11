@@ -18,14 +18,14 @@ func TestAtomicStatusChange(t *testing.T) {
 		checkRollback bool
 	}{
 		{
-			name: "successful planned to active",
+			name: "successful planning to active",
 			setupFn: func(baseDir string) string {
-				path := filepath.Join(baseDir, "planned", "test-festival")
+				path := filepath.Join(baseDir, "planning", "test-festival")
 				os.MkdirAll(path, 0755)
 				os.WriteFile(filepath.Join(path, "FESTIVAL_OVERVIEW.md"), []byte("test"), 0644)
 				return path
 			},
-			fromStatus: "planned",
+			fromStatus: "planning",
 			toStatus:   "active",
 			wantError:  false,
 		},
@@ -171,7 +171,7 @@ func TestStatusSetValidation(t *testing.T) {
 		{"festival to active", EntityFestival, "active", true},
 		{"festival to completed", EntityFestival, "completed", true},
 		{"festival to dungeon", EntityFestival, "dungeon", true},
-		{"festival to planned", EntityFestival, "planned", true},
+		{"festival to planning", EntityFestival, "planning", true},
 		{"festival to invalid", EntityFestival, "invalid", false},
 		{"festival to pending", EntityFestival, "pending", false}, // pending is for phases
 	}

@@ -215,7 +215,7 @@ func TestDetectStatus(t *testing.T) {
 		want string
 	}{
 		{"/festivals/active/test_TE0001", "active"},
-		{"/festivals/planned/test_TE0001", "planned"},
+		{"/festivals/planning/test_TE0001", "planning"},
 		{"/festivals/completed/2025-01/test_TE0001", "completed"},
 		{"/festivals/dungeon/test_TE0001", "dungeon"},
 		{"/random/path/test", "unknown"},

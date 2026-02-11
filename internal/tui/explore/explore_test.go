@@ -21,9 +21,9 @@ func setupTestFestivals(t *testing.T) string {
 	activeFest := filepath.Join(festivalsDir, "active", "test-festival-TF0001")
 	createTestFestival(t, activeFest, "Test Festival Goal", 2, 2, 3)
 
-	// Create planned festival (minimal)
-	plannedFest := filepath.Join(festivalsDir, "planned", "planned-fest-PF0001")
-	createTestFestival(t, plannedFest, "Planned Festival Goal", 1, 1, 1)
+	// Create planning festival (minimal)
+	planningFest := filepath.Join(festivalsDir, "planning", "planning-fest-PF0001")
+	createTestFestival(t, planningFest, "Planning Festival Goal", 1, 1, 1)
 
 	// Create empty festival (no phases)
 	emptyFest := filepath.Join(festivalsDir, "active", "empty-fest-EF0001")
@@ -815,7 +815,7 @@ func TestStatusStyle(t *testing.T) {
 		status string
 	}{
 		{"active"},
-		{"planned"},
+		{"planning"},
 		{"completed"},
 		{"dungeon"},
 		{"unknown"},

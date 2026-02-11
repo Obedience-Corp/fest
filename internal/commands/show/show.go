@@ -80,10 +80,10 @@ func newShowActiveCommand(opts *showOptions) *cobra.Command {
 
 func newShowPlannedCommand(opts *showOptions) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "planned",
-		Short: "List festivals in planned/ directory",
+		Use:   "planning",
+		Short: "List festivals in planning/ directory",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runShowStatus(cmd.Context(), "planned", opts)
+			return runShowStatus(cmd.Context(), "planning", opts)
 		},
 	}
 	cmd.Flags().BoolVar(&opts.json, "json", false, "output in JSON format")
@@ -276,7 +276,7 @@ func runShowAll(ctx context.Context, opts *showOptions) error {
 	}
 
 	allFestivals := make(map[string][]*FestivalInfo)
-	statusOrder := []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
+	statusOrder := []string{"active", "ready", "planning", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 
 	for _, status := range statusOrder {
 		festivals, err := ListFestivalsByStatus(ctx, festivalsDir, status)

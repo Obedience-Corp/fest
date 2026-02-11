@@ -90,8 +90,8 @@ func Rebuild(ctx context.Context, festivalsRoot string, registryPath string) (*R
 			continue
 		}
 
-		// For completed, we need to scan date subdirectories
-		if status == "completed" {
+		// For completed directories (including dungeon/completed), we need to scan date subdirectories
+		if strings.HasSuffix(status, "completed") {
 			if err := scanCompletedDirectory(ctx, reg, statusPath, status); err != nil {
 				return nil, err
 			}

@@ -9,7 +9,7 @@ import (
 )
 
 func TestNewCreateEvent(t *testing.T) {
-	event := NewCreateEvent("CC0001", "test-festival", "planned")
+	event := NewCreateEvent("CC0001", "test-festival", "planning")
 
 	if event.Event != EventCreate {
 		t.Errorf("Event = %q, want %q", event.Event, EventCreate)
@@ -20,8 +20,8 @@ func TestNewCreateEvent(t *testing.T) {
 	if event.Name != "test-festival" {
 		t.Errorf("Name = %q, want %q", event.Name, "test-festival")
 	}
-	if event.Status != "planned" {
-		t.Errorf("Status = %q, want %q", event.Status, "planned")
+	if event.Status != "planning" {
+		t.Errorf("Status = %q, want %q", event.Status, "planning")
 	}
 	if event.Timestamp.IsZero() {
 		t.Error("Timestamp should not be zero")
@@ -29,7 +29,7 @@ func TestNewCreateEvent(t *testing.T) {
 }
 
 func TestNewMoveEvent(t *testing.T) {
-	event := NewMoveEvent("MV0001", "planned", "active")
+	event := NewMoveEvent("MV0001", "planning", "active")
 
 	if event.Event != EventMove {
 		t.Errorf("Event = %q, want %q", event.Event, EventMove)
@@ -37,8 +37,8 @@ func TestNewMoveEvent(t *testing.T) {
 	if event.ID != "MV0001" {
 		t.Errorf("ID = %q, want %q", event.ID, "MV0001")
 	}
-	if event.From != "planned" {
-		t.Errorf("From = %q, want %q", event.From, "planned")
+	if event.From != "planning" {
+		t.Errorf("From = %q, want %q", event.From, "planning")
 	}
 	if event.To != "active" {
 		t.Errorf("To = %q, want %q", event.To, "active")
@@ -75,7 +75,7 @@ func TestAppendEvent(t *testing.T) {
 	tmpDir := t.TempDir()
 	eventsPath := filepath.Join(tmpDir, "test_events.jsonl")
 
-	event := NewCreateEvent("AP0001", "append-test", "planned")
+	event := NewCreateEvent("AP0001", "append-test", "planning")
 	if err := AppendEvent(ctx, eventsPath, event); err != nil {
 		t.Fatalf("AppendEvent() error = %v", err)
 	}
@@ -90,7 +90,7 @@ func TestAppendEvent(t *testing.T) {
 	}
 
 	// Append another event
-	event2 := NewMoveEvent("AP0001", "planned", "active")
+	event2 := NewMoveEvent("AP0001", "planning", "active")
 	if err := AppendEvent(ctx, eventsPath, event2); err != nil {
 		t.Fatalf("AppendEvent() second call error = %v", err)
 	}
@@ -114,9 +114,9 @@ func TestWriteEvents(t *testing.T) {
 	eventsPath := filepath.Join(tmpDir, "batch_events.jsonl")
 
 	events := []FestivalEvent{
-		{Timestamp: time.Now(), Event: EventCreate, ID: "WE0001", Name: "first", Status: "planned"},
-		{Timestamp: time.Now(), Event: EventCreate, ID: "WE0002", Name: "second", Status: "planned"},
-		{Timestamp: time.Now(), Event: EventMove, ID: "WE0001", From: "planned", To: "active"},
+		{Timestamp: time.Now(), Event: EventCreate, ID: "WE0001", Name: "first", Status: "planning"},
+		{Timestamp: time.Now(), Event: EventCreate, ID: "WE0002", Name: "second", Status: "planning"},
+		{Timestamp: time.Now(), Event: EventMove, ID: "WE0001", From: "planning", To: "active"},
 	}
 
 	if err := WriteEvents(ctx, eventsPath, events); err != nil {
@@ -169,7 +169,7 @@ func TestLoadEvents_SkipsMalformedLines(t *testing.T) {
 	eventsPath := filepath.Join(tmpDir, "mixed.jsonl")
 
 	// Mix of valid and invalid JSON lines
-	content := `{"ts":"2026-01-01T00:00:00Z","event":"create","id":"OK0001","name":"valid","status":"planned"}
+	content := `{"ts":"2026-01-01T00:00:00Z","event":"create","id":"OK0001","name":"valid","status":"planning"}
 not valid json at all
 {"ts":"2026-01-02T00:00:00Z","event":"create","id":"OK0002","name":"also-valid","status":"active"}
 `
@@ -189,7 +189,7 @@ not valid json at all
 
 func TestMaterializeState_Create(t *testing.T) {
 	events := []FestivalEvent{
-		{Timestamp: time.Now(), Event: EventCreate, ID: "MS0001", Name: "test", Status: "planned"},
+		{Timestamp: time.Now(), Event: EventCreate, ID: "MS0001", Name: "test", Status: "planning"},
 	}
 
 	state := MaterializeState(events)
@@ -200,15 +200,15 @@ func TestMaterializeState_Create(t *testing.T) {
 	if state["MS0001"] == nil {
 		t.Fatal("Expected MS0001 in state")
 	}
-	if state["MS0001"].Status != "planned" {
-		t.Errorf("Status = %q, want %q", state["MS0001"].Status, "planned")
+	if state["MS0001"].Status != "planning" {
+		t.Errorf("Status = %q, want %q", state["MS0001"].Status, "planning")
 	}
 }
 
 func TestMaterializeState_Move(t *testing.T) {
 	events := []FestivalEvent{
-		{Timestamp: time.Now(), Event: EventCreate, ID: "MS0001", Name: "test", Status: "planned"},
-		{Timestamp: time.Now().Add(time.Hour), Event: EventMove, ID: "MS0001", From: "planned", To: "active"},
+		{Timestamp: time.Now(), Event: EventCreate, ID: "MS0001", Name: "test", Status: "planning"},
+		{Timestamp: time.Now().Add(time.Hour), Event: EventMove, ID: "MS0001", From: "planning", To: "active"},
 	}
 
 	state := MaterializeState(events)
@@ -233,7 +233,7 @@ func TestMaterializeState_Archive(t *testing.T) {
 
 func TestMaterializeState_Delete(t *testing.T) {
 	events := []FestivalEvent{
-		{Timestamp: time.Now(), Event: EventCreate, ID: "MS0001", Name: "test", Status: "planned"},
+		{Timestamp: time.Now(), Event: EventCreate, ID: "MS0001", Name: "test", Status: "planning"},
 		{Timestamp: time.Now().Add(time.Hour), Event: EventDelete, ID: "MS0001"},
 	}
 
@@ -247,13 +247,13 @@ func TestMaterializeState_Delete(t *testing.T) {
 func TestMaterializeState_ComplexLifecycle(t *testing.T) {
 	now := time.Now()
 	events := []FestivalEvent{
-		{Timestamp: now, Event: EventCreate, ID: "F001", Name: "first", Status: "planned"},
-		{Timestamp: now.Add(1 * time.Hour), Event: EventCreate, ID: "F002", Name: "second", Status: "planned"},
-		{Timestamp: now.Add(2 * time.Hour), Event: EventMove, ID: "F001", From: "planned", To: "active"},
-		{Timestamp: now.Add(3 * time.Hour), Event: EventMove, ID: "F002", From: "planned", To: "active"},
+		{Timestamp: now, Event: EventCreate, ID: "F001", Name: "first", Status: "planning"},
+		{Timestamp: now.Add(1 * time.Hour), Event: EventCreate, ID: "F002", Name: "second", Status: "planning"},
+		{Timestamp: now.Add(2 * time.Hour), Event: EventMove, ID: "F001", From: "planning", To: "active"},
+		{Timestamp: now.Add(3 * time.Hour), Event: EventMove, ID: "F002", From: "planning", To: "active"},
 		{Timestamp: now.Add(4 * time.Hour), Event: EventMove, ID: "F001", From: "active", To: "completed"},
 		{Timestamp: now.Add(5 * time.Hour), Event: EventArchive, ID: "F002", To: "dungeon"},
-		{Timestamp: now.Add(6 * time.Hour), Event: EventCreate, ID: "F003", Name: "third", Status: "planned"},
+		{Timestamp: now.Add(6 * time.Hour), Event: EventCreate, ID: "F003", Name: "third", Status: "planning"},
 	}
 
 	state := MaterializeState(events)
@@ -266,16 +266,16 @@ func TestMaterializeState_ComplexLifecycle(t *testing.T) {
 	if state["F002"].Status != "dungeon" {
 		t.Errorf("F002 Status = %q, want %q", state["F002"].Status, "dungeon")
 	}
-	// F003 should be planned
-	if state["F003"].Status != "planned" {
-		t.Errorf("F003 Status = %q, want %q", state["F003"].Status, "planned")
+	// F003 should be planning
+	if state["F003"].Status != "planning" {
+		t.Errorf("F003 Status = %q, want %q", state["F003"].Status, "planning")
 	}
 }
 
 func TestFilterByStatus(t *testing.T) {
 	state := map[string]*Festival{
 		"F001": {ID: "F001", Status: "active"},
-		"F002": {ID: "F002", Status: "planned"},
+		"F002": {ID: "F002", Status: "planning"},
 		"F003": {ID: "F003", Status: "active"},
 		"F004": {ID: "F004", Status: "completed"},
 	}
@@ -285,9 +285,9 @@ func TestFilterByStatus(t *testing.T) {
 		t.Errorf("Expected 2 active, got %d", len(active))
 	}
 
-	planned := FilterByStatus(state, "planned")
-	if len(planned) != 1 {
-		t.Errorf("Expected 1 planned, got %d", len(planned))
+	planning := FilterByStatus(state, "planning")
+	if len(planning) != 1 {
+		t.Errorf("Expected 1 planning, got %d", len(planning))
 	}
 }
 
@@ -318,7 +318,7 @@ func TestAppendEvent_ContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	event := NewCreateEvent("CC0001", "test", "planned")
+	event := NewCreateEvent("CC0001", "test", "planning")
 	err := AppendEvent(ctx, "/any/path", event)
 	if err == nil {
 		t.Error("AppendEvent should return error with cancelled context")

@@ -42,7 +42,7 @@ func charmCreateFestival(ctx context.Context) error {
 				Value(&festType),
 			huh.NewSelect[string]().Title("Destination").Options(
 				huh.NewOption("active", "active"),
-				huh.NewOption("planned", "planned"),
+				huh.NewOption("planning", "planning"),
 			).Value(&dest),
 		),
 	)
@@ -99,7 +99,7 @@ func charmPlanFestivalWizard(ctx context.Context) error {
 		return err
 	}
 	var name, goal, tags string
-	var dest string = "planned"
+	var dest string = "planning"
 	festivalTypes := []string{"standard", "implementation", "research", "quick", "ritual"}
 	var festType string = festivalTypes[0]
 	base := huh.NewForm(
@@ -116,7 +116,7 @@ func charmPlanFestivalWizard(ctx context.Context) error {
 				Options(toOptions(festivalTypes)...).
 				Value(&festType),
 			huh.NewSelect[string]().Title("Destination").Options(
-				huh.NewOption("planned", "planned"),
+				huh.NewOption("planning", "planning"),
 				huh.NewOption("active", "active"),
 			).Value(&dest),
 		),

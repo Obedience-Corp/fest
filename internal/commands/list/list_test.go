@@ -13,7 +13,7 @@ func TestIsValidStatus(t *testing.T) {
 		want   bool
 	}{
 		{"active", true},
-		{"planned", true},
+		{"planning", true},
 		{"completed", true},
 		{"dungeon", true},
 		{"invalid", false},
@@ -58,7 +58,7 @@ func TestStatusOrder(t *testing.T) {
 	}{
 		{"active", 0},
 		{"ready", 1},
-		{"planned", 2},
+		{"planning", 2},
 		{"completed", 3},
 		{"dungeon", 4},
 		{"dungeon/completed", 5},
@@ -95,13 +95,13 @@ func TestApplySorting_ByStatus(t *testing.T) {
 	festivals := []*show.FestivalInfo{
 		{Name: "c", Status: "completed"},
 		{Name: "a", Status: "active"},
-		{Name: "p", Status: "planned"},
+		{Name: "p", Status: "planning"},
 	}
 
 	applySorting(festivals, "status", false)
 
-	if festivals[0].Status != "active" || festivals[1].Status != "planned" || festivals[2].Status != "completed" {
-		t.Errorf("expected active, planned, completed; got %s, %s, %s",
+	if festivals[0].Status != "active" || festivals[1].Status != "planning" || festivals[2].Status != "completed" {
+		t.Errorf("expected active, planning, completed; got %s, %s, %s",
 			festivals[0].Status, festivals[1].Status, festivals[2].Status)
 	}
 }

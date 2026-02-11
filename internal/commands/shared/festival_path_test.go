@@ -180,7 +180,7 @@ func TestFindFestivalByName(t *testing.T) {
 		status string
 	}{
 		{"active-fest", "active"},
-		{"planned-fest", "planned"},
+		{"planning-fest", "planning"},
 		{"completed-fest", "completed"},
 		{"dungeon-fest", "dungeon"},
 	}

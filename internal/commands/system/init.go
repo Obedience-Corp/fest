@@ -140,7 +140,7 @@ func RunInit(ctx context.Context, targetPath string, opts *InitOptions) error {
 	copier := fileops.NewCopier()
 	if opts.Minimal {
 		// Copy only essential directories
-		essentialDirs := []string{".festival", "active", "planned"}
+		essentialDirs := []string{".festival", "active", "planning"}
 		for _, dir := range essentialDirs {
 			src := filepath.Join(sourceDir, dir)
 			dst := filepath.Join(festivalPath, dir)

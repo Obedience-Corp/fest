@@ -86,7 +86,7 @@ func TestFindNextCounter(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create mock festival directories
-	statuses := []string{"planned", "active", "completed/2025-01"}
+	statuses := []string{"planning", "active", "completed/2025-01"}
 	for _, status := range statuses {
 		if err := os.MkdirAll(filepath.Join(tmpDir, status), 0755); err != nil {
 			t.Fatalf("Failed to create dir: %v", err)
@@ -117,8 +117,8 @@ func TestFindNextCounter(t *testing.T) {
 			name:   "multiple existing same prefix",
 			prefix: "GU",
 			existingDirs: map[string][]string{
-				"active":  {"guild-usable-GU0001", "guild-ui-GU0002"},
-				"planned": {"guild-v2-GU0003"},
+				"active":   {"guild-usable-GU0001", "guild-ui-GU0002"},
+				"planning": {"guild-v2-GU0003"},
 			},
 			expectedCount: 4,
 		},
@@ -185,7 +185,7 @@ func TestGenerateID(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create status directories
-	for _, status := range []string{"planned", "active", "completed", "dungeon"} {
+	for _, status := range []string{"planning", "active", "completed", "dungeon"} {
 		os.MkdirAll(filepath.Join(tmpDir, status), 0755)
 	}
 
@@ -222,7 +222,7 @@ func TestGenerateID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// Clean existing
-			for _, status := range []string{"planned", "active", "completed", "dungeon"} {
+			for _, status := range []string{"planning", "active", "completed", "dungeon"} {
 				statusDir := filepath.Join(tmpDir, status)
 				entries, _ := os.ReadDir(statusDir)
 				for _, e := range entries {

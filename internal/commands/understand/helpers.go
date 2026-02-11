@@ -106,7 +106,7 @@ func findCurrentFestival() string {
 	}
 
 	parts := strings.Split(rel, string(filepath.Separator))
-	if len(parts) >= 2 && (parts[0] == "active" || parts[0] == "planned" || parts[0] == "completed") {
+	if len(parts) >= 2 && (parts[0] == "active" || parts[0] == "planning" || parts[0] == "completed") {
 		festivalPath := filepath.Join(root, parts[0], parts[1])
 		// Verify fest.yaml exists
 		if _, err := os.Stat(filepath.Join(festivalPath, "fest.yaml")); err == nil {

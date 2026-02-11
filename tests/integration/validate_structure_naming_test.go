@@ -33,7 +33,7 @@ func TestValidateStructureNamingViolations(t *testing.T) {
 	// Create workspace structure manually (fest init requires network access unavailable in containers)
 	exitCode, _, err := container.container.Exec(container.ctx, []string{
 		"sh", "-c",
-		"mkdir -p /festivals/.festival/.state /festivals/active /festivals/planned",
+		"mkdir -p /festivals/.festival/.state /festivals/active /festivals/planning",
 	})
 	require.NoError(t, err)
 	require.Equal(t, 0, exitCode)
