@@ -99,20 +99,26 @@ func runGoCompletions(descriptions, color bool, statusFilter string) error {
 		statusSet[s] = true
 	}
 
-	// Output status directories
-	for _, status := range statuses {
+	// Festival names first (highest priority — what you actually navigate to)
+	targets := navigation.CollectNavigationTargets(festivalsDir)
+	for _, t := range targets {
+		// Skip status directories (emitted below)
+		if statusSet[t.Name] {
+			continue
+		}
+		status := statusFromPath(t.Path, festivalsDir)
 		switch {
 		case color:
 			c := statusANSI(status)
-			fmt.Printf("%s\t%s%s%s\n", status, c, status, ansiReset)
+			fmt.Printf("%s\t%s %s%s%s\n", t.Name, t.Name, c, status, ansiReset)
 		case descriptions:
-			fmt.Printf("%s:status directory\n", status)
+			fmt.Printf("%s:%s festival\n", t.Name, status)
 		default:
-			fmt.Println(status)
+			fmt.Println(t.Name)
 		}
 	}
 
-	// Load navigation state for shortcuts
+	// Shortcuts
 	nav, err := navigation.LoadNavigation()
 	if err == nil {
 		for name := range nav.Shortcuts {
@@ -127,22 +133,16 @@ func runGoCompletions(descriptions, color bool, statusFilter string) error {
 		}
 	}
 
-	// Collect festival names from active/ and planned/
-	targets := navigation.CollectNavigationTargets(festivalsDir)
-	for _, t := range targets {
-		// Skip status directories (already emitted above)
-		if statusSet[t.Name] {
-			continue
-		}
-		status := statusFromPath(t.Path, festivalsDir)
+	// Status directories last (fallback for browsing)
+	for _, status := range statuses {
 		switch {
 		case color:
 			c := statusANSI(status)
-			fmt.Printf("%s\t%s %s%s%s\n", t.Name, t.Name, c, status, ansiReset)
+			fmt.Printf("%s\t%s%s%s\n", status, c, status, ansiReset)
 		case descriptions:
-			fmt.Printf("%s:%s festival\n", t.Name, status)
+			fmt.Printf("%s:status directory\n", status)
 		default:
-			fmt.Println(t.Name)
+			fmt.Println(status)
 		}
 	}
 
