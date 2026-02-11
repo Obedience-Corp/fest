@@ -15,6 +15,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/feedback"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/guidance/selection"
+	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/validator"
 	"github.com/spf13/cobra"
@@ -328,6 +329,15 @@ func runWorkflowMode(ctx context.Context, festivalPath, phasePath string) error 
 	if err != nil {
 		return errors.Wrap(err, "creating workflow navigator").
 			WithField("phase_path", phasePath)
+	}
+
+	// Create and load progress Store, inject into navigator for JSONL-backed state
+	store := progress.NewStore(festivalPath)
+	if err := store.Load(ctx); err != nil {
+		return errors.Wrap(err, "loading progress store")
+	}
+	if wfNav, ok := nav.(*wf.Navigator); ok {
+		wfNav.SetStateStore(store)
 	}
 
 	// Initialize the navigator
