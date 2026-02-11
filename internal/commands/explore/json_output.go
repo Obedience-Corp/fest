@@ -67,7 +67,7 @@ func outputExploreJSON(ctx context.Context, status string) error {
 
 	statuses := []string{status}
 	if status == "" {
-		statuses = []string{"active", "planned", "completed", "dungeon"}
+		statuses = []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 	}
 
 	parser := festival.NewParser()

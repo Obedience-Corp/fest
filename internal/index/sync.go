@@ -27,7 +27,7 @@ func (s *TreeSyncer) Sync() (*TreeIndex, error) {
 	tree := NewTreeIndex(s.workspacePath)
 
 	// Scan each status directory
-	statusDirs := []string{"planned", "active", "completed", "dungeon"}
+	statusDirs := []string{"planned", "ready", "active", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 	for _, status := range statusDirs {
 		statusPath := filepath.Join(s.workspacePath, status)
 		if _, err := os.Stat(statusPath); os.IsNotExist(err) {

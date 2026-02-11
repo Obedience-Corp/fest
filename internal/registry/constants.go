@@ -22,6 +22,7 @@ const (
 const (
 	StatusActive    = "active"
 	StatusPlanned   = "planned"
+	StatusReady     = "ready"
 	StatusCompleted = "completed"
 	StatusDungeon   = "dungeon"
 	StatusUnknown   = "unknown"

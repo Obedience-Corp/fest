@@ -104,7 +104,7 @@ func CollectNavigationTargets(festivalsDir string) []FuzzyTarget {
 	var targets []FuzzyTarget
 
 	// Status directories as targets (for "fest go active", "fest go planned", etc.)
-	statusDirs := []string{"active", "planned", "completed", "dungeon"}
+	statusDirs := []string{"active", "ready", "planned", "completed", "dungeon", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 	for _, status := range statusDirs {
 		statusPath := filepath.Join(festivalsDir, status)
 		if info, err := os.Stat(statusPath); err == nil && info.IsDir() {
@@ -115,9 +115,9 @@ func CollectNavigationTargets(festivalsDir string) []FuzzyTarget {
 		}
 	}
 
-	// Festival names from active and planned only (most commonly navigated)
+	// Festival names from active, ready, and planned only (most commonly navigated)
 	// Completed and dungeon are archives, less frequently accessed via fuzzy search
-	primaryDirs := []string{"active", "planned"}
+	primaryDirs := []string{"active", "ready", "planned"}
 	for _, status := range primaryDirs {
 		statusPath := filepath.Join(festivalsDir, status)
 		entries, err := os.ReadDir(statusPath)

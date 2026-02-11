@@ -26,7 +26,7 @@ var commonWords = map[string]bool{
 var idPattern = regexp.MustCompile(`-([A-Z]{2})(\d{4,})$`)
 
 // StatusDirectories are the directories that contain festivals
-var StatusDirectories = []string{"planned", "active", "completed", "dungeon"}
+var StatusDirectories = []string{"planned", "ready", "active", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 
 // ExtractInitials extracts a 2-letter uppercase prefix from a festival name.
 // For multi-word names: first letter of first two significant words.

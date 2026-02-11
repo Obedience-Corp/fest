@@ -18,10 +18,10 @@ import (
 )
 
 // Valid status values
-var validStatuses = []string{"active", "planned", "completed", "dungeon"}
+var validStatuses = []string{"active", "ready", "planned", "completed", "dungeon", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 
 // Default statuses shown without --all flag
-var defaultStatuses = []string{"active", "planned"}
+var defaultStatuses = []string{"active", "ready", "planned"}
 
 type listOptions struct {
 	json     bool
@@ -43,7 +43,7 @@ func NewListCommand() *cobra.Command {
 
 Works from anywhere - finds the festivals workspace automatically.
 
-STATUS can be: active, planned, completed, dungeon
+STATUS can be: active, planned, completed, dungeon, dungeon/completed, dungeon/archived, dungeon/someday
 
 By default, shows only active and planned festivals.
 Use --all to include completed and dungeon festivals.`,
@@ -105,6 +105,10 @@ func runList(ctx context.Context, filterStatus string, opts *listOptions) error 
 	}
 
 	if filterStatus != "" {
+		// "dungeon" without substatus: list all dungeon children
+		if filterStatus == "dungeon" {
+			return listDungeon(ctx, festivalsDir, opts)
+		}
 		// List single status
 		return listByStatus(ctx, festivalsDir, filterStatus, opts)
 	}
@@ -130,14 +134,22 @@ func statusOrder(s string) int {
 	switch s {
 	case "active":
 		return 0
-	case "planned":
+	case "ready":
 		return 1
-	case "completed":
+	case "planned":
 		return 2
-	case "dungeon":
+	case "completed":
 		return 3
-	default:
+	case "dungeon":
 		return 4
+	case "dungeon/completed":
+		return 5
+	case "dungeon/archived":
+		return 6
+	case "dungeon/someday":
+		return 7
+	default:
+		return 8
 	}
 }
 
@@ -178,6 +190,56 @@ func applySorting(festivals []*show.FestivalInfo, sortBy string, alpha bool) {
 			sortByDate(festivals)
 		}
 	}
+}
+
+// dungeonSubstatuses defines the valid dungeon child statuses.
+var dungeonSubstatuses = []string{"dungeon/completed", "dungeon/archived", "dungeon/someday"}
+
+func listDungeon(ctx context.Context, festivalsDir string, opts *listOptions) error {
+	result := make(map[string]interface{})
+	var totalCount int
+	allFestivals := make(map[string][]*show.FestivalInfo)
+	var allFestivalsList []*show.FestivalInfo
+
+	order := make([]string, 0, len(dungeonSubstatuses))
+	for _, status := range dungeonSubstatuses {
+		festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status)
+		if err != nil {
+			continue
+		}
+		if len(festivals) > 0 {
+			applySorting(festivals, opts.sortBy, opts.alpha)
+			allFestivals[status] = festivals
+			order = append(order, status)
+			totalCount += len(festivals)
+			allFestivalsList = append(allFestivalsList, festivals...)
+		}
+	}
+
+	var progressMap map[string]*progress.FestivalProgress
+	if opts.progress {
+		progressMap = fetchProgressForFestivals(ctx, allFestivalsList)
+	}
+
+	if opts.json {
+		for status, festivals := range allFestivals {
+			result[status] = festivalsToMapWithProgress(festivals, progressMap)
+		}
+		result["total"] = totalCount
+		return outputJSON(result)
+	}
+
+	if totalCount == 0 {
+		fmt.Println(ui.Warning("No festivals in dungeon."))
+		return nil
+	}
+
+	if opts.progress {
+		fmt.Print(show.FormatAllFestivalsWithProgress(allFestivals, order, progressMap))
+	} else {
+		fmt.Print(show.FormatAllFestivals(allFestivals, order))
+	}
+	return nil
 }
 
 func listByStatus(ctx context.Context, festivalsDir, status string, opts *listOptions) error {

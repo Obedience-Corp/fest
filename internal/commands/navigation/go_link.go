@@ -284,7 +284,7 @@ type festivalInfo struct {
 func collectFestivals(festivalsDir string) ([]festivalInfo, error) {
 	var festivals []festivalInfo
 
-	statusDirs := []string{"active", "planned"}
+	statusDirs := []string{"active", "ready", "planned"}
 
 	for _, status := range statusDirs {
 		statusPath := filepath.Join(festivalsDir, status)
@@ -318,7 +318,7 @@ func collectFestivals(festivalsDir string) ([]festivalInfo, error) {
 
 // resolveFestivalPath finds the full path of a festival by name
 func resolveFestivalPath(festivalsDir, festivalName string) string {
-	statusDirs := []string{"active", "planned", "completed"}
+	statusDirs := []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 
 	for _, status := range statusDirs {
 		statusPath := filepath.Join(festivalsDir, status)

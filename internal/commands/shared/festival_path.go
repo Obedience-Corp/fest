@@ -43,7 +43,7 @@ func ResolveFestivalPath(cwd, explicitPath string) (string, error) {
 
 // findFestivalByName searches for a festival by name in all status directories
 func findFestivalByName(festivalsRoot, name string) (string, error) {
-	statusDirs := []string{"active", "planned", "completed", "dungeon"}
+	statusDirs := []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 
 	for _, status := range statusDirs {
 		statusDir := filepath.Join(festivalsRoot, status)

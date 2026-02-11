@@ -104,7 +104,7 @@ func (m Model) Init() tea.Cmd {
 
 		statuses := []string{status}
 		if status == "" {
-			statuses = []string{"active", "planned", "completed", "dungeon"}
+			statuses = []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 		}
 
 		var items []FestivalItem

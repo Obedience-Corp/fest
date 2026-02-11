@@ -14,7 +14,8 @@ func TestValidTransitions(t *testing.T) {
 		wantTo string
 		wantOK bool
 	}{
-		{"planned", "active", true},
+		{"planned", "ready", true},
+		{"ready", "active", true},
 		{"active", "completed", true},
 		{"completed", "", false},
 		{"dungeon", "", false},
@@ -34,7 +35,7 @@ func TestValidTransitions(t *testing.T) {
 	}
 }
 
-func TestValidatePlannedToActive(t *testing.T) {
+func TestValidatePlannedToReady(t *testing.T) {
 	t.Run("with goal file", func(t *testing.T) {
 		dir := t.TempDir()
 		os.WriteFile(filepath.Join(dir, "FESTIVAL_GOAL.md"), []byte("# Goal\nTest"), 0644)
@@ -45,7 +46,7 @@ func TestValidatePlannedToActive(t *testing.T) {
 			Status: "planned",
 		}
 
-		err := validatePlannedToActive(festival)
+		err := validatePlannedToReady(festival)
 		if err != nil {
 			t.Errorf("expected no error, got %v", err)
 		}
@@ -60,7 +61,7 @@ func TestValidatePlannedToActive(t *testing.T) {
 			Status: "planned",
 		}
 
-		err := validatePlannedToActive(festival)
+		err := validatePlannedToReady(festival)
 		if err == nil {
 			t.Error("expected error for missing FESTIVAL_GOAL.md")
 		}

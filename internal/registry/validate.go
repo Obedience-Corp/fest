@@ -263,14 +263,30 @@ func (r *Registry) Sync(ctx context.Context, festivalsRoot string) error {
 
 // detectStatus determines the status from a festival path
 func detectStatus(path string) string {
+	parentDir := filepath.Dir(path)
+	parentName := filepath.Base(parentDir)
+	grandparentName := filepath.Base(filepath.Dir(parentDir))
+
+	// Check for dungeon substatus: dungeon/<substatus>/festival
+	if grandparentName == "dungeon" {
+		return "dungeon/" + parentName
+	}
+
+	// Check simple statuses from StatusDirectories
 	for _, status := range id.StatusDirectories {
-		if filepath.Base(filepath.Dir(path)) == status {
+		if parentName == status {
 			return status
 		}
 		// Check for completed/YYYY-MM/festival pattern
-		if filepath.Base(filepath.Dir(filepath.Dir(path))) == status {
+		if grandparentName == status {
 			return status
 		}
 	}
+
+	// Legacy: festival directly in dungeon/
+	if parentName == "dungeon" {
+		return "dungeon"
+	}
+
 	return "unknown"
 }

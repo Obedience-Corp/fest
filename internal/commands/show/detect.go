@@ -69,7 +69,7 @@ func DetectCurrentFestival(ctx context.Context, startDir string) (*FestivalInfo,
 
 // findLinkedFestivalPath searches for a festival by name in all status directories.
 func findLinkedFestivalPath(festivalsRoot, name string) string {
-	for _, status := range []string{"active", "planned", "completed", "dungeon"} {
+	for _, status := range []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"} {
 		festivalPath := filepath.Join(festivalsRoot, status, name)
 		if info, err := os.Stat(festivalPath); err == nil && info.IsDir() {
 			if isValidFestival(festivalPath) {
@@ -107,7 +107,7 @@ func FindFestivalByName(ctx context.Context, festivalsDir, name string) (*Festiv
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	statusDirs := []string{"active", "planned", "completed", "dungeon"}
+	statusDirs := []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 
 	for _, status := range statusDirs {
 		statusDir := filepath.Join(festivalsDir, status)
@@ -197,8 +197,18 @@ func parseFestivalInfo(ctx context.Context, festivalDir string) (*FestivalInfo, 
 	parentDir := filepath.Dir(festivalDir)
 	parentName := filepath.Base(parentDir)
 	switch parentName {
-	case "active", "planned", "completed", "dungeon":
+	case "active", "ready", "planned":
 		info.Status = parentName
+	case "completed", "archived", "someday":
+		// Could be dungeon/completed, dungeon/archived, dungeon/someday
+		grandparentName := filepath.Base(filepath.Dir(parentDir))
+		if grandparentName == "dungeon" {
+			info.Status = "dungeon/" + parentName
+		} else {
+			info.Status = parentName
+		}
+	case "dungeon":
+		info.Status = "dungeon"
 	default:
 		info.Status = "unknown"
 	}

@@ -74,7 +74,13 @@ func runStatusSet(ctx context.Context, cmd *cobra.Command, newStatus string, opt
 	// If no status provided, prompt user to select one
 	if newStatus == "" {
 		entityType := detectEntityTypeForStatusPrompt(cwd, opts)
-		validStatuses := ValidStatuses[entityType]
+		var validStatuses []string
+		if entityType == EntityFestival {
+			festivalsRoot := findFestivalsRoot(cwd)
+			validStatuses = getValidFestivalStatuses(festivalsRoot)
+		} else {
+			validStatuses = ValidStatuses[entityType]
+		}
 		options := theme.ToOptions(validStatuses)
 
 		title := fmt.Sprintf("Select %s status", entityType)
@@ -174,9 +180,10 @@ func runStatusSet(ctx context.Context, cmd *cobra.Command, newStatus string, opt
 		return handlePhaseStatusSet(ctx, display, cwd, newStatus, opts)
 
 	case "festival":
-		// At festival root - validate festival status
-		if !isValidStatus(EntityFestival, newStatus) {
-			validOptions := ValidStatuses[EntityFestival]
+		// At festival root - validate festival status (schema-aware)
+		festivalsRoot := filepath.Dir(filepath.Dir(loc.Festival.Path))
+		if !isValidFestivalStatus(festivalsRoot, newStatus) {
+			validOptions := getValidFestivalStatuses(festivalsRoot)
 			return errors.Validation("invalid status for festival").
 				WithField("status", newStatus).
 				WithField("valid_options", strings.Join(validOptions, ", "))
@@ -259,9 +266,10 @@ func applyStatusToFestival(ctx context.Context, display *ui.UI, festival *show.F
 		return errors.Wrap(err, "context cancelled")
 	}
 
-	// Validate status for festivals
-	if !isValidStatus(EntityFestival, newStatus) {
-		validOptions := ValidStatuses[EntityFestival]
+	// Validate status for festivals (schema-aware)
+	festivalsRoot := filepath.Dir(filepath.Dir(festival.Path))
+	if !isValidFestivalStatus(festivalsRoot, newStatus) {
+		validOptions := getValidFestivalStatuses(festivalsRoot)
 		return errors.Validation("invalid status").
 			WithField("status", newStatus).
 			WithField("valid_options", strings.Join(validOptions, ", "))
@@ -712,12 +720,23 @@ func runStatusList(ctx context.Context, cmd *cobra.Command, filterStatus string,
 
 	// Validate entity type and status
 	entityType := EntityType(opts.entityType)
-	if filterStatus != "" && !isValidStatus(entityType, filterStatus) {
-		validOptions := ValidStatuses[entityType]
-		return errors.Validation("invalid status for entity type").
-			WithField("status", filterStatus).
-			WithField("type", opts.entityType).
-			WithField("valid_options", strings.Join(validOptions, ", "))
+	if filterStatus != "" {
+		var statusValid bool
+		var validOptions []string
+		if entityType == EntityFestival || entityType == "" {
+			festivalsRoot := filepath.Dir(filepath.Dir(loc.Festival.Path))
+			statusValid = isValidFestivalStatus(festivalsRoot, filterStatus)
+			validOptions = getValidFestivalStatuses(festivalsRoot)
+		} else {
+			statusValid = isValidStatus(entityType, filterStatus)
+			validOptions = ValidStatuses[entityType]
+		}
+		if !statusValid {
+			return errors.Validation("invalid status for entity type").
+				WithField("status", filterStatus).
+				WithField("type", opts.entityType).
+				WithField("valid_options", strings.Join(validOptions, ", "))
+		}
 	}
 
 	// Route based on entity type
@@ -883,9 +902,10 @@ func handlePathBasedStatusSet(ctx context.Context, display *ui.UI, cwd, newStatu
 
 		switch entityType {
 		case EntityFestival:
-			// Validate festival status
-			if !isValidStatus(EntityFestival, newStatus) {
-				validOptions := ValidStatuses[EntityFestival]
+			// Validate festival status (schema-aware)
+			pathFestivalsRoot := findFestivalsRoot(festivalPath)
+			if !isValidFestivalStatus(pathFestivalsRoot, newStatus) {
+				validOptions := getValidFestivalStatuses(pathFestivalsRoot)
 				return errors.Validation("invalid status for festival").
 					WithField("status", newStatus).
 					WithField("valid_options", strings.Join(validOptions, ", "))

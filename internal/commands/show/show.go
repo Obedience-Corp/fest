@@ -104,14 +104,53 @@ func newShowCompletedCommand(opts *showOptions) *cobra.Command {
 
 func newShowDungeonCommand(opts *showOptions) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "dungeon",
+		Use:   "dungeon [substatus]",
 		Short: "List festivals in dungeon/ directory",
+		Long: `List festivals in dungeon/ directory.
+
+Optionally specify a substatus: completed, archived, someday.
+Without a substatus, lists all dungeon festivals.`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runShowStatus(cmd.Context(), "dungeon", opts)
+			if len(args) > 0 {
+				return runShowStatus(cmd.Context(), "dungeon/"+args[0], opts)
+			}
+			return runShowDungeon(cmd.Context(), opts)
 		},
 	}
 	cmd.Flags().BoolVar(&opts.json, "json", false, "output in JSON format")
 	return cmd
+}
+
+func runShowDungeon(ctx context.Context, opts *showOptions) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return errors.IO("getting current directory", err)
+	}
+
+	festivalsDir, err := workspace.FindFestivals(cwd)
+	if err != nil {
+		return errors.Wrap(err, "finding festivals directory")
+	}
+	if festivalsDir == "" {
+		return errors.NotFound("festivals directory")
+	}
+
+	allFestivals := make(map[string][]*FestivalInfo)
+	dungeonStatuses := []string{"dungeon/completed", "dungeon/archived", "dungeon/someday"}
+
+	for _, status := range dungeonStatuses {
+		festivals, err := ListFestivalsByStatus(ctx, festivalsDir, status)
+		if err != nil {
+			continue
+		}
+		allFestivals[status] = festivals
+	}
+
+	if opts.json {
+		return emitAllFestivalsJSON(allFestivals, dungeonStatuses)
+	}
+	return emitAllFestivalsText(allFestivals, dungeonStatuses)
 }
 
 func newShowAllCommand(opts *showOptions) *cobra.Command {
@@ -237,7 +276,7 @@ func runShowAll(ctx context.Context, opts *showOptions) error {
 	}
 
 	allFestivals := make(map[string][]*FestivalInfo)
-	statusOrder := []string{"active", "planned", "completed", "dungeon"}
+	statusOrder := []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 
 	for _, status := range statusOrder {
 		festivals, err := ListFestivalsByStatus(ctx, festivalsDir, status)

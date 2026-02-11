@@ -19,7 +19,8 @@ import (
 
 // validTransitions defines the allowed lifecycle promotions.
 var validTransitions = map[string]string{
-	"planned": "active",
+	"planned": "ready",
+	"ready":   "active",
 	"active":  "completed",
 }
 
@@ -34,10 +35,11 @@ func NewPromoteCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "promote",
 		Short: "Promote a festival to the next lifecycle status",
-		Long: `Promote moves a festival through the lifecycle: planned → active → completed.
+		Long: `Promote moves a festival through the lifecycle: planned → ready → active → completed.
 
 Each transition validates readiness:
-  planned → active:    Festival goal must be defined
+  planned → ready:     Festival goal must be defined
+  ready → active:      Festival is ready to begin execution
   active → completed:  All tasks must be completed`,
 		Annotations: map[string]string{
 			"scope": string(scope.Festival),
@@ -87,7 +89,7 @@ func runPromote(ctx context.Context, opts *promoteOptions) error {
 		}
 		return errors.Validation("cannot promote festival").
 			WithField("status", currentStatus).
-			WithField("hint", "only planned and active festivals can be promoted")
+			WithField("hint", "only planned, ready, and active festivals can be promoted")
 	}
 
 	// Validate readiness unless forced
@@ -143,8 +145,10 @@ func validateReadiness(ctx context.Context, festival *show.FestivalInfo, from, t
 	}
 
 	switch to {
+	case "ready":
+		return validatePlannedToReady(festival)
 	case "active":
-		return validatePlannedToActive(festival)
+		return nil // ready → active has no additional requirements
 	case "completed":
 		return validateActiveToCompleted(ctx, festival)
 	default:
@@ -152,8 +156,8 @@ func validateReadiness(ctx context.Context, festival *show.FestivalInfo, from, t
 	}
 }
 
-// validatePlannedToActive checks that a festival is ready to become active.
-func validatePlannedToActive(festival *show.FestivalInfo) error {
+// validatePlannedToReady checks that a festival is ready to move to the ready status.
+func validatePlannedToReady(festival *show.FestivalInfo) error {
 	// Festival goal must exist
 	goalPath := filepath.Join(festival.Path, "FESTIVAL_GOAL.md")
 	if _, err := os.Stat(goalPath); err != nil {

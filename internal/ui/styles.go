@@ -36,6 +36,7 @@ func GetDungeonColor() lipgloss.TerminalColor { return Current().Dungeon }
 // New code should use the Get*Color() functions instead.
 var (
 	ActiveColor    = lipgloss.Color("42")  // Green - currently executing
+	ReadyColor     = lipgloss.Color("33")  // Blue - ready for execution (shares planned color)
 	PlannedColor   = lipgloss.Color("33")  // Blue - future work
 	CompletedColor = lipgloss.Color("205") // Purple/Magenta - finished successfully
 	ArchivedColor  = lipgloss.Color("250") // Light grey - deprioritized/paused (updated from 245)
@@ -76,6 +77,8 @@ func GetStatusStyle(status string) lipgloss.Style {
 	switch strings.ToLower(status) {
 	case "active":
 		return lipgloss.NewStyle().Foreground(p.Active).Bold(true)
+	case "ready":
+		return lipgloss.NewStyle().Foreground(p.Ready).Bold(true)
 	case "planned":
 		return lipgloss.NewStyle().Foreground(p.Planned).Bold(true)
 	case "completed":
@@ -96,6 +99,8 @@ func GetStatusColor(status string) lipgloss.TerminalColor {
 	switch strings.ToLower(status) {
 	case "active":
 		return p.Active
+	case "ready":
+		return p.Ready
 	case "planned":
 		return p.Planned
 	case "completed":
@@ -140,6 +145,7 @@ func GetStateStyle(state string) lipgloss.Style {
 // For theme-aware styling, use GetStatusStyle() instead.
 var (
 	ActiveStyle    = lipgloss.NewStyle().Foreground(ActiveColor).Bold(true)
+	ReadyStyle     = lipgloss.NewStyle().Foreground(ReadyColor).Bold(true)
 	PlannedStyle   = lipgloss.NewStyle().Foreground(PlannedColor).Bold(true)
 	CompletedStyle = lipgloss.NewStyle().Foreground(CompletedColor).Bold(true)
 	ArchivedStyle  = lipgloss.NewStyle().Foreground(ArchivedColor).Bold(true)
