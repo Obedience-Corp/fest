@@ -7,37 +7,49 @@ import (
 	"github.com/charmbracelet/glamour"
 )
 
-// loadPreview reads a file, strips frontmatter, and renders markdown for the preview pane.
-func loadPreview(path string, width int) string {
-	if path == "" {
-		return "No preview available"
-	}
+// mdRenderer caches a glamour renderer and its configured width.
+type mdRenderer struct {
+	renderer *glamour.TermRenderer
+	width    int
+}
 
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "No preview available"
-	}
-
-	content := stripFrontmatter(string(data))
-
+// render renders markdown content, reusing the cached renderer when possible.
+func (r *mdRenderer) render(content string, width int) string {
 	if width < 20 {
 		width = 60
 	}
 
-	renderer, err := glamour.NewTermRenderer(
-		glamour.WithAutoStyle(),
-		glamour.WithWordWrap(width-4),
-	)
+	if r.renderer == nil || r.width != width {
+		renderer, err := glamour.NewTermRenderer(
+			glamour.WithAutoStyle(),
+			glamour.WithWordWrap(width-4),
+		)
+		if err != nil {
+			return content
+		}
+		r.renderer = renderer
+		r.width = width
+	}
+
+	rendered, err := r.renderer.Render(content)
 	if err != nil {
 		return content
 	}
-
-	rendered, err := renderer.Render(content)
-	if err != nil {
-		return content
-	}
-
 	return strings.TrimRight(rendered, "\n")
+}
+
+// loadPreview reads a file, strips frontmatter, and returns raw content for rendering.
+func loadPreview(path string) string {
+	if path == "" {
+		return ""
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+
+	return stripFrontmatter(string(data))
 }
 
 // stripFrontmatter removes YAML frontmatter from content.

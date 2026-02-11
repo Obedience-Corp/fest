@@ -610,38 +610,43 @@ func TestLoadPreview(t *testing.T) {
 	testFile := filepath.Join(tmp, "test.md")
 	os.WriteFile(testFile, []byte("# Title\n\nSome content\n"), 0644)
 
-	preview := loadPreview(testFile, 80)
+	preview := loadPreview(testFile)
 	if !strings.Contains(preview, "Title") {
 		t.Error("expected title in preview")
 	}
 
 	// Test missing file
-	preview = loadPreview(filepath.Join(tmp, "missing.md"), 80)
-	if preview != "No preview available" {
-		t.Errorf("expected 'No preview available', got %q", preview)
+	preview = loadPreview(filepath.Join(tmp, "missing.md"))
+	if preview != "" {
+		t.Errorf("expected empty string for missing file, got %q", preview)
 	}
 
 	// Test empty path
-	preview = loadPreview("", 80)
-	if preview != "No preview available" {
-		t.Errorf("expected 'No preview available', got %q", preview)
+	preview = loadPreview("")
+	if preview != "" {
+		t.Errorf("expected empty string for empty path, got %q", preview)
 	}
 }
 
-func TestLoadPreviewRendersMarkdown(t *testing.T) {
-	tmp := t.TempDir()
+func TestMdRendererCachesInstance(t *testing.T) {
+	r := &mdRenderer{}
 
-	// Create file with markdown content
-	testFile := filepath.Join(tmp, "test.md")
-	os.WriteFile(testFile, []byte("# Heading\n\n**bold text**\n\n- item 1\n- item 2\n"), 0644)
-
-	preview := loadPreview(testFile, 80)
-	// Glamour renders markdown — output should contain the text
-	if !strings.Contains(preview, "Heading") {
-		t.Error("expected rendered heading in preview")
+	content := "# Hello\n\nWorld\n"
+	result := r.render(content, 80)
+	if !strings.Contains(result, "Hello") {
+		t.Error("expected rendered content to contain 'Hello'")
 	}
-	if !strings.Contains(preview, "bold text") {
-		t.Error("expected bold text content in preview")
+
+	// Second call at same width should reuse renderer
+	result2 := r.render(content, 80)
+	if !strings.Contains(result2, "Hello") {
+		t.Error("expected cached render to contain 'Hello'")
+	}
+
+	// Different width should recreate
+	result3 := r.render(content, 40)
+	if !strings.Contains(result3, "Hello") {
+		t.Error("expected re-rendered content to contain 'Hello'")
 	}
 }
 

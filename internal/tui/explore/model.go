@@ -62,6 +62,7 @@ type Model struct {
 	// Viewport for scrollable preview
 	viewport     viewport.Model
 	focusPreview bool
+	renderer     mdRenderer
 
 	// Pending navigation (push to stack only on success)
 	pendingNav *navEntry
@@ -498,8 +499,14 @@ func (m *Model) updatePreview() {
 		return
 	}
 	goalFile := goalFileForItem(m.items[m.selected])
-	content := loadPreview(goalFile, m.previewWidth())
-	m.viewport.SetContent(content)
+	raw := loadPreview(goalFile)
+	if raw == "" {
+		m.viewport.SetContent(dimStyle.Render("No preview available"))
+		m.viewport.GotoTop()
+		return
+	}
+	rendered := m.renderer.render(raw, m.previewWidth())
+	m.viewport.SetContent(rendered)
 	m.viewport.GotoTop()
 }
 
