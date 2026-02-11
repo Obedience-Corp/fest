@@ -8,7 +8,7 @@ import (
 
 const previewMaxLines = 30
 
-// loadPreview reads the first N lines of a file for the preview pane.
+// loadPreview reads a file, strips frontmatter, and returns the first N lines for the preview pane.
 func loadPreview(path string) string {
 	if path == "" {
 		return "No preview available"
@@ -19,13 +19,29 @@ func loadPreview(path string) string {
 		return "No preview available"
 	}
 
-	lines := strings.Split(string(data), "\n")
+	content := stripFrontmatter(string(data))
+	lines := strings.Split(content, "\n")
 	if len(lines) > previewMaxLines {
 		lines = lines[:previewMaxLines]
 		lines = append(lines, "...")
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// stripFrontmatter removes YAML frontmatter from content.
+// Frontmatter is delimited by --- at the start of the file.
+func stripFrontmatter(content string) string {
+	if !strings.HasPrefix(content, "---") {
+		return content
+	}
+	rest := content[3:]
+	idx := strings.Index(rest, "\n---")
+	if idx < 0 {
+		return content
+	}
+	after := rest[idx+4:]
+	return strings.TrimLeft(after, "\n")
 }
 
 // goalFileForItem returns the path to the goal/preview file for a hierarchy item.

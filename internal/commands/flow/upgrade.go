@@ -212,6 +212,9 @@ func executeMigration(ctx context.Context, festivalsRoot string, plan *migration
 
 	// 2. Execute directory moves (completed/ → dungeon/completed/)
 	for src, dst := range plan.moveDirs {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		srcPath := filepath.Join(festivalsRoot, src)
 		dstPath := filepath.Join(festivalsRoot, dst)
 
@@ -223,6 +226,9 @@ func executeMigration(ctx context.Context, festivalsRoot string, plan *migration
 
 	// 3. Create missing directories
 	for _, dir := range plan.createDirs {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		fullPath := filepath.Join(festivalsRoot, dir)
 		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 			if err := os.MkdirAll(fullPath, 0755); err != nil {
@@ -234,6 +240,9 @@ func executeMigration(ctx context.Context, festivalsRoot string, plan *migration
 
 	// 4. Write workflow schema directly (don't use Init - it checks for parent
 	// flows and uses DefaultSchema instead of FestivalSchema)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	schema := workflow.FestivalSchema()
 	data, err := yaml.Marshal(schema)
 	if err != nil {

@@ -10,10 +10,8 @@ import (
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
-	"github.com/Obedience-Corp/fest/internal/festival"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	tuiexplore "github.com/Obedience-Corp/fest/internal/tui/explore"
-	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -84,7 +82,6 @@ func runExplore(ctx context.Context, opts *exploreOptions, status string) error 
 		return errors.Wrap(err, "context cancelled").WithOp("runExplore")
 	}
 
-	display := ui.New(false, false)
 	cwd, err := os.Getwd()
 	if err != nil {
 		return errors.IO("getting working directory", err)
@@ -93,7 +90,7 @@ func runExplore(ctx context.Context, opts *exploreOptions, status string) error 
 	// Try to detect if we're inside a festival
 	festivalPath := detectFestivalPath(cwd)
 	if festivalPath != "" && status == "" {
-		return exploreFestival(ctx, opts, display, festivalPath)
+		return exploreFestival(ctx, opts, festivalPath)
 	}
 
 	// Otherwise, list festivals for the given status
@@ -101,7 +98,7 @@ func runExplore(ctx context.Context, opts *exploreOptions, status string) error 
 		status = "active"
 	}
 
-	return exploreFestivalList(ctx, opts, display, status)
+	return exploreFestivalList(ctx, opts, status)
 }
 
 // detectFestivalPath checks if cwd is inside a festival directory.
@@ -124,57 +121,26 @@ func detectFestivalPath(cwd string) string {
 	return ""
 }
 
-// exploreFestival shows the hierarchy of a single festival.
-func exploreFestival(ctx context.Context, opts *exploreOptions, display *ui.UI, festivalPath string) error {
+// exploreFestival shows the hierarchy of a single festival using the interactive TUI.
+func exploreFestival(ctx context.Context, opts *exploreOptions, festivalPath string) error {
 	if opts.json {
 		return outputFestivalJSON(ctx, festivalPath)
 	}
 
-	parser := festival.NewParser()
-	phases, err := parser.ParsePhases(ctx, festivalPath)
+	// Launch TUI pre-navigated into this festival's phase hierarchy
+	selected, err := tuiexplore.RunWithFestival(ctx, festivalPath)
 	if err != nil {
-		return errors.Wrap(err, "parsing festival phases")
+		return errors.Wrap(err, "running explore TUI")
 	}
-
-	festivalName := filepath.Base(festivalPath)
-	display.Success("Festival: %s", festivalName)
-	fmt.Println()
-
-	if len(phases) == 0 {
-		display.Info("  No phases found")
-		return nil
+	if selected != nil {
+		fmt.Println(selected.Path)
 	}
-
-	for _, phase := range phases {
-		fmt.Printf("  %s %s\n", ui.Accent(phase.FullName), ui.Dim(fmt.Sprintf("(%s)", phase.Name)))
-
-		// List sequences within the phase
-		phaseDir := phase.Path
-		sequences, seqErr := parser.ParseSequences(ctx, phaseDir)
-		if seqErr != nil || len(sequences) == 0 {
-			continue
-		}
-		for _, seq := range sequences {
-			fmt.Printf("    %s %s\n", ui.Value(seq.FullName), ui.Dim(seq.Name))
-
-			// List tasks within the sequence
-			seqDir := seq.Path
-			tasks, taskErr := parser.ParseTasks(ctx, seqDir)
-			if taskErr != nil || len(tasks) == 0 {
-				continue
-			}
-			for _, task := range tasks {
-				fmt.Printf("      %s %s\n", ui.Dim("[ ]"), task.FullName)
-			}
-		}
-	}
-
 	return nil
 }
 
 // exploreFestivalList shows festivals for a given status.
 // Uses the BubbleTea TUI for interactive mode, JSON for --json.
-func exploreFestivalList(ctx context.Context, opts *exploreOptions, _ *ui.UI, status string) error {
+func exploreFestivalList(ctx context.Context, opts *exploreOptions, status string) error {
 	if opts.json {
 		return outputExploreJSON(ctx, status)
 	}

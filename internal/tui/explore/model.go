@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -41,21 +42,22 @@ type childrenLoadedMsg struct {
 
 // Model is the BubbleTea model for the festival explorer.
 type Model struct {
-	ctx         context.Context
-	items       []FestivalItem
-	allItems    []FestivalItem // Unfiltered items (for search restore)
-	selected    int
-	width       int
-	height      int
-	maxVisible  int
-	scrollStart int
-	status      string
-	loading     bool
-	err         error
-	quitting    bool
-	navStack    []navEntry
-	breadcrumbs []string
-	preview     string
+	ctx          context.Context
+	items        []FestivalItem
+	allItems     []FestivalItem // Unfiltered items (for search restore)
+	selected     int
+	width        int
+	height       int
+	maxVisible   int
+	scrollStart  int
+	status       string
+	loading      bool
+	err          error
+	quitting     bool
+	navStack     []navEntry
+	breadcrumbs  []string
+	preview      string
+	festivalPath string // Pre-navigate into this festival on load
 
 	// Vim gg detection
 	lastGTime time.Time
@@ -147,6 +149,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		m.updatePreview()
+
+		// Auto-navigate into a specific festival if requested
+		if m.festivalPath != "" {
+			for i, item := range m.items {
+				if item.Path == m.festivalPath {
+					m.selected = i
+					m.festivalPath = "" // Clear to prevent re-navigation
+					return m.navigateDown()
+				}
+			}
+			m.festivalPath = "" // Not found, proceed normally
+		}
 		return m, nil
 
 	case childrenLoadedMsg:
@@ -587,7 +601,12 @@ func (m Model) renderPreview() string {
 	}
 
 	for _, line := range lines {
-		b.WriteString(dimStyle.Render(line))
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "#") {
+			b.WriteString(previewTitle.Render(line))
+		} else {
+			b.WriteString(dimStyle.Render(line))
+		}
 		b.WriteString("\n")
 	}
 
@@ -605,4 +624,33 @@ func Run(ctx context.Context, status string) (*FestivalItem, error) {
 	}
 
 	return finalModel.(Model).SelectedItem(), nil
+}
+
+// RunWithFestival starts the explore TUI pre-navigated into a specific festival.
+// The user sees the festival's phases immediately instead of the festival list.
+func RunWithFestival(ctx context.Context, festivalPath string) (*FestivalItem, error) {
+	status := detectStatusFromPath(festivalPath)
+	m := New(ctx, status)
+	m.festivalPath = festivalPath
+
+	p := tea.NewProgram(m, tea.WithAltScreen())
+
+	finalModel, err := p.Run()
+	if err != nil {
+		return nil, err
+	}
+
+	return finalModel.(Model).SelectedItem(), nil
+}
+
+// detectStatusFromPath determines the status directory from a festival's path.
+// For /festivals/active/my-fest → "active"
+// For /festivals/dungeon/completed/my-fest → "dungeon/completed"
+func detectStatusFromPath(festivalPath string) string {
+	parent := filepath.Base(filepath.Dir(festivalPath))
+	grandparent := filepath.Base(filepath.Dir(filepath.Dir(festivalPath)))
+	if grandparent == "dungeon" {
+		return "dungeon/" + parent
+	}
+	return parent
 }
