@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/taskfilter"
 )
@@ -36,11 +37,18 @@ type SequenceProgress struct {
 	Progress     *AggregateProgress `json:"progress"`
 }
 
+// PhaseTypeTime holds time aggregated by phase type.
+type PhaseTypeTime struct {
+	PhaseType string `json:"phase_type"`
+	Minutes   int    `json:"minutes"`
+}
+
 // FestivalProgress holds complete festival progress
 type FestivalProgress struct {
 	FestivalName      string               `json:"festival_name"`
 	Overall           *AggregateProgress   `json:"overall"`
 	Phases            []*PhaseProgress     `json:"phases,omitempty"`
+	PhaseTypeTimes    []PhaseTypeTime      `json:"phase_type_times,omitempty"`
 	TimeMetrics       *FestivalTimeMetrics `json:"time_metrics,omitempty"`
 	LifecycleDuration int                  `json:"lifecycle_duration_days,omitempty"`
 }
@@ -101,6 +109,22 @@ func (m *Manager) GetFestivalProgress(ctx context.Context, festivalPath string) 
 		overall.Percentage = (overall.Completed * 100) / overall.Total
 	}
 
+	// Aggregate time by phase type
+	phaseTypeTotals := make(map[string]int)
+	for _, phase := range phases {
+		pt := readPhaseType(filepath.Join(festivalPath, phase.PhaseID))
+		if pt == "" {
+			pt = "implementation"
+		}
+		phaseTypeTotals[pt] += phase.Progress.TimeSpentMin
+	}
+	var phaseTypeTimes []PhaseTypeTime
+	for _, pt := range []string{"planning", "ingest", "research", "implementation", "review"} {
+		if mins, ok := phaseTypeTotals[pt]; ok && mins > 0 {
+			phaseTypeTimes = append(phaseTypeTimes, PhaseTypeTime{PhaseType: pt, Minutes: mins})
+		}
+	}
+
 	// Lazy populate time data for legacy festivals
 	if m.store.LazyPopulateTimeData(festivalPath) {
 		// Save the inferred data for future access
@@ -118,6 +142,7 @@ func (m *Manager) GetFestivalProgress(ctx context.Context, festivalPath string) 
 		FestivalName:      festivalName,
 		Overall:           overall,
 		Phases:            phases,
+		PhaseTypeTimes:    phaseTypeTimes,
 		TimeMetrics:       timeMetrics,
 		LifecycleDuration: lifecycleDays,
 	}, nil
@@ -181,6 +206,21 @@ func (m *Manager) GetPhaseProgress(ctx context.Context, phasePath string) (*Phas
 		PhaseName: phaseName,
 		Progress:  aggregate,
 	}, nil
+}
+
+// readPhaseType reads the phase type from PHASE_GOAL.md frontmatter.
+// Returns empty string if the file doesn't exist or has no phase type.
+func readPhaseType(phasePath string) string {
+	goalPath := filepath.Join(phasePath, "PHASE_GOAL.md")
+	content, err := os.ReadFile(goalPath)
+	if err != nil {
+		return ""
+	}
+	fm, _, err := frontmatter.Parse(content)
+	if err != nil || fm == nil {
+		return ""
+	}
+	return string(fm.PhaseType)
 }
 
 // GetSequenceProgress calculates progress for a sequence

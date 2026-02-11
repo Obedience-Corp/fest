@@ -69,7 +69,7 @@ func DetectCurrentFestival(ctx context.Context, startDir string) (*FestivalInfo,
 
 // findLinkedFestivalPath searches for a festival by name in all status directories.
 func findLinkedFestivalPath(festivalsRoot, name string) string {
-	for _, status := range []string{"active", "planned", "completed", "dungeon"} {
+	for _, status := range []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"} {
 		festivalPath := filepath.Join(festivalsRoot, status, name)
 		if info, err := os.Stat(festivalPath); err == nil && info.IsDir() {
 			if isValidFestival(festivalPath) {
@@ -107,7 +107,7 @@ func FindFestivalByName(ctx context.Context, festivalsDir, name string) (*Festiv
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	statusDirs := []string{"active", "planned", "completed", "dungeon"}
+	statusDirs := []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 
 	for _, status := range statusDirs {
 		statusDir := filepath.Join(festivalsDir, status)
@@ -182,6 +182,50 @@ func ListFestivalsByStatus(ctx context.Context, festivalsDir, status string) ([]
 	return festivals, nil
 }
 
+// ListFestivalsByStatusLight returns festivals with minimal metadata (no stats computation).
+// Use this for UIs that only need name, status, path, and modtime — avoids the expensive
+// recursive walk that CalculateFestivalStats performs on every task file.
+func ListFestivalsByStatusLight(ctx context.Context, festivalsDir, status string) ([]*FestivalInfo, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	statusDir := filepath.Join(festivalsDir, status)
+	entries, err := os.ReadDir(statusDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []*FestivalInfo{}, nil
+		}
+		return nil, errors.IO("reading status directory", err).WithField("status", status)
+	}
+
+	var festivals []*FestivalInfo
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		festivalDir := filepath.Join(statusDir, entry.Name())
+		if !isValidFestival(festivalDir) {
+			continue
+		}
+
+		info := &FestivalInfo{
+			ID:     entry.Name(),
+			Name:   entry.Name(),
+			Status: status,
+			Path:   festivalDir,
+		}
+
+		if dirInfo, statErr := os.Stat(festivalDir); statErr == nil {
+			info.ModTime = dirInfo.ModTime()
+		}
+
+		festivals = append(festivals, info)
+	}
+
+	return festivals, nil
+}
+
 // parseFestivalInfo parses festival information from a directory.
 func parseFestivalInfo(ctx context.Context, festivalDir string) (*FestivalInfo, error) {
 	if ctx == nil {
@@ -197,8 +241,18 @@ func parseFestivalInfo(ctx context.Context, festivalDir string) (*FestivalInfo, 
 	parentDir := filepath.Dir(festivalDir)
 	parentName := filepath.Base(parentDir)
 	switch parentName {
-	case "active", "planned", "completed", "dungeon":
+	case "active", "ready", "planned":
 		info.Status = parentName
+	case "completed", "archived", "someday":
+		// Could be dungeon/completed, dungeon/archived, dungeon/someday
+		grandparentName := filepath.Base(filepath.Dir(parentDir))
+		if grandparentName == "dungeon" {
+			info.Status = "dungeon/" + parentName
+		} else {
+			info.Status = parentName
+		}
+	case "dungeon":
+		info.Status = "dungeon"
 	default:
 		info.Status = "unknown"
 	}

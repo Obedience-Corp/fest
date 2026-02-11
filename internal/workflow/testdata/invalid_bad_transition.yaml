@@ -1,0 +1,7 @@
+version: 1
+type: status-workflow
+directories:
+  active:
+    description: "Work in progress"
+    transition_opts:
+      - nonexistent

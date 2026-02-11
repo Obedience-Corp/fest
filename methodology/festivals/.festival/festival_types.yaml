@@ -11,15 +11,19 @@ types:
       - name: INGEST
         type: ingest
         auto: true
+        description: Ingest and structure input materials into actionable specifications
       - name: PLAN
         type: planning
         auto: true
+        description: Plan architecture, design decisions, and task breakdown
       - name: IMPLEMENT
         type: implementation
         auto: false
+        description: Implement features and functionality per the plan
       - name: POLISH
         type: planning
         auto: false
+        description: Review, polish, and finalize deliverables
 
   # Implementation-focused festival - for pre-planned work, execution only
   - name: implementation
@@ -29,6 +33,7 @@ types:
       - name: IMPLEMENT
         type: implementation
         auto: true
+        description: Implement pre-planned features and functionality
 
   # Research festival - investigation and synthesis
   - name: research
@@ -37,14 +42,17 @@ types:
       - name: INGEST
         type: ingest
         auto: true
+        description: Ingest research materials, references, and context
       - name: RESEARCH
         type: research
         auto: true
         role: investigate
+        description: Investigate options, evaluate alternatives, and document findings
       - name: SYNTHESIZE
         type: planning
         auto: true
         trigger: research_complete
+        description: Synthesize research findings into actionable recommendations
 
   # Ritual festival - template-driven custom structure
   - name: ritual

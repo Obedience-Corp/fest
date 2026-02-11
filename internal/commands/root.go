@@ -8,6 +8,8 @@ import (
 	contextcmd "github.com/Obedience-Corp/fest/internal/commands/context"
 	depscmd "github.com/Obedience-Corp/fest/internal/commands/deps"
 	executecmd "github.com/Obedience-Corp/fest/internal/commands/execute"
+	explorecmd "github.com/Obedience-Corp/fest/internal/commands/explore"
+	flowcmd "github.com/Obedience-Corp/fest/internal/commands/flow"
 	"github.com/Obedience-Corp/fest/internal/commands/extensions"
 	feedbackcmd "github.com/Obedience-Corp/fest/internal/commands/feedback"
 	"github.com/Obedience-Corp/fest/internal/commands/festival"
@@ -21,6 +23,7 @@ import (
 	nextcmd "github.com/Obedience-Corp/fest/internal/commands/next"
 	parsecmd "github.com/Obedience-Corp/fest/internal/commands/parse"
 	progresscmd "github.com/Obedience-Corp/fest/internal/commands/progress"
+	promotecmd "github.com/Obedience-Corp/fest/internal/commands/promote"
 	"github.com/Obedience-Corp/fest/internal/commands/research"
 	scaffoldcmd "github.com/Obedience-Corp/fest/internal/commands/scaffold"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
@@ -226,6 +229,14 @@ func init() {
 	workflowCmd.GroupID = "workflow"
 	rootCmd.AddCommand(workflowCmd)
 
+	promoteCmd := promotecmd.NewPromoteCommand()
+	promoteCmd.GroupID = "workflow"
+	rootCmd.AddCommand(promoteCmd)
+
+	flowCmd := flowcmd.NewFlowCommand()
+	flowCmd.GroupID = "workflow"
+	rootCmd.AddCommand(flowCmd)
+
 	taskCmd := taskcmd.NewTaskCommand()
 	taskCmd.GroupID = "workflow"
 	rootCmd.AddCommand(taskCmd)
@@ -254,6 +265,10 @@ func init() {
 	listCmd := listcmd.NewListCommand()
 	listCmd.GroupID = "query"
 	rootCmd.AddCommand(listCmd)
+
+	exploreCmd := explorecmd.NewExploreCommand()
+	exploreCmd.GroupID = "navigation"
+	rootCmd.AddCommand(exploreCmd)
 
 	indexCmd := navigation.NewIndexCommand()
 	indexCmd.GroupID = "system"

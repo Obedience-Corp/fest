@@ -133,7 +133,7 @@ if [[ -n "$ZSH_VERSION" ]]; then
             displays+=("$display")
         done < <(command fest go completions $cmd_args 2>/dev/null)
         if (( ${#vals} )); then
-            compadd -l -d displays -a vals
+            compadd -V fgo -l -d displays -a vals
         fi
     }
     compdef _fgo_zsh fgo 2>/dev/null

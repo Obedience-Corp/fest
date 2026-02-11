@@ -534,7 +534,7 @@ func (s *Selector) findNextPlanning(_ context.Context, location *LocationInfo, p
 
 	reason := "Planning phase - review objectives and explore"
 	if planningResult.GraduationReady {
-		reason = "Planning complete! Run 'fest graduate' to generate implementation phase"
+		reason = "Planning complete! Run 'fest promote' to advance to the next lifecycle status"
 	}
 
 	return &NextTaskResult{

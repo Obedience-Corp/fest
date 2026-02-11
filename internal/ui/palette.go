@@ -21,6 +21,7 @@ var (
 type Palette struct {
 	// Status colors for festival states
 	Active    lipgloss.TerminalColor
+	Ready     lipgloss.TerminalColor
 	Planned   lipgloss.TerminalColor
 	Completed lipgloss.TerminalColor
 	Archived  lipgloss.TerminalColor
@@ -90,6 +91,7 @@ func defaultDarkPalette() Palette {
 	return Palette{
 		// Status colors - bright and visible
 		Active:    lipgloss.Color("42"),  // Bright green
+		Ready:     lipgloss.Color("33"),  // Blue (same as planned)
 		Planned:   lipgloss.Color("33"),  // Blue
 		Completed: lipgloss.Color("205"), // Magenta/pink
 		Archived:  lipgloss.Color("250"), // Light grey (readable!)
@@ -134,6 +136,7 @@ func lightPalette() Palette {
 	return Palette{
 		// Status colors - darker versions
 		Active:    lipgloss.Color("28"),  // Dark green
+		Ready:     lipgloss.Color("25"),  // Dark blue (same as planned)
 		Planned:   lipgloss.Color("25"),  // Dark blue
 		Completed: lipgloss.Color("128"), // Dark purple
 		Archived:  lipgloss.Color("241"), // Dark grey
@@ -168,6 +171,7 @@ func highContrastPalette() Palette {
 	return Palette{
 		// Status colors - maximum brightness
 		Active:    lipgloss.Color("46"),  // Bright green
+		Ready:     lipgloss.Color("39"),  // Bright blue (same as planned)
 		Planned:   lipgloss.Color("39"),  // Bright blue
 		Completed: lipgloss.Color("201"), // Bright magenta
 		Archived:  lipgloss.Color("255"), // White

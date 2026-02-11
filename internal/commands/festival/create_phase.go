@@ -24,6 +24,7 @@ type CreatePhaseOptions struct {
 	After       int
 	Name        string
 	PhaseType   string
+	Description string // Phase objective/description (auto-fills Primary Goal marker)
 	Path        string
 	VarsFile    string
 	Markers     string // Inline JSON with hint→value mappings
@@ -85,6 +86,7 @@ func NewCreatePhaseCommand() *cobra.Command {
 	cmd.Flags().IntVar(&opts.After, "after", -1, "Insert after this phase number (-1 or omit to append at end)")
 	cmd.Flags().StringVar(&opts.Name, "name", "", "Phase name (required)")
 	cmd.Flags().StringVar(&opts.PhaseType, "type", "planning", "Phase type (planning|implementation|research|review|ingest|non_coding_action)")
+	cmd.Flags().StringVar(&opts.Description, "description", "", "Phase objective (auto-fills Primary Goal marker)")
 	cmd.Flags().StringVar(&opts.Path, "path", ".", "Path to festival root (directory containing numbered phases)")
 	cmd.Flags().StringVar(&opts.VarsFile, "vars-file", "", "JSON vars for rendering")
 	cmd.Flags().StringVar(&opts.Markers, "markers", "", "JSON string with REPLACE marker hint→value mappings")
@@ -178,6 +180,9 @@ func RunCreatePhase(ctx context.Context, opts *CreatePhaseOptions) error {
 		tmplCtx = tpl.NewContext()
 	}
 	tmplCtx.SetPhase(newNumber, opts.Name, opts.PhaseType)
+	if opts.Description != "" {
+		tmplCtx.SetPhaseObjective(opts.Description)
+	}
 	tmplCtx.ComputeStructureVariables()
 	for k, v := range vars {
 		tmplCtx.SetCustom(k, v)

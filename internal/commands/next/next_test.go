@@ -299,3 +299,126 @@ func TestFeedbackCriteriaInNextTaskResult(t *testing.T) {
 type feedbackTestResult struct {
 	FeedbackCriteria []string `json:"feedback_criteria,omitempty"`
 }
+
+func TestCheckPlannedStatus(t *testing.T) {
+	tests := []struct {
+		name          string
+		status        string
+		phaseType     string
+		expectBlocked bool
+	}{
+		{
+			name:          "planned+implementation is blocked",
+			status:        "planned",
+			phaseType:     "implementation",
+			expectBlocked: true,
+		},
+		{
+			name:          "planned+review is blocked",
+			status:        "planned",
+			phaseType:     "review",
+			expectBlocked: true,
+		},
+		{
+			name:          "planned+ingest is allowed",
+			status:        "planned",
+			phaseType:     "ingest",
+			expectBlocked: false,
+		},
+		{
+			name:          "planned+research is allowed",
+			status:        "planned",
+			phaseType:     "research",
+			expectBlocked: false,
+		},
+		{
+			name:          "planned+planning is allowed",
+			status:        "planned",
+			phaseType:     "planning",
+			expectBlocked: false,
+		},
+		{
+			name:          "active+implementation is allowed",
+			status:        "active",
+			phaseType:     "implementation",
+			expectBlocked: false,
+		},
+		{
+			name:          "active+review is allowed",
+			status:        "active",
+			phaseType:     "review",
+			expectBlocked: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			festDir := t.TempDir()
+			phaseDir := filepath.Join(festDir, "001_PHASE")
+			if err := os.MkdirAll(phaseDir, 0755); err != nil {
+				t.Fatal(err)
+			}
+
+			// Write fest.yaml with status history
+			festYAML := "version: \"1.0\"\nmetadata:\n  id: TS0001\n  status_history:\n    - status: " + tt.status + "\n      timestamp: 2026-02-10T00:00:00Z\n"
+			if err := os.WriteFile(filepath.Join(festDir, "fest.yaml"), []byte(festYAML), 0644); err != nil {
+				t.Fatal(err)
+			}
+
+			// Write PHASE_GOAL.md with phase type
+			goalContent := "---\nfest_phase_type: " + tt.phaseType + "\n---\n# Phase Goal\n"
+			if err := os.WriteFile(filepath.Join(phaseDir, "PHASE_GOAL.md"), []byte(goalContent), 0644); err != nil {
+				t.Fatal(err)
+			}
+
+			err := checkPlannedStatus(festDir, phaseDir)
+
+			if tt.expectBlocked {
+				if err == nil {
+					t.Error("expected blocked error, got nil")
+				} else if !strings.Contains(err.Error(), "Festival must be in active status") {
+					t.Errorf("expected blocking message, got: %v", err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("expected no error, got: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestCheckPlannedStatus_NoConfig(t *testing.T) {
+	festDir := t.TempDir()
+	// No fest.yaml — should not block
+	err := checkPlannedStatus(festDir, "")
+	if err != nil {
+		t.Errorf("expected no error without config, got: %v", err)
+	}
+}
+
+func TestCheckPlannedStatus_NoPhasePath(t *testing.T) {
+	festDir := t.TempDir()
+	phaseDir := filepath.Join(festDir, "001_IMPL")
+	if err := os.MkdirAll(phaseDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write fest.yaml as planned
+	festYAML := "version: \"1.0\"\nmetadata:\n  id: TS0001\n  status_history:\n    - status: planned\n      timestamp: 2026-02-10T00:00:00Z\n"
+	if err := os.WriteFile(filepath.Join(festDir, "fest.yaml"), []byte(festYAML), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write PHASE_GOAL.md with implementation type
+	goalContent := "---\nfest_phase_type: implementation\n---\n# Phase Goal\n"
+	if err := os.WriteFile(filepath.Join(phaseDir, "PHASE_GOAL.md"), []byte(goalContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Pass empty phasePath — should auto-detect first phase
+	err := checkPlannedStatus(festDir, "")
+	if err == nil {
+		t.Error("expected blocked error when auto-detecting implementation phase, got nil")
+	}
+}

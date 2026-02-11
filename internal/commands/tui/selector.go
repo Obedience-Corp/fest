@@ -18,14 +18,17 @@ import (
 
 // statusPriority defines sort order for festival statuses.
 var statusPriority = map[string]int{
-	"active":    0, // Active festivals first
-	"planned":   1, // Then planned
-	"completed": 2, // Then completed
-	"dungeon":   3, // Dungeon last
+	"active":            0, // Active festivals first
+	"ready":             1, // Then ready
+	"planned":           2, // Then planned
+	"completed":         3, // Then completed
+	"dungeon/completed": 4, // Dungeon substatuses
+	"dungeon/archived":  5,
+	"dungeon/someday":   6,
 }
 
 // allStatuses lists all valid festival statuses in priority order.
-var allStatuses = []string{"active", "planned", "completed", "dungeon"}
+var allStatuses = []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 
 // FestivalSelectorConfig configures the festival selector behavior.
 type FestivalSelectorConfig struct {

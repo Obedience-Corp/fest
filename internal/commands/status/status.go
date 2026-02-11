@@ -20,7 +20,7 @@ const (
 
 // ValidStatuses defines valid status values per entity type.
 var ValidStatuses = map[EntityType][]string{
-	EntityFestival: {"planned", "active", "completed", "dungeon"},
+	EntityFestival: {"planned", "ready", "active", "completed", "dungeon", "dungeon/completed", "dungeon/archived", "dungeon/someday"},
 	EntityPhase:    {"pending", "in_progress", "completed"},
 	EntitySequence: {"pending", "in_progress", "completed"},
 	EntityTask:     {"pending", "in_progress", "blocked", "completed"},
@@ -141,7 +141,7 @@ These flags are mutually exclusive - only one level can be targeted at a time.`,
 		},
 	}
 
-	cmd.Flags().BoolVar(&opts.force, "force", false, "skip confirmation prompts")
+	cmd.Flags().BoolVar(&opts.force, "force", false, "skip confirmation prompts and transition validation")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "output in JSON format")
 	cmd.Flags().BoolVarP(&opts.interactive, "interactive", "i", false, "force interactive festival selection")
 

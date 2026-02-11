@@ -576,6 +576,32 @@ func TestToReplacementMapWithConfigPartial(t *testing.T) {
 	assert.False(t, hasTestCommand, "Omitted config should not be in map")
 }
 
+func TestToReplacementMapPhaseObjective(t *testing.T) {
+	ctx := NewContext()
+	ctx.SetPhase(1, "INGEST", "ingest")
+	ctx.SetPhaseObjective("Ingest and structure input materials")
+
+	m := ctx.ToReplacementMap()
+
+	// PhaseObjective should map to all phase-type-specific "Primary Goal" markers
+	assert.Equal(t, "Ingest and structure input materials", m["[REPLACE: What this ingest phase will transform and why]"])
+	assert.Equal(t, "Ingest and structure input materials", m["[REPLACE: What this planning phase needs to figure out or decide]"])
+	assert.Equal(t, "Ingest and structure input materials", m["[REPLACE: What this implementation phase must deliver]"])
+	assert.Equal(t, "Ingest and structure input materials", m["[REPLACE: What question or problem this research aims to answer]"])
+	assert.Equal(t, "Ingest and structure input materials", m["[REPLACE: What this review phase validates or approves]"])
+}
+
+func TestToReplacementMapPhaseObjectiveEmpty(t *testing.T) {
+	ctx := NewContext()
+	ctx.SetPhase(1, "INGEST", "ingest")
+
+	m := ctx.ToReplacementMap()
+
+	// Empty PhaseObjective should not produce markers
+	_, has := m["[REPLACE: What this ingest phase will transform and why]"]
+	assert.False(t, has, "Empty phase objective should not generate markers")
+}
+
 func TestToReplacementMapTaskIDWithoutExtension(t *testing.T) {
 	ctx := NewContext()
 	ctx.SetTask(5, "code review")

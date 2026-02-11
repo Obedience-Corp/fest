@@ -22,6 +22,7 @@ type Status string
 // Festival statuses
 const (
 	StatusPlanned   Status = "planned"
+	StatusReady     Status = "ready"
 	StatusActive    Status = "active"
 	StatusCompleted Status = "completed"
 	StatusDungeon   Status = "dungeon"
@@ -244,7 +245,7 @@ func (f *Frontmatter) Validate() []string {
 func isValidStatus(docType Type, status Status) bool {
 	switch docType {
 	case TypeFestival:
-		return status == StatusPlanned || status == StatusActive ||
+		return status == StatusPlanned || status == StatusReady || status == StatusActive ||
 			status == StatusCompleted || status == StatusDungeon
 	case TypePhase, TypeSequence:
 		return status == StatusPending || status == StatusInProgress ||

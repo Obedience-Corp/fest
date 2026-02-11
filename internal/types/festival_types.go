@@ -28,12 +28,13 @@ type FestivalType struct {
 
 // PhaseSpec defines a phase within a festival type.
 type PhaseSpec struct {
-	Name      string `yaml:"name"`
-	Type      string `yaml:"type"`
-	Auto      bool   `yaml:"auto"`
-	Role      string `yaml:"role,omitempty"`
-	Trigger   string `yaml:"trigger,omitempty"`
-	Generator string `yaml:"generator,omitempty"`
+	Name        string `yaml:"name"`
+	Type        string `yaml:"type"`
+	Auto        bool   `yaml:"auto"`
+	Description string `yaml:"description,omitempty"`
+	Role        string `yaml:"role,omitempty"`
+	Trigger     string `yaml:"trigger,omitempty"`
+	Generator   string `yaml:"generator,omitempty"`
 }
 
 // GetAutoPhases returns phases that are auto-scaffolded.
@@ -194,10 +195,10 @@ func getDefaultConfig() *FestivalTypesConfig {
 				Description: "Default festival type with full planning and implementation phases",
 				Default:     true,
 				Phases: []PhaseSpec{
-					{Name: "INGEST", Type: "ingest", Auto: true},
-					{Name: "PLAN", Type: "planning", Auto: true},
-					{Name: "IMPLEMENT", Type: "implementation", Auto: false},
-					{Name: "POLISH", Type: "planning", Auto: false},
+					{Name: "INGEST", Type: "ingest", Auto: true, Description: "Ingest and structure input materials into actionable specifications"},
+					{Name: "PLAN", Type: "planning", Auto: true, Description: "Plan architecture, design decisions, and task breakdown"},
+					{Name: "IMPLEMENT", Type: "implementation", Auto: false, Description: "Implement features and functionality per the plan"},
+					{Name: "POLISH", Type: "planning", Auto: false, Description: "Review, polish, and finalize deliverables"},
 				},
 			},
 		},

@@ -1,0 +1,5 @@
+version: 1
+type: status-workflow
+directories:
+  active
+    description: "Bad yaml - missing colon"

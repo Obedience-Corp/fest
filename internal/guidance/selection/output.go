@@ -10,6 +10,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/embedded/templates/agent"
 	"github.com/Obedience-Corp/fest/internal/context"
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/ui"
 )
@@ -129,7 +130,7 @@ func formatTextPlanning(result *NextTaskResult) string {
 			p.Progress.ResolvedObjectives,
 			p.Progress.TotalObjectives)
 		if p.GraduationReady {
-			ui.WriteLabelValue(&sb, "Progress", ui.Success(progressStr+" - Ready to graduate!"))
+			ui.WriteLabelValue(&sb, "Progress", ui.Success(progressStr+" - Ready to promote!"))
 		} else {
 			ui.WriteLabelValue(&sb, "Progress", ui.Info(progressStr))
 		}
@@ -189,10 +190,10 @@ func formatTextPlanning(result *NextTaskResult) string {
 	if p.GraduationReady {
 		sb.WriteString(ui.H2("Next Step"))
 		sb.WriteString("\n")
-		sb.WriteString(ui.Success("All objectives resolved! Ready to graduate."))
+		sb.WriteString(ui.Success("All objectives resolved! Ready to promote."))
 		sb.WriteString("\n\n")
-		sb.WriteString(fmt.Sprintf("  Run: %s\n\n", ui.Value("fest graduate")))
-		sb.WriteString(ui.Info("This will analyze your decisions and generate an implementation phase."))
+		sb.WriteString(fmt.Sprintf("  Run: %s\n\n", ui.Value("fest promote")))
+		sb.WriteString(ui.Info("This will promote the festival to the next lifecycle status."))
 		sb.WriteString("\n")
 	} else {
 		sb.WriteString(ui.H2("Suggested Actions"))
@@ -200,13 +201,18 @@ func formatTextPlanning(result *NextTaskResult) string {
 		sb.WriteString("  - Explore the problem space and document findings\n")
 		sb.WriteString("  - Update PHASE_GOAL.md checkboxes as objectives are resolved\n")
 		sb.WriteString("  - Create topic directories for deep exploration\n")
-		sb.WriteString("  - Run 'fest graduate' when all objectives are complete\n")
+		sb.WriteString("  - Run 'fest promote' when all objectives are complete\n")
 	}
 
 	return sb.String()
 }
 
 func formatTextTask(result *NextTaskResult, showInlineContext bool) string {
+	// Check if this is a gate task and show inline gate content
+	if gateSection := buildGateSection(result.Task); gateSection != "" {
+		return gateSection
+	}
+
 	// Build parallel tasks section if present
 	var parallelSection string
 	if len(result.ParallelTasks) > 0 {
@@ -727,4 +733,59 @@ func FormatCD(result *NextTaskResult) string {
 	}
 	// Return the directory containing the task file
 	return filepath.Dir(result.Task.Path)
+}
+
+// buildGateSection checks if a task is a gate task and returns inline gate content.
+// Returns empty string if the task is not a gate.
+func buildGateSection(task *TaskInfo) string {
+	if task == nil || task.Path == "" {
+		return ""
+	}
+
+	// Read and parse frontmatter to detect gate type
+	data, err := os.ReadFile(task.Path)
+	if err != nil {
+		return ""
+	}
+
+	fm, body, err := frontmatter.Parse(data)
+	if err != nil || fm == nil {
+		return ""
+	}
+
+	// Not a gate task
+	if fm.GateType == "" {
+		return ""
+	}
+
+	var sb strings.Builder
+
+	// Header
+	gateTitle := strings.ToUpper(string(fm.GateType[:1])) + string(fm.GateType[1:])
+	sb.WriteString(ui.H1(fmt.Sprintf("Quality Gate: %s", gateTitle)))
+	sb.WriteString("\n")
+
+	// Task location
+	taskRelPath := filepath.Join(task.PhaseName, task.SequenceName, task.Name+".md")
+	sb.WriteString(labelValue("Task", ui.Value(task.Name, ui.TaskColor)))
+	sb.WriteString(labelValue("Path", ui.Dim(taskRelPath)))
+	sb.WriteString(labelValue("Type", ui.Value(fmt.Sprintf("gate (%s)", fm.GateType))))
+	sb.WriteString("\n")
+
+	// Gate content (strip frontmatter, show body)
+	content := strings.TrimSpace(string(body))
+	if content != "" {
+		sb.WriteString(content)
+		sb.WriteString("\n\n")
+	} else {
+		sb.WriteString(ui.Dim("Gate file could not be read. Run `fest gates` to evaluate gate criteria."))
+		sb.WriteString("\n\n")
+	}
+
+	// Action hint
+	sb.WriteString(ui.Dim("When complete, run: "))
+	sb.WriteString(ui.Value("fest task completed"))
+	sb.WriteString("\n\n")
+
+	return sb.String()
 }

@@ -10,10 +10,12 @@ import (
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/feedback"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/guidance/selection"
+	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/validator"
 	"github.com/spf13/cobra"
@@ -119,6 +121,11 @@ func runNext(cmd *cobra.Command, args []string) error {
 	vResult, vErr := validator.QuickValidate(ctx, festivalPath)
 	if vErr == nil && hasBlockingIssues(vResult) {
 		return emitValidationBlock(festivalPath, vResult)
+	}
+
+	// Block implementation/review phases in planned festivals
+	if err := checkPlannedStatus(festivalPath, shared.ResolvePhasePath(cwd, festivalPath)); err != nil {
+		return err
 	}
 
 	// If mode flag is provided or --navigator flag is set, use guidance navigator
@@ -322,6 +329,15 @@ func runWorkflowMode(ctx context.Context, festivalPath, phasePath string) error 
 	if err != nil {
 		return errors.Wrap(err, "creating workflow navigator").
 			WithField("phase_path", phasePath)
+	}
+
+	// Create and load progress Store, inject into navigator for JSONL-backed state
+	store := progress.NewStore(festivalPath)
+	if err := store.Load(ctx); err != nil {
+		return errors.Wrap(err, "loading progress store")
+	}
+	if wfNav, ok := nav.(*wf.Navigator); ok {
+		wfNav.SetStateStore(store)
 	}
 
 	// Initialize the navigator
@@ -574,6 +590,44 @@ func loadFeedbackCriteria(ctx context.Context, festivalPath string) []string {
 		names[i] = c.Name
 	}
 	return names
+}
+
+// checkPlannedStatus blocks implementation/review phases when the festival is still in planned status.
+func checkPlannedStatus(festivalPath, phasePath string) error {
+	festCfg, err := config.LoadFestivalConfig(festivalPath)
+	if err != nil {
+		return nil // Can't load config — don't block
+	}
+
+	status := festCfg.Metadata.CurrentStatus()
+	if status != "planned" {
+		return nil
+	}
+
+	// Only block if we can detect the phase type
+	if phasePath == "" {
+		// At festival root — find the first incomplete phase to check its type
+		entries, err := os.ReadDir(festivalPath)
+		if err != nil {
+			return nil
+		}
+		for _, entry := range entries {
+			if entry.IsDir() && isNumberedDir(entry.Name()) {
+				phasePath = filepath.Join(festivalPath, entry.Name())
+				break
+			}
+		}
+		if phasePath == "" {
+			return nil
+		}
+	}
+
+	phaseType := guidance.DetectPhaseType(phasePath)
+	if phaseType == "implementation" || phaseType == "review" {
+		return errors.Validation("Festival must be in active status to execute implementation phases. Run: fest status set active")
+	}
+
+	return nil
 }
 
 // printFeedbackReminder appends the full feedback reminder (criteria + recording instructions)

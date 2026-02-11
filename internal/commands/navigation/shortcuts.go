@@ -493,7 +493,7 @@ func findFestivalPath(festivalName string) (string, error) {
 	}
 
 	// Search in status directories
-	statusDirs := []string{"active", "planned", "completed", "dungeon"}
+	statusDirs := []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 	for _, status := range statusDirs {
 		statusPath := filepath.Join(festivalsDir, status)
 		entries, err := os.ReadDir(statusPath)

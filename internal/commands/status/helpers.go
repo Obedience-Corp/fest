@@ -1,10 +1,13 @@
 package status
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/workflow"
 )
 
 // resolveFestivalFromPath resolves a festival name or path from anywhere in the workspace.
@@ -34,7 +37,7 @@ func resolveFestivalFromPath(cwd, pathArg string) (string, error) {
 	}
 
 	// Search in all status directories
-	statusDirs := []string{"active", "planned", "completed", "dungeon"}
+	statusDirs := []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 	for _, status := range statusDirs {
 		// Try direct path: festivals/<status>/<pathArg>
 		candidatePath := filepath.Join(festivalsRoot, status, pathArg)
@@ -43,7 +46,7 @@ func resolveFestivalFromPath(cwd, pathArg string) (string, error) {
 		}
 	}
 
-	// 4. Check if pathArg includes status prefix (e.g., "active/my-festival")
+	// 4. Check if pathArg includes status prefix (e.g., "active/my-festival" or "dungeon/completed/my-festival")
 	candidatePath := filepath.Join(festivalsRoot, pathArg)
 	if isValidFestivalDir(candidatePath) {
 		return candidatePath, nil
@@ -51,7 +54,7 @@ func resolveFestivalFromPath(cwd, pathArg string) (string, error) {
 
 	return "", errors.NotFound("festival").
 		WithField("name", pathArg).
-		WithField("hint", "festival not found in active, planned, completed, or dungeon")
+		WithField("hint", "festival not found in active, planned, completed, or dungeon/*")
 }
 
 // isValidFestivalDir checks if a directory is a valid festival root.
@@ -180,6 +183,47 @@ func isValidStatus(entityType EntityType, status string) bool {
 		}
 	}
 	return false
+}
+
+// isValidFestivalStatus checks if a status is valid for festivals, using .workflow.yaml when present.
+// When a workflow schema exists at festivalsRoot, it validates against the schema's directories.
+// Falls back to the default ValidStatuses[EntityFestival] when no schema is found.
+func isValidFestivalStatus(festivalsRoot, status string) bool {
+	if festivalsRoot != "" {
+		schemaPath := filepath.Join(festivalsRoot, workflow.SchemaFileName)
+		schema, err := workflow.LoadSchema(context.Background(), schemaPath)
+		if err == nil && schema != nil {
+			return schema.HasDirectory(status)
+		}
+	}
+	return isValidStatus(EntityFestival, status)
+}
+
+// getValidFestivalStatuses returns valid festival statuses from .workflow.yaml schema if present,
+// otherwise falls back to the default ValidStatuses.
+func getValidFestivalStatuses(festivalsRoot string) []string {
+	if festivalsRoot != "" {
+		schemaPath := filepath.Join(festivalsRoot, workflow.SchemaFileName)
+		schema, err := workflow.LoadSchema(context.Background(), schemaPath)
+		if err == nil && schema != nil {
+			return schema.AllDirectories()
+		}
+	}
+	return ValidStatuses[EntityFestival]
+}
+
+// festivalsRootFromPath derives the festivals root directory from a festival's path and status.
+// For simple statuses (e.g., "active"), the path is festivals/<status>/<name>.
+// For nested statuses (e.g., "dungeon/completed"), the path is festivals/dungeon/completed/<name>.
+func festivalsRootFromPath(festivalPath, status string) string {
+	root := festivalPath
+	// Strip festival name
+	root = filepath.Dir(root)
+	// Strip each status path component
+	for range strings.Split(status, "/") {
+		root = filepath.Dir(root)
+	}
+	return root
 }
 
 // hasNumericPrefix checks if a directory name starts with digits.

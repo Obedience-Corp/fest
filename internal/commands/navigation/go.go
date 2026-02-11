@@ -326,7 +326,7 @@ func resolveFuzzy(pattern, festivalsDir string) (string, error) {
 
 // resolveFestivalByName searches for a festival by name in status directories
 func resolveFestivalByName(name, festivalsDir string) string {
-	statusDirs := []string{"active", "planned", "completed"}
+	statusDirs := []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 	for _, status := range statusDirs {
 		festPath := filepath.Join(festivalsDir, status, name)
 		if info, err := os.Stat(festPath); err == nil && info.IsDir() {

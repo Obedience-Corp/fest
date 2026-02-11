@@ -18,16 +18,18 @@ import (
 )
 
 // Valid status values
-var validStatuses = []string{"active", "planned", "completed", "dungeon"}
+var validStatuses = []string{"active", "ready", "planned", "completed", "dungeon", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 
 // Default statuses shown without --all flag
-var defaultStatuses = []string{"active", "planned"}
+var defaultStatuses = []string{"active", "ready", "planned"}
 
 type listOptions struct {
 	json     bool
 	all      bool
 	progress bool
 	alpha    bool
+	status   string
+	sortBy   string
 }
 
 // NewListCommand creates the list command for listing festivals by status.
@@ -41,7 +43,7 @@ func NewListCommand() *cobra.Command {
 
 Works from anywhere - finds the festivals workspace automatically.
 
-STATUS can be: active, planned, completed, dungeon
+STATUS can be: active, planned, completed, dungeon, dungeon/completed, dungeon/archived, dungeon/someday
 
 By default, shows only active and planned festivals.
 Use --all to include completed and dungeon festivals.`,
@@ -52,14 +54,19 @@ Use --all to include completed and dungeon festivals.`,
   fest list --json       # Output in JSON format`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			status := ""
+			status := opts.status
 			if len(args) > 0 {
 				status = strings.ToLower(args[0])
-				if !isValidStatus(status) {
-					return errors.Validation("invalid status").
-						WithField("status", status).
-						WithField("valid", strings.Join(validStatuses, ", "))
-				}
+			}
+			if status != "" && !isValidStatus(status) {
+				return errors.Validation("invalid status").
+					WithField("status", status).
+					WithField("valid", strings.Join(validStatuses, ", "))
+			}
+			if opts.sortBy != "" && !isValidSortBy(opts.sortBy) {
+				return errors.Validation("invalid sort").
+					WithField("sort", opts.sortBy).
+					WithField("valid", "date, status, progress, name")
 			}
 			return runList(cmd.Context(), status, opts)
 		},
@@ -69,6 +76,8 @@ Use --all to include completed and dungeon festivals.`,
 	cmd.Flags().BoolVar(&opts.all, "all", false, "include completed and dungeon festivals")
 	cmd.Flags().BoolVar(&opts.progress, "progress", false, "show detailed progress for each festival")
 	cmd.Flags().BoolVar(&opts.alpha, "alpha", false, "sort alphabetically by name instead of by date")
+	cmd.Flags().StringVar(&opts.status, "status", "", "filter by status: active|planned|completed|dungeon")
+	cmd.Flags().StringVar(&opts.sortBy, "sort", "", "sort by: date|status|progress|name")
 
 	return cmd
 }
@@ -96,6 +105,10 @@ func runList(ctx context.Context, filterStatus string, opts *listOptions) error 
 	}
 
 	if filterStatus != "" {
+		// "dungeon" without substatus: list all dungeon children
+		if filterStatus == "dungeon" {
+			return listDungeon(ctx, festivalsDir, opts)
+		}
 		// List single status
 		return listByStatus(ctx, festivalsDir, filterStatus, opts)
 	}
@@ -104,10 +117,129 @@ func runList(ctx context.Context, filterStatus string, opts *listOptions) error 
 	return listAll(ctx, festivalsDir, opts)
 }
 
+// validSortValues defines the accepted sort field names.
+var validSortValues = []string{"date", "status", "progress", "name"}
+
+func isValidSortBy(s string) bool {
+	for _, v := range validSortValues {
+		if v == s {
+			return true
+		}
+	}
+	return false
+}
+
+// statusOrder returns a numeric rank for sorting by status.
+func statusOrder(s string) int {
+	switch s {
+	case "active":
+		return 0
+	case "ready":
+		return 1
+	case "planned":
+		return 2
+	case "completed":
+		return 3
+	case "dungeon":
+		return 4
+	case "dungeon/completed":
+		return 5
+	case "dungeon/archived":
+		return 6
+	case "dungeon/someday":
+		return 7
+	default:
+		return 8
+	}
+}
+
 func sortByDate(festivals []*show.FestivalInfo) {
 	sort.Slice(festivals, func(i, j int) bool {
 		return festivals[i].ModTime.After(festivals[j].ModTime)
 	})
+}
+
+// applySorting applies the requested sort order to a festival list.
+func applySorting(festivals []*show.FestivalInfo, sortBy string, alpha bool) {
+	switch sortBy {
+	case "status":
+		sort.Slice(festivals, func(i, j int) bool {
+			return statusOrder(festivals[i].Status) < statusOrder(festivals[j].Status)
+		})
+	case "progress":
+		sort.Slice(festivals, func(i, j int) bool {
+			pi, pj := 0.0, 0.0
+			if festivals[i].Stats != nil {
+				pi = festivals[i].Stats.Progress
+			}
+			if festivals[j].Stats != nil {
+				pj = festivals[j].Stats.Progress
+			}
+			return pi > pj // descending
+		})
+	case "name":
+		sort.Slice(festivals, func(i, j int) bool {
+			return festivals[i].Name < festivals[j].Name
+		})
+	case "date", "":
+		if alpha {
+			sort.Slice(festivals, func(i, j int) bool {
+				return festivals[i].Name < festivals[j].Name
+			})
+		} else {
+			sortByDate(festivals)
+		}
+	}
+}
+
+// dungeonSubstatuses defines the valid dungeon child statuses.
+var dungeonSubstatuses = []string{"dungeon/completed", "dungeon/archived", "dungeon/someday"}
+
+func listDungeon(ctx context.Context, festivalsDir string, opts *listOptions) error {
+	result := make(map[string]interface{})
+	var totalCount int
+	allFestivals := make(map[string][]*show.FestivalInfo)
+	var allFestivalsList []*show.FestivalInfo
+
+	order := make([]string, 0, len(dungeonSubstatuses))
+	for _, status := range dungeonSubstatuses {
+		festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status)
+		if err != nil {
+			continue
+		}
+		if len(festivals) > 0 {
+			applySorting(festivals, opts.sortBy, opts.alpha)
+			allFestivals[status] = festivals
+			order = append(order, status)
+			totalCount += len(festivals)
+			allFestivalsList = append(allFestivalsList, festivals...)
+		}
+	}
+
+	var progressMap map[string]*progress.FestivalProgress
+	if opts.progress {
+		progressMap = fetchProgressForFestivals(ctx, allFestivalsList)
+	}
+
+	if opts.json {
+		for status, festivals := range allFestivals {
+			result[status] = festivalsToMapWithProgress(festivals, progressMap)
+		}
+		result["total"] = totalCount
+		return outputJSON(result)
+	}
+
+	if totalCount == 0 {
+		fmt.Println(ui.Warning("No festivals in dungeon."))
+		return nil
+	}
+
+	if opts.progress {
+		fmt.Print(show.FormatAllFestivalsWithProgress(allFestivals, order, progressMap))
+	} else {
+		fmt.Print(show.FormatAllFestivals(allFestivals, order))
+	}
+	return nil
 }
 
 func listByStatus(ctx context.Context, festivalsDir, status string, opts *listOptions) error {
@@ -116,9 +248,7 @@ func listByStatus(ctx context.Context, festivalsDir, status string, opts *listOp
 		return err
 	}
 
-	if !opts.alpha {
-		sortByDate(festivals)
-	}
+	applySorting(festivals, opts.sortBy, opts.alpha)
 
 	// Fetch detailed progress if requested
 	var progressMap map[string]*progress.FestivalProgress
@@ -163,9 +293,7 @@ func listAll(ctx context.Context, festivalsDir string, opts *listOptions) error 
 			continue
 		}
 		if len(festivals) > 0 {
-			if !opts.alpha {
-				sortByDate(festivals)
-			}
+			applySorting(festivals, opts.sortBy, opts.alpha)
 			allFestivals[status] = festivals
 			statusOrder = append(statusOrder, status)
 			totalCount += len(festivals)

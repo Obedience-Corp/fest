@@ -53,11 +53,13 @@ func statusANSI(status string) string {
 	switch status {
 	case "active":
 		return ansiActive
+	case "ready":
+		return ansiActive
 	case "planned":
 		return ansiPlanned
 	case "completed":
 		return ansiCompleted
-	case "dungeon":
+	case "dungeon", "dungeon/completed", "dungeon/archived", "dungeon/someday":
 		return ansiDungeon
 	default:
 		return ansiDim
@@ -83,9 +85,13 @@ func runGoCompletions(descriptions, color bool, statusFilter string) error {
 	// Status directories
 	statuses := []string{
 		"active",
+		"ready",
 		"planned",
 		"completed",
 		"dungeon",
+		"dungeon/completed",
+		"dungeon/archived",
+		"dungeon/someday",
 	}
 
 	statusSet := make(map[string]bool, len(statuses))
@@ -93,20 +99,26 @@ func runGoCompletions(descriptions, color bool, statusFilter string) error {
 		statusSet[s] = true
 	}
 
-	// Output status directories
-	for _, status := range statuses {
+	// Festival names first (highest priority — what you actually navigate to)
+	targets := navigation.CollectNavigationTargets(festivalsDir)
+	for _, t := range targets {
+		// Skip status directories (emitted below)
+		if statusSet[t.Name] {
+			continue
+		}
+		status := statusFromPath(t.Path, festivalsDir)
 		switch {
 		case color:
 			c := statusANSI(status)
-			fmt.Printf("%s\t%s%s%s\n", status, c, status, ansiReset)
+			fmt.Printf("%s\t%s %s%s%s\n", t.Name, t.Name, c, status, ansiReset)
 		case descriptions:
-			fmt.Printf("%s:status directory\n", status)
+			fmt.Printf("%s:%s festival\n", t.Name, status)
 		default:
-			fmt.Println(status)
+			fmt.Println(t.Name)
 		}
 	}
 
-	// Load navigation state for shortcuts
+	// Shortcuts
 	nav, err := navigation.LoadNavigation()
 	if err == nil {
 		for name := range nav.Shortcuts {
@@ -121,22 +133,16 @@ func runGoCompletions(descriptions, color bool, statusFilter string) error {
 		}
 	}
 
-	// Collect festival names from active/ and planned/
-	targets := navigation.CollectNavigationTargets(festivalsDir)
-	for _, t := range targets {
-		// Skip status directories (already emitted above)
-		if statusSet[t.Name] {
-			continue
-		}
-		status := statusFromPath(t.Path, festivalsDir)
+	// Status directories last (fallback for browsing)
+	for _, status := range statuses {
 		switch {
 		case color:
 			c := statusANSI(status)
-			fmt.Printf("%s\t%s %s%s%s\n", t.Name, t.Name, c, status, ansiReset)
+			fmt.Printf("%s\t%s%s%s\n", status, c, status, ansiReset)
 		case descriptions:
-			fmt.Printf("%s:%s festival\n", t.Name, status)
+			fmt.Printf("%s:status directory\n", status)
 		default:
-			fmt.Println(t.Name)
+			fmt.Println(status)
 		}
 	}
 
@@ -160,13 +166,16 @@ func runStatusCompletions(festivalsDir, status string, descriptions, color bool)
 	return nil
 }
 
-// statusFromPath extracts the status directory name (active, planned, etc.) from a festival path
+// statusFromPath extracts the status directory name (active, planned, dungeon/completed, etc.) from a festival path
 func statusFromPath(path, festivalsDir string) string {
 	rel, err := filepath.Rel(festivalsDir, path)
 	if err != nil || rel == "." {
 		return "festival"
 	}
-	parts := strings.SplitN(rel, string(filepath.Separator), 2)
+	parts := strings.SplitN(rel, string(filepath.Separator), 3)
+	if len(parts) >= 2 && parts[0] == "dungeon" {
+		return "dungeon/" + parts[1]
+	}
 	if len(parts) > 0 {
 		return parts[0]
 	}
