@@ -355,6 +355,62 @@ func TestLoadFestivalTypesConfig_ContextCancellation(t *testing.T) {
 	}
 }
 
+func TestPhaseSpecDescription(t *testing.T) {
+	ctx := context.Background()
+
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "festival_types.yaml")
+	yamlContent := `version: 1
+types:
+  - name: test
+    description: Test type
+    default: true
+    phases:
+      - name: INGEST
+        type: ingest
+        auto: true
+        description: Ingest and structure input materials
+      - name: PLAN
+        type: planning
+        auto: true
+        description: Plan architecture and design
+`
+	if err := os.WriteFile(configPath, []byte(yamlContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	config, err := loadConfigFromFile(ctx, configPath)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	ft := config.Types[0]
+	autoPhases := ft.GetAutoPhases()
+	if len(autoPhases) != 2 {
+		t.Fatalf("expected 2 auto phases, got %d", len(autoPhases))
+	}
+	if autoPhases[0].Description != "Ingest and structure input materials" {
+		t.Errorf("expected INGEST description, got %q", autoPhases[0].Description)
+	}
+	if autoPhases[1].Description != "Plan architecture and design" {
+		t.Errorf("expected PLAN description, got %q", autoPhases[1].Description)
+	}
+}
+
+func TestDefaultConfigHasDescriptions(t *testing.T) {
+	config := getDefaultConfig()
+	ft, err := config.GetFestivalType("standard")
+	if err != nil {
+		t.Fatalf("expected standard type: %v", err)
+	}
+
+	for _, phase := range ft.Phases {
+		if phase.Description == "" {
+			t.Errorf("phase %q missing description", phase.Name)
+		}
+	}
+}
+
 func TestLoadConfigFromFile_InvalidYAML(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()

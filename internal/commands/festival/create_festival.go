@@ -420,6 +420,7 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 				After:       i,
 				Name:        phaseSpec.Name,
 				PhaseType:   phaseType,
+				Description: phaseSpec.Description,
 				Path:        destDir,
 				SkipMarkers: effectiveSkipMarkers,
 				JSONOutput:  false,

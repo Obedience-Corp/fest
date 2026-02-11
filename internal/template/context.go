@@ -386,6 +386,15 @@ func (c *Context) ToReplacementMap() map[string]string {
 		}
 	}
 
+	// Phase objective replacements (maps to per-type "Primary Goal" markers)
+	if c.PhaseObjective != "" {
+		m["[REPLACE: What this implementation phase must deliver]"] = c.PhaseObjective
+		m["[REPLACE: What this planning phase needs to figure out or decide]"] = c.PhaseObjective
+		m["[REPLACE: What this ingest phase will transform and why]"] = c.PhaseObjective
+		m["[REPLACE: What question or problem this research aims to answer]"] = c.PhaseObjective
+		m["[REPLACE: What this review phase validates or approves]"] = c.PhaseObjective
+	}
+
 	// Parent/structure replacements
 	if c.ParentPhaseID != "" {
 		m["[REPLACE: Parent phase ID]"] = c.ParentPhaseID
