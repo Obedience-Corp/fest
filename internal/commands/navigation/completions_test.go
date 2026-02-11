@@ -285,10 +285,17 @@ func TestCompleteGoTarget_WithFestivals(t *testing.T) {
 		resultSet[r] = true
 	}
 
-	// Status directories should be present
-	for _, status := range []string{"active", "planned", "completed", "dungeon"} {
+	// Primary status directories should be present (completed/dungeon excluded from default)
+	for _, status := range []string{"active", "planned"} {
 		if !resultSet[status] {
 			t.Errorf("expected status directory %q in completions, got: %v", status, results)
+		}
+	}
+
+	// Archival status directories should NOT be present in default completions
+	for _, status := range []string{"completed", "dungeon"} {
+		if resultSet[status] {
+			t.Errorf("unexpected archival status directory %q in default completions, got: %v", status, results)
 		}
 	}
 

@@ -82,16 +82,11 @@ func runGoCompletions(descriptions, color bool, statusFilter string) error {
 		return runStatusCompletions(festivalsDir, statusFilter, descriptions, color)
 	}
 
-	// Status directories
+	// Primary status directories only (completed/dungeon available via second-arg completion)
 	statuses := []string{
 		"active",
 		"ready",
 		"planned",
-		"completed",
-		"dungeon",
-		"dungeon/completed",
-		"dungeon/archived",
-		"dungeon/someday",
 	}
 
 	statusSet := make(map[string]bool, len(statuses))
