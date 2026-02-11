@@ -9,6 +9,7 @@ import (
 	depscmd "github.com/Obedience-Corp/fest/internal/commands/deps"
 	executecmd "github.com/Obedience-Corp/fest/internal/commands/execute"
 	explorecmd "github.com/Obedience-Corp/fest/internal/commands/explore"
+	flowcmd "github.com/Obedience-Corp/fest/internal/commands/flow"
 	"github.com/Obedience-Corp/fest/internal/commands/extensions"
 	feedbackcmd "github.com/Obedience-Corp/fest/internal/commands/feedback"
 	"github.com/Obedience-Corp/fest/internal/commands/festival"
@@ -231,6 +232,10 @@ func init() {
 	promoteCmd := promotecmd.NewPromoteCommand()
 	promoteCmd.GroupID = "workflow"
 	rootCmd.AddCommand(promoteCmd)
+
+	flowCmd := flowcmd.NewFlowCommand()
+	flowCmd.GroupID = "workflow"
+	rootCmd.AddCommand(flowCmd)
 
 	taskCmd := taskcmd.NewTaskCommand()
 	taskCmd.GroupID = "workflow"
