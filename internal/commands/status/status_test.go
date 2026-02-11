@@ -1,6 +1,7 @@
 package status
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -227,5 +228,157 @@ directories:
 	}
 	if statusSet["active"] {
 		t.Error("should NOT have 'active' when custom schema is used")
+	}
+}
+
+func TestFestivalsRootFromPath(t *testing.T) {
+	tests := []struct {
+		name     string
+		path     string
+		status   string
+		expected string
+	}{
+		{
+			name:     "simple status",
+			path:     "/workspace/festivals/active/my-fest",
+			status:   "active",
+			expected: "/workspace/festivals",
+		},
+		{
+			name:     "nested dungeon status",
+			path:     "/workspace/festivals/dungeon/completed/my-fest",
+			status:   "dungeon/completed",
+			expected: "/workspace/festivals",
+		},
+		{
+			name:     "nested dungeon archived",
+			path:     "/workspace/festivals/dungeon/archived/my-fest",
+			status:   "dungeon/archived",
+			expected: "/workspace/festivals",
+		},
+		{
+			name:     "planned status",
+			path:     "/workspace/festivals/planned/my-fest",
+			status:   "planned",
+			expected: "/workspace/festivals",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := festivalsRootFromPath(tc.path, tc.status)
+			if result != tc.expected {
+				t.Errorf("festivalsRootFromPath(%q, %q) = %q, want %q",
+					tc.path, tc.status, result, tc.expected)
+			}
+		})
+	}
+}
+
+func TestValidateTransition_NoSchema(t *testing.T) {
+	// Without a schema, all transitions should be allowed
+	err := validateTransition(context.Background(), t.TempDir(), "active", "completed")
+	if err != nil {
+		t.Errorf("expected nil error without schema, got: %v", err)
+	}
+}
+
+func TestValidateTransition_WithSchema(t *testing.T) {
+	tmpDir := t.TempDir()
+	schemaContent := `version: 1
+type: status-workflow
+name: test
+directories:
+  active:
+    description: Active items
+    order: 1
+    transition_opts:
+      - completed
+      - dungeon
+  completed:
+    description: Done
+    order: 2
+  dungeon:
+    description: Archived
+    order: 3
+    nested: true
+    children:
+      archived:
+        description: Archived items
+`
+	schemaPath := filepath.Join(tmpDir, workflow.SchemaFileName)
+	if err := os.WriteFile(schemaPath, []byte(schemaContent), 0644); err != nil {
+		t.Fatalf("failed to write schema: %v", err)
+	}
+
+	tests := []struct {
+		name    string
+		from    string
+		to      string
+		wantErr bool
+	}{
+		{"allowed transition", "active", "completed", false},
+		{"allowed nested transition", "active", "dungeon/archived", false},
+		{"disallowed transition", "active", "planned", true},
+		{"no transition_opts defined", "completed", "active", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateTransition(context.Background(), tmpDir, tc.from, tc.to)
+			if (err != nil) != tc.wantErr {
+				t.Errorf("validateTransition(%q, %q) error = %v, wantErr %v",
+					tc.from, tc.to, err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestTransitionOptsForStatus(t *testing.T) {
+	tmpDir := t.TempDir()
+	schemaContent := `version: 1
+type: status-workflow
+name: test
+directories:
+  active:
+    description: Active
+    order: 1
+    transition_opts:
+      - completed
+      - dungeon
+  planned:
+    description: Planned
+    order: 2
+  completed:
+    description: Done
+    order: 3
+  dungeon:
+    description: Archived
+    order: 4
+    nested: true
+    children:
+      archived:
+        description: Archived items
+`
+	schemaPath := filepath.Join(tmpDir, workflow.SchemaFileName)
+	if err := os.WriteFile(schemaPath, []byte(schemaContent), 0644); err != nil {
+		t.Fatalf("failed to write schema: %v", err)
+	}
+
+	schema, err := workflow.LoadSchema(context.Background(), schemaPath)
+	if err != nil {
+		t.Fatalf("failed to load schema: %v", err)
+	}
+
+	// Status with transition_opts should return those opts
+	opts := transitionOptsForStatus(schema, "active")
+	if len(opts) != 2 {
+		t.Errorf("expected 2 transition opts for active, got %d: %v", len(opts), opts)
+	}
+
+	// Status without transition_opts should return all directories
+	opts = transitionOptsForStatus(schema, "planned")
+	if len(opts) == 0 {
+		t.Error("expected all directories for planned (no transition_opts), got empty")
 	}
 }

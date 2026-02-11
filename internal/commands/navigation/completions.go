@@ -53,11 +53,13 @@ func statusANSI(status string) string {
 	switch status {
 	case "active":
 		return ansiActive
+	case "ready":
+		return ansiActive
 	case "planned":
 		return ansiPlanned
 	case "completed":
 		return ansiCompleted
-	case "dungeon":
+	case "dungeon", "dungeon/completed", "dungeon/archived", "dungeon/someday":
 		return ansiDungeon
 	default:
 		return ansiDim
@@ -83,9 +85,13 @@ func runGoCompletions(descriptions, color bool, statusFilter string) error {
 	// Status directories
 	statuses := []string{
 		"active",
+		"ready",
 		"planned",
 		"completed",
 		"dungeon",
+		"dungeon/completed",
+		"dungeon/archived",
+		"dungeon/someday",
 	}
 
 	statusSet := make(map[string]bool, len(statuses))
@@ -160,13 +166,16 @@ func runStatusCompletions(festivalsDir, status string, descriptions, color bool)
 	return nil
 }
 
-// statusFromPath extracts the status directory name (active, planned, etc.) from a festival path
+// statusFromPath extracts the status directory name (active, planned, dungeon/completed, etc.) from a festival path
 func statusFromPath(path, festivalsDir string) string {
 	rel, err := filepath.Rel(festivalsDir, path)
 	if err != nil || rel == "." {
 		return "festival"
 	}
-	parts := strings.SplitN(rel, string(filepath.Separator), 2)
+	parts := strings.SplitN(rel, string(filepath.Separator), 3)
+	if len(parts) >= 2 && parts[0] == "dungeon" {
+		return "dungeon/" + parts[1]
+	}
 	if len(parts) > 0 {
 		return parts[0]
 	}

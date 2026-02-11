@@ -19,6 +19,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/ui/theme"
+	"github.com/Obedience-Corp/fest/internal/workflow"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
@@ -181,7 +182,7 @@ func runStatusSet(ctx context.Context, cmd *cobra.Command, newStatus string, opt
 
 	case "festival":
 		// At festival root - validate festival status (schema-aware)
-		festivalsRoot := filepath.Dir(filepath.Dir(loc.Festival.Path))
+		festivalsRoot := festivalsRootFromPath(loc.Festival.Path, loc.Festival.Status)
 		if !isValidFestivalStatus(festivalsRoot, newStatus) {
 			validOptions := getValidFestivalStatuses(festivalsRoot)
 			return errors.Validation("invalid status for festival").
@@ -267,7 +268,7 @@ func applyStatusToFestival(ctx context.Context, display *ui.UI, festival *show.F
 	}
 
 	// Validate status for festivals (schema-aware)
-	festivalsRoot := filepath.Dir(filepath.Dir(festival.Path))
+	festivalsRoot := festivalsRootFromPath(festival.Path, festival.Status)
 	if !isValidFestivalStatus(festivalsRoot, newStatus) {
 		validOptions := getValidFestivalStatuses(festivalsRoot)
 		return errors.Validation("invalid status").
@@ -332,8 +333,29 @@ func handleFestivalStatusChange(ctx context.Context, display *ui.UI, festival *s
 		return errors.Wrap(err, "context cancelled")
 	}
 
+	// When target is "dungeon" (bare), prompt for substatus selection
+	if newStatus == "dungeon" {
+		resolved, err := resolveDungeonSubstatus(ctx, festival)
+		if err != nil {
+			return err
+		}
+		if resolved == "" {
+			display.Info("Selection cancelled.")
+			return nil
+		}
+		newStatus = resolved
+	}
+
 	if festival.Status == newStatus {
 		return emitAlreadyAtStatus(display, opts, newStatus)
+	}
+
+	// Validate transition against schema if available (--force skips)
+	festivalsRoot := festivalsRootFromPath(festival.Path, festival.Status)
+	if !opts.force {
+		if err := validateTransition(ctx, festivalsRoot, festival.Status, newStatus); err != nil {
+			return err
+		}
 	}
 
 	// Confirm unless forced
@@ -346,6 +368,64 @@ func handleFestivalStatusChange(ctx context.Context, display *ui.UI, festival *s
 
 	// Execute the move
 	return executeFestivalMove(ctx, festival, newStatus, opts)
+}
+
+// resolveDungeonSubstatus prompts the user to select a dungeon child directory.
+func resolveDungeonSubstatus(ctx context.Context, festival *show.FestivalInfo) (string, error) {
+	dungeonChildren := []string{"dungeon/completed", "dungeon/archived", "dungeon/someday"}
+
+	// Check if schema has custom dungeon children
+	festivalsRoot := festivalsRootFromPath(festival.Path, festival.Status)
+	schemaPath := filepath.Join(festivalsRoot, workflow.SchemaFileName)
+	schema, err := workflow.LoadSchema(ctx, schemaPath)
+	if err == nil && schema != nil {
+		if dir, ok := schema.GetDirectory("dungeon"); ok && dir.Nested && len(dir.Children) > 0 {
+			dungeonChildren = nil
+			for childName := range dir.Children {
+				dungeonChildren = append(dungeonChildren, "dungeon/"+childName)
+			}
+		}
+	}
+
+	options := theme.ToOptions(dungeonChildren)
+	var selected string
+	cancelled, err := theme.QuickSelect(ctx, "Select dungeon substatus", options, &selected)
+	if err != nil {
+		return "", errors.Wrap(err, "dungeon substatus selection failed")
+	}
+	if cancelled {
+		return "", nil
+	}
+	return selected, nil
+}
+
+// validateTransition checks if a transition is valid against the workflow schema.
+// Returns nil if valid or no schema is present.
+func validateTransition(ctx context.Context, festivalsRoot, fromStatus, toStatus string) error {
+	schemaPath := filepath.Join(festivalsRoot, workflow.SchemaFileName)
+	schema, err := workflow.LoadSchema(ctx, schemaPath)
+	if err != nil {
+		// No schema - all transitions are allowed
+		return nil
+	}
+	if !schema.IsValidTransition(fromStatus, toStatus) {
+		validOpts := transitionOptsForStatus(schema, fromStatus)
+		return errors.Validation("transition not allowed by workflow schema").
+			WithField("from", fromStatus).
+			WithField("to", toStatus).
+			WithField("valid_options", strings.Join(validOpts, ", ")).
+			WithField("hint", "use --force to override")
+	}
+	return nil
+}
+
+// transitionOptsForStatus returns the valid transition targets for a given status.
+func transitionOptsForStatus(schema *workflow.Schema, status string) []string {
+	dir, ok := schema.GetDirectory(status)
+	if !ok || len(dir.TransitionOpts) == 0 {
+		return schema.AllDirectories()
+	}
+	return dir.TransitionOpts
 }
 
 // emitAlreadyAtStatus outputs a message when festival is already at the requested status.
@@ -381,7 +461,7 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 	}
 
 	// Calculate new path
-	festivalsRoot := filepath.Dir(filepath.Dir(festival.Path))
+	festivalsRoot := festivalsRootFromPath(festival.Path, festival.Status)
 	newPath := filepath.Join(festivalsRoot, newStatus, festival.Name)
 
 	// Check if destination exists
@@ -724,7 +804,7 @@ func runStatusList(ctx context.Context, cmd *cobra.Command, filterStatus string,
 		var statusValid bool
 		var validOptions []string
 		if entityType == EntityFestival || entityType == "" {
-			festivalsRoot := filepath.Dir(filepath.Dir(loc.Festival.Path))
+			festivalsRoot := festivalsRootFromPath(loc.Festival.Path, loc.Festival.Status)
 			statusValid = isValidFestivalStatus(festivalsRoot, filterStatus)
 			validOptions = getValidFestivalStatuses(festivalsRoot)
 		} else {
@@ -761,7 +841,7 @@ func handleStatusListOutsideFestival(ctx context.Context, cwd, filterStatus stri
 func routeStatusListByType(ctx context.Context, loc *show.LocationInfo, filterStatus string, opts *statusOptions) error {
 	switch opts.entityType {
 	case "festival", "":
-		festivalsRoot := filepath.Dir(filepath.Dir(loc.Festival.Path))
+		festivalsRoot := festivalsRootFromPath(loc.Festival.Path, loc.Festival.Status)
 		return runFestivalListing(ctx, festivalsRoot, filterStatus, opts)
 	case "phase":
 		return runPhaseListing(ctx, loc, filterStatus, opts)

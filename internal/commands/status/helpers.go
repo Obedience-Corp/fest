@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/workflow"
@@ -209,6 +210,20 @@ func getValidFestivalStatuses(festivalsRoot string) []string {
 		}
 	}
 	return ValidStatuses[EntityFestival]
+}
+
+// festivalsRootFromPath derives the festivals root directory from a festival's path and status.
+// For simple statuses (e.g., "active"), the path is festivals/<status>/<name>.
+// For nested statuses (e.g., "dungeon/completed"), the path is festivals/dungeon/completed/<name>.
+func festivalsRootFromPath(festivalPath, status string) string {
+	root := festivalPath
+	// Strip festival name
+	root = filepath.Dir(root)
+	// Strip each status path component
+	for range strings.Split(status, "/") {
+		root = filepath.Dir(root)
+	}
+	return root
 }
 
 // hasNumericPrefix checks if a directory name starts with digits.
