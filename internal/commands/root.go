@@ -22,6 +22,7 @@ import (
 	nextcmd "github.com/Obedience-Corp/fest/internal/commands/next"
 	parsecmd "github.com/Obedience-Corp/fest/internal/commands/parse"
 	progresscmd "github.com/Obedience-Corp/fest/internal/commands/progress"
+	promotecmd "github.com/Obedience-Corp/fest/internal/commands/promote"
 	"github.com/Obedience-Corp/fest/internal/commands/research"
 	scaffoldcmd "github.com/Obedience-Corp/fest/internal/commands/scaffold"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
@@ -226,6 +227,10 @@ func init() {
 	workflowCmd := workflowcmd.NewWorkflowCommand()
 	workflowCmd.GroupID = "workflow"
 	rootCmd.AddCommand(workflowCmd)
+
+	promoteCmd := promotecmd.NewPromoteCommand()
+	promoteCmd.GroupID = "workflow"
+	rootCmd.AddCommand(promoteCmd)
 
 	taskCmd := taskcmd.NewTaskCommand()
 	taskCmd.GroupID = "workflow"

@@ -317,12 +317,12 @@ func emitFreeformPhaseProgress(loc *show.LocationInfo) error {
 			}
 		}
 
-		// Graduation prompt when 100% complete
+		// Promotion prompt when 100% complete
 		if resolved == len(objectives) {
 			fmt.Printf("\n%s\n", ui.Success("All planning objectives resolved!"))
 			fmt.Printf("%s Run %s to transition to implementation\n",
 				ui.Label("Next"),
-				ui.Info("fest graduate"))
+				ui.Info("fest promote"))
 		}
 	}
 

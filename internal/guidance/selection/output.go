@@ -130,7 +130,7 @@ func formatTextPlanning(result *NextTaskResult) string {
 			p.Progress.ResolvedObjectives,
 			p.Progress.TotalObjectives)
 		if p.GraduationReady {
-			ui.WriteLabelValue(&sb, "Progress", ui.Success(progressStr+" - Ready to graduate!"))
+			ui.WriteLabelValue(&sb, "Progress", ui.Success(progressStr+" - Ready to promote!"))
 		} else {
 			ui.WriteLabelValue(&sb, "Progress", ui.Info(progressStr))
 		}
@@ -190,10 +190,10 @@ func formatTextPlanning(result *NextTaskResult) string {
 	if p.GraduationReady {
 		sb.WriteString(ui.H2("Next Step"))
 		sb.WriteString("\n")
-		sb.WriteString(ui.Success("All objectives resolved! Ready to graduate."))
+		sb.WriteString(ui.Success("All objectives resolved! Ready to promote."))
 		sb.WriteString("\n\n")
-		sb.WriteString(fmt.Sprintf("  Run: %s\n\n", ui.Value("fest graduate")))
-		sb.WriteString(ui.Info("This will analyze your decisions and generate an implementation phase."))
+		sb.WriteString(fmt.Sprintf("  Run: %s\n\n", ui.Value("fest promote")))
+		sb.WriteString(ui.Info("This will promote the festival to the next lifecycle status."))
 		sb.WriteString("\n")
 	} else {
 		sb.WriteString(ui.H2("Suggested Actions"))
@@ -201,7 +201,7 @@ func formatTextPlanning(result *NextTaskResult) string {
 		sb.WriteString("  - Explore the problem space and document findings\n")
 		sb.WriteString("  - Update PHASE_GOAL.md checkboxes as objectives are resolved\n")
 		sb.WriteString("  - Create topic directories for deep exploration\n")
-		sb.WriteString("  - Run 'fest graduate' when all objectives are complete\n")
+		sb.WriteString("  - Run 'fest promote' when all objectives are complete\n")
 	}
 
 	return sb.String()
