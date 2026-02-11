@@ -120,7 +120,7 @@ func TestFestivalsLoadedMsg(t *testing.T) {
 	}
 
 	msg := festivalsLoadedMsg{items: items}
-	newModel, _ := m.Update(msg)
+	newModel, cmd := m.Update(msg)
 	m = newModel.(Model)
 
 	if m.loading {
@@ -129,9 +129,9 @@ func TestFestivalsLoadedMsg(t *testing.T) {
 	if len(m.items) != 2 {
 		t.Errorf("expected 2 items, got %d", len(m.items))
 	}
-	// Viewport should have content set
-	if m.viewport.TotalLineCount() == 0 {
-		t.Error("expected viewport to have content after load")
+	// Preview is now loaded async — cmd should be non-nil (loadPreviewCmd)
+	if cmd == nil {
+		t.Error("expected non-nil cmd for async preview loading")
 	}
 }
 

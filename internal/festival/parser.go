@@ -45,20 +45,19 @@ type FestivalElement struct {
 	Children []FestivalElement
 }
 
+// Package-level compiled regexes for element parsing (compiled once at init).
+var (
+	phaseParsePattern    = regexp.MustCompile(`^(\d{3})_(.+)$`)
+	sequenceParsePattern = regexp.MustCompile(`^(\d{2})_(.+)$`)
+	taskParsePattern     = regexp.MustCompile(`^(\d{2})_(.+)\.md$`)
+)
+
 // Parser handles parsing of festival directory structures
-type Parser struct {
-	phasePattern    *regexp.Regexp
-	sequencePattern *regexp.Regexp
-	taskPattern     *regexp.Regexp
-}
+type Parser struct{}
 
 // NewParser creates a new festival parser
 func NewParser() *Parser {
-	return &Parser{
-		phasePattern:    regexp.MustCompile(`^(\d{3})_(.+)$`),
-		sequencePattern: regexp.MustCompile(`^(\d{2})_(.+)$`),
-		taskPattern:     regexp.MustCompile(`^(\d{2})_(.+)\.md$`),
-	}
+	return &Parser{}
 }
 
 // ParseFestival parses the entire festival structure
@@ -115,17 +114,17 @@ func (p *Parser) ParseFestival(ctx context.Context, festivalDir string) ([]Festi
 
 // ParsePhases parses phase directories
 func (p *Parser) ParsePhases(ctx context.Context, festivalDir string) ([]FestivalElement, error) {
-	return p.parseElements(ctx, festivalDir, p.phasePattern, PhaseType, true)
+	return p.parseElements(ctx, festivalDir, phaseParsePattern, PhaseType, true)
 }
 
 // ParseSequences parses sequence directories within a phase
 func (p *Parser) ParseSequences(ctx context.Context, phaseDir string) ([]FestivalElement, error) {
-	return p.parseElements(ctx, phaseDir, p.sequencePattern, SequenceType, true)
+	return p.parseElements(ctx, phaseDir, sequenceParsePattern, SequenceType, true)
 }
 
 // ParseTasks parses task files within a sequence
 func (p *Parser) ParseTasks(ctx context.Context, sequenceDir string) ([]FestivalElement, error) {
-	return p.parseElements(ctx, sequenceDir, p.taskPattern, TaskType, false)
+	return p.parseElements(ctx, sequenceDir, taskParsePattern, TaskType, false)
 }
 
 // parseElements is the generic parser for numbered elements

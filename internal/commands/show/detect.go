@@ -182,6 +182,50 @@ func ListFestivalsByStatus(ctx context.Context, festivalsDir, status string) ([]
 	return festivals, nil
 }
 
+// ListFestivalsByStatusLight returns festivals with minimal metadata (no stats computation).
+// Use this for UIs that only need name, status, path, and modtime — avoids the expensive
+// recursive walk that CalculateFestivalStats performs on every task file.
+func ListFestivalsByStatusLight(ctx context.Context, festivalsDir, status string) ([]*FestivalInfo, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	statusDir := filepath.Join(festivalsDir, status)
+	entries, err := os.ReadDir(statusDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return []*FestivalInfo{}, nil
+		}
+		return nil, errors.IO("reading status directory", err).WithField("status", status)
+	}
+
+	var festivals []*FestivalInfo
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		festivalDir := filepath.Join(statusDir, entry.Name())
+		if !isValidFestival(festivalDir) {
+			continue
+		}
+
+		info := &FestivalInfo{
+			ID:     entry.Name(),
+			Name:   entry.Name(),
+			Status: status,
+			Path:   festivalDir,
+		}
+
+		if dirInfo, statErr := os.Stat(festivalDir); statErr == nil {
+			info.ModTime = dirInfo.ModTime()
+		}
+
+		festivals = append(festivals, info)
+	}
+
+	return festivals, nil
+}
+
 // parseFestivalInfo parses festival information from a directory.
 func parseFestivalInfo(ctx context.Context, festivalDir string) (*FestivalInfo, error) {
 	if ctx == nil {

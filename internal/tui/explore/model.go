@@ -41,6 +41,11 @@ type childrenLoadedMsg struct {
 	err        error
 }
 
+// previewLoadedMsg is sent when async preview rendering completes.
+type previewLoadedMsg struct {
+	rendered string
+}
+
 // Model is the BubbleTea model for the festival explorer.
 type Model struct {
 	ctx          context.Context
@@ -62,7 +67,6 @@ type Model struct {
 	// Viewport for scrollable preview
 	viewport     viewport.Model
 	focusPreview bool
-	renderer     mdRenderer
 
 	// Pending navigation (push to stack only on success)
 	pendingNav *navEntry
@@ -122,19 +126,15 @@ func (m Model) Init() tea.Cmd {
 
 		var items []FestivalItem
 		for _, s := range statuses {
-			festivals, loadErr := show.ListFestivalsByStatus(ctx, festivalsDir, s)
+			// Use light listing — skips expensive CalculateFestivalStats
+			festivals, loadErr := show.ListFestivalsByStatusLight(ctx, festivalsDir, s)
 			if loadErr != nil {
 				continue
 			}
 			for _, f := range festivals {
-				var progress float64
-				if f.Stats != nil {
-					progress = f.Stats.Progress
-				}
 				items = append(items, FestivalItem{
 					Name:      f.Name,
 					Status:    f.Status,
-					Progress:  progress,
 					CreatedAt: f.ModTime,
 					Path:      f.Path,
 					Type:      ItemFestival,
@@ -159,7 +159,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if len(m.items) == 0 {
 			return m, tea.Quit
 		}
-		m.updatePreview()
 
 		// Auto-navigate into a specific festival if requested
 		if m.festivalPath != "" {
@@ -172,7 +171,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.festivalPath = "" // Not found, proceed normally
 		}
-		return m, nil
+		return m, m.loadPreviewCmd()
 
 	case childrenLoadedMsg:
 		m.loading = false
@@ -190,7 +189,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.selected = 0
 		m.scrollStart = 0
 		m.breadcrumbs = append(m.breadcrumbs, msg.breadcrumb)
-		m.updatePreview()
+		return m, m.loadPreviewCmd()
+
+	case previewLoadedMsg:
+		if msg.rendered == "" {
+			m.viewport.SetContent(dimStyle.Render("No preview available"))
+		} else {
+			m.viewport.SetContent(msg.rendered)
+		}
+		m.viewport.GotoTop()
 		return m, nil
 
 	case tea.KeyMsg:
@@ -220,7 +227,8 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "esc", "backspace", "h":
 		if len(m.navStack) > 0 {
-			return m.navigateUp(), nil
+			m2 := m.navigateUp()
+			return m2, m2.loadPreviewCmd()
 		}
 		if msg.String() != "h" {
 			m.quitting = true
@@ -231,14 +239,14 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.selected > 0 {
 			m.selected--
 			m.ensureVisible()
-			m.updatePreview()
+			return m, m.loadPreviewCmd()
 		}
 
 	case "down", "j":
 		if m.selected < len(m.items)-1 {
 			m.selected++
 			m.ensureVisible()
-			m.updatePreview()
+			return m, m.loadPreviewCmd()
 		}
 
 	case "enter", "l":
@@ -252,7 +260,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.items) > 0 {
 			m.selected = len(m.items) - 1
 			m.ensureVisible()
-			m.updatePreview()
+			return m, m.loadPreviewCmd()
 		}
 
 	case "g":
@@ -260,11 +268,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if now.Sub(m.lastGTime) < ggTimeout {
 			m.selected = 0
 			m.ensureVisible()
-			m.updatePreview()
 			m.lastGTime = time.Time{}
-		} else {
-			m.lastGTime = now
+			return m, m.loadPreviewCmd()
 		}
+		m.lastGTime = now
 
 	case "/":
 		m.filtering = true
@@ -308,8 +315,7 @@ func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.allItems = nil
 		m.selected = 0
 		m.scrollStart = 0
-		m.updatePreview()
-		return m, nil
+		return m, m.loadPreviewCmd()
 	}
 
 	// Update text input
@@ -331,9 +337,10 @@ func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 	m.selected = 0
 	m.scrollStart = 0
-	m.updatePreview()
 
-	return m, cmd
+	// Batch preview cmd with filter input cmd
+	previewCmd := m.loadPreviewCmd()
+	return m, tea.Batch(cmd, previewCmd)
 }
 
 // navigateDown drills into the selected item's children.
@@ -387,7 +394,6 @@ func (m Model) navigateUp() Model {
 		m.breadcrumbs = m.breadcrumbs[:len(m.breadcrumbs)-1]
 	}
 
-	m.updatePreview()
 	return m
 }
 
@@ -493,21 +499,22 @@ func (m *Model) ensureVisible() {
 	}
 }
 
-func (m *Model) updatePreview() {
+// loadPreviewCmd returns a tea.Cmd that loads and renders the preview asynchronously.
+func (m Model) loadPreviewCmd() tea.Cmd {
 	if m.selected < 0 || m.selected >= len(m.items) {
-		m.viewport.SetContent(dimStyle.Render("No preview available"))
-		return
+		return func() tea.Msg { return previewLoadedMsg{} }
 	}
-	goalFile := goalFileForItem(m.items[m.selected])
-	raw := loadPreview(goalFile)
-	if raw == "" {
-		m.viewport.SetContent(dimStyle.Render("No preview available"))
-		m.viewport.GotoTop()
-		return
+	path := goalFileForItem(m.items[m.selected])
+	width := m.previewWidth()
+	return func() tea.Msg {
+		raw := loadPreview(path)
+		if raw == "" {
+			return previewLoadedMsg{}
+		}
+		r := &mdRenderer{}
+		rendered := r.render(raw, width)
+		return previewLoadedMsg{rendered: rendered}
 	}
-	rendered := m.renderer.render(raw, m.previewWidth())
-	m.viewport.SetContent(rendered)
-	m.viewport.GotoTop()
 }
 
 func (m Model) previewWidth() int {
@@ -637,10 +644,7 @@ func (m Model) renderTree(width int) string {
 	}
 
 	// Pad remaining lines to fill panel height
-	rendered := m.scrollStart + m.maxVisible
-	if rendered > len(m.items) {
-		rendered = len(m.items)
-	}
+	rendered := min(m.scrollStart+m.maxVisible, len(m.items))
 	usedLines := rendered - m.scrollStart
 	panelH := max(m.height-4, 5)
 	for i := usedLines; i < panelH-2; i++ { // -2 for header + help
@@ -763,9 +767,8 @@ func (m Model) renderItem(item FestivalItem, isSelected bool) string {
 	switch item.Type {
 	case ItemFestival:
 		status := StatusStyle(item.Status).Render(fmt.Sprintf("%-10s", item.Status))
-		progress := dimStyle.Render(fmt.Sprintf("%5.1f%%", item.Progress))
 		date := dimStyle.Render(item.CreatedAt.Format("Jan 02"))
-		return fmt.Sprintf("%s  %s %s  %s", nameText, status, progress, date)
+		return fmt.Sprintf("%s  %s  %s", nameText, status, date)
 	default:
 		return nameText
 	}
