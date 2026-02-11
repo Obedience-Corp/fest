@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 	"os"
@@ -276,7 +277,7 @@ func runShowAll(ctx context.Context, opts *showOptions) error {
 	}
 
 	allFestivals := make(map[string][]*FestivalInfo)
-	statusOrder := []string{"active", "ready", "planning", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
+	statusOrder := id.StatusDirectories
 
 	for _, status := range statusOrder {
 		festivals, err := ListFestivalsByStatus(ctx, festivalsDir, status)

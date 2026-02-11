@@ -169,7 +169,7 @@ func TestStatusSetValidation(t *testing.T) {
 		wantValid  bool
 	}{
 		{"festival to active", EntityFestival, "active", true},
-		{"festival to completed", EntityFestival, "completed", true},
+		{"festival to dungeon/completed", EntityFestival, "dungeon/completed", true},
 		{"festival to dungeon", EntityFestival, "dungeon", true},
 		{"festival to planning", EntityFestival, "planning", true},
 		{"festival to invalid", EntityFestival, "invalid", false},

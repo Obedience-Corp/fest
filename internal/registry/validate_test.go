@@ -66,7 +66,7 @@ func TestRebuild(t *testing.T) {
 
 	// Create status directories
 	activePath := filepath.Join(festivalsRoot, "active")
-	completedPath := filepath.Join(festivalsRoot, "completed", "2025-01")
+	completedPath := filepath.Join(festivalsRoot, "dungeon", "completed", "2025-01")
 	os.MkdirAll(activePath, 0755)
 	os.MkdirAll(completedPath, 0755)
 
@@ -216,7 +216,7 @@ func TestDetectStatus(t *testing.T) {
 	}{
 		{"/festivals/active/test_TE0001", "active"},
 		{"/festivals/planning/test_TE0001", "planning"},
-		{"/festivals/completed/2025-01/test_TE0001", "completed"},
+		{"/festivals/dungeon/completed/2025-01/test_TE0001", "dungeon/completed"},
 		{"/festivals/dungeon/test_TE0001", "dungeon"},
 		{"/random/path/test", "unknown"},
 	}

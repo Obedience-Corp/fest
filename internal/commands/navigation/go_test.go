@@ -257,7 +257,7 @@ func TestResolveFestivalByName(t *testing.T) {
 	// Create festivals in different status directories
 	activeFest := filepath.Join(festivalsDir, "active", "fest-cli")
 	planningFest := filepath.Join(festivalsDir, "planning", "new-feature")
-	completedFest := filepath.Join(festivalsDir, "completed", "old-project")
+	completedFest := filepath.Join(festivalsDir, "dungeon", "completed", "old-project")
 
 	for _, f := range []string{activeFest, planningFest, completedFest} {
 		if err := os.MkdirAll(f, 0755); err != nil {

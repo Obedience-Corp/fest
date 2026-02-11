@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
+	"github.com/Obedience-Corp/fest/internal/id"
 	uitheme "github.com/Obedience-Corp/fest/internal/ui/theme"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/charmbracelet/huh"
@@ -21,14 +22,14 @@ var statusPriority = map[string]int{
 	"active":            0, // Active festivals first
 	"ready":             1, // Then ready
 	"planning":          2, // Then planning
-	"completed":         3, // Then completed
+	"ritual":            3, // Then ritual templates
 	"dungeon/completed": 4, // Dungeon substatuses
 	"dungeon/archived":  5,
 	"dungeon/someday":   6,
 }
 
 // allStatuses lists all valid festival statuses in priority order.
-var allStatuses = []string{"active", "ready", "planning", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
+var allStatuses = id.StatusDirectories
 
 // FestivalSelectorConfig configures the festival selector behavior.
 type FestivalSelectorConfig struct {

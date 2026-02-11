@@ -11,6 +11,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
@@ -427,7 +428,7 @@ func runLinks(jsonOutput bool) error {
 // findFestivalStatus looks up a festival's status by searching status directories.
 // Returns empty string if festival not found.
 func findFestivalStatus(festivalsDir, festivalName string) string {
-	statuses := []string{"active", "ready", "planning", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
+	statuses := id.StatusDirectories
 	for _, status := range statuses {
 		statusDir := filepath.Join(festivalsDir, status)
 		festivalPath := filepath.Join(statusDir, festivalName)

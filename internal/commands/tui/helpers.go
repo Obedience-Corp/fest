@@ -12,6 +12,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/festival"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 )
@@ -465,7 +466,7 @@ func extractFestivalGoal(festDir string) string {
 func listAllFestivals(festivalsRoot string) (map[string][]FestivalInfo, error) {
 	result := make(map[string][]FestivalInfo)
 
-	statuses := []string{"active", "ready", "planning", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
+	statuses := id.StatusDirectories
 	for _, status := range statuses {
 		statusDir := filepath.Join(festivalsRoot, status)
 		if !exists(statusDir) {

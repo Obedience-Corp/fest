@@ -86,7 +86,7 @@ func TestFindNextCounter(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create mock festival directories
-	statuses := []string{"planning", "active", "completed/2025-01"}
+	statuses := []string{"planning", "active", "dungeon/completed/2025-01"}
 	for _, status := range statuses {
 		if err := os.MkdirAll(filepath.Join(tmpDir, status), 0755); err != nil {
 			t.Fatalf("Failed to create dir: %v", err)
@@ -142,7 +142,7 @@ func TestFindNextCounter(t *testing.T) {
 			name:   "in completed subdirectory",
 			prefix: "GU",
 			existingDirs: map[string][]string{
-				"completed/2025-01": {"guild-old-GU0010"},
+				"dungeon/completed/2025-01": {"guild-old-GU0010"},
 			},
 			expectedCount: 11,
 		},

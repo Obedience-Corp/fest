@@ -14,7 +14,7 @@ func TestIsValidStatus(t *testing.T) {
 	}{
 		{"active", true},
 		{"planning", true},
-		{"completed", true},
+		{"dungeon/completed", true},
 		{"dungeon", true},
 		{"invalid", false},
 		{"", false},

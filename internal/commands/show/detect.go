@@ -70,7 +70,7 @@ func DetectCurrentFestival(ctx context.Context, startDir string) (*FestivalInfo,
 
 // findLinkedFestivalPath searches for a festival by name in all status directories.
 func findLinkedFestivalPath(festivalsRoot, name string) string {
-	for _, status := range []string{"active", "ready", "planning", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"} {
+	for _, status := range id.StatusDirectories {
 		festivalPath := filepath.Join(festivalsRoot, status, name)
 		if info, err := os.Stat(festivalPath); err == nil && info.IsDir() {
 			if isValidFestival(festivalPath) {

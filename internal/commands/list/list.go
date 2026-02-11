@@ -11,17 +11,22 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
-// Valid status values
-var validStatuses = []string{"active", "ready", "planning", "completed", "dungeon", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
+// validStatuses includes all festival directories plus "dungeon" as shorthand alias.
+var validStatuses = func() []string {
+	s := make([]string, len(id.StatusDirectories), len(id.StatusDirectories)+1)
+	copy(s, id.StatusDirectories)
+	return append(s, "dungeon")
+}()
 
-// Default statuses shown without --all flag
-var defaultStatuses = []string{"active", "ready", "planning"}
+// defaultStatuses shown without --all flag.
+var defaultStatuses = id.PrimaryStatusDirs
 
 type listOptions struct {
 	json     bool
