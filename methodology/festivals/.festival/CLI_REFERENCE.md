@@ -57,7 +57,7 @@ fest create festival --name "auth-system" --goal "Build authentication" --json
 - `--name` (required): Festival name
 - `--goal`: Festival goal/description
 - `--tags`: Comma-separated tags
-- `--dest`: Destination (active or planned, default: active)
+- `--dest`: Destination (active or planning, default: active)
 - `--vars-file`: JSON file with template variables
 
 **Output:**
