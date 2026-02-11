@@ -1,0 +1,33 @@
+version: 1
+type: status-workflow
+name: "Test Workflow"
+description: "A test workflow"
+directories:
+  active:
+    description: "Work in progress"
+    order: 1
+    transition_opts:
+      - ready
+      - dungeon
+  ready:
+    description: "Ready for action"
+    order: 2
+    transition_opts:
+      - active
+      - dungeon
+  dungeon:
+    description: "Archive area"
+    order: 3
+    nested: true
+    children:
+      completed:
+        description: "Finished work"
+      archived:
+        description: "Old work"
+      someday:
+        description: "Maybe later"
+default_status: active
+track_history: true
+history_file: .workflow-history.jsonl
+metadata:
+  created_by: test

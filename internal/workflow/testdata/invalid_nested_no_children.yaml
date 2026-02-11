@@ -1,0 +1,6 @@
+version: 1
+type: status-workflow
+directories:
+  dungeon:
+    description: "Should have children"
+    nested: true

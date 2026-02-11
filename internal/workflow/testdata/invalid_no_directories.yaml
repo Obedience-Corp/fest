@@ -1,0 +1,4 @@
+version: 1
+type: status-workflow
+name: "Empty Workflow"
+directories: {}
