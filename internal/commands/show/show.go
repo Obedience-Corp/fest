@@ -94,9 +94,9 @@ func newShowPlannedCommand(opts *showOptions) *cobra.Command {
 func newShowCompletedCommand(opts *showOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "completed",
-		Short: "List festivals in completed/ directory",
+		Short: "List completed festivals",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runShowStatus(cmd.Context(), "completed", opts)
+			return runShowStatus(cmd.Context(), "dungeon/completed", opts)
 		},
 	}
 	cmd.Flags().BoolVar(&opts.json, "json", false, "output in JSON format")

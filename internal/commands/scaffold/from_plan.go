@@ -123,7 +123,7 @@ func runFromPlan(ctx context.Context, opts *fromPlanOptions) error {
 	}
 
 	// Generate festival ID and directory name
-	festivalID, err := id.GenerateID(opts.Name, festivalsRoot)
+	festivalID, err := id.GenerateID(ctx, opts.Name, festivalsRoot)
 	if err != nil {
 		return emitError(opts, fmt.Errorf("generating festival ID: %w", err))
 	}

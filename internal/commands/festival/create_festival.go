@@ -159,9 +159,9 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 	// Generate unique festival ID before building context (so it can be auto-filled)
 	var festivalID string
 	if opts.Type == "ritual" {
-		festivalID, err = id.GenerateRitualID(opts.Name, festivalsRoot)
+		festivalID, err = id.GenerateRitualID(ctx, opts.Name, festivalsRoot)
 	} else {
-		festivalID, err = id.GenerateID(opts.Name, festivalsRoot)
+		festivalID, err = id.GenerateID(ctx, opts.Name, festivalsRoot)
 	}
 	if err != nil {
 		return emitCreateFestivalError(opts, errors.Wrap(err, "generating festival ID").WithField("name", opts.Name))
@@ -197,7 +197,9 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 	for _, c := range core {
 		tpath := filepath.Join(tmplRoot, c.Template)
 		if _, err := os.Stat(tpath); err != nil {
-			// Skip missing template silently; report warning via non-JSON path
+			if !opts.JSONOutput {
+				display.Warning("Template not found, skipping: %s", c.Template)
+			}
 			continue
 		}
 		// Load and decide copy vs render
@@ -422,14 +424,8 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 	created = append(created, festConfigPath)
 
 	// Auto-scaffold phases if festival type has auto phases.
-	// Suppress stdout during phase creation to keep festival JSON output clean.
 	autoPhasesCreated := []string{}
 	if festivalType != nil {
-		// Temporarily redirect stdout to suppress phase creation output
-		origStdout := os.Stdout
-		devNull, _ := os.Open(os.DevNull)
-		os.Stdout = devNull
-
 		autoPhases := festivalType.GetAutoPhases()
 		for i, phaseSpec := range autoPhases {
 			phaseType := mapPhaseSpecType(phaseSpec.Type)
@@ -443,6 +439,7 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 				SkipMarkers: effectiveSkipMarkers,
 				JSONOutput:  false,
 				AgentMode:   false,
+				Quiet:       true,
 			}
 
 			if phaseErr := RunCreatePhase(ctx, phaseOpts); phaseErr != nil {
@@ -460,10 +457,6 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 			phaseGoalPath := filepath.Join(destDir, phaseID, "PHASE_GOAL.md")
 			created = append(created, phaseGoalPath)
 		}
-
-		// Restore stdout
-		devNull.Close()
-		os.Stdout = origStdout
 	}
 
 	// Record initial content size for token delta tracking

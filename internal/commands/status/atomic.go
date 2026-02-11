@@ -12,7 +12,7 @@ import (
 )
 
 // AtomicStatusChange performs an atomic status change for a festival.
-// For "completed" status, it uses date-based directories.
+// For "completed" status (stored under dungeon/completed), it uses date-based directories.
 // Returns the new path of the festival.
 func AtomicStatusChange(ctx context.Context, festivalPath, fromStatus, toStatus string) (string, error) {
 	if ctx == nil {
@@ -31,7 +31,7 @@ func AtomicStatusChange(ctx context.Context, festivalPath, fromStatus, toStatus 
 	if toStatus == "completed" {
 		// Use date-based directory for completed festivals
 		dateDir := CalculateCompletionDateDir(time.Now())
-		completedDir := filepath.Join(festivalsRoot, "completed")
+		completedDir := filepath.Join(festivalsRoot, "dungeon", "completed")
 		var err error
 		newPath, err = MoveToDateDirectory(festivalPath, completedDir, dateDir)
 		if err != nil {

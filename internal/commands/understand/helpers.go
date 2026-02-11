@@ -106,9 +106,17 @@ func findCurrentFestival() string {
 	}
 
 	parts := strings.Split(rel, string(filepath.Separator))
-	if len(parts) >= 2 && (parts[0] == "active" || parts[0] == "planning" || parts[0] == "completed") {
+	if len(parts) >= 2 && (parts[0] == "active" || parts[0] == "planning" || parts[0] == "ready") {
 		festivalPath := filepath.Join(root, parts[0], parts[1])
 		// Verify fest.yaml exists
+		if _, err := os.Stat(filepath.Join(festivalPath, "fest.yaml")); err == nil {
+			return festivalPath
+		}
+	}
+
+	// Handle dungeon sub-statuses (dungeon/completed, dungeon/archived, dungeon/someday)
+	if len(parts) >= 3 && parts[0] == "dungeon" {
+		festivalPath := filepath.Join(root, parts[0], parts[1], parts[2])
 		if _, err := os.Stat(filepath.Join(festivalPath, "fest.yaml")); err == nil {
 			return festivalPath
 		}

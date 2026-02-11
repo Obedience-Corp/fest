@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
@@ -69,6 +70,15 @@ func runRitual(ctx context.Context, nameOrID string, opts *runOptions) error {
 		return errors.Wrap(err, "context cancelled")
 	}
 
+	nameOrID = strings.TrimSpace(nameOrID)
+	if nameOrID == "" {
+		return errors.Validation("ritual name or ID cannot be empty")
+	}
+	if strings.ContainsAny(nameOrID, "/\\") {
+		return errors.Validation("ritual name or ID cannot contain path separators").
+			WithField("input", nameOrID)
+	}
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		return errors.IO("getting current directory", err)
@@ -91,7 +101,7 @@ func runRitual(ctx context.Context, nameOrID string, opts *runOptions) error {
 	ritualDirName := filepath.Base(ritualPath)
 
 	// Find next run counter
-	nextRun, err := id.FindNextRitualRun(festivalsRoot, ritualDirName)
+	nextRun, err := id.FindNextRitualRun(ctx, festivalsRoot, ritualDirName)
 	if err != nil {
 		return errors.Wrap(err, "finding next run counter")
 	}
@@ -102,18 +112,22 @@ func runRitual(ctx context.Context, nameOrID string, opts *runOptions) error {
 	destPath := filepath.Join(festivalsRoot, "active", runDirName)
 
 	// Copy ritual to active/
-	if err := copyDir(ritualPath, destPath); err != nil {
+	if err := copyDir(ctx, ritualPath, destPath); err != nil {
 		return errors.Wrap(err, "copying ritual to active").
 			WithField("source", ritualPath).
 			WithField("dest", destPath)
 	}
+
+	display := ui.New(shared.IsNoColor(), shared.IsVerbose())
 
 	// Update ritual_config in the source ritual's fest.yaml
 	ritualCfg, cfgErr := config.LoadFestivalConfig(ritualPath)
 	if cfgErr == nil && ritualCfg.RitualConfig != nil {
 		ritualCfg.RitualConfig.RunCount++
 		ritualCfg.RitualConfig.LastRun = time.Now().UTC().Format("2006-01-02")
-		_ = config.SaveFestivalConfig(ritualPath, ritualCfg)
+		if saveErr := config.SaveFestivalConfig(ritualPath, ritualCfg); saveErr != nil {
+			display.Warning("Failed to update ritual run count: %v", saveErr)
+		}
 	}
 
 	// Output
@@ -128,8 +142,6 @@ func runRitual(ctx context.Context, nameOrID string, opts *runOptions) error {
 			"dest_path":   destPath,
 		})
 	}
-
-	display := ui.New(shared.IsNoColor(), shared.IsVerbose())
 	display.Success("Created ritual run: %s", runDirName)
 	display.Info("  Source: %s", ritualPath)
 	display.Info("  Destination: %s", destPath)
@@ -193,31 +205,18 @@ func findRitual(festivalsRoot, nameOrID string) (string, error) {
 
 // contains checks if haystack contains needle (case-insensitive).
 func contains(haystack, needle string) bool {
-	return len(needle) > 0 && len(haystack) >= len(needle) &&
-		findSubstring(haystack, needle)
-}
-
-func findSubstring(s, sub string) bool {
-	for i := 0; i <= len(s)-len(sub); i++ {
-		match := true
-		for j := 0; j < len(sub); j++ {
-			sc := s[i+j]
-			tc := sub[j]
-			// Simple ASCII case-insensitive compare
-			if sc != tc && sc != tc^0x20 {
-				match = false
-				break
-			}
-		}
-		if match {
-			return true
-		}
-	}
-	return false
+	return len(needle) > 0 && strings.Contains(
+		strings.ToLower(haystack),
+		strings.ToLower(needle),
+	)
 }
 
 // copyDir recursively copies a directory tree.
-func copyDir(src, dst string) error {
+func copyDir(ctx context.Context, src, dst string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	srcInfo, err := os.Stat(src)
 	if err != nil {
 		return err
@@ -233,11 +232,15 @@ func copyDir(src, dst string) error {
 	}
 
 	for _, entry := range entries {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+
 		srcPath := filepath.Join(src, entry.Name())
 		dstPath := filepath.Join(dst, entry.Name())
 
 		if entry.IsDir() {
-			if err := copyDir(srcPath, dstPath); err != nil {
+			if err := copyDir(ctx, srcPath, dstPath); err != nil {
 				return err
 			}
 		} else {

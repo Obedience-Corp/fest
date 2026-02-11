@@ -20,7 +20,7 @@ const (
 
 // ValidStatuses defines valid status values per entity type.
 var ValidStatuses = map[EntityType][]string{
-	EntityFestival: {"planning", "ready", "active", "ritual", "dungeon", "dungeon/completed", "dungeon/archived", "dungeon/someday"},
+	EntityFestival: {"planning", "ready", "active", "ritual", "completed", "dungeon", "dungeon/completed", "dungeon/archived", "dungeon/someday"},
 	EntityPhase:    {"pending", "in_progress", "completed"},
 	EntitySequence: {"pending", "in_progress", "completed"},
 	EntityTask:     {"pending", "in_progress", "blocked", "completed"},

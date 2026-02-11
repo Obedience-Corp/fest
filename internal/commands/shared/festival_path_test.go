@@ -181,7 +181,7 @@ func TestFindFestivalByName(t *testing.T) {
 	}{
 		{"active-fest", "active"},
 		{"planning-fest", "planning"},
-		{"completed-fest", "completed"},
+		{"completed-fest", filepath.Join("dungeon", "completed")},
 		{"dungeon-fest", "dungeon"},
 	}
 

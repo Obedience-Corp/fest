@@ -21,6 +21,7 @@ func TestValidStatuses(t *testing.T) {
 		{EntityFestival, "active", true},
 		{EntityFestival, "ritual", true},
 		{EntityFestival, "dungeon", true},
+		{EntityFestival, "completed", true},
 		{EntityFestival, "dungeon/completed", true},
 		{EntityFestival, "dungeon/archived", true},
 		{EntityFestival, "dungeon/someday", true},

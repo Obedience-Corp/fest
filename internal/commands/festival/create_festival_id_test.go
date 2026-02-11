@@ -46,10 +46,14 @@ func TestCreateFestival_DirectoryNaming(t *testing.T) {
 
 			// Create festivals directory structure
 			festivalsRoot := filepath.Join(tmpDir, "festivals")
-			for _, status := range []string{"planning", "active", "completed", "dungeon"} {
+			for _, status := range []string{"planning", "active", "dungeon"} {
 				if err := os.MkdirAll(filepath.Join(festivalsRoot, status), 0755); err != nil {
 					t.Fatalf("Failed to create status dir: %v", err)
 				}
+			}
+			// Create dungeon/completed subdirectory
+			if err := os.MkdirAll(filepath.Join(festivalsRoot, "dungeon", "completed"), 0755); err != nil {
+				t.Fatalf("Failed to create dungeon/completed dir: %v", err)
 			}
 
 			// Create minimal .festival/templates directory
@@ -142,10 +146,14 @@ func TestCreateFestival_MetadataPopulation(t *testing.T) {
 
 	// Create festivals directory structure
 	festivalsRoot := filepath.Join(tmpDir, "festivals")
-	for _, status := range []string{"planning", "active", "completed", "dungeon"} {
+	for _, status := range []string{"planning", "active", "dungeon"} {
 		if err := os.MkdirAll(filepath.Join(festivalsRoot, status), 0755); err != nil {
 			t.Fatalf("Failed to create status dir: %v", err)
 		}
+	}
+	// Create dungeon/completed subdirectory
+	if err := os.MkdirAll(filepath.Join(festivalsRoot, "dungeon", "completed"), 0755); err != nil {
+		t.Fatalf("Failed to create dungeon/completed dir: %v", err)
 	}
 
 	// Create minimal .festival/templates directory
@@ -234,10 +242,14 @@ func TestCreateFestival_UniqueIDs(t *testing.T) {
 
 	// Create festivals directory structure
 	festivalsRoot := filepath.Join(tmpDir, "festivals")
-	for _, status := range []string{"planning", "active", "completed", "dungeon"} {
+	for _, status := range []string{"planning", "active", "dungeon"} {
 		if err := os.MkdirAll(filepath.Join(festivalsRoot, status), 0755); err != nil {
 			t.Fatalf("Failed to create status dir: %v", err)
 		}
+	}
+	// Create dungeon/completed subdirectory
+	if err := os.MkdirAll(filepath.Join(festivalsRoot, "dungeon", "completed"), 0755); err != nil {
+		t.Fatalf("Failed to create dungeon/completed dir: %v", err)
 	}
 
 	// Create minimal .festival/templates directory
@@ -341,10 +353,14 @@ func TestCreateFestival_BackwardsCompatibility(t *testing.T) {
 
 	// Create festivals directory structure
 	festivalsRoot := filepath.Join(tmpDir, "festivals")
-	for _, status := range []string{"planning", "active", "completed", "dungeon"} {
+	for _, status := range []string{"planning", "active", "dungeon"} {
 		if err := os.MkdirAll(filepath.Join(festivalsRoot, status), 0755); err != nil {
 			t.Fatalf("Failed to create status dir: %v", err)
 		}
+	}
+	// Create dungeon/completed subdirectory
+	if err := os.MkdirAll(filepath.Join(festivalsRoot, "dungeon", "completed"), 0755); err != nil {
+		t.Fatalf("Failed to create dungeon/completed dir: %v", err)
 	}
 
 	// Create an old-style festival without ID suffix

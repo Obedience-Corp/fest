@@ -73,7 +73,7 @@ festivals/                          # Your festival workspace
 ├── dungeon/                        # Archived/finished work
 │   ├── completed/                  # Successfully finished festivals
 │   ├── archived/                   # Cancelled or deprioritized work
-│   └── someday/                    # Paused work for future consideration
+│   └── someday/                    # Backlog — nice-to-have work we may get to someday
 ├── .festival/                      # Methodology resources (DO NOT READ ALL AT ONCE)
 └── README.md                       # This file - agent instructions
 ```
@@ -140,7 +140,7 @@ Archived festivals organized by outcome:
 
 - **completed/** - Successfully finished festivals. Move from `active/` when all objectives achieved.
 - **archived/** - Cancelled or deprioritized work. Move here to keep workspace clean.
-- **someday/** - Paused work for future consideration.
+- **someday/** - Backlog — nice-to-have work we may get to someday.
 
 ## Using the fest CLI (Recommended for AI Agents)
 

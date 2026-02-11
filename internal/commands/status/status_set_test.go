@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -84,7 +85,7 @@ func TestAtomicStatusChangeRollback(t *testing.T) {
 	// Create conflicting destination at the correct date-based path
 	// The dateDir will be the current month in YYYY-MM format
 	dateDir := CalculateCompletionDateDir(time.Now())
-	conflictPath := filepath.Join(baseDir, "completed", dateDir, "test-festival")
+	conflictPath := filepath.Join(baseDir, "dungeon", "completed", dateDir, "test-festival")
 	if err := os.MkdirAll(conflictPath, 0755); err != nil {
 		t.Fatalf("Failed to create conflict: %v", err)
 	}
@@ -132,7 +133,7 @@ func TestCrossFilesystemFallback(t *testing.T) {
 		t.Fatalf("Failed to create subfile: %v", err)
 	}
 
-	destDir := filepath.Join(baseDir, "completed")
+	destDir := filepath.Join(baseDir, "dungeon", "completed")
 
 	// Use copy-delete for cross-filesystem simulation
 	newPath, err := CopyDeleteMove(sourcePath, destDir, "test-festival")
@@ -169,6 +170,7 @@ func TestStatusSetValidation(t *testing.T) {
 		wantValid  bool
 	}{
 		{"festival to active", EntityFestival, "active", true},
+		{"festival to completed", EntityFestival, "completed", true},
 		{"festival to dungeon/completed", EntityFestival, "dungeon/completed", true},
 		{"festival to dungeon", EntityFestival, "dungeon", true},
 		{"festival to planning", EntityFestival, "planning", true},
@@ -205,20 +207,20 @@ func TestCompletedUsesDateDirectory(t *testing.T) {
 	}
 
 	// Verify path includes date directory (YYYY-MM format)
-	// Path should be like: baseDir/completed/2025-01/test-festival
+	// Path should be like: baseDir/dungeon/completed/2025-01/test-festival
 	relPath, err := filepath.Rel(baseDir, newPath)
 	if err != nil {
 		t.Fatalf("Failed to get relative path: %v", err)
 	}
 
-	// Should have completed/YYYY-MM/festival-name structure
+	// Should have dungeon/completed/YYYY-MM/festival-name structure
 	// Parse path parts to verify structure
 	_ = filepath.SplitList(relPath) // Verify path can be parsed
-	if len(relPath) < 10 {          // At minimum: completed/YYYY-MM
+	if len(relPath) < 10 {          // At minimum: dungeon/completed/YYYY-MM
 		t.Errorf("Path too short for date directory structure: %s", relPath)
 	}
-	if relPath[:9] != "completed" {
-		t.Errorf("Expected path under 'completed', got: %s", relPath)
+	if !strings.HasPrefix(relPath, "dungeon") {
+		t.Errorf("Expected path under 'dungeon/completed', got: %s", relPath)
 	}
 }
 

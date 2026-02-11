@@ -33,6 +33,7 @@ type CreatePhaseOptions struct {
 	DryRun      bool   // Show markers without creating file
 	JSONOutput  bool
 	AgentMode   bool // Strict mode for AI agents
+	Quiet       bool // Suppress stdout output (used during auto-scaffolding)
 }
 
 type createPhaseResult struct {
@@ -416,6 +417,10 @@ func RunCreatePhase(ctx context.Context, opts *CreatePhaseOptions) error {
 			Warnings:      warnings,
 			Suggestions:   suggestions,
 		})
+	}
+
+	if opts.Quiet {
+		return nil
 	}
 
 	// Show marker warning FIRST (before success message) for visibility

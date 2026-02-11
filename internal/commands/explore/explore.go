@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	tuiexplore "github.com/Obedience-Corp/fest/internal/tui/explore"
 	"github.com/spf13/cobra"
@@ -141,6 +142,7 @@ func exploreFestival(ctx context.Context, opts *exploreOptions, festivalPath str
 // exploreFestivalList shows festivals for a given status.
 // Uses the BubbleTea TUI for interactive mode, JSON for --json.
 func exploreFestivalList(ctx context.Context, opts *exploreOptions, status string) error {
+	status = id.ResolveStatusPath(status)
 	if opts.json {
 		return outputExploreJSON(ctx, status)
 	}

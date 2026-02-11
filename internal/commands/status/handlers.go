@@ -267,6 +267,11 @@ func applyStatusToFestival(ctx context.Context, display *ui.UI, festival *show.F
 		return errors.Wrap(err, "context cancelled")
 	}
 
+	// "completed" is a user-friendly alias for "dungeon/completed"
+	if newStatus == "completed" {
+		newStatus = "dungeon/completed"
+	}
+
 	// Validate status for festivals (schema-aware)
 	festivalsRoot := festivalsRootFromPath(festival.Path, festival.Status)
 	if !isValidFestivalStatus(festivalsRoot, newStatus) {
@@ -331,6 +336,11 @@ func readGoalStatus(goalPath string) (frontmatter.Status, error) {
 func handleFestivalStatusChange(ctx context.Context, display *ui.UI, festival *show.FestivalInfo, newStatus string, opts *statusOptions) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
+	}
+
+	// "completed" is a user-friendly alias for "dungeon/completed"
+	if newStatus == "completed" {
+		newStatus = "dungeon/completed"
 	}
 
 	// When target is "dungeon" (bare), prompt for substatus selection

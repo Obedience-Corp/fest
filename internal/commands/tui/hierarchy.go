@@ -190,7 +190,7 @@ func (h *HierarchySelector) ListFestivals(ctx context.Context) ([]LevelOption, e
 	// List festivals in standard locations (active, planning, etc.)
 	locations := []string{"active", "planning"}
 	if !h.config.FilterActive {
-		locations = append(locations, "completed", "dungeon")
+		locations = append(locations, "dungeon/completed", "dungeon/archived", "dungeon/someday")
 	}
 
 	for _, loc := range locations {

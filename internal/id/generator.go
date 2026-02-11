@@ -4,6 +4,7 @@
 package id
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,6 +31,22 @@ var StatusDirectories = []string{"planning", "ready", "active", "ritual", "dunge
 
 // PrimaryStatusDirs are directories for active work (used in navigation, fuzzy search)
 var PrimaryStatusDirs = []string{"active", "ready", "planning"}
+
+// ResolveStatusPath maps user-facing status names to filesystem directory paths.
+// Dungeon sub-statuses ("completed", "archived", "someday") resolve to their
+// full paths ("dungeon/completed", etc.). All other statuses pass through unchanged.
+func ResolveStatusPath(status string) string {
+	switch status {
+	case "completed":
+		return "dungeon/completed"
+	case "archived":
+		return "dungeon/archived"
+	case "someday":
+		return "dungeon/someday"
+	default:
+		return status
+	}
+}
 
 // ExtractInitials extracts a 2-letter uppercase prefix from a festival name.
 // For multi-word names: first letter of first two significant words.
@@ -166,11 +183,19 @@ func ExtractIDFromDirName(dirName string) (string, error) {
 
 // FindNextCounter scans all festival directories to find the next available
 // counter for the given prefix. Returns the next counter value (max + 1).
-func FindNextCounter(festivalsRoot string, prefix string) (int, error) {
+func FindNextCounter(ctx context.Context, festivalsRoot string, prefix string) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+
 	maxCounter := 0
 
 	// Scan each status directory
 	for _, status := range StatusDirectories {
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
+
 		statusPath := filepath.Join(festivalsRoot, status)
 
 		// Skip if directory doesn't exist
@@ -182,6 +207,10 @@ func FindNextCounter(festivalsRoot string, prefix string) (int, error) {
 		err := filepath.WalkDir(statusPath, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
 				return nil // Skip directories we can't read
+			}
+
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
 			}
 
 			if !d.IsDir() {
@@ -220,10 +249,10 @@ func FindNextCounter(festivalsRoot string, prefix string) (int, error) {
 // GenerateID creates a unique festival ID for the given name.
 // It extracts initials from the name and finds the next available counter
 // by scanning all festival directories.
-func GenerateID(name string, festivalsRoot string) (string, error) {
+func GenerateID(ctx context.Context, name string, festivalsRoot string) (string, error) {
 	initials := ExtractInitials(name)
 
-	counter, err := FindNextCounter(festivalsRoot, initials)
+	counter, err := FindNextCounter(ctx, festivalsRoot, initials)
 	if err != nil {
 		return "", errors.Wrap(err, "finding next counter").
 			WithField("initials", initials)
@@ -240,8 +269,8 @@ var ritualRunPattern = regexp.MustCompile(`-([0-9A-Fa-f]{4})$`)
 
 // GenerateRitualID creates a ritual festival ID with RI- prefix.
 // Format: RI-XX0001 where XX is derived from the festival name.
-func GenerateRitualID(name string, festivalsRoot string) (string, error) {
-	baseID, err := GenerateID(name, festivalsRoot)
+func GenerateRitualID(ctx context.Context, name string, festivalsRoot string) (string, error) {
+	baseID, err := GenerateID(ctx, name, festivalsRoot)
 	if err != nil {
 		return "", err
 	}
@@ -280,14 +309,22 @@ func ParseHexCounter(dirName string) (int, error) {
 	return int(n), nil
 }
 
-// FindNextRitualRun scans active/ and dungeon/completed/ for the highest existing
+// FindNextRitualRun scans active/ and dungeon/ for the highest existing
 // run counter for the given ritual directory name prefix, and returns the next one.
-func FindNextRitualRun(festivalsRoot, ritualDirName string) (int, error) {
+func FindNextRitualRun(ctx context.Context, festivalsRoot, ritualDirName string) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+
 	maxRun := 0
 
 	// Scan directories where ritual runs could be
 	scanDirs := []string{"active", "dungeon/completed", "dungeon/archived"}
 	for _, status := range scanDirs {
+		if err := ctx.Err(); err != nil {
+			return 0, err
+		}
+
 		statusPath := filepath.Join(festivalsRoot, status)
 		entries, err := os.ReadDir(statusPath)
 		if err != nil {

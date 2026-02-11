@@ -39,7 +39,7 @@ func DefaultSchemaV2() *Schema {
 						Order:       3,
 					},
 					"someday": {
-						Description: "Maybe later, low priority",
+						Description: "Backlog — nice-to-have work",
 						Order:       4,
 					},
 				},
@@ -87,7 +87,7 @@ func DefaultSchema() *Schema {
 						Order:       2,
 					},
 					"someday": {
-						Description: "Maybe later, low priority",
+						Description: "Backlog — nice-to-have work",
 						Order:       3,
 					},
 				},
@@ -141,7 +141,7 @@ func FestivalSchema() *Schema {
 						Order:       2,
 					},
 					"someday": {
-						Description: "Deferred, may revisit later",
+						Description: "Backlog — nice-to-have work",
 						Order:       3,
 					},
 				},
