@@ -129,8 +129,9 @@ func TestFestivalsLoadedMsg(t *testing.T) {
 	if len(m.items) != 2 {
 		t.Errorf("expected 2 items, got %d", len(m.items))
 	}
-	if m.preview == "" {
-		t.Error("expected preview to be set after load")
+	// Viewport should have content set
+	if m.viewport.TotalLineCount() == 0 {
+		t.Error("expected viewport to have content after load")
 	}
 }
 
@@ -261,11 +262,14 @@ func TestNavigateDownTask(t *testing.T) {
 	m := modelWithItems(1)
 	m.items[0].Type = ItemTask
 
-	// Enter on a task should be a no-op
+	// Enter on a task should focus the preview pane
 	newModel, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m = newModel.(Model)
 	if cmd != nil {
 		t.Error("expected no command when entering a task")
+	}
+	if !m.focusPreview {
+		t.Error("expected focusPreview=true when entering a task")
 	}
 }
 
@@ -606,42 +610,140 @@ func TestLoadPreview(t *testing.T) {
 	testFile := filepath.Join(tmp, "test.md")
 	os.WriteFile(testFile, []byte("# Title\n\nSome content\n"), 0644)
 
-	preview := loadPreview(testFile)
+	preview := loadPreview(testFile, 80)
 	if !strings.Contains(preview, "Title") {
 		t.Error("expected title in preview")
 	}
 
 	// Test missing file
-	preview = loadPreview(filepath.Join(tmp, "missing.md"))
+	preview = loadPreview(filepath.Join(tmp, "missing.md"), 80)
 	if preview != "No preview available" {
 		t.Errorf("expected 'No preview available', got %q", preview)
 	}
 
 	// Test empty path
-	preview = loadPreview("")
+	preview = loadPreview("", 80)
 	if preview != "No preview available" {
 		t.Errorf("expected 'No preview available', got %q", preview)
 	}
 }
 
-func TestLoadPreviewTruncation(t *testing.T) {
+func TestLoadPreviewRendersMarkdown(t *testing.T) {
 	tmp := t.TempDir()
 
-	// Create file with more than 30 lines
-	var lines []string
-	for i := range 50 {
-		lines = append(lines, "Line "+itoa(i+1))
-	}
-	testFile := filepath.Join(tmp, "long.md")
-	os.WriteFile(testFile, []byte(strings.Join(lines, "\n")), 0644)
+	// Create file with markdown content
+	testFile := filepath.Join(tmp, "test.md")
+	os.WriteFile(testFile, []byte("# Heading\n\n**bold text**\n\n- item 1\n- item 2\n"), 0644)
 
-	preview := loadPreview(testFile)
-	previewLines := strings.Split(preview, "\n")
-	if len(previewLines) != 31 { // 30 lines + "..."
-		t.Errorf("expected 31 lines (30 + ...), got %d", len(previewLines))
+	preview := loadPreview(testFile, 80)
+	// Glamour renders markdown — output should contain the text
+	if !strings.Contains(preview, "Heading") {
+		t.Error("expected rendered heading in preview")
 	}
-	if !strings.Contains(preview, "...") {
-		t.Error("expected '...' truncation marker")
+	if !strings.Contains(preview, "bold text") {
+		t.Error("expected bold text content in preview")
+	}
+}
+
+func TestTabTogglesFocus(t *testing.T) {
+	m := modelWithItems(3)
+	if m.focusPreview {
+		t.Error("expected focusPreview=false initially")
+	}
+
+	// Tab to focus preview
+	newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m = newModel.(Model)
+	if !m.focusPreview {
+		t.Error("expected focusPreview=true after Tab")
+	}
+
+	// Tab back to tree
+	newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m = newModel.(Model)
+	if m.focusPreview {
+		t.Error("expected focusPreview=false after second Tab")
+	}
+}
+
+func TestPreviewKeyEscBackToTree(t *testing.T) {
+	m := modelWithItems(3)
+	m.focusPreview = true
+
+	newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = newModel.(Model)
+	if m.focusPreview {
+		t.Error("expected focusPreview=false after Esc in preview mode")
+	}
+}
+
+func TestLoadGenericChildren(t *testing.T) {
+	tmp := t.TempDir()
+
+	// Create a directory structure with non-numbered items
+	os.MkdirAll(filepath.Join(tmp, "input_specs"), 0755)
+	os.MkdirAll(filepath.Join(tmp, "decisions"), 0755)
+	os.MkdirAll(filepath.Join(tmp, ".hidden"), 0755)
+	os.WriteFile(filepath.Join(tmp, "README.md"), []byte("# README\n"), 0644)
+	os.WriteFile(filepath.Join(tmp, "PHASE_GOAL.md"), []byte("# Goal\n"), 0644)
+	os.WriteFile(filepath.Join(tmp, "notes.txt"), []byte("notes"), 0644)
+
+	items, err := loadGenericChildren(tmp)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Should include: decisions/, input_specs/, README.md
+	// Should exclude: .hidden/, PHASE_GOAL.md, notes.txt
+	names := make(map[string]bool)
+	for _, item := range items {
+		names[item.Name] = true
+	}
+
+	if !names["input_specs"] {
+		t.Error("expected input_specs directory")
+	}
+	if !names["decisions"] {
+		t.Error("expected decisions directory")
+	}
+	if !names["README.md"] {
+		t.Error("expected README.md file")
+	}
+	if names[".hidden"] {
+		t.Error("should not include hidden directories")
+	}
+	if names["PHASE_GOAL.md"] {
+		t.Error("should not include goal files")
+	}
+	if names["notes.txt"] {
+		t.Error("should not include non-markdown files")
+	}
+}
+
+func TestNavStackNotCorruptedOnEmptyChildren(t *testing.T) {
+	m := modelWithItems(3)
+	m.items[0].Type = ItemFestival
+
+	// Simulate navigateDown which sets pendingNav
+	newModel, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l'}})
+	m = newModel.(Model)
+
+	if cmd == nil {
+		t.Fatal("expected load command from navigateDown")
+	}
+	if m.pendingNav == nil {
+		t.Fatal("expected pendingNav to be set")
+	}
+
+	// Simulate empty children response
+	newModel, _ = m.Update(childrenLoadedMsg{items: nil})
+	m = newModel.(Model)
+
+	if len(m.navStack) != 0 {
+		t.Errorf("expected empty navStack after empty children, got %d entries", len(m.navStack))
+	}
+	if m.pendingNav != nil {
+		t.Error("expected pendingNav to be cleared after empty children")
 	}
 }
 
@@ -694,8 +796,12 @@ func TestChildrenLoadedMsgError(t *testing.T) {
 	newModel, _ := m.Update(msg)
 	m = newModel.(Model)
 
-	if m.err == nil {
-		t.Error("expected error to be set")
+	// Should stay at current level (error discards pending nav)
+	if len(m.items) != 3 {
+		t.Errorf("expected 3 items (unchanged), got %d", len(m.items))
+	}
+	if m.pendingNav != nil {
+		t.Error("expected pendingNav to be cleared")
 	}
 }
 

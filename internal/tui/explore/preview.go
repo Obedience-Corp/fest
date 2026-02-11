@@ -2,14 +2,13 @@ package explore
 
 import (
 	"os"
-	"path/filepath"
 	"strings"
+
+	"github.com/charmbracelet/glamour"
 )
 
-const previewMaxLines = 30
-
-// loadPreview reads a file, strips frontmatter, and returns the first N lines for the preview pane.
-func loadPreview(path string) string {
+// loadPreview reads a file, strips frontmatter, and renders markdown for the preview pane.
+func loadPreview(path string, width int) string {
 	if path == "" {
 		return "No preview available"
 	}
@@ -20,13 +19,25 @@ func loadPreview(path string) string {
 	}
 
 	content := stripFrontmatter(string(data))
-	lines := strings.Split(content, "\n")
-	if len(lines) > previewMaxLines {
-		lines = lines[:previewMaxLines]
-		lines = append(lines, "...")
+
+	if width < 20 {
+		width = 60
 	}
 
-	return strings.Join(lines, "\n")
+	renderer, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(width-4),
+	)
+	if err != nil {
+		return content
+	}
+
+	rendered, err := renderer.Render(content)
+	if err != nil {
+		return content
+	}
+
+	return strings.TrimRight(rendered, "\n")
 }
 
 // stripFrontmatter removes YAML frontmatter from content.
@@ -48,19 +59,17 @@ func stripFrontmatter(content string) string {
 func goalFileForItem(item FestivalItem) string {
 	switch item.Type {
 	case ItemFestival:
-		goal := filepath.Join(item.Path, "FESTIVAL_GOAL.md")
-		if _, err := os.Stat(goal); err == nil {
-			return goal
-		}
-		overview := filepath.Join(item.Path, "FESTIVAL_OVERVIEW.md")
-		if _, err := os.Stat(overview); err == nil {
-			return overview
+		for _, name := range []string{"FESTIVAL_GOAL.md", "FESTIVAL_OVERVIEW.md"} {
+			goal := item.Path + "/" + name
+			if _, err := os.Stat(goal); err == nil {
+				return goal
+			}
 		}
 		return ""
 	case ItemPhase:
-		return filepath.Join(item.Path, "PHASE_GOAL.md")
+		return item.Path + "/PHASE_GOAL.md"
 	case ItemSequence:
-		return filepath.Join(item.Path, "SEQUENCE_GOAL.md")
+		return item.Path + "/SEQUENCE_GOAL.md"
 	case ItemTask:
 		return item.Path
 	default:

@@ -13,6 +13,7 @@ var (
 	colorDim       = lipgloss.AdaptiveColor{Light: "#808080", Dark: "#949494"}
 	colorFocus     = lipgloss.AdaptiveColor{Light: "#FF8700", Dark: "#FFD700"}
 	colorBorder    = lipgloss.AdaptiveColor{Light: "#005FAF", Dark: "#00D7FF"}
+	colorDimBorder = lipgloss.AdaptiveColor{Light: "#808080", Dark: "#585858"}
 )
 
 // StatusStyle returns the lipgloss style for a given festival status.
@@ -40,8 +41,16 @@ var (
 	helpStyle       = lipgloss.NewStyle().Foreground(colorDim).Faint(true)
 	borderStyle     = lipgloss.NewStyle().Foreground(colorBorder)
 	breadcrumbStyle = lipgloss.NewStyle().Foreground(colorDim)
-	previewBorder   = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
-			BorderForeground(colorBorder)
-	previewTitle = lipgloss.NewStyle().Foreground(colorBorder).Bold(true)
+	previewTitle    = lipgloss.NewStyle().Foreground(colorBorder).Bold(true)
 )
+
+// panelBorder returns a border style for a panel with the given focus state.
+func panelBorder(focused bool) lipgloss.Style {
+	bc := colorDimBorder
+	if focused {
+		bc = colorBorder
+	}
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(bc)
+}

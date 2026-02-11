@@ -12,6 +12,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/festival"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -56,8 +57,14 @@ type Model struct {
 	quitting     bool
 	navStack     []navEntry
 	breadcrumbs  []string
-	preview      string
 	festivalPath string // Pre-navigate into this festival on load
+
+	// Viewport for scrollable preview
+	viewport     viewport.Model
+	focusPreview bool
+
+	// Pending navigation (push to stack only on success)
+	pendingNav *navEntry
 
 	// Vim gg detection
 	lastGTime time.Time
@@ -76,12 +83,15 @@ func New(ctx context.Context, status string) Model {
 	ti.PromptStyle = lipgloss.NewStyle().Foreground(colorFocus)
 	ti.TextStyle = lipgloss.NewStyle().Foreground(colorText)
 
+	vp := viewport.New(60, 20)
+
 	return Model{
 		ctx:         ctx,
 		status:      status,
 		maxVisible:  20,
 		loading:     true,
 		filterInput: ti,
+		viewport:    vp,
 	}
 }
 
@@ -165,12 +175,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case childrenLoadedMsg:
 		m.loading = false
-		if msg.err != nil {
-			m.err = msg.err
+		if msg.err != nil || len(msg.items) == 0 {
+			// Discard pending nav — children failed or empty
+			m.pendingNav = nil
 			return m, nil
 		}
-		if len(msg.items) == 0 {
-			return m, nil
+		// Push nav stack only on successful load
+		if m.pendingNav != nil {
+			m.navStack = append(m.navStack, *m.pendingNav)
+			m.pendingNav = nil
 		}
 		m.items = msg.items
 		m.selected = 0
@@ -183,12 +196,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.filtering {
 			return m.handleFilterKey(msg)
 		}
+		if m.focusPreview {
+			return m.handlePreviewKey(msg)
+		}
 		return m.handleKey(msg)
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
 		m.maxVisible = max(msg.Height-5, 5)
+		m.syncViewportSize()
 	}
 
 	return m, nil
@@ -226,6 +243,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "enter", "l":
 		return m.navigateDown()
 
+	case "tab":
+		m.focusPreview = true
+		return m, nil
+
 	case "G":
 		if len(m.items) > 0 {
 			m.selected = len(m.items) - 1
@@ -253,6 +274,23 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m Model) handlePreviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "q", "ctrl+c":
+		m.quitting = true
+		return m, tea.Quit
+
+	case "tab", "esc", "h":
+		m.focusPreview = false
+		return m, nil
+	}
+
+	// Delegate scrolling to viewport
+	var cmd tea.Cmd
+	m.viewport, cmd = m.viewport.Update(msg)
+	return m, cmd
 }
 
 func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -305,18 +343,19 @@ func (m Model) navigateDown() (tea.Model, tea.Cmd) {
 
 	item := m.items[m.selected]
 
-	// Tasks are the deepest level - no drilldown
+	// Tasks are leaf nodes — focus the preview pane
 	if item.Type == ItemTask {
+		m.focusPreview = true
 		return m, nil
 	}
 
-	// Push current state onto navigation stack
-	m.navStack = append(m.navStack, navEntry{
+	// Store pending nav — only push to stack when children load successfully
+	m.pendingNav = &navEntry{
 		items:    m.items,
 		title:    m.currentTitle(),
 		selected: m.selected,
 		scroll:   m.scrollStart,
-	})
+	}
 
 	m.loading = true
 	ctx := m.ctx
@@ -365,25 +404,70 @@ func loadChildren(ctx context.Context, item FestivalItem) ([]FestivalItem, error
 		if err != nil {
 			return nil, err
 		}
-		return elementsToItems(phases, ItemPhase), nil
+		if len(phases) > 0 {
+			return elementsToItems(phases, ItemPhase), nil
+		}
+		return loadGenericChildren(item.Path)
 
 	case ItemPhase:
 		sequences, err := parser.ParseSequences(ctx, item.Path)
 		if err != nil {
 			return nil, err
 		}
-		return elementsToItems(sequences, ItemSequence), nil
+		if len(sequences) > 0 {
+			return elementsToItems(sequences, ItemSequence), nil
+		}
+		return loadGenericChildren(item.Path)
 
 	case ItemSequence:
 		tasks, err := parser.ParseTasks(ctx, item.Path)
 		if err != nil {
 			return nil, err
 		}
-		return elementsToItems(tasks, ItemTask), nil
+		if len(tasks) > 0 {
+			return elementsToItems(tasks, ItemTask), nil
+		}
+		return loadGenericChildren(item.Path)
 
 	default:
 		return nil, nil
 	}
+}
+
+// loadGenericChildren lists non-numbered subdirectories and .md files as browsable items.
+func loadGenericChildren(dir string) ([]FestivalItem, error) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, err
+	}
+
+	var items []FestivalItem
+	for _, e := range entries {
+		name := e.Name()
+		if strings.HasPrefix(name, ".") {
+			continue
+		}
+		// Skip known goal files
+		switch name {
+		case "FESTIVAL_GOAL.md", "FESTIVAL_OVERVIEW.md", "PHASE_GOAL.md", "SEQUENCE_GOAL.md":
+			continue
+		}
+
+		if e.IsDir() {
+			items = append(items, FestivalItem{
+				Name: name,
+				Path: filepath.Join(dir, name),
+				Type: ItemSequence, // Navigable directory
+			})
+		} else if strings.HasSuffix(name, ".md") {
+			items = append(items, FestivalItem{
+				Name: name,
+				Path: filepath.Join(dir, name),
+				Type: ItemTask, // Leaf node, preview-able
+			})
+		}
+	}
+	return items, nil
 }
 
 // elementsToItems converts festival parser elements to FestivalItems.
@@ -410,11 +494,39 @@ func (m *Model) ensureVisible() {
 
 func (m *Model) updatePreview() {
 	if m.selected < 0 || m.selected >= len(m.items) {
-		m.preview = ""
+		m.viewport.SetContent(dimStyle.Render("No preview available"))
 		return
 	}
 	goalFile := goalFileForItem(m.items[m.selected])
-	m.preview = loadPreview(goalFile)
+	content := loadPreview(goalFile, m.previewWidth())
+	m.viewport.SetContent(content)
+	m.viewport.GotoTop()
+}
+
+func (m Model) previewWidth() int {
+	if m.width < 80 {
+		return m.width
+	}
+	return m.width - m.treeWidth() - 4 // borders + padding
+}
+
+func (m Model) treeWidth() int {
+	w := m.width * 30 / 100
+	if w < 25 {
+		w = 25
+	}
+	if w > 50 {
+		w = 50
+	}
+	return w
+}
+
+func (m *Model) syncViewportSize() {
+	pw := m.previewWidth()
+	// Height: full terminal minus top/bottom border (2) minus title line (1)
+	ph := max(m.height-4, 5)
+	m.viewport.Width = pw
+	m.viewport.Height = ph
 }
 
 func (m Model) currentTitle() string {
@@ -436,7 +548,7 @@ func (m Model) SelectedItem() *FestivalItem {
 	return nil
 }
 
-// View renders the model with a split layout: list on the left, preview on the right.
+// View renders the model with an IDE-style split layout: tree on left, content on right.
 func (m Model) View() string {
 	if m.loading {
 		return dimStyle.Render("  Loading...")
@@ -452,47 +564,57 @@ func (m Model) View() string {
 		return dimStyle.Render(fmt.Sprintf("  No festivals found (%s)\n", label))
 	}
 
-	leftContent := m.renderList()
-	rightContent := m.renderPreview()
-
 	if m.width < 80 {
 		// Narrow terminal: list only
-		return leftContent
+		return m.renderNarrowView()
 	}
 
-	leftWidth := m.width * 3 / 5
-	rightWidth := m.width - leftWidth - 1
+	treeW := m.treeWidth()
+	contentW := m.width - treeW - 2 // Gap between panels
 
-	left := lipgloss.NewStyle().Width(leftWidth).Render(leftContent)
-	right := previewBorder.Width(rightWidth - 2).Height(m.listHeight()).Render(rightContent)
+	leftContent := m.renderTree(treeW)
+	rightContent := m.renderContent(contentW)
 
-	return lipgloss.JoinHorizontal(lipgloss.Top, left, right)
+	return lipgloss.JoinHorizontal(lipgloss.Top, leftContent, rightContent)
 }
 
-func (m Model) listHeight() int {
-	// header + border + items + blank + help
-	return max(min(m.maxVisible+4, m.height-1), 10)
-}
-
-func (m Model) renderList() string {
+func (m Model) renderNarrowView() string {
 	var b strings.Builder
-
-	// Breadcrumb header
 	crumb := m.renderBreadcrumb()
 	b.WriteString(crumb)
 	b.WriteString(dimStyle.Render(fmt.Sprintf("  %d items", len(m.items))))
 	b.WriteString("\n")
+	b.WriteString(borderStyle.Render(strings.Repeat("─", max(m.width-2, 20))))
+	b.WriteString("\n")
 
-	lineWidth := min(m.width*3/5, 70)
-	if m.width < 80 {
-		lineWidth = min(m.width, 70)
+	endIdx := min(m.scrollStart+m.maxVisible, len(m.items))
+	for i := m.scrollStart; i < endIdx; i++ {
+		item := m.items[i]
+		isSelected := i == m.selected
+		cursor := "  "
+		if isSelected {
+			cursor = cursorStyle.Render("▶ ")
+		}
+		b.WriteString(cursor)
+		b.WriteString(m.renderItem(item, isSelected))
+		b.WriteString("\n")
 	}
-	b.WriteString(borderStyle.Render(strings.Repeat("─", max(lineWidth, 20))))
+
+	b.WriteString("\n")
+	b.WriteString(helpStyle.Render("j/k: nav • l: enter • h: back • q: quit"))
+	return b.String()
+}
+
+func (m Model) renderTree(width int) string {
+	var b strings.Builder
+
+	// Header
+	crumb := m.renderBreadcrumb()
+	b.WriteString(crumb)
 	b.WriteString("\n")
 
 	// Items
 	endIdx := min(m.scrollStart+m.maxVisible, len(m.items))
-
 	for i := m.scrollStart; i < endIdx; i++ {
 		item := m.items[i]
 		isSelected := i == m.selected
@@ -503,21 +625,78 @@ func (m Model) renderList() string {
 		}
 
 		b.WriteString(cursor)
-		b.WriteString(m.renderItem(item, isSelected))
+		b.WriteString(m.renderTreeItem(item, isSelected, width-4))
 		b.WriteString("\n")
 	}
 
-	// Filter input or help
-	b.WriteString("\n")
+	// Pad remaining lines to fill panel height
+	rendered := m.scrollStart + m.maxVisible
+	if rendered > len(m.items) {
+		rendered = len(m.items)
+	}
+	usedLines := rendered - m.scrollStart
+	panelH := max(m.height-4, 5)
+	for i := usedLines; i < panelH-2; i++ { // -2 for header + help
+		b.WriteString("\n")
+	}
+
+	// Help / Filter
 	if m.filtering {
 		b.WriteString(cursorStyle.Render("/ "))
 		b.WriteString(m.filterInput.View())
 	} else {
-		help := "j/k: navigate • h/l: back/enter • /: search • gg/G: top/bottom • q: quit"
+		help := "j/k nav • l enter • /search"
 		b.WriteString(helpStyle.Render(help))
 	}
 
-	return b.String()
+	innerW := max(width-2, 20) // Subtract border
+	innerH := max(m.height-2, 10)
+
+	return panelBorder(!m.focusPreview).
+		Width(innerW).
+		Height(innerH).
+		Render(b.String())
+}
+
+func (m Model) renderContent(width int) string {
+	var b strings.Builder
+
+	// Title
+	item := m.items[m.selected]
+	title := "Preview"
+	switch item.Type {
+	case ItemFestival:
+		title = "Festival Goal"
+	case ItemPhase:
+		title = "Phase Goal"
+	case ItemSequence:
+		title = "Sequence Goal"
+	case ItemTask:
+		title = "Task"
+	}
+	b.WriteString(previewTitle.Render(title))
+	b.WriteString("\n")
+
+	// Viewport content
+	b.WriteString(m.viewport.View())
+	b.WriteString("\n")
+
+	// Help
+	if m.focusPreview {
+		pct := m.viewport.ScrollPercent() * 100
+		help := fmt.Sprintf("j/k scroll • Tab/h: tree  %.0f%%", pct)
+		b.WriteString(helpStyle.Render(help))
+	} else {
+		b.WriteString(helpStyle.Render("Tab: focus preview"))
+	}
+
+	innerW := max(width-4, 20)
+	innerH := max(m.height-2, 10)
+
+	return panelBorder(m.focusPreview).
+		Width(innerW).
+		Height(innerH).
+		Render(b.String())
 }
 
 func (m Model) renderBreadcrumb() string {
@@ -543,6 +722,29 @@ func (m Model) renderBreadcrumb() string {
 	return b.String()
 }
 
+func (m Model) renderTreeItem(item FestivalItem, isSelected bool, maxW int) string {
+	name := item.Name
+	// Truncate long names to fit tree panel
+	if len(name) > maxW && maxW > 3 {
+		name = name[:maxW-3] + "..."
+	}
+
+	nameText := normalStyle.Render(name)
+	if isSelected {
+		nameText = selectedStyle.Render(name)
+	}
+
+	switch item.Type {
+	case ItemFestival:
+		status := StatusStyle(item.Status).Render(fmt.Sprintf("%-8s", item.Status))
+		return fmt.Sprintf("%s %s", nameText, status)
+	case ItemTask:
+		return nameText
+	default:
+		return nameText
+	}
+}
+
 func (m Model) renderItem(item FestivalItem, isSelected bool) string {
 	nameText := item.Name
 	if isSelected {
@@ -557,60 +759,9 @@ func (m Model) renderItem(item FestivalItem, isSelected bool) string {
 		progress := dimStyle.Render(fmt.Sprintf("%5.1f%%", item.Progress))
 		date := dimStyle.Render(item.CreatedAt.Format("Jan 02"))
 		return fmt.Sprintf("%s  %s %s  %s", nameText, status, progress, date)
-
-	case ItemPhase, ItemSequence:
-		return nameText
-
-	case ItemTask:
-		return nameText
-
 	default:
 		return nameText
 	}
-}
-
-func (m Model) renderPreview() string {
-	if m.preview == "" {
-		return dimStyle.Render("No preview available")
-	}
-
-	var b strings.Builder
-
-	// Title
-	item := m.items[m.selected]
-	title := "Preview"
-	switch item.Type {
-	case ItemFestival:
-		title = "Festival Goal"
-	case ItemPhase:
-		title = "Phase Goal"
-	case ItemSequence:
-		title = "Sequence Goal"
-	case ItemTask:
-		title = "Task"
-	}
-	b.WriteString(previewTitle.Render(title))
-	b.WriteString("\n")
-
-	// Preview content (truncated to fit pane)
-	lines := strings.Split(m.preview, "\n")
-	maxLines := max(m.listHeight()-3, 5)
-	if len(lines) > maxLines {
-		lines = lines[:maxLines]
-		lines = append(lines, dimStyle.Render("..."))
-	}
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "#") {
-			b.WriteString(previewTitle.Render(line))
-		} else {
-			b.WriteString(dimStyle.Render(line))
-		}
-		b.WriteString("\n")
-	}
-
-	return b.String()
 }
 
 // Run starts the explore TUI and returns the selected festival item.
@@ -644,8 +795,8 @@ func RunWithFestival(ctx context.Context, festivalPath string) (*FestivalItem, e
 }
 
 // detectStatusFromPath determines the status directory from a festival's path.
-// For /festivals/active/my-fest → "active"
-// For /festivals/dungeon/completed/my-fest → "dungeon/completed"
+// For /festivals/active/my-fest -> "active"
+// For /festivals/dungeon/completed/my-fest -> "dungeon/completed"
 func detectStatusFromPath(festivalPath string) string {
 	parent := filepath.Base(filepath.Dir(festivalPath))
 	grandparent := filepath.Base(filepath.Dir(filepath.Dir(festivalPath)))
