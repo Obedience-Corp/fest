@@ -38,7 +38,7 @@ type FestivalEvent struct {
 type Festival struct {
 	ID        string
 	Name      string
-	Status    string // active, planned, completed, dungeon
+	Status    string // active, planning, completed, dungeon
 	CreatedAt time.Time
 }
 

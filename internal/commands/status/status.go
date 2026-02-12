@@ -20,7 +20,7 @@ const (
 
 // ValidStatuses defines valid status values per entity type.
 var ValidStatuses = map[EntityType][]string{
-	EntityFestival: {"planned", "ready", "active", "completed", "dungeon", "dungeon/completed", "dungeon/archived", "dungeon/someday"},
+	EntityFestival: {"planning", "ready", "active", "ritual", "completed", "dungeon", "dungeon/completed", "dungeon/archived", "dungeon/someday"},
 	EntityPhase:    {"pending", "in_progress", "completed"},
 	EntitySequence: {"pending", "in_progress", "completed"},
 	EntityTask:     {"pending", "in_progress", "blocked", "completed"},
@@ -98,7 +98,7 @@ CONTEXT-AWARE BEHAVIOR:
 When no explicit level flag is provided, the command auto-detects the
 appropriate level based on your current directory:
 
-  Festival root  → Sets festival status (planned/active/completed/dungeon)
+  Festival root  → Sets festival status (planning/active/completed/dungeon)
   Phase directory → Sets phase status (pending/in_progress/completed)
   Sequence directory → Sets sequence status (pending/in_progress/completed)
   Task directory → Shows hint (task status requires explicit --task flag)

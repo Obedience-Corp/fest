@@ -13,7 +13,7 @@ description: Festival overview with problem statement, scope, and phases
 fest_type: festival
 fest_id: [REPLACE: FESTIVAL_ID]
 fest_name: [REPLACE: Festival Name]
-fest_status: planned
+fest_status: planning
 fest_version: "1.0"
 fest_tracking: true
 fest_created: {{ .created_date }}

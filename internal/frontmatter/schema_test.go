@@ -30,7 +30,7 @@ func TestDefaultStatus(t *testing.T) {
 		docType  Type
 		expected Status
 	}{
-		{TypeFestival, StatusPlanned},
+		{TypeFestival, StatusPlanning},
 		{TypePhase, StatusPending},
 		{TypeSequence, StatusPending},
 		{TypeTask, StatusPending},
@@ -144,7 +144,7 @@ func TestIsValidStatus(t *testing.T) {
 		valid   bool
 	}{
 		// Festival statuses
-		{TypeFestival, StatusPlanned, true},
+		{TypeFestival, StatusPlanning, true},
 		{TypeFestival, StatusActive, true},
 		{TypeFestival, StatusCompleted, true},
 		{TypeFestival, StatusDungeon, true},

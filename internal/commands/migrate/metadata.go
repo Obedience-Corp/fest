@@ -93,7 +93,7 @@ func migrateSingleFestival(ctx context.Context, festivalsRoot, festivalPath stri
 	}
 
 	// Check if already migrated
-	migCtx, skip, err := checkExistingMigration(festivalPath, festivalsRoot)
+	migCtx, skip, err := checkExistingMigration(ctx, festivalPath, festivalsRoot)
 	if err != nil {
 		return err
 	}
@@ -126,7 +126,7 @@ func migrateSingleFestival(ctx context.Context, festivalsRoot, festivalPath stri
 
 // checkExistingMigration checks if a festival is already migrated
 // Returns migration context, whether to skip, and any error
-func checkExistingMigration(festivalPath, festivalsRoot string) (*migrationContext, bool, error) {
+func checkExistingMigration(ctx context.Context, festivalPath, festivalsRoot string) (*migrationContext, bool, error) {
 	dirName := filepath.Base(festivalPath)
 
 	// Check if directory already has an ID suffix
@@ -156,7 +156,7 @@ func checkExistingMigration(festivalPath, festivalsRoot string) (*migrationConte
 	}
 
 	// Generate new ID
-	newID, err := id.GenerateID(festivalName, festivalsRoot)
+	newID, err := id.GenerateID(ctx, festivalName, festivalsRoot)
 	if err != nil {
 		return nil, false, errors.Wrap(err, "generating festival ID").
 			WithField("name", festivalName)

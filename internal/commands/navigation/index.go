@@ -258,7 +258,7 @@ func newIndexTreeCommand() *cobra.Command {
 		Short: "Generate workspace-wide tree index",
 		Long: `Generate a tree index of all festivals in the workspace.
 
-The tree index groups festivals by status (planned, active, completed, dungeon)
+The tree index groups festivals by status (planning, active, completed, dungeon)
 and provides a complete hierarchical view for Guild v3 integration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
@@ -299,7 +299,7 @@ and provides a complete hierarchical view for Guild v3 integration.`,
 			fmt.Printf("%s %s\n", ui.Label("Tasks"), ui.Value(fmt.Sprintf("%d/%d completed", tree.Workspace.CompletedTasks, tree.Workspace.TotalTasks)))
 			fmt.Println(ui.Dim(strings.Repeat("─", 60)))
 
-			printFestivalGroup("Planned", tree.Festivals.Planned)
+			printFestivalGroup("Planning", tree.Festivals.Planning)
 			printFestivalGroup("Active", tree.Festivals.Active)
 			printFestivalGroup("Completed", tree.Festivals.Completed)
 			printFestivalGroup("Dungeon", tree.Festivals.Dungeon)

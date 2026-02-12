@@ -19,7 +19,7 @@ import (
 type fromPlanOptions struct {
 	PlanPath   string
 	Name       string
-	Dest       string // "active" or "planned"
+	Dest       string // "active" or "planning"
 	DryRun     bool
 	JSONOutput bool
 	AgentMode  bool
@@ -74,7 +74,7 @@ Examples:
 
 	cmd.Flags().StringVar(&opts.PlanPath, "plan", "", "Path to the plan document (required)")
 	cmd.Flags().StringVar(&opts.Name, "name", "", "Festival name (required)")
-	cmd.Flags().StringVar(&opts.Dest, "dest", "active", "Destination: active or planned")
+	cmd.Flags().StringVar(&opts.Dest, "dest", "active", "Destination: active or planning")
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "Preview without creating files")
 	cmd.Flags().BoolVar(&opts.JSONOutput, "json", false, "Emit JSON output")
 	cmd.Flags().BoolVar(&opts.AgentMode, "agent", false, "Agent mode: JSON output")
@@ -118,12 +118,12 @@ func runFromPlan(ctx context.Context, opts *fromPlanOptions) error {
 
 	// Determine destination
 	destCategory := strings.ToLower(strings.TrimSpace(opts.Dest))
-	if destCategory != "planned" && destCategory != "active" {
+	if destCategory != "planning" && destCategory != "active" {
 		destCategory = "active"
 	}
 
 	// Generate festival ID and directory name
-	festivalID, err := id.GenerateID(opts.Name, festivalsRoot)
+	festivalID, err := id.GenerateID(ctx, opts.Name, festivalsRoot)
 	if err != nil {
 		return emitError(opts, fmt.Errorf("generating festival ID: %w", err))
 	}

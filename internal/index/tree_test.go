@@ -40,7 +40,7 @@ func TestAddFestivalByStatus(t *testing.T) {
 		status   string
 		expected int
 	}{
-		{"planned", 1},
+		{"planning", 1},
 		{"active", 1},
 		{"completed", 1},
 		{"dungeon", 1},
@@ -55,8 +55,8 @@ func TestAddFestivalByStatus(t *testing.T) {
 
 			var count int
 			switch tc.status {
-			case "planned":
-				count = len(tree.Festivals.Planned)
+			case "planning":
+				count = len(tree.Festivals.Planning)
 			case "active", "unknown":
 				count = len(tree.Festivals.Active)
 			case "completed":
@@ -75,7 +75,7 @@ func TestAddFestivalByStatus(t *testing.T) {
 func TestGetAllFestivals(t *testing.T) {
 	tree := NewTreeIndex("/test")
 
-	tree.AddFestival(FestivalNode{ID: "planned1"}, "planned")
+	tree.AddFestival(FestivalNode{ID: "planning1"}, "planning")
 	tree.AddFestival(FestivalNode{ID: "active1"}, "active")
 	tree.AddFestival(FestivalNode{ID: "completed1"}, "completed")
 	tree.AddFestival(FestivalNode{ID: "dungeon1"}, "dungeon")
@@ -90,7 +90,7 @@ func TestGetFestivalByID(t *testing.T) {
 	tree := NewTreeIndex("/test")
 
 	tree.AddFestival(FestivalNode{ID: "test1", Name: "Test One"}, "active")
-	tree.AddFestival(FestivalNode{ID: "test2", Name: "Test Two"}, "planned")
+	tree.AddFestival(FestivalNode{ID: "test2", Name: "Test Two"}, "planning")
 
 	found := tree.GetFestivalByID("test2")
 	if found == nil {

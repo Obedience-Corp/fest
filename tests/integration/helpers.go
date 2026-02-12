@@ -586,7 +586,7 @@ func buildTemplatesPathShared() (string, error) {
 // a virtualization layer (overlayfs in a Linux VM).
 func (tc *TestContainer) Reset() error {
  exitCode, _, err := tc.container.Exec(tc.ctx, []string{
-  "sh", "-c", "rm -rf /test /output /festivals /workspace /testproject /outer /tmp/* 2>/dev/null; mkdir -p /test; sync",
+  "sh", "-c", "rm -rf /test /output /festivals /workspace /testproject /outer /tmp/* /repair-* /sysupdate-* 2>/dev/null; mkdir -p /test; sync",
  })
  if err != nil {
   return fmt.Errorf("failed to reset container: %w", err)
@@ -747,7 +747,7 @@ func setupWorkspace(t *testing.T, tc *TestContainer, basePath string) string {
 	// Create minimal workspace structure
 	_, err := tc.runCommand([]string{
 		"sh", "-c",
-		fmt.Sprintf("mkdir -p %s/.festival/.state %s/active %s/planned",
+		fmt.Sprintf("mkdir -p %s/.festival/.state %s/active %s/planning",
 			festivalsPath, festivalsPath, festivalsPath),
 	})
 	require.NoError(t, err, "should create workspace directories")

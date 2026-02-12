@@ -34,10 +34,10 @@ type FestivalMetadata struct {
 }
 
 // StatusChange records a festival status transition.
-// Each time a festival moves between statuses (planned, active, completed, archived),
+// Each time a festival moves between statuses (planning, active, completed, archived),
 // a new StatusChange is appended to the history.
 type StatusChange struct {
-	// Status is the new status value (planned, active, completed, archived).
+	// Status is the new status value (planning, active, completed, archived).
 	Status string `yaml:"status"`
 
 	// Timestamp is when this status change occurred.

@@ -9,6 +9,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/festival"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
@@ -67,7 +68,7 @@ func outputExploreJSON(ctx context.Context, status string) error {
 
 	statuses := []string{status}
 	if status == "" {
-		statuses = []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
+		statuses = id.StatusDirectories
 	}
 
 	parser := festival.NewParser()

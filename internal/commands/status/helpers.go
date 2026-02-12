@@ -7,11 +7,12 @@ import (
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/workflow"
 )
 
 // resolveFestivalFromPath resolves a festival name or path from anywhere in the workspace.
-// It searches: cwd (if path is relative), festivals/active/, festivals/planned/,
+// It searches: cwd (if path is relative), festivals/active/, festivals/planning/,
 // festivals/completed/, and festivals/dungeon/.
 // Returns the absolute path to the festival directory if found.
 func resolveFestivalFromPath(cwd, pathArg string) (string, error) {
@@ -37,8 +38,7 @@ func resolveFestivalFromPath(cwd, pathArg string) (string, error) {
 	}
 
 	// Search in all status directories
-	statusDirs := []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
-	for _, status := range statusDirs {
+	for _, status := range id.StatusDirectories {
 		// Try direct path: festivals/<status>/<pathArg>
 		candidatePath := filepath.Join(festivalsRoot, status, pathArg)
 		if isValidFestivalDir(candidatePath) {
@@ -54,7 +54,7 @@ func resolveFestivalFromPath(cwd, pathArg string) (string, error) {
 
 	return "", errors.NotFound("festival").
 		WithField("name", pathArg).
-		WithField("hint", "festival not found in active, planned, completed, or dungeon/*")
+		WithField("hint", "festival not found in active, planning, completed, or dungeon/*")
 }
 
 // isValidFestivalDir checks if a directory is a valid festival root.

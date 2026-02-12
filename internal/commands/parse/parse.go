@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/parser"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/spf13/cobra"
@@ -159,8 +160,7 @@ func parseAllFestivals(p *parser.Parser, opts parser.ParseOptions) ([]byte, erro
 	}
 
 	// Parse each status directory
-	statusDirs := []string{"planned", "ready", "active", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
-	for _, status := range statusDirs {
+	for _, status := range id.StatusDirectories {
 		statusPath := filepath.Join(festivalsRoot, status)
 		if _, err := os.Stat(statusPath); os.IsNotExist(err) {
 			continue

@@ -12,6 +12,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
@@ -493,8 +494,7 @@ func findFestivalPath(festivalName string) (string, error) {
 	}
 
 	// Search in status directories
-	statusDirs := []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
-	for _, status := range statusDirs {
+	for _, status := range id.StatusDirectories {
 		statusPath := filepath.Join(festivalsDir, status)
 		entries, err := os.ReadDir(statusPath)
 		if err != nil {

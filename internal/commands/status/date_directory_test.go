@@ -92,7 +92,7 @@ func TestCreateDateDirectory(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			baseDir := t.TempDir()
-			completedDir := filepath.Join(baseDir, "completed")
+			completedDir := filepath.Join(baseDir, "dungeon", "completed")
 
 			err := CreateDateDirectory(completedDir, tc.dateDir)
 			if (err != nil) != tc.wantError {
@@ -111,7 +111,7 @@ func TestCreateDateDirectory(t *testing.T) {
 
 func TestCreateDateDirectoryIdempotent(t *testing.T) {
 	baseDir := t.TempDir()
-	completedDir := filepath.Join(baseDir, "completed")
+	completedDir := filepath.Join(baseDir, "dungeon", "completed")
 	dateDir := "2025-01"
 
 	// Create twice - should not error
@@ -152,7 +152,7 @@ func TestMoveToDateDirectory(t *testing.T) {
 				t.Fatalf("Failed to create test file: %v", err)
 			}
 
-			completedDir := filepath.Join(baseDir, "completed")
+			completedDir := filepath.Join(baseDir, "dungeon", "completed")
 			if err := os.MkdirAll(completedDir, 0755); err != nil {
 				t.Fatalf("Failed to create completed dir: %v", err)
 			}
@@ -201,7 +201,7 @@ func TestMoveToDateDirectoryCreatesParent(t *testing.T) {
 	}
 
 	// completedDir doesn't exist yet
-	completedDir := filepath.Join(baseDir, "completed")
+	completedDir := filepath.Join(baseDir, "dungeon", "completed")
 
 	_, err := MoveToDateDirectory(sourcePath, completedDir, "2025-01")
 	if err != nil {
@@ -216,8 +216,8 @@ func TestGetCompletedPath(t *testing.T) {
 		dateDir      string
 		want         string
 	}{
-		{"simple", "my-festival", "2025-01", "completed/2025-01/my-festival"},
-		{"with suffix", "my-project_AB0001", "2024-12", "completed/2024-12/my-project_AB0001"},
+		{"simple", "my-festival", "2025-01", "dungeon/completed/2025-01/my-festival"},
+		{"with suffix", "my-project_AB0001", "2024-12", "dungeon/completed/2024-12/my-project_AB0001"},
 	}
 
 	for _, tc := range tests {

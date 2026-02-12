@@ -20,7 +20,7 @@ func NewFlowCommand() *cobra.Command {
 The flow command provides tools for initializing, upgrading, and inspecting
 the status workflow that organizes festivals through their lifecycle:
 
-  planned → ready → active → dungeon/{completed,archived,someday}
+  planning → ready → active → dungeon/{completed,archived,someday}
 
 Subcommands:
   upgrade    Migrate existing festivals/ to the extended workflow structure

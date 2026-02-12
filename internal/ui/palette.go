@@ -22,7 +22,7 @@ type Palette struct {
 	// Status colors for festival states
 	Active    lipgloss.TerminalColor
 	Ready     lipgloss.TerminalColor
-	Planned   lipgloss.TerminalColor
+	Planning  lipgloss.TerminalColor
 	Completed lipgloss.TerminalColor
 	Archived  lipgloss.TerminalColor
 	Dungeon   lipgloss.TerminalColor
@@ -91,15 +91,15 @@ func defaultDarkPalette() Palette {
 	return Palette{
 		// Status colors - bright and visible
 		Active:    lipgloss.Color("42"),  // Bright green
-		Ready:     lipgloss.Color("33"),  // Blue (same as planned)
-		Planned:   lipgloss.Color("33"),  // Blue
+		Ready:     lipgloss.Color("33"),  // Blue (same as planning)
+		Planning:  lipgloss.Color("33"),  // Blue
 		Completed: lipgloss.Color("205"), // Magenta/pink
 		Archived:  lipgloss.Color("250"), // Light grey (readable!)
 		Dungeon:   lipgloss.Color("248"), // Light grey (readable!)
 
 		// Entity colors
 		Festival: lipgloss.Color("42"),  // Green (same as active)
-		Phase:    lipgloss.Color("33"),  // Blue (same as planned)
+		Phase:    lipgloss.Color("33"),  // Blue (same as planning)
 		Sequence: lipgloss.Color("51"),  // Cyan
 		Task:     lipgloss.Color("141"), // Purple
 		Gate:     lipgloss.Color("214"), // Orange
@@ -136,8 +136,8 @@ func lightPalette() Palette {
 	return Palette{
 		// Status colors - darker versions
 		Active:    lipgloss.Color("28"),  // Dark green
-		Ready:     lipgloss.Color("25"),  // Dark blue (same as planned)
-		Planned:   lipgloss.Color("25"),  // Dark blue
+		Ready:     lipgloss.Color("25"),  // Dark blue (same as planning)
+		Planning:  lipgloss.Color("25"),  // Dark blue
 		Completed: lipgloss.Color("128"), // Dark purple
 		Archived:  lipgloss.Color("241"), // Dark grey
 		Dungeon:   lipgloss.Color("238"), // Darker grey
@@ -171,8 +171,8 @@ func highContrastPalette() Palette {
 	return Palette{
 		// Status colors - maximum brightness
 		Active:    lipgloss.Color("46"),  // Bright green
-		Ready:     lipgloss.Color("39"),  // Bright blue (same as planned)
-		Planned:   lipgloss.Color("39"),  // Bright blue
+		Ready:     lipgloss.Color("39"),  // Bright blue (same as planning)
+		Planning:  lipgloss.Color("39"),  // Bright blue
 		Completed: lipgloss.Color("201"), // Bright magenta
 		Archived:  lipgloss.Color("255"), // White
 		Dungeon:   lipgloss.Color("255"), // White

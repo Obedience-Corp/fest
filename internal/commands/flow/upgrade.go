@@ -29,7 +29,7 @@ func newUpgradeCommand() *cobra.Command {
 		Long: `Upgrade the festivals/ directory to use the full workflow structure.
 
 This creates the extended directory layout:
-  planned/    - Festivals being designed
+  planning/   - Festivals being designed
   ready/      - Festivals ready for execution
   active/     - Currently executing festivals
   dungeon/    - Terminal states

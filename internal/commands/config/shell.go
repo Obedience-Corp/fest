@@ -96,7 +96,7 @@ _fgo_completions() {
         completions=$(command fest go completions 2>/dev/null)
     elif [[ ${COMP_CWORD} -eq 2 ]]; then
         case "${COMP_WORDS[1]}" in
-            active|planned|completed|dungeon)
+            active|planning|completed|dungeon)
                 completions=$(command fest go completions --status "${COMP_WORDS[1]}" 2>/dev/null)
                 ;;
         esac
@@ -119,7 +119,7 @@ if [[ -n "$ZSH_VERSION" ]]; then
         elif (( CURRENT == 3 )); then
             # Second arg: if first arg is a status dir, show its festivals
             case "${words[2]}" in
-                active|planned|completed|dungeon)
+                active|planning|completed|dungeon)
                     cmd_args="--color --status ${words[2]}"
                     ;;
                 *) return ;;
@@ -141,7 +141,7 @@ fi
 
 # Tab completion for fls - complete status names and flags
 _fls_completions() {
-    local completions="active planned completed dungeon --json --all --help"
+    local completions="active planning completed dungeon --json --all --help"
     COMPREPLY=($(compgen -W "$completions" -- "${COMP_WORDS[COMP_CWORD]}"))
 }
 
@@ -154,7 +154,7 @@ if [[ -n "$ZSH_VERSION" ]]; then
         local -a completions
         completions=(
             'active:List active festivals'
-            'planned:List planned festivals'
+            'planning:List planning festivals'
             'completed:List completed festivals'
             'dungeon:List dungeon festivals'
             '--json:Output in JSON format'
@@ -237,7 +237,7 @@ fgo() {
             # Normal navigation (festival/phase/status directories)
             # Note: Don't use 2>&1 - stderr must flow to terminal for TUI picker to render
             local dest
-            if [[ -n "$2" && "$1" =~ ^(active|planned|completed|dungeon)$ ]]; then
+            if [[ -n "$2" && "$1" =~ ^(active|planning|completed|dungeon)$ ]]; then
                 # Status dir + festival name: combine (e.g., active my-fest → active/my-fest)
                 dest=$(command fest go "$1/$2" --print)
             else
@@ -283,7 +283,7 @@ fest() {
                     ;;
                 *)
                     local dest
-                    if [ -n "$2" ] && echo "$1" | grep -qE '^(active|planned|completed|dungeon)$'; then
+                    if [ -n "$2" ] && echo "$1" | grep -qE '^(active|planning|completed|dungeon)$'; then
                         dest=$(command fest go "$1/$2" --print 2>/dev/null)
                     else
                         dest=$(command fest go "$@" --print 2>/dev/null)
@@ -319,7 +319,7 @@ function __fgo_completions
     else if test $count -eq 2
         # Second arg: if first arg is a status dir, show its festivals
         switch $tokens[2]
-            case active planned completed dungeon
+            case active planning completed dungeon
                 command fest go completions --status $tokens[2] 2>/dev/null
         end
     end
@@ -327,7 +327,7 @@ end
 complete -c fgo -f -a "(__fgo_completions)"
 
 # Tab completion for fls
-complete -c fls -f -a "active planned completed dungeon"
+complete -c fls -f -a "active planning completed dungeon"
 complete -c fls -l json -d "Output in JSON format"
 complete -c fls -l all -d "Include empty status categories"
 complete -c fls -l help -d "Show help for fest list"
@@ -394,7 +394,7 @@ function fgo
             set -l target
             if test (count $argv) -ge 2
                 switch $argv[1]
-                    case active planned completed dungeon
+                    case active planning completed dungeon
                         set target "$argv[1]/$argv[2]"
                     case '*'
                         set target $argv
@@ -441,7 +441,7 @@ function fest
                     set -l dest
                     if test (count $argv) -ge 2
                         switch $argv[1]
-                            case active planned completed dungeon
+                            case active planning completed dungeon
                                 set dest (command fest go "$argv[1]/$argv[2]" --print 2>/dev/null)
                             case '*'
                                 set dest (command fest go $argv --print 2>/dev/null)

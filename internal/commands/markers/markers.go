@@ -141,7 +141,7 @@ func resolveFestivalPath(pathArg string) (string, error) {
 		// Check if we're inside an active festival
 		rel, _ := filepath.Rel(root, cwd)
 		parts := strings.Split(rel, string(filepath.Separator))
-		if len(parts) >= 2 && (parts[0] == "active" || parts[0] == "ready" || parts[0] == "planned") {
+		if len(parts) >= 2 && (parts[0] == "active" || parts[0] == "ready" || parts[0] == "planning") {
 			festivalPath := filepath.Join(root, parts[0], parts[1])
 			return festivalPath, nil
 		}

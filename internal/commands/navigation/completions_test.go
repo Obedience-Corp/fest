@@ -9,7 +9,7 @@ import (
 
 func TestFindCompletedFestivals(t *testing.T) {
 	tmpDir := t.TempDir()
-	completedDir := filepath.Join(tmpDir, "festivals", "completed")
+	completedDir := filepath.Join(tmpDir, "festivals", "dungeon", "completed")
 
 	// Create test structure with date directories
 	festivals := map[string][]string{
@@ -56,7 +56,7 @@ func TestFindCompletedFestivals(t *testing.T) {
 
 func TestFindCompletedFestivals_MixedStructure(t *testing.T) {
 	tmpDir := t.TempDir()
-	completedDir := filepath.Join(tmpDir, "festivals", "completed")
+	completedDir := filepath.Join(tmpDir, "festivals", "dungeon", "completed")
 
 	// Old flat structure (legacy festivals)
 	legacyFests := []string{"old-fest-1", "old-fest-2"}
@@ -112,7 +112,7 @@ func TestFindCompletedFestivals_MixedStructure(t *testing.T) {
 
 func TestFindCompletedFestivals_EmptyDateDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
-	completedDir := filepath.Join(tmpDir, "festivals", "completed")
+	completedDir := filepath.Join(tmpDir, "festivals", "dungeon", "completed")
 
 	// Create an empty date directory
 	if err := os.MkdirAll(filepath.Join(completedDir, "2025-01"), 0755); err != nil {
@@ -128,7 +128,7 @@ func TestFindCompletedFestivals_EmptyDateDirectory(t *testing.T) {
 
 func TestFindCompletedFestivals_NoCompletedDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
-	completedDir := filepath.Join(tmpDir, "festivals", "completed")
+	completedDir := filepath.Join(tmpDir, "festivals", "dungeon", "completed")
 	// Don't create the directory
 
 	got := findCompletedFestivals(completedDir, "")
@@ -166,7 +166,7 @@ func TestIsDateDirectory(t *testing.T) {
 
 func BenchmarkFindCompletedFestivals(b *testing.B) {
 	tmpDir := b.TempDir()
-	completedDir := filepath.Join(tmpDir, "festivals", "completed")
+	completedDir := filepath.Join(tmpDir, "festivals", "dungeon", "completed")
 
 	// Create 72 date directories (6 years * 12 months) with 10 festivals each = 720 festivals
 	for year := 2020; year <= 2025; year++ {
@@ -203,16 +203,16 @@ func TestStatusFromPath(t *testing.T) {
 			want:         "active",
 		},
 		{
-			name:         "planned festival",
-			path:         filepath.Join(festivalsDir, "planned", "other-fest-CD0002"),
+			name:         "planning festival",
+			path:         filepath.Join(festivalsDir, "planning", "other-fest-CD0002"),
 			festivalsDir: festivalsDir,
-			want:         "planned",
+			want:         "planning",
 		},
 		{
 			name:         "completed festival",
-			path:         filepath.Join(festivalsDir, "completed", "done-fest-EF0003"),
+			path:         filepath.Join(festivalsDir, "dungeon", "completed", "done-fest-EF0003"),
 			festivalsDir: festivalsDir,
-			want:         "completed",
+			want:         "dungeon/completed",
 		},
 		{
 			name:         "same directory returns festival",
@@ -248,16 +248,20 @@ func TestCompleteGoTarget_WithFestivals(t *testing.T) {
 	}
 
 	// Create status directories
-	for _, status := range []string{"active", "planned", "completed", "dungeon"} {
+	for _, status := range []string{"active", "planning", "dungeon"} {
 		if err := os.MkdirAll(filepath.Join(festivalsDir, status), 0755); err != nil {
 			t.Fatal(err)
 		}
 	}
+	// Create dungeon/completed subdirectory
+	if err := os.MkdirAll(filepath.Join(festivalsDir, "dungeon", "completed"), 0755); err != nil {
+		t.Fatal(err)
+	}
 
 	// Create festivals with valid ID suffixes (required by CollectNavigationTargets)
 	activeFest := filepath.Join(festivalsDir, "active", "my-feature-MF0001")
-	plannedFest := filepath.Join(festivalsDir, "planned", "next-task-NT0002")
-	for _, dir := range []string{activeFest, plannedFest} {
+	planningFest := filepath.Join(festivalsDir, "planning", "next-task-NT0002")
+	for _, dir := range []string{activeFest, planningFest} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -286,14 +290,14 @@ func TestCompleteGoTarget_WithFestivals(t *testing.T) {
 	}
 
 	// Primary status directories should be present (completed/dungeon excluded from default)
-	for _, status := range []string{"active", "planned"} {
+	for _, status := range []string{"active", "planning"} {
 		if !resultSet[status] {
 			t.Errorf("expected status directory %q in completions, got: %v", status, results)
 		}
 	}
 
 	// Archival status directories should NOT be present in default completions
-	for _, status := range []string{"completed", "dungeon"} {
+	for _, status := range []string{"dungeon/completed", "dungeon"} {
 		if resultSet[status] {
 			t.Errorf("unexpected archival status directory %q in default completions, got: %v", status, results)
 		}
@@ -304,7 +308,7 @@ func TestCompleteGoTarget_WithFestivals(t *testing.T) {
 		t.Errorf("expected active festival 'my-feature-MF0001' in completions, got: %v", results)
 	}
 	if !resultSet["next-task-NT0002"] {
-		t.Errorf("expected planned festival 'next-task-NT0002' in completions, got: %v", results)
+		t.Errorf("expected planning festival 'next-task-NT0002' in completions, got: %v", results)
 	}
 
 	// Test with partial input - should fuzzy filter

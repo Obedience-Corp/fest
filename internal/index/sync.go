@@ -8,6 +8,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/festival"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/gates"
+	"github.com/Obedience-Corp/fest/internal/id"
 )
 
 // TreeSyncer builds a TreeIndex from the workspace filesystem
@@ -27,8 +28,7 @@ func (s *TreeSyncer) Sync() (*TreeIndex, error) {
 	tree := NewTreeIndex(s.workspacePath)
 
 	// Scan each status directory
-	statusDirs := []string{"planned", "ready", "active", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
-	for _, status := range statusDirs {
+	for _, status := range id.StatusDirectories {
 		statusPath := filepath.Join(s.workspacePath, status)
 		if _, err := os.Stat(statusPath); os.IsNotExist(err) {
 			continue

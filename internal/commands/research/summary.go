@@ -352,7 +352,7 @@ func formatMarkdownSummary(summary ResearchSummary) string {
 }
 
 func detectFestivalPath(cwd, festivalsRoot string) string {
-	// Look for active, planned, or any festival directory
+	// Look for active, planning, or any festival directory
 	relPath, err := filepath.Rel(festivalsRoot, cwd)
 	if err != nil {
 		return ""
@@ -363,10 +363,15 @@ func detectFestivalPath(cwd, festivalsRoot string) string {
 		return ""
 	}
 
-	// First part should be status (active, planned, completed, archived)
+	// First part should be status (active, planning, completed, archived)
 	// Second part should be festival name
 	status := parts[0]
-	if status != "active" && status != "planned" && status != "completed" && status != "archived" {
+	validStatuses := map[string]bool{
+		"active": true, "planning": true, "ready": true,
+		"dungeon/completed": true, "dungeon/archived": true, "dungeon/someday": true,
+		"completed": true, "archived": true, "someday": true, // shorthand aliases
+	}
+	if !validStatuses[status] {
 		return ""
 	}
 

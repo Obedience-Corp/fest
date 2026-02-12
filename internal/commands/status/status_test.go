@@ -16,11 +16,12 @@ func TestValidStatuses(t *testing.T) {
 		expected   bool
 	}{
 		// Festival statuses
-		{EntityFestival, "planned", true},
+		{EntityFestival, "planning", true},
 		{EntityFestival, "ready", true},
 		{EntityFestival, "active", true},
-		{EntityFestival, "completed", true},
+		{EntityFestival, "ritual", true},
 		{EntityFestival, "dungeon", true},
+		{EntityFestival, "completed", true},
 		{EntityFestival, "dungeon/completed", true},
 		{EntityFestival, "dungeon/archived", true},
 		{EntityFestival, "dungeon/someday", true},
@@ -100,8 +101,8 @@ func TestIsValidFestivalStatus_NoSchema(t *testing.T) {
 	}{
 		{"active", true},
 		{"ready", true},
-		{"planned", true},
-		{"completed", true},
+		{"planning", true},
+		{"ritual", true},
 		{"dungeon", true},
 		{"dungeon/completed", true},
 		{"dungeon/archived", true},
@@ -155,7 +156,7 @@ directories:
 		{"custom_status", true},
 		{"vault/archive", true},
 		{"vault/hold", true},
-		{"planned", false},     // Not in custom schema
+		{"planning", false},     // Not in custom schema
 		{"dungeon", false},     // Not in custom schema
 		{"nonexistent", false},
 	}
@@ -180,8 +181,8 @@ func TestGetValidFestivalStatuses_NoSchema(t *testing.T) {
 	expected := map[string]bool{
 		"active":            true,
 		"ready":             true,
-		"planned":           true,
-		"completed":         true,
+		"planning":          true,
+		"ritual":            true,
 		"dungeon":           true,
 		"dungeon/completed": true,
 		"dungeon/archived":  true,
@@ -257,9 +258,9 @@ func TestFestivalsRootFromPath(t *testing.T) {
 			expected: "/workspace/festivals",
 		},
 		{
-			name:     "planned status",
-			path:     "/workspace/festivals/planned/my-fest",
-			status:   "planned",
+			name:     "planning status",
+			path:     "/workspace/festivals/planning/my-fest",
+			status:   "planning",
 			expected: "/workspace/festivals",
 		},
 	}
@@ -319,7 +320,7 @@ directories:
 	}{
 		{"allowed transition", "active", "completed", false},
 		{"allowed nested transition", "active", "dungeon/archived", false},
-		{"disallowed transition", "active", "planned", true},
+		{"disallowed transition", "active", "planning", true},
 		{"no transition_opts defined", "completed", "active", false},
 	}
 
@@ -346,8 +347,8 @@ directories:
     transition_opts:
       - completed
       - dungeon
-  planned:
-    description: Planned
+  planning:
+    description: Planning
     order: 2
   completed:
     description: Done
@@ -377,8 +378,8 @@ directories:
 	}
 
 	// Status without transition_opts should return all directories
-	opts = transitionOptsForStatus(schema, "planned")
+	opts = transitionOptsForStatus(schema, "planning")
 	if len(opts) == 0 {
-		t.Error("expected all directories for planned (no transition_opts), got empty")
+		t.Error("expected all directories for planning (no transition_opts), got empty")
 	}
 }

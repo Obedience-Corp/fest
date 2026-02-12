@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
@@ -55,7 +56,7 @@ func statusANSI(status string) string {
 		return ansiActive
 	case "ready":
 		return ansiActive
-	case "planned":
+	case "planning":
 		return ansiPlanned
 	case "completed":
 		return ansiCompleted
@@ -83,11 +84,7 @@ func runGoCompletions(descriptions, color bool, statusFilter string) error {
 	}
 
 	// Primary status directories only (completed/dungeon available via second-arg completion)
-	statuses := []string{
-		"active",
-		"ready",
-		"planned",
-	}
+	statuses := id.PrimaryStatusDirs
 
 	statusSet := make(map[string]bool, len(statuses))
 	for _, s := range statuses {
@@ -161,7 +158,7 @@ func runStatusCompletions(festivalsDir, status string, descriptions, color bool)
 	return nil
 }
 
-// statusFromPath extracts the status directory name (active, planned, dungeon/completed, etc.) from a festival path
+// statusFromPath extracts the status directory name (active, planning, dungeon/completed, etc.) from a festival path
 func statusFromPath(path, festivalsDir string) string {
 	rel, err := filepath.Rel(festivalsDir, path)
 	if err != nil || rel == "." {

@@ -24,6 +24,14 @@ type FestivalConfig struct {
 	Templates        TemplatePrefs       `yaml:"templates"`
 	Tracking         TrackingConfig      `yaml:"tracking"`
 	Agent            AgentConfig         `yaml:"agent,omitempty"`
+	RitualConfig     *RitualConfig       `yaml:"ritual_config,omitempty"`
+}
+
+// RitualConfig holds configuration specific to ritual (repeatable) festivals.
+type RitualConfig struct {
+	Schedule string `yaml:"schedule,omitempty"`  // "weekly", "daily", "monthly", "manual", or cron expression
+	LastRun  string `yaml:"last_run,omitempty"`  // ISO date of last run (e.g., "2026-02-10")
+	RunCount int    `yaml:"run_count,omitempty"` // Total runs (decimal for human readability)
 }
 
 // TypeConfigMetadata holds festival type-specific configuration recorded at creation.

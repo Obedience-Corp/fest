@@ -11,17 +11,22 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
-// Valid status values
-var validStatuses = []string{"active", "ready", "planned", "completed", "dungeon", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
+// validStatuses includes all festival directories plus "dungeon" as shorthand alias.
+var validStatuses = func() []string {
+	s := make([]string, len(id.StatusDirectories), len(id.StatusDirectories)+1)
+	copy(s, id.StatusDirectories)
+	return append(s, "dungeon")
+}()
 
-// Default statuses shown without --all flag
-var defaultStatuses = []string{"active", "ready", "planned"}
+// defaultStatuses shown without --all flag.
+var defaultStatuses = id.PrimaryStatusDirs
 
 type listOptions struct {
 	json     bool
@@ -43,11 +48,11 @@ func NewListCommand() *cobra.Command {
 
 Works from anywhere - finds the festivals workspace automatically.
 
-STATUS can be: active, planned, completed, dungeon, dungeon/completed, dungeon/archived, dungeon/someday
+STATUS can be: active, planning, completed, dungeon, dungeon/completed, dungeon/archived, dungeon/someday
 
-By default, shows only active and planned festivals.
+By default, shows only active and planning festivals.
 Use --all to include completed and dungeon festivals.`,
-		Example: `  fest list              # List active and planned festivals
+		Example: `  fest list              # List active and planning festivals
   fest list --all        # List all festivals (including completed/dungeon)
   fest list active       # List only active festivals
   fest list completed    # List completed festivals
@@ -76,7 +81,7 @@ Use --all to include completed and dungeon festivals.`,
 	cmd.Flags().BoolVar(&opts.all, "all", false, "include completed and dungeon festivals")
 	cmd.Flags().BoolVar(&opts.progress, "progress", false, "show detailed progress for each festival")
 	cmd.Flags().BoolVar(&opts.alpha, "alpha", false, "sort alphabetically by name instead of by date")
-	cmd.Flags().StringVar(&opts.status, "status", "", "filter by status: active|planned|completed|dungeon")
+	cmd.Flags().StringVar(&opts.status, "status", "", "filter by status: active|planning|completed|dungeon")
 	cmd.Flags().StringVar(&opts.sortBy, "sort", "", "sort by: date|status|progress|name")
 
 	return cmd
@@ -136,7 +141,7 @@ func statusOrder(s string) int {
 		return 0
 	case "ready":
 		return 1
-	case "planned":
+	case "planning":
 		return 2
 	case "completed":
 		return 3
@@ -278,7 +283,7 @@ func listAll(ctx context.Context, festivalsDir string, opts *listOptions) error 
 	var totalCount int
 	allFestivals := make(map[string][]*show.FestivalInfo)
 
-	// Use all statuses if --all flag, otherwise just active/planned
+	// Use all statuses if --all flag, otherwise just active/planning
 	statuses := defaultStatuses
 	if opts.all {
 		statuses = validStatuses

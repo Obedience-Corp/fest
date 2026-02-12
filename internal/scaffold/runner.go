@@ -193,7 +193,7 @@ func (r *Runner) createFestivalGoal(ctx context.Context, plan *ParsedPlan, festC
 	}
 
 	fm := frontmatter.NewFrontmatter(frontmatter.TypeFestival, plan.FestivalName, plan.FestivalName)
-	fm.Status = frontmatter.StatusPlanned
+	fm.Status = frontmatter.StatusPlanning
 
 	fullContent, err := frontmatter.InjectString(content, fm)
 	if err != nil {
@@ -228,7 +228,7 @@ func (r *Runner) createFestivalOverview(ctx context.Context, plan *ParsedPlan, f
 	}
 
 	fm := frontmatter.NewFrontmatter(frontmatter.TypeFestival, plan.FestivalName, plan.FestivalName)
-	fm.Status = frontmatter.StatusPlanned
+	fm.Status = frontmatter.StatusPlanning
 
 	fullContent, err := frontmatter.InjectString(content, fm)
 	if err != nil {

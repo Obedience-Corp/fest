@@ -10,6 +10,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/festival"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -121,7 +122,7 @@ func (m Model) Init() tea.Cmd {
 
 		statuses := []string{status}
 		if status == "" {
-			statuses = []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
+			statuses = id.StatusDirectories
 		}
 
 		var items []FestivalItem
