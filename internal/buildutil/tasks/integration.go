@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -63,7 +64,7 @@ func Integration(verbose bool) error {
 	}
 
 	cmd := exec.Command("go", "build", "-ldflags", "-s -w", "-o", "bin/linux/fest", "./cmd/fest")
-	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH=amd64")
+	cmd.Env = append(os.Environ(), "GOOS=linux", "GOARCH="+runtime.GOARCH)
 	if verbose {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr

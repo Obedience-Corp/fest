@@ -61,7 +61,7 @@ integration-raw:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "Building Linux binary..."
-    GOOS=linux GOARCH=amd64 go build -ldflags '-s -w' -o bin/linux/fest ./cmd/fest
+    GOOS=linux GOARCH=$(go env GOARCH) go build -ldflags '-s -w' -o bin/linux/fest ./cmd/fest
     echo "Running integration tests..."
     DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock" TESTCONTAINERS_RYUK_DISABLED=true go test -v -tags=integration -timeout 5m ./tests/integration/...
 
