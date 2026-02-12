@@ -58,7 +58,7 @@ Fest is both a **project scaffolding tool** and an **agent guidance system**. It
 
 ```bash
 # Install from source
-git clone https://github.com/festival-methodology/fest
+git clone https://github.com/Obedience-Corp/fest
 cd fest
 just install
 ```
@@ -66,7 +66,7 @@ just install
 Or with Go:
 
 ```bash
-go install github.com/festival-methodology/fest/cmd/fest@latest
+go install github.com/Obedience-Corp/fest/cmd/fest@latest
 ```
 
 ## Shell Integration (Recommended)
@@ -130,26 +130,97 @@ After shell integration:
 
 | Command | Full Form | Purpose |
 |---------|-----------|---------|
-| `fgo` | `fest go` | Navigate to festivals directory |
+| `fgo` | `fest go` | Toggle between linked festival and project directories |
+| `fgo <name>` | `fest go <name>` | Navigate to a specific festival |
 | `fgo 2` | `fest go 2` | Go to phase 002 |
 | `fgo 2/1` | `fest go 2/1` | Go to phase 2, sequence 1 |
 | `fgo active` | `fest go active` | Go to active festivals |
 | `fls` | `fest list` | List festivals by status |
 | `fls active` | `fest list active` | List active festivals |
 
-## Core Commands
+**Smart Navigation**: `fgo` with no arguments toggles between a festival directory and its linked project directory (set up with `fest link`). This makes it easy to jump back and forth between planning and implementation.
 
+## Command Reference
+
+Fest has 40+ commands organized into 7 groups. Here's a summary — run `fest --help` for the full list with descriptions.
+
+**Learning** — Learn the methodology before executing tasks
 | Command | Purpose |
 |---------|---------|
 | `fest intro` | Getting started guide (run first!) |
 | `fest understand` | Learn methodology concepts |
-| `fest create` | Create festivals/phases/sequences (TUI) |
-| `fest validate` | Check structure for issues |
-| `fest execute` | Execute festival tasks |
-| `fest status` | View progress |
-| `fest next` | Find next task |
+| `fest validate` | Check festival structure for issues |
+| `fest wizard` | Interactive guidance for festival creation |
+| `fest gates` | Manage quality gates at sequence boundaries |
+| `fest markers` | Manage template markers in festival files |
 
-Run `fest --help` for all commands grouped by workflow.
+**Creation** — Build festival structures
+| Command | Purpose |
+|---------|---------|
+| `fest create` | Create festivals/phases/sequences/tasks (TUI) |
+| `fest scaffold` | Generate festival structures from plans |
+| `fest tui` | Interactive UI for festival creation and editing |
+| `fest insert` | Insert new festival elements |
+| `fest apply` | Apply a local template to a destination file |
+| `fest templates` | Manage agent-created templates |
+| `fest research` | Manage research phase documents |
+
+**Structure** — Reorganize festival elements
+| Command | Purpose |
+|---------|---------|
+| `fest remove` | Remove elements and renumber |
+| `fest renumber` | Renumber festival elements |
+| `fest reorder` | Reorder festival elements |
+
+**Workflow** — Execute and track festival work
+| Command | Purpose |
+|---------|---------|
+| `fest execute` | Orchestrate task execution |
+| `fest next` | Find the next task to work on |
+| `fest task` | Manage task status (complete, block, reset) |
+| `fest progress` | Track execution progress |
+| `fest commit` | Create git commit with task reference |
+| `fest flow` | Manage festival status workflow |
+| `fest promote` | Promote festival to next lifecycle status |
+| `fest workflow` | Manage workflow-based phase execution |
+| `fest feedback` | Manage structured feedback collection |
+| `fest ritual` | Manage repeatable ritual festivals |
+
+**Query** — Inspect festival data
+| Command | Purpose |
+|---------|---------|
+| `fest status` | Query festival entity statuses |
+| `fest show` | Display festival information |
+| `fest list` | List festivals by status |
+| `fest context` | Get context for current location or task |
+| `fest deps` | Show task dependencies |
+| `fest commits` | Query commits by festival element |
+| `fest parse` | Parse festival documents into structured output |
+| `fest rules` | Display festival rules |
+| `fest types` | Discover and explore template types |
+
+**Navigation** — Move between festival elements
+| Command | Purpose |
+|---------|---------|
+| `fest go` | Navigate to festivals directory |
+| `fest explore` | Interactive hierarchy drilldown |
+| `fest link` | Link festival to project directory |
+| `fest links` | List all festival-project links |
+| `fest unlink` | Remove festival-project link |
+
+**System** — Configuration and maintenance
+| Command | Purpose |
+|---------|---------|
+| `fest config` | Manage fest configuration |
+| `fest init` | Initialize a new festival directory structure |
+| `fest system` | Manage templates and tool configuration |
+| `fest index` | Manage festival indices |
+| `fest count` | Count tokens in files or directories |
+| `fest migrate` | Migrate festival documents |
+| `fest extension` | Manage methodology extensions |
+| `fest completion` | Generate shell completion scripts |
+
+See [docs/commands.md](docs/commands.md) for the full command reference.
 
 ## Configuration
 
@@ -162,18 +233,20 @@ Uses `just` for all build/test commands:
 ```bash
 just              # List all commands
 just build        # Build fest binary
-just test::all    # Run all tests
+just test         # Testing commands (unit, integration, coverage)
 just install      # Install to $GOBIN
 just lint         # Format and vet
 just clean        # Clean build artifacts
+just docs         # Generate CLI reference docs
 ```
 
 Subcommand modules:
 
 ```bash
-just test::       # Testing commands
-just xbuild::     # Cross-platform builds
-just release::    # Release packaging
+just test         # Testing commands
+just xbuild       # Cross-platform builds
+just release      # Release packaging
+just tags         # Git tag management
 ```
 
 ## Learn More
