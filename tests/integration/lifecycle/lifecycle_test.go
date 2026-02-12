@@ -17,7 +17,7 @@ func TestFullFestivalLifecycle(t *testing.T) {
 	container := GetSharedContainer(t)
 
 	// The festivals root is at /workspace/festivals with .festival marker
-	// Festivals are created under festivals/active/ or festivals/planned/
+	// Festivals are created under festivals/active/ or festivals/planning/
 	// Note: fest create festival adds a unique ID suffix (e.g., lifecycle-test-LT0001)
 	workspaceRoot := "/workspace"
 	festivalsRoot := workspaceRoot + "/festivals"
@@ -30,7 +30,7 @@ func TestFullFestivalLifecycle(t *testing.T) {
 		// So we create the minimal structure directly
 		_, err := container.runCommand([]string{
 			"sh", "-c",
-			"mkdir -p /workspace/festivals/.festival/.state /workspace/festivals/active /workspace/festivals/planned",
+			"mkdir -p /workspace/festivals/.festival/.state /workspace/festivals/active /workspace/festivals/planning",
 		})
 		require.NoError(t, err, "should create workspace directories")
 
@@ -58,7 +58,7 @@ func TestFullFestivalLifecycle(t *testing.T) {
 	// Phase 2: Festival Creation - Create a new festival and verify structure
 	t.Run("CreateFestival", func(t *testing.T) {
 		// Create the festival from within the festivals root directory
-		// The fest create festival command uses --dest (active/planned) not --path
+		// The fest create festival command uses --dest (active/planning) not --path
 		output, err := container.RunFestInDir(festivalsRoot, "create", "festival",
 			"--name", "lifecycle-test",
 			"--dest", "active")

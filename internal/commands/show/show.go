@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 	"os"
@@ -35,7 +36,7 @@ When run with a status argument, lists all festivals with that status.
 SUBCOMMANDS:
   fest show              Show current festival (detect from cwd)
   fest show active       List festivals in active/ directory
-  fest show planned      List festivals in planned/ directory
+  fest show planning     List festivals in planning/ directory
   fest show completed    List festivals in completed/ directory
   fest show dungeon      List festivals in dungeon/ directory
   fest show all          List all festivals grouped by status
@@ -80,10 +81,10 @@ func newShowActiveCommand(opts *showOptions) *cobra.Command {
 
 func newShowPlannedCommand(opts *showOptions) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "planned",
-		Short: "List festivals in planned/ directory",
+		Use:   "planning",
+		Short: "List festivals in planning/ directory",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runShowStatus(cmd.Context(), "planned", opts)
+			return runShowStatus(cmd.Context(), "planning", opts)
 		},
 	}
 	cmd.Flags().BoolVar(&opts.json, "json", false, "output in JSON format")
@@ -93,9 +94,9 @@ func newShowPlannedCommand(opts *showOptions) *cobra.Command {
 func newShowCompletedCommand(opts *showOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "completed",
-		Short: "List festivals in completed/ directory",
+		Short: "List completed festivals",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runShowStatus(cmd.Context(), "completed", opts)
+			return runShowStatus(cmd.Context(), "dungeon/completed", opts)
 		},
 	}
 	cmd.Flags().BoolVar(&opts.json, "json", false, "output in JSON format")
@@ -276,7 +277,7 @@ func runShowAll(ctx context.Context, opts *showOptions) error {
 	}
 
 	allFestivals := make(map[string][]*FestivalInfo)
-	statusOrder := []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
+	statusOrder := id.StatusDirectories
 
 	for _, status := range statusOrder {
 		festivals, err := ListFestivalsByStatus(ctx, festivalsDir, status)

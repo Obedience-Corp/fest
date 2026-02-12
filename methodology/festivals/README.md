@@ -66,10 +66,14 @@ Templates are in `.festival/templates/` but should ONLY be read when you reach t
 
 ```text
 festivals/                          # Your festival workspace
-├── planned/                        # Festivals being planned
+├── planning/                       # Festivals being planned (WIP)
+├── ready/                          # Fully planned, waiting for activation
 ├── active/                         # Currently executing festivals
-├── completed/                      # Finished festivals
-├── dungeon/                        # Deprioritized or cancelled work (archived)
+├── ritual/                         # Repeatable festival templates
+├── dungeon/                        # Archived/finished work
+│   ├── completed/                  # Successfully finished festivals
+│   ├── archived/                   # Cancelled or deprioritized work
+│   └── someday/                    # Backlog — nice-to-have work we may get to someday
 ├── .festival/                      # Methodology resources (DO NOT READ ALL AT ONCE)
 └── README.md                       # This file - agent instructions
 ```
@@ -95,7 +99,7 @@ Before proceeding with ANY festival work, confirm:
 
 - NOW read: `.festival/agents/festival_planning_agent.md`
 - Follow the agent's structured interview process
-- Create initial structure in `planned/[festival-name]/`
+- Create initial structure in `planning/[festival-name]/`
 
 ### Phase 3: Document Creation (READ EACH TEMPLATE AS NEEDED)
 
@@ -114,21 +118,29 @@ For each document you need to create:
 
 ## Festival Organization
 
-### planned/
+### planning/
 
 New festivals being designed. Create festival directories here during planning.
 
+### ready/
+
+Fully planned festivals waiting for activation. Move from `planning/` when planning is complete but execution hasn't started.
+
 ### active/
 
-Festivals currently being executed. Move from `planned/` when execution begins.
+Festivals currently being executed. Move from `planning/` or `ready/` when execution begins.
 
-### completed/
+### ritual/
 
-Successfully finished festivals. Move from `active/` when all objectives achieved.
+Repeatable festival templates. Use `fest ritual run` to copy a ritual to `active/` with an auto-incrementing hex counter.
 
 ### dungeon/
 
-Archived festivals - cancelled, deprioritized, or paused work. Move here to keep workspace clean.
+Archived festivals organized by outcome:
+
+- **completed/** - Successfully finished festivals. Move from `active/` when all objectives achieved.
+- **archived/** - Cancelled or deprioritized work. Move here to keep workspace clean.
+- **someday/** - Backlog — nice-to-have work we may get to someday.
 
 ## Using the fest CLI (Recommended for AI Agents)
 

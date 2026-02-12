@@ -17,10 +17,14 @@ func setupFestivalTemplatesWithMarkers(t *testing.T, festivalsDir string) {
 	templatesDir := filepath.Join(festivalMetaDir, "templates")
 
 	// Create status directories
-	for _, status := range []string{"planned", "active", "completed", "dungeon"} {
+	for _, status := range []string{"planning", "active", "dungeon"} {
 		if err := os.MkdirAll(filepath.Join(festivalsDir, status), 0755); err != nil {
 			t.Fatalf("failed to create status dir: %v", err)
 		}
+	}
+	// Create dungeon/completed subdirectory
+	if err := os.MkdirAll(filepath.Join(festivalsDir, "dungeon", "completed"), 0755); err != nil {
+		t.Fatalf("failed to create dungeon/completed dir: %v", err)
 	}
 
 	// Create festival templates with auto-fillable markers

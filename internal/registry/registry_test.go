@@ -428,7 +428,7 @@ entries:
 	}
 
 	eventsPath := filepath.Join(festivalDir, EventsFileName)
-	eventsContent := `{"ts":"2026-01-27T00:00:00Z","event":"create","id":"JSONL0001","name":"jsonl-festival","status":"planned"}
+	eventsContent := `{"ts":"2026-01-27T00:00:00Z","event":"create","id":"JSONL0001","name":"jsonl-festival","status":"planning"}
 `
 	if err := os.WriteFile(eventsPath, []byte(eventsContent), 0644); err != nil {
 		t.Fatal(err)
@@ -458,7 +458,7 @@ func TestAddWithEvent(t *testing.T) {
 	entry := RegistryEntry{
 		ID:     "EV0001",
 		Name:   "event-test",
-		Status: "planned",
+		Status: "planning",
 	}
 
 	if err := reg.AddWithEvent(ctx, entry); err != nil {
@@ -487,7 +487,7 @@ func TestUpdateStatusWithEvent(t *testing.T) {
 	entry := RegistryEntry{
 		ID:     "MV0001",
 		Name:   "move-test",
-		Status: "planned",
+		Status: "planning",
 	}
 
 	// Add initial entry
@@ -496,7 +496,7 @@ func TestUpdateStatusWithEvent(t *testing.T) {
 	}
 
 	// Update status
-	if err := reg.UpdateStatusWithEvent(ctx, "MV0001", "planned", "active"); err != nil {
+	if err := reg.UpdateStatusWithEvent(ctx, "MV0001", "planning", "active"); err != nil {
 		t.Fatalf("UpdateStatusWithEvent() error = %v", err)
 	}
 
@@ -508,7 +508,7 @@ func TestUpdateStatusWithEvent(t *testing.T) {
 	if !strings.Contains(string(data), `"event":"move"`) {
 		t.Error("Events file should contain move event")
 	}
-	if !strings.Contains(string(data), `"from":"planned"`) {
+	if !strings.Contains(string(data), `"from":"planning"`) {
 		t.Error("Events file should contain from status")
 	}
 	if !strings.Contains(string(data), `"to":"active"`) {
@@ -565,9 +565,9 @@ func TestLoadFromEventsPreservesState(t *testing.T) {
 	eventsPath := filepath.Join(tmpDir, EventsFileName)
 
 	// Write events that simulate festival lifecycle
-	eventsContent := `{"ts":"2026-01-01T00:00:00Z","event":"create","id":"LC0001","name":"lifecycle-test","status":"planned"}
-{"ts":"2026-01-02T00:00:00Z","event":"move","id":"LC0001","from":"planned","to":"active"}
-{"ts":"2026-01-03T00:00:00Z","event":"create","id":"LC0002","name":"second-festival","status":"planned"}
+	eventsContent := `{"ts":"2026-01-01T00:00:00Z","event":"create","id":"LC0001","name":"lifecycle-test","status":"planning"}
+{"ts":"2026-01-02T00:00:00Z","event":"move","id":"LC0001","from":"planning","to":"active"}
+{"ts":"2026-01-03T00:00:00Z","event":"create","id":"LC0002","name":"second-festival","status":"planning"}
 {"ts":"2026-01-04T00:00:00Z","event":"delete","id":"LC0002"}
 `
 	if err := os.WriteFile(eventsPath, []byte(eventsContent), 0644); err != nil {
@@ -580,7 +580,7 @@ func TestLoadFromEventsPreservesState(t *testing.T) {
 		t.Fatalf("Load() error = %v", err)
 	}
 
-	// LC0001 should exist with active status (was moved from planned)
+	// LC0001 should exist with active status (was moved from planning)
 	entry, err := reg.Get(ctx, "LC0001")
 	if err != nil {
 		t.Fatalf("Get(LC0001) error = %v", err)

@@ -10,6 +10,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	festErrors "github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
@@ -21,7 +22,7 @@ import (
 // Styles for festival status in TUI
 var (
 	activeStyle  = lipgloss.NewStyle().Foreground(ui.ActiveColor).Bold(true)
-	plannedStyle = lipgloss.NewStyle().Foreground(ui.PlannedColor).Bold(true)
+	planningStyle = lipgloss.NewStyle().Foreground(ui.PlanningColor).Bold(true)
 	pathStyle    = lipgloss.NewStyle().Foreground(ui.MetadataColor)
 )
 
@@ -193,7 +194,7 @@ func linkProjectToFestival(cwd string) error {
 		return festErrors.NotFound("festivals directory").WithField("hint", "run 'fest init' first")
 	}
 
-	// Collect all festivals from active/ and planned/
+	// Collect all festivals from active/ and planning/
 	festivals, err := collectFestivals(festivalsDir)
 	if err != nil {
 		return festErrors.Wrap(err, "collecting festivals")
@@ -211,7 +212,7 @@ func linkProjectToFestival(cwd string) error {
 		if f.status == "active" {
 			label = activeStyle.Render("● "+f.name) + " " + pathStyle.Render("(active)")
 		} else {
-			label = plannedStyle.Render("○ "+f.name) + " " + pathStyle.Render("(planned)")
+			label = planningStyle.Render("○ "+f.name) + " " + pathStyle.Render("(planning)")
 		}
 		options = append(options, huh.NewOption(label, f.name))
 	}
@@ -280,13 +281,11 @@ type festivalInfo struct {
 	path        string
 }
 
-// collectFestivals finds all festivals in active/ and planned/ directories
+// collectFestivals finds all festivals in primary status directories
 func collectFestivals(festivalsDir string) ([]festivalInfo, error) {
 	var festivals []festivalInfo
 
-	statusDirs := []string{"active", "ready", "planned"}
-
-	for _, status := range statusDirs {
+	for _, status := range id.PrimaryStatusDirs {
 		statusPath := filepath.Join(festivalsDir, status)
 		entries, err := os.ReadDir(statusPath)
 		if err != nil {
@@ -318,9 +317,7 @@ func collectFestivals(festivalsDir string) ([]festivalInfo, error) {
 
 // resolveFestivalPath finds the full path of a festival by name
 func resolveFestivalPath(festivalsDir, festivalName string) string {
-	statusDirs := []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
-
-	for _, status := range statusDirs {
+	for _, status := range id.StatusDirectories {
 		statusPath := filepath.Join(festivalsDir, status)
 		festPath := filepath.Join(statusPath, festivalName)
 		if info, err := os.Stat(festPath); err == nil && info.IsDir() {

@@ -21,7 +21,7 @@ func StatusStyle(status string) lipgloss.Style {
 	switch status {
 	case "active":
 		return lipgloss.NewStyle().Foreground(colorActive).Bold(true)
-	case "planned":
+	case "planning":
 		return lipgloss.NewStyle().Foreground(colorPlanned)
 	case "completed":
 		return lipgloss.NewStyle().Foreground(colorCompleted)

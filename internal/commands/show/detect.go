@@ -8,6 +8,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 )
@@ -69,7 +70,7 @@ func DetectCurrentFestival(ctx context.Context, startDir string) (*FestivalInfo,
 
 // findLinkedFestivalPath searches for a festival by name in all status directories.
 func findLinkedFestivalPath(festivalsRoot, name string) string {
-	for _, status := range []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"} {
+	for _, status := range id.StatusDirectories {
 		festivalPath := filepath.Join(festivalsRoot, status, name)
 		if info, err := os.Stat(festivalPath); err == nil && info.IsDir() {
 			if isValidFestival(festivalPath) {
@@ -107,9 +108,7 @@ func FindFestivalByName(ctx context.Context, festivalsDir, name string) (*Festiv
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	statusDirs := []string{"active", "ready", "planned", "completed", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
-
-	for _, status := range statusDirs {
+	for _, status := range id.StatusDirectories {
 		statusDir := filepath.Join(festivalsDir, status)
 		entries, err := os.ReadDir(statusDir)
 		if err != nil {
@@ -241,7 +240,7 @@ func parseFestivalInfo(ctx context.Context, festivalDir string) (*FestivalInfo, 
 	parentDir := filepath.Dir(festivalDir)
 	parentName := filepath.Base(parentDir)
 	switch parentName {
-	case "active", "ready", "planned":
+	case "active", "ready", "planning":
 		info.Status = parentName
 	case "completed", "archived", "someday":
 		// Could be dungeon/completed, dungeon/archived, dungeon/someday

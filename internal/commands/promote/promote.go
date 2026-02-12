@@ -19,9 +19,9 @@ import (
 
 // validTransitions defines the allowed lifecycle promotions.
 var validTransitions = map[string]string{
-	"planned": "ready",
-	"ready":   "active",
-	"active":  "completed",
+	"planning": "ready",
+	"ready":    "active",
+	"active":   "completed",
 }
 
 type promoteOptions struct {
@@ -35,10 +35,10 @@ func NewPromoteCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "promote",
 		Short: "Promote a festival to the next lifecycle status",
-		Long: `Promote moves a festival through the lifecycle: planned → ready → active → completed.
+		Long: `Promote moves a festival through the lifecycle: planning → ready → active → completed.
 
 Each transition validates readiness:
-  planned → ready:     Festival goal must be defined
+  planning → ready:    Festival goal must be defined
   ready → active:      Festival is ready to begin execution
   active → completed:  All tasks must be completed`,
 		Annotations: map[string]string{
@@ -89,7 +89,7 @@ func runPromote(ctx context.Context, opts *promoteOptions) error {
 		}
 		return errors.Validation("cannot promote festival").
 			WithField("status", currentStatus).
-			WithField("hint", "only planned, ready, and active festivals can be promoted")
+			WithField("hint", "only planning, ready, and active festivals can be promoted")
 	}
 
 	// Validate readiness unless forced

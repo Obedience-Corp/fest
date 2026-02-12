@@ -123,8 +123,8 @@ func runNext(cmd *cobra.Command, args []string) error {
 		return emitValidationBlock(festivalPath, vResult)
 	}
 
-	// Block implementation/review phases in planned festivals
-	if err := checkPlannedStatus(festivalPath, shared.ResolvePhasePath(cwd, festivalPath)); err != nil {
+	// Block implementation/review phases in planning festivals
+	if err := checkPlanningStatus(festivalPath, shared.ResolvePhasePath(cwd, festivalPath)); err != nil {
 		return err
 	}
 
@@ -592,15 +592,15 @@ func loadFeedbackCriteria(ctx context.Context, festivalPath string) []string {
 	return names
 }
 
-// checkPlannedStatus blocks implementation/review phases when the festival is still in planned status.
-func checkPlannedStatus(festivalPath, phasePath string) error {
+// checkPlanningStatus blocks implementation/review phases when the festival is still in planning status.
+func checkPlanningStatus(festivalPath, phasePath string) error {
 	festCfg, err := config.LoadFestivalConfig(festivalPath)
 	if err != nil {
 		return nil // Can't load config — don't block
 	}
 
 	status := festCfg.Metadata.CurrentStatus()
-	if status != "planned" {
+	if status != "planning" {
 		return nil
 	}
 

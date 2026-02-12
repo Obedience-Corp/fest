@@ -14,7 +14,7 @@ func TestValidTransitions(t *testing.T) {
 		wantTo string
 		wantOK bool
 	}{
-		{"planned", "ready", true},
+		{"planning", "ready", true},
 		{"ready", "active", true},
 		{"active", "completed", true},
 		{"completed", "", false},
@@ -43,7 +43,7 @@ func TestValidatePlannedToReady(t *testing.T) {
 		festival := &show.FestivalInfo{
 			Name:   "test-festival",
 			Path:   dir,
-			Status: "planned",
+			Status: "planning",
 		}
 
 		err := validatePlannedToReady(festival)
@@ -58,7 +58,7 @@ func TestValidatePlannedToReady(t *testing.T) {
 		festival := &show.FestivalInfo{
 			Name:   "test-festival",
 			Path:   dir,
-			Status: "planned",
+			Status: "planning",
 		}
 
 		err := validatePlannedToReady(festival)

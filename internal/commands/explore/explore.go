@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	tuiexplore "github.com/Obedience-Corp/fest/internal/tui/explore"
 	"github.com/spf13/cobra"
@@ -32,10 +33,10 @@ If inside a festival directory, shows that festival's phase/sequence/task hierar
 If in the festivals/ directory, shows a list of festivals for the detected status.
 Otherwise, shows all active festivals by default.
 
-STATUS can be: active, planned, completed, dungeon`,
+STATUS can be: active, planning, completed, dungeon`,
 		Example: `  fest explore              # Auto-detect context and explore
   fest explore active       # Explore active festivals
-  fest explore planned      # Explore planned festivals
+  fest explore planning     # Explore planning festivals
   fest explore completed    # Explore completed festivals
   fest explore dungeon      # Explore dungeon festivals`,
 		Annotations: map[string]string{
@@ -55,7 +56,7 @@ STATUS can be: active, planned, completed, dungeon`,
 
 	// Add status subcommands for discoverability
 	cmd.AddCommand(newStatusSubcommand("active", "Explore active festivals"))
-	cmd.AddCommand(newStatusSubcommand("planned", "Explore planned festivals"))
+	cmd.AddCommand(newStatusSubcommand("planning", "Explore planning festivals"))
 	cmd.AddCommand(newStatusSubcommand("completed", "Explore completed festivals"))
 	cmd.AddCommand(newStatusSubcommand("dungeon", "Explore dungeon festivals"))
 
@@ -141,6 +142,7 @@ func exploreFestival(ctx context.Context, opts *exploreOptions, festivalPath str
 // exploreFestivalList shows festivals for a given status.
 // Uses the BubbleTea TUI for interactive mode, JSON for --json.
 func exploreFestivalList(ctx context.Context, opts *exploreOptions, status string) error {
+	status = id.ResolveStatusPath(status)
 	if opts.json {
 		return outputExploreJSON(ctx, status)
 	}

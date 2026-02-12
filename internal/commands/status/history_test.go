@@ -16,12 +16,12 @@ func TestStatusHistoryUpdate(t *testing.T) {
 		toStatus   string
 		wantEntry  bool
 	}{
-		{"planned to active", "planned", "active", true},
+		{"planning to active", "planning", "active", true},
 		{"active to completed", "active", "completed", true},
 		{"completed to dungeon", "completed", "dungeon", true},
 		{"dungeon to active", "dungeon", "active", true},
 		{"same status no-op", "active", "active", false},
-		{"planned to completed", "planned", "completed", true},
+		{"planning to completed", "planning", "completed", true},
 	}
 
 	for _, tc := range tests {
@@ -50,7 +50,7 @@ func TestRecordStatusChange(t *testing.T) {
 		note       string
 		wantError  bool
 	}{
-		{"planned to active with note", "planned", "active", "Starting work", false},
+		{"planning to active with note", "planning", "active", "Starting work", false},
 		{"active to completed no note", "active", "completed", "", false},
 	}
 
@@ -95,7 +95,7 @@ func TestLoadStatusHistory(t *testing.T) {
 	// Test loading after recording
 	t.Run("after recording", func(t *testing.T) {
 		// Record a change first
-		if err := RecordStatusChange(festivalDir, "planned", "active", "test"); err != nil {
+		if err := RecordStatusChange(festivalDir, "planning", "active", "test"); err != nil {
 			t.Skipf("RecordStatusChange not implemented: %v", err)
 		}
 

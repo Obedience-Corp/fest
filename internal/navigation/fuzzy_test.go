@@ -170,9 +170,9 @@ func TestCollectFestivalsInStatus(t *testing.T) {
 	os.MkdirAll(filepath.Join(activeDir, "bug-fix-BF0002"), 0755)
 	os.MkdirAll(filepath.Join(activeDir, "random-dir"), 0755) // no valid ID suffix
 
-	// Create planned/ with one festival
-	plannedDir := filepath.Join(festivalsDir, "planned")
-	os.MkdirAll(filepath.Join(plannedDir, "next-task-NT0003"), 0755)
+	// Create planning/ with one festival
+	planningDir := filepath.Join(festivalsDir, "planning")
+	os.MkdirAll(filepath.Join(planningDir, "next-task-NT0003"), 0755)
 
 	t.Run("active returns valid festivals only", func(t *testing.T) {
 		targets := CollectFestivalsInStatus(festivalsDir, "active")
@@ -186,8 +186,8 @@ func TestCollectFestivalsInStatus(t *testing.T) {
 		assert.False(t, names["random-dir"])
 	})
 
-	t.Run("planned returns its festivals", func(t *testing.T) {
-		targets := CollectFestivalsInStatus(festivalsDir, "planned")
+	t.Run("planning returns its festivals", func(t *testing.T) {
+		targets := CollectFestivalsInStatus(festivalsDir, "planning")
 		assert.Len(t, targets, 1)
 		assert.Equal(t, "next-task-NT0003", targets[0].Name)
 	})

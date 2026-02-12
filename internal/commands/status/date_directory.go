@@ -53,8 +53,9 @@ func MoveToDateDirectory(sourcePath, completedDir, dateDir string) (string, erro
 }
 
 // GetCompletedPath returns the full path for a completed festival with date organization.
+// Festivals are stored under dungeon/completed with date-based subdirectories.
 func GetCompletedPath(festivalsRoot, festivalName, dateDir string) string {
-	return filepath.Join(festivalsRoot, "completed", dateDir, festivalName)
+	return filepath.Join(festivalsRoot, "dungeon", "completed", dateDir, festivalName)
 }
 
 // copyAndDelete performs a copy+delete operation for cross-filesystem moves.

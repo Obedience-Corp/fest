@@ -39,7 +39,7 @@ func DefaultSchemaV2() *Schema {
 						Order:       3,
 					},
 					"someday": {
-						Description: "Maybe later, low priority",
+						Description: "Backlog — nice-to-have work",
 						Order:       4,
 					},
 				},
@@ -87,7 +87,7 @@ func DefaultSchema() *Schema {
 						Order:       2,
 					},
 					"someday": {
-						Description: "Maybe later, low priority",
+						Description: "Backlog — nice-to-have work",
 						Order:       3,
 					},
 				},
@@ -98,7 +98,7 @@ func DefaultSchema() *Schema {
 
 // FestivalSchema returns the workflow schema for festival lifecycle management.
 // Festivals have a unique lifecycle with a planning stage:
-//   - planned: Being designed and documented
+//   - planning: Being designed and documented
 //   - ready: Planned and ready for execution
 //   - active: Currently being worked on
 //   - dungeon: Terminal states (completed, archived, someday)
@@ -108,11 +108,11 @@ func FestivalSchema() *Schema {
 		Type:          SchemaType,
 		Name:          "Festival Workflow",
 		Description:   "Status workflow for festival lifecycle management",
-		DefaultStatus: "planned",
+		DefaultStatus: "planning",
 		TrackHistory:  true,
 		HistoryFile:   DefaultHistoryFile,
 		Directories: map[string]Directory{
-			"planned": {
+			"planning": {
 				Description:    "Festivals being designed and documented",
 				Order:          1,
 				TransitionOpts: []string{"ready", "active", "dungeon"},
@@ -141,7 +141,7 @@ func FestivalSchema() *Schema {
 						Order:       2,
 					},
 					"someday": {
-						Description: "Deferred, may revisit later",
+						Description: "Backlog — nice-to-have work",
 						Order:       3,
 					},
 				},

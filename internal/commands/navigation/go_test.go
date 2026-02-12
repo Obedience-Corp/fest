@@ -62,14 +62,14 @@ func TestResolvePhaseShortcut(t *testing.T) {
 	// Create festivals structure with phases
 	festivalsDir := filepath.Join(tmpDir, "festivals")
 	activeDir := filepath.Join(festivalsDir, "active")
-	plannedDir := filepath.Join(festivalsDir, "planned")
+	planningDir := filepath.Join(festivalsDir, "planning")
 
 	// Create some phases
 	phases := []string{
 		filepath.Join(activeDir, "my-festival", "001_PLAN"),
 		filepath.Join(activeDir, "my-festival", "002_IMPLEMENT"),
 		filepath.Join(activeDir, "my-festival", "003_REVIEW"),
-		filepath.Join(plannedDir, "another", "001_DISCOVERY"),
+		filepath.Join(planningDir, "another", "001_DISCOVERY"),
 	}
 
 	for _, p := range phases {
@@ -174,7 +174,7 @@ func TestResolveGoTarget(t *testing.T) {
 		expected string
 		wantErr  bool
 	}{
-		// Phase shortcuts - resolvePhaseShortcut searches active/, planned/, completed/
+		// Phase shortcuts - resolvePhaseShortcut searches active/, planning/, completed/
 		{"1", phase1, false},
 		{"001", phase1, false},
 
@@ -256,10 +256,10 @@ func TestResolveFestivalByName(t *testing.T) {
 
 	// Create festivals in different status directories
 	activeFest := filepath.Join(festivalsDir, "active", "fest-cli")
-	plannedFest := filepath.Join(festivalsDir, "planned", "new-feature")
-	completedFest := filepath.Join(festivalsDir, "completed", "old-project")
+	planningFest := filepath.Join(festivalsDir, "planning", "new-feature")
+	completedFest := filepath.Join(festivalsDir, "dungeon", "completed", "old-project")
 
-	for _, f := range []string{activeFest, plannedFest, completedFest} {
+	for _, f := range []string{activeFest, planningFest, completedFest} {
 		if err := os.MkdirAll(f, 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -270,7 +270,7 @@ func TestResolveFestivalByName(t *testing.T) {
 		expected string
 	}{
 		{"fest-cli", activeFest},
-		{"new-feature", plannedFest},
+		{"new-feature", planningFest},
 		{"old-project", completedFest},
 		{"nonexistent", ""},
 	}

@@ -43,7 +43,7 @@ func TestLevenshteinDistance(t *testing.T) {
 }
 
 func TestSuggestSimilar(t *testing.T) {
-	candidates := []string{"active", "planned", "completed", "dungeon"}
+	candidates := []string{"active", "planning", "completed", "dungeon"}
 
 	tests := []struct {
 		name        string
@@ -53,13 +53,13 @@ func TestSuggestSimilar(t *testing.T) {
 	}{
 		{"exact match", "active", 2, []string{"active"}},
 		{"typo - actve", "actve", 2, []string{"active"}},
-		{"typo - planed", "planed", 2, []string{"planned"}},
+		{"typo - planing", "planing", 2, []string{"planning"}},
 		{"typo - complted", "complted", 2, []string{"completed"}},
 		{"case insensitive", "ACTIVE", 2, []string{"active"}},
 		{"too far", "unknown", 2, nil},
 		{"empty input", "", 2, nil},
 		{"empty candidates", "test", 2, nil},
-		{"multiple matches", "plan", 3, []string{"planned"}}, // distance 3
+		{"multiple matches", "plan", 4, []string{"planning"}}, // distance 4
 	}
 
 	for _, tc := range tests {
@@ -97,7 +97,7 @@ func TestSuggestSimilar_SortOrder(t *testing.T) {
 }
 
 func TestDidYouMean(t *testing.T) {
-	candidates := []string{"active", "planned", "completed"}
+	candidates := []string{"active", "planning", "completed"}
 
 	tests := []struct {
 		name        string

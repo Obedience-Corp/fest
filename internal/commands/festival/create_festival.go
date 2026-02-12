@@ -40,7 +40,7 @@ type CreateFestivalOptions struct {
 	SkipMarkers bool   // Skip marker processing
 	DryRun      bool   // Show markers without creating file
 	JSONOutput  bool
-	Dest        string // "active" or "planned"
+	Dest        string // "active" or "planning"
 	AgentMode   bool   // Strict mode for AI agents
 }
 
@@ -69,7 +69,7 @@ func NewCreateFestivalCommand() *cobra.Command {
 	opts := &CreateFestivalOptions{}
 	cmd := &cobra.Command{
 		Use:   "festival",
-		Short: "Create a new festival scaffold under festivals/(active|planned)",
+		Short: "Create a new festival scaffold under festivals/(active|planning)",
 		Annotations: map[string]string{
 			"scope": string(scope.Workspace),
 		},
@@ -96,7 +96,7 @@ func NewCreateFestivalCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&opts.SkipMarkers, "skip-markers", false, "Skip REPLACE marker processing")
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "Show template markers without creating file")
 	cmd.Flags().BoolVar(&opts.JSONOutput, "json", false, "Emit JSON output")
-	cmd.Flags().StringVar(&opts.Dest, "dest", "active", "Destination under festivals/: active or planned")
+	cmd.Flags().StringVar(&opts.Dest, "dest", "active", "Destination under festivals/: active, planning, or ritual")
 	cmd.Flags().BoolVar(&opts.AgentMode, "agent", false, "Strict mode: require markers, auto-validate, block on errors, JSON output")
 	return cmd
 }
@@ -148,12 +148,21 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 	// Destination
 	slug := Slugify(opts.Name)
 	destCategory := strings.ToLower(strings.TrimSpace(opts.Dest))
-	if destCategory != "planned" && destCategory != "active" {
+	// Ritual type auto-sets destination to ritual/
+	if opts.Type == "ritual" && destCategory == "active" {
+		destCategory = "ritual"
+	}
+	if destCategory != "planning" && destCategory != "active" && destCategory != "ritual" {
 		destCategory = "active"
 	}
 
 	// Generate unique festival ID before building context (so it can be auto-filled)
-	festivalID, err := id.GenerateID(opts.Name, festivalsRoot)
+	var festivalID string
+	if opts.Type == "ritual" {
+		festivalID, err = id.GenerateRitualID(ctx, opts.Name, festivalsRoot)
+	} else {
+		festivalID, err = id.GenerateID(ctx, opts.Name, festivalsRoot)
+	}
 	if err != nil {
 		return emitCreateFestivalError(opts, errors.Wrap(err, "generating festival ID").WithField("name", opts.Name))
 	}
@@ -188,7 +197,9 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 	for _, c := range core {
 		tpath := filepath.Join(tmplRoot, c.Template)
 		if _, err := os.Stat(tpath); err != nil {
-			// Skip missing template silently; report warning via non-JSON path
+			if !opts.JSONOutput {
+				display.Warning("Template not found, skipping: %s", c.Template)
+			}
 			continue
 		}
 		// Load and decide copy vs render
@@ -214,7 +225,7 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 		// Inject festival frontmatter for FESTIVAL_GOAL.md if not already present
 		if c.Out == "FESTIVAL_GOAL.md" && !strings.HasPrefix(strings.TrimSpace(content), "---") {
 			fm := frontmatter.NewFrontmatter(frontmatter.TypeFestival, festivalID, opts.Name)
-			fm.Status = frontmatter.StatusPlanned
+			fm.Status = frontmatter.StatusPlanning
 			contentWithFM, fmErr := frontmatter.InjectString(content, fm)
 			if fmErr != nil {
 				return emitCreateFestivalError(opts, errors.Wrap(fmErr, "injecting frontmatter"))
@@ -398,6 +409,14 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 		}
 	}
 
+	// Add ritual config for ritual festivals
+	if opts.Type == "ritual" {
+		festConfig.RitualConfig = &config.RitualConfig{
+			Schedule: "manual",
+			RunCount: 0,
+		}
+	}
+
 	festConfigPath := filepath.Join(destDir, config.FestivalConfigFileName)
 	if err := config.SaveFestivalConfig(destDir, festConfig); err != nil {
 		return emitCreateFestivalError(opts, errors.Wrap(err, "writing fest.yaml").WithField("path", festConfigPath))
@@ -405,14 +424,8 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 	created = append(created, festConfigPath)
 
 	// Auto-scaffold phases if festival type has auto phases.
-	// Suppress stdout during phase creation to keep festival JSON output clean.
 	autoPhasesCreated := []string{}
 	if festivalType != nil {
-		// Temporarily redirect stdout to suppress phase creation output
-		origStdout := os.Stdout
-		devNull, _ := os.Open(os.DevNull)
-		os.Stdout = devNull
-
 		autoPhases := festivalType.GetAutoPhases()
 		for i, phaseSpec := range autoPhases {
 			phaseType := mapPhaseSpecType(phaseSpec.Type)
@@ -426,6 +439,7 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 				SkipMarkers: effectiveSkipMarkers,
 				JSONOutput:  false,
 				AgentMode:   false,
+				Quiet:       true,
 			}
 
 			if phaseErr := RunCreatePhase(ctx, phaseOpts); phaseErr != nil {
@@ -443,10 +457,6 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 			phaseGoalPath := filepath.Join(destDir, phaseID, "PHASE_GOAL.md")
 			created = append(created, phaseGoalPath)
 		}
-
-		// Restore stdout
-		devNull.Close()
-		os.Stdout = origStdout
 	}
 
 	// Record initial content size for token delta tracking

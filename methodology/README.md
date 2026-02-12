@@ -274,7 +274,7 @@ festivals/
 │       │   └── 03_testing/          # Test tasks
 │       └── 004_VALIDATE/            # Validation phase
 │           └── PHASE_GOAL.md        # Validation criteria
-├── planned/                         # Festivals being designed
+├── planning/                        # Festivals being designed
 ├── completed/                       # Finished projects
 ├── dungeon/                         # Archived: paused or cancelled work
 └── .festival/                       # Methodology resources

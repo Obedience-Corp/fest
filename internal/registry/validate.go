@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -90,8 +91,8 @@ func Rebuild(ctx context.Context, festivalsRoot string, registryPath string) (*R
 			continue
 		}
 
-		// For completed, we need to scan date subdirectories
-		if status == "completed" {
+		// For completed directories (including dungeon/completed), we need to scan date subdirectories
+		if strings.HasSuffix(status, "completed") {
 			if err := scanCompletedDirectory(ctx, reg, statusPath, status); err != nil {
 				return nil, err
 			}
@@ -265,20 +266,23 @@ func (r *Registry) Sync(ctx context.Context, festivalsRoot string) error {
 func detectStatus(path string) string {
 	parentDir := filepath.Dir(path)
 	parentName := filepath.Base(parentDir)
-	grandparentName := filepath.Base(filepath.Dir(parentDir))
+	grandparentDir := filepath.Dir(parentDir)
+	grandparentName := filepath.Base(grandparentDir)
+	greatGrandparentName := filepath.Base(filepath.Dir(grandparentDir))
 
 	// Check for dungeon substatus: dungeon/<substatus>/festival
 	if grandparentName == "dungeon" {
 		return "dungeon/" + parentName
 	}
 
+	// Check for dungeon substatus with date subdir: dungeon/<substatus>/YYYY-MM/festival
+	if greatGrandparentName == "dungeon" {
+		return "dungeon/" + grandparentName
+	}
+
 	// Check simple statuses from StatusDirectories
 	for _, status := range id.StatusDirectories {
 		if parentName == status {
-			return status
-		}
-		// Check for completed/YYYY-MM/festival pattern
-		if grandparentName == status {
 			return status
 		}
 	}
