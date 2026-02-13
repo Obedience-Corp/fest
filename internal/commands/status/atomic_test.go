@@ -2,6 +2,7 @@ package status
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -399,5 +400,78 @@ func TestAtomicStatusChange_RecordsHistory(t *testing.T) {
 	historyPath := filepath.Join(newPath, ".fest", "status_history.json")
 	if _, err := os.Stat(historyPath); err != nil {
 		t.Logf("status_history.json not found at %s (may not be written for simple moves)", historyPath)
+	}
+}
+
+func TestAtomicStatusChange_ContextCancelled(t *testing.T) {
+	festName := "cancel-test-CN0001"
+	root, festPath := setupFestivalDir(t, "planning", festName)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	newPath, err := AtomicStatusChange(ctx, festPath, "planning", "ready")
+
+	// Current implementation does not check ctx.Err() at entry.
+	// RecordStatusChange fails silently, but the move still succeeds.
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			// ctx check was added at entry. Verify no side effects.
+			if _, statErr := os.Stat(festPath); os.IsNotExist(statErr) {
+				t.Error("source should still exist when context is cancelled at entry")
+			}
+			return
+		}
+		t.Fatalf("unexpected non-cancellation error: %v", err)
+	}
+
+	// Move succeeded despite cancelled ctx (current behavior)
+	expectedDest := filepath.Join(root, "ready", festName)
+	if newPath != expectedDest {
+		t.Errorf("newPath = %q, want %q", newPath, expectedDest)
+	}
+}
+
+func TestRecordStatusChange_ContextCancelled(t *testing.T) {
+	root := resolvePath(t, t.TempDir())
+	festPath := filepath.Join(root, "test-fest")
+	os.MkdirAll(filepath.Join(festPath, ".fest"), 0755)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := RecordStatusChange(ctx, festPath, "planning", "ready", "test note")
+	if err == nil {
+		t.Fatal("expected error for cancelled context")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got: %v", err)
+	}
+
+	// Verify no history file was written
+	historyPath := filepath.Join(festPath, ".fest", "status_history.json")
+	if _, statErr := os.Stat(historyPath); !os.IsNotExist(statErr) {
+		t.Error("history file should not be written when context is cancelled")
+	}
+}
+
+func TestLoadStatusHistory_ContextCancelled(t *testing.T) {
+	root := resolvePath(t, t.TempDir())
+	festPath := filepath.Join(root, "test-fest")
+	os.MkdirAll(filepath.Join(festPath, ".fest"), 0755)
+
+	// Write a valid history file first
+	historyPath := filepath.Join(festPath, ".fest", "status_history.json")
+	os.WriteFile(historyPath, []byte(`[{"timestamp":"2026-01-01T00:00:00Z","from_status":"planning","to_status":"ready"}]`), 0644)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := LoadStatusHistory(ctx, festPath)
+	if err == nil {
+		t.Fatal("expected error for cancelled context")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got: %v", err)
 	}
 }
