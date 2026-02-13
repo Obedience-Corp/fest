@@ -310,19 +310,26 @@ type PolicyRegistrar interface {
 
 ```text
 festivals/
+├── planning/                  # Festivals being designed and planned
+├── ready/                     # Validated, waiting to begin
 ├── active/                    # Currently executing festivals
 │   └── my-festival/
+│       ├── FESTIVAL_GOAL.md
 │       ├── FESTIVAL_OVERVIEW.md
 │       ├── FESTIVAL_RULES.md  (optional)
 │       ├── TODO.md            (optional)
+│       ├── fest.yaml
 │       ├── 001_PHASE_NAME/
 │       │   ├── PHASE_GOAL.md
 │       │   └── 01_sequence_name/
+│       │       ├── SEQUENCE_GOAL.md
 │       │       └── 01_task_name.md
 │       └── ...
-├── completed/
-├── planning/
-└── dungeon/
+├── ritual/                    # Repeatable festival templates
+└── dungeon/                   # Archived and completed work
+    ├── completed/             # Successfully finished (organized by YYYY-MM/)
+    ├── archived/              # Archived for reference
+    └── someday/               # Deprioritized / maybe later
 ```
 
 ### Naming Conventions
