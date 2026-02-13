@@ -217,6 +217,344 @@ func TestRunRepair(t *testing.T) {
 	}
 }
 
+func TestRunRepair_DungeonOrphans(t *testing.T) {
+	tmpDir := t.TempDir()
+	festivalsRoot := filepath.Join(tmpDir, "festivals")
+	createProperStructure(t, festivalsRoot)
+
+	// Create orphan festivals directly in dungeon/ (not in any child dir)
+	// These have fest.yaml to identify them as festivals
+	orphan1 := filepath.Join(festivalsRoot, "dungeon", "api-integration-tests")
+	orphan2 := filepath.Join(festivalsRoot, "dungeon", "fix-over-engineered-mess")
+	mustMkdir(t, orphan1)
+	mustMkdir(t, orphan2)
+	mustWriteFile(t, filepath.Join(orphan1, "fest.yaml"), "name: API Integration Tests\n")
+	mustWriteFile(t, filepath.Join(orphan2, "fest.yaml"), "name: Fix Over-Engineered Mess\n")
+
+	ctx := context.Background()
+	plan, err := analyzeRepair(ctx, festivalsRoot)
+	if err != nil {
+		t.Fatalf("analyzeRepair: %v", err)
+	}
+
+	// Should detect both orphans
+	if len(plan.dungeonOrphans) != 2 {
+		t.Fatalf("expected 2 dungeon orphans, got %d: %v", len(plan.dungeonOrphans), plan.dungeonOrphans)
+	}
+
+	// Verify hasIssues is true
+	if !plan.hasIssues() {
+		t.Error("expected hasIssues=true with dungeon orphans")
+	}
+
+	// Execute repair
+	if err := executeRepair(ctx, festivalsRoot, plan); err != nil {
+		t.Fatalf("executeRepair: %v", err)
+	}
+
+	// Verify orphans moved to dungeon/archived/
+	for _, name := range []string{"api-integration-tests", "fix-over-engineered-mess"} {
+		oldPath := filepath.Join(festivalsRoot, "dungeon", name)
+		newPath := filepath.Join(festivalsRoot, "dungeon", "archived", name)
+		if _, err := os.Stat(oldPath); !os.IsNotExist(err) {
+			t.Errorf("orphan %s still exists at old location", name)
+		}
+		if _, err := os.Stat(newPath); os.IsNotExist(err) {
+			t.Errorf("orphan %s not found at new location dungeon/archived/%s", name, name)
+		}
+	}
+}
+
+func TestRunRepair_DungeonOrphans_PhaseDetection(t *testing.T) {
+	tmpDir := t.TempDir()
+	festivalsRoot := filepath.Join(tmpDir, "festivals")
+	createProperStructure(t, festivalsRoot)
+
+	// Create orphan detected by numbered phase dirs (no fest.yaml)
+	orphan := filepath.Join(festivalsRoot, "dungeon", "my-festival")
+	mustMkdir(t, filepath.Join(orphan, "001_PLANNING"))
+	mustMkdir(t, filepath.Join(orphan, "002_IMPLEMENTATION"))
+
+	ctx := context.Background()
+	plan, err := analyzeRepair(ctx, festivalsRoot)
+	if err != nil {
+		t.Fatalf("analyzeRepair: %v", err)
+	}
+
+	if len(plan.dungeonOrphans) != 1 {
+		t.Fatalf("expected 1 dungeon orphan, got %d: %v", len(plan.dungeonOrphans), plan.dungeonOrphans)
+	}
+	if plan.dungeonOrphans[0] != "my-festival" {
+		t.Errorf("expected orphan 'my-festival', got %q", plan.dungeonOrphans[0])
+	}
+}
+
+func TestRunRepair_DungeonOrphans_FestDirDetection(t *testing.T) {
+	tmpDir := t.TempDir()
+	festivalsRoot := filepath.Join(tmpDir, "festivals")
+	createProperStructure(t, festivalsRoot)
+
+	// Create orphan detected by .fest/ directory
+	orphan := filepath.Join(festivalsRoot, "dungeon", "some-fest")
+	mustMkdir(t, filepath.Join(orphan, ".fest"))
+
+	ctx := context.Background()
+	plan, err := analyzeRepair(ctx, festivalsRoot)
+	if err != nil {
+		t.Fatalf("analyzeRepair: %v", err)
+	}
+
+	if len(plan.dungeonOrphans) != 1 {
+		t.Fatalf("expected 1 dungeon orphan, got %d", len(plan.dungeonOrphans))
+	}
+	if plan.dungeonOrphans[0] != "some-fest" {
+		t.Errorf("expected orphan 'some-fest', got %q", plan.dungeonOrphans[0])
+	}
+}
+
+func TestRunRepair_UnknownDungeonChildren(t *testing.T) {
+	tmpDir := t.TempDir()
+	festivalsRoot := filepath.Join(tmpDir, "festivals")
+	createProperStructure(t, festivalsRoot)
+
+	// Create unknown category dir "future/" containing festival subdirs
+	futureDir := filepath.Join(festivalsRoot, "dungeon", "future")
+	mustMkdir(t, futureDir)
+	// Put regular subdirs (not festivals) inside to make it a category dir
+	mustMkdir(t, filepath.Join(futureDir, "some-idea"))
+	mustMkdir(t, filepath.Join(futureDir, "another-idea"))
+
+	ctx := context.Background()
+	plan, err := analyzeRepair(ctx, festivalsRoot)
+	if err != nil {
+		t.Fatalf("analyzeRepair: %v", err)
+	}
+
+	// Should be flagged as unknown child, not an orphan
+	if len(plan.unknownChildren) != 1 {
+		t.Fatalf("expected 1 unknown child, got %d: %v", len(plan.unknownChildren), plan.unknownChildren)
+	}
+	if plan.unknownChildren[0] != "future" {
+		t.Errorf("expected unknown child 'future', got %q", plan.unknownChildren[0])
+	}
+	if len(plan.dungeonOrphans) != 0 {
+		t.Errorf("expected 0 dungeon orphans, got %d", len(plan.dungeonOrphans))
+	}
+
+	// Unknown children should NOT cause hasIssues to be true by themselves
+	// (they're informational only)
+	plan2 := &repairPlan{unknownChildren: []string{"future"}}
+	if plan2.hasIssues() {
+		t.Error("unknownChildren alone should not trigger hasIssues")
+	}
+}
+
+func TestRunRepair_ProgressMigration(t *testing.T) {
+	tmpDir := t.TempDir()
+	festivalsRoot := filepath.Join(tmpDir, "festivals")
+	createProperStructure(t, festivalsRoot)
+
+	// Create festivals with legacy progress.yaml in various locations
+	fest1 := filepath.Join(festivalsRoot, "active", "my-festival")
+	fest2 := filepath.Join(festivalsRoot, "dungeon", "completed", "old-festival")
+	fest3 := filepath.Join(festivalsRoot, "planning", "new-festival")
+
+	for _, festPath := range []string{fest1, fest2, fest3} {
+		mustMkdir(t, filepath.Join(festPath, ".fest"))
+		progressYAML := `festival: test
+updated_at: 2025-01-01T00:00:00Z
+tasks:
+  001_PLANNING/01_task:
+    task_id: 001_PLANNING/01_task
+    status: completed
+    progress: 100
+`
+		mustWriteFile(t, filepath.Join(festPath, ".fest", "progress.yaml"), progressYAML)
+	}
+
+	// Also create one festival that already has JSONL (should NOT be flagged)
+	fest4 := filepath.Join(festivalsRoot, "active", "already-migrated")
+	mustMkdir(t, filepath.Join(fest4, ".fest"))
+	mustWriteFile(t, filepath.Join(fest4, ".fest", "progress.yaml"), "festival: test\n")
+	mustWriteFile(t, filepath.Join(fest4, ".fest", "progress_events.jsonl"), "")
+
+	ctx := context.Background()
+	plan, err := analyzeRepair(ctx, festivalsRoot)
+	if err != nil {
+		t.Fatalf("analyzeRepair: %v", err)
+	}
+
+	// Should detect exactly 3 festivals needing migration
+	if len(plan.progressMigrate) != 3 {
+		t.Fatalf("expected 3 progress migrations, got %d: %v", len(plan.progressMigrate), plan.progressMigrate)
+	}
+
+	// Verify hasIssues is true
+	if !plan.hasIssues() {
+		t.Error("expected hasIssues=true with progress migrations")
+	}
+
+	// Execute repair
+	if err := executeRepair(ctx, festivalsRoot, plan); err != nil {
+		t.Fatalf("executeRepair: %v", err)
+	}
+
+	// Verify JSONL files were created and YAML files removed
+	for _, festPath := range []string{fest1, fest2, fest3} {
+		jsonlPath := filepath.Join(festPath, ".fest", "progress_events.jsonl")
+		yamlPath := filepath.Join(festPath, ".fest", "progress.yaml")
+		if _, err := os.Stat(jsonlPath); os.IsNotExist(err) {
+			t.Errorf("progress_events.jsonl not created at %s", jsonlPath)
+		}
+		if _, err := os.Stat(yamlPath); !os.IsNotExist(err) {
+			t.Errorf("progress.yaml still exists at %s (should be deleted after migration)", yamlPath)
+		}
+	}
+}
+
+func TestRunRepair_CombinedIssues(t *testing.T) {
+	tmpDir := t.TempDir()
+	festivalsRoot := filepath.Join(tmpDir, "festivals")
+	mustMkdir(t, festivalsRoot)
+
+	// Old naming: planned/ instead of planning/
+	mustMkdir(t, filepath.Join(festivalsRoot, "planned"))
+
+	// Old layout: top-level completed/
+	mustMkdir(t, filepath.Join(festivalsRoot, "completed"))
+
+	// Dungeon with orphan festival and unknown child
+	mustMkdir(t, filepath.Join(festivalsRoot, "dungeon"))
+	orphan := filepath.Join(festivalsRoot, "dungeon", "orphan-fest")
+	mustMkdir(t, orphan)
+	mustWriteFile(t, filepath.Join(orphan, "fest.yaml"), "name: orphan\n")
+
+	unknownDir := filepath.Join(festivalsRoot, "dungeon", "future")
+	mustMkdir(t, filepath.Join(unknownDir, "sub-item"))
+
+	// Legacy progress in the orphan
+	mustMkdir(t, filepath.Join(orphan, ".fest"))
+	mustWriteFile(t, filepath.Join(orphan, ".fest", "progress.yaml"), `festival: orphan
+updated_at: 2025-01-01T00:00:00Z
+tasks: {}
+`)
+
+	ctx := context.Background()
+	plan, err := analyzeRepair(ctx, festivalsRoot)
+	if err != nil {
+		t.Fatalf("analyzeRepair: %v", err)
+	}
+
+	// Verify all issue types detected
+	if len(plan.renameDirs) != 1 {
+		t.Errorf("expected 1 rename, got %d", len(plan.renameDirs))
+	}
+	if len(plan.moveDirs) != 1 {
+		t.Errorf("expected 1 move, got %d", len(plan.moveDirs))
+	}
+	if len(plan.dungeonOrphans) != 1 {
+		t.Errorf("expected 1 dungeon orphan, got %d: %v", len(plan.dungeonOrphans), plan.dungeonOrphans)
+	}
+	if len(plan.unknownChildren) != 1 {
+		t.Errorf("expected 1 unknown child, got %d: %v", len(plan.unknownChildren), plan.unknownChildren)
+	}
+	if len(plan.progressMigrate) != 1 {
+		t.Errorf("expected 1 progress migration, got %d: %v", len(plan.progressMigrate), plan.progressMigrate)
+	}
+	if !plan.createSchema {
+		t.Error("expected createSchema=true")
+	}
+
+	// Execute all repairs
+	if err := executeRepair(ctx, festivalsRoot, plan); err != nil {
+		t.Fatalf("executeRepair: %v", err)
+	}
+
+	// Verify planned/ renamed to planning/
+	if _, err := os.Stat(filepath.Join(festivalsRoot, "planning")); os.IsNotExist(err) {
+		t.Error("planning/ not created")
+	}
+
+	// Verify completed/ moved to dungeon/completed/
+	if _, err := os.Stat(filepath.Join(festivalsRoot, "dungeon", "completed")); os.IsNotExist(err) {
+		t.Error("dungeon/completed/ not created")
+	}
+
+	// Verify orphan moved to dungeon/archived/
+	archivedOrphan := filepath.Join(festivalsRoot, "dungeon", "archived", "orphan-fest")
+	if _, err := os.Stat(archivedOrphan); os.IsNotExist(err) {
+		t.Error("orphan not moved to dungeon/archived/")
+	}
+
+	// Verify progress migrated (JSONL should exist at new location)
+	jsonlPath := filepath.Join(archivedOrphan, ".fest", "progress_events.jsonl")
+	if _, err := os.Stat(jsonlPath); os.IsNotExist(err) {
+		t.Error("progress_events.jsonl not created for orphan festival")
+	}
+
+	// Verify schema created
+	if _, err := os.Stat(filepath.Join(festivalsRoot, workflow.SchemaFileName)); os.IsNotExist(err) {
+		t.Error(".workflow.yaml not created")
+	}
+}
+
+func TestLooksLikeFestival(t *testing.T) {
+	tests := []struct {
+		name     string
+		setup    func(t *testing.T, dir string)
+		expected bool
+	}{
+		{
+			name: "has_fest_yaml",
+			setup: func(t *testing.T, dir string) {
+				mustWriteFile(t, filepath.Join(dir, "fest.yaml"), "name: test\n")
+			},
+			expected: true,
+		},
+		{
+			name: "has_fest_dir",
+			setup: func(t *testing.T, dir string) {
+				mustMkdir(t, filepath.Join(dir, ".fest"))
+			},
+			expected: true,
+		},
+		{
+			name: "has_numbered_phases",
+			setup: func(t *testing.T, dir string) {
+				mustMkdir(t, filepath.Join(dir, "001_PLANNING"))
+			},
+			expected: true,
+		},
+		{
+			name: "empty_directory",
+			setup: func(t *testing.T, dir string) {
+				// nothing
+			},
+			expected: false,
+		},
+		{
+			name: "has_regular_subdirs",
+			setup: func(t *testing.T, dir string) {
+				mustMkdir(t, filepath.Join(dir, "sub-item"))
+				mustMkdir(t, filepath.Join(dir, "another"))
+			},
+			expected: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := filepath.Join(t.TempDir(), "test-dir")
+			mustMkdir(t, dir)
+			tt.setup(t, dir)
+			got := looksLikeFestival(dir)
+			if got != tt.expected {
+				t.Errorf("looksLikeFestival = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestRunRepair_ContextCancellation(t *testing.T) {
 	tmpDir := t.TempDir()
 	festivalsRoot := filepath.Join(tmpDir, "festivals")
@@ -315,5 +653,16 @@ func mustMkdir(t *testing.T, path string) {
 	t.Helper()
 	if err := os.MkdirAll(path, 0755); err != nil {
 		t.Fatalf("failed to create directory %s: %v", path, err)
+	}
+}
+
+func mustWriteFile(t *testing.T, path, content string) {
+	t.Helper()
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatalf("failed to create parent dir for %s: %v", path, err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write file %s: %v", path, err)
 	}
 }

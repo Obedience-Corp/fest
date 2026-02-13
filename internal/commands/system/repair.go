@@ -12,7 +12,6 @@ import (
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workflow"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 type repairOptions struct {
@@ -33,6 +32,8 @@ This command analyzes your festival directory structure and fixes:
   - Moves completed/ → dungeon/completed/ (old layout)
   - Creates missing directories (ready/, ritual/, dungeon/ subdirs)
   - Creates .workflow.yaml if missing
+  - Moves orphan festivals from dungeon/ root → dungeon/archived/
+  - Converts legacy progress.yaml → progress_events.jsonl
 
 The repair command is safe to run multiple times - it only makes changes
 when issues are detected.`,
@@ -60,23 +61,19 @@ func runRepair(ctx context.Context, opts *repairOptions) error {
 		return errors.IO("getting current directory", err)
 	}
 
-	// Find the festivals root
 	festivalsRoot, err := tpl.FindFestivalsRoot(cwd)
 	if err != nil {
 		return errors.Wrap(err, "finding festivals root").
 			WithHint("run this command from within a festivals/ directory")
 	}
 
-	// Analyze current structure
 	plan, err := analyzeRepair(ctx, festivalsRoot)
 	if err != nil {
 		return errors.Wrap(err, "analyzing festival directory")
 	}
 
-	// Display what we found
 	displayRepairPlan(plan)
 
-	// If nothing to fix, we're done
 	if !plan.hasIssues() {
 		fmt.Println()
 		fmt.Println(ui.Success("No issues detected - directory structure is valid"))
@@ -88,18 +85,10 @@ func runRepair(ctx context.Context, opts *repairOptions) error {
 		return nil
 	}
 
-	// Confirm unless forced
-	if !opts.force {
-		fmt.Printf("\nProceed with repair? [y/N] ")
-		var response string
-		fmt.Scanln(&response)
-		if response != "y" && response != "Y" {
-			fmt.Println(ui.Dim("Repair cancelled"))
-			return nil
-		}
+	if !opts.force && !confirmRepair() {
+		return nil
 	}
 
-	// Execute repairs
 	if err := executeRepair(ctx, festivalsRoot, plan); err != nil {
 		return errors.Wrap(err, "executing repair")
 	}
@@ -107,22 +96,37 @@ func runRepair(ctx context.Context, opts *repairOptions) error {
 	fmt.Println()
 	fmt.Println(ui.Success("Repair complete"))
 	fmt.Printf("  %s %s\n", ui.Label("Location"), ui.Dim(festivalsRoot))
-
 	return nil
+}
+
+// confirmRepair prompts the user for confirmation and returns true if accepted.
+func confirmRepair() bool {
+	fmt.Printf("\nProceed with repair? [y/N] ")
+	var response string
+	fmt.Scanln(&response)
+	if response != "y" && response != "Y" {
+		fmt.Println(ui.Dim("Repair cancelled"))
+		return false
+	}
+	return true
 }
 
 // repairPlan describes what issues were found and what will be fixed.
 type repairPlan struct {
-	festivalsRoot string
-	renameDirs    map[string]string // old → new name renames
-	moveDirs      map[string]string // src → dst directory moves
-	createDirs    []string          // directories to create
-	createSchema  bool              // whether to create .workflow.yaml
+	festivalsRoot   string
+	renameDirs      map[string]string // old → new name renames
+	moveDirs        map[string]string // src → dst directory moves
+	createDirs      []string          // directories to create
+	createSchema    bool              // whether to create .workflow.yaml
+	dungeonOrphans  []string          // flat items in dungeon/ → dungeon/archived/
+	unknownChildren []string          // non-schema dungeon children (flag only)
+	progressMigrate []string          // festival paths with legacy progress.yaml
 }
 
 // hasIssues returns true if there are any issues to fix.
 func (p *repairPlan) hasIssues() bool {
-	return len(p.renameDirs) > 0 || len(p.moveDirs) > 0 || len(p.createDirs) > 0 || p.createSchema
+	return len(p.renameDirs) > 0 || len(p.moveDirs) > 0 || len(p.createDirs) > 0 ||
+		p.createSchema || len(p.dungeonOrphans) > 0 || len(p.progressMigrate) > 0
 }
 
 // analyzeRepair examines the current structure and builds a repair plan.
@@ -137,67 +141,83 @@ func analyzeRepair(ctx context.Context, festivalsRoot string) (*repairPlan, erro
 		moveDirs:      make(map[string]string),
 	}
 
-	// Check if schema exists
+	if err := analyzeRenames(festivalsRoot, plan); err != nil {
+		return nil, err
+	}
+	analyzeMoves(festivalsRoot, plan)
+	analyzeMissingDirs(festivalsRoot, plan)
+
+	if err := analyzeDungeonOrphans(ctx, festivalsRoot, plan); err != nil {
+		return nil, errors.Wrap(err, "analyzing dungeon contents")
+	}
+	if err := analyzeLegacyProgress(ctx, festivalsRoot, plan); err != nil {
+		return nil, errors.Wrap(err, "analyzing legacy progress files")
+	}
+
+	return plan, nil
+}
+
+// analyzeRenames checks for old directory naming conventions that need renaming.
+func analyzeRenames(festivalsRoot string, plan *repairPlan) error {
 	svc := workflow.NewService(festivalsRoot)
 	if !svc.HasSchema() {
 		plan.createSchema = true
 	}
 
-	// Check for old "planned/" directory (should be "planning/")
 	plannedPath := filepath.Join(festivalsRoot, "planned")
 	planningPath := filepath.Join(festivalsRoot, "planning")
-	if info, err := os.Stat(plannedPath); err == nil && info.IsDir() {
-		// Only rename if planning/ doesn't already exist
-		if _, err := os.Stat(planningPath); os.IsNotExist(err) {
-			plan.renameDirs["planned"] = "planning"
-		} else {
-			// Both exist - this is a conflict we can't auto-resolve
-			fmt.Println(ui.Warning("Both planned/ and planning/ exist - manual intervention required"))
-		}
+	info, err := os.Stat(plannedPath)
+	if err != nil || !info.IsDir() {
+		return nil
 	}
+	if _, err := os.Stat(planningPath); os.IsNotExist(err) {
+		plan.renameDirs["planned"] = "planning"
+	} else {
+		return fmt.Errorf("both planned/ and planning/ exist — manual intervention required")
+	}
+	return nil
+}
 
-	// Check if completed/ exists at top level (should be dungeon/completed/)
+// analyzeMoves checks for top-level directories that belong under dungeon/.
+func analyzeMoves(festivalsRoot string, plan *repairPlan) {
 	completedPath := filepath.Join(festivalsRoot, "completed")
-	if info, err := os.Stat(completedPath); err == nil && info.IsDir() {
-		dungeonCompletedPath := filepath.Join(festivalsRoot, "dungeon", "completed")
-		if _, err := os.Stat(dungeonCompletedPath); os.IsNotExist(err) {
-			plan.moveDirs["completed"] = "dungeon/completed"
-		}
+	info, err := os.Stat(completedPath)
+	if err != nil || !info.IsDir() {
+		return
 	}
+	dungeonCompletedPath := filepath.Join(festivalsRoot, "dungeon", "completed")
+	if _, err := os.Stat(dungeonCompletedPath); os.IsNotExist(err) {
+		plan.moveDirs["completed"] = "dungeon/completed"
+	}
+}
 
-	// Check which directories need creation (using FestivalSchema as reference)
+// analyzeMissingDirs checks which schema directories need creation.
+func analyzeMissingDirs(festivalsRoot string, plan *repairPlan) {
 	schema := workflow.FestivalSchema()
 	for _, dirPath := range schema.AllDirectories() {
-		// Skip if this directory will be created by a rename (it's a rename target)
-		skipCreate := false
-		for _, newName := range plan.renameDirs {
-			if newName == dirPath {
-				skipCreate = true
-				break
-			}
-		}
-		if skipCreate {
+		if isPlannedTarget(dirPath, plan) {
 			continue
 		}
-
-		// Skip if this directory will be created by a move
-		for _, dst := range plan.moveDirs {
-			if dst == dirPath {
-				skipCreate = true
-				break
-			}
-		}
-		if skipCreate {
-			continue
-		}
-
 		fullPath := filepath.Join(festivalsRoot, dirPath)
 		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 			plan.createDirs = append(plan.createDirs, dirPath)
 		}
 	}
+}
 
-	return plan, nil
+// isPlannedTarget returns true if the directory will be created by a rename or move.
+func isPlannedTarget(dirPath string, plan *repairPlan) bool {
+	for _, newName := range plan.renameDirs {
+		if newName == dirPath {
+			return true
+		}
+	}
+	for _, dst := range plan.moveDirs {
+		if dst == dirPath {
+			return true
+		}
+	}
+	return false
 }
 
 // displayRepairPlan shows the repair plan to the user.
@@ -205,105 +225,84 @@ func displayRepairPlan(plan *repairPlan) {
 	fmt.Println(ui.H2("Festival Directory Repair"))
 	fmt.Printf("  %s %s\n\n", ui.Label("Location"), ui.Dim(plan.festivalsRoot))
 
-	if len(plan.renameDirs) > 0 {
-		fmt.Println(ui.Label("  Renames:"))
-		for old, new := range plan.renameDirs {
-			fmt.Printf("    %s → %s\n", ui.Value(old+"/", ui.WarningColor), ui.Value(new+"/", ui.SuccessColor))
-		}
-		fmt.Println()
-	}
-
-	if len(plan.moveDirs) > 0 {
-		fmt.Println(ui.Label("  Moves:"))
-		for src, dst := range plan.moveDirs {
-			fmt.Printf("    %s → %s\n", ui.Value(src+"/", ui.WarningColor), ui.Value(dst+"/", ui.SuccessColor))
-		}
-		fmt.Println()
-	}
-
-	if len(plan.createDirs) > 0 {
-		fmt.Println(ui.Label("  Create:"))
-		for _, dir := range plan.createDirs {
-			fmt.Printf("    %s\n", ui.Value(dir+"/", ui.SuccessColor))
-		}
-		fmt.Println()
-	}
-
-	if plan.createSchema {
-		fmt.Printf("  %s %s\n", ui.Label("Schema"), ui.Value(".workflow.yaml", ui.SuccessColor))
-	}
+	displayRenames(plan)
+	displayMoves(plan)
+	displayCreates(plan)
+	displaySchema(plan)
+	displayDungeonOrphans(plan)
+	displayUnknownChildren(plan)
+	displayProgressMigration(plan)
 }
 
-// executeRepair performs the actual repair operations.
-func executeRepair(ctx context.Context, festivalsRoot string, plan *repairPlan) error {
-	if err := ctx.Err(); err != nil {
-		return err
+func displayRenames(plan *repairPlan) {
+	if len(plan.renameDirs) == 0 {
+		return
 	}
-
-	// 1. Execute directory renames first (planned/ → planning/)
-	for old, new := range plan.renameDirs {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		oldPath := filepath.Join(festivalsRoot, old)
-		newPath := filepath.Join(festivalsRoot, new)
-
-		if err := os.Rename(oldPath, newPath); err != nil {
-			return fmt.Errorf("renaming %s to %s: %w", old, new, err)
-		}
-		fmt.Printf("  %s %s → %s\n", ui.Success("Renamed"), old, new)
+	fmt.Println(ui.Label("  Renames:"))
+	for old, newName := range plan.renameDirs {
+		fmt.Printf("    %s → %s\n", ui.Value(old+"/", ui.WarningColor), ui.Value(newName+"/", ui.SuccessColor))
 	}
+	fmt.Println()
+}
 
-	// 2. Create dungeon directory first (parent for moves)
-	dungeonPath := filepath.Join(festivalsRoot, "dungeon")
-	if err := os.MkdirAll(dungeonPath, 0755); err != nil {
-		return fmt.Errorf("creating dungeon directory: %w", err)
+func displayMoves(plan *repairPlan) {
+	if len(plan.moveDirs) == 0 {
+		return
 	}
-
-	// 3. Execute directory moves (completed/ → dungeon/completed/)
+	fmt.Println(ui.Label("  Moves:"))
 	for src, dst := range plan.moveDirs {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		srcPath := filepath.Join(festivalsRoot, src)
-		dstPath := filepath.Join(festivalsRoot, dst)
-
-		if err := os.Rename(srcPath, dstPath); err != nil {
-			return fmt.Errorf("moving %s to %s: %w", src, dst, err)
-		}
-		fmt.Printf("  %s %s → %s\n", ui.Success("Moved"), src, dst)
+		fmt.Printf("    %s → %s\n", ui.Value(src+"/", ui.WarningColor), ui.Value(dst+"/", ui.SuccessColor))
 	}
+	fmt.Println()
+}
 
-	// 4. Create missing directories
+func displayCreates(plan *repairPlan) {
+	if len(plan.createDirs) == 0 {
+		return
+	}
+	fmt.Println(ui.Label("  Create:"))
 	for _, dir := range plan.createDirs {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		fullPath := filepath.Join(festivalsRoot, dir)
-		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-			if err := os.MkdirAll(fullPath, 0755); err != nil {
-				return fmt.Errorf("creating directory %s: %w", dir, err)
-			}
-			fmt.Printf("  %s %s/\n", ui.Success("Created"), dir)
-		}
+		fmt.Printf("    %s\n", ui.Value(dir+"/", ui.SuccessColor))
 	}
+	fmt.Println()
+}
 
-	// 5. Write workflow schema if needed
-	if plan.createSchema {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		schema := workflow.FestivalSchema()
-		data, err := yaml.Marshal(schema)
-		if err != nil {
-			return fmt.Errorf("marshaling schema: %w", err)
-		}
-		schemaPath := filepath.Join(festivalsRoot, workflow.SchemaFileName)
-		if err := os.WriteFile(schemaPath, data, 0644); err != nil {
-			return fmt.Errorf("writing schema file: %w", err)
-		}
-		fmt.Printf("  %s %s\n", ui.Success("Created"), ".workflow.yaml")
+func displaySchema(plan *repairPlan) {
+	if !plan.createSchema {
+		return
 	}
+	fmt.Printf("  %s %s\n\n", ui.Label("Schema"), ui.Value(".workflow.yaml", ui.SuccessColor))
+}
 
-	return nil
+func displayDungeonOrphans(plan *repairPlan) {
+	if len(plan.dungeonOrphans) == 0 {
+		return
+	}
+	fmt.Printf("  %s\n", ui.Label("Dungeon Orphans (→ dungeon/archived/):"))
+	for _, name := range plan.dungeonOrphans {
+		fmt.Printf("    %s\n", ui.Value(name+"/", ui.WarningColor))
+	}
+	fmt.Println()
+}
+
+func displayUnknownChildren(plan *repairPlan) {
+	if len(plan.unknownChildren) == 0 {
+		return
+	}
+	fmt.Printf("  %s\n", ui.Warning("Unknown Dungeon Children (manual action needed):"))
+	for _, name := range plan.unknownChildren {
+		entryPath := filepath.Join(plan.festivalsRoot, "dungeon", name)
+		count := countSubdirs(entryPath)
+		fmt.Printf("    %s  (contains %d items)\n", ui.Value(name+"/", ui.WarningColor), count)
+	}
+	fmt.Println()
+}
+
+func displayProgressMigration(plan *repairPlan) {
+	if len(plan.progressMigrate) == 0 {
+		return
+	}
+	fmt.Printf("  %s\n", ui.Label("Progress Migration (progress.yaml → progress_events.jsonl):"))
+	fmt.Printf("    %d festivals with legacy progress format\n", len(plan.progressMigrate))
+	fmt.Println()
 }
