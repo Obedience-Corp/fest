@@ -136,9 +136,10 @@ func TestCrossFilesystemFallback(t *testing.T) {
 	destDir := filepath.Join(baseDir, "dungeon", "completed")
 
 	// Use copy-delete for cross-filesystem simulation
-	newPath, err := CopyDeleteMove(sourcePath, destDir, "test-festival")
+	destPath := filepath.Join(destDir, "test-festival")
+	newPath, err := copyAndDelete(sourcePath, destPath)
 	if err != nil {
-		t.Fatalf("CopyDeleteMove() error = %v", err)
+		t.Fatalf("copyAndDelete() error = %v", err)
 	}
 
 	// Verify source is gone
@@ -224,4 +225,4 @@ func TestCompletedUsesDateDirectory(t *testing.T) {
 	}
 }
 
-// Note: AtomicStatusChange and CopyDeleteMove are implemented in atomic.go
+// Note: AtomicStatusChange is implemented in atomic.go, copyAndDelete in date_directory.go

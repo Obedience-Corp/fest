@@ -21,9 +21,9 @@ import (
 
 // Styles for festival status in TUI
 var (
-	activeStyle  = lipgloss.NewStyle().Foreground(ui.ActiveColor).Bold(true)
+	activeStyle   = lipgloss.NewStyle().Foreground(ui.ActiveColor).Bold(true)
 	planningStyle = lipgloss.NewStyle().Foreground(ui.PlanningColor).Bold(true)
-	pathStyle    = lipgloss.NewStyle().Foreground(ui.MetadataColor)
+	pathStyle     = lipgloss.NewStyle().Foreground(ui.MetadataColor)
 )
 
 // NewGoLinkCommand creates the context-aware link subcommand for fest go
