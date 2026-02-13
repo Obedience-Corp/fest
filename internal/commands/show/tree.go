@@ -273,6 +273,10 @@ func markNextPending(node *DisplayNode) {
 	for _, child := range node.Children {
 		if child.Status != "completed" {
 			child.IsNextPending = true
+			// Leaf nodes (tasks/steps) show as in_progress to indicate "work here next"
+			if child.NodeType == "task" || child.NodeType == "step" {
+				child.Status = "in_progress"
+			}
 			markNextPending(child)
 			return
 		}
