@@ -51,6 +51,55 @@ func runStatusShow(ctx context.Context, cmd *cobra.Command, opts *statusOptions)
 	return emitLocationText(ctx, loc)
 }
 
+// statusHandler is the signature for status set handler functions.
+type statusHandler func(ctx context.Context, display *ui.UI, cwd, newStatus string, opts *statusOptions) error
+
+// resolveExplicitHandler checks if any level-specific flag (--task, --sequence,
+// --phase, --path) was provided and returns the corresponding handler function.
+// Returns nil if no explicit flag was set.
+// Flag priority: --task > --sequence > --phase > --path
+func resolveExplicitHandler(opts *statusOptions) statusHandler {
+	if opts.task != "" {
+		return handleTaskStatusSet
+	}
+	if opts.sequence != "" {
+		return handleSequenceStatusSet
+	}
+	if opts.phase != "" {
+		return handlePhaseStatusSet
+	}
+	if opts.path != "" {
+		return handlePathBasedStatusSet
+	}
+	return nil
+}
+
+// promptForStatus presents an interactive status selection prompt when no status
+// argument was provided. It detects the entity type from context and presents
+// valid status options for that entity type.
+func promptForStatus(ctx context.Context, cwd string, opts *statusOptions) (string, bool, error) {
+	entityType := detectEntityTypeForStatusPrompt(cwd, opts)
+	var validStatuses []string
+	if entityType == EntityFestival {
+		festivalsRoot := findFestivalsRoot(cwd)
+		validStatuses = getValidFestivalStatuses(festivalsRoot)
+	} else {
+		validStatuses = ValidStatuses[entityType]
+	}
+	options := theme.ToOptions(validStatuses)
+
+	var selected string
+	title := fmt.Sprintf("Select %s status", entityType)
+	cancelled, err := theme.QuickSelect(ctx, title, options, &selected)
+	if err != nil {
+		return "", false, errors.Wrap(err, "status selection failed")
+	}
+	if cancelled || selected == "" {
+		return "", true, nil
+	}
+	return selected, false, nil
+}
+
 // runStatusSet handles the status set command.
 func runStatusSet(ctx context.Context, cmd *cobra.Command, newStatus string, opts *statusOptions) error {
 	if err := ctx.Err(); err != nil {
@@ -64,116 +113,104 @@ func runStatusSet(ctx context.Context, cmd *cobra.Command, newStatus string, opt
 
 	display := ui.New(shared.IsNoColor(), shared.IsVerbose())
 
-	// If no status provided, prompt user to select one
+	// Resolve status interactively if not provided
 	if newStatus == "" {
-		entityType := detectEntityTypeForStatusPrompt(cwd, opts)
-		var validStatuses []string
-		if entityType == EntityFestival {
-			festivalsRoot := findFestivalsRoot(cwd)
-			validStatuses = getValidFestivalStatuses(festivalsRoot)
-		} else {
-			validStatuses = ValidStatuses[entityType]
-		}
-		options := theme.ToOptions(validStatuses)
-
-		title := fmt.Sprintf("Select %s status", entityType)
-		cancelled, err := theme.QuickSelect(ctx, title, options, &newStatus)
-		if err != nil {
-			return errors.Wrap(err, "status selection failed")
-		}
-		if cancelled || newStatus == "" {
-			display.Info("Selection cancelled.")
-			return nil
-		}
-	}
-
-	// Check if a level-specific flag was provided
-	if opts.task != "" {
-		return handleTaskStatusSet(ctx, display, cwd, newStatus, opts)
-	}
-	if opts.sequence != "" {
-		return handleSequenceStatusSet(ctx, display, cwd, newStatus, opts)
-	}
-	if opts.phase != "" {
-		return handlePhaseStatusSet(ctx, display, cwd, newStatus, opts)
-	}
-
-	// Handle --path flag: detect entity type and route accordingly
-	if opts.path != "" {
-		return handlePathBasedStatusSet(ctx, display, cwd, newStatus, opts)
-	}
-
-	// No level flag - use original logic (festival level or context-aware)
-	// Resolve festival path (supports linked festivals via fest link)
-	festivalPath, err := shared.ResolveFestivalPath(cwd, "")
-
-	// Handle case when not inside a festival or interactive mode requested
-	if err != nil || opts.interactive {
-		// Interactive selection mode
-		selectedFestival, selectErr := selectFestivalForStatus(ctx, cwd, newStatus)
-		if selectErr != nil {
-			return selectErr
-		}
-		if selectedFestival == nil {
-			// User cancelled
-			display.Info("Selection cancelled.")
-			return nil
-		}
-
-		// Use selected festival
-		return applyStatusToFestival(ctx, display, selectedFestival, newStatus, opts)
-	}
-
-	// Detect current location
-	// Try cwd first (when inside festival), then fall back to festivalPath (when linked)
-	var loc *show.LocationInfo
-	loc, err = show.DetectCurrentLocation(ctx, cwd)
-	if err != nil || loc.Festival == nil {
-		// We might be in a linked project directory
-		// Fall back to festival root detection
-		loc, err = show.DetectCurrentLocation(ctx, festivalPath)
+		var cancelled bool
+		newStatus, cancelled, err = promptForStatus(ctx, cwd, opts)
 		if err != nil {
 			return err
 		}
+		if cancelled {
+			display.Info("Selection cancelled.")
+			return nil
+		}
+	}
+
+	// Route to explicit flag handlers first
+	if handler := resolveExplicitHandler(opts); handler != nil {
+		return handler(ctx, display, cwd, newStatus, opts)
+	}
+
+	// Fall back to context-aware routing
+	return routeByContext(ctx, display, cwd, newStatus, opts)
+}
+
+// routeByContext handles status set when no explicit flag was provided.
+// It resolves the festival path, detects the current location context,
+// and routes to the appropriate handler.
+func routeByContext(ctx context.Context, display *ui.UI, cwd, newStatus string, opts *statusOptions) error {
+	festivalPath, err := shared.ResolveFestivalPath(cwd, "")
+
+	if err != nil || opts.interactive {
+		return handleInteractiveFallback(ctx, display, cwd, newStatus, opts)
+	}
+
+	loc, err := detectStatusLocation(ctx, cwd, festivalPath)
+	if err != nil {
+		return err
 	}
 
 	if loc.Festival == nil {
 		return errors.NotFound("festival")
 	}
 
-	// Context-aware routing based on detected location
+	return dispatchByLocationType(ctx, display, cwd, newStatus, opts, loc)
+}
+
+// handleInteractiveFallback handles status set when not inside a festival
+// or when --interactive was explicitly requested.
+func handleInteractiveFallback(ctx context.Context, display *ui.UI, cwd, newStatus string, opts *statusOptions) error {
+	selectedFestival, selectErr := selectFestivalForStatus(ctx, cwd, newStatus)
+	if selectErr != nil {
+		return selectErr
+	}
+	if selectedFestival == nil {
+		display.Info("Selection cancelled.")
+		return nil
+	}
+	return applyStatusToFestival(ctx, display, selectedFestival, newStatus, opts)
+}
+
+// detectStatusLocation detects the current location within a festival.
+// Tries cwd first, then falls back to festivalPath for linked projects.
+func detectStatusLocation(ctx context.Context, cwd, festivalPath string) (*show.LocationInfo, error) {
+	loc, err := show.DetectCurrentLocation(ctx, cwd)
+	if err != nil || loc.Festival == nil {
+		loc, err = show.DetectCurrentLocation(ctx, festivalPath)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return loc, nil
+}
+
+// dispatchByLocationType routes status set based on the detected location type.
+func dispatchByLocationType(ctx context.Context, display *ui.UI, cwd, newStatus string, opts *statusOptions, loc *show.LocationInfo) error {
 	switch loc.Type {
 	case "task":
-		// In a task context - require explicit --task flag
-		// Task status is too granular for auto-detect
 		return showContextHint(display, opts, loc, newStatus, "task")
 
 	case "sequence":
-		// Auto-detect sequence status
 		if !isValidStatus(EntitySequence, newStatus) {
 			validOptions := ValidStatuses[EntitySequence]
 			return errors.Validation("invalid status for sequence").
 				WithField("status", newStatus).
 				WithField("valid_options", strings.Join(validOptions, ", "))
 		}
-		// Route to sequence handler
 		opts.sequence = loc.Sequence
 		return handleSequenceStatusSet(ctx, display, cwd, newStatus, opts)
 
 	case "phase":
-		// Auto-detect phase status
 		if !isValidStatus(EntityPhase, newStatus) {
 			validOptions := ValidStatuses[EntityPhase]
 			return errors.Validation("invalid status for phase").
 				WithField("status", newStatus).
 				WithField("valid_options", strings.Join(validOptions, ", "))
 		}
-		// Route to phase handler
 		opts.phase = loc.Phase
 		return handlePhaseStatusSet(ctx, display, cwd, newStatus, opts)
 
 	case "festival":
-		// At festival root - validate festival status (schema-aware)
 		festivalsRoot := festivalsRootFromPath(loc.Festival.Path, loc.Festival.Status)
 		if !isValidFestivalStatus(festivalsRoot, newStatus) {
 			validOptions := getValidFestivalStatuses(festivalsRoot)
@@ -184,7 +221,6 @@ func runStatusSet(ctx context.Context, cmd *cobra.Command, newStatus string, opt
 		return handleFestivalStatusChange(ctx, display, loc.Festival, newStatus, opts)
 
 	default:
-		// Unknown context - show help
 		return errors.Validation("unknown context").
 			WithField("type", loc.Type).
 			WithField("hint", "use --phase, --sequence, or --task to specify level")
