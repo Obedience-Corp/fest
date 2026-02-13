@@ -97,7 +97,7 @@ fest create festival --name NAME [flags]
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--name` | *required* | Festival name |
-| `--dest` | `active` | Destination: `active` or `planned` |
+| `--dest` | `active` | Destination: `active` or `planning` |
 | `--goal` | | Festival goal description |
 | `--tags` | | Comma-separated tags |
 | `--vars-file` | | JSON file with variables |
@@ -109,8 +109,8 @@ fest create festival --name NAME [flags]
 # Create festival in active/
 fest create festival --name "api-refactor"
 
-# Create in planned/ with goal
-fest create festival --name "ui-redesign" --dest planned --goal "Modernize UI components"
+# Create in planning/ with goal
+fest create festival --name "ui-redesign" --dest planning --goal "Modernize UI components"
 
 # With JSON output
 fest create festival --name "test" --json

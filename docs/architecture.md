@@ -321,7 +321,7 @@ festivals/
 │       │       └── 01_task_name.md
 │       └── ...
 ├── completed/
-├── planned/
+├── planning/
 └── dungeon/
 ```
 
