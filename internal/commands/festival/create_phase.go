@@ -99,43 +99,131 @@ func NewCreatePhaseCommand() *cobra.Command {
 	return cmd
 }
 
+// phaseConfig holds all resolved configuration for phase creation.
+// It is populated by resolvePhaseConfig() and passed to subsequent pipeline stages.
+type phaseConfig struct {
+	opts                 *CreatePhaseOptions
+	display              *ui.UI
+	absPath              string
+	festivalsRoot        string
+	festivalPath         string
+	agentCfg             *config.AgentConfig
+	effectiveSkipMarkers bool
+	tmplRoot             string
+	newNumber            int
+	phaseID              string
+	phaseDir             string
+	vars                 map[string]interface{}
+	tmplCtx              *tpl.Context
+	configMarkers        map[string]string
+}
+
+// phaseResult accumulates outputs from each pipeline stage of phase creation.
+type phaseResult struct {
+	goalPath         string
+	markersFilled    int
+	markersTotal     int
+	validationResult *ValidationSummary
+}
+
 // RunCreatePhase executes the create phase command logic.
 func RunCreatePhase(ctx context.Context, opts *CreatePhaseOptions) error {
-	// Check context early
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled").WithOp("RunCreatePhase")
 	}
 
-	// Agent mode implies JSON output
+	cfg, err := resolvePhaseConfig(ctx, opts)
+	if err != nil {
+		return emitCreatePhaseError(opts, err)
+	}
+
+	content, err := renderPhaseGoalContent(ctx, cfg)
+	if err != nil {
+		return emitCreatePhaseError(opts, err)
+	}
+
+	res, err := writePhaseGoal(ctx, cfg, content)
+	if err != nil {
+		return emitCreatePhaseError(opts, err)
+	}
+
+	copyPhaseStructure(ctx, cfg)
+
+	if err := processPhaseMarkers(ctx, cfg, res); err != nil {
+		return emitCreatePhaseError(opts, err)
+	}
+
+	if opts.DryRun && res.markersTotal > 0 {
+		return nil
+	}
+
+	if err := validatePhaseIfConfigured(ctx, cfg, res); err != nil {
+		return emitCreatePhaseError(opts, err)
+	}
+
+	return emitPhaseOutput(cfg, res)
+}
+
+// resolvePhaseConfig resolves and validates all configuration needed for phase creation.
+func resolvePhaseConfig(ctx context.Context, opts *CreatePhaseOptions) (*phaseConfig, error) {
 	if opts.AgentMode {
 		opts.JSONOutput = true
 	}
 
 	display := ui.New(shared.IsNoColor(), shared.IsVerbose())
 
-	// Convert to absolute path first so resolution functions can walk the tree
 	absPath, err := filepath.Abs(opts.Path)
 	if err != nil {
-		return emitCreatePhaseError(opts, errors.Wrap(err, "resolving path").WithField("path", opts.Path))
+		return nil, errors.Wrap(err, "resolving path").WithField("path", opts.Path)
 	}
 
-	// Resolve paths for config loading
 	festivalsRoot := ResolveFestivalsRoot(absPath)
 	festivalPath := ResolveFestivalPath(absPath)
-
-	// Load effective agent config (workspace + festival merged)
 	agentCfg := LoadEffectiveAgentConfig(festivalsRoot, festivalPath)
-
-	// Determine effective skip-markers behavior
 	effectiveSkipMarkers := config.EffectiveSkipMarkers(agentCfg, opts.AgentMode, opts.SkipMarkers)
 
-	// Resolve template root
 	tmplRoot, err := tpl.LocalTemplateRoot(absPath)
 	if err != nil {
-		return emitCreatePhaseError(opts, err)
+		return nil, err
 	}
 
-	// Auto-detect last phase number when --after is not specified (default -1)
+	newNumber, phaseID, phaseDir, err := detectAndInsertPhase(ctx, absPath, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	vars := map[string]interface{}{}
+	if strings.TrimSpace(opts.VarsFile) != "" {
+		v, err := loadVarsFile(opts.VarsFile)
+		if err != nil {
+			return nil, errors.Wrap(err, "reading vars-file").WithField("path", opts.VarsFile)
+		}
+		vars = v
+	}
+
+	tmplCtx := buildPhaseTemplateContext(absPath, festivalPath, opts, newNumber, vars)
+
+	var configMarkers map[string]string
+	if festivalPath != "" {
+		festCfg, cfgErr := config.LoadFestivalConfig(festivalPath)
+		if cfgErr == nil && festCfg != nil {
+			configMarkers = extractConfigMarkers(festCfg)
+		}
+	}
+
+	return &phaseConfig{
+		opts: opts, display: display, absPath: absPath,
+		festivalsRoot: festivalsRoot, festivalPath: festivalPath,
+		agentCfg: agentCfg, effectiveSkipMarkers: effectiveSkipMarkers,
+		tmplRoot: tmplRoot, newNumber: newNumber, phaseID: phaseID,
+		phaseDir: phaseDir, vars: vars, tmplCtx: tmplCtx,
+		configMarkers: configMarkers,
+	}, nil
+}
+
+// detectAndInsertPhase handles auto-detecting the phase number and inserting
+// the new phase with renumbering.
+func detectAndInsertPhase(ctx context.Context, absPath string, opts *CreatePhaseOptions) (int, string, string, error) {
 	if opts.After == -1 {
 		parser := festival.NewParser()
 		phases, parseErr := parser.ParsePhases(ctx, absPath)
@@ -148,36 +236,25 @@ func RunCreatePhase(ctx context.Context, opts *CreatePhaseOptions) error {
 			}
 			opts.After = maxNum
 		} else {
-			// No existing phases or parse error - insert at beginning
 			opts.After = 0
 		}
 	}
 
-	// Insert phase
 	ren := festival.NewRenumberer(festival.RenumberOptions{AutoApprove: true, Quiet: true})
 	if err := ren.InsertPhase(ctx, absPath, opts.After, opts.Name); err != nil {
-		return emitCreatePhaseError(opts, errors.Wrap(err, "inserting phase"))
+		return 0, "", "", errors.Wrap(err, "inserting phase")
 	}
 
-	// Compute new phase id
 	newNumber := opts.After + 1
 	phaseID := tpl.FormatPhaseID(newNumber, opts.Name)
 	phaseDir := filepath.Join(absPath, phaseID)
+	return newNumber, phaseID, phaseDir, nil
+}
 
-	// Load vars
-	vars := map[string]interface{}{}
-	if strings.TrimSpace(opts.VarsFile) != "" {
-		v, err := loadVarsFile(opts.VarsFile)
-		if err != nil {
-			return emitCreatePhaseError(opts, errors.Wrap(err, "reading vars-file").WithField("path", opts.VarsFile))
-		}
-		vars = v
-	}
-
-	// Build full template context with hierarchy (festival → phase)
+// buildPhaseTemplateContext constructs the template context for phase creation.
+func buildPhaseTemplateContext(absPath, festivalPath string, opts *CreatePhaseOptions, newNumber int, vars map[string]interface{}) *tpl.Context {
 	tmplCtx, ctxErr := tpl.BuildContextFromPath(absPath, festivalPath)
 	if ctxErr != nil {
-		// Fall back to minimal context
 		tmplCtx = tpl.NewContext()
 	}
 	tmplCtx.SetPhase(newNumber, opts.Name, opts.PhaseType)
@@ -188,37 +265,36 @@ func RunCreatePhase(ctx context.Context, opts *CreatePhaseOptions) error {
 	for k, v := range vars {
 		tmplCtx.SetCustom(k, v)
 	}
+	return tmplCtx
+}
 
-	// Render or copy PHASE_GOAL template
-	// Try IDs first via catalog
-	catalog, _ := tpl.LoadCatalog(ctx, tmplRoot)
+// renderPhaseGoalContent renders the PHASE_GOAL.md content from templates.
+func renderPhaseGoalContent(ctx context.Context, cfg *phaseConfig) (string, error) {
+	templateID, templateFilename, phaseTypeErr := selectPhaseTemplate(cfg.opts.PhaseType)
+	if phaseTypeErr != nil {
+		return "", errors.Validation(phaseTypeErr.Error()).WithField("phase_type", cfg.opts.PhaseType)
+	}
+
+	catalog, _ := tpl.LoadCatalog(ctx, cfg.tmplRoot)
 	mgr := tpl.NewManager()
 	var content string
 	var renderErr error
 
-	// Select template based on phase type
-	templateID, templateFilename, phaseTypeErr := selectPhaseTemplate(opts.PhaseType)
-	if phaseTypeErr != nil {
-		return emitCreatePhaseError(opts, errors.Validation(phaseTypeErr.Error()).WithField("phase_type", opts.PhaseType))
-	}
-
 	if catalog != nil {
-		content, renderErr = mgr.RenderByID(ctx, catalog, templateID, tmplCtx)
+		content, renderErr = mgr.RenderByID(ctx, catalog, templateID, cfg.tmplCtx)
 	}
 	if renderErr != nil || content == "" {
-		// Fall back to default filename
-		tpath := filepath.Join(tmplRoot, templateFilename)
+		tpath := filepath.Join(cfg.tmplRoot, templateFilename)
 		if _, err := os.Stat(tpath); err == nil {
 			loader := tpl.NewLoader()
 			t, err := loader.Load(ctx, tpath)
 			if err != nil {
-				return emitCreatePhaseError(opts, errors.Wrap(err, "loading phase goal template").WithField("template", templateFilename))
+				return "", errors.Wrap(err, "loading phase goal template").WithField("template", templateFilename)
 			}
-			// Render if it appears templated; else copy
 			if strings.Contains(t.Content, "{{") {
-				out, err := mgr.Render(t, tmplCtx)
+				out, err := mgr.Render(t, cfg.tmplCtx)
 				if err != nil {
-					return emitCreatePhaseError(opts, errors.Wrap(err, "rendering phase goal"))
+					return "", errors.Wrap(err, "rendering phase goal")
 				}
 				content = out
 			} else {
@@ -227,218 +303,173 @@ func RunCreatePhase(ctx context.Context, opts *CreatePhaseOptions) error {
 		}
 	}
 
-	// Ensure dir and write file
-	if err := os.MkdirAll(phaseDir, 0755); err != nil {
-		return emitCreatePhaseError(opts, errors.IO("creating phase dir", err).WithField("path", phaseDir))
-	}
-	goalPath := filepath.Join(phaseDir, "PHASE_GOAL.md")
-
-	// If no template content was found, create a minimal placeholder
-	// Note: Phase metadata (number, type, status) is in frontmatter, not in markdown
 	if content == "" {
-		content = fmt.Sprintf("# Phase Goal: %s\n\n## Objective\n\n[REPLACE: Describe the phase objective]\n\n## Success Criteria\n\n- [ ] [REPLACE: Criterion 1]\n- [ ] [REPLACE: Criterion 2]\n", opts.Name)
+		content = fmt.Sprintf("# Phase Goal: %s\n\n## Objective\n\n[REPLACE: Describe the phase objective]\n\n## Success Criteria\n\n- [ ] [REPLACE: Criterion 1]\n- [ ] [REPLACE: Criterion 2]\n", cfg.opts.Name)
 	}
 
-	var markersFilled, markersTotal int
-	if content != "" {
-		// Inject full frontmatter if content doesn't already have it (or replace minimal template frontmatter)
-		// Strip any existing template frontmatter first
-		content = stripTemplateFrontmatter(content)
+	return content, nil
+}
 
-		// Create full phase frontmatter
-		parentFestivalID := filepath.Base(absPath)
-		fm := frontmatter.NewPhaseFrontmatter(phaseID, opts.Name, parentFestivalID, newNumber, frontmatter.PhaseType(opts.PhaseType))
-		contentWithFM, fmErr := frontmatter.InjectString(content, fm)
-		if fmErr != nil {
-			return emitCreatePhaseError(opts, errors.Wrap(fmErr, "injecting frontmatter"))
-		}
-		content = contentWithFM
+// writePhaseGoal prepares and writes the PHASE_GOAL.md file with frontmatter and markers.
+func writePhaseGoal(ctx context.Context, cfg *phaseConfig, content string) (*phaseResult, error) {
+	if err := os.MkdirAll(cfg.phaseDir, 0755); err != nil {
+		return nil, errors.IO("creating phase dir", err).WithField("path", cfg.phaseDir)
+	}
 
-		// Load config markers for marker processing (used for PHASE_GOAL and copied files)
-		var configMarkers map[string]string
-		if festivalPath != "" {
-			festCfg, cfgErr := config.LoadFestivalConfig(festivalPath)
-			if cfgErr == nil && festCfg != nil {
-				configMarkers = extractConfigMarkers(festCfg)
-			}
-		}
+	content = stripTemplateFrontmatter(content)
 
-		// Auto-fill [REPLACE: ...] markers from context (before writing)
-		// This fills Category A (structure) markers automatically
-		if !effectiveSkipMarkers {
-			renderer := tpl.NewRenderer()
-			renderedContent, renderErr := renderer.RenderWithMarkerReplacement(content, tmplCtx, configMarkers)
-			if renderErr == nil {
-				content = renderedContent
-			}
-		}
+	parentFestivalID := filepath.Base(cfg.absPath)
+	fm := frontmatter.NewPhaseFrontmatter(cfg.phaseID, cfg.opts.Name, parentFestivalID, cfg.newNumber, frontmatter.PhaseType(cfg.opts.PhaseType))
+	contentWithFM, fmErr := frontmatter.InjectString(content, fm)
+	if fmErr != nil {
+		return nil, errors.Wrap(fmErr, "injecting frontmatter")
+	}
+	content = contentWithFM
 
-		if err := os.WriteFile(goalPath, []byte(content), 0644); err != nil {
-			return emitCreatePhaseError(opts, errors.IO("writing phase goal", err).WithField("path", goalPath))
-		}
-
-		// Copy additional phase structure from template directory
-		// Files are processed with marker replacement using the same template context
-		templateDir := filepath.Join(tmplRoot, "phases", opts.PhaseType)
-		if entries, readErr := os.ReadDir(templateDir); readErr == nil {
-			renderer := tpl.NewRenderer()
-			for _, entry := range entries {
-				// Skip GOAL.md (already handled as PHASE_GOAL.md) and gates/ (lives at festival root)
-				if entry.Name() == "GOAL.md" || entry.Name() == "gates" {
-					continue
-				}
-
-				src := filepath.Join(templateDir, entry.Name())
-				dst := filepath.Join(phaseDir, entry.Name())
-
-				// Don't overwrite existing files/directories
-				if _, statErr := os.Stat(dst); statErr == nil {
-					if shared.IsVerbose() {
-						display.Info("Skipping %s: already exists", entry.Name())
-					}
-					continue
-				}
-
-				if entry.IsDir() {
-					// Copy directory recursively with marker processing
-					if copyErr := copyDirectoryWithMarkers(ctx, src, dst, renderer, tmplCtx, configMarkers); copyErr != nil {
-						// Log warning but don't fail phase creation
-						if shared.IsVerbose() {
-							display.Warning("Failed to copy directory %s: %v", entry.Name(), copyErr)
-						}
-					}
-				} else {
-					// Copy file with marker processing
-					fileContent, readFileErr := os.ReadFile(src)
-					if readFileErr != nil {
-						if shared.IsVerbose() {
-							display.Warning("Failed to read %s: %v", entry.Name(), readFileErr)
-						}
-						continue
-					}
-					// Process markers in content
-					processed, procErr := renderer.RenderWithMarkerReplacement(string(fileContent), tmplCtx, configMarkers)
-					if procErr != nil {
-						// Fall back to original content if processing fails
-						processed = string(fileContent)
-						if shared.IsVerbose() {
-							display.Warning("Marker processing failed for %s: %v", entry.Name(), procErr)
-						}
-					}
-					if writeErr := os.WriteFile(dst, []byte(processed), 0644); writeErr != nil {
-						if shared.IsVerbose() {
-							display.Warning("Failed to write %s: %v", entry.Name(), writeErr)
-						}
-					}
-				}
-			}
-		}
-
-		// Process REPLACE markers in the created file
-		markerResult, err := ProcessMarkers(ctx, MarkerOptions{
-			FilePath:    goalPath,
-			Markers:     opts.Markers,
-			MarkersFile: opts.MarkersFile,
-			SkipMarkers: effectiveSkipMarkers,
-			DryRun:      opts.DryRun,
-			JSONOutput:  opts.JSONOutput,
-		})
-		if err != nil {
-			return emitCreatePhaseError(opts, errors.Wrap(err, "processing markers"))
-		}
-
-		// For dry-run, output markers and exit
-		if opts.DryRun && markerResult != nil {
-			if err := PrintDryRunMarkers(markerResult, opts.JSONOutput); err != nil {
-				return emitCreatePhaseError(opts, err)
-			}
-			return nil
-		}
-
-		if markerResult != nil {
-			markersFilled = markerResult.Filled
-			markersTotal = markerResult.Total
+	if !cfg.effectiveSkipMarkers {
+		renderer := tpl.NewRenderer()
+		rendered, renderErr := renderer.RenderWithMarkerReplacement(content, cfg.tmplCtx, cfg.configMarkers)
+		if renderErr == nil {
+			content = rendered
 		}
 	}
 
-	// Run post-create validation if configured
-	var validationResult *ValidationSummary
-	shouldValidate := config.ShouldValidate(agentCfg, opts.AgentMode)
-	if shouldValidate && festivalPath != "" {
-		validationResult, err = RunPostCreateValidation(ctx, festivalPath)
-		if err != nil {
-			// Don't fail on validation errors, just report
-			if !opts.JSONOutput {
-				display.Warning("Validation failed: %v", err)
-			}
+	goalPath := filepath.Join(cfg.phaseDir, "PHASE_GOAL.md")
+	if err := os.WriteFile(goalPath, []byte(content), 0644); err != nil {
+		return nil, errors.IO("writing phase goal", err).WithField("path", goalPath)
+	}
+
+	return &phaseResult{goalPath: goalPath}, nil
+}
+
+// copyPhaseStructure copies additional phase structure files from the template directory.
+func copyPhaseStructure(ctx context.Context, cfg *phaseConfig) {
+	templateDir := filepath.Join(cfg.tmplRoot, "phases", cfg.opts.PhaseType)
+	entries, readErr := os.ReadDir(templateDir)
+	if readErr != nil {
+		return
+	}
+
+	renderer := tpl.NewRenderer()
+	for _, entry := range entries {
+		if entry.Name() == "GOAL.md" || entry.Name() == "gates" {
+			continue
 		}
 
-		// Block on errors if configured
-		if validationResult != nil && !validationResult.OK {
-			if config.ShouldBlockOnErrors(agentCfg, opts.AgentMode) {
-				return emitCreatePhaseError(opts, errors.Validation("validation errors detected - fix issues before proceeding"))
+		src := filepath.Join(templateDir, entry.Name())
+		dst := filepath.Join(cfg.phaseDir, entry.Name())
+
+		if _, statErr := os.Stat(dst); statErr == nil {
+			if shared.IsVerbose() {
+				cfg.display.Info("Skipping %s: already exists", entry.Name())
+			}
+			continue
+		}
+
+		if entry.IsDir() {
+			if copyErr := copyDirectoryWithMarkers(ctx, src, dst, renderer, cfg.tmplCtx, cfg.configMarkers); copyErr != nil {
+				if shared.IsVerbose() {
+					cfg.display.Warning("Failed to copy directory %s: %v", entry.Name(), copyErr)
+				}
+			}
+		} else {
+			fileContent, readFileErr := os.ReadFile(src)
+			if readFileErr != nil {
+				if shared.IsVerbose() {
+					cfg.display.Warning("Failed to read %s: %v", entry.Name(), readFileErr)
+				}
+				continue
+			}
+			processed, procErr := renderer.RenderWithMarkerReplacement(string(fileContent), cfg.tmplCtx, cfg.configMarkers)
+			if procErr != nil {
+				processed = string(fileContent)
+			}
+			if writeErr := os.WriteFile(dst, []byte(processed), 0644); writeErr != nil {
+				if shared.IsVerbose() {
+					cfg.display.Warning("Failed to write %s: %v", entry.Name(), writeErr)
+				}
 			}
 		}
 	}
+}
+
+// processPhaseMarkers processes REPLACE markers in the phase goal file.
+func processPhaseMarkers(ctx context.Context, cfg *phaseConfig, res *phaseResult) error {
+	markerResult, err := ProcessMarkers(ctx, MarkerOptions{
+		FilePath:    res.goalPath,
+		Markers:     cfg.opts.Markers,
+		MarkersFile: cfg.opts.MarkersFile,
+		SkipMarkers: cfg.effectiveSkipMarkers,
+		DryRun:      cfg.opts.DryRun,
+		JSONOutput:  cfg.opts.JSONOutput,
+	})
+	if err != nil {
+		return errors.Wrap(err, "processing markers")
+	}
+
+	if cfg.opts.DryRun && markerResult != nil {
+		if err := PrintDryRunMarkers(markerResult, cfg.opts.JSONOutput); err != nil {
+			return err
+		}
+	}
+
+	if markerResult != nil {
+		res.markersFilled = markerResult.Filled
+		res.markersTotal = markerResult.Total
+	}
+	return nil
+}
+
+// validatePhaseIfConfigured runs post-create validation if agent config requires it.
+func validatePhaseIfConfigured(ctx context.Context, cfg *phaseConfig, res *phaseResult) error {
+	if !config.ShouldValidate(cfg.agentCfg, cfg.opts.AgentMode) || cfg.festivalPath == "" {
+		return nil
+	}
+
+	validationResult, err := RunPostCreateValidation(ctx, cfg.festivalPath)
+	if err != nil {
+		if !cfg.opts.JSONOutput {
+			cfg.display.Warning("Validation failed: %v", err)
+		}
+		return nil
+	}
+	res.validationResult = validationResult
+
+	if validationResult != nil && !validationResult.OK {
+		if config.ShouldBlockOnErrors(cfg.agentCfg, cfg.opts.AgentMode) {
+			return errors.Validation("validation errors detected - fix issues before proceeding")
+		}
+	}
+	return nil
+}
+
+// emitPhaseOutput handles both JSON and human-readable output for phase creation.
+func emitPhaseOutput(cfg *phaseConfig, res *phaseResult) error {
+	opts := cfg.opts
+	remainingMarkers := res.markersTotal - res.markersFilled
 
 	if opts.JSONOutput {
-		remainingMarkers := markersTotal - markersFilled
-		warnings := []string{}
-		if remainingMarkers > 0 {
-			warnings = append(warnings,
-				fmt.Sprintf("CRITICAL: %d unfilled markers - festival cannot be executed until resolved", remainingMarkers),
-				"Run 'fest wizard fill PHASE_GOAL.md' to fill markers interactively",
-			)
-		}
-		warnings = append(warnings, "Next: Create sequences with 'fest create sequence --name SEQUENCE_NAME'")
-
-		// Add discovery commands for agents
-		suggestions := []string{
-			"fest status        - View festival progress",
-			"fest next          - Find what to work on next",
-			"fest show plan     - View the execution plan",
-			"fest validate      - Check completion status",
-		}
-
-		return emitCreatePhaseJSON(opts, createPhaseResult{
-			OK:     true,
-			Action: "create_phase",
-			Phase: map[string]interface{}{
-				"number": newNumber,
-				"id":     phaseID,
-				"name":   opts.Name,
-				"type":   opts.PhaseType,
-			},
-			Created:       []string{goalPath},
-			Renumber:      []string{},
-			MarkersFilled: markersFilled,
-			MarkersTotal:  markersTotal,
-			Validation:    validationResult,
-			Warnings:      warnings,
-			Suggestions:   suggestions,
-		})
+		return emitPhaseJSON(cfg, res, remainingMarkers)
 	}
 
 	if opts.Quiet {
 		return nil
 	}
 
-	// Show marker warning FIRST (before success message) for visibility
-	remainingMarkers := markersTotal - markersFilled
 	if remainingMarkers > 0 {
 		fmt.Println()
-		display.Error("🚫 CRITICAL: %d unfilled markers - festival cannot be executed until resolved", remainingMarkers)
-		display.Info("   Run 'fest wizard fill PHASE_GOAL.md' to fill markers interactively")
-		display.Info("   Or edit PHASE_GOAL.md directly to replace [REPLACE: ...] markers")
+		cfg.display.Error("🚫 CRITICAL: %d unfilled markers - festival cannot be executed until resolved", remainingMarkers)
+		cfg.display.Info("   Run 'fest wizard fill PHASE_GOAL.md' to fill markers interactively")
+		cfg.display.Info("   Or edit PHASE_GOAL.md directly to replace [REPLACE: ...] markers")
 		fmt.Println()
 	}
 
-	display.Success("Created phase: %s", phaseID)
-	display.Info("  └── %s", "PHASE_GOAL.md")
+	cfg.display.Success("Created phase: %s", cfg.phaseID)
+	cfg.display.Info("  └── %s", "PHASE_GOAL.md")
 
 	fmt.Println()
 	fmt.Println(ui.H2("Next Steps"))
-	fmt.Printf("  %s\n", ui.Info(fmt.Sprintf("1. cd %s", phaseDir)))
+	fmt.Printf("  %s\n", ui.Info(fmt.Sprintf("1. cd %s", cfg.phaseDir)))
 	if remainingMarkers > 0 {
 		fmt.Printf("  %s\n", ui.Info("2. Edit PHASE_GOAL.md to define phase objectives"))
 	}
@@ -455,6 +486,43 @@ func RunCreatePhase(ctx context.Context, opts *CreatePhaseOptions) error {
 	fmt.Printf("  %s %s\n", ui.Value("fest next"), ui.Dim("Find what to work on next"))
 	fmt.Printf("  %s %s\n", ui.Value("fest show plan"), ui.Dim("View the execution plan"))
 	return nil
+}
+
+// emitPhaseJSON emits JSON output for phase creation.
+func emitPhaseJSON(cfg *phaseConfig, res *phaseResult, remainingMarkers int) error {
+	warnings := []string{}
+	if remainingMarkers > 0 {
+		warnings = append(warnings,
+			fmt.Sprintf("CRITICAL: %d unfilled markers - festival cannot be executed until resolved", remainingMarkers),
+			"Run 'fest wizard fill PHASE_GOAL.md' to fill markers interactively",
+		)
+	}
+	warnings = append(warnings, "Next: Create sequences with 'fest create sequence --name SEQUENCE_NAME'")
+
+	suggestions := []string{
+		"fest status        - View festival progress",
+		"fest next          - Find what to work on next",
+		"fest show plan     - View the execution plan",
+		"fest validate      - Check completion status",
+	}
+
+	return emitCreatePhaseJSON(cfg.opts, createPhaseResult{
+		OK:     true,
+		Action: "create_phase",
+		Phase: map[string]interface{}{
+			"number": cfg.newNumber,
+			"id":     cfg.phaseID,
+			"name":   cfg.opts.Name,
+			"type":   cfg.opts.PhaseType,
+		},
+		Created:       []string{res.goalPath},
+		Renumber:      []string{},
+		MarkersFilled: res.markersFilled,
+		MarkersTotal:  res.markersTotal,
+		Validation:    res.validationResult,
+		Warnings:      warnings,
+		Suggestions:   suggestions,
+	})
 }
 
 func emitCreatePhaseError(opts *CreatePhaseOptions, err error) error {

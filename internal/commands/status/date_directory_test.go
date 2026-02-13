@@ -232,5 +232,61 @@ func TestGetCompletedPath(t *testing.T) {
 	}
 }
 
-// Note: CalculateCompletionDateDir, CreateDateDirectory, MoveToDateDirectory,
-// and GetCompletedPath are implemented in date_directory.go
+func TestCopyFile(t *testing.T) {
+	t.Run("copies content and mode", func(t *testing.T) {
+		root := resolvePath(t, t.TempDir())
+		srcFile := filepath.Join(root, "source.txt")
+		dstFile := filepath.Join(root, "dest.txt")
+
+		content := []byte("hello world")
+		mode := os.FileMode(0755)
+
+		if err := os.WriteFile(srcFile, content, mode); err != nil {
+			t.Fatalf("failed to write source: %v", err)
+		}
+
+		if err := copyFile(srcFile, dstFile, mode); err != nil {
+			t.Fatalf("copyFile failed: %v", err)
+		}
+
+		got, err := os.ReadFile(dstFile)
+		if err != nil {
+			t.Fatalf("failed to read destination: %v", err)
+		}
+		if string(got) != string(content) {
+			t.Errorf("content = %q, want %q", string(got), string(content))
+		}
+
+		info, err := os.Stat(dstFile)
+		if err != nil {
+			t.Fatalf("failed to stat destination: %v", err)
+		}
+		if info.Mode().Perm() != mode.Perm() {
+			t.Errorf("mode = %v, want %v", info.Mode().Perm(), mode.Perm())
+		}
+	})
+
+	t.Run("source not found returns error", func(t *testing.T) {
+		root := resolvePath(t, t.TempDir())
+		err := copyFile(
+			filepath.Join(root, "nonexistent.txt"),
+			filepath.Join(root, "dest.txt"),
+			0644,
+		)
+		if err == nil {
+			t.Fatal("expected error for nonexistent source")
+		}
+	})
+
+	t.Run("invalid destination returns error", func(t *testing.T) {
+		root := resolvePath(t, t.TempDir())
+		srcFile := filepath.Join(root, "source.txt")
+		os.WriteFile(srcFile, []byte("data"), 0644)
+
+		badDest := filepath.Join(root, "nonexistent", "subdir", "dest.txt")
+		err := copyFile(srcFile, badDest, 0644)
+		if err == nil {
+			t.Fatal("expected error for invalid destination path")
+		}
+	})
+}
