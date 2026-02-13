@@ -10,6 +10,8 @@ import (
 
 	"time"
 
+	"github.com/Obedience-Corp/fest/internal/config"
+
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/commands/tui"
@@ -496,6 +498,14 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 		if fmErr := updateGoalFrontmatter(festivalGoalPath, frontmatter.Status(newStatus)); fmErr != nil {
 			// Log but don't fail — the directory move already succeeded
 			fmt.Printf("%s %s\n", ui.Dim("Warning: could not update FESTIVAL_GOAL.md frontmatter:"), ui.Dim(fmErr.Error()))
+		}
+	}
+
+	// Update fest.yaml metadata with the new status
+	if festCfg, cfgErr := config.LoadFestivalConfig(newPath); cfgErr == nil {
+		festCfg.Metadata.AddStatusChange(newStatus, newPath, "")
+		if saveErr := config.SaveFestivalConfig(newPath, festCfg); saveErr != nil {
+			fmt.Printf("%s %s\n", ui.Dim("Warning: could not update fest.yaml status:"), ui.Dim(saveErr.Error()))
 		}
 	}
 
