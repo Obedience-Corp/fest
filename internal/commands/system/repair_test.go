@@ -40,7 +40,7 @@ func TestRunRepair(t *testing.T) {
 			},
 			expectRenames: map[string]string{"planned": "planning"},
 			expectMoves:   map[string]string{},
-			expectCreate:  []string{"ready", "active", "dungeon/completed", "dungeon/archived", "dungeon/someday"},
+			expectCreate:  []string{"ready", "active", "ritual", "dungeon/completed", "dungeon/archived", "dungeon/someday"},
 			expectSchema:  true,
 			expectError:   false,
 		},
@@ -52,7 +52,7 @@ func TestRunRepair(t *testing.T) {
 			},
 			expectRenames: map[string]string{},
 			expectMoves:   map[string]string{"completed": "dungeon/completed"},
-			expectCreate:  []string{"planning", "ready", "active", "dungeon/archived", "dungeon/someday"},
+			expectCreate:  []string{"planning", "ready", "active", "ritual", "dungeon/archived", "dungeon/someday"},
 			expectSchema:  true,
 			expectError:   false,
 		},
@@ -65,7 +65,7 @@ func TestRunRepair(t *testing.T) {
 			},
 			expectRenames: map[string]string{"planned": "planning"},
 			expectMoves:   map[string]string{"completed": "dungeon/completed"},
-			expectCreate:  []string{"ready", "active", "dungeon/archived", "dungeon/someday"},
+			expectCreate:  []string{"ready", "active", "ritual", "dungeon/archived", "dungeon/someday"},
 			expectSchema:  true,
 			expectError:   false,
 		},
@@ -77,7 +77,7 @@ func TestRunRepair(t *testing.T) {
 			},
 			expectRenames: map[string]string{},
 			expectMoves:   map[string]string{},
-			expectCreate:  []string{"ready", "active", "dungeon/completed", "dungeon/archived", "dungeon/someday"},
+			expectCreate:  []string{"ready", "active", "ritual", "dungeon/completed", "dungeon/archived", "dungeon/someday"},
 			expectSchema:  true,
 			expectError:   false,
 		},
@@ -88,6 +88,7 @@ func TestRunRepair(t *testing.T) {
 				mustMkdir(t, filepath.Join(root, "planning"))
 				mustMkdir(t, filepath.Join(root, "ready"))
 				mustMkdir(t, filepath.Join(root, "active"))
+				mustMkdir(t, filepath.Join(root, "ritual"))
 				mustMkdir(t, filepath.Join(root, "dungeon", "completed"))
 				mustMkdir(t, filepath.Join(root, "dungeon", "archived"))
 				mustMkdir(t, filepath.Join(root, "dungeon", "someday"))
@@ -628,9 +629,12 @@ directories:
   active:
     description: Festivals currently being executed
     order: 3
+  ritual:
+    description: Repeatable festival templates
+    order: 4
   dungeon:
     description: Terminal festival states
-    order: 4
+    order: 5
     nested: true
     children:
       completed:

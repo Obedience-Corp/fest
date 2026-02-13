@@ -64,6 +64,26 @@ type createFestivalResult struct {
 	Extra             map[string]interface{}   `json:"extra,omitempty"`
 }
 
+// createConfig holds all resolved configuration for festival creation.
+// It is populated by resolveCreateConfig() and passed to subsequent pipeline stages.
+type createConfig struct {
+	opts             *CreateFestivalOptions
+	display          *ui.UI
+	festivalsRoot    string
+	tmplRoot         string
+	slug             string
+	festivalID       string
+	destCategory     string
+	dirName          string
+	destDir          string
+	vars             map[string]interface{}
+	agentCfg         *config.AgentConfig
+	skipMarkers      bool
+	tmplCtx          *tpl.Context
+	festivalType     *types.FestivalType
+	festivalTypeName string
+}
+
 // NewCreateFestivalCommand adds 'create festival'
 func NewCreateFestivalCommand() *cobra.Command {
 	opts := &CreateFestivalOptions{}
@@ -101,14 +121,10 @@ func NewCreateFestivalCommand() *cobra.Command {
 	return cmd
 }
 
-// RunCreateFestival executes the create festival command logic.
-func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
-	// Check context early
-	if err := ctx.Err(); err != nil {
-		return errors.Wrap(err, "context cancelled").WithOp("RunCreateFestival")
-	}
-
-	// Agent mode implies JSON output
+// resolveCreateConfig resolves and validates all configuration needed for festival
+// creation including workspace resolution, template root, slug/ID generation,
+// vars loading, festival type loading, and template context building.
+func resolveCreateConfig(ctx context.Context, opts *CreateFestivalOptions) (*createConfig, error) {
 	if opts.AgentMode {
 		opts.JSONOutput = true
 	}
@@ -116,39 +132,30 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 	display := ui.New(shared.IsNoColor(), shared.IsVerbose())
 	cwd, _ := os.Getwd()
 
-	// Resolve festivals root and template root
 	festivalsRoot, err := workspace.FindFestivals(cwd)
 	if err != nil {
-		return emitCreateFestivalError(opts, err)
+		return nil, err
 	}
 	if festivalsRoot == "" {
-		return emitCreateFestivalError(opts, errors.NotFound("festivals directory").
-			WithHint("Check the path and try again, or run from a different directory"))
+		return nil, errors.NotFound("festivals directory").
+			WithHint("Check the path and try again, or run from a different directory")
 	}
 
-	// Load effective agent config (workspace config only for new festival)
 	agentCfg := LoadEffectiveAgentConfig(festivalsRoot, "")
-
-	// Determine effective skip-markers behavior
-	effectiveSkipMarkers := config.EffectiveSkipMarkers(agentCfg, opts.AgentMode, opts.SkipMarkers)
-
-	// Template root is inside the festivals directory we already found
+	skipMarkers := config.EffectiveSkipMarkers(agentCfg, opts.AgentMode, opts.SkipMarkers)
 	tmplRoot := filepath.Join(festivalsRoot, ".festival", "templates")
 
-	// Load vars
 	vars := map[string]interface{}{}
 	if strings.TrimSpace(opts.VarsFile) != "" {
 		v, err := loadVarsFile(opts.VarsFile)
 		if err != nil {
-			return emitCreateFestivalError(opts, errors.Wrap(err, "reading vars-file").WithField("path", opts.VarsFile))
+			return nil, errors.Wrap(err, "reading vars-file").WithField("path", opts.VarsFile)
 		}
 		vars = v
 	}
 
-	// Destination
 	slug := Slugify(opts.Name)
 	destCategory := strings.ToLower(strings.TrimSpace(opts.Dest))
-	// Ritual type auto-sets destination to ritual/
 	if opts.Type == "ritual" && destCategory == "active" {
 		destCategory = "ritual"
 	}
@@ -156,7 +163,6 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 		destCategory = "active"
 	}
 
-	// Generate unique festival ID before building context (so it can be auto-filled)
 	var festivalID string
 	if opts.Type == "ritual" {
 		festivalID, err = id.GenerateRitualID(ctx, opts.Name, festivalsRoot)
@@ -164,10 +170,9 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 		festivalID, err = id.GenerateID(ctx, opts.Name, festivalsRoot)
 	}
 	if err != nil {
-		return emitCreateFestivalError(opts, errors.Wrap(err, "generating festival ID").WithField("name", opts.Name))
+		return nil, errors.Wrap(err, "generating festival ID").WithField("name", opts.Name)
 	}
 
-	// Build template context (festival is root level, no hierarchy to load)
 	tmplCtx := tpl.NewContext()
 	tmplCtx.SetFestival(opts.Name, opts.Goal, parseTags(opts.Tags))
 	tmplCtx.SetFestivalID(festivalID)
@@ -176,16 +181,130 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 		tmplCtx.SetCustom(k, v)
 	}
 
-	// Create directory with ID suffix: {slug}-{ID}
 	dirName := fmt.Sprintf("%s-%s", slug, festivalID)
 	destDir := filepath.Join(festivalsRoot, destCategory, dirName)
-	if err := os.MkdirAll(destDir, 0755); err != nil {
-		return emitCreateFestivalError(opts, errors.IO("creating festival directory", err).WithField("path", destDir))
+
+	var festivalType *types.FestivalType
+	var festivalTypeName string
+	if opts.Type != "" {
+		typesCfg, typeErr := types.LoadFestivalTypesConfig(ctx)
+		if typeErr != nil {
+			return nil, errors.Wrap(typeErr, "loading festival types config")
+		}
+		ft, typeErr := typesCfg.GetFestivalType(opts.Type)
+		if typeErr != nil {
+			return nil, typeErr
+		}
+		festivalType = ft
+		festivalTypeName = ft.Name
 	}
 
-	// Render/copy core files
+	return &createConfig{
+		opts:             opts,
+		display:          display,
+		festivalsRoot:    festivalsRoot,
+		tmplRoot:         tmplRoot,
+		slug:             slug,
+		festivalID:       festivalID,
+		destCategory:     destCategory,
+		dirName:          dirName,
+		destDir:          destDir,
+		vars:             vars,
+		agentCfg:         agentCfg,
+		skipMarkers:      skipMarkers,
+		tmplCtx:          tmplCtx,
+		festivalType:     festivalType,
+		festivalTypeName: festivalTypeName,
+	}, nil
+}
+
+// createResult accumulates outputs from each pipeline stage of festival creation.
+type createResult struct {
+	created           []string
+	copiedGates       []string
+	festConfigPath    string
+	festConfig        *config.FestivalConfig
+	autoPhasesCreated []string
+	projectPath       string
+	projectLinked     bool
+	markersFilled     int
+	markersTotal      int
+	allMarkers        []map[string]interface{}
+	validationResult  *ValidationSummary
+}
+
+// RunCreateFestival executes the create festival command logic.
+func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled").WithOp("RunCreateFestival")
+	}
+
+	cfg, err := resolveCreateConfig(ctx, opts)
+	if err != nil {
+		return emitCreateFestivalError(opts, err)
+	}
+
+	if err := scaffoldFestivalDirectory(ctx, cfg); err != nil {
+		return emitCreateFestivalError(opts, err)
+	}
+
+	created, copiedGates, err := renderFestivalTemplates(ctx, cfg)
+	if err != nil {
+		return emitCreateFestivalError(opts, err)
+	}
+
+	res, err := writeFestYaml(ctx, cfg)
+	if err != nil {
+		return emitCreateFestivalError(opts, err)
+	}
+	created = append(created, res.festConfigPath)
+
+	created, res.autoPhasesCreated = autoScaffoldPhases(ctx, cfg, created)
+
+	recordInitialSize(ctx, cfg, res.festConfig)
+	registerFestival(ctx, cfg)
+
+	res.created = created
+	res.copiedGates = copiedGates
+	if err := processAllMarkers(ctx, cfg, res); err != nil {
+		return emitCreateFestivalError(opts, err)
+	}
+
+	if opts.DryRun && res.markersTotal > 0 {
+		result := &MarkerResult{Markers: res.allMarkers, Total: res.markersTotal}
+		if err := PrintDryRunMarkers(result, opts.JSONOutput); err != nil {
+			return emitCreateFestivalError(opts, err)
+		}
+		return nil
+	}
+
+	if err := validateIfConfigured(ctx, cfg, res); err != nil {
+		return emitCreateFestivalError(opts, err)
+	}
+
+	return emitCreateOutput(cfg, res)
+}
+
+// scaffoldFestivalDirectory creates the festival directory structure.
+func scaffoldFestivalDirectory(ctx context.Context, cfg *createConfig) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled")
+	}
+	if err := os.MkdirAll(cfg.destDir, 0755); err != nil {
+		return errors.IO("creating festival directory", err).WithField("path", cfg.destDir)
+	}
+	return nil
+}
+
+// renderFestivalTemplates renders the core festival files (OVERVIEW, GOAL, RULES,
+// TODO) from templates and copies gate templates organized by phase type.
+func renderFestivalTemplates(ctx context.Context, cfg *createConfig) ([]string, []string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, nil, errors.Wrap(err, "context cancelled")
+	}
+
 	mgr := tpl.NewManager()
-	created := []string{}
+	var created []string
 
 	core := []struct{ Template, Out string }{
 		{"festival/OVERVIEW.md", "FESTIVAL_OVERVIEW.md"},
@@ -195,430 +314,402 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 	}
 
 	for _, c := range core {
-		tpath := filepath.Join(tmplRoot, c.Template)
-		if _, err := os.Stat(tpath); err != nil {
-			if !opts.JSONOutput {
-				display.Warning("Template not found, skipping: %s", c.Template)
-			}
-			continue
-		}
-		// Load and decide copy vs render
-		loader := tpl.NewLoader()
-		t, err := loader.Load(ctx, tpath)
+		outPath, err := renderCoreFile(ctx, cfg, mgr, c.Template, c.Out)
 		if err != nil {
-			return emitCreateFestivalError(opts, errors.Wrap(err, "loading template").WithField("template", c.Template))
+			return nil, nil, err
 		}
-		outPath := filepath.Join(destDir, c.Out)
-		// If template appears to require variables, render; else copy
-		requires := t.Metadata != nil && len(t.Metadata.RequiredVariables) > 0
-		var content string
-		if requires || strings.Contains(t.Content, "{{") {
-			out, err := mgr.Render(t, tmplCtx)
-			if err != nil {
-				return emitCreateFestivalError(opts, errors.Wrap(err, "rendering template").WithField("template", c.Template))
-			}
-			content = out
-		} else {
-			content = t.Content
+		if outPath != "" {
+			created = append(created, outPath)
 		}
-
-		// Inject festival frontmatter for FESTIVAL_GOAL.md if not already present
-		if c.Out == "FESTIVAL_GOAL.md" && !strings.HasPrefix(strings.TrimSpace(content), "---") {
-			fm := frontmatter.NewFrontmatter(frontmatter.TypeFestival, festivalID, opts.Name)
-			fm.Status = frontmatter.StatusPlanning
-			contentWithFM, fmErr := frontmatter.InjectString(content, fm)
-			if fmErr != nil {
-				return emitCreateFestivalError(opts, errors.Wrap(fmErr, "injecting frontmatter"))
-			}
-			content = contentWithFM
-		}
-
-		// Auto-fill [REPLACE: ...] markers from context (before writing)
-		if !effectiveSkipMarkers {
-			renderer := tpl.NewRenderer()
-			renderedContent, renderErr := renderer.RenderWithMarkerReplacement(content, tmplCtx, nil)
-			if renderErr == nil {
-				content = renderedContent
-			}
-		}
-
-		if err := os.WriteFile(outPath, []byte(content), 0644); err != nil {
-			return emitCreateFestivalError(opts, errors.IO("writing file", err).WithField("path", outPath))
-		}
-		created = append(created, outPath)
 	}
 
-	// Create gates/ directory at festival root with templates organized by phase type
-	// Structure: gates/{phase_type}/ contains gate templates for that phase type
-	gatesDir := filepath.Join(destDir, "gates")
-	srcPhasesDir := filepath.Join(tmplRoot, "phases")
+	copiedGates, gateCreated, err := copyGateTemplates(ctx, cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	created = append(created, gateCreated...)
 
-	// Phase types that should have gate subdirectories
+	return created, copiedGates, nil
+}
+
+// renderCoreFile renders a single core festival file from a template.
+// Returns the output path, or empty string if the template was not found.
+func renderCoreFile(ctx context.Context, cfg *createConfig, mgr *tpl.Manager, templateName, outName string) (string, error) {
+	tpath := filepath.Join(cfg.tmplRoot, templateName)
+	if _, err := os.Stat(tpath); err != nil {
+		if !cfg.opts.JSONOutput {
+			cfg.display.Warning("Template not found, skipping: %s", templateName)
+		}
+		return "", nil
+	}
+
+	loader := tpl.NewLoader()
+	t, err := loader.Load(ctx, tpath)
+	if err != nil {
+		return "", errors.Wrap(err, "loading template").WithField("template", templateName)
+	}
+
+	content := renderOrCopyTemplate(mgr, t, cfg.tmplCtx)
+
+	if outName == "FESTIVAL_GOAL.md" && !strings.HasPrefix(strings.TrimSpace(content), "---") {
+		fm := frontmatter.NewFrontmatter(frontmatter.TypeFestival, cfg.festivalID, cfg.opts.Name)
+		fm.Status = frontmatter.StatusPlanning
+		contentWithFM, fmErr := frontmatter.InjectString(content, fm)
+		if fmErr != nil {
+			return "", errors.Wrap(fmErr, "injecting frontmatter")
+		}
+		content = contentWithFM
+	}
+
+	if !cfg.skipMarkers {
+		renderer := tpl.NewRenderer()
+		rendered, renderErr := renderer.RenderWithMarkerReplacement(content, cfg.tmplCtx, nil)
+		if renderErr == nil {
+			content = rendered
+		}
+	}
+
+	outPath := filepath.Join(cfg.destDir, outName)
+	if err := os.WriteFile(outPath, []byte(content), 0644); err != nil {
+		return "", errors.IO("writing file", err).WithField("path", outPath)
+	}
+	return outPath, nil
+}
+
+// renderOrCopyTemplate renders a template if it contains variables, otherwise returns content as-is.
+func renderOrCopyTemplate(mgr *tpl.Manager, t *tpl.Template, tmplCtx *tpl.Context) string {
+	requires := t.Metadata != nil && len(t.Metadata.RequiredVariables) > 0
+	if requires || strings.Contains(t.Content, "{{") {
+		out, err := mgr.Render(t, tmplCtx)
+		if err == nil {
+			return out
+		}
+	}
+	return t.Content
+}
+
+// copyGateTemplates copies quality gate templates from the template directory
+// into the festival's gates/ directory, organized by phase type.
+func copyGateTemplates(ctx context.Context, cfg *createConfig) ([]string, []string, error) {
+	gatesDir := filepath.Join(cfg.destDir, "gates")
+	srcPhasesDir := filepath.Join(cfg.tmplRoot, "phases")
 	phaseTypes := []string{"planning", "implementation", "research", "review", "non_coding_action"}
 
-	copiedGates := []string{}
+	var copiedGates, created []string
 	for _, phaseType := range phaseTypes {
 		srcGatesDir := filepath.Join(srcPhasesDir, phaseType, "gates")
-
-		// Check if source gates directory exists for this phase type
 		if _, err := os.Stat(srcGatesDir); os.IsNotExist(err) {
 			continue
 		}
 
-		// Create destination gates/{phase_type}/ directory
 		destGatesDir := filepath.Join(gatesDir, phaseType)
 		if err := os.MkdirAll(destGatesDir, 0755); err != nil {
-			return emitCreateFestivalError(opts, errors.IO("creating gates directory", err).WithField("path", destGatesDir))
+			return nil, nil, errors.IO("creating gates directory", err).WithField("path", destGatesDir)
 		}
 
-		// Copy all .md files from source gates to destination
 		gateEntries, err := os.ReadDir(srcGatesDir)
 		if err != nil {
-			return emitCreateFestivalError(opts, errors.IO("reading gates directory", err).WithField("path", srcGatesDir))
+			return nil, nil, errors.IO("reading gates directory", err).WithField("path", srcGatesDir)
 		}
 
 		for _, gateEntry := range gateEntries {
 			if gateEntry.IsDir() || !strings.HasSuffix(gateEntry.Name(), ".md") {
 				continue
 			}
-
 			srcPath := filepath.Join(srcGatesDir, gateEntry.Name())
 			destPath := filepath.Join(destGatesDir, gateEntry.Name())
 
 			content, err := os.ReadFile(srcPath)
 			if err != nil {
-				return emitCreateFestivalError(opts, errors.IO("reading gate template", err).WithField("path", srcPath))
+				return nil, nil, errors.IO("reading gate template", err).WithField("path", srcPath)
 			}
 
-			// Apply marker replacement to gate templates
-			processedContent := string(content)
-			if !effectiveSkipMarkers {
+			processed := string(content)
+			if !cfg.skipMarkers {
 				renderer := tpl.NewRenderer()
-				rendered, renderErr := renderer.RenderWithMarkerReplacement(processedContent, tmplCtx, nil)
+				rendered, renderErr := renderer.RenderWithMarkerReplacement(processed, cfg.tmplCtx, nil)
 				if renderErr == nil {
-					processedContent = rendered
+					processed = rendered
 				}
 			}
 
-			if err := os.WriteFile(destPath, []byte(processedContent), 0644); err != nil {
-				return emitCreateFestivalError(opts, errors.IO("writing gate template", err).WithField("path", destPath))
+			if err := os.WriteFile(destPath, []byte(processed), 0644); err != nil {
+				return nil, nil, errors.IO("writing gate template", err).WithField("path", destPath)
 			}
-
 			copiedGates = append(copiedGates, destPath)
 			created = append(created, destPath)
 		}
 	}
+	return copiedGates, created, nil
+}
 
-	// Load festival type configuration and determine type
-	var festivalType *types.FestivalType
-	var festivalTypeName string
-	if opts.Type != "" {
-		// Type explicitly provided
-		typesCfg, typeErr := types.LoadFestivalTypesConfig(ctx)
-		if typeErr != nil {
-			return emitCreateFestivalError(opts, errors.Wrap(typeErr, "loading festival types config"))
-		}
-		ft, typeErr := typesCfg.GetFestivalType(opts.Type)
-		if typeErr != nil {
-			return emitCreateFestivalError(opts, typeErr)
-		}
-		festivalType = ft
-		festivalTypeName = ft.Name
+// writeFestYaml generates and writes the fest.yaml configuration file for the
+// festival, including metadata, type config, ritual config, and project path.
+func writeFestYaml(ctx context.Context, cfg *createConfig) (*createResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, errors.Wrap(err, "context cancelled")
 	}
 
-	// Generate fest.yaml with default gates configuration and metadata
 	festConfig := config.DefaultFestivalConfig()
-
-	// Populate metadata section
 	now := time.Now().UTC()
+
 	festConfig.Metadata = config.FestivalMetadata{
-		ID:           festivalID,
+		ID:           cfg.festivalID,
 		UUID:         uuid.New().String(),
-		Name:         opts.Name,
-		Goal:         opts.Goal,
-		FestivalType: festivalTypeName,
+		Name:         cfg.opts.Name,
+		Goal:         cfg.opts.Goal,
+		FestivalType: cfg.festivalTypeName,
 		CreatedAt:    now,
 		StatusHistory: []config.StatusChange{
 			{
-				Status:    destCategory,
+				Status:    cfg.destCategory,
 				Timestamp: now,
-				Path:      destDir,
+				Path:      cfg.destDir,
 				Notes:     "Festival created",
 			},
 		},
 	}
 
-	// Handle project path if specified
-	var resolvedProjectPath string
-	var projectLinked bool
-	if opts.Project != "" {
-		workspaceRoot := filepath.Dir(festivalsRoot)
-		resolved, err := ResolveProjectPath(opts.Project, workspaceRoot)
-		if err != nil {
-			if !opts.JSONOutput {
-				display.Warning("Could not resolve project path: %v", err)
-			}
-		} else {
-			resolvedProjectPath = resolved
-			festConfig.ProjectPath = resolved
+	res := &createResult{festConfig: festConfig}
 
-			// Validate path exists (warning only, don't fail)
-			if validateErr := ValidateProjectPath(resolved); validateErr != nil {
-				if !opts.JSONOutput {
-					display.Warning("Project path doesn't exist yet: %s", resolved)
-					display.Info("Link will be created when path exists")
-				}
-			} else {
-				// Auto-link if path exists
-				nav, navErr := navigation.LoadNavigation()
-				if navErr == nil {
-					nav.SetLinkWithPath(dirName, resolved, destDir)
-					if saveErr := nav.Save(); saveErr == nil {
-						projectLinked = true
-						if !opts.JSONOutput {
-							display.Success("Linked to project: %s", resolved)
-						}
-					}
-				}
-			}
-		}
+	if cfg.opts.Project != "" {
+		resolveProjectLink(cfg, festConfig, res)
 	}
 
-	// Populate TypeConfig in fest.yaml if festival type is specified
-	if festivalType != nil {
-		autoPhaseNames := make([]string, 0, len(festivalType.GetAutoPhases()))
-		for _, p := range festivalType.GetAutoPhases() {
-			autoPhaseNames = append(autoPhaseNames, p.Name)
-		}
-
-		pendingPhases := make([]config.PendingPhase, 0, len(festivalType.GetPendingPhases()))
-		for _, p := range festivalType.GetPendingPhases() {
-			pendingPhases = append(pendingPhases, config.PendingPhase{
-				Name:      p.Name,
-				Type:      p.Type,
-				Role:      p.Role,
-				Trigger:   p.Trigger,
-				Generator: p.Generator,
-			})
-		}
-
-		festConfig.TypeConfig = &config.TypeConfigMetadata{
-			AutoPhases:    autoPhaseNames,
-			PendingPhases: pendingPhases,
-			SkipIngestion: festivalType.SkipIngestion,
-		}
+	if cfg.festivalType != nil {
+		populateTypeConfig(festConfig, cfg.festivalType)
 	}
 
-	// Add ritual config for ritual festivals
-	if opts.Type == "ritual" {
+	if cfg.opts.Type == "ritual" {
 		festConfig.RitualConfig = &config.RitualConfig{
 			Schedule: "manual",
 			RunCount: 0,
 		}
 	}
 
-	festConfigPath := filepath.Join(destDir, config.FestivalConfigFileName)
-	if err := config.SaveFestivalConfig(destDir, festConfig); err != nil {
-		return emitCreateFestivalError(opts, errors.Wrap(err, "writing fest.yaml").WithField("path", festConfigPath))
+	res.festConfigPath = filepath.Join(cfg.destDir, config.FestivalConfigFileName)
+	if err := config.SaveFestivalConfig(cfg.destDir, festConfig); err != nil {
+		return nil, errors.Wrap(err, "writing fest.yaml").WithField("path", res.festConfigPath)
 	}
-	created = append(created, festConfigPath)
 
-	// Auto-scaffold phases if festival type has auto phases.
-	autoPhasesCreated := []string{}
-	if festivalType != nil {
-		autoPhases := festivalType.GetAutoPhases()
-		for i, phaseSpec := range autoPhases {
-			phaseType := mapPhaseSpecType(phaseSpec.Type)
+	return res, nil
+}
 
-			phaseOpts := &CreatePhaseOptions{
-				After:       i,
-				Name:        phaseSpec.Name,
-				PhaseType:   phaseType,
-				Description: phaseSpec.Description,
-				Path:        destDir,
-				SkipMarkers: effectiveSkipMarkers,
-				JSONOutput:  false,
-				AgentMode:   false,
-				Quiet:       true,
+// resolveProjectLink resolves and optionally links a project path for the festival.
+func resolveProjectLink(cfg *createConfig, festConfig *config.FestivalConfig, res *createResult) {
+	workspaceRoot := filepath.Dir(cfg.festivalsRoot)
+	resolved, err := ResolveProjectPath(cfg.opts.Project, workspaceRoot)
+	if err != nil {
+		if !cfg.opts.JSONOutput {
+			cfg.display.Warning("Could not resolve project path: %v", err)
+		}
+		return
+	}
+
+	res.projectPath = resolved
+	festConfig.ProjectPath = resolved
+
+	if validateErr := ValidateProjectPath(resolved); validateErr != nil {
+		if !cfg.opts.JSONOutput {
+			cfg.display.Warning("Project path doesn't exist yet: %s", resolved)
+			cfg.display.Info("Link will be created when path exists")
+		}
+		return
+	}
+
+	nav, navErr := navigation.LoadNavigation()
+	if navErr == nil {
+		nav.SetLinkWithPath(cfg.dirName, resolved, cfg.destDir)
+		if saveErr := nav.Save(); saveErr == nil {
+			res.projectLinked = true
+			if !cfg.opts.JSONOutput {
+				cfg.display.Success("Linked to project: %s", resolved)
 			}
-
-			if phaseErr := RunCreatePhase(ctx, phaseOpts); phaseErr != nil {
-				// Don't fail festival creation if phase creation fails
-				if !opts.JSONOutput {
-					display.Warning("Failed to auto-create phase %s: %v", phaseSpec.Name, phaseErr)
-				}
-				continue
-			}
-
-			phaseID := tpl.FormatPhaseID(i+1, phaseSpec.Name)
-			autoPhasesCreated = append(autoPhasesCreated, phaseID)
-
-			// Add phase goal to created files list
-			phaseGoalPath := filepath.Join(destDir, phaseID, "PHASE_GOAL.md")
-			created = append(created, phaseGoalPath)
 		}
 	}
+}
 
-	// Record initial content size for token delta tracking
-	initialSize, sizeErr := progress.ComputeDirectorySize(ctx, destDir)
+// populateTypeConfig fills in the TypeConfig section of a festival config
+// from a festival type definition.
+func populateTypeConfig(festConfig *config.FestivalConfig, festivalType *types.FestivalType) {
+	autoPhaseNames := make([]string, 0, len(festivalType.GetAutoPhases()))
+	for _, p := range festivalType.GetAutoPhases() {
+		autoPhaseNames = append(autoPhaseNames, p.Name)
+	}
+
+	pendingPhases := make([]config.PendingPhase, 0, len(festivalType.GetPendingPhases()))
+	for _, p := range festivalType.GetPendingPhases() {
+		pendingPhases = append(pendingPhases, config.PendingPhase{
+			Name:      p.Name,
+			Type:      p.Type,
+			Role:      p.Role,
+			Trigger:   p.Trigger,
+			Generator: p.Generator,
+		})
+	}
+
+	festConfig.TypeConfig = &config.TypeConfigMetadata{
+		AutoPhases:    autoPhaseNames,
+		PendingPhases: pendingPhases,
+		SkipIngestion: festivalType.SkipIngestion,
+	}
+}
+
+// autoScaffoldPhases creates phases from the festival type's auto-phase definitions.
+func autoScaffoldPhases(ctx context.Context, cfg *createConfig, created []string) ([]string, []string) {
+	if cfg.festivalType == nil {
+		return created, nil
+	}
+
+	var autoPhasesCreated []string
+	autoPhases := cfg.festivalType.GetAutoPhases()
+	for i, phaseSpec := range autoPhases {
+		phaseOpts := &CreatePhaseOptions{
+			After:       i,
+			Name:        phaseSpec.Name,
+			PhaseType:   mapPhaseSpecType(phaseSpec.Type),
+			Description: phaseSpec.Description,
+			Path:        cfg.destDir,
+			SkipMarkers: cfg.skipMarkers,
+			JSONOutput:  false,
+			AgentMode:   false,
+			Quiet:       true,
+		}
+
+		if phaseErr := RunCreatePhase(ctx, phaseOpts); phaseErr != nil {
+			if !cfg.opts.JSONOutput {
+				cfg.display.Warning("Failed to auto-create phase %s: %v", phaseSpec.Name, phaseErr)
+			}
+			continue
+		}
+
+		phaseID := tpl.FormatPhaseID(i+1, phaseSpec.Name)
+		autoPhasesCreated = append(autoPhasesCreated, phaseID)
+		created = append(created, filepath.Join(cfg.destDir, phaseID, "PHASE_GOAL.md"))
+	}
+	return created, autoPhasesCreated
+}
+
+// recordInitialSize records the initial content size for token delta tracking.
+func recordInitialSize(ctx context.Context, cfg *createConfig, festConfig *config.FestivalConfig) {
+	initialSize, sizeErr := progress.ComputeDirectorySize(ctx, cfg.destDir)
 	if sizeErr == nil && initialSize > 0 {
 		festConfig.Metadata.InitialSizeBytes = initialSize
-		_ = config.SaveFestivalConfig(destDir, festConfig)
+		_ = config.SaveFestivalConfig(cfg.destDir, festConfig)
 	}
+}
 
-	// Update ID registry with event logging
-	regPath := registry.GetEventsPath(festivalsRoot)
+// registerFestival records the festival in the ID registry with event logging.
+func registerFestival(ctx context.Context, cfg *createConfig) {
+	regPath := registry.GetEventsPath(cfg.festivalsRoot)
 	reg, regErr := registry.Load(ctx, regPath)
-	if regErr == nil {
-		regEntry := registry.RegistryEntry{
-			ID:        festivalID,
-			Name:      opts.Name,
-			Status:    destCategory,
-			Path:      destDir,
-			CreatedAt: now,
-			UpdatedAt: now,
-		}
-		// Use AddWithEvent to write JSONL event
-		_ = reg.AddWithEvent(ctx, regEntry) // Non-blocking - registry is optional
+	if regErr != nil {
+		return
 	}
+	now := time.Now().UTC()
+	regEntry := registry.RegistryEntry{
+		ID:        cfg.festivalID,
+		Name:      cfg.opts.Name,
+		Status:    cfg.destCategory,
+		Path:      cfg.destDir,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	_ = reg.AddWithEvent(ctx, regEntry)
+}
 
-	// Process REPLACE markers in all created files
-	var totalMarkersFilled, totalMarkersCount int
-	var allMarkers []map[string]interface{}
-
-	for _, filePath := range created {
+// processAllMarkers processes REPLACE markers in all created files.
+func processAllMarkers(ctx context.Context, cfg *createConfig, res *createResult) error {
+	for _, filePath := range res.created {
 		markerResult, err := ProcessMarkers(ctx, MarkerOptions{
 			FilePath:    filePath,
-			Markers:     opts.Markers,
-			MarkersFile: opts.MarkersFile,
-			SkipMarkers: effectiveSkipMarkers,
-			DryRun:      opts.DryRun,
-			JSONOutput:  opts.JSONOutput,
+			Markers:     cfg.opts.Markers,
+			MarkersFile: cfg.opts.MarkersFile,
+			SkipMarkers: cfg.skipMarkers,
+			DryRun:      cfg.opts.DryRun,
+			JSONOutput:  cfg.opts.JSONOutput,
 		})
 		if err != nil {
-			return emitCreateFestivalError(opts, errors.Wrap(err, "processing markers"))
+			return errors.Wrap(err, "processing markers")
 		}
-
 		if markerResult != nil {
-			totalMarkersFilled += markerResult.Filled
-			totalMarkersCount += markerResult.Total
-			allMarkers = append(allMarkers, markerResult.Markers...)
+			res.markersFilled += markerResult.Filled
+			res.markersTotal += markerResult.Total
+			res.allMarkers = append(res.allMarkers, markerResult.Markers...)
 		}
 	}
+	return nil
+}
 
-	// For dry-run, output all markers and exit
-	if opts.DryRun && totalMarkersCount > 0 {
-		result := &MarkerResult{
-			Markers: allMarkers,
-			Total:   totalMarkersCount,
-		}
-		if err := PrintDryRunMarkers(result, opts.JSONOutput); err != nil {
-			return emitCreateFestivalError(opts, err)
-		}
+// validateIfConfigured runs post-create validation if agent config requires it.
+func validateIfConfigured(ctx context.Context, cfg *createConfig, res *createResult) error {
+	if !config.ShouldValidate(cfg.agentCfg, cfg.opts.AgentMode) {
 		return nil
 	}
 
-	// Run post-create validation if configured
-	var validationResult *ValidationSummary
-	shouldValidate := config.ShouldValidate(agentCfg, opts.AgentMode)
-	if shouldValidate {
-		validationResult, err = RunPostCreateValidation(ctx, destDir)
-		if err != nil {
-			// Don't fail on validation errors, just report
-			if !opts.JSONOutput {
-				display.Warning("Validation failed: %v", err)
-			}
+	validationResult, err := RunPostCreateValidation(ctx, cfg.destDir)
+	if err != nil {
+		if !cfg.opts.JSONOutput {
+			cfg.display.Warning("Validation failed: %v", err)
 		}
+		return nil
+	}
+	res.validationResult = validationResult
 
-		// Block on errors if configured
-		if validationResult != nil && !validationResult.OK {
-			if config.ShouldBlockOnErrors(agentCfg, opts.AgentMode) {
-				return emitCreateFestivalError(opts, errors.Validation("validation errors detected - fix issues before proceeding"))
-			}
+	if validationResult != nil && !validationResult.OK {
+		if config.ShouldBlockOnErrors(cfg.agentCfg, cfg.opts.AgentMode) {
+			return errors.Validation("validation errors detected - fix issues before proceeding")
 		}
 	}
+	return nil
+}
+
+// emitCreateOutput handles both JSON and human-readable output for festival creation.
+func emitCreateOutput(cfg *createConfig, res *createResult) error {
+	opts := cfg.opts
+	remainingMarkers := res.markersTotal - res.markersFilled
+	gatesDir := filepath.Join(cfg.destDir, "gates")
 
 	if opts.JSONOutput {
-		remainingMarkers := totalMarkersCount - totalMarkersFilled
-		warnings := []string{}
-		if remainingMarkers > 0 {
-			warnings = append(warnings,
-				fmt.Sprintf("CRITICAL: %d unfilled markers - festival cannot be executed until resolved", remainingMarkers),
-				"Run 'fest validate' to see which files need editing",
-				"Run 'fest wizard fill FESTIVAL_GOAL.md' to fill markers interactively",
-			)
-		}
-		warnings = append(warnings, "Next: Create phases with 'fest create phase --name PHASE_NAME'")
-
-		festivalMap := map[string]string{
-			"name":      opts.Name,
-			"slug":      slug,
-			"dest":      destCategory,
-			"id":        festivalID,
-			"directory": dirName,
-		}
-		if festivalTypeName != "" {
-			festivalMap["type"] = festivalTypeName
-		}
-
-		return emitCreateFestivalJSON(opts, createFestivalResult{
-			OK:                true,
-			Action:            "create_festival",
-			Festival:          festivalMap,
-			Created:           created,
-			AutoPhasesCreated: autoPhasesCreated,
-			GatesDirectory:    gatesDir,
-			FestYAML:          festConfigPath,
-			GateTemplates:     copiedGates,
-			ProjectPath:       resolvedProjectPath,
-			ProjectLinked:     projectLinked,
-			MarkersFilled:     totalMarkersFilled,
-			MarkersTotal:      totalMarkersCount,
-			Validation:        validationResult,
-			Warnings:          warnings,
-		})
+		return emitCreateJSON(cfg, res, gatesDir, remainingMarkers)
 	}
 
-	// Show marker warning FIRST (before success message) for visibility
-	remainingMarkers := totalMarkersCount - totalMarkersFilled
 	if remainingMarkers > 0 {
 		fmt.Println()
-		display.Error("🚫 CRITICAL: %d unfilled markers - festival cannot be executed until resolved", remainingMarkers)
-		display.Info("   Run 'fest validate' to see which files need editing")
-		display.Info("   Run 'fest wizard fill FESTIVAL_GOAL.md' to fill markers interactively")
+		cfg.display.Error("🚫 CRITICAL: %d unfilled markers - festival cannot be executed until resolved", remainingMarkers)
+		cfg.display.Info("   Run 'fest validate' to see which files need editing")
+		cfg.display.Info("   Run 'fest wizard fill FESTIVAL_GOAL.md' to fill markers interactively")
 		fmt.Println()
 	}
 
-	display.Success("Created festival: %s (%s)", dirName, destCategory)
-	display.Info("  ID: %s", festivalID)
-	if festivalTypeName != "" {
-		display.Info("  Type: %s", festivalTypeName)
+	cfg.display.Success("Created festival: %s (%s)", cfg.dirName, cfg.destCategory)
+	cfg.display.Info("  ID: %s", cfg.festivalID)
+	if cfg.festivalTypeName != "" {
+		cfg.display.Info("  Type: %s", cfg.festivalTypeName)
 	}
-	if len(autoPhasesCreated) > 0 {
-		display.Success("Auto-created %d phase(s): %s", len(autoPhasesCreated), strings.Join(autoPhasesCreated, ", "))
+	if len(res.autoPhasesCreated) > 0 {
+		cfg.display.Success("Auto-created %d phase(s): %s", len(res.autoPhasesCreated), strings.Join(res.autoPhasesCreated, ", "))
 	}
-	for _, p := range created {
-		display.Info("  • %s", p)
-	}
-
-	// Report gates setup
-	if len(copiedGates) > 0 {
-		display.Success("Created gates/ directory with %d templates organized by phase type", len(copiedGates))
-		display.Info("  Quality gates configured in fest.yaml")
+	for _, p := range res.created {
+		cfg.display.Info("  • %s", p)
 	}
 
-	// Report project path if set
-	if resolvedProjectPath != "" {
-		if projectLinked {
-			display.Success("Project path: %s (linked)", resolvedProjectPath)
+	if len(res.copiedGates) > 0 {
+		cfg.display.Success("Created gates/ directory with %d templates organized by phase type", len(res.copiedGates))
+		cfg.display.Info("  Quality gates configured in fest.yaml")
+	}
+
+	if res.projectPath != "" {
+		if res.projectLinked {
+			cfg.display.Success("Project path: %s (linked)", res.projectPath)
 		} else {
-			display.Info("Project path: %s (not linked - path doesn't exist yet)", resolvedProjectPath)
+			cfg.display.Info("Project path: %s (not linked - path doesn't exist yet)", res.projectPath)
 		}
 	}
 
 	fmt.Println()
 	fmt.Println(ui.H2("Next Steps"))
-	fmt.Printf("  %s\n", ui.Info(fmt.Sprintf("1. cd %s", destDir)))
+	fmt.Printf("  %s\n", ui.Info(fmt.Sprintf("1. cd %s", cfg.destDir)))
 	if remainingMarkers > 0 {
 		fmt.Printf("  %s\n", ui.Info("2. Edit FESTIVAL_GOAL.md to define your objectives"))
 		fmt.Printf("  %s\n", ui.Info("3. fest create phase --name \"PLAN\" --after 0"))
@@ -629,6 +720,47 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 		fmt.Printf("  %s\n", ui.Info("4. After creating tasks: fest gates apply --approve"))
 	}
 	return nil
+}
+
+// emitCreateJSON emits JSON output for festival creation.
+func emitCreateJSON(cfg *createConfig, res *createResult, gatesDir string, remainingMarkers int) error {
+	warnings := []string{}
+	if remainingMarkers > 0 {
+		warnings = append(warnings,
+			fmt.Sprintf("CRITICAL: %d unfilled markers - festival cannot be executed until resolved", remainingMarkers),
+			"Run 'fest validate' to see which files need editing",
+			"Run 'fest wizard fill FESTIVAL_GOAL.md' to fill markers interactively",
+		)
+	}
+	warnings = append(warnings, "Next: Create phases with 'fest create phase --name PHASE_NAME'")
+
+	festivalMap := map[string]string{
+		"name":      cfg.opts.Name,
+		"slug":      cfg.slug,
+		"dest":      cfg.destCategory,
+		"id":        cfg.festivalID,
+		"directory": cfg.dirName,
+	}
+	if cfg.festivalTypeName != "" {
+		festivalMap["type"] = cfg.festivalTypeName
+	}
+
+	return emitCreateFestivalJSON(cfg.opts, createFestivalResult{
+		OK:                true,
+		Action:            "create_festival",
+		Festival:          festivalMap,
+		Created:           res.created,
+		AutoPhasesCreated: res.autoPhasesCreated,
+		GatesDirectory:    gatesDir,
+		FestYAML:          res.festConfigPath,
+		GateTemplates:     res.copiedGates,
+		ProjectPath:       res.projectPath,
+		ProjectLinked:     res.projectLinked,
+		MarkersFilled:     res.markersFilled,
+		MarkersTotal:      res.markersTotal,
+		Validation:        res.validationResult,
+		Warnings:          warnings,
+	})
 }
 
 func parseTags(s string) []string {
