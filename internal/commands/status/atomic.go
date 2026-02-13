@@ -22,7 +22,7 @@ func AtomicStatusChange(ctx context.Context, festivalPath, fromStatus, toStatus 
 	festivalsRoot := filepath.Dir(filepath.Dir(festivalPath))
 
 	// Record status history before move
-	if err := RecordStatusChange(festivalPath, fromStatus, toStatus, ""); err != nil {
+	if err := RecordStatusChange(ctx, festivalPath, fromStatus, toStatus, ""); err != nil {
 		// Log warning but don't fail - history is optional
 		_ = err
 	}

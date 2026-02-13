@@ -1,0 +1,378 @@
+package status
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	"github.com/Obedience-Corp/fest/internal/commands/show"
+	"github.com/Obedience-Corp/fest/internal/commands/tui"
+	"github.com/Obedience-Corp/fest/internal/config"
+	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
+	"github.com/Obedience-Corp/fest/internal/navigation"
+	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/ui/theme"
+	"github.com/Obedience-Corp/fest/internal/workflow"
+	"github.com/Obedience-Corp/fest/internal/workspace"
+)
+
+// selectFestivalForStatus opens an interactive selector for choosing a festival.
+func selectFestivalForStatus(ctx context.Context, cwd, newStatus string) (*show.FestivalInfo, error) {
+	// Find festivals directory
+	festivalsDir, err := workspace.FindFestivals(cwd)
+	if err != nil {
+		return nil, errors.Wrap(err, "finding festivals directory")
+	}
+	if festivalsDir == "" {
+		return nil, errors.NotFound("festivals directory").
+			WithField("hint", "navigate to a workspace with festivals/ directory")
+	}
+
+	// Configure selector with appropriate title
+	config := tui.DefaultSelectorConfig()
+	config.Title = "Select Festival to Change Status"
+	config.Description = fmt.Sprintf("Choose festival to set to '%s'", newStatus)
+
+	// Create and run selector
+	selector := tui.NewFestivalSelector(festivalsDir, config)
+	result, err := selector.Run(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if result.Cancelled {
+		return nil, nil // User cancelled - not an error
+	}
+
+	return result.Selected, nil
+}
+
+// applyStatusToFestival applies a status change to a festival.
+func applyStatusToFestival(ctx context.Context, display *ui.UI, festival *show.FestivalInfo, newStatus string, opts *statusOptions) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled")
+	}
+
+	// Resolve user-facing aliases to filesystem paths (e.g., "completed" -> "dungeon/completed")
+	newStatus = id.ResolveStatusPath(newStatus)
+
+	// Validate status for festivals (schema-aware)
+	festivalsRoot := festivalsRootFromPath(festival.Path, festival.Status)
+	if !isValidFestivalStatus(festivalsRoot, newStatus) {
+		validOptions := getValidFestivalStatuses(festivalsRoot)
+		return errors.Validation("invalid status").
+			WithField("status", newStatus).
+			WithField("valid_options", strings.Join(validOptions, ", "))
+	}
+
+	// Apply the status change
+	return handleFestivalStatusChange(ctx, display, festival, newStatus, opts)
+}
+
+// updateGoalFrontmatter reads a goal file, updates its fest_status in frontmatter, and writes it back.
+func updateGoalFrontmatter(ctx context.Context, goalPath string, newStatus frontmatter.Status) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	content, err := os.ReadFile(goalPath)
+	if err != nil {
+		return errors.IO("reading goal file", err)
+	}
+
+	fm, remaining, err := frontmatter.Parse(content)
+	if err != nil {
+		return errors.Wrap(err, "parsing frontmatter")
+	}
+	if fm == nil {
+		return errors.Validation("goal file has no frontmatter").WithField("path", goalPath)
+	}
+
+	fm.Status = newStatus
+	fm.Updated = time.Now()
+
+	updated, err := frontmatter.Inject(remaining, fm)
+	if err != nil {
+		return errors.Wrap(err, "injecting updated frontmatter")
+	}
+
+	if err := os.WriteFile(goalPath, updated, 0o644); err != nil {
+		return errors.IO("writing updated goal file", err)
+	}
+	return nil
+}
+
+// readGoalStatus reads the current status from a goal file's frontmatter.
+func readGoalStatus(ctx context.Context, goalPath string) (frontmatter.Status, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	content, err := os.ReadFile(goalPath)
+	if err != nil {
+		return "", errors.IO("reading goal file", err)
+	}
+
+	fm, _, err := frontmatter.Parse(content)
+	if err != nil {
+		return "", errors.Wrap(err, "parsing frontmatter")
+	}
+	if fm == nil {
+		return "", errors.Validation("goal file has no frontmatter").WithField("path", goalPath)
+	}
+
+	return fm.Status, nil
+}
+
+// handleFestivalStatusChange handles changing a festival's status by moving its directory.
+func handleFestivalStatusChange(ctx context.Context, display *ui.UI, festival *show.FestivalInfo, newStatus string, opts *statusOptions) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled")
+	}
+
+	// Resolve user-facing aliases to filesystem paths (e.g., "completed" -> "dungeon/completed")
+	newStatus = id.ResolveStatusPath(newStatus)
+
+	// When target is "dungeon" (bare), prompt for substatus selection
+	if newStatus == "dungeon" {
+		resolved, err := resolveDungeonSubstatus(ctx, festival)
+		if err != nil {
+			return err
+		}
+		if resolved == "" {
+			display.Info("Selection cancelled.")
+			return nil
+		}
+		newStatus = resolved
+	}
+
+	if festival.Status == newStatus {
+		return emitAlreadyAtStatus(display, opts, newStatus)
+	}
+
+	// Validate transition against schema if available (--force skips)
+	festivalsRoot := festivalsRootFromPath(festival.Path, festival.Status)
+	if !opts.force {
+		if err := validateTransition(ctx, festivalsRoot, festival.Status, newStatus); err != nil {
+			return err
+		}
+	}
+
+	// Confirm unless forced
+	if !opts.force {
+		if !confirmFestivalMove(display, festival, newStatus) {
+			display.Info("Operation cancelled.")
+			return nil
+		}
+	}
+
+	// Execute the move
+	return executeFestivalMove(ctx, festival, newStatus, opts)
+}
+
+// resolveDungeonSubstatus prompts the user to select a dungeon child directory.
+func resolveDungeonSubstatus(ctx context.Context, festival *show.FestivalInfo) (string, error) {
+	// Derive dungeon children from centralized status directories
+	var dungeonChildren []string
+	for _, s := range id.StatusDirectories {
+		if strings.HasPrefix(s, "dungeon/") {
+			dungeonChildren = append(dungeonChildren, s)
+		}
+	}
+
+	// Check if schema has custom dungeon children
+	festivalsRoot := festivalsRootFromPath(festival.Path, festival.Status)
+	schemaPath := filepath.Join(festivalsRoot, workflow.SchemaFileName)
+	schema, err := workflow.LoadSchema(ctx, schemaPath)
+	if err == nil && schema != nil {
+		if dir, ok := schema.GetDirectory("dungeon"); ok && dir.Nested && len(dir.Children) > 0 {
+			dungeonChildren = nil
+			for childName := range dir.Children {
+				dungeonChildren = append(dungeonChildren, "dungeon/"+childName)
+			}
+		}
+	}
+
+	options := theme.ToOptions(dungeonChildren)
+	var selected string
+	cancelled, err := theme.QuickSelect(ctx, "Select dungeon substatus", options, &selected)
+	if err != nil {
+		return "", errors.Wrap(err, "dungeon substatus selection failed")
+	}
+	if cancelled {
+		return "", nil
+	}
+	return selected, nil
+}
+
+// validateTransition checks if a transition is valid against the workflow schema.
+// Returns nil if valid or no schema is present.
+func validateTransition(ctx context.Context, festivalsRoot, fromStatus, toStatus string) error {
+	schemaPath := filepath.Join(festivalsRoot, workflow.SchemaFileName)
+	schema, err := workflow.LoadSchema(ctx, schemaPath)
+	if err != nil {
+		// No schema - all transitions are allowed
+		return nil
+	}
+	if !schema.IsValidTransition(fromStatus, toStatus) {
+		validOpts := transitionOptsForStatus(schema, fromStatus)
+		return errors.Validation("transition not allowed by workflow schema").
+			WithField("from", fromStatus).
+			WithField("to", toStatus).
+			WithField("valid_options", strings.Join(validOpts, ", ")).
+			WithField("hint", "use --force to override")
+	}
+	return nil
+}
+
+// transitionOptsForStatus returns the valid transition targets for a given status.
+func transitionOptsForStatus(schema *workflow.Schema, status string) []string {
+	dir, ok := schema.GetDirectory(status)
+	if !ok || len(dir.TransitionOpts) == 0 {
+		return schema.AllDirectories()
+	}
+	return dir.TransitionOpts
+}
+
+// emitAlreadyAtStatus outputs a message when festival is already at the requested status.
+func emitAlreadyAtStatus(display *ui.UI, opts *statusOptions, status string) error {
+	if opts.json {
+		result := map[string]any{
+			"success": true,
+			"message": "already at requested status",
+			"status":  status,
+		}
+		if err := shared.EncodeJSON(os.Stdout, result); err != nil {
+			return errors.Wrap(err, "encoding JSON output")
+		}
+	} else {
+		fmt.Printf("%s %s\n", ui.Info("Already at status"), ui.GetStateStyle(status).Render(status))
+	}
+	return nil
+}
+
+// confirmFestivalMove prompts the user to confirm a festival move operation.
+func confirmFestivalMove(display *ui.UI, festival *show.FestivalInfo, newStatus string) bool {
+	prompt := fmt.Sprintf("Move festival %s from %s to %s?",
+		ui.Value(festival.Name, ui.FestivalColor),
+		ui.GetStateStyle(festival.Status).Render(festival.Status),
+		ui.GetStateStyle(newStatus).Render(newStatus))
+	return display.Confirm("%s", prompt)
+}
+
+// executeFestivalMove performs the actual directory move for a festival status change.
+func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newStatus string, opts *statusOptions) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled")
+	}
+
+	// Calculate new path
+	festivalsRoot := festivalsRootFromPath(festival.Path, festival.Status)
+	newPath := filepath.Join(festivalsRoot, newStatus, festival.Name)
+
+	// Check if destination exists
+	if _, err := os.Stat(newPath); err == nil {
+		return errors.Validation("destination already exists").WithField("path", newPath)
+	}
+
+	// Create destination directory if needed
+	destDir := filepath.Join(festivalsRoot, newStatus)
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		return errors.IO("creating destination directory", err)
+	}
+
+	// Move the directory
+	if err := os.Rename(festival.Path, newPath); err != nil {
+		return errors.IO("moving festival directory", err)
+	}
+
+	// Update FESTIVAL_GOAL.md frontmatter with the new status
+	festivalGoalPath := filepath.Join(newPath, "FESTIVAL_GOAL.md")
+	if _, err := os.Stat(festivalGoalPath); err == nil {
+		if fmErr := updateGoalFrontmatter(ctx, festivalGoalPath, frontmatter.Status(newStatus)); fmErr != nil {
+			// Log but don't fail — the directory move already succeeded
+			fmt.Printf("%s %s\n", ui.Dim("Warning: could not update FESTIVAL_GOAL.md frontmatter:"), ui.Dim(fmErr.Error()))
+		}
+	}
+
+	// Update fest.yaml metadata with the new status
+	if festCfg, cfgErr := config.LoadFestivalConfig(newPath); cfgErr == nil {
+		festCfg.Metadata.AddStatusChange(newStatus, newPath, "")
+		if saveErr := config.SaveFestivalConfig(newPath, festCfg); saveErr != nil {
+			fmt.Printf("%s %s\n", ui.Dim("Warning: could not update fest.yaml status:"), ui.Dim(saveErr.Error()))
+		}
+	}
+
+	// Update navigation links after successful move
+	linkAction := updateNavigationAfterMove(festival.Name, newStatus, newPath)
+
+	return emitFestivalMoveSuccess(opts, festival, newStatus, newPath, linkAction)
+}
+
+// updateNavigationAfterMove updates the navigation link after a festival move.
+// On completion, the link is removed (project freed). On other transitions, the
+// festival path is updated so the link stays accurate.
+// Returns a human-readable description of the action taken, or empty string.
+func updateNavigationAfterMove(festivalName, newStatus, newPath string) string {
+	nav, err := navigation.LoadNavigation()
+	if err != nil {
+		// Navigation not available (no campaign context, etc.) - skip silently
+		return ""
+	}
+
+	link, linked := nav.GetLink(festivalName)
+	if !linked {
+		return ""
+	}
+
+	// Terminal statuses (anything under dungeon/) should unlink the project
+	resolvedStatus := id.ResolveStatusPath(newStatus)
+	if strings.HasPrefix(resolvedStatus, "dungeon/") {
+		nav.RemoveLink(festivalName)
+		if saveErr := nav.Save(); saveErr != nil {
+			return fmt.Sprintf("warning: could not unlink project: %v", saveErr)
+		}
+		return fmt.Sprintf("unlinked project %s", link.Path)
+	}
+
+	// Non-terminal transition: update the festival path in the link
+	nav.SetLinkWithPath(festivalName, link.Path, newPath)
+	if saveErr := nav.Save(); saveErr != nil {
+		return fmt.Sprintf("warning: could not update link path: %v", saveErr)
+	}
+	return "link path updated"
+}
+
+// emitFestivalMoveSuccess outputs success message after moving a festival.
+func emitFestivalMoveSuccess(opts *statusOptions, festival *show.FestivalInfo, newStatus, newPath, linkAction string) error {
+	if opts.json {
+		result := map[string]any{
+			"success":    true,
+			"festival":   festival.Name,
+			"old_status": festival.Status,
+			"new_status": newStatus,
+			"old_path":   festival.Path,
+			"new_path":   newPath,
+		}
+		if linkAction != "" {
+			result["link_action"] = linkAction
+		}
+		if err := shared.EncodeJSON(os.Stdout, result); err != nil {
+			return errors.Wrap(err, "encoding JSON output")
+		}
+	} else {
+		fmt.Println(ui.Success("✓ Festival status updated"))
+		fmt.Printf("%s %s\n", ui.Label("Festival"), ui.Value(festival.Name, ui.FestivalColor))
+		fmt.Printf("%s %s\n", ui.Label("From"), ui.GetStateStyle(festival.Status).Render(festival.Status))
+		fmt.Printf("%s %s\n", ui.Label("To"), ui.GetStateStyle(newStatus).Render(newStatus))
+		fmt.Printf("%s %s\n", ui.Label("Path"), ui.Dim(newPath))
+		if linkAction != "" {
+			fmt.Printf("%s %s\n", ui.Label("Link"), ui.Dim(linkAction))
+		}
+	}
+	return nil
+}
