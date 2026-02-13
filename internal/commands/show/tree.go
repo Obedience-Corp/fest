@@ -353,7 +353,7 @@ func renderPhaseNode(sb *strings.Builder, node *DisplayNode, prefix string, isLa
 	sb.WriteString(ui.Dim(connector))
 	sb.WriteString(phaseStyle.Render(node.Name))
 	sb.WriteString("  ")
-	collapsePhase := opts.Collapsed || (opts.InProgress && node.Status != "in_progress" && !node.IsNextPending)
+	collapsePhase := opts.Collapsed || (opts.InProgress && !node.IsNextPending)
 	if collapsePhase {
 		sb.WriteString(formatCollapsedPhaseStatus(node))
 	} else {
@@ -371,7 +371,7 @@ func renderPhaseNode(sb *strings.Builder, node *DisplayNode, prefix string, isLa
 
 	// Render children: collapsed hides all, inprogress hides non-active
 	showChildren := !opts.Collapsed
-	if opts.InProgress && node.Status != "in_progress" && !node.IsNextPending {
+	if opts.InProgress && !node.IsNextPending {
 		showChildren = false
 	}
 	if showChildren {
@@ -414,7 +414,7 @@ func renderSequenceNode(sb *strings.Builder, node *DisplayNode, prefix string, i
 
 	// Render task children: collapsed hides all, inprogress hides non-active
 	showTasks := !opts.Collapsed
-	if opts.InProgress && node.Status != "in_progress" && !node.IsNextPending {
+	if opts.InProgress && !node.IsNextPending {
 		showTasks = false
 	}
 	if showTasks {
