@@ -156,8 +156,8 @@ directories:
 		{"custom_status", true},
 		{"vault/archive", true},
 		{"vault/hold", true},
-		{"planning", false},     // Not in custom schema
-		{"dungeon", false},     // Not in custom schema
+		{"planning", false}, // Not in custom schema
+		{"dungeon", false},  // Not in custom schema
 		{"nonexistent", false},
 	}
 

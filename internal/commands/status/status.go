@@ -4,6 +4,7 @@ package status
 import (
 	"context"
 
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/spf13/cobra"
 )
 
@@ -19,12 +20,23 @@ const (
 )
 
 // ValidStatuses defines valid status values per entity type.
+// Festival statuses are derived from id.StatusDirectories at init time.
 var ValidStatuses = map[EntityType][]string{
-	EntityFestival: {"planning", "ready", "active", "ritual", "completed", "dungeon", "dungeon/completed", "dungeon/archived", "dungeon/someday"},
 	EntityPhase:    {"pending", "in_progress", "completed"},
 	EntitySequence: {"pending", "in_progress", "completed"},
 	EntityTask:     {"pending", "in_progress", "blocked", "completed"},
 	EntityGate:     {"pending", "passed", "failed"},
+}
+
+func init() {
+	// Derive festival valid statuses from the centralized source of truth.
+	festivalStatuses := make([]string, len(id.StatusDirectories))
+	copy(festivalStatuses, id.StatusDirectories)
+
+	// Add user-facing aliases that resolve to dungeon sub-statuses.
+	festivalStatuses = append(festivalStatuses, "completed", "archived", "someday", "dungeon")
+
+	ValidStatuses[EntityFestival] = festivalStatuses
 }
 
 // statusOptions holds options shared across status subcommands.

@@ -125,11 +125,16 @@ func FestivalSchema() *Schema {
 			"active": {
 				Description:    "Festivals currently being executed",
 				Order:          3,
-				TransitionOpts: []string{"dungeon"},
+				TransitionOpts: []string{"ritual", "dungeon"},
+			},
+			"ritual": {
+				Description:    "Repeatable festival templates",
+				Order:          4,
+				TransitionOpts: []string{"active"},
 			},
 			"dungeon": {
 				Description: "Terminal festival states",
-				Order:       4,
+				Order:       5,
 				Nested:      true,
 				Children: map[string]Directory{
 					"completed": {

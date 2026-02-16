@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -376,16 +377,27 @@ func (s *Schema) GetDirectory(path string) (*Directory, bool) {
 // AllDirectories returns all directory paths including nested ones.
 // Paths are in the format "name" for top-level or "parent/child" for nested.
 func (s *Schema) AllDirectories() []string {
-	var paths []string
+	// Collect directories with their order for deterministic sorting
+	type dirEntry struct {
+		path  string
+		order int
+	}
+	var entries []dirEntry
 	for name, dir := range s.Directories {
 		if dir.Nested && len(dir.Children) > 0 {
-			// For nested directories, only list children, not the parent itself
-			for childName := range dir.Children {
-				paths = append(paths, name+"/"+childName)
+			for childName, child := range dir.Children {
+				entries = append(entries, dirEntry{name + "/" + childName, dir.Order*100 + child.Order})
 			}
 		} else {
-			paths = append(paths, name)
+			entries = append(entries, dirEntry{name, dir.Order})
 		}
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].order < entries[j].order
+	})
+	paths := make([]string, len(entries))
+	for i, e := range entries {
+		paths[i] = e.path
 	}
 	return paths
 }

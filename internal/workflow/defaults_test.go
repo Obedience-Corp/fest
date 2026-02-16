@@ -192,7 +192,7 @@ func TestFestivalSchema(t *testing.T) {
 	})
 
 	t.Run("has festival lifecycle directories", func(t *testing.T) {
-		required := []string{"planning", "ready", "active", "dungeon"}
+		required := []string{"planning", "ready", "active", "ritual", "dungeon"}
 		for _, name := range required {
 			if _, ok := schema.Directories[name]; !ok {
 				t.Errorf("missing required directory: %s", name)
@@ -233,10 +233,24 @@ func TestFestivalSchema(t *testing.T) {
 		}
 	})
 
-	t.Run("active transitions to dungeon only", func(t *testing.T) {
+	t.Run("active transitions to ritual and dungeon", func(t *testing.T) {
 		active := schema.Directories["active"]
-		if len(active.TransitionOpts) != 1 || active.TransitionOpts[0] != "dungeon" {
-			t.Errorf("active transition_opts = %v, want [dungeon]", active.TransitionOpts)
+		found := make(map[string]bool)
+		for _, opt := range active.TransitionOpts {
+			found[opt] = true
+		}
+		if !found["ritual"] {
+			t.Error("active should allow transition to ritual")
+		}
+		if !found["dungeon"] {
+			t.Error("active should allow transition to dungeon")
+		}
+	})
+
+	t.Run("ritual transitions to active", func(t *testing.T) {
+		ritual := schema.Directories["ritual"]
+		if len(ritual.TransitionOpts) != 1 || ritual.TransitionOpts[0] != "active" {
+			t.Errorf("ritual transition_opts = %v, want [active]", ritual.TransitionOpts)
 		}
 	})
 
@@ -258,7 +272,8 @@ func TestFestivalSchema(t *testing.T) {
 			"planning": 1,
 			"ready":    2,
 			"active":   3,
-			"dungeon":  4,
+			"ritual":   4,
+			"dungeon":  5,
 		}
 		for name, wantOrder := range expected {
 			dir := schema.Directories[name]
@@ -292,7 +307,7 @@ func TestFestivalSchema(t *testing.T) {
 	})
 
 	t.Run("no unexpected directories", func(t *testing.T) {
-		allowed := map[string]bool{"planning": true, "ready": true, "active": true, "dungeon": true}
+		allowed := map[string]bool{"planning": true, "ready": true, "active": true, "ritual": true, "dungeon": true}
 		for name := range schema.Directories {
 			if !allowed[name] {
 				t.Errorf("unexpected directory: %q", name)

@@ -22,7 +22,7 @@ func AtomicStatusChange(ctx context.Context, festivalPath, fromStatus, toStatus 
 	festivalsRoot := filepath.Dir(filepath.Dir(festivalPath))
 
 	// Record status history before move
-	if err := RecordStatusChange(festivalPath, fromStatus, toStatus, ""); err != nil {
+	if err := RecordStatusChange(ctx, festivalPath, fromStatus, toStatus, ""); err != nil {
 		// Log warning but don't fail - history is optional
 		_ = err
 	}
@@ -90,52 +90,4 @@ func updateRegistry(ctx context.Context, festivalsRoot, festivalName, newStatus,
 
 	// Update with event logging
 	_ = reg.UpdateStatusWithEvent(ctx, festivalID, oldStatus, newStatus)
-}
-
-// CopyDeleteMove performs a copy+delete operation for cross-filesystem moves.
-// This is used as a fallback when os.Rename fails across filesystems.
-func CopyDeleteMove(sourcePath, destDir, festivalName string) (string, error) {
-	destPath := filepath.Join(destDir, festivalName)
-
-	// Create destination directory
-	if err := os.MkdirAll(destPath, 0755); err != nil {
-		return "", err
-	}
-
-	// Copy all files recursively
-	err := filepath.Walk(sourcePath, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		relPath, err := filepath.Rel(sourcePath, path)
-		if err != nil {
-			return err
-		}
-
-		targetPath := filepath.Join(destPath, relPath)
-
-		if info.IsDir() {
-			return os.MkdirAll(targetPath, info.Mode())
-		}
-
-		// Copy file
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		return os.WriteFile(targetPath, content, info.Mode())
-	})
-	if err != nil {
-		// Cleanup on failure
-		os.RemoveAll(destPath)
-		return "", err
-	}
-
-	// Delete source
-	if err := os.RemoveAll(sourcePath); err != nil {
-		return "", err
-	}
-
-	return destPath, nil
 }

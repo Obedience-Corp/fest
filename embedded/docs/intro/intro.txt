@@ -22,7 +22,7 @@ separate from your project repositories. This workspace contains:
   festivals/
   ├── .festival/    # Methodology resources and templates
   ├── active/       # Currently executing festivals
-  ├── planned/      # Festivals being designed
+  ├── planning/     # Festivals being designed
   ├── completed/    # Finished festivals
   └── dungeon/      # Archived/deprioritized work
 

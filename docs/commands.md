@@ -97,7 +97,7 @@ fest create festival --name NAME [flags]
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--name` | *required* | Festival name |
-| `--dest` | `active` | Destination: `active` or `planned` |
+| `--dest` | `active` | Destination: `active`, `planning`, or `ritual` |
 | `--goal` | | Festival goal description |
 | `--tags` | | Comma-separated tags |
 | `--vars-file` | | JSON file with variables |
@@ -109,8 +109,8 @@ fest create festival --name NAME [flags]
 # Create festival in active/
 fest create festival --name "api-refactor"
 
-# Create in planned/ with goal
-fest create festival --name "ui-redesign" --dest planned --goal "Modernize UI components"
+# Create in planning/ with goal
+fest create festival --name "ui-redesign" --dest planning --goal "Modernize UI components"
 
 # With JSON output
 fest create festival --name "test" --json
@@ -532,6 +532,78 @@ fest insert phase --name TESTING --at 2
 fest insert sequence --phase ./001 --name design --at 1
 fest insert task --sequence ./01_api --name validate --at 2
 ```
+
+---
+
+## Ritual Commands
+
+### fest ritual run
+
+Create a new run of a ritual festival by copying the template from `ritual/` to `active/`.
+
+```bash
+fest ritual run <ritual-name-or-id> [flags]
+```
+
+#### ritual run: Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--json` | `false` | Emit JSON output |
+
+#### ritual run: How It Works
+
+1. Finds the ritual festival in `festivals/ritual/` by name, ID, or substring match
+2. Scans `active/`, `dungeon/completed/`, and `dungeon/archived/` for existing runs
+3. Calculates the next hex counter (auto-incrementing)
+4. Copies the ritual template to `active/` with the counter appended
+5. Updates `ritual_config.run_count` and `ritual_config.last_run` in the source `fest.yaml`
+
+The ritual template in `ritual/` is **never moved or modified** (only its `fest.yaml` metadata is updated).
+
+#### ritual run: Examples
+
+```bash
+# Run a ritual by directory name
+fest ritual run my-weekly-review-RI-WR0001
+# Creates: active/my-weekly-review-RI-WR0001-0001/
+
+# Run again (counter auto-increments)
+fest ritual run my-weekly-review-RI-WR0001
+# Creates: active/my-weekly-review-RI-WR0001-0002/
+
+# Search by substring
+fest ritual run weekly-review
+# Creates: active/my-weekly-review-RI-WR0001-0003/
+
+# JSON output
+fest ritual run my-weekly-review-RI-WR0001 --json
+```
+
+#### ritual run: JSON Output
+
+```json
+{
+  "success": true,
+  "action": "ritual_run",
+  "ritual": "my-weekly-review-RI-WR0001",
+  "run_number": 3,
+  "hex_counter": "0003",
+  "run_dir": "my-weekly-review-RI-WR0001-0003",
+  "dest_path": "/path/to/festivals/active/my-weekly-review-RI-WR0001-0003"
+}
+```
+
+#### ritual run: Hex Counter Format
+
+Run counters are 4-digit zero-padded uppercase hex:
+
+| Run Number | Hex Counter |
+|-----------|-------------|
+| 1 | `0001` |
+| 10 | `000A` |
+| 255 | `00FF` |
+| 65535 | `FFFF` |
 
 ---
 

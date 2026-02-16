@@ -1,6 +1,7 @@
 package status
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -57,7 +58,7 @@ func TestRecordStatusChange(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			// Test will fail until RecordStatusChange is implemented
-			err := RecordStatusChange(festivalDir, tc.fromStatus, tc.toStatus, tc.note)
+			err := RecordStatusChange(context.Background(), festivalDir, tc.fromStatus, tc.toStatus, tc.note)
 			if (err != nil) != tc.wantError {
 				t.Errorf("RecordStatusChange() error = %v, wantError %v", err, tc.wantError)
 			}
@@ -83,7 +84,7 @@ func TestLoadStatusHistory(t *testing.T) {
 
 	// Test loading empty history
 	t.Run("no history file", func(t *testing.T) {
-		history, err := LoadStatusHistory(festivalDir)
+		history, err := LoadStatusHistory(context.Background(), festivalDir)
 		if err != nil {
 			t.Errorf("LoadStatusHistory() error = %v, want nil for missing file", err)
 		}
@@ -95,11 +96,11 @@ func TestLoadStatusHistory(t *testing.T) {
 	// Test loading after recording
 	t.Run("after recording", func(t *testing.T) {
 		// Record a change first
-		if err := RecordStatusChange(festivalDir, "planning", "active", "test"); err != nil {
+		if err := RecordStatusChange(context.Background(), festivalDir, "planning", "active", "test"); err != nil {
 			t.Skipf("RecordStatusChange not implemented: %v", err)
 		}
 
-		history, err := LoadStatusHistory(festivalDir)
+		history, err := LoadStatusHistory(context.Background(), festivalDir)
 		if err != nil {
 			t.Errorf("LoadStatusHistory() error = %v", err)
 		}

@@ -3,6 +3,7 @@ package status
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -22,7 +23,10 @@ type StatusHistoryEntry struct {
 
 // RecordStatusChange appends a new entry to the festival's status history.
 // It creates the .fest directory if it doesn't exist.
-func RecordStatusChange(festivalDir, fromStatus, toStatus, note string) error {
+func RecordStatusChange(ctx context.Context, festivalDir, fromStatus, toStatus, note string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	// Don't record if status hasn't changed
 	if fromStatus == toStatus {
 		return nil
@@ -32,7 +36,7 @@ func RecordStatusChange(festivalDir, fromStatus, toStatus, note string) error {
 	historyPath := filepath.Join(festDir, "status_history.json")
 
 	// Load existing history
-	history, err := LoadStatusHistory(festivalDir)
+	history, err := LoadStatusHistory(ctx, festivalDir)
 	if err != nil {
 		return errors.Wrap(err, "loading status history")
 	}
@@ -67,7 +71,10 @@ func RecordStatusChange(festivalDir, fromStatus, toStatus, note string) error {
 
 // LoadStatusHistory loads the status history from a festival's .fest directory.
 // Returns an empty slice if no history file exists.
-func LoadStatusHistory(festivalDir string) ([]StatusHistoryEntry, error) {
+func LoadStatusHistory(ctx context.Context, festivalDir string) ([]StatusHistoryEntry, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	historyPath := filepath.Join(festivalDir, ".fest", "status_history.json")
 
 	// Check if file exists
@@ -90,8 +97,11 @@ func LoadStatusHistory(festivalDir string) ([]StatusHistoryEntry, error) {
 }
 
 // GetLastStatusChange returns the most recent status change entry, if any.
-func GetLastStatusChange(festivalDir string) (*StatusHistoryEntry, error) {
-	history, err := LoadStatusHistory(festivalDir)
+func GetLastStatusChange(ctx context.Context, festivalDir string) (*StatusHistoryEntry, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	history, err := LoadStatusHistory(ctx, festivalDir)
 	if err != nil {
 		return nil, err
 	}
