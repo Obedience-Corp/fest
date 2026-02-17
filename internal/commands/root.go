@@ -304,10 +304,6 @@ func init() {
 	extensionCmd.GroupID = "system"
 	rootCmd.AddCommand(extensionCmd)
 
-	countCmd := system.NewCountCommand()
-	countCmd.GroupID = "system"
-	rootCmd.AddCommand(countCmd)
-
 	if shared.NewTUICommand != nil {
 		tuiCmd := shared.NewTUICommand()
 		tuiCmd.GroupID = "creation"
