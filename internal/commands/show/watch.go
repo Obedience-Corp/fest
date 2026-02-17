@@ -4,6 +4,7 @@ package show
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -21,9 +22,14 @@ const pollingInterval = 2 * time.Second
 // runWatchMode watches for file changes and refreshes the festival display.
 // Falls back to polling if file watching is not available.
 func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions) error {
-	// Determine which files/directories to watch
+	// Ensure .fest state directory exists so fsnotify has something to watch
+	stateDir := filepath.Join(festival.Path, ".fest")
+	os.MkdirAll(stateDir, 0755)
+
+	// Watch festival root (fest.yaml, phases) and state directory (progress events)
 	watchPaths := []string{
-		filepath.Join(festival.Path, ".fest"), // State directory
+		festival.Path, // Festival root
+		stateDir,      // State directory
 	}
 
 	// Initial render
@@ -52,7 +58,7 @@ func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions
 	})
 
 	if err != nil {
-		// Fall back to polling mode
+		fmt.Fprintf(os.Stderr, "File watching unavailable (%v), using polling fallback\n", err)
 		return runPollingMode(ctx, festival, opts)
 	}
 	defer w.Close()
