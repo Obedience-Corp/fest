@@ -4,6 +4,7 @@ package progress
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -18,11 +19,15 @@ import (
 func runWatchMode(ctx context.Context, mgr *progress.Manager, loc *show.LocationInfo, opts *progressOptions) error {
 	festDir := loc.Festival.Path
 
-	// Determine which files to watch for progress changes
-	// Workflow state is now merged into progress_events.jsonl, so only one file to watch.
+	// Ensure .fest state directory exists so fsnotify has something to watch
+	stateDir := filepath.Join(festDir, ".fest")
+	os.MkdirAll(stateDir, 0755)
+
+	// Watch festival root (fest.yaml, phases), state directory, and progress events file
 	watchPaths := []string{
-		filepath.Join(festDir, ".fest", "progress_events.jsonl"),
-		filepath.Join(festDir, ".fest"), // Watch the directory for new files
+		festDir,  // Festival root
+		stateDir, // State directory
+		filepath.Join(stateDir, "progress_events.jsonl"),
 	}
 
 	// Initial render
@@ -51,7 +56,7 @@ func runWatchMode(ctx context.Context, mgr *progress.Manager, loc *show.Location
 	})
 
 	if err != nil {
-		// Fall back to polling mode
+		fmt.Fprintf(os.Stderr, "File watching unavailable (%v), using polling fallback\n", err)
 		return runPollingMode(ctx, mgr, loc, opts)
 	}
 	defer w.Close()
