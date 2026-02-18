@@ -17,50 +17,76 @@ Without task files, agents know the objective but don't know
 what specific work to perform.
 
 
-WHEN TO CREATE TASK FILES
--------------------------
-
-PHASE TYPES AND TASK REQUIREMENTS
+PHASE TYPES AND TASK CONVENTIONS
 ---------------------------------
 
-There are 4 phase types, each with different characteristics:
+There are 6 phase types, each with different structural conventions:
 
-  IMPLEMENTATION phases - Tasks REQUIRED
-    • Must always have task files in sequences
-    • AI agents execute structured task files
-    • Without tasks, agents don't know what work to perform
+  IMPLEMENTATION phases - Task files REQUIRED
+    • Must always have numbered task files in sequences
+    • AI agents execute structured task files autonomously
+    • Quality gates auto-appended (testing, review, iterate)
+    • Sequences matching excluded_patterns in fest.yaml skip gates
 
-  PLANNING phases - Tasks optional (flexible)
-    • May use task files for structured planning activities
-    • May be freeform with documentation and subdirectories
-    • Organized around achieving the phase goal
+  PLANNING phases - No task files (use workflow structure)
+    • Use inputs/ directory for reference materials
+    • Use WORKFLOW.md for process documentation
+    • Use decisions/ directory for decision records
+    • Do NOT create numbered sequences or task files
 
-  REVIEW phases - Tasks optional (flexible)
-    • May use task files for structured review checklists
-    • May be freeform for documentation during review
+  RESEARCH phases - Task files recommended
+    • Use numbered sequences with investigation tasks
+    • Less formal than implementation tasks
+    • Focus on findings, analysis, and documentation
+    • Quality gates are optional
+
+  REVIEW phases - Task files optional
+    • Use sequences for structured review checklists
     • Focus on validation and quality assurance
+    • May be freeform for review documentation
 
-  RESEARCH phases - Tasks optional (flexible)
-    • May use task files for structured research activities
-    • Often freeform with topic subdirectories and documents
-    • Use fest research create for documents
+  INGEST phases - Task files recommended
+    • Use sequences for absorbing external content
+    • Tasks cover gathering, organizing, and processing inputs
+    • Often paired with an inputs/ directory
 
-KEY RULE: Implementation phases MUST have task files.
-Other phase types are flexible based on whether the work
-benefits from structured automation or freeform exploration.
+  NON_CODING_ACTION phases - Task files recommended
+    • Use sequences for documentation or process changes
+    • Tasks describe non-code work items
+    • Quality gates may or may not apply
+
+KEY RULES:
+  • Implementation phases MUST have task files
+  • Planning phases should NOT have task files (use inputs/)
+  • Other phase types are flexible based on the work
+
+HYBRID PHASES:
+  Some phases can have BOTH workflow files AND sequences.
+  The workflow describes the process; sequences contain work items.
 
 
-CORRECT STRUCTURE
------------------
+CORRECT IMPLEMENTATION STRUCTURE
+---------------------------------
 
   02_api_endpoints/
   ├── SEQUENCE_GOAL.md          ← Defines objective
   ├── 01_design_endpoints.md    ← Task: design work
   ├── 02_implement_crud.md      ← Task: implementation
   ├── 03_add_validation.md      ← Task: more implementation
-  ├── 04_testing_and_verify.md  ← Quality gate
-  ├── 05_code_review.md         ← Quality gate
-  └── 06_review_results_iterate.md ← Quality gate
+  ├── 04_testing.md             ← Quality gate
+  ├── 05_review.md              ← Quality gate
+  └── 06_iterate.md             ← Quality gate
+
+CORRECT PLANNING STRUCTURE
+---------------------------
+
+  001_PLAN/
+  ├── PHASE_GOAL.md             ← Phase objective
+  ├── WORKFLOW.md               ← Planning process
+  ├── inputs/                   ← Reference materials
+  │   └── requirements.md
+  └── decisions/                ← Captured decisions
+      └── architecture.md
 
 
 INCORRECT STRUCTURE (Common Mistake)
@@ -97,6 +123,19 @@ Each task file should contain:
   - [ ] Documentation updated
 
 
+QUALITY GATES
+-------------
+
+Quality gates auto-append to implementation sequences:
+  • testing.md   - Testing and verification
+  • review.md    - Code review
+  • iterate.md   - Address review findings
+  • fest_commit.md - Commit sequence changes
+
+Sequences matching excluded_patterns in fest.yaml skip gates.
+Use 'fest gates apply --approve' to add gates to sequences.
+
+
 PARALLEL EXECUTION
 ------------------
 
@@ -115,9 +154,9 @@ CREATING TASK FILES
 
 Use the CLI to create task files efficiently:
 
-  fest create task --name "design endpoints" --json
-  fest create task --name "implement crud" --json
-  fest create task --name "add validation" --json
+  fest create task --name "design endpoints"
+  fest create task --name "implement crud"
+  fest create task --name "add validation"
 
 Then add quality gates automatically:
 
@@ -129,18 +168,18 @@ VALIDATE YOUR STRUCTURE
 
 Run validation to check task files exist:
 
-  fest validate tasks --json
+  fest validate tasks
 
 This checks that implementation sequences have task files,
 not just goal documents.
 
 Full validation:
 
-  fest validate --json
+  fest validate
 
 Post-completion checklist:
 
-  fest validate checklist --json
+  fest validate checklist
 
 
 COMMON MISTAKES
@@ -158,7 +197,11 @@ COMMON MISTAKES
    WRONG: Implementation tasks without testing/review
    FIX: Run 'fest gates apply --approve'
 
-4. Not filling templates
+4. Sequences inside planning phases
+   WRONG: Numbered sequences in a planning phase
+   FIX: Use inputs/, WORKFLOW.md, and decisions/ instead
+
+5. Not filling templates
    WRONG: Task files with [FILL:] markers still present
    FIX: Replace all template markers with actual content
 
@@ -170,4 +213,5 @@ REMEMBER
   Tasks define HOW to execute.
   AI agents execute TASK FILES.
 
-If your sequences only have goals, agents won't know what to do.
+If your implementation sequences only have goals, agents won't know what to do.
+If your planning phases have sequences, simplify to inputs/ and workflow files.

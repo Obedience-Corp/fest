@@ -383,16 +383,22 @@ func FindImplementationSequences(festivalRoot string, excludePatterns []string) 
 
 // isSequenceExcluded checks if a sequence matches any excluded pattern.
 func isSequenceExcluded(sequenceName string, patterns []string) bool {
+	return matchingExcludePattern(sequenceName, patterns) != ""
+}
+
+// matchingExcludePattern returns the first pattern that matches the sequence name,
+// or empty string if no pattern matches.
+func matchingExcludePattern(sequenceName string, patterns []string) string {
 	for _, pattern := range patterns {
 		matched, err := filepath.Match(pattern, sequenceName)
 		if err != nil {
 			continue
 		}
 		if matched {
-			return true
+			return pattern
 		}
 	}
-	return false
+	return ""
 }
 
 // SequenceInfo contains information about a sequence for generation.
@@ -402,6 +408,12 @@ type SequenceInfo struct {
 	Name      string // Sequence directory name
 	PhaseType string // Phase type: "implementation", "planning", "research", "review", "action"
 	PhaseName string // Name of the parent phase directory
+}
+
+// SkippedSequence records a sequence that was skipped due to an exclude pattern.
+type SkippedSequence struct {
+	Name    string // Sequence directory name
+	Pattern string // The exclude pattern that matched
 }
 
 // DetectPhaseType determines the phase type from the phase directory.
@@ -475,12 +487,14 @@ func inferPhaseTypeFromName(phaseName string) string {
 }
 
 // FindSequencesWithInfo finds sequences and returns detailed info.
-func FindSequencesWithInfo(festivalRoot string, excludePatterns []string) ([]SequenceInfo, error) {
+// Returns the included sequences and any sequences skipped by exclude patterns.
+func FindSequencesWithInfo(festivalRoot string, excludePatterns []string) ([]SequenceInfo, []SkippedSequence, error) {
 	var sequences []SequenceInfo
+	var skipped []SkippedSequence
 
 	entries, err := os.ReadDir(festivalRoot)
 	if err != nil {
-		return nil, errors.IO("reading festival root", err).
+		return nil, nil, errors.IO("reading festival root", err).
 			WithField("path", festivalRoot)
 	}
 
@@ -513,7 +527,11 @@ func FindSequencesWithInfo(festivalRoot string, excludePatterns []string) ([]Seq
 				continue
 			}
 
-			if isSequenceExcluded(seqEntry.Name(), excludePatterns) {
+			if pattern := matchingExcludePattern(seqEntry.Name(), excludePatterns); pattern != "" {
+				skipped = append(skipped, SkippedSequence{
+					Name:    seqEntry.Name(),
+					Pattern: pattern,
+				})
 				continue
 			}
 
@@ -527,7 +545,7 @@ func FindSequencesWithInfo(festivalRoot string, excludePatterns []string) ([]Seq
 		}
 	}
 
-	return sequences, nil
+	return sequences, skipped, nil
 }
 
 // inferGateType infers the gate type from the gate ID.

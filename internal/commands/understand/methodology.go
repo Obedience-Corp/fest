@@ -40,13 +40,25 @@ func printMethodology(dotFestival string) {
 
 				// Also check README.md for additional methodology guidance
 				readmePath := filepath.Join(dotFestival, "README.md")
-				if rdContent := extractSection(readmePath, "Requirements-Driven Implementation", "### Standard 3-Phase"); rdContent != "" {
+				if rdContent := extractSection(readmePath, "## Requirements-Driven Implementation", "## "); rdContent != "" {
 					fmt.Println("\nRequirements-Driven Implementation")
 					fmt.Println("-----------------------------------")
 					fmt.Println(rdContent)
 				}
 
-				if paContent := extractSection(readmePath, "Phase Adaptability", "## Goal Files"); paContent != "" {
+				if ptContent := extractSection(readmePath, "## Phase Types", "## "); ptContent != "" {
+					fmt.Println("\nPhase Types")
+					fmt.Println("-----------")
+					fmt.Println(ptContent)
+				}
+
+				if ftContent := extractSection(readmePath, "## Festival Types", "## "); ftContent != "" {
+					fmt.Println("\nFestival Types")
+					fmt.Println("--------------")
+					fmt.Println(ftContent)
+				}
+
+				if paContent := extractSection(readmePath, "## Phase Adaptability", "## "); paContent != "" {
 					fmt.Println("\nPhase Adaptability")
 					fmt.Println("------------------")
 					fmt.Println(paContent)

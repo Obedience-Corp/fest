@@ -2,7 +2,6 @@ package understand
 
 import (
 	"fmt"
-	"path/filepath"
 
 	understanddocs "github.com/Obedience-Corp/fest/embedded/docs/understand"
 	"github.com/spf13/cobra"
@@ -66,14 +65,32 @@ Scaffold: Complex Multi-Phase Festival
 `)
 	printScaffoldTree("complex")
 
-	// Try to get naming conventions from .festival/
-	if dotFestival != "" {
-		if content := extractSection(filepath.Join(dotFestival, "README.md"), "### Standard 3-Phase Pattern", "### Phase Flexibility"); content != "" {
-			fmt.Println("\nPhase Patterns (from .festival/)")
-			fmt.Println("---------------------------------")
-			fmt.Println(content)
-		}
-	}
+	fmt.Print(`
+
+Phase Types
+-----------
+
+Every phase has a type that determines its structure:
+
+  planning         inputs/, WORKFLOW.md, decisions/ (no sequences)
+  implementation   Numbered sequences + task files + quality gates
+  research         Numbered sequences with investigation tasks
+  review           Sequences with verification tasks
+  ingest           Sequences for absorbing external inputs
+  non_coding_action  Sequences for non-code work
+
+Create: fest create phase --name "001_IMPLEMENT" --type implementation
+
+Festival Lifecycle Directories
+------------------------------
+
+  festivals/
+    planning/       Festivals being planned
+    ready/          Ready for execution
+    active/         Currently executing
+    ritual/         Recurring festivals
+    dungeon/        Archived (completed/, archived/, someday/)
+`)
 
 	fmt.Print(`
 

@@ -122,7 +122,7 @@ func runGatesRemove(ctx context.Context, cmd *cobra.Command, opts *removeOptions
 		}}
 	} else {
 		// Find all sequences in festival
-		allSeqs, err := gatescore.FindSequencesWithInfo(festivalPath, nil)
+		allSeqs, _, err := gatescore.FindSequencesWithInfo(festivalPath, nil)
 		if err != nil {
 			return emitRemoveError(opts, errors.Wrap(err, "finding sequences").WithOp("runGatesRemove"))
 		}

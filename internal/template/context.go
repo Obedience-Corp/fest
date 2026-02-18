@@ -270,6 +270,7 @@ func normalizeName(name string, prefixDigits int, transform func(string) string)
 	trimmed := strings.TrimSpace(name)
 	trimmed = stripNumericPrefix(trimmed, prefixDigits)
 	trimmed = strings.ReplaceAll(trimmed, " ", "_")
+	trimmed = strings.ReplaceAll(trimmed, "-", "_")
 	return transform(trimmed)
 }
 

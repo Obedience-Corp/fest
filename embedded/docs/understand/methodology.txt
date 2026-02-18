@@ -25,18 +25,97 @@ are defined. Never guess what to implement.
   • Implementation code
   • Progress tracking and documentation
 
-3. Phase Adaptability
+3. Phase Types
+--------------
+
+Every phase has a type that determines its structure. There are 6 types:
+
+  planning         Uses inputs/ directory and workflow files (WORKFLOW.md).
+                   No numbered sequences or task files.
+
+  implementation   Uses numbered sequences with task files.
+                   Quality gates auto-appended to each sequence.
+
+  research         Uses numbered sequences with investigation tasks.
+                   Less formal than implementation.
+
+  review           Uses sequences with review/verification tasks.
+
+  ingest           Uses sequences with ingestion task files.
+                   For importing external inputs before planning.
+
+  non_coding_action  Uses sequences with action task files.
+                     For documentation, process changes, non-code work.
+
+Create a phase with a type:
+  fest create phase --name "001_RESEARCH" --type research
+  fest create phase --name "002_IMPLEMENT" --type implementation
+
+4. Festival Types
+-----------------
+
+Festivals come in 4 types:
+
+  standard (default)  Full planning + implementation. Auto-scaffolds
+                      INGEST and PLAN phases.
+
+  implementation      Execution-only. Auto-scaffolds IMPLEMENT phase.
+                      Use when requirements are already defined.
+
+  research            Investigation-focused. Auto-scaffolds INGEST,
+                      RESEARCH, and SYNTHESIZE phases.
+
+  ritual              Recurring/repeatable. Custom structure from
+                      ritual template. Stored in ritual/ directory.
+
+Create a festival with a type:
+  fest create festival --type standard my-project
+  fest create festival --type implementation my-feature
+
+Use 'fest types festival' to discover types.
+
+5. Phase Adaptability
 ---------------------
 
 Phases are guidelines, not rigid requirements. Adapt to your needs.
 
-4. Quality Gates
+  Planning phases:  Use inputs/ and workflow files, not sequences
+  Implementation:   Use numbered sequences with task files
+  Hybrid phases:    Can have BOTH workflow files AND sequences
+
+Common patterns:
+  001_IMPLEMENT                              (requirements ready)
+  001_RESEARCH → 002_IMPLEMENT               (investigate first)
+  001_INGEST → 002_PLAN → 003_IMPLEMENT      (full planning)
+
+6. Quality Gates
 ----------------
 
 Every implementation sequence ends with testing, review, and iteration tasks.
 Use 'fest gates apply --approve' to add these automatically.
 
-5. Step-Based Progress
+7. Step-Based Progress
 ----------------------
 
 Think in steps, not time. Track progress by completed tasks, not hours.
+
+8. Workflow Files and inputs/ Directories
+-----------------------------------------
+
+Planning phases use a different structure than implementation phases:
+
+  WORKFLOW.md     Describes the planning process for a phase.
+                  Placed directly inside the phase directory.
+
+  inputs/         Holds reference materials, external documents,
+                  and source content for planning.
+
+  decisions/      Captures architectural and design decisions.
+
+Example planning phase:
+  001_PLAN/
+  ├── WORKFLOW.md
+  ├── inputs/
+  │   └── requirements.md
+  └── decisions/
+      └── architecture.md

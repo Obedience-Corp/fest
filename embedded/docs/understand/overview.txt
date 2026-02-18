@@ -14,8 +14,8 @@ CRITICAL: Tasks vs Goals (Most Common Mistake)
 
 WITHOUT TASK FILES, AI knows the goal but not what work to do!
 
-  ✗ WRONG: Sequence with only SEQUENCE_GOAL.md
-  ✓ RIGHT: Sequence with SEQUENCE_GOAL.md + task files (01_*.md, 02_*.md, ...)
+  WRONG: Sequence with only SEQUENCE_GOAL.md
+  RIGHT: Sequence with SEQUENCE_GOAL.md + task files (01_*.md, 02_*.md, ...)
 
 For details: fest understand tasks
 
@@ -24,73 +24,81 @@ Core Concepts
 -------------
 
 • Three-level hierarchy: Phases → Sequences → Tasks
+• 6 phase types: planning, implementation, research, review, ingest, non_coding_action
+• 4 festival types: standard, implementation, research, ritual
 • Requirements-driven: Implementation only after requirements are defined
 • Just-in-time context: Read templates and docs only when needed
-• Quality gates: Every sequence ends with testing, review, iteration
+• Quality gates: Every implementation sequence ends with testing, review, iteration
 
 
-Festival Structure (CRITICAL - Follow This Exactly)
----------------------------------------------------
+Festival Types
+--------------
+
+  standard (default)    Full planning + implementation
+  implementation        Execution-only (requirements already exist)
+  research              Investigation and exploration
+  ritual                Recurring/repeatable processes
+
+  Discover types:  fest types festival
+  Type details:    fest types festival show <type>
+  Create:          fest create festival --type <type> <name>
+
+
+Phase Types
+-----------
+
+  planning         Uses inputs/, WORKFLOW.md (no sequences)
+  implementation   Uses numbered sequences + task files + quality gates
+  research         Uses sequences with investigation tasks
+  review           Uses sequences with verification tasks
+  ingest           Uses sequences for absorbing external inputs
+  non_coding_action  Uses sequences for non-code work
+
+  Create:  fest create phase --name "001_IMPLEMENT" --type implementation
+
+
+Festival Structure
+------------------
 
 my-festival/
-├── FESTIVAL_OVERVIEW.md              [REQUIRED] Festival goal and success criteria
-├── FESTIVAL_RULES.md                 [REQUIRED] Quality standards
-├── CONTEXT.md                        Decisions, rationale, discoveries
-├── STATUS_UPDATE.md                  Current progress tracking
-├── TODO.md                           Task checklist
-├── fest.yaml                         Quality gate config
+├── FESTIVAL_GOAL.md                 [REQUIRED] Festival objective
+├── FESTIVAL_OVERVIEW.md             [REQUIRED] Goal and success criteria
+├── FESTIVAL_RULES.md                [REQUIRED] Quality standards
+├── TODO.md                          Task checklist
+├── fest.yaml                        Quality gate config
 │
-├── 001_PLAN/
-│   ├── PHASE_GOAL.md                 [REQUIRED]
-│   ├── 01_requirements/
-│   │   ├── SEQUENCE_GOAL.md          [REQUIRED]
-│   │   ├── 01_analyze_use_cases.md
-│   │   ├── 02_define_specifications.md
-│   │   ├── 03_document_constraints.md
-│   │   └── results/                  Output artifacts
-│   │       └── requirements_spec.md
-│   └── 02_architecture/
-│       ├── SEQUENCE_GOAL.md          [REQUIRED]
-│       ├── 01_project_structure.md
-│       ├── 02_dependency_selection.md
-│       ├── 03_data_flow_design.md
-│       └── results/
-│           └── architecture_decision_record.md
+├── 001_INGEST/                      type: ingest
+│   ├── PHASE_GOAL.md                [REQUIRED]
+│   └── inputs/
+│       └── README.md
 │
-├── 002_IMPLEMENT/
-│   ├── PHASE_GOAL.md                 [REQUIRED]
-│   ├── IMPLEMENTATION_SPEC.md        Optional phase-level spec
+├── 002_PLAN/                        type: planning
+│   ├── PHASE_GOAL.md                [REQUIRED]
+│   ├── WORKFLOW.md                  Planning process
+│   ├── inputs/                      Reference materials
+│   └── decisions/                   Captured decisions
+│
+├── 003_IMPLEMENT/                   type: implementation
+│   ├── PHASE_GOAL.md                [REQUIRED]
 │   ├── 01_core_infrastructure/
-│   │   ├── SEQUENCE_GOAL.md          [REQUIRED]
+│   │   ├── SEQUENCE_GOAL.md         [REQUIRED]
 │   │   ├── 01_project_setup.md
 │   │   ├── 02_database_schema.md
 │   │   ├── 03_api_endpoints.md
-│   │   ├── 04_testing_and_verify.md  ← QUALITY GATE [REQUIRED]
-│   │   ├── 05_code_review.md         ← QUALITY GATE [REQUIRED]
-│   │   ├── 06_review_results_iterate.md ← QUALITY GATE [REQUIRED]
+│   │   ├── 04_testing.md            ← Quality gate [REQUIRED]
+│   │   ├── 05_review.md             ← Quality gate [REQUIRED]
+│   │   ├── 06_iterate.md            ← Quality gate [REQUIRED]
 │   │   └── results/
-│   │       ├── testing_results.md
-│   │       └── code_review_findings.md
 │   └── 02_feature_implementation/
-│       ├── SEQUENCE_GOAL.md          [REQUIRED]
+│       ├── SEQUENCE_GOAL.md         [REQUIRED]
 │       ├── 01_user_authentication.md
 │       ├── 02_data_processing.md
-│       ├── 03_ui_components.md
-│       ├── 04_testing_and_verify.md  ← QUALITY GATE
-│       ├── 05_code_review.md         ← QUALITY GATE
-│       ├── 06_review_results_iterate.md ← QUALITY GATE
+│       ├── 03_testing.md            ← Quality gate
+│       ├── 04_review.md             ← Quality gate
+│       ├── 05_iterate.md            ← Quality gate
 │       └── results/
 │
-└── 003_REVIEW_AND_UAT/
-    ├── PHASE_GOAL.md                 [REQUIRED]
-    ├── ACCEPTANCE_CRITERIA.md
-    └── 01_final_validation/
-        ├── SEQUENCE_GOAL.md          [REQUIRED]
-        ├── 01_integration_testing.md
-        ├── 02_user_acceptance_testing.md
-        ├── 03_documentation_review.md
-        └── results/
-            └── uat_sign_off.md
+└── completed/                       Finished sequences/phases
 
 
 Naming Conventions (MANDATORY)
@@ -104,11 +112,11 @@ Naming Conventions (MANDATORY)
 Quality Gates (REQUIRED for Implementation Sequences)
 -----------------------------------------------------
 
-Every implementation sequence MUST end with these three tasks:
+Every implementation sequence MUST end with quality gate tasks:
 
-  XX_testing_and_verify.md      Verify functionality works
-  XX_code_review.md             Review code quality
-  XX_review_results_iterate.md  Address findings
+  XX_testing.md      Verify functionality works
+  XX_review.md       Review code quality
+  XX_iterate.md      Address findings
 
 Example: If your last implementation task is 03_*, quality gates are 04_, 05_, 06_
 
@@ -118,9 +126,9 @@ Token-Efficient Workflow
 
 Use the fest CLI instead of manual file creation:
 
-  fest create festival --name "my-project" --goal "Build X" --json
-  fest create phase --name "IMPLEMENT" --json
-  fest create sequence --name "api" --json
+  fest create festival --type standard "my-project"
+  fest create phase --name "IMPLEMENT" --type implementation
+  fest create sequence --name "api"
   fest gates apply --approve                 # Add quality gates
 
 Variables are passed to templates - no post-creation editing needed.
@@ -129,6 +137,9 @@ Variables are passed to templates - no post-creation editing needed.
 More Information
 ----------------
 
-  fest understand rules         # MANDATORY structure requirements
-  fest understand templates     # Variables that save tokens
-  fest understand structure     # More scaffold examples
+  fest understand methodology    # Core principles, phase types, festival types
+  fest understand structure      # Scaffold examples for each complexity level
+  fest understand tasks          # Task conventions per phase type
+  fest understand rules          # MANDATORY structure requirements
+  fest understand templates      # Variables that save tokens
+  fest types festival            # Discover festival types

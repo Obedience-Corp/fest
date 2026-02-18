@@ -24,6 +24,7 @@ type CreateSequenceOptions struct {
 	After       int
 	Name        string
 	Path        string
+	Festival    string // --festival: path to festival directory (use when not inside a festival)
 	VarsFile    string
 	Markers     string // Inline JSON with hint→value mappings
 	MarkersFile string // JSON file path with hint→value mappings
@@ -99,6 +100,7 @@ Run 'fest validate tasks' to verify task files exist.`,
 	cmd.Flags().IntVar(&opts.After, "after", -1, "Insert after this sequence number (-1 or omit to append at end)")
 	cmd.Flags().StringVar(&opts.Name, "name", "", "Sequence name (required)")
 	cmd.Flags().StringVar(&opts.Path, "path", ".", "Path to phase directory (directory containing numbered sequences)")
+	cmd.Flags().StringVar(&opts.Festival, "festival", "", "Path to festival directory (use when not inside a festival)")
 	cmd.Flags().StringVar(&opts.VarsFile, "vars-file", "", "JSON vars for rendering")
 	cmd.Flags().StringVar(&opts.Markers, "markers", "", "JSON string with REPLACE marker hint→value mappings")
 	cmd.Flags().StringVar(&opts.MarkersFile, "markers-file", "", "JSON file with REPLACE marker hint→value mappings")
@@ -125,10 +127,16 @@ func RunCreateSequence(ctx context.Context, opts *CreateSequenceOptions) error {
 
 	display := ui.New(shared.IsNoColor(), shared.IsVerbose())
 
+	// --festival overrides --path when provided
+	path := opts.Path
+	if opts.Festival != "" {
+		path = opts.Festival
+	}
+
 	// Convert to absolute path first so resolution functions can walk the tree
-	absPath, err := filepath.Abs(opts.Path)
+	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return emitCreateSequenceError(opts, errors.Wrap(err, "resolving path").WithField("path", opts.Path))
+		return emitCreateSequenceError(opts, errors.Wrap(err, "resolving path").WithField("path", path))
 	}
 
 	// Resolve paths for config loading
@@ -399,8 +407,8 @@ func RunCreateSequence(ctx context.Context, opts *CreateSequenceOptions) error {
 	fmt.Printf("  %s %s\n", ui.Value("fest show plan"), ui.Dim("View the execution plan"))
 	fmt.Println()
 
-	// Blocking prompt (skip if --no-prompt or --json)
-	if !opts.NoPrompt && !opts.JSONOutput {
+	// Blocking prompt (skip if --no-prompt, --json, or --skip-markers)
+	if !opts.NoPrompt && !opts.JSONOutput && !opts.SkipMarkers {
 		if display.Confirm("Create task files now?") {
 			fmt.Println()
 			fmt.Println(ui.H2("Create Tasks"))
