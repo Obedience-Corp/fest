@@ -30,22 +30,23 @@ are defined. Never guess what to implement.
 
 Every phase has a type that determines its structure. There are 6 types:
 
-  planning         Uses inputs/ directory and workflow files (WORKFLOW.md).
+  planning         WORKFLOW.md with inputs/, decisions/, plan/ directories.
                    No numbered sequences or task files.
 
-  implementation   Uses numbered sequences with task files.
-                   Quality gates auto-appended to each sequence.
+  implementation   Numbered sequences with numbered task files.
+                   Quality gates appended from festival's gates/ directory.
 
-  research         Uses numbered sequences with investigation tasks.
-                   Less formal than implementation.
+  research         WORKFLOW.md with sources/, findings/ directories and
+                   analysis templates. For investigation and exploration.
 
-  review           Uses sequences with review/verification tasks.
+  ingest           WORKFLOW.md with input_specs/, output_specs/ directories.
+                   For absorbing and processing external inputs.
 
-  ingest           Uses sequences with ingestion task files.
-                   For importing external inputs before planning.
+  review           Freeform. PHASE_GOAL.md with review criteria and
+                   stakeholder sign-off tables. No sequences or workflow.
 
-  non_coding_action  Uses sequences with action task files.
-                     For documentation, process changes, non-code work.
+  non_coding_action  Freeform. PHASE_GOAL.md with action items and
+                     verification steps. No sequences or workflow.
 
 Create a phase with a type:
   fest create phase --name "001_RESEARCH" --type research
@@ -74,14 +75,16 @@ Create a festival with a type:
 
 Use 'fest types festival' to discover types.
 
-5. Phase Adaptability
----------------------
+5. Phase Structure Requirements
+-------------------------------
 
-Phases are guidelines, not rigid requirements. Adapt to your needs.
+Phase types enforce structural conventions used by the fest CLI's
+agentic guidance system. fest validate checks compliance.
 
-  Planning phases:  Use inputs/ and workflow files, not sequences
-  Implementation:   Use numbered sequences with task files
-  Hybrid phases:    Can have BOTH workflow files AND sequences
+  Workflow phases:  planning, ingest, research use WORKFLOW.md
+  Implementation:   MUST have numbered sequences with task files
+  Freeform phases:  review, non_coding_action use only PHASE_GOAL.md
+  Hybrid phases:    Can have BOTH workflow files AND sequences if needed
 
 Common patterns:
   001_IMPLEMENT                              (requirements ready)
@@ -91,8 +94,12 @@ Common patterns:
 6. Quality Gates
 ----------------
 
-Every implementation sequence ends with testing, review, and iteration tasks.
-Use 'fest gates apply --approve' to add these automatically.
+Every implementation sequence ends with quality gate task files defined in
+the festival's gates/ directory, appended in sequential order. Default gates
+are included (testing, review, iterate, fest_commit), but gates can be
+configured per-festival based on that festival's specific needs.
+
+Use 'fest gates apply --approve' to add gates to implementation sequences.
 
 7. Step-Based Progress
 ----------------------
@@ -102,7 +109,7 @@ Think in steps, not time. Track progress by completed tasks, not hours.
 8. Workflow Files and inputs/ Directories
 -----------------------------------------
 
-Planning phases use a different structure than implementation phases:
+Planning, ingest, and research phases use WORKFLOW.md instead of sequences:
 
   WORKFLOW.md     Describes the planning process for a phase.
                   Placed directly inside the phase directory.

@@ -111,6 +111,12 @@ func FullValidate(ctx context.Context, festivalPath string) (*Result, error) {
 	}
 	result.Issues = append(result.Issues, structIssues...)
 
+	completenessIssues, err := ValidateCompleteness(ctx, festivalPath)
+	if err != nil {
+		return nil, err
+	}
+	result.Issues = append(result.Issues, completenessIssues...)
+
 	taskIssues, err := ValidateTasks(ctx, festivalPath)
 	if err != nil {
 		return nil, err

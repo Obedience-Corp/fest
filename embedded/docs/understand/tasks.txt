@@ -22,43 +22,43 @@ PHASE TYPES AND TASK CONVENTIONS
 
 There are 6 phase types, each with different structural conventions:
 
-  IMPLEMENTATION phases - Task files REQUIRED
-    • Must always have numbered task files in sequences
+  IMPLEMENTATION phases - Numbered sequences + task files REQUIRED
+    • Must have numbered sequence directories with numbered task files
     • AI agents execute structured task files autonomously
-    • Quality gates auto-appended (testing, review, iterate)
+    • Quality gates appended from festival's gates/ directory
     • Sequences matching excluded_patterns in fest.yaml skip gates
 
-  PLANNING phases - No task files (use workflow structure)
-    • Use inputs/ directory for reference materials
-    • Use WORKFLOW.md for process documentation
-    • Use decisions/ directory for decision records
+  PLANNING phases - WORKFLOW.md (no sequences or task files)
+    • Uses WORKFLOW.md for step-by-step planning process
+    • Uses inputs/ directory for reference materials
+    • Uses decisions/ directory for decision records
+    • Uses plan/ directory for resulting plans
     • Do NOT create numbered sequences or task files
 
-  RESEARCH phases - Task files recommended
-    • Use numbered sequences with investigation tasks
-    • Less formal than implementation tasks
-    • Focus on findings, analysis, and documentation
-    • Quality gates are optional
+  RESEARCH phases - WORKFLOW.md (no sequences or task files)
+    • Uses WORKFLOW.md for research process
+    • Uses sources/ directory with INDEX.md for source tracking
+    • Uses findings/ directory with INDEX.md for findings
+    • Includes analysis templates (analysis.md, comparison.md, etc.)
 
-  REVIEW phases - Task files optional
-    • Use sequences for structured review checklists
+  INGEST phases - WORKFLOW.md (no sequences or task files)
+    • Uses WORKFLOW.md for ingestion process
+    • Uses input_specs/ directory for raw input materials
+    • Uses output_specs/ directory for structured output specs
+
+  REVIEW phases - Freeform (no sequences, no workflow)
+    • PHASE_GOAL.md defines review criteria and sign-off tables
     • Focus on validation and quality assurance
-    • May be freeform for review documentation
+    • Simplest phase type
 
-  INGEST phases - Task files recommended
-    • Use sequences for absorbing external content
-    • Tasks cover gathering, organizing, and processing inputs
-    • Often paired with an inputs/ directory
-
-  NON_CODING_ACTION phases - Task files recommended
-    • Use sequences for documentation or process changes
-    • Tasks describe non-code work items
-    • Quality gates may or may not apply
+  NON_CODING_ACTION phases - Freeform (no sequences, no workflow)
+    • PHASE_GOAL.md defines action items and verification steps
+    • For documentation, process changes, non-code work
 
 KEY RULES:
-  • Implementation phases MUST have task files
-  • Planning phases should NOT have task files (use inputs/)
-  • Other phase types are flexible based on the work
+  • Implementation phases MUST have sequence directories and task files
+  • Planning, research, and ingest phases use WORKFLOW.md (no sequences)
+  • Review and non_coding_action phases are freeform (PHASE_GOAL.md only)
 
 HYBRID PHASES:
   Some phases can have BOTH workflow files AND sequences.
@@ -77,12 +77,12 @@ CORRECT IMPLEMENTATION STRUCTURE
   ├── 05_review.md              ← Quality gate
   └── 06_iterate.md             ← Quality gate
 
-CORRECT PLANNING STRUCTURE
----------------------------
+CORRECT PLANNING STRUCTURE (also applies to ingest and research)
+-----------------------------------------------------------------
 
   001_PLAN/
   ├── PHASE_GOAL.md             ← Phase objective
-  ├── WORKFLOW.md               ← Planning process
+  ├── WORKFLOW.md               ← Step-by-step process
   ├── inputs/                   ← Reference materials
   │   └── requirements.md
   └── decisions/                ← Captured decisions
@@ -126,27 +126,37 @@ Each task file should contain:
 QUALITY GATES
 -------------
 
-Quality gates auto-append to implementation sequences:
-  • testing.md   - Testing and verification
-  • review.md    - Code review
-  • iterate.md   - Address review findings
+Quality gates are task files defined in the festival's gates/ directory,
+appended to implementation sequences in sequential order:
+
+  Default gates:
+  • testing.md     - Testing and verification
+  • review.md      - Code review
+  • iterate.md     - Address review findings
   • fest_commit.md - Commit sequence changes
 
-Sequences matching excluded_patterns in fest.yaml skip gates.
-Use 'fest gates apply --approve' to add gates to sequences.
+Gates can be configured per-festival by editing the gates/ directory
+and fest.yaml. Sequences matching excluded_patterns in fest.yaml skip gates.
+Use 'fest gates apply --approve' to add gates to implementation sequences.
 
 
 PARALLEL EXECUTION
 ------------------
 
-Tasks with the SAME number run in parallel:
+Nodes with the SAME number can run in parallel. This applies at every
+level of the hierarchy — phases, sequences, and tasks:
+
+  Tasks:     01_frontend.md + 01_backend.md (parallel within sequence)
+  Sequences: 01_auth/ + 01_payments/ (parallel within phase)
+  Phases:    002_FRONTEND/ + 002_BACKEND/ (parallel within festival)
 
   01_frontend_setup.md  ┐
   01_backend_setup.md   ├── Run simultaneously
   01_database_setup.md  ┘
   02_integration.md     ← Waits for all 01_ tasks
 
-Use this for independent work streams within a sequence.
+Sequential work is the default and normally preferred, but parallel
+numbering enables independent work streams when appropriate.
 
 
 CREATING TASK FILES
@@ -197,9 +207,9 @@ COMMON MISTAKES
    WRONG: Implementation tasks without testing/review
    FIX: Run 'fest gates apply --approve'
 
-4. Sequences inside planning phases
-   WRONG: Numbered sequences in a planning phase
-   FIX: Use inputs/, WORKFLOW.md, and decisions/ instead
+4. Sequences inside workflow phases
+   WRONG: Numbered sequences in planning, ingest, or research phases
+   FIX: Use WORKFLOW.md and the phase type's directory structure
 
 5. Not filling templates
    WRONG: Task files with [FILL:] markers still present
@@ -214,4 +224,5 @@ REMEMBER
   AI agents execute TASK FILES.
 
 If your implementation sequences only have goals, agents won't know what to do.
-If your planning phases have sequences, simplify to inputs/ and workflow files.
+If your workflow phases (planning, ingest, research) have sequences,
+simplify to WORKFLOW.md and the phase type's directory structure.

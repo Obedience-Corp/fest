@@ -177,6 +177,9 @@ func resolvePhaseConfig(ctx context.Context, opts *CreatePhaseOptions) (*phaseCo
 	// --festival overrides --path when provided
 	path := opts.Path
 	if opts.Festival != "" {
+		if opts.Path != "." {
+			display.Warning("Both --path and --festival provided; using --festival")
+		}
 		path = opts.Festival
 	}
 

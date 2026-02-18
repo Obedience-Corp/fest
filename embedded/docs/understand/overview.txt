@@ -47,12 +47,12 @@ Festival Types
 Phase Types
 -----------
 
-  planning         Uses inputs/, WORKFLOW.md (no sequences)
-  implementation   Uses numbered sequences + task files + quality gates
-  research         Uses sequences with investigation tasks
-  review           Uses sequences with verification tasks
-  ingest           Uses sequences for absorbing external inputs
-  non_coding_action  Uses sequences for non-code work
+  planning         WORKFLOW.md, inputs/, decisions/, plan/ (no sequences)
+  implementation   Numbered sequences + numbered task files + quality gates
+  research         WORKFLOW.md, sources/, findings/, analysis templates
+  ingest           WORKFLOW.md, input_specs/, output_specs/
+  review           Freeform (PHASE_GOAL.md with review criteria)
+  non_coding_action  Freeform (PHASE_GOAL.md with action items)
 
   Create:  fest create phase --name "001_IMPLEMENT" --type implementation
 
@@ -67,9 +67,12 @@ my-festival/
 ├── TODO.md                          Task checklist
 ├── fest.yaml                        Quality gate config
 │
-├── 001_INGEST/                      type: ingest
+├── 001_INGEST/                      type: ingest (WORKFLOW.md)
 │   ├── PHASE_GOAL.md                [REQUIRED]
-│   └── inputs/
+│   ├── WORKFLOW.md                  Ingest workflow
+│   ├── input_specs/                 Raw input materials
+│   │   └── README.md
+│   └── output_specs/                Structured output specs
 │       └── README.md
 │
 ├── 002_PLAN/                        type: planning
@@ -97,6 +100,13 @@ my-festival/
 │       ├── 04_review.md             ← Quality gate
 │       ├── 05_iterate.md            ← Quality gate
 │       └── results/
+│
+├── gates/
+│   └── implementation/              Configurable quality gate templates
+│       ├── QUALITY_GATE_TESTING.md
+│       ├── QUALITY_GATE_REVIEW.md
+│       ├── QUALITY_GATE_ITERATE.md
+│       └── QUALITY_GATE_FEST_COMMIT.md
 │
 └── completed/                       Finished sequences/phases
 

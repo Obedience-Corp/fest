@@ -1,50 +1,56 @@
-my-festival/
+my-festival/                         type: research (or standard + extra phases)
 ├── FESTIVAL_GOAL.md                 [REQUIRED]
 ├── FESTIVAL_OVERVIEW.md             [REQUIRED]
 ├── FESTIVAL_RULES.md                [REQUIRED]
 ├── TODO.md
 ├── fest.yaml
+├── gates/
+│   └── implementation/              Configurable quality gate templates
+│       ├── QUALITY_GATE_TESTING.md
+│       ├── QUALITY_GATE_REVIEW.md
+│       ├── QUALITY_GATE_ITERATE.md
+│       └── QUALITY_GATE_FEST_COMMIT.md
 │
-├── 001_INGEST/                      type: ingest
+├── 001_INGEST/                      type: ingest (WORKFLOW.md)
 │   ├── PHASE_GOAL.md                [REQUIRED]
-│   └── 01_gather_inputs/
-│       ├── SEQUENCE_GOAL.md         [REQUIRED]
-│       └── [ingestion tasks]
+│   ├── WORKFLOW.md                  Ingest workflow
+│   ├── input_specs/
+│   │   └── README.md
+│   └── output_specs/
+│       └── README.md
 │
-├── 002_RESEARCH/                    type: research (no quality gates)
+├── 002_RESEARCH/                    type: research (WORKFLOW.md)
 │   ├── PHASE_GOAL.md                [REQUIRED]
-│   └── 01_investigation/
-│       ├── SEQUENCE_GOAL.md         [REQUIRED]
-│       └── [research documents]
+│   ├── WORKFLOW.md                  Research workflow
+│   ├── analysis.md                  Analysis template
+│   ├── comparison.md                Comparison template
+│   ├── investigation.md             Investigation template
+│   ├── specification.md             Specification template
+│   ├── sources/
+│   │   └── INDEX.md                 Source tracking registry
+│   └── findings/
+│       └── INDEX.md                 Findings tracking registry
 │
-├── 003_PLAN/                        type: planning (no sequences required)
+├── 003_SYNTHESIZE/                  type: planning (WORKFLOW.md)
 │   ├── PHASE_GOAL.md                [REQUIRED]
 │   ├── WORKFLOW.md                  Planning process
-│   ├── inputs/                      Reference materials
-│   └── decisions/                   Captured decisions
+│   ├── inputs/
+│   │   └── README.md
+│   ├── decisions/
+│   │   └── INDEX.md
+│   └── plan/
+│       └── README.md
 │
-├── 004_IMPLEMENT_CORE/              type: implementation (quality gates required)
+├── 004_IMPLEMENT_CORE/              type: implementation (quality gates)
 │   ├── PHASE_GOAL.md                [REQUIRED]
 │   ├── 01_foundation/
 │   │   ├── SEQUENCE_GOAL.md         [REQUIRED]
-│   │   ├── [tasks...]
-│   │   └── [quality gates]          ← testing, review, iterate
+│   │   ├── [numbered task files]
+│   │   └── [quality gates]          ← testing, review, iterate, fest_commit
 │   └── 02_data_layer/
 │       ├── SEQUENCE_GOAL.md         [REQUIRED]
-│       ├── [tasks...]
-│       └── [quality gates]          ← testing, review, iterate
+│       ├── [numbered task files]
+│       └── [quality gates]          ← testing, review, iterate, fest_commit
 │
-├── 005_IMPLEMENT_FEATURES/          type: implementation (quality gates required)
-│   ├── PHASE_GOAL.md                [REQUIRED]
-│   ├── 01_feature_a/
-│   │   ├── SEQUENCE_GOAL.md         [REQUIRED]
-│   │   └── [tasks + quality gates]
-│   └── 02_feature_b/
-│       ├── SEQUENCE_GOAL.md         [REQUIRED]
-│       └── [tasks + quality gates]
-│
-└── 006_VALIDATE/                    type: review
-    ├── PHASE_GOAL.md                [REQUIRED]
-    └── 01_integration_testing/
-        ├── SEQUENCE_GOAL.md         [REQUIRED]
-        └── [validation tasks]
+└── 005_VALIDATE/                    type: review (freeform)
+    └── PHASE_GOAL.md                [REQUIRED] Review criteria and sign-off

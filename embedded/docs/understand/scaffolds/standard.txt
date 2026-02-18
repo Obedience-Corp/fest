@@ -1,41 +1,30 @@
-my-festival/
+my-festival/                         type: standard
 ├── FESTIVAL_GOAL.md                 [REQUIRED] Festival objective
 ├── FESTIVAL_OVERVIEW.md             [REQUIRED] Goal and success criteria
 ├── FESTIVAL_RULES.md                [REQUIRED] Quality standards
 ├── TODO.md                          Task checklist
 ├── fest.yaml                        Quality gate config
+├── gates/
+│   └── implementation/              Configurable quality gate templates
+│       ├── QUALITY_GATE_TESTING.md
+│       ├── QUALITY_GATE_REVIEW.md
+│       ├── QUALITY_GATE_ITERATE.md
+│       └── QUALITY_GATE_FEST_COMMIT.md
 │
-├── 001_INGEST/                      type: ingest
+├── 001_INGEST/                      type: ingest (WORKFLOW.md)
 │   ├── PHASE_GOAL.md                [REQUIRED]
-│   └── inputs/
-│       └── README.md                External reference materials
+│   ├── WORKFLOW.md                  Ingest workflow
+│   ├── input_specs/                 Raw input materials
+│   │   └── README.md
+│   └── output_specs/                Structured output specs
+│       └── README.md
 │
-├── 002_PLAN/                        type: planning
-│   ├── PHASE_GOAL.md                [REQUIRED]
-│   ├── WORKFLOW.md                  Planning process
-│   ├── inputs/                      Reference materials
-│   │   └── requirements.md
-│   └── decisions/                   Captured decisions
-│       └── architecture.md
-│
-├── 003_IMPLEMENT/                   type: implementation
-│   ├── PHASE_GOAL.md                [REQUIRED]
-│   ├── 01_core_infrastructure/
-│   │   ├── SEQUENCE_GOAL.md         [REQUIRED]
-│   │   ├── 01_project_setup.md
-│   │   ├── 02_database_schema.md
-│   │   ├── 03_api_endpoints.md
-│   │   ├── 04_testing.md            ← Quality gate [REQUIRED]
-│   │   ├── 05_review.md             ← Quality gate [REQUIRED]
-│   │   ├── 06_iterate.md            ← Quality gate [REQUIRED]
-│   │   └── results/
-│   └── 02_feature_implementation/
-│       ├── SEQUENCE_GOAL.md         [REQUIRED]
-│       ├── 01_user_authentication.md
-│       ├── 02_data_processing.md
-│       ├── 03_testing.md            ← Quality gate
-│       ├── 04_review.md             ← Quality gate
-│       ├── 05_iterate.md            ← Quality gate
-│       └── results/
-│
-└── completed/                       Finished sequences/phases
+└── 002_PLAN/                        type: planning (WORKFLOW.md)
+    ├── PHASE_GOAL.md                [REQUIRED]
+    ├── WORKFLOW.md                  Planning process
+    ├── inputs/                      Reference materials
+    │   └── README.md
+    ├── decisions/                   Captured decisions
+    │   └── INDEX.md
+    └── plan/                        Resulting plans
+        └── README.md

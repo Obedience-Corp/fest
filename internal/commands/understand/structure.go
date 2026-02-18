@@ -72,14 +72,28 @@ Phase Types
 
 Every phase has a type that determines its structure:
 
-  planning         inputs/, WORKFLOW.md, decisions/ (no sequences)
-  implementation   Numbered sequences + task files + quality gates
-  research         Numbered sequences with investigation tasks
-  review           Sequences with verification tasks
-  ingest           Sequences for absorbing external inputs
-  non_coding_action  Sequences for non-code work
+  WORKFLOW phases (use WORKFLOW.md, no sequences):
+    planning           WORKFLOW.md, inputs/, decisions/, plan/
+    research           WORKFLOW.md, sources/, findings/, analysis templates
+    ingest             WORKFLOW.md, input_specs/, output_specs/
+
+  SEQUENCE phases (use numbered sequences + task files):
+    implementation     Numbered sequences + numbered task files + quality gates
+
+  FREEFORM phases (PHASE_GOAL.md only):
+    review             Review criteria and stakeholder sign-off
+    non_coding_action  Action items and verification steps
 
 Create: fest create phase --name "001_IMPLEMENT" --type implementation
+
+Parallel Numbering
+------------------
+
+Nodes with the same number can run in parallel at any level:
+
+  002_FRONTEND/ + 002_BACKEND/      Parallel phases
+  01_auth/ + 01_payments/           Parallel sequences
+  01_frontend.md + 01_backend.md    Parallel tasks
 
 Festival Lifecycle Directories
 ------------------------------
@@ -89,7 +103,7 @@ Festival Lifecycle Directories
     ready/          Ready for execution
     active/         Currently executing
     ritual/         Recurring festivals
-    dungeon/        Archived (completed/, archived/, someday/)
+    dungeon/        Final/non-active states (completed/, archived/, someday/)
 `)
 
 	fmt.Print(`

@@ -117,8 +117,8 @@ func runNext(cmd *cobra.Command, args []string) error {
 		return errors.Wrap(err, "not inside a festival")
 	}
 
-	// Validation gate: block if festival has errors or unfilled template markers
-	vResult, vErr := validator.QuickValidate(ctx, festivalPath)
+	// Validation gate: block if festival has errors or warnings
+	vResult, vErr := validator.FullValidate(ctx, festivalPath)
 	if vErr == nil && hasBlockingIssues(vResult) {
 		return emitValidationBlock(festivalPath, vResult)
 	}
@@ -517,13 +517,11 @@ func hasSequenceDirs(phasePath string) bool {
 	return false
 }
 
-// hasBlockingIssues returns true if the result contains errors or unfilled template markers.
+// hasBlockingIssues returns true if the result contains errors or warnings.
+// Only LevelInfo issues pass through without blocking.
 func hasBlockingIssues(result *validator.Result) bool {
 	for _, issue := range result.Issues {
-		if issue.Level == validator.LevelError {
-			return true
-		}
-		if issue.Code == validator.CodeUnfilledTemplate {
+		if issue.Level == validator.LevelError || issue.Level == validator.LevelWarning {
 			return true
 		}
 	}
@@ -536,9 +534,21 @@ func emitValidationBlock(festivalPath string, result *validator.Result) error {
 	sb.WriteString("STOP — FESTIVAL VALIDATION FAILED\n")
 	sb.WriteString("──────────────────────────────────\n")
 	sb.WriteString("This festival has issues that must be fixed before continuing.\n\n")
-	sb.WriteString("Issues:\n")
+
+	// Collect errors and warnings separately
+	var errs, warns []validator.Issue
 	for _, issue := range result.Issues {
-		if issue.Level == validator.LevelError || issue.Code == validator.CodeUnfilledTemplate {
+		switch issue.Level {
+		case validator.LevelError:
+			errs = append(errs, issue)
+		case validator.LevelWarning:
+			warns = append(warns, issue)
+		}
+	}
+
+	if len(errs) > 0 {
+		sb.WriteString("Errors:\n")
+		for _, issue := range errs {
 			path := issue.Path
 			if rel, err := filepath.Rel(festivalPath, path); err == nil {
 				path = rel
@@ -546,6 +556,21 @@ func emitValidationBlock(festivalPath string, result *validator.Result) error {
 			fmt.Fprintf(&sb, "  ✗ %s: %s\n", path, issue.Message)
 		}
 	}
+
+	if len(warns) > 0 {
+		if len(errs) > 0 {
+			sb.WriteString("\n")
+		}
+		sb.WriteString("Warnings:\n")
+		for _, issue := range warns {
+			path := issue.Path
+			if rel, err := filepath.Rel(festivalPath, path); err == nil {
+				path = rel
+			}
+			fmt.Fprintf(&sb, "  ⚠ %s: %s\n", path, issue.Message)
+		}
+	}
+
 	sb.WriteString("\nRun 'fest validate' for full details, then fix the issues.\n")
 	sb.WriteString("Do not proceed with tasks until the festival passes validation.\n")
 	fmt.Print(sb.String())

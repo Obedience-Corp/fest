@@ -25,7 +25,7 @@ separate from your project repositories:
   ├── ready/        # Ready for execution
   ├── active/       # Currently executing festivals
   ├── ritual/       # Recurring festivals
-  └── dungeon/      # Archived (completed/, archived/, someday/)
+  └── dungeon/      # Final/non-active states (completed/, archived/, someday/)
 
 FESTIVAL TYPES
 ──────────────
@@ -42,12 +42,12 @@ PHASE TYPES
 
 Every phase has a type that determines its structure:
 
-  planning         Uses inputs/, WORKFLOW.md, decisions/ (no sequences)
-  implementation   Numbered sequences + task files + quality gates
-  research         Sequences with investigation tasks
-  review           Sequences with verification tasks
-  ingest           Sequences for absorbing external inputs
-  non_coding_action  Sequences for non-code work
+  planning         WORKFLOW.md, inputs/, decisions/, plan/ (no sequences)
+  implementation   Numbered sequences + numbered task files + quality gates
+  research         WORKFLOW.md, sources/, findings/, analysis templates
+  ingest           WORKFLOW.md, input_specs/, output_specs/
+  review           Freeform (PHASE_GOAL.md with review criteria)
+  non_coding_action  Freeform (PHASE_GOAL.md with action items)
 
   Create: fest create phase --name "IMPLEMENT" --type implementation
 
@@ -85,7 +85,6 @@ WORKFLOW COMMANDS
 
   fest next                 Get next task with agent instructions
   fest next --json          Machine-readable output for automation
-  fest execute              Start execution mode for a festival
   fest task completed       Mark current task as complete
 
 QUICK START WORKFLOW
@@ -111,10 +110,13 @@ KEY PRINCIPLES
   • STEPS NOT TIME: Think in terms of steps to reach a goal, not time estimates
   • READ BEFORE WRITING: Always understand existing structure first
   • GOAL FILES FIRST: Every level needs its goal document
-  • IMPLEMENTATION = TASKS: Implementation phases MUST have task files
-  • PLANNING = WORKFLOW: Planning phases use inputs/ and WORKFLOW.md, not sequences
+  • IMPLEMENTATION = SEQUENCES + TASKS: Implementation phases MUST have
+    sequence directories and numbered task files
+  • WORKFLOW PHASES: Planning, ingest, and research phases use WORKFLOW.md
   • VALIDATE OFTEN: Run fest validate before and after changes
-  • SEQUENTIAL WORK: Complete tasks in order within sequences
+  • PARALLEL NUMBERING: Nodes with the same number can run in parallel
+    (applies to phases, sequences, and tasks)
+  • SEQUENTIAL BY DEFAULT: Complete tasks in order within sequences
 
 For detailed methodology documentation:
   fest understand methodology
