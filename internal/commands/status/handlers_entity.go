@@ -30,10 +30,9 @@ func handlePathBasedStatusSet(ctx context.Context, display *ui.UI, cwd, newStatu
 
 		switch entityType {
 		case EntityFestival:
-			// Validate festival status (schema-aware)
-			pathFestivalsRoot := findFestivalsRoot(festivalPath)
-			if !isValidFestivalStatus(pathFestivalsRoot, newStatus) {
-				validOptions := getValidFestivalStatuses(pathFestivalsRoot)
+			// Validate festival status using internal schema
+			if !isValidFestivalStatus(newStatus) {
+				validOptions := getValidFestivalStatuses()
 				return errors.Validation("invalid status for festival").
 					WithField("status", newStatus).
 					WithField("valid_options", strings.Join(validOptions, ", "))

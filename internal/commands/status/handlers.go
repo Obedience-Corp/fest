@@ -11,6 +11,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/ui/theme"
 	"github.com/spf13/cobra"
@@ -81,8 +82,7 @@ func promptForStatus(ctx context.Context, cwd string, opts *statusOptions) (stri
 	entityType := detectEntityTypeForStatusPrompt(cwd, opts)
 	var validStatuses []string
 	if entityType == EntityFestival {
-		festivalsRoot := findFestivalsRoot(cwd)
-		validStatuses = getValidFestivalStatuses(festivalsRoot)
+		validStatuses = getValidFestivalStatuses()
 	} else {
 		validStatuses = ValidStatuses[entityType]
 	}
@@ -211,9 +211,8 @@ func dispatchByLocationType(ctx context.Context, display *ui.UI, cwd, newStatus 
 		return handlePhaseStatusSet(ctx, display, cwd, newStatus, opts)
 
 	case "festival":
-		festivalsRoot := festivalsRootFromPath(loc.Festival.Path, loc.Festival.Status)
-		if !isValidFestivalStatus(festivalsRoot, newStatus) {
-			validOptions := getValidFestivalStatuses(festivalsRoot)
+		if !isValidFestivalStatus(newStatus) {
+			validOptions := getValidFestivalStatuses()
 			return errors.Validation("invalid status for festival").
 				WithField("status", newStatus).
 				WithField("valid_options", strings.Join(validOptions, ", "))
@@ -505,9 +504,8 @@ func runStatusList(ctx context.Context, cmd *cobra.Command, filterStatus string,
 		var statusValid bool
 		var validOptions []string
 		if entityType == EntityFestival || entityType == "" {
-			festivalsRoot := festivalsRootFromPath(loc.Festival.Path, loc.Festival.Status)
-			statusValid = isValidFestivalStatus(festivalsRoot, filterStatus)
-			validOptions = getValidFestivalStatuses(festivalsRoot)
+			statusValid = isValidFestivalStatus(filterStatus)
+			validOptions = getValidFestivalStatuses()
 		} else {
 			statusValid = isValidStatus(entityType, filterStatus)
 			validOptions = ValidStatuses[entityType]

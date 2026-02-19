@@ -47,6 +47,11 @@ type previewLoadedMsg struct {
 	rendered string
 }
 
+// statusCountsMsg is sent when festival counts per status are loaded asynchronously.
+type statusCountsMsg struct {
+	counts map[string]int
+}
+
 // Model is the BubbleTea model for the festival explorer.
 type Model struct {
 	ctx          context.Context
@@ -105,6 +110,21 @@ func New(ctx context.Context, status string) Model {
 func (m Model) Init() tea.Cmd {
 	ctx := m.ctx
 	status := m.status
+
+	// Empty status: show status overview instantly, load counts async
+	if status == "" {
+		items := buildStatusItems()
+		return tea.Batch(
+			func() tea.Msg {
+				return festivalsLoadedMsg{items: items}
+			},
+			func() tea.Msg {
+				return loadStatusCounts(ctx)
+			},
+		)
+	}
+
+	// Specific status: load festivals for that status
 	return func() tea.Msg {
 		if err := ctx.Err(); err != nil {
 			return festivalsLoadedMsg{err: err}
@@ -120,30 +140,125 @@ func (m Model) Init() tea.Cmd {
 			return festivalsLoadedMsg{err: fmt.Errorf("not in a festivals workspace")}
 		}
 
-		statuses := []string{status}
-		if status == "" {
-			statuses = id.StatusDirectories
-		}
-
 		var items []FestivalItem
-		for _, s := range statuses {
-			// Use light listing — skips expensive CalculateFestivalStats
-			festivals, loadErr := show.ListFestivalsByStatusLight(ctx, festivalsDir, s)
-			if loadErr != nil {
-				continue
-			}
-			for _, f := range festivals {
-				items = append(items, FestivalItem{
-					Name:      f.Name,
-					Status:    f.Status,
-					CreatedAt: f.ModTime,
-					Path:      f.Path,
-					Type:      ItemFestival,
-				})
-			}
+		festivals, loadErr := show.ListFestivalsByStatusLight(ctx, festivalsDir, status)
+		if loadErr != nil {
+			return festivalsLoadedMsg{err: loadErr}
+		}
+		for _, f := range festivals {
+			items = append(items, FestivalItem{
+				Name:      f.Name,
+				Status:    f.Status,
+				CreatedAt: f.ModTime,
+				Path:      f.Path,
+				Type:      ItemFestival,
+			})
 		}
 
 		return festivalsLoadedMsg{items: items}
+	}
+}
+
+// buildStatusItems creates status overview items from constants (zero I/O).
+func buildStatusItems() []FestivalItem {
+	items := make([]FestivalItem, 0, len(id.StatusDirectories))
+	for _, s := range id.StatusDirectories {
+		items = append(items, FestivalItem{
+			Name:   statusDisplayName(s),
+			Status: s,
+			Path:   s,
+			Type:   ItemStatus,
+			Count:  -1, // loading
+		})
+	}
+	return items
+}
+
+// loadStatusCounts does lightweight directory counting (ReadDir only, no stat validation).
+func loadStatusCounts(ctx context.Context) tea.Msg {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return statusCountsMsg{}
+	}
+	festivalsDir, err := workspace.FindFestivals(cwd)
+	if err != nil || festivalsDir == "" {
+		return statusCountsMsg{}
+	}
+
+	counts := make(map[string]int, len(id.StatusDirectories))
+	for _, s := range id.StatusDirectories {
+		if ctx.Err() != nil {
+			break
+		}
+		statusDir := filepath.Join(festivalsDir, s)
+		entries, readErr := os.ReadDir(statusDir)
+		if readErr != nil {
+			counts[s] = 0
+			continue
+		}
+		count := 0
+		for _, e := range entries {
+			if e.IsDir() && !strings.HasPrefix(e.Name(), ".") {
+				count++
+			}
+		}
+		counts[s] = count
+	}
+	return statusCountsMsg{counts: counts}
+}
+
+// loadFestivalsForStatus loads festivals for a specific status directory.
+func loadFestivalsForStatus(ctx context.Context, status string) tea.Msg {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return childrenLoadedMsg{err: err}
+	}
+	festivalsDir, err := workspace.FindFestivals(cwd)
+	if err != nil || festivalsDir == "" {
+		return childrenLoadedMsg{err: fmt.Errorf("not in a festivals workspace")}
+	}
+
+	festivals, loadErr := show.ListFestivalsByStatusLight(ctx, festivalsDir, status)
+	if loadErr != nil {
+		return childrenLoadedMsg{err: loadErr}
+	}
+
+	var items []FestivalItem
+	for _, f := range festivals {
+		items = append(items, FestivalItem{
+			Name:      f.Name,
+			Status:    f.Status,
+			CreatedAt: f.ModTime,
+			Path:      f.Path,
+			Type:      ItemFestival,
+		})
+	}
+
+	return childrenLoadedMsg{
+		items:      items,
+		breadcrumb: statusDisplayName(status),
+	}
+}
+
+// statusDisplayName maps a status directory path to a user-friendly name.
+func statusDisplayName(status string) string {
+	switch status {
+	case "dungeon/completed":
+		return "Completed"
+	case "dungeon/archived":
+		return "Archived"
+	case "dungeon/someday":
+		return "Someday"
+	case "planning":
+		return "Planning"
+	case "ready":
+		return "Ready"
+	case "active":
+		return "Active"
+	case "ritual":
+		return "Ritual"
+	default:
+		return status
 	}
 }
 
@@ -157,8 +272,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 		m.items = msg.items
-		if len(m.items) == 0 {
+		// Only quit on empty items for specific-status views, not the overview
+		if len(m.items) == 0 && m.status != "" {
 			return m, tea.Quit
+		}
+		if len(m.items) == 0 {
+			return m, nil
 		}
 
 		// Auto-navigate into a specific festival if requested
@@ -173,6 +292,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.festivalPath = "" // Not found, proceed normally
 		}
 		return m, m.loadPreviewCmd()
+
+	case statusCountsMsg:
+		if msg.counts != nil {
+			for i, item := range m.items {
+				if item.Type == ItemStatus {
+					if c, ok := msg.counts[item.Status]; ok {
+						m.items[i].Count = c
+					}
+				}
+			}
+		}
+		return m, nil
 
 	case childrenLoadedMsg:
 		m.loading = false
@@ -368,6 +499,14 @@ func (m Model) navigateDown() (tea.Model, tea.Cmd) {
 
 	m.loading = true
 	ctx := m.ctx
+
+	// Status items: lazy-load festivals for that status
+	if item.Type == ItemStatus {
+		status := item.Status
+		return m, func() tea.Msg {
+			return loadFestivalsForStatus(ctx, status)
+		}
+	}
 
 	return m, func() tea.Msg {
 		children, err := loadChildren(ctx, item)
@@ -677,6 +816,8 @@ func (m Model) renderContent(width int) string {
 	item := m.items[m.selected]
 	title := "Preview"
 	switch item.Type {
+	case ItemStatus:
+		title = "Status"
 	case ItemFestival:
 		title = "Festival Goal"
 	case ItemPhase:
@@ -747,6 +888,13 @@ func (m Model) renderTreeItem(item FestivalItem, isSelected bool, maxW int) stri
 	}
 
 	switch item.Type {
+	case ItemStatus:
+		countText := "..."
+		if item.Count >= 0 {
+			countText = fmt.Sprintf("%d", item.Count)
+		}
+		countLabel := dimStyle.Render(fmt.Sprintf("(%s)", countText))
+		return fmt.Sprintf("%s %s", nameText, countLabel)
 	case ItemFestival:
 		status := StatusStyle(item.Status).Render(fmt.Sprintf("%-8s", item.Status))
 		return fmt.Sprintf("%s %s", nameText, status)
@@ -766,6 +914,13 @@ func (m Model) renderItem(item FestivalItem, isSelected bool) string {
 	}
 
 	switch item.Type {
+	case ItemStatus:
+		countText := "..."
+		if item.Count >= 0 {
+			countText = fmt.Sprintf("%d", item.Count)
+		}
+		countLabel := dimStyle.Render(fmt.Sprintf("(%s festivals)", countText))
+		return fmt.Sprintf("%s  %s", nameText, countLabel)
 	case ItemFestival:
 		status := StatusStyle(item.Status).Render(fmt.Sprintf("%-10s", item.Status))
 		date := dimStyle.Render(item.CreatedAt.Format("Jan 02"))

@@ -1,7 +1,6 @@
 package status
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -185,31 +184,22 @@ func isValidStatus(entityType EntityType, status string) bool {
 	return false
 }
 
-// isValidFestivalStatus checks if a status is valid for festivals, using .workflow.yaml when present.
-// When a workflow schema exists at festivalsRoot, it validates against the schema's directories.
-// Falls back to the default ValidStatuses[EntityFestival] when no schema is found.
-func isValidFestivalStatus(festivalsRoot, status string) bool {
-	if festivalsRoot != "" {
-		schemaPath := filepath.Join(festivalsRoot, workflow.SchemaFileName)
-		schema, err := workflow.LoadSchema(context.Background(), schemaPath)
-		if err == nil && schema != nil {
-			return schema.HasDirectory(status)
-		}
+// isValidFestivalStatus checks if a status is valid for festivals using the
+// internal FestivalSchema. This avoids reading .workflow.yaml from disk, which
+// is a camp-side interop file that doesn't understand user-facing aliases.
+func isValidFestivalStatus(status string) bool {
+	schema := workflow.FestivalSchema()
+	if schema.HasDirectory(status) {
+		return true
 	}
-	return isValidStatus(EntityFestival, status)
+	// Check if it's a known alias (e.g., "completed" → "dungeon/completed")
+	resolved := id.ResolveStatusPath(status)
+	return resolved != status && schema.HasDirectory(resolved)
 }
 
-// getValidFestivalStatuses returns valid festival statuses from .workflow.yaml schema if present,
-// otherwise falls back to the default ValidStatuses.
-func getValidFestivalStatuses(festivalsRoot string) []string {
-	if festivalsRoot != "" {
-		schemaPath := filepath.Join(festivalsRoot, workflow.SchemaFileName)
-		schema, err := workflow.LoadSchema(context.Background(), schemaPath)
-		if err == nil && schema != nil {
-			return schema.AllDirectories()
-		}
-	}
-	return ValidStatuses[EntityFestival]
+// getValidFestivalStatuses returns valid festival statuses from the internal schema.
+func getValidFestivalStatuses() []string {
+	return workflow.FestivalSchema().AllDirectories()
 }
 
 // festivalsRootFromPath derives the festivals root directory from a festival's path and status.
