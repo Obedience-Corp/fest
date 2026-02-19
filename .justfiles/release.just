@@ -79,3 +79,8 @@ release: darwin linux windows
     set -euo pipefail
     echo "✅ All release packages created in dist/"
     ls -la dist/
+
+# Bump version, tag, and push (patch|minor|major)
+[no-cd]
+next level="patch":
+    @just tags next {{level}}

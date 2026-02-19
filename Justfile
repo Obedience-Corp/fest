@@ -90,7 +90,4 @@ uninstall:
         echo "fest not found in {{gobin}}"
     fi
 
-# Create next release and push (patch|minor|major)
-release-next level="patch":
-    @just tags next {{level}}
 
