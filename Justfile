@@ -22,6 +22,10 @@ mod release '.justfiles/release.just'
 [doc('Git tag management')]
 mod tags '.justfiles/tags.just'
 
+# Create next release and push (patch|minor|major)
+release-next level="patch":
+    @just tags next {{level}}
+
 [private]
 default:
     #!/usr/bin/env bash
