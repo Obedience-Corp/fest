@@ -94,16 +94,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: dist/
+          merge-multiple: true
 
       - name: Create checksums
         run: |
           cd dist
-          for file in */*.{tar.gz,zip}; do
-            if [ -f "$file" ]; then
-              mv "$file" .
-            fi
-          done
-          sha256sum *.{tar.gz,zip} > checksums.txt
+          sha256sum *.tar.gz *.zip > checksums.txt
           cat checksums.txt
 
       - name: Create Release
