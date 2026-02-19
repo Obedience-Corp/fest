@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Obedience-Corp/fest/internal/id"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
@@ -828,6 +829,163 @@ func TestStatusStyle(t *testing.T) {
 			_ = style.Render("test")
 		})
 	}
+}
+
+func TestStatusOverviewInit(t *testing.T) {
+	ctx := context.Background()
+	m := New(ctx, "")
+	cmd := m.Init()
+	if cmd == nil {
+		t.Fatal("expected init command")
+	}
+
+	// buildStatusItems creates items synchronously — verify via festivalsLoadedMsg
+	items := buildStatusItems()
+	if len(items) != len(id.StatusDirectories) {
+		t.Fatalf("expected %d status items, got %d", len(id.StatusDirectories), len(items))
+	}
+	for _, item := range items {
+		if item.Type != ItemStatus {
+			t.Errorf("expected ItemStatus type, got %q", item.Type)
+		}
+		if item.Count != -1 {
+			t.Errorf("expected Count=-1 (loading), got %d", item.Count)
+		}
+	}
+}
+
+func TestStatusCountsMsg(t *testing.T) {
+	m := modelWithStatusItems()
+
+	counts := map[string]int{
+		"planning":          3,
+		"active":            1,
+		"dungeon/completed": 10,
+	}
+
+	newModel, _ := m.Update(statusCountsMsg{counts: counts})
+	m = newModel.(Model)
+
+	for _, item := range m.items {
+		if item.Type != ItemStatus {
+			continue
+		}
+		if expected, ok := counts[item.Status]; ok {
+			if item.Count != expected {
+				t.Errorf("status %q: expected count %d, got %d", item.Status, expected, item.Count)
+			}
+		}
+	}
+}
+
+func TestStatusCountsMsgNil(t *testing.T) {
+	m := modelWithStatusItems()
+
+	// nil counts should not crash
+	newModel, _ := m.Update(statusCountsMsg{counts: nil})
+	m = newModel.(Model)
+
+	// Counts should still be -1 (unchanged)
+	for _, item := range m.items {
+		if item.Type == ItemStatus && item.Count != -1 {
+			t.Errorf("expected Count=-1, got %d for %q", item.Count, item.Status)
+		}
+	}
+}
+
+func TestNavigateDownStatus(t *testing.T) {
+	m := modelWithStatusItems()
+
+	// Select first status item and navigate down
+	m.selected = 0
+	newModel, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = newModel.(Model)
+
+	if cmd == nil {
+		t.Error("expected load command when drilling into status item")
+	}
+	if m.pendingNav == nil {
+		t.Error("expected pendingNav to be set")
+	}
+	if !m.loading {
+		t.Error("expected loading=true during status drill-down")
+	}
+}
+
+func TestStatusOverviewDoesNotQuit(t *testing.T) {
+	ctx := context.Background()
+	m := New(ctx, "") // Empty status = overview mode
+
+	// Receive empty festivals loaded message — should NOT quit
+	msg := festivalsLoadedMsg{items: nil}
+	newModel, cmd := m.Update(msg)
+	m = newModel.(Model)
+
+	if cmd != nil {
+		t.Error("expected no quit command for empty status overview")
+	}
+	if len(m.items) != 0 {
+		t.Errorf("expected 0 items, got %d", len(m.items))
+	}
+}
+
+func TestStatusDisplayName(t *testing.T) {
+	tests := []struct {
+		status   string
+		expected string
+	}{
+		{"planning", "Planning"},
+		{"active", "Active"},
+		{"ready", "Ready"},
+		{"ritual", "Ritual"},
+		{"dungeon/completed", "Completed"},
+		{"dungeon/archived", "Archived"},
+		{"dungeon/someday", "Someday"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.status, func(t *testing.T) {
+			got := statusDisplayName(tt.status)
+			if got != tt.expected {
+				t.Errorf("statusDisplayName(%q) = %q, want %q", tt.status, got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestStatusItemRendering(t *testing.T) {
+	m := modelWithStatusItems()
+	m.items[0].Count = 5
+	m.width = 120
+	m.height = 30
+
+	// Should render without panic
+	view := m.View()
+	if !strings.Contains(view, "(5)") {
+		t.Error("expected count '(5)' in status item render")
+	}
+}
+
+func TestStatusItemRenderingLoading(t *testing.T) {
+	m := modelWithStatusItems()
+	m.width = 120
+	m.height = 30
+
+	// Count = -1 should show "..."
+	view := m.View()
+	if !strings.Contains(view, "...") {
+		t.Error("expected '...' for loading count")
+	}
+}
+
+// modelWithStatusItems creates a test model with status overview items.
+func modelWithStatusItems() Model {
+	items := buildStatusItems()
+	m := New(context.Background(), "")
+	m.loading = false
+	m.items = items
+	m.width = 120
+	m.height = 30
+	return m
 }
 
 // modelWithItems creates a test model with N festival items.

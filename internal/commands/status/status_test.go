@@ -93,8 +93,8 @@ func TestIsValidStatus_UnknownEntityType(t *testing.T) {
 	}
 }
 
-func TestIsValidFestivalStatus_NoSchema(t *testing.T) {
-	// With empty festivalsRoot (no schema), should fall back to defaults
+func TestIsValidFestivalStatus(t *testing.T) {
+	// Uses internal FestivalSchema directly — no .workflow.yaml needed
 	tests := []struct {
 		status string
 		want   bool
@@ -107,83 +107,38 @@ func TestIsValidFestivalStatus_NoSchema(t *testing.T) {
 		{"dungeon/completed", true},
 		{"dungeon/archived", true},
 		{"dungeon/someday", true},
+		// Aliases should also resolve
+		{"completed", true},
+		{"archived", true},
+		{"someday", true},
+		// Invalid
 		{"invalid", false},
 		{"custom", false},
 	}
 
 	for _, tt := range tests {
-		t.Run("no_schema/"+tt.status, func(t *testing.T) {
-			if got := isValidFestivalStatus("", tt.status); got != tt.want {
-				t.Errorf("isValidFestivalStatus(\"\", %q) = %v, want %v", tt.status, got, tt.want)
+		t.Run(tt.status, func(t *testing.T) {
+			if got := isValidFestivalStatus(tt.status); got != tt.want {
+				t.Errorf("isValidFestivalStatus(%q) = %v, want %v", tt.status, got, tt.want)
 			}
 		})
 	}
 }
 
-func TestIsValidFestivalStatus_WithSchema(t *testing.T) {
-	// Create a temp directory with a custom .workflow.yaml
-	tmpDir := t.TempDir()
-	schemaContent := `version: 1
-type: status-workflow
-name: test
-directories:
-  active:
-    description: Active items
-    order: 1
-  custom_status:
-    description: Custom status
-    order: 2
-  vault:
-    description: Vault
-    order: 3
-    nested: true
-    children:
-      archive:
-        description: Archived
-      hold:
-        description: On hold
-`
-	schemaPath := filepath.Join(tmpDir, workflow.SchemaFileName)
-	if err := os.WriteFile(schemaPath, []byte(schemaContent), 0644); err != nil {
-		t.Fatalf("failed to write schema: %v", err)
-	}
-
-	tests := []struct {
-		status string
-		want   bool
-	}{
-		{"active", true},
-		{"custom_status", true},
-		{"vault/archive", true},
-		{"vault/hold", true},
-		{"planning", false}, // Not in custom schema
-		{"dungeon", false},  // Not in custom schema
-		{"nonexistent", false},
-	}
-
-	for _, tt := range tests {
-		t.Run("with_schema/"+tt.status, func(t *testing.T) {
-			if got := isValidFestivalStatus(tmpDir, tt.status); got != tt.want {
-				t.Errorf("isValidFestivalStatus(%q, %q) = %v, want %v", tmpDir, tt.status, got, tt.want)
-			}
-		})
-	}
-}
-
-func TestGetValidFestivalStatuses_NoSchema(t *testing.T) {
-	// Without schema, should return defaults
-	statuses := getValidFestivalStatuses("")
+func TestGetValidFestivalStatuses(t *testing.T) {
+	// Uses internal FestivalSchema directly
+	statuses := getValidFestivalStatuses()
 	if len(statuses) == 0 {
-		t.Error("expected default statuses, got empty")
+		t.Error("expected statuses from FestivalSchema, got empty")
 	}
 
-	// Check that defaults include expected entries
+	// Check that results include expected entries
+	// Note: AllDirectories() expands nested dirs to children, so bare "dungeon" is not listed
 	expected := map[string]bool{
 		"active":            true,
 		"ready":             true,
 		"planning":          true,
 		"ritual":            true,
-		"dungeon":           true,
 		"dungeon/completed": true,
 		"dungeon/archived":  true,
 		"dungeon/someday":   true,
@@ -192,43 +147,7 @@ func TestGetValidFestivalStatuses_NoSchema(t *testing.T) {
 		delete(expected, s)
 	}
 	if len(expected) > 0 {
-		t.Errorf("missing expected default statuses: %v", expected)
-	}
-}
-
-func TestGetValidFestivalStatuses_WithSchema(t *testing.T) {
-	// Create a temp directory with a custom .workflow.yaml
-	tmpDir := t.TempDir()
-	schemaContent := `version: 1
-type: status-workflow
-name: test
-directories:
-  inbox:
-    description: New items
-    order: 1
-  doing:
-    description: In progress
-    order: 2
-`
-	schemaPath := filepath.Join(tmpDir, workflow.SchemaFileName)
-	if err := os.WriteFile(schemaPath, []byte(schemaContent), 0644); err != nil {
-		t.Fatalf("failed to write schema: %v", err)
-	}
-
-	statuses := getValidFestivalStatuses(tmpDir)
-	statusSet := make(map[string]bool)
-	for _, s := range statuses {
-		statusSet[s] = true
-	}
-
-	if !statusSet["inbox"] {
-		t.Error("expected 'inbox' from schema, not found")
-	}
-	if !statusSet["doing"] {
-		t.Error("expected 'doing' from schema, not found")
-	}
-	if statusSet["active"] {
-		t.Error("should NOT have 'active' when custom schema is used")
+		t.Errorf("missing expected statuses: %v", expected)
 	}
 }
 
@@ -276,57 +195,30 @@ func TestFestivalsRootFromPath(t *testing.T) {
 	}
 }
 
-func TestValidateTransition_NoSchema(t *testing.T) {
-	// Without a schema, all transitions should be allowed
-	err := validateTransition(context.Background(), t.TempDir(), "active", "completed")
-	if err != nil {
-		t.Errorf("expected nil error without schema, got: %v", err)
-	}
-}
-
-func TestValidateTransition_WithSchema(t *testing.T) {
-	tmpDir := t.TempDir()
-	schemaContent := `version: 1
-type: status-workflow
-name: test
-directories:
-  active:
-    description: Active items
-    order: 1
-    transition_opts:
-      - completed
-      - dungeon
-  completed:
-    description: Done
-    order: 2
-  dungeon:
-    description: Archived
-    order: 3
-    nested: true
-    children:
-      archived:
-        description: Archived items
-`
-	schemaPath := filepath.Join(tmpDir, workflow.SchemaFileName)
-	if err := os.WriteFile(schemaPath, []byte(schemaContent), 0644); err != nil {
-		t.Fatalf("failed to write schema: %v", err)
-	}
-
+func TestValidateTransition(t *testing.T) {
+	// Uses internal FestivalSchema which has transition_opts defined
 	tests := []struct {
 		name    string
 		from    string
 		to      string
 		wantErr bool
 	}{
-		{"allowed transition", "active", "completed", false},
-		{"allowed nested transition", "active", "dungeon/archived", false},
-		{"disallowed transition", "active", "planning", true},
-		{"no transition_opts defined", "completed", "active", false},
+		{"active to dungeon allowed", "active", "dungeon", false},
+		{"active to dungeon/completed allowed", "active", "dungeon/completed", false},
+		{"active to ritual allowed", "active", "ritual", false},
+		{"planning to active allowed", "planning", "active", false},
+		{"planning to ready allowed", "planning", "ready", false},
+		{"planning to dungeon allowed", "planning", "dungeon", false},
+		{"ready to active allowed", "ready", "active", false},
+		{"ready to dungeon allowed", "ready", "dungeon", false},
+		{"ritual to active allowed", "ritual", "active", false},
+		{"active to planning disallowed", "active", "planning", true},
+		{"ritual to dungeon disallowed", "ritual", "dungeon", true},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := validateTransition(context.Background(), tmpDir, tc.from, tc.to)
+			err := validateTransition(context.Background(), tc.from, tc.to)
 			if (err != nil) != tc.wantErr {
 				t.Errorf("validateTransition(%q, %q) error = %v, wantErr %v",
 					tc.from, tc.to, err, tc.wantErr)

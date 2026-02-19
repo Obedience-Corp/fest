@@ -94,11 +94,8 @@ func runExplore(ctx context.Context, opts *exploreOptions, status string) error 
 		return exploreFestival(ctx, opts, festivalPath)
 	}
 
-	// Otherwise, list festivals for the given status
-	if status == "" {
-		status = "active"
-	}
-
+	// Otherwise, list festivals for the given status.
+	// Empty status triggers the status overview in the TUI.
 	return exploreFestivalList(ctx, opts, status)
 }
 

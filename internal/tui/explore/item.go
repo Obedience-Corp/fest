@@ -6,6 +6,7 @@ import "time"
 type ItemType string
 
 const (
+	ItemStatus   ItemType = "status"
 	ItemFestival ItemType = "festival"
 	ItemPhase    ItemType = "phase"
 	ItemSequence ItemType = "sequence"
@@ -20,6 +21,7 @@ type FestivalItem struct {
 	CreatedAt time.Time
 	Path      string
 	Type      ItemType
+	Count     int // Festival count for status items (-1 = loading)
 }
 
 // FilterValue implements the bubbles list.Item interface.
