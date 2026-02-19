@@ -22,6 +22,7 @@ mod release '.justfiles/release.just'
 [doc('Git tag management')]
 mod tags '.justfiles/tags.just'
 
+
 [private]
 default:
     #!/usr/bin/env bash
@@ -88,3 +89,5 @@ uninstall:
     else
         echo "fest not found in {{gobin}}"
     fi
+
+
