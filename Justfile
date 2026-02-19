@@ -22,9 +22,6 @@ mod release '.justfiles/release.just'
 [doc('Git tag management')]
 mod tags '.justfiles/tags.just'
 
-# Create next release and push (patch|minor|major)
-release-next level="patch":
-    @just tags next {{level}}
 
 [private]
 default:
@@ -92,3 +89,8 @@ uninstall:
     else
         echo "fest not found in {{gobin}}"
     fi
+
+# Create next release and push (patch|minor|major)
+release-next level="patch":
+    @just tags next {{level}}
+
