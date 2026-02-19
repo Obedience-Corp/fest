@@ -145,9 +145,15 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 		}}
 	} else {
 		// Find all sequences
-		sequences, err = gatescore.FindSequencesWithInfo(festivalPath, excludePatterns)
+		var skippedSeqs []gatescore.SkippedSequence
+		sequences, skippedSeqs, err = gatescore.FindSequencesWithInfo(festivalPath, excludePatterns)
 		if err != nil {
 			return emitApplyError(opts, errors.Wrap(err, "finding sequences").WithOp("runGatesApply"))
+		}
+
+		// Warn about sequences skipped by excluded_patterns
+		for _, s := range skippedSeqs {
+			display.Warning("Skipping sequence %q — matches excluded pattern %q", s.Name, s.Pattern)
 		}
 	}
 

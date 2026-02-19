@@ -2,7 +2,6 @@ package understand
 
 import (
 	"fmt"
-	"path/filepath"
 
 	understanddocs "github.com/Obedience-Corp/fest/embedded/docs/understand"
 	"github.com/spf13/cobra"
@@ -66,14 +65,46 @@ Scaffold: Complex Multi-Phase Festival
 `)
 	printScaffoldTree("complex")
 
-	// Try to get naming conventions from .festival/
-	if dotFestival != "" {
-		if content := extractSection(filepath.Join(dotFestival, "README.md"), "### Standard 3-Phase Pattern", "### Phase Flexibility"); content != "" {
-			fmt.Println("\nPhase Patterns (from .festival/)")
-			fmt.Println("---------------------------------")
-			fmt.Println(content)
-		}
-	}
+	fmt.Print(`
+
+Phase Types
+-----------
+
+Every phase has a type that determines its structure:
+
+  WORKFLOW phases (use WORKFLOW.md, no sequences):
+    planning           WORKFLOW.md, inputs/, decisions/, plan/
+    research           WORKFLOW.md, sources/, findings/, analysis templates
+    ingest             WORKFLOW.md, input_specs/, output_specs/
+
+  SEQUENCE phases (use numbered sequences + task files):
+    implementation     Numbered sequences + numbered task files + quality gates
+
+  FREEFORM phases (PHASE_GOAL.md only):
+    review             Review criteria and stakeholder sign-off
+    non_coding_action  Action items and verification steps
+
+Create: fest create phase --name "001_IMPLEMENT" --type implementation
+
+Parallel Numbering
+------------------
+
+Nodes with the same number can run in parallel at any level:
+
+  002_FRONTEND/ + 002_BACKEND/      Parallel phases
+  01_auth/ + 01_payments/           Parallel sequences
+  01_frontend.md + 01_backend.md    Parallel tasks
+
+Festival Lifecycle Directories
+------------------------------
+
+  festivals/
+    planning/       Festivals being planned
+    ready/          Ready for execution
+    active/         Currently executing
+    ritual/         Recurring festivals
+    dungeon/        Final/non-active states (completed/, archived/, someday/)
+`)
 
 	fmt.Print(`
 

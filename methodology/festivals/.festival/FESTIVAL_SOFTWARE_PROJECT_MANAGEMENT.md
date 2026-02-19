@@ -64,7 +64,7 @@ AI-human collaboration operates at unprecedented efficiency levels that make tra
 - Review and approve AI-generated sequences
 - Guide iteration and adaptation
 
-### AI Agent Responsibilities  
+### AI Agent Responsibilities
 
 - Identify logical steps needed to achieve goals
 - Structure requirements into executable step sequences
@@ -89,31 +89,195 @@ AI-human collaboration operates at unprecedented efficiency levels that make tra
 - Follow goal progression logic, not time schedules
 - Emerge from human-provided specifications and goal definitions
 
+## Festival Lifecycle
+
+Festivals move through lifecycle directories as they progress:
+
+```
+festivals/
+  planning/       # Festivals being planned and designed
+  ready/          # Festivals planned and ready for execution
+  active/         # Currently executing festivals
+  ritual/         # Recurring/repeatable festivals (ritual type)
+  dungeon/        # Archived/deprioritized work
+    completed/    # Successfully finished festivals
+    archived/     # Archived festivals preserved for reference
+    someday/      # Deprioritized festivals that may be revisited
+```
+
+The lifecycle flow is: `planning/ → ready/ → active/ → dungeon/completed/`
+
+## Festival Types
+
+Festivals come in four types, each designed for different kinds of work:
+
+| Festival Type          | Purpose                                                              | Auto-Generated Phases                                                                                                | When to Use                                                                   |
+| ---------------------- | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **standard** (default) | General-purpose festivals with full planning and implementation      | INGEST (ingest), PLAN (planning) auto-scaffolded; IMPLEMENT (implementation) and POLISH (planning) created as needed | Most projects that need both planning and implementation                      |
+| **implementation**     | Execution-only festivals for work with existing detailed specs/plans | IMPLEMENT (implementation) auto-scaffolded; skip_ingestion=true                                                      | When requirements are already defined externally and you just need to execute |
+| **research**           | Investigation and exploration festivals                              | INGEST (ingest), RESEARCH (research), SYNTHESIZE (planning) auto-scaffolded                                          | When the goal is to investigate, audit, or explore rather than build          |
+| **ritual**             | Recurring/repeatable festivals with custom structure                 | No default phases; structure determined by ritual template                                                           | Repeatable processes like releases, audits, or maintenance cycles             |
+
+Create a festival with a specific type:
+
+```bash
+fest create festival --type standard my-festival-name
+fest create festival --type implementation my-feature
+fest create festival --type research my-investigation
+fest create festival --type ritual my-recurring-process
+```
+
 ## Festival Structure and Phase Flexibility
 
-### Phase Types and Structure
+### Three-Level Hierarchy
 
-**Planning/Research Phases (Unstructured):**
+Festivals use a three-level hierarchy: **Phases → Sequences → Tasks**
 
-- Used for requirements gathering, research, and documentation
-- Often just contain documents, findings, and specifications
-- No need for sequences and tasks unless deep planning requires it
-- Examples: 001_RESEARCH, 001_PLAN, 001_REQUIREMENTS
+- **Phases**: Top-level organization grouping related work (3-digit numbering: 001*, 002*, 003\_)
+- **Sequences**: Work that must happen in order within a phase (2-digit numbering: 01*, 02*)
+- **Tasks**: Individual work items within sequences (2-digit numbering: 01*, 02*)
 
-**Implementation Phases (Structured):**
+### Phase Types
 
-- MUST have sequences and tasks for AI agent execution
-- This is where agents work autonomously for long periods
-- Add as many implementation phases as needed
-- Examples: 002_IMPLEMENT_CORE, 003_IMPLEMENT_FEATURES, 004_IMPLEMENT_UI
+Every phase has a **type** that determines its structural conventions and purpose. There are 6 phase types:
 
-**Key Principle**: Don't pre-plan phases. Add them as needed when requirements emerge or new implementation work is identified.
+| Phase Type            | Purpose                                       | Structural Conventions                                                                                                                              |
+| --------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **planning**          | Design, architecture, requirements gathering  | Uses `inputs/` directory and workflow files (WORKFLOW.md). No numbered sequences or task files. Contains decisions, plans, and reference materials. |
+| **implementation**    | Writing code, building features               | Uses numbered sequences with task files. Quality gates auto-appended to each sequence. This is where agents work autonomously.                      |
+| **research**          | Investigation, exploration, auditing          | Uses numbered sequences with investigation tasks. Less formal than implementation. Focus on findings and analysis.                                  |
+| **review**            | Code review, integration testing, validation  | Uses sequences with review/verification tasks. Focus on validating work from previous phases.                                                       |
+| **ingest**            | Absorbing external content, data migration    | Uses sequences with ingestion task files. For importing and processing external inputs before planning or implementation.                           |
+| **non_coding_action** | Documentation, process changes, non-code work | Uses sequences with action task files. For work that doesn't involve writing code.                                                                  |
 
-**Three-Level Hierarchy**: Phases → Sequences → Tasks
+Create a phase with a specific type:
 
-- **Phases** (NEW): Top-level organization grouping related work (3-digit numbering: 001_, 002_, 003_)
-- **Sequences** (EXISTING): Work that must happen in order within a phase (2-digit numbering: 01_, 02_)
-- **Tasks** (EXISTING): Individual work items within sequences (2-digit numbering: 01_, 02_)
+```bash
+fest create phase --name "001_RESEARCH" --type research
+fest create phase --name "002_IMPLEMENT" --type implementation
+fest create phase --name "001_INGEST" --type ingest
+```
+
+**Key Principle**: Don't pre-plan phases. Add them as needed when requirements emerge or new work is identified.
+
+### Phase Type Structural Conventions
+
+#### Planning Phases (type: planning)
+
+Planning phases use a different internal structure than implementation phases. Instead of numbered sequences and task files, they use:
+
+- **`inputs/`** — Reference materials, external documents, source content for planning
+- **`WORKFLOW.md`** — A workflow file describing the planning process
+- **Decision documents** — Capture architectural and design decisions
+- **Plan documents** — The resulting plans and specifications
+
+```
+001_PLAN/
+├── PHASE_GOAL.md
+├── WORKFLOW.md            # Planning process/workflow
+├── inputs/                # External reference materials
+│   ├── requirements.md
+│   └── stakeholder_notes.md
+├── decisions/             # Captured decisions
+│   └── architecture_decision.md
+└── plan/                  # Resulting plans
+    └── implementation_plan.md
+```
+
+**Do NOT** create numbered sequences or task files inside planning phases unless deep, structured planning requires it.
+
+#### Implementation Phases (type: implementation)
+
+Implementation phases MUST have numbered sequences with task files. This is where AI agents work autonomously for extended periods.
+
+```
+002_IMPLEMENT/
+├── PHASE_GOAL.md
+├── 01_backend_foundation/
+│   ├── 01_database_setup.md
+│   ├── 02_api_endpoints.md
+│   ├── 03_testing.md           ← Quality gate
+│   ├── 04_review.md            ← Quality gate
+│   └── 05_iterate.md           ← Quality gate
+├── 02_frontend_implementation/
+│   ├── 01_components.md
+│   ├── 02_state_management.md
+│   ├── 03_testing.md           ← Quality gate
+│   ├── 04_review.md            ← Quality gate
+│   └── 05_iterate.md           ← Quality gate
+└── completed/
+```
+
+#### Research Phases (type: research)
+
+Research phases use numbered sequences with investigation tasks, but are less formal than implementation phases. Focus is on findings and analysis rather than building.
+
+```
+001_RESEARCH/
+├── PHASE_GOAL.md
+├── 01_audit_current_state/
+│   ├── 01_inventory_files.md
+│   ├── 02_analyze_gaps.md
+│   └── 03_document_findings.md
+└── 02_competitive_analysis/
+    ├── 01_survey_alternatives.md
+    └── 02_comparison_report.md
+```
+
+#### Ingest Phases (type: ingest)
+
+Ingest phases are for absorbing and processing external content before other work begins.
+
+```
+001_INGEST/
+├── PHASE_GOAL.md
+├── 01_import_requirements/
+│   ├── 01_gather_external_docs.md
+│   └── 02_organize_inputs.md
+└── inputs/
+    └── external_specs.md
+```
+
+#### Review Phases (type: review)
+
+Review phases focus on validating work from previous phases.
+
+```
+003_VALIDATE/
+├── PHASE_GOAL.md
+├── 01_integration_testing/
+│   ├── 01_end_to_end_tests.md
+│   └── 02_performance_validation.md
+└── 02_acceptance_review/
+    ├── 01_acceptance_criteria_check.md
+    └── 02_sign_off.md
+```
+
+### Workflow Files
+
+Workflow files are markdown documents that describe a process or workflow for a phase. They provide structured guidance without requiring the overhead of numbered sequences and tasks.
+
+- **What**: A `WORKFLOW.md` file placed directly inside a phase directory
+- **When**: Used in planning phases and any phase that benefits from process documentation
+- **Purpose**: Describes the steps, decisions, and activities for the phase
+- **Relationship to sequences**: Can be the sole structural element in a phase, OR can coexist with sequences (hybrid phases)
+
+### Hybrid Phases
+
+A phase can contain BOTH workflow files AND numbered sequences. This is called a **hybrid phase**. Use this when a phase has some structured process documentation alongside executable task sequences.
+
+```
+001_PLAN/
+├── PHASE_GOAL.md
+├── WORKFLOW.md                    # Overall planning workflow
+├── inputs/                        # Reference materials
+│   └── external_requirements.md
+├── 01_detailed_analysis/          # Sequence for structured analysis work
+│   ├── 01_analyze_requirements.md
+│   └── 02_document_findings.md
+└── decisions/
+    └── architecture_decision.md
+```
 
 ### Sequence Creation Guidelines
 
@@ -138,7 +302,7 @@ AI-human collaboration operates at unprecedented efficiency levels that make tra
 **Good Sequences** contain 3-6 related tasks that:
 
 - Build on each other logically
-- Share common setup or dependencies  
+- Share common setup or dependencies
 - Form a cohesive unit of work (e.g., "user authentication", "API endpoints")
 - Can be assigned to one person/agent for focused work
 - Are derived from specific requirements or specifications
@@ -164,93 +328,52 @@ AI-human collaboration operates at unprecedented efficiency levels that make tra
 └── 07_review_results_iterate.md   ← Standard quality gate
 ```
 
-Here's the recommended structure:
+## Festival Directory Structure
+
+Here's the recommended structure for a festival:
 
 ```text
 festivals/
-├── completed/                  # Optional: Successfully completed festivals
-├── canceled/                   # Optional: Abandoned festivals
-├── dungeon/                    # Optional: Archived/deprioritized festivals (backlog)
-└── festival_<id>/
-    ├── FESTIVAL_OVERVIEW.md    # High-level goal, systems, and features overview
-    ├── FESTIVAL_RULES.md       # Rules and principles to follow throughout the festival
-    ├── 001_PLAN/               # PHASE: Requirements and Planning
-    │   ├── docs/              # Phase-specific documentation
-    │   ├── 01_requirements_gathering/    # SEQUENCE: Requirements work
-    │   │   ├── 01_stakeholder_interviews.md    # TASK
-    │   │   ├── 01_user_research.md             # TASK (parallel with above)
-    │   │   ├── 02_requirements_analysis.md     # TASK (after 01_ tasks)
-    │   │   ├── 03_testing_and_verify.md        # TASK
-    │   │   ├── 04_code_review.md               # TASK
-    │   │   ├── 05_review_results_update_tasks_iterate_if_needed.md  # TASK
-    │   │   └── results/                        # Sequence results
-    │   ├── 02_architecture_planning/          # SEQUENCE: Architecture work
-    │   │   ├── 01_system_design.md             # TASK
-    │   │   ├── 01_technology_selection.md      # TASK (parallel with above)
-    │   │   ├── 02_feasibility_study.md         # TASK (after 01_ tasks)
-    │   │   ├── 03_testing_and_verify.md        # TASK
-    │   │   ├── 04_code_review.md               # TASK
-    │   │   ├── 05_review_results_update_tasks_iterate_if_needed.md  # TASK
-    │   │   └── results/                        # Sequence results
-    │   └── completed/                          # Completed sequences in this phase
-    ├── 002_IMPLEMENT/          # PHASE: Implementation
-    │   ├── docs/                               # Phase-specific documentation
-    │   ├── 01_backend_foundation/              # SEQUENCE: Backend implementation
-    │   │   ├── 01_database_setup.md            # TASK (parallel tasks have same number)
-    │   │   ├── 01_api_endpoints.md             # TASK (can work simultaneously)
-    │   │   ├── 01_auth_middleware.md           # TASK
-    │   │   ├── 02_integration_layer.md         # TASK (must complete after 01_* tasks)
-    │   │   ├── 03_automated_testing.md         # TASK (automated testing and verification)
-    │   │   ├── 04_code_review.md               # TASK
-    │   │   ├── 05_review_results_update_tasks_iterate_if_needed.md  # TASK
-    │   │   └── results/                        # Sequence results
-    │   ├── 02_frontend_implementation/         # SEQUENCE: Frontend implementation
-    │   │   ├── 01_component_library.md         # TASK
-    │   │   ├── 01_user_interface.md            # TASK (parallel with above)
-    │   │   ├── 02_state_management.md          # TASK (after 01_ tasks)
-    │   │   ├── 03_automated_testing.md         # TASK (automated testing)
-    │   │   ├── 04_code_review.md               # TASK
-    │   │   ├── 05_review_results_update_tasks_iterate_if_needed.md  # TASK
-    │   │   └── results/                        # Sequence results
-    │   ├── 03_integration_testing/             # SEQUENCE: Integration testing
-    │   │   ├── 01_end_to_end_tests.md          # TASK (automated E2E testing)
-    │   │   ├── 02_performance_testing.md       # TASK (after 01_ task)
-    │   │   ├── 03_testing_and_verify.md        # TASK
-    │   │   ├── 04_code_review.md               # TASK
-    │   │   ├── 05_review_results_update_tasks_iterate_if_needed.md  # TASK
-    │   │   └── results/                        # Sequence results
-    │   └── completed/                          # Completed sequences in this phase
-    ├── 003_REVIEW_AND_UAT/     # PHASE: User Review and UAT
-    │   ├── docs/                               # Phase-specific documentation
-    │   ├── 01_user_acceptance_testing/         # SEQUENCE: User acceptance testing
-    │   │   ├── 01_uat_planning.md              # TASK
-    │   │   ├── 01_test_scenarios.md            # TASK (parallel with above)
-    │   │   ├── 02_user_testing_execution.md    # TASK (after 01_ tasks)
-    │   │   ├── 03_feedback_collection.md       # TASK (after 02_ task)
-    │   │   ├── 04_testing_and_verify.md        # TASK
-    │   │   ├── 05_code_review.md               # TASK
-    │   │   ├── 06_review_results_update_tasks_iterate_if_needed.md  # TASK
-    │   │   └── results/                        # Sequence results
-    │   ├── 02_stakeholder_review/              # SEQUENCE: Stakeholder validation
-    │   │   ├── 01_business_requirements_validation.md  # TASK
-    │   │   ├── 01_stakeholder_demos.md         # TASK (parallel with above)
-    │   │   ├── 02_sign_off_process.md          # TASK (after 01_ tasks)
-    │   │   ├── 03_testing_and_verify.md        # TASK
-    │   │   ├── 04_code_review.md               # TASK
-    │   │   ├── 05_review_results_update_tasks_iterate_if_needed.md  # TASK
-    │   │   └── results/                        # Sequence results
-    │   ├── 03_deployment_readiness/            # SEQUENCE: Deployment preparation
-    │   │   ├── 01_deployment_validation.md     # TASK
-    │   │   ├── 01_documentation_review.md      # TASK (parallel with above)
-    │   │   ├── 02_training_material_validation.md  # TASK (after 01_ tasks)
-    │   │   ├── 03_testing_and_verify.md        # TASK
-    │   │   ├── 04_code_review.md               # TASK
-    │   │   ├── 05_review_results_update_tasks_iterate_if_needed.md  # TASK
-    │   │   └── results/                        # Sequence results
-    │   └── completed/                          # Completed sequences in this phase
-    ├── completed/              # Optional: Completed phases moved here
-    ├── canceled/               # Optional: Abandoned phases or sequences
-    └── dungeon/                # Optional: Archived/deprioritized work (backlog)
+├── planning/                  # Festivals being planned
+├── ready/                     # Festivals ready for execution
+├── active/                    # Currently executing festivals
+├── ritual/                    # Recurring/repeatable festivals
+├── dungeon/                   # Archived/deprioritized work
+│   ├── completed/             # Successfully finished festivals
+│   ├── archived/              # Archived for reference
+│   └── someday/               # May revisit later
+└── active/festival_<id>/
+    ├── FESTIVAL_GOAL.md       # Festival objective and success criteria
+    ├── FESTIVAL_OVERVIEW.md   # High-level goal, systems, and features overview
+    ├── FESTIVAL_RULES.md      # Rules and principles to follow throughout the festival
+    ├── fest.yaml              # Festival configuration (quality gates, excluded patterns)
+    ├── 001_RESEARCH/          # PHASE (type: research): Investigation
+    │   ├── PHASE_GOAL.md
+    │   ├── 01_audit_current_state/    # SEQUENCE: Audit work
+    │   │   ├── 01_inventory_files.md          # TASK
+    │   │   ├── 02_analyze_gaps.md             # TASK
+    │   │   └── 03_document_findings.md        # TASK
+    │   └── completed/
+    ├── 002_IMPLEMENT/         # PHASE (type: implementation): Build
+    │   ├── PHASE_GOAL.md
+    │   ├── 01_backend_foundation/             # SEQUENCE: Backend implementation
+    │   │   ├── 01_database_setup.md           # TASK (parallel tasks have same number)
+    │   │   ├── 01_api_endpoints.md            # TASK (can work simultaneously)
+    │   │   ├── 02_integration_layer.md        # TASK (must complete after 01_ tasks)
+    │   │   ├── 03_testing.md                  # TASK ← Quality gate
+    │   │   ├── 04_review.md                   # TASK ← Quality gate
+    │   │   ├── 05_iterate.md                  # TASK ← Quality gate
+    │   │   └── results/                       # Sequence results
+    │   ├── 02_frontend_implementation/        # SEQUENCE: Frontend implementation
+    │   │   ├── 01_components.md               # TASK
+    │   │   ├── 02_state_management.md         # TASK
+    │   │   ├── 03_testing.md                  # TASK ← Quality gate
+    │   │   ├── 04_review.md                   # TASK ← Quality gate
+    │   │   ├── 05_iterate.md                  # TASK ← Quality gate
+    │   │   └── results/                       # Sequence results
+    │   └── completed/                         # Completed sequences in this phase
+    ├── completed/             # Completed phases
+    └── dungeon/               # Archived/deprioritized work
 ```
 
 Note: This structure is a guideline, not a rigid requirement. Adapt it to fit your festival's specific needs.
@@ -309,69 +432,54 @@ Establish the principles and quality standards that all workers must follow thro
 
 ### 6. Organize Work into Flexible Phases
 
-**Phases are a NEW organizational layer above the existing sequences and tasks structure.** They group related sequences together logically. The 3-phase structure handles most development scenarios, but phases can be customized, repeated, or reordered based on project needs.
+**Phases group related sequences together logically.** Choose phase types based on the work needed. Phases can be customized, repeated, or reordered based on project needs.
 
 **Understanding the Three-Level Hierarchy:**
 
-- **Phases** (NEW CONCEPT): High-level organization grouping related sequences (use 3-digit numbering: 001_, 002_, 003_)
-- **Sequences** (EXISTING CONCEPT): Work that must happen in order within a phase (use 2-digit numbering: 01_, 02_)
-- **Tasks** (EXISTING CONCEPT): Individual work items within sequences (use 2-digit numbering: 01_, 02_)
+- **Phases**: High-level organization grouping related sequences (use 3-digit numbering: 001*, 002*, 003\_)
+- **Sequences**: Work that must happen in order within a phase (use 2-digit numbering: 01*, 02*)
+- **Tasks**: Individual work items within sequences (use 2-digit numbering: 01*, 02*)
 
-#### Common Phase Patterns (Not Rigid)
+#### Common Phase Patterns
 
-#### Planning Phases (When Needed)
+Phases are chosen based on need, not a rigid template:
 
-**Examples**: 001_PLAN, 001_RESEARCH, 001_REQUIREMENTS
-**Structure**: Often just documents and findings - no sequences/tasks required unless deep planning
-**Purpose**: Gather requirements, research unknowns, document decisions
+**Implementation Only** (requirements already provided):
+`001_IMPLEMENT`
 
-#### Implementation Phases (Core Work)
+**Research + Implementation**:
+`001_RESEARCH → 002_IMPLEMENT`
 
-**Examples**: 002_IMPLEMENT_CORE, 003_IMPLEMENT_FEATURES, 004_IMPLEMENT_UI
-**Structure**: MUST have sequences and tasks for AI execution
-**Purpose**: Where agents work autonomously on structured implementation tasks
-**Key**: Add as many implementation phases as your goal requires
+**Standard with Planning**:
+`001_INGEST → 002_PLAN → 003_IMPLEMENT`
 
-#### Validation Phases
+**Full Lifecycle**:
+`001_INGEST → 002_PLAN → 003_IMPLEMENT → 004_VALIDATE`
 
-**Examples**: 005_REVIEW_AND_UAT, 006_VALIDATE, 007_ACCEPTANCE
-**Purpose**: Human validation, user acceptance, completion verification
+**Multiple Implementation Phases**:
+`001_PLAN → 002_IMPLEMENT_CORE → 003_IMPLEMENT_FEATURES → 004_IMPLEMENT_UI`
+
+**Research Festival**:
+`001_INGEST → 002_RESEARCH → 003_SYNTHESIZE`
+
+**Custom Phases**: Add specialized phases like `005_SECURITY_AUDIT/`, `006_PERFORMANCE_OPTIMIZATION/`, or `007_MIGRATION/` as needed.
 
 #### Extensions for Specialized Needs
 
 For projects requiring system coordination, use the [Interface Planning Extension](extensions/interface-planning/) which adds interface definition phases. See the [Extensions Guide](extensions/) for other specialized workflow patterns.
 
-#### Example Phase Progressions
-
-**Simple Project**: `001_IMPLEMENT → 002_REVIEW`
-(Requirements already provided)
-
-**Standard Pattern**: `001_PLAN → 002_IMPLEMENT → 003_REVIEW_AND_UAT`
-(Basic requirements gathering and implementation)
-
-**Multiple Implementations**: `001_PLAN → 002_IMPLEMENT_CORE → 003_IMPLEMENT_FEATURES → 004_IMPLEMENT_UI → 005_REVIEW`
-(Complex project with staged implementation)
-
-**Research First**: `001_RESEARCH → 002_PROTOTYPE → 003_IMPLEMENT → 004_VALIDATE`
-(Phases 001-002 are unstructured exploration, 003 is structured implementation)
-
-**Multi-System Projects**: Use the [Interface Planning Extension](extensions/interface-planning/) when coordination is critical.
-
-**Custom Phases**: Add specialized phases like `005_SECURITY_AUDIT/`, `006_PERFORMANCE_OPTIMIZATION/`, or `007_MIGRATION/` as needed
-
 **Within Each Phase:**
 
-- **Phases** use 3-digit numbering (001_, 002_, 003_) to support hundreds of phases
-- **Sequences** within phases use 2-digit numbering (01_, 02_, etc.) for proper ordering
+- **Phases** use 3-digit numbering (001*, 002*, 003\_) to support hundreds of phases
+- **Sequences** within phases use 2-digit numbering (01*, 02*, etc.) for proper ordering
 - **Tasks** within sequences use 2-digit numbering (01_task.md, 02_task.md, etc.)
 - Tasks with the same number can be executed in parallel (e.g., 01_task_a.md, 01_task_b.md, 01_task_c.md)
 - Each task gets its own markdown file with clear requirements
-- Every sequence must include these verification tasks:
-  - `XX_testing_and_verify.md` - Testing and verification (where XX follows implementation tasks)
-  - `XX+1_code_review.md` - Code review
-  - `XX+2_review_results_update_tasks_iterate_if_needed.md` - Review results and iterate if needed
+- Every implementation sequence must include quality gate tasks:
+  - `XX_testing.md` - Testing and verification (where XX follows implementation tasks)
+  - `XX+1_review.md` - Code review
+  - `XX+2_iterate.md` - Review results and iterate if needed
 - Create a `results/` subdirectory in each sequence for testing results and code review documents
-- Include a `docs/` directory in each phase for phase-specific documentation
 
 **Numbering System Benefits:**
 
@@ -386,13 +494,14 @@ The flexible phase approach provides significant advantages:
 
 **Adapt to Your Needs**: Phases match your actual work, not a rigid template
 
-- Planning phases: Unstructured when simple requirements gathering
-- Implementation phases: Structured for AI agent execution
+- Planning phases: Use workflow files and inputs/ directories
+- Implementation phases: Use numbered sequences with task files and quality gates
+- Research phases: Use sequences with investigation tasks
 - Multiple implementation phases: Add as many as needed for complex projects
 - Skip unnecessary phases: No planning phase if requirements provided
 
 **Reduced Overhead**: Only add structure where it provides value
-**Clear Purpose**: Each phase type has distinct characteristics
+**Clear Purpose**: Each phase type has distinct structural conventions
 **Better AI Execution**: Implementation phases optimized for autonomous work
 **Natural Progression**: Phases emerge as requirements become clear
 
@@ -400,17 +509,17 @@ The flexible phase approach provides significant advantages:
 
 Festivals scale from simple to complex:
 
-- **Simple Festival**: Just FESTIVAL_OVERVIEW.md, COMMON_INTERFACES.md, and implementation tasks in 3_Implement/
-- **Medium Festival**: All three phases with multiple sequences in each phase
-- **Complex Festival**: Full systems/ and features/ directories with extensive documentation
+- **Simple Festival**: Implementation type with a single IMPLEMENT phase containing sequences
+- **Medium Festival**: Standard type with INGEST, PLAN, and IMPLEMENT phases
+- **Complex Festival**: Multiple implementation phases with research, planning, and validation
 
 The optional directories serve specific purposes:
 
-- **specs/**: Store requirements documents, analysis notes, research findings, and planning artifacts
-- **docs/**: House documentation directly related to the festival's goal
-- **completed/**: Move successfully finished festivals or sequences here to keep the active workspace clean
-- **canceled/**: Store abandoned festivals or sequences that were planned but won't be executed
-- **dungeon/**: Archived work - like a backlog for deprioritized festivals that may be valuable later but aren't needed for the current goal
+- **docs/**: House documentation directly related to the festival's goal (inside phases)
+- **inputs/**: Reference materials and external content for planning/ingest phases
+- **results/**: Testing results and review documents (inside sequences)
+- **completed/**: Move successfully finished sequences here to keep the active workspace clean
+- **dungeon/**: Archived work - deprioritized festivals that may be valuable later
 
 These directories can be included at any complexity level as needed and are only created when necessary.
 
@@ -437,108 +546,52 @@ Festival methodology works best when:
 ## Example Festival
 
 ```text
-festivals/
+festivals/active/
 └── festival_user_onboarding/
+    ├── FESTIVAL_GOAL.md
     ├── FESTIVAL_OVERVIEW.md
-    ├── COMMON_INTERFACES.md
     ├── FESTIVAL_RULES.md
-    ├── 001_PLAN/                         # PHASE: Requirements and Planning
-    │   ├── docs/                         # Phase-specific documentation
-    │   ├── 01_requirements_analysis/     # SEQUENCE: Requirements work
-    │   │   ├── 01_user_journey_mapping.md        # TASK
-    │   │   ├── 01_stakeholder_interviews.md      # TASK (parallel)
-    │   │   ├── 02_requirements_specification.md  # TASK (after 01_ tasks)
-    │   │   ├── 03_testing_and_verify.md          # TASK
-    │   │   ├── 04_code_review.md                 # TASK
-    │   │   ├── 05_review_results_update_tasks_iterate_if_needed.md  # TASK
-    │   │   └── results/                          # Sequence results
-    │   ├── 02_system_design/             # SEQUENCE: System design work
-    │   │   ├── 01_architecture_planning.md       # TASK
-    │   │   ├── 01_technology_evaluation.md       # TASK (parallel)
-    │   │   ├── 02_security_considerations.md     # TASK (after 01_ tasks)
-    │   │   ├── 03_testing_and_verify.md          # TASK
-    │   │   ├── 04_code_review.md                 # TASK
-    │   │   ├── 05_review_results_update_tasks_iterate_if_needed.md  # TASK
-    │   │   └── results/                          # Sequence results
-    │   └── completed/                    # Completed sequences in this phase
-    ├── 002_DEFINE_INTERFACES/            # PHASE: Interface Definition
-    │   ├── docs/                         # Phase-specific documentation
-    │   ├── 01_api_contracts/             # SEQUENCE: API contract definition
-    │   │   ├── 01_user_registration_api.md       # TASK
-    │   │   ├── 01_email_verification_api.md      # TASK (parallel)
-    │   │   ├── 01_kyc_integration_api.md         # TASK (parallel)
-    │   │   ├── 02_error_response_standards.md    # TASK (after 01_ tasks)
-    │   │   ├── 03_testing_and_verify.md          # TASK
-    │   │   ├── 04_code_review.md                 # TASK
-    │   │   ├── 05_review_results_update_tasks_iterate_if_needed.md  # TASK
-    │   │   └── results/                          # Sequence results
-    │   ├── 02_data_schemas/              # SEQUENCE: Data schema definition
-    │   │   ├── 01_user_model_schema.md           # TASK
-    │   │   ├── 01_verification_schema.md         # TASK (parallel)
-    │   │   ├── 02_database_relationships.md      # TASK (after 01_ tasks)
-    │   │   ├── 03_testing_and_verify.md          # TASK
-    │   │   ├── 04_code_review.md                 # TASK
-    │   │   ├── 05_review_results_update_tasks_iterate_if_needed.md  # TASK
-    │   │   └── results/                          # Sequence results
-    │   ├── 03_frontend_implementation/   # SEQUENCE: Frontend implementation
-    │   │   ├── 01_registration_components.md     # TASK
-    │   │   ├── 01_verification_ui_components.md  # TASK (parallel)
-    │   │   ├── 02_state_management_setup.md      # TASK (after 01_ tasks)
-    │   │   ├── 03_testing_and_verify.md          # TASK
-    │   │   ├── 04_code_review.md                 # TASK
-    │   │   ├── 05_review_results_update_tasks_iterate_if_needed.md  # TASK
-    │   │   └── results/                          # Sequence results
-    │   └── completed/                    # Completed sequences in this phase
-    ├── 003_IMPLEMENT/                    # PHASE: Implementation
-    │   ├── docs/                         # Phase-specific documentation
-    │   ├── 01_backend_foundation/        # SEQUENCE: Backend implementation
-    │   │   ├── 01_user_model_updates.md          # TASK (parallel)
-    │   │   ├── 01_api_endpoints.md               # TASK (based on interfaces)
-    │   │   ├── 01_database_migrations.md         # TASK (parallel)
-    │   │   ├── 02_automated_testing.md           # TASK (after 01_ tasks)
-    │   │   ├── 03_code_review.md                 # TASK
-    │   │   ├── 04_review_results_update_tasks_iterate_if_needed.md  # TASK
-    │   │   └── results/                          # Sequence results
-    │   ├── 02_frontend_implementation/   # SEQUENCE: Frontend implementation
-    │   │   ├── 01_registration_flow.md           # TASK (parallel)
-    │   │   ├── 01_verification_ui.md             # TASK (based on interfaces)
-    │   │   ├── 02_error_handling.md              # TASK (after 01_ tasks)
-    │   │   ├── 03_automated_testing.md           # TASK
-    │   │   ├── 04_code_review.md                 # TASK
-    │   │   ├── 05_review_results_update_tasks_iterate_if_needed.md  # TASK
-    │   │   └── results/                          # Sequence results
-    │   ├── 03_integration_testing/       # SEQUENCE: Integration testing
-    │   │   ├── 01_e2e_tests.md                   # TASK (automated E2E)
-    │   │   ├── 01_performance_validation.md      # TASK (parallel)
-    │   │   ├── 02_testing_and_verify.md          # TASK (after 01_ tasks)
-    │   │   ├── 03_code_review.md                 # TASK
-    │   │   ├── 04_review_results_update_tasks_iterate_if_needed.md  # TASK
-    │   │   └── results/                          # Sequence results
-    │   └── completed/                    # Completed sequences in this phase
-    ├── 004_REVIEW_AND_UAT/               # PHASE: User Review and UAT
-    │   ├── docs/                         # Phase-specific documentation
-    │   ├── 01_user_acceptance_testing/   # SEQUENCE: User acceptance testing
-    │   │   ├── 01_uat_planning.md                # TASK
-    │   │   ├── 01_test_scenarios.md              # TASK (parallel)
-    │   │   ├── 02_user_testing_execution.md      # TASK (after 01_ tasks)
-    │   │   ├── 03_feedback_analysis.md           # TASK (after 02_ task)
-    │   │   ├── 04_testing_and_verify.md          # TASK
-    │   │   ├── 05_code_review.md                 # TASK
-    │   │   ├── 06_review_results_update_tasks_iterate_if_needed.md  # TASK
-    │   │   └── results/                          # Sequence results
-    │   ├── 02_stakeholder_review/        # SEQUENCE: Stakeholder validation
-    │   │   ├── 01_business_validation.md         # TASK
-    │   │   ├── 01_stakeholder_demos.md           # TASK (parallel)
-    │   │   ├── 02_requirements_sign_off.md       # TASK (after 01_ tasks)
-    │   │   ├── 03_testing_and_verify.md          # TASK
-    │   │   ├── 04_code_review.md                 # TASK
-    │   │   ├── 05_review_results_update_tasks_iterate_if_needed.md  # TASK
-    │   │   └── results/                          # Sequence results
-    │   └── completed/                    # Completed sequences in this phase
-    ├── completed/                        # Completed phases
-    ├── canceled/                         # Abandoned work
-    └── dungeon/                          # Archived/deprioritized work
-````
+    ├── fest.yaml
+    ├── 001_INGEST/                        # PHASE (type: ingest)
+    │   ├── PHASE_GOAL.md
+    │   ├── inputs/
+    │   │   ├── product_requirements.md
+    │   │   └── stakeholder_notes.md
+    │   └── 01_process_requirements/
+    │       ├── 01_organize_inputs.md
+    │       └── 02_identify_gaps.md
+    ├── 002_PLAN/                          # PHASE (type: planning)
+    │   ├── PHASE_GOAL.md
+    │   ├── WORKFLOW.md                    # Planning workflow
+    │   ├── inputs/
+    │   │   └── processed_requirements.md
+    │   ├── decisions/
+    │   │   └── architecture_decision.md
+    │   └── plan/
+    │       └── implementation_plan.md
+    ├── 003_IMPLEMENT/                     # PHASE (type: implementation)
+    │   ├── PHASE_GOAL.md
+    │   ├── 01_backend_foundation/
+    │   │   ├── 01_user_model.md
+    │   │   ├── 01_api_endpoints.md        # Parallel with above
+    │   │   ├── 01_database_migrations.md  # Parallel
+    │   │   ├── 02_integration_layer.md    # After 01_ tasks
+    │   │   ├── 03_testing.md              # Quality gate
+    │   │   ├── 04_review.md               # Quality gate
+    │   │   ├── 05_iterate.md              # Quality gate
+    │   │   └── results/
+    │   ├── 02_frontend_implementation/
+    │   │   ├── 01_registration_flow.md
+    │   │   ├── 01_verification_ui.md      # Parallel
+    │   │   ├── 02_error_handling.md       # After 01_ tasks
+    │   │   ├── 03_testing.md              # Quality gate
+    │   │   ├── 04_review.md               # Quality gate
+    │   │   ├── 05_iterate.md              # Quality gate
+    │   │   └── results/
+    │   └── completed/
+    ├── completed/
+    └── dungeon/
+```
 
 ## Festival Rules
 
@@ -590,17 +643,23 @@ Each task should include a "Rules Compliance" section that:
 
 AI agents often create generic, high-level task descriptions that don't lead to concrete implementation. This defeats the purpose of the festival methodology.
 
-### ❌ Bad Task Examples (Abstract and Vague)
+### Bad Task Examples (Abstract and Vague)
 
 ```markdown
 # Task: 01_user_management.md
+
 ## Objective
+
 Implement user management functionality
+
 ## Requirements
+
 - [ ] Create user system
 - [ ] Add authentication
 - [ ] Handle user data
+
 ## Deliverables
+
 - User management feature
 - Authentication system
 ```
@@ -611,20 +670,24 @@ Implement user management functionality
 - Vague requirements that don't specify implementation details
 - Generic deliverables that could mean anything
 
-### ✅ Good Task Examples (Concrete and Specific)
+### Good Task Examples (Concrete and Specific)
 
-```markdown
+````markdown
 # Task: 01_create_user_table_and_model.md
+
 ## Objective
+
 Create PostgreSQL user table and Sequelize model with email/password authentication fields
 
 ## Requirements
+
 - [ ] Create `users` table with id, email, password_hash, created_at, updated_at
 - [ ] Create `models/User.js` with Sequelize model definition
 - [ ] Add email validation method with regex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 - [ ] Add bcrypt password hashing with salt rounds = 12
 
 ## Implementation Steps
+
 1. Run: `npx sequelize-cli migration:generate --name create-users-table`
 2. Edit migration file with SQL schema
 3. Create `models/User.js` with Sequelize model
@@ -632,10 +695,12 @@ Create PostgreSQL user table and Sequelize model with email/password authenticat
 5. Run: `npx sequelize-cli db:migrate`
 
 ## Testing Commands
+
 ```bash
 npm test -- tests/models/User.test.js
 node -e "const User = require('./models/User'); console.log('User model loaded');"
 ```
+````
 
 ## Deliverables
 
@@ -644,7 +709,7 @@ node -e "const User = require('./models/User'); console.log('User model loaded')
 - [ ] `tests/models/User.test.js` unit tests
 - [ ] Updated `package.json` with bcrypt dependency
 
-```
+````
 
 **Why This Works**:
 - Specific file names and directory paths
@@ -655,20 +720,20 @@ node -e "const User = require('./models/User'); console.log('User model loaded')
 ### Guidelines for Writing Actionable Tasks
 
 #### 1. Use Specific Names and Paths
-- ✅ `Create models/User.js with Sequelize model`
-- ❌ `Create user model`
+- `Create models/User.js with Sequelize model` (good)
+- `Create user model` (bad)
 
 #### 2. Include Implementation Steps with Code
-- ✅ Provide exact SQL, JavaScript, commands
-- ❌ Say "implement database schema"
+- Provide exact SQL, JavaScript, commands (good)
+- Say "implement database schema" (bad)
 
 #### 3. Specify Testing Commands
-- ✅ `npm test -- tests/models/User.test.js`
-- ❌ "Test the functionality"
+- `npm test -- tests/models/User.test.js` (good)
+- "Test the functionality" (bad)
 
 #### 4. List Exact Deliverables
-- ✅ `src/components/LoginForm.jsx`, `tests/LoginForm.test.js`
-- ❌ "Login component and tests"
+- `src/components/LoginForm.jsx`, `tests/LoginForm.test.js` (good)
+- "Login component and tests" (bad)
 
 ### Task Complexity Levels
 
@@ -681,7 +746,7 @@ Requirements:
 - [ ] Use regex pattern: /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 - [ ] Export as CommonJS module
 Commands: node -e "const validator = require('./utils/EmailValidator'); console.log(validator.isValid('test@example.com'));"
-```
+````
 
 #### Level 2: Multi-File Implementation
 
@@ -690,11 +755,12 @@ Commands: node -e "const validator = require('./utils/EmailValidator'); console.
 ```markdown
 Objective: Implement user registration API endpoint with validation
 Requirements:
+
 - [ ] Create routes/users.js with POST /users endpoint
 - [ ] Create middleware/validation.js with registration validation
 - [ ] Add bcrypt password hashing
 - [ ] Create tests/routes/users.test.js
-Commands: curl -X POST localhost:3000/api/users -d '{"email":"test@example.com","password":"SecurePass123"}'
+      Commands: curl -X POST localhost:3000/api/users -d '{"email":"test@example.com","password":"SecurePass123"}'
 ```
 
 #### Level 3: Feature Implementation
@@ -704,6 +770,7 @@ Commands: curl -X POST localhost:3000/api/users -d '{"email":"test@example.com",
 ```markdown
 Objective: Build user authentication flow with database, API, and frontend
 Requirements:
+
 - [ ] Database: Create users table with authentication fields
 - [ ] Backend: Implement registration/login endpoints with JWT
 - [ ] Frontend: Create LoginForm and RegistrationForm components
@@ -714,23 +781,23 @@ Requirements:
 
 #### 1. Using Placeholders Instead of Real Examples
 
-- ❌ `interface [ComponentName]Props`
-- ✅ `interface LoginFormProps`
+- `interface [ComponentName]Props` (bad)
+- `interface LoginFormProps` (good)
 
 #### 2. Abstract Requirements
 
-- ❌ "Handle user authentication"
-- ✅ "Implement JWT authentication with 7-day expiry using jsonwebtoken library"
+- "Handle user authentication" (bad)
+- "Implement JWT authentication with 7-day expiry using jsonwebtoken library" (good)
 
 #### 3. Missing Implementation Details
 
-- ❌ "Create database schema"
-- ✅ "Create users table with: id SERIAL PRIMARY KEY, email VARCHAR(255) UNIQUE NOT NULL, password_hash VARCHAR(255) NOT NULL"
+- "Create database schema" (bad)
+- "Create users table with: id SERIAL PRIMARY KEY, email VARCHAR(255) UNIQUE NOT NULL, password_hash VARCHAR(255) NOT NULL" (good)
 
-#### 4. Vague Testing Instructions  
+#### 4. Vague Testing Instructions
 
-- ❌ "Test the feature"
-- ✅ "Run: curl -X POST localhost:3000/api/users -H 'Content-Type: application/json' -d '{\"email\":\"<test@example.com>\"}'"
+- "Test the feature" (bad)
+- "Run: curl -X POST localhost:3000/api/users -H 'Content-Type: application/json' -d '{\"email\":\"<test@example.com>\"}'" (good)
 
 ### Reference Resources
 
@@ -752,8 +819,8 @@ Every task should be "implementation-ready" - meaning a developer (human or AI) 
 4. **Sequence Thoughtfully**: Consider dependencies when creating sequences
 5. **Stay Flexible**: Add new sequences or tasks as needed
 6. **Complete Before Proceeding**: Finish each sequence before starting the next
-7. **Organize Finished Work**: Move completed sequences to completed/, canceled
-   work to canceled/, and archived/deprioritized work to dungeon/
+7. **Organize Finished Work**: Move completed sequences to completed/,
+   archived/deprioritized work to dungeon/
 8. **Follow Festival Rules**: Reference and adhere to FESTIVAL_RULES.md
    throughout execution
 9. **Test Everything**: Include specific testing commands and expected outputs

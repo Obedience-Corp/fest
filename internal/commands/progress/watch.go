@@ -21,7 +21,9 @@ func runWatchMode(ctx context.Context, mgr *progress.Manager, loc *show.Location
 
 	// Ensure .fest state directory exists so fsnotify has something to watch
 	stateDir := filepath.Join(festDir, ".fest")
-	os.MkdirAll(stateDir, 0755)
+	if err := os.MkdirAll(stateDir, 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not create state directory: %v\n", err)
+	}
 
 	// Watch festival root (fest.yaml, phases), state directory, and progress events file
 	watchPaths := []string{

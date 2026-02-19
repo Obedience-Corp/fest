@@ -87,6 +87,11 @@ func (v *CompletenessValidator) Validate(ctx context.Context, path string) ([]Is
 	return issues, nil
 }
 
+// ValidateCompleteness checks that all required files exist in a festival.
+func ValidateCompleteness(ctx context.Context, path string) ([]Issue, error) {
+	return NewCompletenessValidator().Validate(ctx, path)
+}
+
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()

@@ -26,6 +26,7 @@ type CreatePhaseOptions struct {
 	PhaseType   string
 	Description string // Phase objective/description (auto-fills Primary Goal marker)
 	Path        string
+	Festival    string // --festival: path to festival root (overrides --path)
 	VarsFile    string
 	Markers     string // Inline JSON with hint→value mappings
 	MarkersFile string // JSON file path with hint→value mappings
@@ -89,6 +90,7 @@ func NewCreatePhaseCommand() *cobra.Command {
 	cmd.Flags().StringVar(&opts.PhaseType, "type", "planning", "Phase type (planning|implementation|research|review|ingest|non_coding_action)")
 	cmd.Flags().StringVar(&opts.Description, "description", "", "Phase objective (auto-fills Primary Goal marker)")
 	cmd.Flags().StringVar(&opts.Path, "path", ".", "Path to festival root (directory containing numbered phases)")
+	cmd.Flags().StringVar(&opts.Festival, "festival", "", "Path to festival directory (use when not inside a festival)")
 	cmd.Flags().StringVar(&opts.VarsFile, "vars-file", "", "JSON vars for rendering")
 	cmd.Flags().StringVar(&opts.Markers, "markers", "", "JSON string with REPLACE marker hint→value mappings")
 	cmd.Flags().StringVar(&opts.MarkersFile, "markers-file", "", "JSON file with REPLACE marker hint→value mappings")
@@ -172,9 +174,18 @@ func resolvePhaseConfig(ctx context.Context, opts *CreatePhaseOptions) (*phaseCo
 
 	display := ui.New(shared.IsNoColor(), shared.IsVerbose())
 
-	absPath, err := filepath.Abs(opts.Path)
+	// --festival overrides --path when provided
+	path := opts.Path
+	if opts.Festival != "" {
+		if opts.Path != "." {
+			display.Warning("Both --path and --festival provided; using --festival")
+		}
+		path = opts.Festival
+	}
+
+	absPath, err := filepath.Abs(path)
 	if err != nil {
-		return nil, errors.Wrap(err, "resolving path").WithField("path", opts.Path)
+		return nil, errors.Wrap(err, "resolving path").WithField("path", path)
 	}
 
 	festivalsRoot := ResolveFestivalsRoot(absPath)

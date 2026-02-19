@@ -23,9 +23,16 @@ func TestHasBlockingIssues(t *testing.T) {
 			want:   false,
 		},
 		{
-			name: "naming warning only",
+			name: "naming warning blocks",
 			issues: []validator.Issue{
 				{Level: validator.LevelWarning, Code: validator.CodeNamingConvention},
+			},
+			want: true,
+		},
+		{
+			name: "info only does not block",
+			issues: []validator.Issue{
+				{Level: validator.LevelInfo, Code: validator.CodeNamingConvention},
 			},
 			want: false,
 		},
@@ -104,9 +111,12 @@ func TestEmitValidationBlock(t *testing.T) {
 		t.Errorf("expected relative path in output, got: %s", output)
 	}
 
-	// Should NOT contain the naming warning (not a blocking issue type)
-	if strings.Contains(output, "naming issue") {
-		t.Errorf("non-blocking warnings should not appear, got: %s", output)
+	// Should contain the naming warning in Warnings section
+	if !strings.Contains(output, "naming issue") {
+		t.Errorf("warnings should appear in output, got: %s", output)
+	}
+	if !strings.Contains(output, "Warnings:") {
+		t.Errorf("expected Warnings: section header, got: %s", output)
 	}
 
 	// Should suggest running fest validate
@@ -137,9 +147,9 @@ func TestNextBlocksOnUnfilledMarkers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Run QuickValidate and verify it finds template issues
+	// Run FullValidate and verify it finds template issues
 	ctx := context.Background()
-	result, err := validator.QuickValidate(ctx, festDir)
+	result, err := validator.FullValidate(ctx, festDir)
 	if err != nil {
 		t.Fatalf("QuickValidate error: %v", err)
 	}

@@ -2,7 +2,7 @@
 
 This directory contains all the resources needed to implement Festival Methodology in your projects. This guide helps you navigate and use these resources effectively.
 
-## 📚 Step-Based Reading Strategy
+## Step-Based Reading Strategy
 
 **CRITICAL**: To preserve context window and focus on goal progression, follow these rules:
 
@@ -18,23 +18,108 @@ This directory contains all the resources needed to implement Festival Methodolo
 
 ### Never Do This
 
-❌ Reading all templates upfront "to understand them"
-❌ Loading all agents at once
+- Reading all templates upfront "to understand them"
+- Loading all agents at once
 
 ### Always Do This
 
-✅ Read templates one at a time as needed
-✅ Read examples only when stuck
-✅ Keep templates closed after use
-✅ Focus context on actual work, not documentation
+- Read templates one at a time as needed
+- Read examples only when stuck
+- Keep templates closed after use
+- Focus context on actual work, not documentation
 
 ## Quick Navigation
 
+- **[Festival Types](#festival-types)** - Choose the right festival type for your work
+- **[Phase Types](#phase-types)** - Understand the 6 phase types and their conventions
 - **[Phase Adaptability](#phase-adaptability)** - How to customize phases for your project needs
 - **[Templates](#templates)** - Document templates for creating festivals
 - **[Agents](#ai-agents)** - Specialized AI agents for festival workflow
 - **[Examples](#examples)** - Concrete examples and patterns
 - **[Core Documentation](#core-documentation)** - Methodology principles and theory
+
+## Festival Types
+
+Festivals come in four types. Choose the type that matches your work:
+
+| Festival Type | When to Use | Auto-Scaffolded Phases |
+|--------------|------------|----------------------|
+| **standard** (default) | Most projects needing planning + implementation | INGEST (ingest), PLAN (planning) |
+| **implementation** | Requirements already exist, just need to execute | IMPLEMENT (implementation) |
+| **research** | Investigation, auditing, or exploration work | INGEST (ingest), RESEARCH (research), SYNTHESIZE (planning) |
+| **ritual** | Recurring/repeatable processes | Custom structure from ritual template |
+
+```bash
+fest create festival --type standard my-festival
+fest create festival --type implementation my-feature
+fest create festival --type research my-investigation
+fest create festival --type ritual my-recurring-process
+```
+
+Use `fest types festival` to list types and `fest types festival show <type>` for details.
+
+## Phase Types
+
+Every phase has a **type** that determines its structural conventions. There are 6 phase types:
+
+| Phase Type | Purpose | Structure |
+|-----------|---------|-----------|
+| **planning** | Design, architecture, requirements | Uses `inputs/`, workflow files (WORKFLOW.md). No numbered sequences. |
+| **implementation** | Writing code, building features | Numbered sequences with task files. Quality gates auto-appended. |
+| **research** | Investigation, exploration, auditing | Numbered sequences with investigation tasks. Less formal. |
+| **review** | Code review, testing, validation | Sequences with review/verification tasks. |
+| **ingest** | Absorbing external content | Sequences with ingestion task files. |
+| **non_coding_action** | Documentation, process changes | Sequences with action task files. |
+
+```bash
+fest create phase --name "001_RESEARCH" --type research
+fest create phase --name "002_IMPLEMENT" --type implementation
+fest create phase --name "001_INGEST" --type ingest
+```
+
+### Planning Phase Structure
+
+Planning phases use `inputs/` directories and workflow files instead of numbered sequences:
+
+```
+001_PLAN/
+├── PHASE_GOAL.md
+├── WORKFLOW.md            # Planning process
+├── inputs/                # Reference materials
+│   └── requirements.md
+├── decisions/             # Captured decisions
+└── plan/                  # Resulting plans
+```
+
+### Implementation Phase Structure
+
+Implementation phases MUST have numbered sequences with task files:
+
+```
+002_IMPLEMENT/
+├── PHASE_GOAL.md
+├── 01_backend_foundation/
+│   ├── 01_database_setup.md
+│   ├── 02_api_endpoints.md
+│   ├── 03_testing.md           ← Quality gate
+│   ├── 04_review.md            ← Quality gate
+│   └── 05_iterate.md           ← Quality gate
+└── completed/
+```
+
+### Hybrid Phases
+
+A phase can contain BOTH workflow files AND numbered sequences when needed:
+
+```
+001_PLAN/
+├── WORKFLOW.md                    # Overall process
+├── inputs/                        # Reference materials
+├── 01_detailed_analysis/          # Structured analysis work
+│   ├── 01_analyze_requirements.md
+│   └── 02_document_findings.md
+└── decisions/
+```
 
 ## Phase Adaptability
 
@@ -46,14 +131,14 @@ This directory contains all the resources needed to implement Festival Methodolo
 
 ### When Implementation Sequences Can Be Created
 
-✅ **Create implementation sequences when:**
+**Create implementation sequences when:**
 
 - Human provides specific requirements or specifications
 - Planning phase has been completed with deliverables
 - External planning documents define what to build
 - Human explicitly requests implementation of specific functionality
 
-❌ **NEVER create implementation sequences when:**
+**NEVER create implementation sequences when:**
 
 - No requirements have been provided
 - Planning phase hasn't been completed
@@ -76,100 +161,45 @@ This directory contains all the resources needed to implement Festival Methodolo
 - Implementation plans
 - Progress tracking and documentation
 
-### Standard 3-Phase Pattern (Simple Starting Point)
+### Common Phase Patterns
 
-```
-001_PLAN → 002_IMPLEMENT → 003_REVIEW_AND_UAT
-```
+Phases are chosen based on need, not a rigid template:
 
-**Use this when:** Starting with basic requirements gathering and implementation.
+**Implementation Only** (requirements already provided):
+`001_IMPLEMENT`
 
-### Phase Types
+**Research + Implementation**:
+`001_RESEARCH → 002_IMPLEMENT`
 
-The methodology supports different phase types with appropriate structure:
+**Standard with Planning**:
+`001_INGEST → 002_PLAN → 003_IMPLEMENT`
 
-| Phase Type | Structure | Use Case |
-|------------|-----------|----------|
-| Planning | Freeform (topics) | Requirements gathering, architecture decisions |
-| Research | Freeform (topics) | Investigation, exploration, prototyping |
-| Design | Freeform (topics) | UI/UX exploration, system design |
-| Implementation | Numbered (sequences/tasks) | Building features, writing code |
-| Review | Numbered (sequences/tasks) | Testing, validation, sign-off |
+**Full Lifecycle**:
+`001_INGEST → 002_PLAN → 003_IMPLEMENT → 004_VALIDATE`
 
-**Freeform Phases (Planning, Research, Design):**
-- Use any directory structure that makes sense
-- Topic-based directories (requirements/, architecture/, decisions/)
-- No numbered sequences or tasks required
-- Progress measured by documents and decisions made
+**Multiple Implementation Phases**:
+`001_PLAN → 002_IMPLEMENT_CORE → 003_IMPLEMENT_FEATURES → 004_IMPLEMENT_UI`
 
-**Numbered Phases (Implementation, Review):**
-- Use the standard hierarchy: `NN_sequence_name/` with `NN_task_name.md`
-- Sequential execution order
-- Progress measured by tasks completed
+**Research Festival**:
+`001_INGEST → 002_RESEARCH → 003_SYNTHESIZE`
 
-### Phase Flexibility Principles
-
-**Planning Phases (Freeform):**
-
-- Use topic-based directories instead of numbered sequences
-- Perfect for backward thinking from goals to requirements
-- Contains documents, decisions, and research findings
-
-**Implementation Phases (Structured):**
-
-- MUST have sequences and tasks for AI execution
-- Add as many as needed (IMPLEMENT_CORE, IMPLEMENT_FEATURES, IMPLEMENT_UI, etc.)
-- This is where agents work autonomously for long periods
-
-### Common Adaptations
-
-**Already Planned Projects:**
-
-```
-001_IMPLEMENT → 002_REVIEW_AND_UAT
-```
-
-Skip planning if requirements are already provided.
-
-**Multiple Implementation Phases:**
-
-```
-001_PLAN → 002_IMPLEMENT_CORE → 003_IMPLEMENT_FEATURES → 004_IMPLEMENT_POLISH → 005_FINAL_REVIEW
-```
-
-Add implementation phases as needed for complex builds.
-
-**Research-Heavy Projects:**
-
-```
-001_RESEARCH → 002_PROTOTYPE → 003_PLAN → 004_IMPLEMENT → 005_VALIDATE
-```
-
-Planning phases (001-003) may just contain documents and findings.
-Implementation phase (004) has structured sequences and tasks.
-
-**Bug Fix or Enhancement:**
-
-```
-001_ANALYZE → 002_IMPLEMENT → 003_TEST_AND_VERIFY
-```
-
-Minimal phases for focused work.
+**Bug Fix or Enhancement**:
+`001_ANALYZE → 002_IMPLEMENT`
 
 ### Phase Design Guidelines
 
 **Good Phase:**
 
 - Represents a distinct step toward goal achievement
-- Has clear purpose (requirements gathering OR implementation)
-- Planning phases: Can be unstructured documents
+- Has clear purpose matching its phase type
+- Planning phases: Use inputs/ and workflow files
 - Implementation phases: Must have sequences and tasks
 - Added when needed, not pre-planned
 
 **Bad Phase:**
 
 - Created just to follow a pattern
-- Planning phase with unnecessary sequences/tasks
+- Planning phase with numbered sequences/tasks (use inputs/ instead)
 - Single sequence worth of work
 - Time-based rather than goal-based
 
@@ -191,13 +221,13 @@ Minimal phases for focused work.
 
 ### Standard Quality Gates
 
-**EVERY implementation sequence should end with these tasks:**
+**EVERY implementation sequence should end with quality gate tasks:**
 
 ```
 XX_implementation_tasks.md
-XX_testing_and_verify.md
-XX_code_review.md
-XX_review_results_iterate.md
+XX_testing.md
+XX_review.md
+XX_iterate.md
 ```
 
 **Example Implementation Sequence:**
@@ -207,9 +237,9 @@ XX_review_results_iterate.md
 ├── 01_create_user_endpoints.md
 ├── 02_add_authentication.md
 ├── 03_implement_validation.md
-├── 04_testing_and_verify.md     ← Standard quality gate
-├── 05_code_review.md            ← Standard quality gate
-└── 06_review_results_iterate.md ← Standard quality gate
+├── 04_testing.md              ← Quality gate
+├── 05_review.md               ← Quality gate
+└── 06_iterate.md              ← Quality gate
 ```
 
 These quality gates ensure:
@@ -219,7 +249,7 @@ These quality gates ensure:
 - Issues are identified and resolved
 - Knowledge is transferred through review
 
-## Goal Files - New
+## Goal Files
 
 Goal files provide clear objectives and evaluation criteria at every level of the festival hierarchy. They ensure each phase and sequence has a specific goal to work towards and can be evaluated upon completion.
 
@@ -386,12 +416,19 @@ Use the `fest` CLI for efficient festival management. It saves tokens and ensure
 # Learn the methodology
 fest understand
 
-# Create structure
-fest create festival --name "my-project" --json
-fest create phase --name "IMPLEMENT" --json
+# Discover festival and phase types
+fest types festival
+fest types festival show standard
 
-# Add quality gates
-fest task defaults sync --approve --json
+# Create structure
+fest create festival --type standard "my-project"
+fest create phase --name "001_IMPLEMENT" --type implementation
+
+# Navigate and execute
+fest next                  # Get next task
+fest task completed        # Mark current task done
+fest status                # View festival progress
+fest validate              # Validate festival structure
 ```
 
 Run `fest understand` for methodology guidance, or `fest --help` for command details.
@@ -416,22 +453,22 @@ Learn from concrete implementations and proven patterns.
 
 ### Common Patterns
 
-**Pattern 1: Interface-First Development**
+**Pattern 1: Research-First Development**
 
 ```
-Phase 001: Define requirements
-Phase 002: Define ALL interfaces ← Critical
-Phase 003: Parallel implementation
-Phase 004: Integration and testing
+Phase 001: Ingest external inputs
+Phase 002: Plan implementation approach
+Phase 003: Implement features
+Phase 004: Validate results
 ```
 
 **Pattern 2: Quality Gates**
 
 ```
-Every sequence ends with:
-- XX_testing_and_verify
-- XX_code_review
-- XX_review_results_iterate
+Every implementation sequence ends with:
+- XX_testing
+- XX_review
+- XX_iterate
 ```
 
 **Pattern 3: Parallel Task Execution**
@@ -452,7 +489,8 @@ Understanding the methodology principles and theory.
 1. **FESTIVAL_SOFTWARE_PROJECT_MANAGEMENT.md**
    - Core methodology principles
    - Three-level hierarchy explanation
-   - Interface-first development rationale
+   - Phase types and festival types
+   - Workflow files and inputs/ directories
    - _Read this first to understand the "why"_
 
 2. **PROJECT_MANAGEMENT_SYSTEM.md**
@@ -472,15 +510,21 @@ Understanding the methodology principles and theory.
    Step: Learn step-based goal achievement approach
    ```
 
-2. **Plan the Festival**
+2. **Choose a Festival Type**
 
    ```
-   Use: festival_planning_agent.md
-   Creates: Initial festival structure based on goal requirements
-   Step: Define logical progression toward goal
+   Run: fest types festival
+   Pick: standard (general), implementation (specs ready),
+         research (investigation), ritual (recurring)
    ```
 
-3. **Create Core Documents**
+3. **Create the Festival**
+
+   ```bash
+   fest create festival --type standard "my-project-name"
+   ```
+
+4. **Create Core Documents**
 
    ```
    Templates needed:
@@ -489,29 +533,42 @@ Understanding the methodology principles and theory.
    - (Optional) Interface templates if multi-system project
    ```
 
-4. **Structure Phases**
+5. **Add Phases as Needed**
 
-   ```
-   Common phases (add as needed):
-   - 001_PLAN (if requirements gathering needed)
-   - 002_IMPLEMENT (structured sequences/tasks)
-   - 003_IMPLEMENT_FEATURES (additional implementation)
-   - 004_REVIEW_AND_UAT (validation)
+   ```bash
+   fest create phase --name "001_RESEARCH" --type research
+   fest create phase --name "002_IMPLEMENT" --type implementation
    ```
 
-5. **Create Tasks**
+6. **Create Tasks**
 
    ```
    Use: TASK_TEMPLATE.md
    Reference: TASK_EXAMPLES.md
    ```
 
-6. **Track Progress**
+7. **Track Progress**
 
    ```
    Create: TODO.md from FESTIVAL_TODO_TEMPLATE.md
    Update: As tasks complete
    ```
+
+## Festival Lifecycle
+
+Festivals move through lifecycle directories:
+
+```
+festivals/
+  planning/       # Being planned and designed
+  ready/          # Ready for execution
+  active/         # Currently executing
+  ritual/         # Recurring festivals
+  dungeon/        # Archived/deprioritized
+    completed/    # Successfully finished
+    archived/     # Preserved for reference
+    someday/      # May revisit later
+```
 
 ## Template Customization Guide
 
@@ -558,19 +615,21 @@ This metadata:
 
 ### Do's
 
-- ✅ Start with planning agent for new festivals
-- ✅ Define interfaces before implementation
-- ✅ Include quality gates in every sequence
-- ✅ Update TODO.md as you progress
-- ✅ Customize templates to fit your project
+- Start with planning agent for new festivals
+- Choose the right festival type for your work
+- Match phase types to the work being done
+- Use inputs/ and workflow files for planning phases
+- Include quality gates in every implementation sequence
+- Update TODO.md as you progress
+- Customize templates to fit your project
 
 ### Don'ts
 
-- ❌ Skip Phase 002 (Interface Definition)
-- ❌ Start coding before planning is complete
-- ❌ Ignore quality verification tasks
-- ❌ Use templates without customization
-- ❌ Mix parallel and sequential tasks incorrectly
+- Start coding before planning is complete
+- Put numbered sequences inside planning phases (use inputs/ instead)
+- Ignore quality verification tasks
+- Use templates without customization
+- Mix parallel and sequential tasks incorrectly
 
 ## Troubleshooting
 
@@ -605,8 +664,9 @@ your-project/
 ├── .git/
 ├── src/                    # Your code
 ├── festivals/              # Festival planning
-│   ├── active/            # Current festival
-│   └── .festival/         # This directory
+│   ├── planning/           # Festivals being planned
+│   ├── active/             # Current festivals
+│   └── .festival/          # This directory
 └── README.md
 ```
 
@@ -633,6 +693,6 @@ This directory contains everything needed to implement Festival Methodology succ
 3. **Examples** - Learn from concrete implementations
 4. **Documentation** - Understand the principles
 
-Remember: Festival Methodology is a framework, not a prescription. Adapt it to your needs while maintaining the core principles of interface-first development and three-level hierarchy.
+Remember: Festival Methodology is a framework, not a prescription. Adapt it to your needs while maintaining the core principles of step-based goal achievement and the three-level hierarchy (Phases → Sequences → Tasks).
 
 For questions or contributions, see the main [CONTRIBUTING.md](../../CONTRIBUTING.md) file.

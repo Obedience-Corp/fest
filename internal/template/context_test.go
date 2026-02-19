@@ -353,6 +353,8 @@ func TestFormatTaskID(t *testing.T) {
 		{1, "01_setup", "01_setup.md"},                  // strip numeric prefix
 		{2, "02 setup", "02_setup.md"},                  // strip numeric prefix with space
 		{3, "03-Review", "03_review.md"},                // strip numeric prefix with dash
+		{9, "fest-commit", "09_fest_commit.md"},          // hyphens to underscores (gate IDs)
+		{4, "code-review", "04_code_review.md"},          // hyphens to underscores
 	}
 
 	for _, tt := range tests {

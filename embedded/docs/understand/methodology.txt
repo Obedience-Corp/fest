@@ -25,18 +25,104 @@ are defined. Never guess what to implement.
   • Implementation code
   • Progress tracking and documentation
 
-3. Phase Adaptability
----------------------
+3. Phase Types
+--------------
 
-Phases are guidelines, not rigid requirements. Adapt to your needs.
+Every phase has a type that determines its structure. There are 6 types:
 
-4. Quality Gates
+  planning         WORKFLOW.md with inputs/, decisions/, plan/ directories.
+                   No numbered sequences or task files.
+
+  implementation   Numbered sequences with numbered task files.
+                   Quality gates appended from festival's gates/ directory.
+
+  research         WORKFLOW.md with sources/, findings/ directories and
+                   analysis templates. For investigation and exploration.
+
+  ingest           WORKFLOW.md with input_specs/, output_specs/ directories.
+                   For absorbing and processing external inputs.
+
+  review           Freeform. PHASE_GOAL.md with review criteria and
+                   stakeholder sign-off tables. No sequences or workflow.
+
+  non_coding_action  Freeform. PHASE_GOAL.md with action items and
+                     verification steps. No sequences or workflow.
+
+Create a phase with a type:
+  fest create phase --name "001_RESEARCH" --type research
+  fest create phase --name "002_IMPLEMENT" --type implementation
+
+4. Festival Types
+-----------------
+
+Festivals come in 4 types:
+
+  standard (default)  Full planning + implementation. Auto-scaffolds
+                      INGEST and PLAN phases.
+
+  implementation      Execution-only. Auto-scaffolds IMPLEMENT phase.
+                      Use when requirements are already defined.
+
+  research            Investigation-focused. Auto-scaffolds INGEST,
+                      RESEARCH, and SYNTHESIZE phases.
+
+  ritual              Recurring/repeatable. Custom structure from
+                      ritual template. Stored in ritual/ directory.
+
+Create a festival with a type:
+  fest create festival --type standard my-project
+  fest create festival --type implementation my-feature
+
+Use 'fest types festival' to discover types.
+
+5. Phase Structure Requirements
+-------------------------------
+
+Phase types enforce structural conventions used by the fest CLI's
+agentic guidance system. fest validate checks compliance.
+
+  Workflow phases:  planning, ingest, research use WORKFLOW.md
+  Implementation:   MUST have numbered sequences with task files
+  Freeform phases:  review, non_coding_action use only PHASE_GOAL.md
+  Hybrid phases:    Can have BOTH workflow files AND sequences if needed
+
+Common patterns:
+  001_IMPLEMENT                              (requirements ready)
+  001_RESEARCH → 002_IMPLEMENT               (investigate first)
+  001_INGEST → 002_PLAN → 003_IMPLEMENT      (full planning)
+
+6. Quality Gates
 ----------------
 
-Every implementation sequence ends with testing, review, and iteration tasks.
-Use 'fest gates apply --approve' to add these automatically.
+Every implementation sequence ends with quality gate task files defined in
+the festival's gates/ directory, appended in sequential order. Default gates
+are included (testing, review, iterate, fest_commit), but gates can be
+configured per-festival based on that festival's specific needs.
 
-5. Step-Based Progress
+Use 'fest gates apply --approve' to add gates to implementation sequences.
+
+7. Step-Based Progress
 ----------------------
 
 Think in steps, not time. Track progress by completed tasks, not hours.
+
+8. Workflow Files and inputs/ Directories
+-----------------------------------------
+
+Planning, ingest, and research phases use WORKFLOW.md instead of sequences:
+
+  WORKFLOW.md     Describes the planning process for a phase.
+                  Placed directly inside the phase directory.
+
+  inputs/         Holds reference materials, external documents,
+                  and source content for planning.
+
+  decisions/      Captures architectural and design decisions.
+
+Example planning phase:
+  001_PLAN/
+  ├── WORKFLOW.md
+  ├── inputs/
+  │   └── requirements.md
+  └── decisions/
+      └── architecture.md

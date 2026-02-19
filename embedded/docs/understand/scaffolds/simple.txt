@@ -1,17 +1,15 @@
-my-festival/
-├── FESTIVAL_OVERVIEW.md              [REQUIRED] Goal and scope
-├── FESTIVAL_RULES.md                 [REQUIRED] Quality standards
-├── TODO.md                           Progress tracking
+my-festival/                         type: implementation
+├── FESTIVAL_GOAL.md                 [REQUIRED] Festival objective
+├── FESTIVAL_OVERVIEW.md             [REQUIRED] Goal and scope
+├── FESTIVAL_RULES.md                [REQUIRED] Quality standards
+├── TODO.md                          Progress tracking
+├── fest.yaml                        Quality gate config
+├── gates/
+│   └── implementation/              Configurable quality gate templates
+│       ├── QUALITY_GATE_TESTING.md
+│       ├── QUALITY_GATE_REVIEW.md
+│       ├── QUALITY_GATE_ITERATE.md
+│       └── QUALITY_GATE_FEST_COMMIT.md
 │
-├── 001_PLAN/                         3-digit phase prefix
-│   ├── PHASE_GOAL.md                 [REQUIRED] Phase objectives
-│   └── 01_requirements/              2-digit sequence prefix
-│       ├── SEQUENCE_GOAL.md          [REQUIRED] Sequence objectives
-│       └── 01_gather_requirements.md 2-digit task prefix + .md
-│
-└── 002_IMPLEMENT/
-    ├── PHASE_GOAL.md                 [REQUIRED]
-    └── 01_core/
-        ├── SEQUENCE_GOAL.md          [REQUIRED]
-        ├── 01_implement_feature.md
-        └── 02_add_tests.md
+└── 001_IMPLEMENT/                   type: implementation
+    └── PHASE_GOAL.md                [REQUIRED] Phase objectives
