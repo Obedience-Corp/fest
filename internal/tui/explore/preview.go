@@ -70,6 +70,8 @@ func stripFrontmatter(content string) string {
 // goalFileForItem returns the path to the goal/preview file for a hierarchy item.
 func goalFileForItem(item FestivalItem) string {
 	switch item.Type {
+	case ItemStatus:
+		return ""
 	case ItemFestival:
 		for _, name := range []string{"FESTIVAL_GOAL.md", "FESTIVAL_OVERVIEW.md"} {
 			goal := item.Path + "/" + name
