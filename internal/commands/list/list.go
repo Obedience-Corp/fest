@@ -63,6 +63,9 @@ Use --all to include completed and dungeon festivals.`,
 			if len(args) > 0 {
 				status = strings.ToLower(args[0])
 			}
+			if status != "" {
+				status = id.ResolveStatusPath(status)
+			}
 			if status != "" && !isValidStatus(status) {
 				return errors.Validation("invalid status").
 					WithField("status", status).
