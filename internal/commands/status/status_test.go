@@ -195,33 +195,40 @@ func TestFestivalsRootFromPath(t *testing.T) {
 	}
 }
 
-func TestValidateTransition(t *testing.T) {
+func TestIsStandardTransition(t *testing.T) {
 	// Uses internal FestivalSchema which has transition_opts defined
 	tests := []struct {
-		name    string
-		from    string
-		to      string
-		wantErr bool
+		name     string
+		from     string
+		to       string
+		standard bool
 	}{
-		{"active to dungeon allowed", "active", "dungeon", false},
-		{"active to dungeon/completed allowed", "active", "dungeon/completed", false},
-		{"active to ritual allowed", "active", "ritual", false},
-		{"planning to active allowed", "planning", "active", false},
-		{"planning to ready allowed", "planning", "ready", false},
-		{"planning to dungeon allowed", "planning", "dungeon", false},
-		{"ready to active allowed", "ready", "active", false},
-		{"ready to dungeon allowed", "ready", "dungeon", false},
-		{"ritual to active allowed", "ritual", "active", false},
-		{"active to planning disallowed", "active", "planning", true},
-		{"ritual to dungeon disallowed", "ritual", "dungeon", true},
+		{"active to dungeon allowed", "active", "dungeon", true},
+		{"active to dungeon/completed allowed", "active", "dungeon/completed", true},
+		{"active to ritual allowed", "active", "ritual", true},
+		{"planning to active allowed", "planning", "active", true},
+		{"planning to ready allowed", "planning", "ready", true},
+		{"planning to dungeon allowed", "planning", "dungeon", true},
+		{"ready to active allowed", "ready", "active", true},
+		{"ready to dungeon allowed", "ready", "dungeon", true},
+		{"ritual to active allowed", "ritual", "active", true},
+		{"active to planning non-standard", "active", "planning", false},
+		{"ritual to dungeon non-standard", "ritual", "dungeon", false},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			err := validateTransition(context.Background(), tc.from, tc.to)
-			if (err != nil) != tc.wantErr {
-				t.Errorf("validateTransition(%q, %q) error = %v, wantErr %v",
-					tc.from, tc.to, err, tc.wantErr)
+			standard, validOpts, err := isStandardTransition(context.Background(), tc.from, tc.to)
+			if err != nil {
+				t.Fatalf("isStandardTransition(%q, %q) unexpected error: %v", tc.from, tc.to, err)
+			}
+			if standard != tc.standard {
+				t.Errorf("isStandardTransition(%q, %q) standard = %v, want %v",
+					tc.from, tc.to, standard, tc.standard)
+			}
+			if !standard && len(validOpts) == 0 {
+				t.Errorf("isStandardTransition(%q, %q) returned non-standard but no valid options",
+					tc.from, tc.to)
 			}
 		})
 	}

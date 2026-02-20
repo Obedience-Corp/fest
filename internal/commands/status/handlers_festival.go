@@ -153,18 +153,22 @@ func handleFestivalStatusChange(ctx context.Context, display *ui.UI, festival *s
 		return emitAlreadyAtStatus(display, opts, newStatus)
 	}
 
-	// Validate transition against internal schema (--force skips)
+	// Validate transition and confirm unless forced
 	if !opts.force {
-		if err := validateTransition(ctx, festival.Status, newStatus); err != nil {
+		standard, validOpts, err := isStandardTransition(ctx, festival.Status, newStatus)
+		if err != nil {
 			return err
 		}
-	}
-
-	// Confirm unless forced
-	if !opts.force {
-		if !confirmFestivalMove(display, festival, newStatus) {
-			display.Info("Operation cancelled.")
-			return nil
+		if !standard {
+			if !confirmNonStandardTransition(display, festival, newStatus, validOpts) {
+				display.Info("Operation cancelled.")
+				return nil
+			}
+		} else {
+			if !confirmFestivalMove(display, festival, newStatus) {
+				display.Info("Operation cancelled.")
+				return nil
+			}
 		}
 	}
 
@@ -204,21 +208,34 @@ func resolveDungeonSubstatus(ctx context.Context) (string, error) {
 	return selected, nil
 }
 
-// validateTransition checks if a transition is valid against the internal festival schema.
-func validateTransition(ctx context.Context, fromStatus, toStatus string) error {
+// isStandardTransition checks if a transition is defined in the festival workflow schema.
+// Returns true if the transition is standard, along with the valid options for the current status.
+func isStandardTransition(ctx context.Context, fromStatus, toStatus string) (standard bool, validOpts []string, err error) {
 	if err := ctx.Err(); err != nil {
-		return errors.Wrap(err, "context cancelled")
+		return false, nil, errors.Wrap(err, "context cancelled")
 	}
 	schema := workflow.FestivalSchema()
-	if !schema.IsValidTransition(fromStatus, toStatus) {
-		validOpts := transitionOptsForStatus(schema, fromStatus)
-		return errors.Validation("transition not allowed by workflow schema").
-			WithField("from", fromStatus).
-			WithField("to", toStatus).
-			WithField("valid_options", strings.Join(validOpts, ", ")).
-			WithField("hint", "use --force to override")
+	if schema.IsValidTransition(fromStatus, toStatus) {
+		return true, nil, nil
 	}
-	return nil
+	return false, transitionOptsForStatus(schema, fromStatus), nil
+}
+
+// confirmNonStandardTransition warns about a non-standard transition and asks for confirmation.
+func confirmNonStandardTransition(display *ui.UI, festival *show.FestivalInfo, newStatus string, validOpts []string) bool {
+	display.Warning("Non-standard transition: %s to %s is not defined in the workflow schema.",
+		festival.Status, newStatus)
+	if len(validOpts) > 0 {
+		fmt.Printf("  Standard transitions from %s:\n", ui.GetStateStyle(festival.Status).Render(festival.Status))
+		for _, opt := range validOpts {
+			fmt.Printf("    -> %s\n", ui.GetStateStyle(opt).Render(opt))
+		}
+		fmt.Println()
+	}
+	prompt := fmt.Sprintf("Proceed with non-standard move of %s to %s?",
+		ui.Value(festival.Name, ui.FestivalColor),
+		ui.GetStateStyle(newStatus).Render(newStatus))
+	return display.Confirm("%s", prompt)
 }
 
 // transitionOptsForStatus returns the valid transition targets for a given status.
