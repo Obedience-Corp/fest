@@ -27,6 +27,12 @@ func GetCompletedColor() lipgloss.TerminalColor { return Current().Completed }
 // GetArchivedColor returns the color for archived/paused items.
 func GetArchivedColor() lipgloss.TerminalColor { return Current().Archived }
 
+// GetRitualColor returns the color for ritual/review items.
+func GetRitualColor() lipgloss.TerminalColor { return Current().Ritual }
+
+// GetSomedayColor returns the color for someday/deferred items.
+func GetSomedayColor() lipgloss.TerminalColor { return Current().Someday }
+
 // GetDungeonColor returns the color for dungeon (deep archive) items.
 func GetDungeonColor() lipgloss.TerminalColor { return Current().Dungeon }
 
@@ -36,11 +42,13 @@ func GetDungeonColor() lipgloss.TerminalColor { return Current().Dungeon }
 // New code should use the Get*Color() functions instead.
 var (
 	ActiveColor    = lipgloss.Color("42")  // Green - currently executing
-	ReadyColor     = lipgloss.Color("33")  // Blue - ready for execution (shares planning color)
+	ReadyColor     = lipgloss.Color("220") // Yellow - ready for execution (distinct from planning)
 	PlanningColor  = lipgloss.Color("33")  // Blue - future work
+	RitualColor    = lipgloss.Color("141") // Purple-blue - review/wrap-up
 	CompletedColor = lipgloss.Color("205") // Purple/Magenta - finished successfully
-	ArchivedColor  = lipgloss.Color("250") // Light grey - deprioritized/paused (updated from 245)
-	DungeonColor   = lipgloss.Color("248") // Light grey - deep archived (updated from 240)
+	ArchivedColor  = lipgloss.Color("250") // Light grey - deprioritized/paused
+	SomedayColor   = lipgloss.Color("139") // Muted purple - deferred
+	DungeonColor   = lipgloss.Color("248") // Light grey - deep archived
 )
 
 // Entity type colors for visual hierarchy in fest CLI output.
@@ -81,10 +89,14 @@ func GetStatusStyle(status string) lipgloss.Style {
 		return lipgloss.NewStyle().Foreground(p.Ready).Bold(true)
 	case "planning":
 		return lipgloss.NewStyle().Foreground(p.Planning).Bold(true)
-	case "completed":
+	case "ritual":
+		return lipgloss.NewStyle().Foreground(p.Ritual).Bold(true)
+	case "completed", "dungeon/completed":
 		return lipgloss.NewStyle().Foreground(p.Completed).Bold(true)
-	case "archived":
+	case "archived", "dungeon/archived":
 		return lipgloss.NewStyle().Foreground(p.Archived).Bold(true)
+	case "someday", "dungeon/someday":
+		return lipgloss.NewStyle().Foreground(p.Someday).Bold(true)
 	case "dungeon":
 		return lipgloss.NewStyle().Foreground(p.Dungeon).Bold(true)
 	default:
@@ -103,10 +115,14 @@ func GetStatusColor(status string) lipgloss.TerminalColor {
 		return p.Ready
 	case "planning":
 		return p.Planning
-	case "completed":
+	case "ritual":
+		return p.Ritual
+	case "completed", "dungeon/completed":
 		return p.Completed
-	case "archived":
+	case "archived", "dungeon/archived":
 		return p.Archived
+	case "someday", "dungeon/someday":
+		return p.Someday
 	case "dungeon":
 		return p.Dungeon
 	default:
@@ -147,8 +163,10 @@ var (
 	ActiveStyle    = lipgloss.NewStyle().Foreground(ActiveColor).Bold(true)
 	ReadyStyle     = lipgloss.NewStyle().Foreground(ReadyColor).Bold(true)
 	PlanningStyle  = lipgloss.NewStyle().Foreground(PlanningColor).Bold(true)
+	RitualStyle    = lipgloss.NewStyle().Foreground(RitualColor).Bold(true)
 	CompletedStyle = lipgloss.NewStyle().Foreground(CompletedColor).Bold(true)
 	ArchivedStyle  = lipgloss.NewStyle().Foreground(ArchivedColor).Bold(true)
+	SomedayStyle   = lipgloss.NewStyle().Foreground(SomedayColor).Bold(true)
 	DungeonStyle   = lipgloss.NewStyle().Foreground(DungeonColor).Bold(true)
 )
 

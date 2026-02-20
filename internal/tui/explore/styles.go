@@ -7,7 +7,11 @@ import "github.com/charmbracelet/lipgloss"
 var (
 	colorActive    = lipgloss.AdaptiveColor{Light: "#00AF00", Dark: "#00FF5F"}
 	colorPlanned   = lipgloss.AdaptiveColor{Light: "#AF8700", Dark: "#FFD700"}
+	colorReady     = lipgloss.AdaptiveColor{Light: "#AF8700", Dark: "#FFD700"}
+	colorRitual    = lipgloss.AdaptiveColor{Light: "#875FAF", Dark: "#AF87FF"}
 	colorCompleted = lipgloss.AdaptiveColor{Light: "#005FAF", Dark: "#00AFFF"}
+	colorArchived  = lipgloss.AdaptiveColor{Light: "#808080", Dark: "#949494"}
+	colorSomeday   = lipgloss.AdaptiveColor{Light: "#875F87", Dark: "#AF87AF"}
 	colorDungeon   = lipgloss.AdaptiveColor{Light: "#808080", Dark: "#949494"}
 	colorText      = lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"}
 	colorDim       = lipgloss.AdaptiveColor{Light: "#808080", Dark: "#949494"}
@@ -23,8 +27,16 @@ func StatusStyle(status string) lipgloss.Style {
 		return lipgloss.NewStyle().Foreground(colorActive).Bold(true)
 	case "planning":
 		return lipgloss.NewStyle().Foreground(colorPlanned)
-	case "completed":
+	case "ready":
+		return lipgloss.NewStyle().Foreground(colorReady).Bold(true)
+	case "ritual":
+		return lipgloss.NewStyle().Foreground(colorRitual)
+	case "completed", "dungeon/completed":
 		return lipgloss.NewStyle().Foreground(colorCompleted)
+	case "archived", "dungeon/archived":
+		return lipgloss.NewStyle().Foreground(colorArchived).Faint(true)
+	case "someday", "dungeon/someday":
+		return lipgloss.NewStyle().Foreground(colorSomeday).Faint(true)
 	case "dungeon":
 		return lipgloss.NewStyle().Foreground(colorDungeon).Faint(true)
 	default:

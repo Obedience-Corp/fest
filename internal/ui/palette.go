@@ -23,8 +23,10 @@ type Palette struct {
 	Active    lipgloss.TerminalColor
 	Ready     lipgloss.TerminalColor
 	Planning  lipgloss.TerminalColor
+	Ritual    lipgloss.TerminalColor
 	Completed lipgloss.TerminalColor
 	Archived  lipgloss.TerminalColor
+	Someday   lipgloss.TerminalColor
 	Dungeon   lipgloss.TerminalColor
 
 	// Entity colors
@@ -91,10 +93,12 @@ func defaultDarkPalette() Palette {
 	return Palette{
 		// Status colors - bright and visible
 		Active:    lipgloss.Color("42"),  // Bright green
-		Ready:     lipgloss.Color("33"),  // Blue (same as planning)
+		Ready:     lipgloss.Color("220"), // Yellow - distinct from planning blue
 		Planning:  lipgloss.Color("33"),  // Blue
+		Ritual:    lipgloss.Color("141"), // Purple-blue (lavender)
 		Completed: lipgloss.Color("205"), // Magenta/pink
 		Archived:  lipgloss.Color("250"), // Light grey (readable!)
+		Someday:   lipgloss.Color("139"), // Muted purple
 		Dungeon:   lipgloss.Color("248"), // Light grey (readable!)
 
 		// Entity colors
@@ -136,10 +140,12 @@ func lightPalette() Palette {
 	return Palette{
 		// Status colors - darker versions
 		Active:    lipgloss.Color("28"),  // Dark green
-		Ready:     lipgloss.Color("25"),  // Dark blue (same as planning)
+		Ready:     lipgloss.Color("172"), // Dark yellow - distinct from planning blue
 		Planning:  lipgloss.Color("25"),  // Dark blue
+		Ritual:    lipgloss.Color("97"),  // Dark purple
 		Completed: lipgloss.Color("128"), // Dark purple
 		Archived:  lipgloss.Color("241"), // Dark grey
+		Someday:   lipgloss.Color("96"),  // Dark muted purple
 		Dungeon:   lipgloss.Color("238"), // Darker grey
 
 		// Entity colors
@@ -171,10 +177,12 @@ func highContrastPalette() Palette {
 	return Palette{
 		// Status colors - maximum brightness
 		Active:    lipgloss.Color("46"),  // Bright green
-		Ready:     lipgloss.Color("39"),  // Bright blue (same as planning)
+		Ready:     lipgloss.Color("226"), // Bright yellow - distinct from planning blue
 		Planning:  lipgloss.Color("39"),  // Bright blue
+		Ritual:    lipgloss.Color("177"), // Bright purple
 		Completed: lipgloss.Color("201"), // Bright magenta
 		Archived:  lipgloss.Color("255"), // White
+		Someday:   lipgloss.Color("177"), // Bright purple
 		Dungeon:   lipgloss.Color("255"), // White
 
 		// Entity colors - bright versions
