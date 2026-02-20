@@ -126,9 +126,10 @@ Use flags to override auto-detection:
   --path     Target by explicit file path
 
 These flags are mutually exclusive - only one level can be targeted at a time.`,
-		Example: `  fest status set active               # Set current festival to active
+		Example: `  fest status set ready                # Set current festival to ready
+  fest status set active               # Set current festival to active
   fest status set active -i            # Force interactive selection
-  fest status set completed --force    # Set without confirmation
+  fest status set planning --force     # Override without prompts (e.g., backward transition)
   fest status set in_progress          # Set phase/sequence/task status
 
   # Level-specific status setting:
@@ -153,7 +154,7 @@ These flags are mutually exclusive - only one level can be targeted at a time.`,
 		},
 	}
 
-	cmd.Flags().BoolVar(&opts.force, "force", false, "skip confirmation prompts and transition validation")
+	cmd.Flags().BoolVar(&opts.force, "force", false, "skip all prompts including non-standard transition warnings")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "output in JSON format")
 	cmd.Flags().BoolVarP(&opts.interactive, "interactive", "i", false, "force interactive festival selection")
 
