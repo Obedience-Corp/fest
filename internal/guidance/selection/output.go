@@ -785,6 +785,9 @@ func buildGateSection(task *TaskInfo) string {
 	// Action hint
 	sb.WriteString(ui.Dim("When complete, run: "))
 	sb.WriteString(ui.Value("fest task completed"))
+	sb.WriteString("\n")
+	sb.WriteString(ui.Dim("When ready for the next task, run: "))
+	sb.WriteString(ui.Value("fest next"))
 	sb.WriteString("\n\n")
 
 	return sb.String()

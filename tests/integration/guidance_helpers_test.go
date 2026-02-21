@@ -50,13 +50,48 @@ func setupImplementationFestival(t *testing.T, tc *TestContainer, festName strin
 	// Find the actual festival path (fest adds an ID suffix like "test-fest-TF0001")
 	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
 
-	// Disable quality gate enforcement for testing (write fest.yaml)
-	// Quality gates block task completion and are tested separately
-	festYaml := `# Test festival config - gates disabled for integration testing
-enforce_gates: false
+	// Write fest.yaml with quality gates enabled (gates should never be skippable)
+	festYaml := `version: "1.0"
+quality_gates:
+  enabled: true
+  auto_append: true
+  implementation:
+    - id: testing
+      template: gates/implementation/QUALITY_GATE_TESTING
+      enabled: true
+    - id: review
+      template: gates/implementation/QUALITY_GATE_REVIEW
+      enabled: true
+    - id: iterate
+      template: gates/implementation/QUALITY_GATE_ITERATE
+      enabled: true
+    - id: fest-commit
+      template: gates/implementation/QUALITY_GATE_FEST_COMMIT
+      enabled: true
 `
 	err = writeFileInContainer(tc, festPath+"/fest.yaml", festYaml)
 	require.NoError(t, err, "should create fest.yaml")
+
+	// Create FESTIVAL_OVERVIEW.md (required by validator completeness check)
+	overviewContent := `---
+fest_type: overview
+---
+
+# Test Festival Overview
+
+## Goals
+- Complete implementation testing
+
+## Success Criteria
+- All tasks completed successfully
+`
+	err = writeFileInContainer(tc, festPath+"/FESTIVAL_OVERVIEW.md", overviewContent)
+	require.NoError(t, err, "should create FESTIVAL_OVERVIEW.md")
+
+	// Create FESTIVAL_RULES.md (required to avoid warning that blocks fest next)
+	rulesContent := "# Festival Rules\n\n- Follow naming conventions\n- Complete all quality gates\n"
+	err = writeFileInContainer(tc, festPath+"/FESTIVAL_RULES.md", rulesContent)
+	require.NoError(t, err, "should create FESTIVAL_RULES.md")
 
 	// Create implementation phase
 	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "IMPLEMENTATION", "--type", "implementation")
@@ -89,6 +124,34 @@ Complete the %s task.
 		taskPath := fmt.Sprintf("%s/%02d_%s.md", seqPath, i+1, name)
 		err = writeFileInContainer(tc, taskPath, taskContent)
 		require.NoError(t, err, "should create task file %s", taskPath)
+	}
+
+	// Add quality gate task stubs to the sequence (required by validator)
+	// Files must match taskParsePattern: ^(\d{2})_(.+)\.md$
+	// Gate IDs checked by validator: testing, review, iterate, commit
+	gateStubs := []struct {
+		num      int
+		name     string
+		gateType string
+		title    string
+	}{
+		{4, "testing", "testing", "Testing"},
+		{5, "review", "review", "Code Review"},
+		{6, "iterate", "iterate", "Iterate"},
+		{7, "fest_commit", "fest-commit", "Fest Commit"},
+	}
+	for _, gate := range gateStubs {
+		gateContent := fmt.Sprintf(`---
+fest_type: gate
+fest_gate_type: %s
+fest_status: pending
+---
+# Quality Gate: %s
+- [ ] Gate passed
+`, gate.gateType, gate.title)
+		gatePath := fmt.Sprintf("%s/%02d_%s.md", seqPath, gate.num, gate.name)
+		err = writeFileInContainer(tc, gatePath, gateContent)
+		require.NoError(t, err, "should create gate stub %s", gatePath)
 	}
 
 	return festPath

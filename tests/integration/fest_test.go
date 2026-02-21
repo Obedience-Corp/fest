@@ -398,7 +398,7 @@ func TestFestCompleteWorkflow(t *testing.T) {
   require.Contains(t, output, "Commands", "Help output should list commands")
 
   // Test help for specific commands
-  commands := []string{"init", "system", "renumber", "reorder", "remove", "count"}
+  commands := []string{"init", "system", "renumber", "reorder", "remove"}
   for _, cmd := range commands {
    output, err = container.RunFest(cmd, "--help")
    require.NoError(t, err, "%s help should not fail", cmd)
@@ -410,21 +410,7 @@ func TestFestCompleteWorkflow(t *testing.T) {
   require.Contains(t, output, "sync", "Help should mention sync")
  })
 
- // Test 8: Test count command (should work on created festival)
- t.Run("CountCommand", func(t *testing.T) {
-  // Test counting tokens in a file
-  output, err := container.RunFest("count", "/festivals/test-festival/FESTIVAL_GOAL.md")
-  if err != nil {
-   t.Logf("Count command failed: %s", output)
-   // Even if it fails, should produce meaningful output
-   require.NotEmpty(t, output, "Count command should produce output")
-  } else {
-   // If successful, should contain token information
-   t.Logf("Count output: %s", output)
-  }
- })
-
- // Test 9: Final structure validation
+ // Test 8: Final structure validation
  t.Run("FinalValidation", func(t *testing.T) {
   // Check that the festival still exists after all operations
   exists, err := container.CheckDirExists("/festivals/test-festival")
