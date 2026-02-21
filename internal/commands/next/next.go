@@ -179,6 +179,20 @@ func runNext(cmd *cobra.Command, args []string) error {
 		return errors.Wrap(err, "finding next task")
 	}
 
+	// Override graph-based progress with authoritative progress from the Manager,
+	// which includes workflow phase steps (INGEST, PLAN) for consistency with fest show/progress.
+	mgr, mgrErr := progress.NewManager(ctx, festivalPath)
+	if mgrErr == nil {
+		festProgress, fpErr := mgr.GetFestivalProgress(ctx, festivalPath)
+		if fpErr == nil && festProgress.Overall != nil {
+			result.Progress = &selection.ProgressInfo{
+				TotalTasks:     festProgress.Overall.Total,
+				CompletedTasks: festProgress.Overall.Completed,
+				Percentage:     float64(festProgress.Overall.Percentage),
+			}
+		}
+	}
+
 	// If selector says festival is complete, check for remaining incomplete workflow phases
 	if result.FestivalComplete {
 		incompleteWorkflow, wErr := findFirstIncompleteWorkflowPhase(ctx, festivalPath)
