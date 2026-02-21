@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
 )
 
 func TestManager_UpdateProgress(t *testing.T) {
@@ -420,5 +422,249 @@ func TestManager_ProgressUpdatePersistence(t *testing.T) {
 	}
 	if task.Status != StatusInProgress {
 		t.Errorf("Status = %q, want %q", task.Status, StatusInProgress)
+	}
+}
+
+func TestSyncFrontmatterStatus(t *testing.T) {
+	tests := []struct {
+		name           string
+		taskID         string
+		status         string
+		initialContent string
+		wantStatus     frontmatter.Status
+		wantNoChange   bool // true if file should not be changed
+		noFile         bool // true if no file should be created
+	}{
+		{
+			name:   "updates pending to completed",
+			taskID: "003_EXECUTE/01_sequence/01_task.md",
+			status: StatusCompleted,
+			initialContent: `---
+fest_type: task
+fest_id: 01_task
+fest_status: pending
+fest_created: 2026-02-20T00:00:00Z
+---
+
+# Task Content
+`,
+			wantStatus: frontmatter.StatusCompleted,
+		},
+		{
+			name:   "updates pending to in_progress",
+			taskID: "003_EXECUTE/01_sequence/02_task.md",
+			status: StatusInProgress,
+			initialContent: `---
+fest_type: task
+fest_id: 02_task
+fest_status: pending
+fest_created: 2026-02-20T00:00:00Z
+---
+
+# Task Content
+`,
+			wantStatus: frontmatter.StatusInProgress,
+		},
+		{
+			name:   "updates to blocked",
+			taskID: "003_EXECUTE/01_sequence/03_task.md",
+			status: StatusBlocked,
+			initialContent: `---
+fest_type: task
+fest_id: 03_task
+fest_status: in_progress
+fest_created: 2026-02-20T00:00:00Z
+---
+
+# Task Content
+`,
+			wantStatus: frontmatter.StatusBlocked,
+		},
+		{
+			name:   "resets to pending",
+			taskID: "003_EXECUTE/01_sequence/04_task.md",
+			status: StatusPending,
+			initialContent: `---
+fest_type: task
+fest_id: 04_task
+fest_status: completed
+fest_created: 2026-02-20T00:00:00Z
+---
+
+# Task Content
+`,
+			wantStatus: frontmatter.StatusPending,
+		},
+		{
+			name:       "no-ops when file does not exist",
+			taskID:     "003_EXECUTE/01_sequence/nonexistent.md",
+			status:     StatusCompleted,
+			noFile:     true,
+			wantNoChange: true,
+		},
+		{
+			name:           "no-ops when already in sync",
+			taskID:         "003_EXECUTE/01_sequence/05_task.md",
+			status:         StatusCompleted,
+			initialContent: `---
+fest_type: task
+fest_id: 05_task
+fest_status: completed
+fest_created: 2026-02-20T00:00:00Z
+---
+
+# Already completed
+`,
+			wantNoChange: true,
+		},
+		{
+			name:           "no-ops when no frontmatter",
+			taskID:         "003_EXECUTE/01_sequence/06_task.md",
+			status:         StatusCompleted,
+			initialContent: "# Just a plain markdown file\n",
+			wantNoChange:   true,
+		},
+		{
+			name:   "appends .md when missing from taskID",
+			taskID: "003_EXECUTE/01_sequence/07_task",
+			status: StatusCompleted,
+			initialContent: `---
+fest_type: task
+fest_id: 07_task
+fest_status: pending
+fest_created: 2026-02-20T00:00:00Z
+---
+
+# Task Content
+`,
+			wantStatus: frontmatter.StatusCompleted,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			tmpDir := t.TempDir()
+
+			mgr, err := NewManager(ctx, tmpDir)
+			if err != nil {
+				t.Fatalf("NewManager() error = %v", err)
+			}
+
+			// Resolve the file path, appending .md if needed
+			taskPath := filepath.Join(tmpDir, tt.taskID)
+			if filepath.Ext(taskPath) != ".md" {
+				taskPath += ".md"
+			}
+
+			if !tt.noFile {
+				// Create directory structure
+				if err := os.MkdirAll(filepath.Dir(taskPath), 0o755); err != nil {
+					t.Fatalf("MkdirAll() error = %v", err)
+				}
+				if err := os.WriteFile(taskPath, []byte(tt.initialContent), 0o644); err != nil {
+					t.Fatalf("WriteFile() error = %v", err)
+				}
+			}
+
+			mgr.SyncFrontmatterStatus(tt.taskID, tt.status)
+
+			if tt.noFile {
+				// File should still not exist
+				if _, err := os.Stat(taskPath); err == nil {
+					t.Error("File should not have been created")
+				}
+				return
+			}
+
+			content, err := os.ReadFile(taskPath)
+			if err != nil {
+				t.Fatalf("ReadFile() error = %v", err)
+			}
+
+			if tt.wantNoChange {
+				if string(content) != tt.initialContent {
+					t.Error("File should not have been modified")
+				}
+				return
+			}
+
+			fm, _, err := frontmatter.Parse(content)
+			if err != nil {
+				t.Fatalf("Parse() error = %v", err)
+			}
+			if fm == nil {
+				t.Fatal("Expected frontmatter after sync")
+			}
+
+			if fm.Status != tt.wantStatus {
+				t.Errorf("fest_status = %q, want %q", fm.Status, tt.wantStatus)
+			}
+
+			if fm.Updated.IsZero() {
+				t.Error("fest_updated should be set after sync")
+			}
+		})
+	}
+}
+
+func TestMarkComplete_SyncsFrontmatter(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+
+	// Create a task file with pending frontmatter
+	taskDir := filepath.Join(tmpDir, "003_EXECUTE", "01_sequence")
+	if err := os.MkdirAll(taskDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll() error = %v", err)
+	}
+
+	taskContent := `---
+fest_type: task
+fest_id: 01_task
+fest_status: pending
+fest_created: 2026-02-20T00:00:00Z
+---
+
+# Task: Do something
+`
+	taskPath := filepath.Join(taskDir, "01_task.md")
+	if err := os.WriteFile(taskPath, []byte(taskContent), 0o644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	mgr, err := NewManager(ctx, tmpDir)
+	if err != nil {
+		t.Fatalf("NewManager() error = %v", err)
+	}
+
+	taskID := "003_EXECUTE/01_sequence/01_task.md"
+	if err := mgr.MarkComplete(ctx, taskID); err != nil {
+		t.Fatalf("MarkComplete() error = %v", err)
+	}
+
+	// Verify JSONL was updated
+	task, found := mgr.GetTaskProgress(taskID)
+	if !found {
+		t.Fatal("Task not found in progress store")
+	}
+	if task.Status != StatusCompleted {
+		t.Errorf("progress status = %q, want %q", task.Status, StatusCompleted)
+	}
+
+	// Verify frontmatter was updated
+	content, err := os.ReadFile(taskPath)
+	if err != nil {
+		t.Fatalf("ReadFile() error = %v", err)
+	}
+
+	fm, _, err := frontmatter.Parse(content)
+	if err != nil {
+		t.Fatalf("Parse() error = %v", err)
+	}
+	if fm == nil {
+		t.Fatal("Expected frontmatter in task file")
+	}
+	if fm.Status != frontmatter.StatusCompleted {
+		t.Errorf("frontmatter fest_status = %q, want %q", fm.Status, frontmatter.StatusCompleted)
 	}
 }

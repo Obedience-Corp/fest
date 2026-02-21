@@ -2,9 +2,13 @@ package progress
 
 import (
 	"context"
+	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
 )
 
 // Manager handles progress operations for a festival
@@ -93,7 +97,11 @@ func (m *Manager) UpdateProgress(ctx context.Context, taskID string, progress in
 	}
 
 	m.store.SetTask(task)
-	return m.store.Save(ctx)
+	if err := m.store.Save(ctx); err != nil {
+		return err
+	}
+	m.SyncFrontmatterStatus(taskID, task.Status)
+	return nil
 }
 
 // MarkComplete marks a task as complete
@@ -135,7 +143,11 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 	})
 
 	m.store.SetTask(task)
-	return m.store.Save(ctx)
+	if err := m.store.Save(ctx); err != nil {
+		return err
+	}
+	m.SyncFrontmatterStatus(taskID, task.Status)
+	return nil
 }
 
 // MarkInProgress marks a task as in progress
@@ -169,7 +181,11 @@ func (m *Manager) MarkInProgress(ctx context.Context, taskID string) error {
 	})
 
 	m.store.SetTask(task)
-	return m.store.Save(ctx)
+	if err := m.store.Save(ctx); err != nil {
+		return err
+	}
+	m.SyncFrontmatterStatus(taskID, task.Status)
+	return nil
 }
 
 // ReportBlocker reports a blocker for a task
@@ -209,7 +225,11 @@ func (m *Manager) ReportBlocker(ctx context.Context, taskID, message string) err
 	})
 
 	m.store.SetTask(task)
-	return m.store.Save(ctx)
+	if err := m.store.Save(ctx); err != nil {
+		return err
+	}
+	m.SyncFrontmatterStatus(taskID, task.Status)
+	return nil
 }
 
 // ResetTask resets a task back to pending status, clearing all progress data.
@@ -243,7 +263,11 @@ func (m *Manager) ResetTask(ctx context.Context, taskID string) error {
 	})
 
 	m.store.SetTask(task)
-	return m.store.Save(ctx)
+	if err := m.store.Save(ctx); err != nil {
+		return err
+	}
+	m.SyncFrontmatterStatus(taskID, task.Status)
+	return nil
 }
 
 // ClearBlocker clears a blocker for a task
@@ -278,7 +302,11 @@ func (m *Manager) ClearBlocker(ctx context.Context, taskID string) error {
 	})
 
 	m.store.SetTask(task)
-	return m.store.Save(ctx)
+	if err := m.store.Save(ctx); err != nil {
+		return err
+	}
+	m.SyncFrontmatterStatus(taskID, task.Status)
+	return nil
 }
 
 // GetTaskProgress retrieves progress for a specific task
@@ -294,4 +322,39 @@ func (m *Manager) AllTaskProgress() map[string]*TaskProgress {
 // Store returns the underlying store for advanced operations
 func (m *Manager) Store() *Store {
 	return m.store
+}
+
+// SyncFrontmatterStatus updates the fest_status field in a task file's
+// YAML frontmatter to match the progress store's status. This keeps the
+// file's frontmatter in sync with the JSONL event log.
+func (m *Manager) SyncFrontmatterStatus(taskID, status string) {
+	taskPath := filepath.Join(m.store.FestivalPath(), taskID)
+	if !strings.HasSuffix(taskPath, ".md") {
+		taskPath += ".md"
+	}
+
+	content, err := os.ReadFile(taskPath)
+	if err != nil {
+		return // File doesn't exist or can't be read — no-op
+	}
+
+	fm, remaining, err := frontmatter.Parse(content)
+	if err != nil || fm == nil {
+		return // No frontmatter or parse error — no-op
+	}
+
+	fmStatus := frontmatter.Status(status)
+	if fm.Status == fmStatus {
+		return // Already in sync
+	}
+
+	fm.Status = fmStatus
+	fm.Updated = time.Now()
+
+	newContent, err := frontmatter.Inject(remaining, fm)
+	if err != nil {
+		return
+	}
+
+	_ = os.WriteFile(taskPath, newContent, 0o644)
 }

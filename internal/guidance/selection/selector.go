@@ -163,44 +163,14 @@ func (s *Selector) FindNext(ctx context.Context, currentPath string) (*NextTaskR
 	// Find parallel tasks
 	parallelTasks := s.findParallelTasks(prioritized, primary)
 
-	// Calculate progress
-	progress := s.calculateProgress(graph)
-
 	result := &NextTaskResult{
 		Task:          taskInfo,
 		ParallelTasks: parallelTasks,
 		Reason:        s.generateReason(primary, location),
 		Location:      location,
-		Progress:      progress,
 	}
 
 	return result, nil
-}
-
-// calculateProgress computes progress statistics from the graph
-func (s *Selector) calculateProgress(graph *deps.Graph) *ProgressInfo {
-	if graph == nil || len(graph.Tasks) == 0 {
-		return nil
-	}
-
-	total := len(graph.Tasks)
-	completed := 0
-	for _, task := range graph.Tasks {
-		if task.Status == "complete" {
-			completed++
-		}
-	}
-
-	percentage := 0.0
-	if total > 0 {
-		percentage = float64(completed) / float64(total) * 100
-	}
-
-	return &ProgressInfo{
-		TotalTasks:     total,
-		CompletedTasks: completed,
-		Percentage:     percentage,
-	}
 }
 
 // FindNextInSequence finds the next task within the current sequence
