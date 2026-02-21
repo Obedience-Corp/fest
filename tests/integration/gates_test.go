@@ -298,11 +298,12 @@ func requireGateTasks(t *testing.T, files []string) {
 	t.Helper()
 
 	// Gate IDs from DefaultFestivalConfig: testing, review, iterate, fest-commit
+	// Note: FormatTaskID normalizes hyphens to underscores, so fest-commit → fest_commit
 	expected := []string{
 		"_testing.md",
 		"_review.md",
 		"_iterate.md",
-		"_fest-commit.md",
+		"_fest_commit.md",
 	}
 
 	for _, suffix := range expected {

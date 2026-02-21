@@ -566,6 +566,10 @@ func TestProgressTracking_FullLifecycle(t *testing.T) {
 			err := simulateTaskWork(t, container, festivalPath, taskPath, "01_requirements_2_of_2.md")
 			require.NoError(t, err)
 
+			// Mark complete via fest progress (JSONL store is source of truth for ResolveTaskStatus)
+			_, err = container.RunFestInDir(festivalPath, "progress", "--complete", "--task", taskPath)
+			require.NoError(t, err, "fest progress --complete should work for planning task")
+
 			snapshot := captureProgressSnapshot(t, container, festivalPath)
 
 			// Task should be completed
@@ -583,6 +587,10 @@ func TestProgressTracking_FullLifecycle(t *testing.T) {
 			// Complete all checkboxes: 3 of 3
 			err := simulateTaskWork(t, container, festivalPath, taskPath, "02_architecture_3_of_3.md")
 			require.NoError(t, err)
+
+			// Mark complete via fest progress (JSONL store is source of truth for ResolveTaskStatus)
+			_, err = container.RunFestInDir(festivalPath, "progress", "--complete", "--task", taskPath)
+			require.NoError(t, err, "fest progress --complete should work for planning task")
 
 			snapshot := captureProgressSnapshot(t, container, festivalPath)
 

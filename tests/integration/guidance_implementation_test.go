@@ -4,6 +4,7 @@
 package integration
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -93,6 +94,46 @@ func TestImplementationMode_PhaseBoundaries(t *testing.T) {
 
 	festPath := findFestivalPath(t, container, festivalsPath+"/active", "test-impl-phases")
 
+	// Write fest.yaml with quality gates enabled
+	festYaml := `version: "1.0"
+quality_gates:
+  enabled: true
+  auto_append: true
+  implementation:
+    - id: testing
+      template: gates/implementation/QUALITY_GATE_TESTING
+      enabled: true
+    - id: review
+      template: gates/implementation/QUALITY_GATE_REVIEW
+      enabled: true
+    - id: iterate
+      template: gates/implementation/QUALITY_GATE_ITERATE
+      enabled: true
+    - id: fest-commit
+      template: gates/implementation/QUALITY_GATE_FEST_COMMIT
+      enabled: true
+`
+	err = writeFileInContainer(container, festPath+"/fest.yaml", festYaml)
+	require.NoError(t, err)
+
+	// Create FESTIVAL_OVERVIEW.md (required by validator)
+	overviewContent := `---
+fest_type: overview
+---
+
+# Test Festival Overview
+
+## Goals
+- Test phase boundary navigation
+`
+	err = writeFileInContainer(container, festPath+"/FESTIVAL_OVERVIEW.md", overviewContent)
+	require.NoError(t, err)
+
+	// Create FESTIVAL_RULES.md (required to avoid warning that blocks fest next)
+	rulesContent := "# Festival Rules\n\n- Follow naming conventions\n- Complete all quality gates\n"
+	err = writeFileInContainer(container, festPath+"/FESTIVAL_RULES.md", rulesContent)
+	require.NoError(t, err)
+
 	// Create two phases
 	_, err = container.RunFestInDir(festPath, "create", "phase", "--name", "PHASE_ONE", "--type", "implementation")
 	require.NoError(t, err)
@@ -122,6 +163,21 @@ Complete the phase1_task task.
 	err = writeFileInContainer(container, festPath+"/001_PHASE_ONE/01_seq1/01_phase1_task.md", phase1TaskContent)
 	require.NoError(t, err)
 
+	// Add gate stubs to phase 1 sequence (must match taskParsePattern: ^(\d{2})_(.+)\.md$)
+	for _, gate := range []struct {
+		num               int
+		name, gType, title string
+	}{
+		{2, "testing", "testing", "Testing"},
+		{3, "review", "review", "Code Review"},
+		{4, "iterate", "iterate", "Iterate"},
+		{5, "fest_commit", "fest-commit", "Fest Commit"},
+	} {
+		gateContent := fmt.Sprintf("---\nfest_type: gate\nfest_gate_type: %s\nfest_status: pending\n---\n# Quality Gate: %s\n- [ ] Gate passed\n", gate.gType, gate.title)
+		err = writeFileInContainer(container, fmt.Sprintf("%s/001_PHASE_ONE/01_seq1/%02d_%s.md", festPath, gate.num, gate.name), gateContent)
+		require.NoError(t, err)
+	}
+
 	_, err = container.RunFestInDir(festPath+"/002_PHASE_TWO", "create", "sequence", "--name", "seq2")
 	require.NoError(t, err)
 
@@ -144,13 +200,37 @@ Complete the phase2_task task.
 	err = writeFileInContainer(container, festPath+"/002_PHASE_TWO/01_seq2/01_phase2_task.md", phase2TaskContent)
 	require.NoError(t, err)
 
+	// Add gate stubs to phase 2 sequence (must match taskParsePattern: ^(\d{2})_(.+)\.md$)
+	for _, gate := range []struct {
+		num               int
+		name, gType, title string
+	}{
+		{2, "testing", "testing", "Testing"},
+		{3, "review", "review", "Code Review"},
+		{4, "iterate", "iterate", "Iterate"},
+		{5, "fest_commit", "fest-commit", "Fest Commit"},
+	} {
+		gateContent := fmt.Sprintf("---\nfest_type: gate\nfest_gate_type: %s\nfest_status: pending\n---\n# Quality Gate: %s\n- [ ] Gate passed\n", gate.gType, gate.title)
+		err = writeFileInContainer(container, fmt.Sprintf("%s/002_PHASE_TWO/01_seq2/%02d_%s.md", festPath, gate.num, gate.name), gateContent)
+		require.NoError(t, err)
+	}
+
 	// Run execute - should show phase 1 task
 	output := runExecuteMode(t, container, festPath)
 	verifyOutputContains(t, output, "phase1_task")
 
-	// Complete phase 1 task
-	_, err = container.RunFestInDir(festPath, "progress", "--complete", "--task", "001_PHASE_ONE/01_seq1/01_phase1_task.md")
-	require.NoError(t, err)
+	// Complete all phase 1 tasks (real task + gate stubs)
+	phase1Tasks := []string{
+		"001_PHASE_ONE/01_seq1/01_phase1_task.md",
+		"001_PHASE_ONE/01_seq1/02_testing.md",
+		"001_PHASE_ONE/01_seq1/03_review.md",
+		"001_PHASE_ONE/01_seq1/04_iterate.md",
+		"001_PHASE_ONE/01_seq1/05_fest_commit.md",
+	}
+	for _, task := range phase1Tasks {
+		_, err = container.RunFestInDir(festPath, "progress", "--complete", "--task", task)
+		require.NoError(t, err, "should complete %s", task)
+	}
 
 	// Next should show phase 2 task
 	output = runNext(t, container, festPath)

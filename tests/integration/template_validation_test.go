@@ -4,6 +4,7 @@
 package integration
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -35,10 +36,48 @@ func setupTemplateFestival(t *testing.T, tc *TestContainer, festName string) str
 	// Find the actual festival path (fest adds an ID suffix)
 	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
 
-	// Disable quality gates for testing
-	festYaml := "enforce_gates: false\n"
+	// Write fest.yaml with quality gates enabled
+	festYaml := `version: "1.0"
+quality_gates:
+  enabled: true
+  auto_append: true
+  implementation:
+    - id: testing
+      template: gates/implementation/QUALITY_GATE_TESTING
+      enabled: true
+    - id: review
+      template: gates/implementation/QUALITY_GATE_REVIEW
+      enabled: true
+    - id: iterate
+      template: gates/implementation/QUALITY_GATE_ITERATE
+      enabled: true
+    - id: fest-commit
+      template: gates/implementation/QUALITY_GATE_FEST_COMMIT
+      enabled: true
+`
 	err = writeFileInContainer(tc, festPath+"/fest.yaml", festYaml)
 	require.NoError(t, err, "should create fest.yaml")
+
+	// Create FESTIVAL_OVERVIEW.md (required by validator completeness check)
+	overviewContent := `---
+fest_type: overview
+---
+
+# Test Festival Overview
+
+## Goals
+- Complete template testing
+
+## Success Criteria
+- All templates render correctly
+`
+	err = writeFileInContainer(tc, festPath+"/FESTIVAL_OVERVIEW.md", overviewContent)
+	require.NoError(t, err, "should create FESTIVAL_OVERVIEW.md")
+
+	// Create FESTIVAL_RULES.md (required to avoid warning that blocks fest next)
+	rulesContent := "# Festival Rules\n\n- Follow naming conventions\n- Complete all quality gates\n"
+	err = writeFileInContainer(tc, festPath+"/FESTIVAL_RULES.md", rulesContent)
+	require.NoError(t, err, "should create FESTIVAL_RULES.md")
 
 	return festPath
 }
@@ -121,6 +160,22 @@ func TestNextTemplateOutputIsValid(t *testing.T) {
 	_, err = tc.RunFestInDir(seqPath, "create", "task", "--name", "build_it", "--skip-markers")
 	require.NoError(t, err)
 
+	// Add quality gate task stubs (required by validator for fest next)
+	// Files must match taskParsePattern: ^(\d{2})_(.+)\.md$
+	for _, gate := range []struct {
+		num               int
+		name, gType, title string
+	}{
+		{2, "testing", "testing", "Testing"},
+		{3, "review", "review", "Code Review"},
+		{4, "iterate", "iterate", "Iterate"},
+		{5, "fest_commit", "fest-commit", "Fest Commit"},
+	} {
+		gateContent := fmt.Sprintf("---\nfest_type: gate\nfest_gate_type: %s\nfest_status: pending\n---\n# Quality Gate: %s\n- [ ] Gate passed\n", gate.gType, gate.title)
+		err = writeFileInContainer(tc, fmt.Sprintf("%s/%02d_%s.md", seqPath, gate.num, gate.name), gateContent)
+		require.NoError(t, err)
+	}
+
 	// Run next command
 	output, err := tc.RunFestInDir(festPath, "next")
 	require.NoError(t, err, "fest next failed")
@@ -186,6 +241,22 @@ func TestAllCommandsProduceValidOutput(t *testing.T) {
 	seqPath := phasePath + "/01_seq"
 	_, err = tc.RunFestInDir(seqPath, "create", "task", "--name", "task", "--skip-markers")
 	require.NoError(t, err)
+
+	// Add quality gate task stubs (required by validator for fest next)
+	// Files must match taskParsePattern: ^(\d{2})_(.+)\.md$
+	for _, gate := range []struct {
+		num               int
+		name, gType, title string
+	}{
+		{2, "testing", "testing", "Testing"},
+		{3, "review", "review", "Code Review"},
+		{4, "iterate", "iterate", "Iterate"},
+		{5, "fest_commit", "fest-commit", "Fest Commit"},
+	} {
+		gateContent := fmt.Sprintf("---\nfest_type: gate\nfest_gate_type: %s\nfest_status: pending\n---\n# Quality Gate: %s\n- [ ] Gate passed\n", gate.gType, gate.title)
+		err = writeFileInContainer(tc, fmt.Sprintf("%s/%02d_%s.md", seqPath, gate.num, gate.name), gateContent)
+		require.NoError(t, err)
+	}
 
 	// Test various commands that produce templated output
 	commands := []struct {
