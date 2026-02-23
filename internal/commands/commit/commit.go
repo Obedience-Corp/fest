@@ -17,6 +17,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/obediencecorp/camp/pkg/commitkit"
 	"github.com/spf13/cobra"
 )
 
@@ -84,11 +85,13 @@ Examples:
 
 // CommitResult represents the result of a commit operation
 type CommitResult struct {
-	Success bool   `json:"success"`
-	Hash    string `json:"hash,omitempty"`
-	Message string `json:"message"`
-	TaskRef string `json:"task_ref,omitempty"`
-	Error   string `json:"error,omitempty"`
+	Success     bool   `json:"success"`
+	Hash        string `json:"hash,omitempty"`
+	Message     string `json:"message"`
+	TaskRef     string `json:"task_ref,omitempty"`
+	CampaignTag string `json:"campaign_tag,omitempty"`
+	Synced      bool   `json:"synced,omitempty"`
+	Error       string `json:"error,omitempty"`
 }
 
 func runCommit(cmd *cobra.Command, args []string) error {
@@ -144,23 +147,23 @@ func runCommit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Build commit message
-	commitMessage := message
+	// Build fest-tagged commit message.
+	festMessage := message
 	if ref != "" {
-		commitMessage = fmt.Sprintf("[%s] %s", ref, message)
+		festMessage = fmt.Sprintf("[%s] %s", ref, message)
 	}
 
-	// Execute git commit
-	hash, err := executeGitCommit(ctx, commitMessage)
-	if err != nil {
+	// Resolve workspace for campaign integration (nil-safe: ok if absent).
+	ws, _ := scope.WorkspaceFrom(ctx)
+
+	// Execute commit with optional campaign tag prepend and submodule sync.
+	if err := commitWithCampaignSupport(ctx, ws, festMessage, result); err != nil {
 		result.Success = false
 		result.Error = err.Error()
 		return outputResult(result)
 	}
 
 	result.Success = true
-	result.Hash = hash
-	result.Message = commitMessage
 	result.TaskRef = ref
 
 	return outputResult(result)
@@ -178,6 +181,12 @@ func outputResult(result *CommitResult) error {
 			fmt.Printf("%s %s\n", ui.Label("Message"), highlightTaskRefs(result.Message))
 			if result.TaskRef != "" {
 				fmt.Printf("%s %s\n", ui.Label("Task"), ui.Value(result.TaskRef, ui.TaskColor))
+			}
+			if result.CampaignTag != "" {
+				fmt.Printf("%s %s\n", ui.Label("Campaign"), ui.Value(result.CampaignTag))
+			}
+			if result.Synced {
+				fmt.Printf("%s %s\n", ui.Label("Synced"), ui.Value("campaign root updated"))
 			}
 		} else {
 			return errors.New(result.Error)
@@ -261,6 +270,76 @@ func detectFestivalID(ctx context.Context) (string, error) {
 	}
 
 	return cfg.Metadata.ID, nil
+}
+
+// commitWithCampaignSupport executes the git commit with optional campaign
+// integration. If the workspace is a campaign, it prepends [OBEY-CAMPAIGN-{id}]
+// to the message and syncs the submodule ref after committing. Campaign
+// detection or sync failures degrade gracefully — the commit still proceeds.
+func commitWithCampaignSupport(ctx context.Context, ws *scope.WorkspaceInfo, festMessage string, result *CommitResult) error {
+	commitMessage := festMessage
+
+	var campaignID string
+	if ws != nil && ws.Type == scope.WorkspaceTypeCampaign {
+		cid, err := commitkit.DetectCampaign(ctx)
+		if err == nil && cid != "" {
+			campaignID = cid
+			tag := commitkit.FormatCampaignTag(campaignID)
+			commitMessage = tag + " " + festMessage
+			result.CampaignTag = tag
+		}
+	}
+
+	hash, err := executeGitCommit(ctx, commitMessage)
+	if err != nil {
+		return err
+	}
+	result.Hash = hash
+	result.Message = commitMessage
+
+	if campaignID != "" && ws != nil {
+		relPath, relErr := resolveProjectRelPath(ws.Root)
+		if relErr == nil {
+			syncErr := commitkit.SyncSubmoduleRef(ctx, ws.Root, relPath, campaignID)
+			if syncErr == nil {
+				result.Synced = true
+			}
+		}
+	}
+
+	return nil
+}
+
+// resolveProjectRelPath returns the current git repository's path relative to
+// campaignRoot. Used to identify which submodule pointer to update.
+func resolveProjectRelPath(campaignRoot string) (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", errors.Wrap(err, "getting working directory")
+	}
+
+	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
+	cmd.Dir = cwd
+	out, err := cmd.Output()
+	if err != nil {
+		return "", errors.Wrap(err, "finding git root")
+	}
+	gitRoot := strings.TrimSpace(string(out))
+
+	if gitRoot == campaignRoot {
+		return "", errors.New("current directory is the campaign root, not a submodule")
+	}
+
+	relPath, err := filepath.Rel(campaignRoot, gitRoot)
+	if err != nil {
+		return "", errors.Wrap(err, "computing relative project path")
+	}
+
+	if strings.HasPrefix(relPath, "..") {
+		return "", errors.New("project is outside the campaign root")
+	}
+
+	return relPath, nil
 }
 
 func detectCurrentTaskRef(ctx context.Context) (string, error) {
