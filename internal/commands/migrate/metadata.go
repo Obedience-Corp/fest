@@ -137,7 +137,7 @@ func checkExistingMigration(ctx context.Context, festivalPath, festivalsRoot str
 	}
 
 	// Load existing config
-	festConfig, err := config.LoadFestivalConfig(festivalPath)
+	festConfig, err := config.LoadFestivalConfig(festivalPath, "")
 	if err != nil {
 		return nil, false, errors.IO("loading festival config", err).
 			WithField("path", festivalPath)
@@ -207,7 +207,7 @@ func buildMigrationMetadata(migCtx *migrationContext) {
 // performMigration saves the config and renames the directory
 func performMigration(migCtx *migrationContext) error {
 	// Save updated config
-	if err := config.SaveFestivalConfig(migCtx.festivalPath, migCtx.festConfig); err != nil {
+	if err := config.SaveFestivalConfig(migCtx.festivalPath, "", migCtx.festConfig); err != nil {
 		return errors.IO("saving festival config", err).
 			WithField("path", migCtx.festivalPath)
 	}

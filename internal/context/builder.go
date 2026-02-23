@@ -113,7 +113,7 @@ func (b *Builder) Build() (*ContextOutput, error) {
 
 // loadMetadata loads festival metadata from fest.yaml
 func (b *Builder) loadMetadata() {
-	festConfig, err := config.LoadFestivalConfig(b.festivalPath)
+	festConfig, err := config.LoadFestivalConfig(b.festivalPath, "")
 	if err != nil {
 		return // Metadata is optional
 	}

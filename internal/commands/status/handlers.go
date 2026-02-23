@@ -13,6 +13,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/ui/theme"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -262,8 +263,10 @@ func runFestivalListing(ctx context.Context, festivalsRoot, filterStatus string,
 		return errors.Wrap(err, "context cancelled")
 	}
 
+	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
+
 	if filterStatus != "" {
-		festivals, err := show.ListFestivalsByStatus(ctx, festivalsRoot, filterStatus)
+		festivals, err := show.ListFestivalsByStatus(ctx, festivalsRoot, filterStatus, campaignRoot)
 		if err != nil {
 			return err
 		}

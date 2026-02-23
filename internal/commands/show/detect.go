@@ -29,7 +29,7 @@ const (
 // DetectCurrentFestival walks up from the given directory to find a festival root.
 // If no festival markers are found, checks navigation links for linked project directories.
 // Returns the festival information if found, or an error if not in a festival.
-func DetectCurrentFestival(ctx context.Context, startDir string) (*FestivalInfo, error) {
+func DetectCurrentFestival(ctx context.Context, startDir, campaignRoot string) (*FestivalInfo, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -42,7 +42,7 @@ func DetectCurrentFestival(ctx context.Context, startDir string) (*FestivalInfo,
 	dir := absStart
 	for {
 		if isValidFestival(dir) {
-			return parseFestivalInfo(ctx, dir)
+			return parseFestivalInfo(ctx, dir, campaignRoot)
 		}
 
 		parent := filepath.Dir(dir)
@@ -59,7 +59,7 @@ func DetectCurrentFestival(ctx context.Context, startDir string) (*FestivalInfo,
 			festivalsRoot, findErr := workspace.FindFestivals(absStart)
 			if findErr == nil && festivalsRoot != "" {
 				if festivalPath := findLinkedFestivalPath(festivalsRoot, linkedName); festivalPath != "" {
-					return parseFestivalInfo(ctx, festivalPath)
+					return parseFestivalInfo(ctx, festivalPath, campaignRoot)
 				}
 			}
 		}
@@ -104,7 +104,7 @@ func isValidFestival(dir string) bool {
 }
 
 // FindFestivalByName searches for a festival by name in all status directories.
-func FindFestivalByName(ctx context.Context, festivalsDir, name string) (*FestivalInfo, error) {
+func FindFestivalByName(ctx context.Context, festivalsDir, name, campaignRoot string) (*FestivalInfo, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -124,7 +124,7 @@ func FindFestivalByName(ctx context.Context, festivalsDir, name string) (*Festiv
 			if entry.Name() == name || strings.HasPrefix(entry.Name(), name+"_") || strings.Contains(entry.Name(), name) {
 				festivalDir := filepath.Join(statusDir, entry.Name())
 				if isValidFestival(festivalDir) {
-					info, err := parseFestivalInfo(ctx, festivalDir)
+					info, err := parseFestivalInfo(ctx, festivalDir, campaignRoot)
 					if err != nil {
 						continue
 					}
@@ -140,7 +140,7 @@ func FindFestivalByName(ctx context.Context, festivalsDir, name string) (*Festiv
 }
 
 // ListFestivalsByStatus returns all festivals in a given status directory.
-func ListFestivalsByStatus(ctx context.Context, festivalsDir, status string) ([]*FestivalInfo, error) {
+func ListFestivalsByStatus(ctx context.Context, festivalsDir, status, campaignRoot string) ([]*FestivalInfo, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -164,7 +164,7 @@ func ListFestivalsByStatus(ctx context.Context, festivalsDir, status string) ([]
 			continue
 		}
 
-		info, err := parseFestivalInfo(ctx, festivalDir)
+		info, err := parseFestivalInfo(ctx, festivalDir, campaignRoot)
 		if err != nil {
 			// Include with minimal info on parse error
 			info = &FestivalInfo{
@@ -226,7 +226,7 @@ func ListFestivalsByStatusLight(ctx context.Context, festivalsDir, status string
 }
 
 // parseFestivalInfo parses festival information from a directory.
-func parseFestivalInfo(ctx context.Context, festivalDir string) (*FestivalInfo, error) {
+func parseFestivalInfo(ctx context.Context, festivalDir, campaignRoot string) (*FestivalInfo, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -262,7 +262,7 @@ func parseFestivalInfo(ctx context.Context, festivalDir string) (*FestivalInfo, 
 	}
 
 	// Try to load fest.yaml to get metadata ID and project path
-	festConfig, err := config.LoadFestivalConfig(festivalDir)
+	festConfig, err := config.LoadFestivalConfig(festivalDir, campaignRoot)
 	if err == nil && festConfig != nil {
 		// Extract metadata ID if present
 		if festConfig.Metadata.ID != "" {
@@ -298,8 +298,8 @@ func DetectCurrentLocation(ctx context.Context, startDir string) (*LocationInfo,
 		return nil, errors.IO("getting absolute path", err)
 	}
 
-	// First find the festival root
-	festival, err := DetectCurrentFestival(ctx, absStart)
+	// First find the festival root (no campaign root needed for location detection)
+	festival, err := DetectCurrentFestival(ctx, absStart, "")
 	if err != nil {
 		return nil, err
 	}

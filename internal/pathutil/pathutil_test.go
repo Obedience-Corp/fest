@@ -59,6 +59,12 @@ func TestToRelativePath(t *testing.T) {
 			campaignRoot: campaignRoot,
 			want:         "projects/fest",
 		},
+		{
+			name:         "empty campaignRoot returns path unchanged",
+			absPath:      "/some/absolute/path",
+			campaignRoot: "",
+			want:         "/some/absolute/path",
+		},
 	}
 
 	for _, tc := range tests {
@@ -103,6 +109,12 @@ func TestToAbsolutePath(t *testing.T) {
 			path:         "",
 			campaignRoot: campaignRoot,
 			want:         "/home/user/campaigns/my-campaign",
+		},
+		{
+			name:         "empty campaignRoot returns path unchanged",
+			path:         "relative/path",
+			campaignRoot: "",
+			want:         "relative/path",
 		},
 	}
 

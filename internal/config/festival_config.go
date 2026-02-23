@@ -1,13 +1,11 @@
 package config
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/pathutil"
-	"github.com/Obedience-Corp/fest/internal/workspace"
 	"gopkg.in/yaml.v3"
 )
 
@@ -83,8 +81,10 @@ type TrackingConfig struct {
 	ChecksumFile string `yaml:"checksum_file"`
 }
 
-// LoadFestivalConfig loads festival configuration from fest.yaml
-func LoadFestivalConfig(festivalPath string) (*FestivalConfig, error) {
+// LoadFestivalConfig loads festival configuration from fest.yaml.
+// When campaignRoot is non-empty, campaign-relative paths in the config
+// are resolved to absolute for in-memory usage.
+func LoadFestivalConfig(festivalPath, campaignRoot string) (*FestivalConfig, error) {
 	configPath := filepath.Join(festivalPath, FestivalConfigFileName)
 
 	// Check if file exists
@@ -109,7 +109,7 @@ func LoadFestivalConfig(festivalPath string) (*FestivalConfig, error) {
 	applyFestivalDefaults(&cfg)
 
 	// Resolve campaign-relative paths to absolute for in-memory usage
-	if campaignRoot, err := workspace.DetectCampaign(context.Background(), ""); err == nil {
+	if campaignRoot != "" {
 		if cfg.ProjectPath != "" {
 			cfg.ProjectPath = pathutil.ToAbsolutePath(cfg.ProjectPath, campaignRoot)
 		}
@@ -124,15 +124,15 @@ func LoadFestivalConfig(festivalPath string) (*FestivalConfig, error) {
 }
 
 // SaveFestivalConfig saves festival configuration to fest.yaml.
-// Paths are converted to campaign-relative before persistence.
-func SaveFestivalConfig(festivalPath string, cfg *FestivalConfig) error {
+// When campaignRoot is non-empty, paths are converted to campaign-relative before persistence.
+func SaveFestivalConfig(festivalPath, campaignRoot string, cfg *FestivalConfig) error {
 	configPath := filepath.Join(festivalPath, FestivalConfigFileName)
 
 	// Create a shallow copy to avoid mutating the in-memory struct
 	saveCopy := *cfg
 
 	// Convert paths to campaign-relative for persistence
-	if campaignRoot, err := workspace.DetectCampaign(context.Background(), ""); err == nil {
+	if campaignRoot != "" {
 		if saveCopy.ProjectPath != "" {
 			saveCopy.ProjectPath = pathutil.ToRelativePath(saveCopy.ProjectPath, campaignRoot)
 		}

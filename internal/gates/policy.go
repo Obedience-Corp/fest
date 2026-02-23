@@ -311,7 +311,7 @@ func GateTaskFromQualityGateTask(qt config.QualityGateTask) GateTask {
 // Returns the tasks (from all phase types), excluded patterns, and whether quality gates are enabled.
 // For backwards compatibility, falls back to Tasks field if phase-specific fields are empty.
 func LoadGatesFromFestConfig(festivalPath string) ([]GateTask, []string, bool, error) {
-	cfg, err := config.LoadFestivalConfig(festivalPath)
+	cfg, err := config.LoadFestivalConfig(festivalPath, "")
 	if err != nil {
 		return nil, nil, false, errors.Wrap(err, "loading festival config").
 			WithCode(errors.ErrCodeConfig).

@@ -271,7 +271,7 @@ func RunCreateTask(ctx context.Context, opts *CreateTaskOptions) error {
 				// Load config markers for Category B markers (lint_command, test_command, etc.)
 				var configMarkers map[string]string
 				if festivalPath != "" {
-					festCfg, cfgErr := config.LoadFestivalConfig(festivalPath)
+					festCfg, cfgErr := config.LoadFestivalConfig(festivalPath, "")
 					if cfgErr == nil && festCfg != nil {
 						configMarkers = extractConfigMarkers(festCfg)
 					}

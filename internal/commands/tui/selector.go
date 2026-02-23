@@ -162,9 +162,11 @@ func (s *FestivalSelector) loadFestivals(ctx context.Context) error {
 		statuses = allStatuses
 	}
 
+	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
+
 	s.festivals = nil
 	for _, status := range statuses {
-		festivals, err := show.ListFestivalsByStatus(ctx, s.festivalsDir, status)
+		festivals, err := show.ListFestivalsByStatus(ctx, s.festivalsDir, status, campaignRoot)
 		if err != nil {
 			continue // Skip inaccessible directories
 		}

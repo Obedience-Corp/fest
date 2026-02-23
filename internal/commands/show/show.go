@@ -139,11 +139,13 @@ func runShowDungeon(ctx context.Context, opts *showOptions) error {
 		return errors.NotFound("festivals directory")
 	}
 
+	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
+
 	allFestivals := make(map[string][]*FestivalInfo)
 	dungeonStatuses := []string{"dungeon/completed", "dungeon/archived", "dungeon/someday"}
 
 	for _, status := range dungeonStatuses {
-		festivals, err := ListFestivalsByStatus(ctx, festivalsDir, status)
+		festivals, err := ListFestivalsByStatus(ctx, festivalsDir, status, campaignRoot)
 		if err != nil {
 			continue
 		}
@@ -151,7 +153,7 @@ func runShowDungeon(ctx context.Context, opts *showOptions) error {
 	}
 
 	if opts.json {
-		return emitAllFestivalsJSON(allFestivals, dungeonStatuses)
+		return emitAllFestivalsJSON(allFestivals, dungeonStatuses, campaignRoot)
 	}
 	return emitAllFestivalsText(allFestivals, dungeonStatuses)
 }
@@ -174,6 +176,8 @@ func runShowCurrent(ctx context.Context, opts *showOptions) error {
 		return errors.IO("getting current directory", err)
 	}
 
+	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
+
 	// Try to resolve festival path using link resolution
 	// This handles: 1) explicit path, 2) linked project, 3) festival directory
 	festivalPath, resolveErr := shared.ResolveFestivalPath(cwd, "")
@@ -181,10 +185,10 @@ func runShowCurrent(ctx context.Context, opts *showOptions) error {
 	var festival *FestivalInfo
 	if resolveErr == nil && festivalPath != "" {
 		// Successfully resolved - use the resolved path
-		festival, err = DetectCurrentFestival(ctx, festivalPath)
+		festival, err = DetectCurrentFestival(ctx, festivalPath, campaignRoot)
 	} else {
 		// Fall back to direct detection from cwd
-		festival, err = DetectCurrentFestival(ctx, cwd)
+		festival, err = DetectCurrentFestival(ctx, cwd, campaignRoot)
 	}
 
 	if err != nil {
@@ -204,9 +208,9 @@ func runShowCurrent(ctx context.Context, opts *showOptions) error {
 	}
 
 	if opts.json {
-		return emitFestivalJSON(festival)
+		return emitFestivalJSON(festival, campaignRoot)
 	}
-	return emitFestivalText(festival, opts)
+	return emitFestivalText(festival, opts, campaignRoot)
 }
 
 func runShow(ctx context.Context, target string, opts *showOptions) error {
@@ -224,8 +228,10 @@ func runShow(ctx context.Context, target string, opts *showOptions) error {
 		return errors.NotFound("festivals directory")
 	}
 
+	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
+
 	// Try to find festival by name in any status directory
-	festival, err := FindFestivalByName(ctx, festivalsDir, target)
+	festival, err := FindFestivalByName(ctx, festivalsDir, target, campaignRoot)
 	if err != nil {
 		if opts.json {
 			return emitShowErrorJSON(fmt.Sprintf("festival '%s' not found", target))
@@ -234,9 +240,9 @@ func runShow(ctx context.Context, target string, opts *showOptions) error {
 	}
 
 	if opts.json {
-		return emitFestivalJSON(festival)
+		return emitFestivalJSON(festival, campaignRoot)
 	}
-	return emitFestivalText(festival, opts)
+	return emitFestivalText(festival, opts, campaignRoot)
 }
 
 func runShowStatus(ctx context.Context, status string, opts *showOptions) error {
@@ -253,13 +259,15 @@ func runShowStatus(ctx context.Context, status string, opts *showOptions) error 
 		return errors.NotFound("festivals directory")
 	}
 
-	festivals, err := ListFestivalsByStatus(ctx, festivalsDir, status)
+	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
+
+	festivals, err := ListFestivalsByStatus(ctx, festivalsDir, status, campaignRoot)
 	if err != nil {
 		return err
 	}
 
 	if opts.json {
-		return emitFestivalListJSON(status, festivals)
+		return emitFestivalListJSON(status, festivals, campaignRoot)
 	}
 	return emitFestivalListText(status, festivals)
 }
@@ -278,11 +286,13 @@ func runShowAll(ctx context.Context, opts *showOptions) error {
 		return errors.NotFound("festivals directory")
 	}
 
+	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
+
 	allFestivals := make(map[string][]*FestivalInfo)
 	statusOrder := id.StatusDirectories
 
 	for _, status := range statusOrder {
-		festivals, err := ListFestivalsByStatus(ctx, festivalsDir, status)
+		festivals, err := ListFestivalsByStatus(ctx, festivalsDir, status, campaignRoot)
 		if err != nil {
 			continue // Skip empty or inaccessible directories
 		}
@@ -290,7 +300,7 @@ func runShowAll(ctx context.Context, opts *showOptions) error {
 	}
 
 	if opts.json {
-		return emitAllFestivalsJSON(allFestivals, statusOrder)
+		return emitAllFestivalsJSON(allFestivals, statusOrder, campaignRoot)
 	}
 	return emitAllFestivalsText(allFestivals, statusOrder)
 }
@@ -314,15 +324,6 @@ func toDisplayFestivals(festivals []*FestivalInfo, campaignRoot string) []*Festi
 	return result
 }
 
-// getCampaignRoot returns the campaign root, or empty string if unavailable.
-func getCampaignRoot() string {
-	root, err := workspace.DetectCampaign(context.Background(), "")
-	if err != nil {
-		return ""
-	}
-	return root
-}
-
 func emitShowErrorJSON(message string) error {
 	result := map[string]interface{}{
 		"error": message,
@@ -333,10 +334,10 @@ func emitShowErrorJSON(message string) error {
 	return nil
 }
 
-func emitFestivalJSON(festival *FestivalInfo) error {
+func emitFestivalJSON(festival *FestivalInfo, campaignRoot string) error {
 	output := festival
-	if root := getCampaignRoot(); root != "" {
-		output = toDisplayFestival(festival, root)
+	if campaignRoot != "" {
+		output = toDisplayFestival(festival, campaignRoot)
 	}
 	if err := shared.EncodeJSON(os.Stdout, output); err != nil {
 		return errors.Wrap(err, "encoding JSON output")
@@ -344,12 +345,12 @@ func emitFestivalJSON(festival *FestivalInfo) error {
 	return nil
 }
 
-func emitFestivalText(festival *FestivalInfo, showOpts *showOptions) error {
+func emitFestivalText(festival *FestivalInfo, showOpts *showOptions, campaignRoot string) error {
 	verbose := shared.IsVerbose()
 
 	// Use tree view by default, summary view with --summary flag
 	if showOpts.summary {
-		fmt.Println(FormatFestivalDetails(festival, verbose))
+		fmt.Println(FormatFestivalDetails(festival, verbose, campaignRoot))
 		return nil
 	}
 
@@ -357,7 +358,7 @@ func emitFestivalText(festival *FestivalInfo, showOpts *showOptions) error {
 	tree, err := BuildFestivalTree(context.Background(), festival.Path)
 	if err != nil {
 		// Fall back to summary view on error
-		fmt.Println(FormatFestivalDetails(festival, verbose))
+		fmt.Println(FormatFestivalDetails(festival, verbose, campaignRoot))
 		return nil
 	}
 
@@ -369,10 +370,10 @@ func emitFestivalText(festival *FestivalInfo, showOpts *showOptions) error {
 	return nil
 }
 
-func emitFestivalListJSON(status string, festivals []*FestivalInfo) error {
+func emitFestivalListJSON(status string, festivals []*FestivalInfo, campaignRoot string) error {
 	output := festivals
-	if root := getCampaignRoot(); root != "" {
-		output = toDisplayFestivals(festivals, root)
+	if campaignRoot != "" {
+		output = toDisplayFestivals(festivals, campaignRoot)
 	}
 	result := map[string]interface{}{
 		"status":    status,
@@ -390,15 +391,14 @@ func emitFestivalListText(status string, festivals []*FestivalInfo) error {
 	return nil
 }
 
-func emitAllFestivalsJSON(allFestivals map[string][]*FestivalInfo, statusOrder []string) error {
-	root := getCampaignRoot()
+func emitAllFestivalsJSON(allFestivals map[string][]*FestivalInfo, statusOrder []string, campaignRoot string) error {
 	result := make(map[string]interface{})
 	total := 0
 	for _, status := range statusOrder {
 		festivals := allFestivals[status]
 		output := festivals
-		if root != "" {
-			output = toDisplayFestivals(festivals, root)
+		if campaignRoot != "" {
+			output = toDisplayFestivals(festivals, campaignRoot)
 		}
 		result[status] = map[string]interface{}{
 			"count":     len(festivals),

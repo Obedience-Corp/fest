@@ -112,17 +112,19 @@ func runList(ctx context.Context, filterStatus string, opts *listOptions) error 
 			WithField("hint", "run from a project with a festivals/ directory or use 'fest init --register'")
 	}
 
+	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
+
 	if filterStatus != "" {
 		// "dungeon" without substatus: list all dungeon children
 		if filterStatus == "dungeon" {
-			return listDungeon(ctx, festivalsDir, opts)
+			return listDungeon(ctx, festivalsDir, opts, campaignRoot)
 		}
 		// List single status
-		return listByStatus(ctx, festivalsDir, filterStatus, opts)
+		return listByStatus(ctx, festivalsDir, filterStatus, opts, campaignRoot)
 	}
 
 	// List all statuses
-	return listAll(ctx, festivalsDir, opts)
+	return listAll(ctx, festivalsDir, opts, campaignRoot)
 }
 
 // validSortValues defines the accepted sort field names.
@@ -203,7 +205,7 @@ func applySorting(festivals []*show.FestivalInfo, sortBy string, alpha bool) {
 // dungeonSubstatuses defines the valid dungeon child statuses.
 var dungeonSubstatuses = []string{"dungeon/completed", "dungeon/archived", "dungeon/someday"}
 
-func listDungeon(ctx context.Context, festivalsDir string, opts *listOptions) error {
+func listDungeon(ctx context.Context, festivalsDir string, opts *listOptions, campaignRoot string) error {
 	result := make(map[string]interface{})
 	var totalCount int
 	allFestivals := make(map[string][]*show.FestivalInfo)
@@ -211,7 +213,7 @@ func listDungeon(ctx context.Context, festivalsDir string, opts *listOptions) er
 
 	order := make([]string, 0, len(dungeonSubstatuses))
 	for _, status := range dungeonSubstatuses {
-		festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status)
+		festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status, campaignRoot)
 		if err != nil {
 			continue
 		}
@@ -250,8 +252,8 @@ func listDungeon(ctx context.Context, festivalsDir string, opts *listOptions) er
 	return nil
 }
 
-func listByStatus(ctx context.Context, festivalsDir, status string, opts *listOptions) error {
-	festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status)
+func listByStatus(ctx context.Context, festivalsDir, status string, opts *listOptions, campaignRoot string) error {
+	festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status, campaignRoot)
 	if err != nil {
 		return err
 	}
@@ -281,7 +283,7 @@ func listByStatus(ctx context.Context, festivalsDir, status string, opts *listOp
 	return nil
 }
 
-func listAll(ctx context.Context, festivalsDir string, opts *listOptions) error {
+func listAll(ctx context.Context, festivalsDir string, opts *listOptions, campaignRoot string) error {
 	result := make(map[string]interface{})
 	var totalCount int
 	allFestivals := make(map[string][]*show.FestivalInfo)
@@ -296,7 +298,7 @@ func listAll(ctx context.Context, festivalsDir string, opts *listOptions) error 
 	var allFestivalsList []*show.FestivalInfo
 
 	for _, status := range statuses {
-		festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status)
+		festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status, campaignRoot)
 		if err != nil {
 			continue
 		}

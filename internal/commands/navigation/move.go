@@ -222,7 +222,7 @@ func detectLocation(ctx context.Context, cwd string) (*LocationInfo, error) {
 
 		// Get project path from fest.yaml
 		festivalPath := loc.Festival.Path
-		cfg, err := config.LoadFestivalConfig(festivalPath)
+		cfg, err := config.LoadFestivalConfig(festivalPath, "")
 		if err != nil {
 			return nil, errors.Wrap(err, "loading festival config")
 		}

@@ -75,13 +75,15 @@ func outputExploreJSON(ctx context.Context, status string) error {
 	parser := festival.NewParser()
 	var allFestivals []FestivalJSON
 
+	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
+
 	for _, s := range statuses {
-		festivals, loadErr := show.ListFestivalsByStatus(ctx, festivalsDir, s)
+		festivals, loadErr := show.ListFestivalsByStatus(ctx, festivalsDir, s, campaignRoot)
 		if loadErr != nil {
 			continue
 		}
 		for _, f := range festivals {
-			fj := festivalToJSON(ctx, parser, f)
+			fj := festivalToJSON(ctx, parser, f, campaignRoot)
 			allFestivals = append(allFestivals, fj)
 		}
 	}
@@ -100,14 +102,12 @@ func outputExploreJSON(ctx context.Context, status string) error {
 	return nil
 }
 
-func festivalToJSON(ctx context.Context, parser *festival.Parser, f *show.FestivalInfo) FestivalJSON {
+func festivalToJSON(ctx context.Context, parser *festival.Parser, f *show.FestivalInfo, campaignRoot string) FestivalJSON {
 	var progress float64
 	if f.Stats != nil {
 		progress = f.Stats.Progress
 	}
 
-	// Get campaign root once for all path conversions
-	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
 	displayPath := func(p string) string {
 		if campaignRoot != "" {
 			return pathutil.DisplayPath(p, campaignRoot)
@@ -172,7 +172,8 @@ func outputFestivalJSON(ctx context.Context, festivalPath string) error {
 		Path: festivalPath,
 	}
 
-	fj := festivalToJSON(ctx, parser, info)
+	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
+	fj := festivalToJSON(ctx, parser, info, campaignRoot)
 
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")

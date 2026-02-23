@@ -70,6 +70,7 @@ type createFestivalResult struct {
 type createConfig struct {
 	opts             *CreateFestivalOptions
 	display          *ui.UI
+	campaignRoot     string
 	festivalsRoot    string
 	tmplRoot         string
 	slug             string
@@ -142,6 +143,8 @@ func resolveCreateConfig(ctx context.Context, opts *CreateFestivalOptions) (*cre
 			WithHint("Check the path and try again, or run from a different directory")
 	}
 
+	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
+
 	agentCfg := LoadEffectiveAgentConfig(festivalsRoot, "")
 	skipMarkers := config.EffectiveSkipMarkers(agentCfg, opts.AgentMode, opts.SkipMarkers)
 	tmplRoot := filepath.Join(festivalsRoot, ".festival", "templates")
@@ -203,6 +206,7 @@ func resolveCreateConfig(ctx context.Context, opts *CreateFestivalOptions) (*cre
 	return &createConfig{
 		opts:             opts,
 		display:          display,
+		campaignRoot:     campaignRoot,
 		festivalsRoot:    festivalsRoot,
 		tmplRoot:         tmplRoot,
 		slug:             slug,
@@ -489,7 +493,7 @@ func writeFestYaml(ctx context.Context, cfg *createConfig) (*createResult, error
 	}
 
 	res.festConfigPath = filepath.Join(cfg.destDir, config.FestivalConfigFileName)
-	if err := config.SaveFestivalConfig(cfg.destDir, festConfig); err != nil {
+	if err := config.SaveFestivalConfig(cfg.destDir, cfg.campaignRoot, festConfig); err != nil {
 		return nil, errors.Wrap(err, "writing fest.yaml").WithField("path", res.festConfigPath)
 	}
 
@@ -596,7 +600,7 @@ func recordInitialSize(ctx context.Context, cfg *createConfig, festConfig *confi
 	initialSize, sizeErr := progress.ComputeDirectorySize(ctx, cfg.destDir)
 	if sizeErr == nil && initialSize > 0 {
 		festConfig.Metadata.InitialSizeBytes = initialSize
-		_ = config.SaveFestivalConfig(cfg.destDir, festConfig)
+		_ = config.SaveFestivalConfig(cfg.destDir, cfg.campaignRoot, festConfig)
 	}
 }
 
@@ -676,7 +680,7 @@ func emitCreateOutput(cfg *createConfig, res *createResult) error {
 	}
 
 	// Get campaign root for relative path display
-	campaignRoot, _ := workspace.DetectCampaign(context.Background(), "")
+	campaignRoot := cfg.campaignRoot
 	displayPath := func(p string) string {
 		if campaignRoot != "" {
 			return pathutil.DisplayPath(p, campaignRoot)
@@ -736,7 +740,7 @@ func emitCreateOutput(cfg *createConfig, res *createResult) error {
 // emitCreateJSON emits JSON output for festival creation.
 func emitCreateJSON(cfg *createConfig, res *createResult, gatesDir string, remainingMarkers int) error {
 	// Get campaign root for relative path display
-	campaignRoot, _ := workspace.DetectCampaign(context.Background(), "")
+	campaignRoot := cfg.campaignRoot
 	displayPath := func(p string) string {
 		if campaignRoot != "" {
 			return pathutil.DisplayPath(p, campaignRoot)

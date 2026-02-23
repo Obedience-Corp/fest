@@ -12,9 +12,10 @@ import (
 )
 
 // ToRelativePath converts an absolute path to campaign-relative if possible.
-// Returns the original path if it's outside the campaign or already relative.
+// Returns the original path if it's outside the campaign, already relative,
+// or if campaignRoot is empty.
 func ToRelativePath(absPath, campaignRoot string) string {
-	if !filepath.IsAbs(absPath) {
+	if campaignRoot == "" || !filepath.IsAbs(absPath) {
 		return absPath
 	}
 	rel, err := filepath.Rel(campaignRoot, absPath)
@@ -25,9 +26,9 @@ func ToRelativePath(absPath, campaignRoot string) string {
 }
 
 // ToAbsolutePath converts a campaign-relative path to absolute.
-// Returns the original path if it's already absolute.
+// Returns the original path if it's already absolute or if campaignRoot is empty.
 func ToAbsolutePath(path, campaignRoot string) string {
-	if filepath.IsAbs(path) {
+	if campaignRoot == "" || filepath.IsAbs(path) {
 		return path
 	}
 	return filepath.Join(campaignRoot, path)

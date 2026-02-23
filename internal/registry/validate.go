@@ -173,7 +173,7 @@ func addFestivalToRegistry(ctx context.Context, reg *Registry, festivalPath stri
 
 	// Try to load fest.yaml for additional metadata
 	name := dirName
-	festConfig, configErr := config.LoadFestivalConfig(festivalPath)
+	festConfig, configErr := config.LoadFestivalConfig(festivalPath, "")
 	if configErr == nil && festConfig.Metadata.Name != "" {
 		name = festConfig.Metadata.Name
 	}

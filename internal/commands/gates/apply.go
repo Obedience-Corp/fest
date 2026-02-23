@@ -112,7 +112,7 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 	}
 
 	// Load festival config for gate configuration
-	festCfg, err := config.LoadFestivalConfig(festivalPath)
+	festCfg, err := config.LoadFestivalConfig(festivalPath, "")
 	if err != nil {
 		return emitApplyError(opts, errors.Wrap(err, "loading festival config").WithOp("runGatesApply"))
 	}

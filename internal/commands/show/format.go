@@ -1,7 +1,6 @@
 package show
 
 import (
-	"context"
 	"fmt"
 	"math"
 	"strings"
@@ -9,7 +8,6 @@ import (
 	"github.com/Obedience-Corp/fest/internal/pathutil"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/ui"
-	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 // FormatNodeReference creates a node reference string from festival ID and location.
@@ -23,7 +21,7 @@ func FormatNodeReference(festivalID string, phase, sequence, task int) string {
 }
 
 // FormatFestivalDetails formats a single festival with full details.
-func FormatFestivalDetails(festival *FestivalInfo, verbose bool) string {
+func FormatFestivalDetails(festival *FestivalInfo, verbose bool, campaignRoot string) string {
 	var sb strings.Builder
 
 	// Header
@@ -43,7 +41,7 @@ func FormatFestivalDetails(festival *FestivalInfo, verbose bool) string {
 	// Display campaign-relative paths
 	displayFestPath := festival.Path
 	displayProjectPath := festival.ProjectPath
-	if campaignRoot, err := workspace.DetectCampaign(context.Background(), ""); err == nil {
+	if campaignRoot != "" {
 		displayFestPath = pathutil.DisplayPath(festival.Path, campaignRoot)
 		displayProjectPath = pathutil.DisplayPath(festival.ProjectPath, campaignRoot)
 	}

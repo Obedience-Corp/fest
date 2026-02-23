@@ -41,7 +41,7 @@ func TestLoadFestivalConfig_Default(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Load from non-existent file should return defaults
-	cfg, err := LoadFestivalConfig(tmpDir)
+	cfg, err := LoadFestivalConfig(tmpDir, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -72,7 +72,7 @@ excluded_patterns:
 		t.Fatalf("failed to write test config: %v", err)
 	}
 
-	cfg, err := LoadFestivalConfig(tmpDir)
+	cfg, err := LoadFestivalConfig(tmpDir, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -111,7 +111,7 @@ func TestSaveFestivalConfig(t *testing.T) {
 		},
 	}
 
-	if err := SaveFestivalConfig(tmpDir, cfg); err != nil {
+	if err := SaveFestivalConfig(tmpDir, "", cfg); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -122,7 +122,7 @@ func TestSaveFestivalConfig(t *testing.T) {
 	}
 
 	// Load and verify
-	loaded, err := LoadFestivalConfig(tmpDir)
+	loaded, err := LoadFestivalConfig(tmpDir, "")
 	if err != nil {
 		t.Fatalf("failed to load saved config: %v", err)
 	}
@@ -275,7 +275,7 @@ func TestFestivalConfigWithTypeConfig(t *testing.T) {
 		Tracking:     TrackingConfig{Enabled: true, ChecksumFile: ".festival-checksums.json"},
 	}
 
-	if err := SaveFestivalConfig(tmpDir, cfg); err != nil {
+	if err := SaveFestivalConfig(tmpDir, "", cfg); err != nil {
 		t.Fatalf("save failed: %v", err)
 	}
 
@@ -292,7 +292,7 @@ func TestFestivalConfigWithTypeConfig(t *testing.T) {
 	}
 
 	// Read back and verify round-trip
-	restored, err := LoadFestivalConfig(tmpDir)
+	restored, err := LoadFestivalConfig(tmpDir, "")
 	if err != nil {
 		t.Fatalf("load failed: %v", err)
 	}
@@ -336,7 +336,7 @@ tracking:
 		t.Fatalf("write old-style fest.yaml: %v", err)
 	}
 
-	cfg, err := LoadFestivalConfig(tmpDir)
+	cfg, err := LoadFestivalConfig(tmpDir, "")
 	if err != nil {
 		t.Fatalf("load failed: %v", err)
 	}
@@ -361,7 +361,7 @@ quality_gates:
 		t.Fatalf("write minimal fest.yaml: %v", err)
 	}
 
-	cfg, err := LoadFestivalConfig(tmpDir)
+	cfg, err := LoadFestivalConfig(tmpDir, "")
 	if err != nil {
 		t.Fatalf("load failed: %v", err)
 	}
@@ -575,5 +575,94 @@ func TestSkipIngestionField(t *testing.T) {
 
 	if !restored.SkipIngestion {
 		t.Error("expected SkipIngestion to be true")
+	}
+}
+
+func TestConfigPathRoundTrip(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Simulate campaign root
+	campaignRoot := tmpDir
+	festivalDir := filepath.Join(tmpDir, "festivals", "active", "my-fest")
+	if err := os.MkdirAll(festivalDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	projectPath := filepath.Join(tmpDir, "projects", "my-project")
+	statusPath := filepath.Join(tmpDir, "festivals", "active", "my-fest")
+
+	cfg := &FestivalConfig{
+		Version:     "1.0",
+		ProjectPath: projectPath,
+		Metadata: FestivalMetadata{
+			StatusHistory: []StatusChange{
+				{Status: "active", Path: statusPath},
+			},
+		},
+		QualityGates: QualityGatesConfig{Enabled: true},
+		Templates:    TemplatePrefs{TaskDefault: "tasks/SIMPLE", PreferSimple: true},
+		Tracking:     TrackingConfig{Enabled: true, ChecksumFile: ".festival-checksums.json"},
+	}
+
+	// Save (converts to relative)
+	if err := SaveFestivalConfig(festivalDir, campaignRoot, cfg); err != nil {
+		t.Fatalf("save failed: %v", err)
+	}
+
+	// Verify YAML contains relative paths
+	data, err := os.ReadFile(filepath.Join(festivalDir, FestivalConfigFileName))
+	if err != nil {
+		t.Fatalf("read YAML failed: %v", err)
+	}
+	yamlContent := string(data)
+	if strings.Contains(yamlContent, tmpDir) {
+		t.Errorf("YAML should contain relative paths, but found absolute root %s in:\n%s", tmpDir, yamlContent)
+	}
+	if !strings.Contains(yamlContent, "projects/my-project") {
+		t.Error("YAML should contain relative project path 'projects/my-project'")
+	}
+
+	// Load (converts back to absolute)
+	loaded, err := LoadFestivalConfig(festivalDir, campaignRoot)
+	if err != nil {
+		t.Fatalf("load failed: %v", err)
+	}
+
+	if loaded.ProjectPath != projectPath {
+		t.Errorf("ProjectPath round-trip failed: got %q, want %q", loaded.ProjectPath, projectPath)
+	}
+	if len(loaded.Metadata.StatusHistory) == 0 {
+		t.Fatal("StatusHistory is empty after round-trip")
+	}
+	if loaded.Metadata.StatusHistory[0].Path != statusPath {
+		t.Errorf("StatusHistory[0].Path round-trip failed: got %q, want %q",
+			loaded.Metadata.StatusHistory[0].Path, statusPath)
+	}
+}
+
+func TestConfigPathRoundTrip_NoCampaign(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cfg := &FestivalConfig{
+		Version:     "1.0",
+		ProjectPath: "/some/absolute/project",
+		QualityGates: QualityGatesConfig{Enabled: true},
+		Templates:    TemplatePrefs{TaskDefault: "tasks/SIMPLE", PreferSimple: true},
+		Tracking:     TrackingConfig{Enabled: true, ChecksumFile: ".festival-checksums.json"},
+	}
+
+	// Save with empty campaign root -- paths stored as-is
+	if err := SaveFestivalConfig(tmpDir, "", cfg); err != nil {
+		t.Fatalf("save failed: %v", err)
+	}
+
+	// Load with empty campaign root -- paths returned as-is
+	loaded, err := LoadFestivalConfig(tmpDir, "")
+	if err != nil {
+		t.Fatalf("load failed: %v", err)
+	}
+
+	if loaded.ProjectPath != "/some/absolute/project" {
+		t.Errorf("ProjectPath should remain absolute without campaign root: got %q", loaded.ProjectPath)
 	}
 }
