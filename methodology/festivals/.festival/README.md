@@ -66,10 +66,10 @@ Every phase has a **type** that determines its structural conventions. There are
 |-----------|---------|-----------|
 | **planning** | Design, architecture, requirements | Uses `inputs/`, workflow files (WORKFLOW.md). No numbered sequences. |
 | **implementation** | Writing code, building features | Numbered sequences with task files. Quality gates auto-appended. |
-| **research** | Investigation, exploration, auditing | Numbered sequences with investigation tasks. Less formal. |
-| **review** | Code review, testing, validation | Sequences with review/verification tasks. |
-| **ingest** | Absorbing external content | Sequences with ingestion task files. |
-| **non_coding_action** | Documentation, process changes | Sequences with action task files. |
+| **research** | Investigation, exploration, auditing | WORKFLOW.md with `sources/`, `findings/`. No numbered sequences. |
+| **review** | Code review, testing, validation | Freeform. PHASE_GOAL.md with review criteria. |
+| **ingest** | Absorbing external content | WORKFLOW.md with `input_specs/`, `output_specs/`. No numbered sequences. |
+| **non_coding_action** | Documentation, process changes | Freeform. PHASE_GOAL.md with action items. |
 
 ```bash
 fest create phase --name "001_RESEARCH" --type research
