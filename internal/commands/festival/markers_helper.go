@@ -23,7 +23,7 @@ type MarkerOptions struct {
 
 // MarkerResult holds the result of marker processing for JSON output.
 type MarkerResult struct {
-	Markers       []map[string]interface{} `json:"markers,omitempty"`
+	Markers       []map[string]any `json:"markers,omitempty"`
 	Filled        int                      `json:"filled,omitempty"`
 	Total         int                      `json:"total,omitempty"`
 	UnfilledHints []string                 `json:"unfilled_hints,omitempty"`
@@ -111,7 +111,7 @@ func PrintDryRunMarkers(result *MarkerResult, jsonOutput bool) error {
 	if jsonOutput {
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
-		return enc.Encode(map[string]interface{}{
+		return enc.Encode(map[string]any{
 			"ok":      true,
 			"action":  "dry_run",
 			"markers": result.Markers,

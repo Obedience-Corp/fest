@@ -40,10 +40,10 @@ type CreatePhaseOptions struct {
 type createPhaseResult struct {
 	OK            bool                     `json:"ok"`
 	Action        string                   `json:"action"`
-	Phase         map[string]interface{}   `json:"phase,omitempty"`
+	Phase         map[string]any   `json:"phase,omitempty"`
 	Created       []string                 `json:"created,omitempty"`
 	Renumber      []string                 `json:"renumbered,omitempty"`
-	Markers       []map[string]interface{} `json:"markers,omitempty"`
+	Markers       []map[string]any `json:"markers,omitempty"`
 	MarkersFilled int                      `json:"markers_filled,omitempty"`
 	MarkersTotal  int                      `json:"markers_total,omitempty"`
 	Validation    *ValidationSummary       `json:"validation,omitempty"`
@@ -115,7 +115,7 @@ type phaseConfig struct {
 	newNumber            int
 	phaseID              string
 	phaseDir             string
-	vars                 map[string]interface{}
+	vars                 map[string]any
 	tmplCtx              *tpl.Context
 	configMarkers        map[string]string
 }
@@ -203,7 +203,7 @@ func resolvePhaseConfig(ctx context.Context, opts *CreatePhaseOptions) (*phaseCo
 		return nil, err
 	}
 
-	vars := map[string]interface{}{}
+	vars := map[string]any{}
 	if strings.TrimSpace(opts.VarsFile) != "" {
 		v, err := loadVarsFile(opts.VarsFile)
 		if err != nil {
@@ -263,7 +263,7 @@ func detectAndInsertPhase(ctx context.Context, absPath string, opts *CreatePhase
 }
 
 // buildPhaseTemplateContext constructs the template context for phase creation.
-func buildPhaseTemplateContext(absPath, festivalPath string, opts *CreatePhaseOptions, newNumber int, vars map[string]interface{}) *tpl.Context {
+func buildPhaseTemplateContext(absPath, festivalPath string, opts *CreatePhaseOptions, newNumber int, vars map[string]any) *tpl.Context {
 	tmplCtx, ctxErr := tpl.BuildContextFromPath(absPath, festivalPath)
 	if ctxErr != nil {
 		tmplCtx = tpl.NewContext()
@@ -520,7 +520,7 @@ func emitPhaseJSON(cfg *phaseConfig, res *phaseResult, remainingMarkers int) err
 	return emitCreatePhaseJSON(cfg.opts, createPhaseResult{
 		OK:     true,
 		Action: "create_phase",
-		Phase: map[string]interface{}{
+		Phase: map[string]any{
 			"number": cfg.newNumber,
 			"id":     cfg.phaseID,
 			"name":   cfg.opts.Name,

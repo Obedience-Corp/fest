@@ -151,7 +151,7 @@ func TestNextBlocksOnUnfilledMarkers(t *testing.T) {
 	ctx := context.Background()
 	result, err := validator.FullValidate(ctx, festDir)
 	if err != nil {
-		t.Fatalf("QuickValidate error: %v", err)
+		t.Fatalf("FullValidate error: %v", err)
 	}
 
 	// hasBlockingIssues should detect the unfilled markers
