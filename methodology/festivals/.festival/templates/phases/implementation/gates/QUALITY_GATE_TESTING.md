@@ -60,9 +60,9 @@ Verify all functionality implemented in this sequence works correctly through co
 
 Walk through each requirement from the sequence:
 
-1. [ ] **Requirement 1**: [Describe manual test steps and expected result]
-2. [ ] **Requirement 2**: [Describe manual test steps and expected result]
-3. [ ] **Requirement 3**: [Describe manual test steps and expected result]
+1. [ ] **Requirement 1**: [FILL: Describe manual test steps and expected result]
+2. [ ] **Requirement 2**: [FILL: Describe manual test steps and expected result]
+3. [ ] **Requirement 3**: [FILL: Describe manual test steps and expected result]
 
 ## Coverage Requirements
 

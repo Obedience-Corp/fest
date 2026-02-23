@@ -32,15 +32,15 @@ Address all findings from code review and testing, iterate until the sequence me
 
 | Finding | Priority | Status | Notes |
 |---------|----------|--------|-------|
-| [Finding 1] | [High/Medium/Low] | [ ] Fixed | |
-| [Finding 2] | [High/Medium/Low] | [ ] Fixed | |
+| [FILL: Finding description] | [FILL: High/Medium/Low] | [ ] Fixed | |
+| [FILL: Finding description] | [FILL: High/Medium/Low] | [ ] Fixed | |
 
 ### From Code Review
 
 | Finding | Priority | Status | Notes |
 |---------|----------|--------|-------|
-| [Finding 1] | [High/Medium/Low] | [ ] Fixed | |
-| [Finding 2] | [High/Medium/Low] | [ ] Fixed | |
+| [FILL: Finding description] | [FILL: High/Medium/Low] | [ ] Fixed | |
+| [FILL: Finding description] | [FILL: High/Medium/Low] | [ ] Fixed | |
 
 ## Iteration Process
 
@@ -48,8 +48,8 @@ Address all findings from code review and testing, iterate until the sequence me
 
 **Changes Made:**
 
-- [ ] [Change 1 description]
-- [ ] [Change 2 description]
+- [ ] [FILL: Change description]
+- [ ] [FILL: Change description]
 
 **Verification:**
 
@@ -61,7 +61,7 @@ Address all findings from code review and testing, iterate until the sequence me
 
 **Changes Made:**
 
-- [ ] [Change 1 description]
+- [ ] [FILL: Change description]
 
 **Verification:**
 
@@ -85,15 +85,15 @@ Document patterns or issues to avoid in future sequences:
 
 ### What Went Well
 
-- [Positive observation]
+- [FILL: Positive observation]
 
 ### What Could Improve
 
-- [Area for improvement]
+- [FILL: Area for improvement]
 
 ### Process Improvements
 
-- [Suggestion for future work]
+- [FILL: Suggestion for future work]
 
 ## Definition of Done
 
@@ -115,9 +115,9 @@ Document patterns or issues to avoid in future sequences:
 - Quality: [ ] Meets Standards
 
 **Notes:**
-[Any final notes or observations about this sequence]
+[FILL: Any final notes or observations about this sequence]
 
 ---
 
 **Next Steps:**
-[Identify what follows - next sequence, phase completion, etc.]
+[FILL: Identify what follows - next sequence, phase completion, etc.]
