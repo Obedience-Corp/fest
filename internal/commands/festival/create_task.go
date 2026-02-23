@@ -36,10 +36,10 @@ type CreateTaskOptions struct {
 type createTaskResult struct {
 	OK              bool                     `json:"ok"`
 	Action          string                   `json:"action"`
-	Task            map[string]interface{}   `json:"task,omitempty"`
+	Task            map[string]any   `json:"task,omitempty"`
 	Created         []string                 `json:"created,omitempty"`
 	Renumber        []string                 `json:"renumbered,omitempty"`
-	Markers         []map[string]interface{} `json:"markers,omitempty"`
+	Markers         []map[string]any `json:"markers,omitempty"`
 	MarkersFilled   int                      `json:"markers_filled,omitempty"`
 	MarkersTotal    int                      `json:"markers_total,omitempty"`
 	MarkersUnfilled int                      `json:"markers_unfilled,omitempty"`
@@ -168,7 +168,7 @@ func RunCreateTask(ctx context.Context, opts *CreateTaskOptions) error {
 	}
 
 	// Load vars once for all tasks
-	vars := map[string]interface{}{}
+	vars := map[string]any{}
 	if strings.TrimSpace(opts.VarsFile) != "" {
 		v, err := loadVarsFile(opts.VarsFile)
 		if err != nil {
@@ -183,7 +183,7 @@ func RunCreateTask(ctx context.Context, opts *CreateTaskOptions) error {
 	loader := tpl.NewLoader()
 
 	// Track all created tasks for output
-	var createdTasks []map[string]interface{}
+	var createdTasks []map[string]any
 	var createdPaths []string
 	var totalMarkersFilled, totalMarkersCount int
 	currentAfter := opts.After
@@ -315,7 +315,7 @@ func RunCreateTask(ctx context.Context, opts *CreateTaskOptions) error {
 		}
 
 		// Track created task
-		createdTasks = append(createdTasks, map[string]interface{}{
+		createdTasks = append(createdTasks, map[string]any{
 			"number": newNumber,
 			"id":     taskID,
 			"name":   name,

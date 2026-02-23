@@ -56,13 +56,13 @@ type createFestivalResult struct {
 	GateTemplates     []string                 `json:"gate_templates,omitempty"`
 	ProjectPath       string                   `json:"project_path,omitempty"`
 	ProjectLinked     bool                     `json:"project_linked,omitempty"`
-	Markers           []map[string]interface{} `json:"markers,omitempty"`
+	Markers           []map[string]any `json:"markers,omitempty"`
 	MarkersFilled     int                      `json:"markers_filled,omitempty"`
 	MarkersTotal      int                      `json:"markers_total,omitempty"`
 	Validation        *ValidationSummary       `json:"validation,omitempty"`
 	Errors            []map[string]any         `json:"errors,omitempty"`
 	Warnings          []string                 `json:"warnings,omitempty"`
-	Extra             map[string]interface{}   `json:"extra,omitempty"`
+	Extra             map[string]any   `json:"extra,omitempty"`
 }
 
 // createConfig holds all resolved configuration for festival creation.
@@ -78,7 +78,7 @@ type createConfig struct {
 	destCategory     string
 	dirName          string
 	destDir          string
-	vars             map[string]interface{}
+	vars             map[string]any
 	agentCfg         *config.AgentConfig
 	skipMarkers      bool
 	tmplCtx          *tpl.Context
@@ -149,7 +149,7 @@ func resolveCreateConfig(ctx context.Context, opts *CreateFestivalOptions) (*cre
 	skipMarkers := config.EffectiveSkipMarkers(agentCfg, opts.AgentMode, opts.SkipMarkers)
 	tmplRoot := filepath.Join(festivalsRoot, ".festival", "templates")
 
-	vars := map[string]interface{}{}
+	vars := map[string]any{}
 	if strings.TrimSpace(opts.VarsFile) != "" {
 		v, err := loadVarsFile(opts.VarsFile)
 		if err != nil {
@@ -234,7 +234,7 @@ type createResult struct {
 	projectLinked     bool
 	markersFilled     int
 	markersTotal      int
-	allMarkers        []map[string]interface{}
+	allMarkers        []map[string]any
 	validationResult  *ValidationSummary
 }
 

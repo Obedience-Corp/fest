@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"strings"
+
 	"github.com/Obedience-Corp/fest/internal/festival"
 )
 
@@ -70,6 +72,18 @@ func (v *CompletenessValidator) Validate(ctx context.Context, path string) ([]Is
 
 		// Check sequences
 		sequences, _ := parser.ParseSequences(ctx, phase.Path)
+
+		// Implementation phases require at least one sequence
+		if isImplementationPhase(phase.Name) && len(sequences) == 0 {
+			issues = append(issues, Issue{
+				Level:   LevelError,
+				Code:    CodeMissingSequence,
+				Path:    phase.Path,
+				Message: fmt.Sprintf("Implementation phase %s requires at least one sequence directory", phase.FullName),
+				Fix:     fmt.Sprintf("fest create sequence --name \"implementation\" --path %s", phase.Path),
+			})
+		}
+
 		for _, seq := range sequences {
 			seqGoalPath := filepath.Join(seq.Path, "SEQUENCE_GOAL.md")
 			if !fileExists(seqGoalPath) {
@@ -95,4 +109,18 @@ func ValidateCompleteness(ctx context.Context, path string) ([]Issue, error) {
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
 	return err == nil && !info.IsDir()
+}
+
+// isImplementationPhase returns true if a phase name indicates an implementation-type phase
+// that requires numbered sequences and task files. Workflow phases (planning, research, ingest)
+// and freeform phases (review, non_coding_action) are excluded.
+func isImplementationPhase(phaseName string) bool {
+	normalized := strings.ToUpper(phaseName)
+	nonImpl := []string{"RESEARCH", "PLANNING", "PLAN", "DESIGN", "INGEST", "REVIEW", "NON_CODING"}
+	for _, skip := range nonImpl {
+		if strings.Contains(normalized, skip) {
+			return false
+		}
+	}
+	return true
 }

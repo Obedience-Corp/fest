@@ -33,7 +33,7 @@ type applyResult struct {
 	Mode        string                 `json:"mode,omitempty"`
 	Errors      []map[string]any       `json:"errors,omitempty"`
 	Warnings    []string               `json:"warnings,omitempty"`
-	Extra       map[string]interface{} `json:"extra,omitempty"`
+	Extra       map[string]any `json:"extra,omitempty"`
 }
 
 // NewApplyCommand creates the 'apply' command (copy-first single template)
@@ -75,7 +75,7 @@ func RunApply(ctx context.Context, opts *ApplyOptions) error {
 	}
 
 	// Load vars if provided
-	var vars map[string]interface{}
+	var vars map[string]any
 	if strings.TrimSpace(opts.VarsFile) != "" {
 		v, err := loadVarsFile(opts.VarsFile)
 		if err != nil {
@@ -83,7 +83,7 @@ func RunApply(ctx context.Context, opts *ApplyOptions) error {
 		}
 		vars = v
 	} else {
-		vars = map[string]interface{}{}
+		vars = map[string]any{}
 	}
 
 	// Locate template path
@@ -208,12 +208,12 @@ func emitApplyJSON(opts *ApplyOptions, res applyResult) error {
 }
 
 // loadVarsFile reads a JSON file and returns a map
-func loadVarsFile(path string) (map[string]interface{}, error) {
+func loadVarsFile(path string) (map[string]any, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	var m map[string]interface{}
+	var m map[string]any
 	if err := json.Unmarshal(b, &m); err != nil {
 		return nil, err
 	}

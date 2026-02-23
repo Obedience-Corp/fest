@@ -38,10 +38,10 @@ type CreateSequenceOptions struct {
 type createSequenceResult struct {
 	OK            bool                     `json:"ok"`
 	Action        string                   `json:"action"`
-	Sequence      map[string]interface{}   `json:"sequence,omitempty"`
+	Sequence      map[string]any   `json:"sequence,omitempty"`
 	Created       []string                 `json:"created,omitempty"`
 	Renumber      []string                 `json:"renumbered,omitempty"`
-	Markers       []map[string]interface{} `json:"markers,omitempty"`
+	Markers       []map[string]any `json:"markers,omitempty"`
 	MarkersFilled int                      `json:"markers_filled,omitempty"`
 	MarkersTotal  int                      `json:"markers_total,omitempty"`
 	Validation    *ValidationSummary       `json:"validation,omitempty"`
@@ -188,7 +188,7 @@ func RunCreateSequence(ctx context.Context, opts *CreateSequenceOptions) error {
 	seqDir := filepath.Join(absPath, seqID)
 
 	// Load vars
-	vars := map[string]interface{}{}
+	vars := map[string]any{}
 	if strings.TrimSpace(opts.VarsFile) != "" {
 		v, err := loadVarsFile(opts.VarsFile)
 		if err != nil {
@@ -359,7 +359,7 @@ func RunCreateSequence(ctx context.Context, opts *CreateSequenceOptions) error {
 		result := createSequenceResult{
 			OK:     true,
 			Action: "create_sequence",
-			Sequence: map[string]interface{}{
+			Sequence: map[string]any{
 				"number": newNumber,
 				"id":     seqID,
 				"name":   opts.Name,

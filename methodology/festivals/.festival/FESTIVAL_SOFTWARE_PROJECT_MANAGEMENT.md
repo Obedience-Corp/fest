@@ -145,10 +145,10 @@ Every phase has a **type** that determines its structural conventions and purpos
 | --------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **planning**          | Design, architecture, requirements gathering  | Uses `inputs/` directory and workflow files (WORKFLOW.md). No numbered sequences or task files. Contains decisions, plans, and reference materials. |
 | **implementation**    | Writing code, building features               | Uses numbered sequences with task files. Quality gates auto-appended to each sequence. This is where agents work autonomously.                      |
-| **research**          | Investigation, exploration, auditing          | Uses numbered sequences with investigation tasks. Less formal than implementation. Focus on findings and analysis.                                  |
-| **review**            | Code review, integration testing, validation  | Uses sequences with review/verification tasks. Focus on validating work from previous phases.                                                       |
-| **ingest**            | Absorbing external content, data migration    | Uses sequences with ingestion task files. For importing and processing external inputs before planning or implementation.                           |
-| **non_coding_action** | Documentation, process changes, non-code work | Uses sequences with action task files. For work that doesn't involve writing code.                                                                  |
+| **research**          | Investigation, exploration, auditing          | Uses WORKFLOW.md with `sources/`, `findings/` directories and analysis templates. No numbered sequences or task files.                              |
+| **review**            | Code review, integration testing, validation  | Freeform. PHASE_GOAL.md with review criteria and checklists. No required internal structure.                                                        |
+| **ingest**            | Absorbing external content, data migration    | Uses WORKFLOW.md with `input_specs/`, `output_specs/` directories. No numbered sequences or task files.                                             |
+| **non_coding_action** | Documentation, process changes, non-code work | Freeform. PHASE_GOAL.md with action items and checklists. No required internal structure.                                                           |
 
 Create a phase with a specific type:
 
@@ -210,47 +210,43 @@ Implementation phases MUST have numbered sequences with task files. This is wher
 
 #### Research Phases (type: research)
 
-Research phases use numbered sequences with investigation tasks, but are less formal than implementation phases. Focus is on findings and analysis rather than building.
+Research phases use WORKFLOW.md with `sources/` and `findings/` directories. Focus is on investigation, findings, and analysis rather than building. No numbered sequences or task files.
 
 ```
 001_RESEARCH/
 ├── PHASE_GOAL.md
-├── 01_audit_current_state/
-│   ├── 01_inventory_files.md
-│   ├── 02_analyze_gaps.md
-│   └── 03_document_findings.md
-└── 02_competitive_analysis/
-    ├── 01_survey_alternatives.md
-    └── 02_comparison_report.md
+├── WORKFLOW.md
+├── sources/
+│   └── reference_material.md
+└── findings/
+    └── analysis_report.md
 ```
 
 #### Ingest Phases (type: ingest)
 
-Ingest phases are for absorbing and processing external content before other work begins.
+Ingest phases use WORKFLOW.md with `input_specs/` and `output_specs/` directories. For absorbing and processing external content before other work begins. No numbered sequences or task files.
 
 ```
 001_INGEST/
 ├── PHASE_GOAL.md
-├── 01_import_requirements/
-│   ├── 01_gather_external_docs.md
-│   └── 02_organize_inputs.md
-└── inputs/
-    └── external_specs.md
+├── WORKFLOW.md
+├── input_specs/
+│   └── external_specs.md
+└── output_specs/
+    ├── purpose.md
+    ├── requirements.md
+    ├── constraints.md
+    └── context.md
 ```
 
 #### Review Phases (type: review)
 
-Review phases focus on validating work from previous phases.
+Review phases are freeform — PHASE_GOAL.md defines the review scope, criteria, and checklists. No required internal structure beyond PHASE_GOAL.md.
 
 ```
 003_VALIDATE/
 ├── PHASE_GOAL.md
-├── 01_integration_testing/
-│   ├── 01_end_to_end_tests.md
-│   └── 02_performance_validation.md
-└── 02_acceptance_review/
-    ├── 01_acceptance_criteria_check.md
-    └── 02_sign_off.md
+└── (freeform content as needed)
 ```
 
 ### Workflow Files
@@ -258,7 +254,7 @@ Review phases focus on validating work from previous phases.
 Workflow files are markdown documents that describe a process or workflow for a phase. They provide structured guidance without requiring the overhead of numbered sequences and tasks.
 
 - **What**: A `WORKFLOW.md` file placed directly inside a phase directory
-- **When**: Used in planning phases and any phase that benefits from process documentation
+- **When**: Used in planning, ingest, and research phases
 - **Purpose**: Describes the steps, decisions, and activities for the phase
 - **Relationship to sequences**: Can be the sole structural element in a phase, OR can coexist with sequences (hybrid phases)
 

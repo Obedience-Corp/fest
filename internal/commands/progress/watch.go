@@ -25,11 +25,13 @@ func runWatchMode(ctx context.Context, mgr *progress.Manager, loc *show.Location
 		fmt.Fprintf(os.Stderr, "Warning: could not create state directory: %v\n", err)
 	}
 
-	// Watch festival root (fest.yaml, phases), state directory, and progress events file
+	// Watch paths include the festival root directory to detect structural changes
+	// (new phases, fest.yaml modifications) in addition to state directory changes.
+	// This ensures progress reflects the full festival state, not just progress events.
 	watchPaths := []string{
-		festDir,  // Festival root
-		stateDir, // State directory
-		filepath.Join(stateDir, "progress_events.jsonl"),
+		festDir,  // Festival root — detects structural changes (new phases, fest.yaml edits)
+		stateDir, // State directory — detects progress state changes
+		filepath.Join(stateDir, "progress_events.jsonl"), // Progress events file
 	}
 
 	// Initial render
