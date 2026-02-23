@@ -52,7 +52,6 @@ func getCampaignRoot() (string, error) {
 	return workspace.DetectCampaign(ctx, "")
 }
 
-
 // LoadNavigation loads navigation state from disk
 func LoadNavigation() (*Navigation, error) {
 	navPath, err := NavigationPath()

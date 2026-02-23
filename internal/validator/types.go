@@ -11,6 +11,7 @@ const (
 const (
 	CodeMissingFile        = "missing_file"
 	CodeMissingTaskFiles   = "missing_task_files"
+	CodeMissingSequence    = "missing_sequence"
 	CodeMissingQualityGate = "missing_quality_gates"
 	CodeNamingConvention   = "naming_convention"
 	CodeUnfilledTemplate   = "unfilled_template"

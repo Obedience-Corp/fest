@@ -496,16 +496,16 @@ fest_created: 2026-02-20T00:00:00Z
 			wantStatus: frontmatter.StatusPending,
 		},
 		{
-			name:       "no-ops when file does not exist",
-			taskID:     "003_EXECUTE/01_sequence/nonexistent.md",
-			status:     StatusCompleted,
-			noFile:     true,
+			name:         "no-ops when file does not exist",
+			taskID:       "003_EXECUTE/01_sequence/nonexistent.md",
+			status:       StatusCompleted,
+			noFile:       true,
 			wantNoChange: true,
 		},
 		{
-			name:           "no-ops when already in sync",
-			taskID:         "003_EXECUTE/01_sequence/05_task.md",
-			status:         StatusCompleted,
+			name:   "no-ops when already in sync",
+			taskID: "003_EXECUTE/01_sequence/05_task.md",
+			status: StatusCompleted,
 			initialContent: `---
 fest_type: task
 fest_id: 05_task

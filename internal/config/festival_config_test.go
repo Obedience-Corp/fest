@@ -644,8 +644,8 @@ func TestConfigPathRoundTrip_NoCampaign(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	cfg := &FestivalConfig{
-		Version:     "1.0",
-		ProjectPath: "/some/absolute/project",
+		Version:      "1.0",
+		ProjectPath:  "/some/absolute/project",
 		QualityGates: QualityGatesConfig{Enabled: true},
 		Templates:    TemplatePrefs{TaskDefault: "tasks/SIMPLE", PreferSimple: true},
 		Tracking:     TrackingConfig{Enabled: true, ChecksumFile: ".festival-checksums.json"},
