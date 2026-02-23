@@ -13,6 +13,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/navigation"
+	"github.com/Obedience-Corp/fest/internal/pathutil"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
@@ -174,13 +175,22 @@ func runMove(ctx context.Context, source, destination string, opts *moveOptions)
 		}
 	}
 
+	// Get campaign root for relative path display
+	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
+	displayPath := func(p string) string {
+		if campaignRoot != "" {
+			return pathutil.DisplayPath(p, campaignRoot)
+		}
+		return p
+	}
+
 	// Output result
 	result := MoveResult{
-		Source:      sourcePath,
-		Destination: destPath,
+		Source:      displayPath(sourcePath),
+		Destination: displayPath(destPath),
 		Operation:   operation,
 		Success:     true,
-		Message:     fmt.Sprintf("%s -> %s", source, destPath),
+		Message:     fmt.Sprintf("%s -> %s", displayPath(sourcePath), displayPath(destPath)),
 	}
 
 	if opts.json {
@@ -189,9 +199,9 @@ func runMove(ctx context.Context, source, destination string, opts *moveOptions)
 	} else {
 		display := ui.New(shared.IsNoColor(), opts.verbose)
 		if opts.verbose {
-			display.Success("%s: %s → %s", strings.Title(operation), sourcePath, destPath)
+			display.Success("%s: %s → %s", strings.Title(operation), displayPath(sourcePath), displayPath(destPath))
 		} else {
-			display.Success("%s → %s", filepath.Base(sourcePath), destPath)
+			display.Success("%s → %s", filepath.Base(sourcePath), displayPath(destPath))
 		}
 	}
 	_ = result // use result to avoid unused variable warning

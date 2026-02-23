@@ -4,12 +4,14 @@ package show
 import (
 	"context"
 	"fmt"
+	"os"
+
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/pathutil"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
-	"os"
 )
 
 type showOptions struct {
@@ -293,6 +295,34 @@ func runShowAll(ctx context.Context, opts *showOptions) error {
 	return emitAllFestivalsText(allFestivals, statusOrder)
 }
 
+// toDisplayFestival returns a copy of FestivalInfo with campaign-relative paths for serialization.
+func toDisplayFestival(f *FestivalInfo, campaignRoot string) *FestivalInfo {
+	copy := *f
+	copy.Path = pathutil.DisplayPath(f.Path, campaignRoot)
+	if f.ProjectPath != "" {
+		copy.ProjectPath = pathutil.DisplayPath(f.ProjectPath, campaignRoot)
+	}
+	return &copy
+}
+
+// toDisplayFestivals converts a slice of FestivalInfo to display-ready copies.
+func toDisplayFestivals(festivals []*FestivalInfo, campaignRoot string) []*FestivalInfo {
+	result := make([]*FestivalInfo, len(festivals))
+	for i, f := range festivals {
+		result[i] = toDisplayFestival(f, campaignRoot)
+	}
+	return result
+}
+
+// getCampaignRoot returns the campaign root, or empty string if unavailable.
+func getCampaignRoot() string {
+	root, err := workspace.DetectCampaign(context.Background(), "")
+	if err != nil {
+		return ""
+	}
+	return root
+}
+
 func emitShowErrorJSON(message string) error {
 	result := map[string]interface{}{
 		"error": message,
@@ -304,7 +334,11 @@ func emitShowErrorJSON(message string) error {
 }
 
 func emitFestivalJSON(festival *FestivalInfo) error {
-	if err := shared.EncodeJSON(os.Stdout, festival); err != nil {
+	output := festival
+	if root := getCampaignRoot(); root != "" {
+		output = toDisplayFestival(festival, root)
+	}
+	if err := shared.EncodeJSON(os.Stdout, output); err != nil {
 		return errors.Wrap(err, "encoding JSON output")
 	}
 	return nil
@@ -336,10 +370,14 @@ func emitFestivalText(festival *FestivalInfo, showOpts *showOptions) error {
 }
 
 func emitFestivalListJSON(status string, festivals []*FestivalInfo) error {
+	output := festivals
+	if root := getCampaignRoot(); root != "" {
+		output = toDisplayFestivals(festivals, root)
+	}
 	result := map[string]interface{}{
 		"status":    status,
 		"count":     len(festivals),
-		"festivals": festivals,
+		"festivals": output,
 	}
 	if err := shared.EncodeJSON(os.Stdout, result); err != nil {
 		return errors.Wrap(err, "encoding JSON output")
@@ -353,13 +391,18 @@ func emitFestivalListText(status string, festivals []*FestivalInfo) error {
 }
 
 func emitAllFestivalsJSON(allFestivals map[string][]*FestivalInfo, statusOrder []string) error {
+	root := getCampaignRoot()
 	result := make(map[string]interface{})
 	total := 0
 	for _, status := range statusOrder {
 		festivals := allFestivals[status]
+		output := festivals
+		if root != "" {
+			output = toDisplayFestivals(festivals, root)
+		}
 		result[status] = map[string]interface{}{
 			"count":     len(festivals),
-			"festivals": festivals,
+			"festivals": output,
 		}
 		total += len(festivals)
 	}

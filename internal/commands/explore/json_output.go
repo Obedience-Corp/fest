@@ -10,6 +10,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/festival"
 	"github.com/Obedience-Corp/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/pathutil"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
@@ -105,11 +106,20 @@ func festivalToJSON(ctx context.Context, parser *festival.Parser, f *show.Festiv
 		progress = f.Stats.Progress
 	}
 
+	// Get campaign root once for all path conversions
+	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
+	displayPath := func(p string) string {
+		if campaignRoot != "" {
+			return pathutil.DisplayPath(p, campaignRoot)
+		}
+		return p
+	}
+
 	fj := FestivalJSON{
 		Name:     f.Name,
 		Status:   f.Status,
 		Progress: progress,
-		Path:     f.Path,
+		Path:     displayPath(f.Path),
 	}
 
 	phases, err := parser.ParsePhases(ctx, f.Path)
@@ -120,7 +130,7 @@ func festivalToJSON(ctx context.Context, parser *festival.Parser, f *show.Festiv
 	for _, phase := range phases {
 		pj := PhaseJSON{
 			Name: phase.FullName,
-			Path: phase.Path,
+			Path: displayPath(phase.Path),
 		}
 
 		sequences, seqErr := parser.ParseSequences(ctx, phase.Path)
@@ -132,7 +142,7 @@ func festivalToJSON(ctx context.Context, parser *festival.Parser, f *show.Festiv
 		for _, seq := range sequences {
 			sj := SequenceJSON{
 				Name: seq.FullName,
-				Path: seq.Path,
+				Path: displayPath(seq.Path),
 			}
 
 			tasks, taskErr := parser.ParseTasks(ctx, seq.Path)
@@ -140,7 +150,7 @@ func festivalToJSON(ctx context.Context, parser *festival.Parser, f *show.Festiv
 				for _, task := range tasks {
 					sj.Tasks = append(sj.Tasks, TaskJSON{
 						Name: task.FullName,
-						Path: task.Path,
+						Path: displayPath(task.Path),
 					})
 				}
 			}

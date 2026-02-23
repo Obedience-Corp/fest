@@ -1,10 +1,13 @@
 package config
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/pathutil"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"gopkg.in/yaml.v3"
 )
 
@@ -105,15 +108,48 @@ func LoadFestivalConfig(festivalPath string) (*FestivalConfig, error) {
 	// Apply defaults for missing values
 	applyFestivalDefaults(&cfg)
 
+	// Resolve campaign-relative paths to absolute for in-memory usage
+	if campaignRoot, err := workspace.DetectCampaign(context.Background(), ""); err == nil {
+		if cfg.ProjectPath != "" {
+			cfg.ProjectPath = pathutil.ToAbsolutePath(cfg.ProjectPath, campaignRoot)
+		}
+		for i := range cfg.Metadata.StatusHistory {
+			if cfg.Metadata.StatusHistory[i].Path != "" {
+				cfg.Metadata.StatusHistory[i].Path = pathutil.ToAbsolutePath(cfg.Metadata.StatusHistory[i].Path, campaignRoot)
+			}
+		}
+	}
+
 	return &cfg, nil
 }
 
-// SaveFestivalConfig saves festival configuration to fest.yaml
+// SaveFestivalConfig saves festival configuration to fest.yaml.
+// Paths are converted to campaign-relative before persistence.
 func SaveFestivalConfig(festivalPath string, cfg *FestivalConfig) error {
 	configPath := filepath.Join(festivalPath, FestivalConfigFileName)
 
+	// Create a shallow copy to avoid mutating the in-memory struct
+	saveCopy := *cfg
+
+	// Convert paths to campaign-relative for persistence
+	if campaignRoot, err := workspace.DetectCampaign(context.Background(), ""); err == nil {
+		if saveCopy.ProjectPath != "" {
+			saveCopy.ProjectPath = pathutil.ToRelativePath(saveCopy.ProjectPath, campaignRoot)
+		}
+		if len(saveCopy.Metadata.StatusHistory) > 0 {
+			history := make([]StatusChange, len(saveCopy.Metadata.StatusHistory))
+			copy(history, saveCopy.Metadata.StatusHistory)
+			for i := range history {
+				if history[i].Path != "" {
+					history[i].Path = pathutil.ToRelativePath(history[i].Path, campaignRoot)
+				}
+			}
+			saveCopy.Metadata.StatusHistory = history
+		}
+	}
+
 	// Marshal to YAML
-	data, err := yaml.Marshal(cfg)
+	data, err := yaml.Marshal(&saveCopy)
 	if err != nil {
 		return errors.Wrap(err, "marshaling festival config")
 	}
