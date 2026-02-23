@@ -216,7 +216,7 @@ func resolvePhaseConfig(ctx context.Context, opts *CreatePhaseOptions) (*phaseCo
 
 	var configMarkers map[string]string
 	if festivalPath != "" {
-		festCfg, cfgErr := config.LoadFestivalConfig(festivalPath)
+		festCfg, cfgErr := config.LoadFestivalConfig(festivalPath, "")
 		if cfgErr == nil && festCfg != nil {
 			configMarkers = extractConfigMarkers(festCfg)
 		}

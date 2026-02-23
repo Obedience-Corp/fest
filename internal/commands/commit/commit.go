@@ -251,7 +251,7 @@ func detectFestivalID(ctx context.Context) (string, error) {
 		return "", errors.NotFound("festival")
 	}
 
-	cfg, err := config.LoadFestivalConfig(festivalPath)
+	cfg, err := config.LoadFestivalConfig(festivalPath, "")
 	if err != nil {
 		return "", errors.Wrap(err, "loading festival config")
 	}

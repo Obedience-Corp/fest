@@ -10,6 +10,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/festival"
 	"github.com/Obedience-Corp/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/pathutil"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
@@ -74,13 +75,15 @@ func outputExploreJSON(ctx context.Context, status string) error {
 	parser := festival.NewParser()
 	var allFestivals []FestivalJSON
 
+	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
+
 	for _, s := range statuses {
-		festivals, loadErr := show.ListFestivalsByStatus(ctx, festivalsDir, s)
+		festivals, loadErr := show.ListFestivalsByStatus(ctx, festivalsDir, s, campaignRoot)
 		if loadErr != nil {
 			continue
 		}
 		for _, f := range festivals {
-			fj := festivalToJSON(ctx, parser, f)
+			fj := festivalToJSON(ctx, parser, f, campaignRoot)
 			allFestivals = append(allFestivals, fj)
 		}
 	}
@@ -99,17 +102,24 @@ func outputExploreJSON(ctx context.Context, status string) error {
 	return nil
 }
 
-func festivalToJSON(ctx context.Context, parser *festival.Parser, f *show.FestivalInfo) FestivalJSON {
+func festivalToJSON(ctx context.Context, parser *festival.Parser, f *show.FestivalInfo, campaignRoot string) FestivalJSON {
 	var progress float64
 	if f.Stats != nil {
 		progress = f.Stats.Progress
+	}
+
+	displayPath := func(p string) string {
+		if campaignRoot != "" {
+			return pathutil.DisplayPath(p, campaignRoot)
+		}
+		return p
 	}
 
 	fj := FestivalJSON{
 		Name:     f.Name,
 		Status:   f.Status,
 		Progress: progress,
-		Path:     f.Path,
+		Path:     displayPath(f.Path),
 	}
 
 	phases, err := parser.ParsePhases(ctx, f.Path)
@@ -120,7 +130,7 @@ func festivalToJSON(ctx context.Context, parser *festival.Parser, f *show.Festiv
 	for _, phase := range phases {
 		pj := PhaseJSON{
 			Name: phase.FullName,
-			Path: phase.Path,
+			Path: displayPath(phase.Path),
 		}
 
 		sequences, seqErr := parser.ParseSequences(ctx, phase.Path)
@@ -132,7 +142,7 @@ func festivalToJSON(ctx context.Context, parser *festival.Parser, f *show.Festiv
 		for _, seq := range sequences {
 			sj := SequenceJSON{
 				Name: seq.FullName,
-				Path: seq.Path,
+				Path: displayPath(seq.Path),
 			}
 
 			tasks, taskErr := parser.ParseTasks(ctx, seq.Path)
@@ -140,7 +150,7 @@ func festivalToJSON(ctx context.Context, parser *festival.Parser, f *show.Festiv
 				for _, task := range tasks {
 					sj.Tasks = append(sj.Tasks, TaskJSON{
 						Name: task.FullName,
-						Path: task.Path,
+						Path: displayPath(task.Path),
 					})
 				}
 			}
@@ -162,7 +172,8 @@ func outputFestivalJSON(ctx context.Context, festivalPath string) error {
 		Path: festivalPath,
 	}
 
-	fj := festivalToJSON(ctx, parser, info)
+	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
+	fj := festivalToJSON(ctx, parser, info, campaignRoot)
 
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")

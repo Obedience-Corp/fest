@@ -16,6 +16,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
+	"github.com/Obedience-Corp/fest/internal/pathutil"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/registry"
 	"github.com/Obedience-Corp/fest/internal/scope"
@@ -69,6 +70,7 @@ type createFestivalResult struct {
 type createConfig struct {
 	opts             *CreateFestivalOptions
 	display          *ui.UI
+	campaignRoot     string
 	festivalsRoot    string
 	tmplRoot         string
 	slug             string
@@ -141,6 +143,8 @@ func resolveCreateConfig(ctx context.Context, opts *CreateFestivalOptions) (*cre
 			WithHint("Check the path and try again, or run from a different directory")
 	}
 
+	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
+
 	agentCfg := LoadEffectiveAgentConfig(festivalsRoot, "")
 	skipMarkers := config.EffectiveSkipMarkers(agentCfg, opts.AgentMode, opts.SkipMarkers)
 	tmplRoot := filepath.Join(festivalsRoot, ".festival", "templates")
@@ -202,6 +206,7 @@ func resolveCreateConfig(ctx context.Context, opts *CreateFestivalOptions) (*cre
 	return &createConfig{
 		opts:             opts,
 		display:          display,
+		campaignRoot:     campaignRoot,
 		festivalsRoot:    festivalsRoot,
 		tmplRoot:         tmplRoot,
 		slug:             slug,
@@ -488,7 +493,7 @@ func writeFestYaml(ctx context.Context, cfg *createConfig) (*createResult, error
 	}
 
 	res.festConfigPath = filepath.Join(cfg.destDir, config.FestivalConfigFileName)
-	if err := config.SaveFestivalConfig(cfg.destDir, festConfig); err != nil {
+	if err := config.SaveFestivalConfig(cfg.destDir, cfg.campaignRoot, festConfig); err != nil {
 		return nil, errors.Wrap(err, "writing fest.yaml").WithField("path", res.festConfigPath)
 	}
 
@@ -595,7 +600,7 @@ func recordInitialSize(ctx context.Context, cfg *createConfig, festConfig *confi
 	initialSize, sizeErr := progress.ComputeDirectorySize(ctx, cfg.destDir)
 	if sizeErr == nil && initialSize > 0 {
 		festConfig.Metadata.InitialSizeBytes = initialSize
-		_ = config.SaveFestivalConfig(cfg.destDir, festConfig)
+		_ = config.SaveFestivalConfig(cfg.destDir, cfg.campaignRoot, festConfig)
 	}
 }
 
@@ -674,6 +679,15 @@ func emitCreateOutput(cfg *createConfig, res *createResult) error {
 		return emitCreateJSON(cfg, res, gatesDir, remainingMarkers)
 	}
 
+	// Get campaign root for relative path display
+	campaignRoot := cfg.campaignRoot
+	displayPath := func(p string) string {
+		if campaignRoot != "" {
+			return pathutil.DisplayPath(p, campaignRoot)
+		}
+		return p
+	}
+
 	if remainingMarkers > 0 {
 		fmt.Println()
 		cfg.display.Error("🚫 CRITICAL: %d unfilled markers - festival cannot be executed until resolved", remainingMarkers)
@@ -691,7 +705,7 @@ func emitCreateOutput(cfg *createConfig, res *createResult) error {
 		cfg.display.Success("Auto-created %d phase(s): %s", len(res.autoPhasesCreated), strings.Join(res.autoPhasesCreated, ", "))
 	}
 	for _, p := range res.created {
-		cfg.display.Info("  • %s", p)
+		cfg.display.Info("  • %s", displayPath(p))
 	}
 
 	if len(res.copiedGates) > 0 {
@@ -701,14 +715,15 @@ func emitCreateOutput(cfg *createConfig, res *createResult) error {
 
 	if res.projectPath != "" {
 		if res.projectLinked {
-			cfg.display.Success("Project path: %s (linked)", res.projectPath)
+			cfg.display.Success("Project path: %s (linked)", displayPath(res.projectPath))
 		} else {
-			cfg.display.Info("Project path: %s (not linked - path doesn't exist yet)", res.projectPath)
+			cfg.display.Info("Project path: %s (not linked - path doesn't exist yet)", displayPath(res.projectPath))
 		}
 	}
 
 	fmt.Println()
 	fmt.Println(ui.H2("Next Steps"))
+	// cd instruction stays absolute for shell usage
 	fmt.Printf("  %s\n", ui.Info(fmt.Sprintf("1. cd %s", cfg.destDir)))
 	if remainingMarkers > 0 {
 		fmt.Printf("  %s\n", ui.Info("2. Edit FESTIVAL_GOAL.md to define your objectives"))
@@ -724,6 +739,15 @@ func emitCreateOutput(cfg *createConfig, res *createResult) error {
 
 // emitCreateJSON emits JSON output for festival creation.
 func emitCreateJSON(cfg *createConfig, res *createResult, gatesDir string, remainingMarkers int) error {
+	// Get campaign root for relative path display
+	campaignRoot := cfg.campaignRoot
+	displayPath := func(p string) string {
+		if campaignRoot != "" {
+			return pathutil.DisplayPath(p, campaignRoot)
+		}
+		return p
+	}
+
 	warnings := []string{}
 	if remainingMarkers > 0 {
 		warnings = append(warnings,
@@ -745,16 +769,27 @@ func emitCreateJSON(cfg *createConfig, res *createResult, gatesDir string, remai
 		festivalMap["type"] = cfg.festivalTypeName
 	}
 
+	// Convert created file paths to relative
+	relCreated := make([]string, len(res.created))
+	for i, p := range res.created {
+		relCreated[i] = displayPath(p)
+	}
+
+	relGates := make([]string, len(res.copiedGates))
+	for i, p := range res.copiedGates {
+		relGates[i] = displayPath(p)
+	}
+
 	return emitCreateFestivalJSON(cfg.opts, createFestivalResult{
 		OK:                true,
 		Action:            "create_festival",
 		Festival:          festivalMap,
-		Created:           res.created,
+		Created:           relCreated,
 		AutoPhasesCreated: res.autoPhasesCreated,
-		GatesDirectory:    gatesDir,
-		FestYAML:          res.festConfigPath,
-		GateTemplates:     res.copiedGates,
-		ProjectPath:       res.projectPath,
+		GatesDirectory:    displayPath(gatesDir),
+		FestYAML:          displayPath(res.festConfigPath),
+		GateTemplates:     relGates,
+		ProjectPath:       displayPath(res.projectPath),
 		ProjectLinked:     res.projectLinked,
 		MarkersFilled:     res.markersFilled,
 		MarkersTotal:      res.markersTotal,

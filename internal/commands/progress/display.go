@@ -97,7 +97,7 @@ func showFestivalProgress(ctx context.Context, mgr *progress.Manager, loc *show.
 	}
 
 	// Content delta (token proxy)
-	festConfig, cfgErr := config.LoadFestivalConfig(loc.Festival.Path)
+	festConfig, cfgErr := config.LoadFestivalConfig(loc.Festival.Path, "")
 	if cfgErr == nil && festConfig.Metadata.InitialSizeBytes > 0 {
 		delta, deltaErr := progress.ComputeContentDelta(ctx, loc.Festival.Path, festConfig.Metadata.InitialSizeBytes)
 		if deltaErr == nil {

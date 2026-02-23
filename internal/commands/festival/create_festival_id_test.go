@@ -193,7 +193,7 @@ func TestCreateFestival_MetadataPopulation(t *testing.T) {
 	festivalDir := filepath.Join(activeDir, entries[0].Name())
 
 	// Load the fest.yaml
-	cfg, err := config.LoadFestivalConfig(festivalDir)
+	cfg, err := config.LoadFestivalConfig(festivalDir, "")
 	if err != nil {
 		t.Fatalf("Failed to load fest.yaml: %v", err)
 	}
@@ -376,7 +376,7 @@ func TestCreateFestival_BackwardsCompatibility(t *testing.T) {
 			Enabled: true,
 		},
 	}
-	if err := config.SaveFestivalConfig(oldFestivalDir, oldConfig); err != nil {
+	if err := config.SaveFestivalConfig(oldFestivalDir, "", oldConfig); err != nil {
 		t.Fatalf("Failed to save old fest.yaml: %v", err)
 	}
 

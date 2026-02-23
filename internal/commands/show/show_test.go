@@ -143,7 +143,7 @@ func TestDetectCurrentFestival(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		result, err := DetectCurrentFestival(context.Background(), tc.startDir)
+		result, err := DetectCurrentFestival(context.Background(), tc.startDir, "")
 		if tc.wantErr {
 			if err == nil {
 				t.Errorf("DetectCurrentFestival(%q) expected error, got nil", tc.startDir)
@@ -286,7 +286,7 @@ func TestListFestivalsByStatus(t *testing.T) {
 	}
 
 	// Test active festivals
-	active, err := ListFestivalsByStatus(context.Background(), tmpDir, "active")
+	active, err := ListFestivalsByStatus(context.Background(), tmpDir, "active", "")
 	if err != nil {
 		t.Fatalf("ListFestivalsByStatus(active) unexpected error: %v", err)
 	}
@@ -295,7 +295,7 @@ func TestListFestivalsByStatus(t *testing.T) {
 	}
 
 	// Test planning festivals
-	planning, err := ListFestivalsByStatus(context.Background(), tmpDir, "planning")
+	planning, err := ListFestivalsByStatus(context.Background(), tmpDir, "planning", "")
 	if err != nil {
 		t.Fatalf("ListFestivalsByStatus(planning) unexpected error: %v", err)
 	}
@@ -304,7 +304,7 @@ func TestListFestivalsByStatus(t *testing.T) {
 	}
 
 	// Test non-existent status
-	empty, err := ListFestivalsByStatus(context.Background(), tmpDir, "completed")
+	empty, err := ListFestivalsByStatus(context.Background(), tmpDir, "completed", "")
 	if err != nil {
 		t.Fatalf("ListFestivalsByStatus(completed) unexpected error: %v", err)
 	}
@@ -326,7 +326,7 @@ func TestFormatFestivalDetails(t *testing.T) {
 	}
 	festival.Stats.Progress = 50.0
 
-	output := FormatFestivalDetails(festival, false)
+	output := FormatFestivalDetails(festival, false, "")
 
 	// Check that key elements are present
 	if !contains(output, "test-fest") {
@@ -417,7 +417,7 @@ func TestFormatFestivalDetails_DisplaysMetadataID(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			output := FormatFestivalDetails(tt.festival, false)
+			output := FormatFestivalDetails(tt.festival, false, "")
 
 			for _, expected := range tt.expectedOutput {
 				if !contains(output, expected) {
@@ -485,7 +485,7 @@ quality_gates:
 		t.Fatal(err)
 	}
 
-	info, err := parseFestivalInfo(context.Background(), festivalDir)
+	info, err := parseFestivalInfo(context.Background(), festivalDir, "")
 	if err != nil {
 		t.Fatalf("parseFestivalInfo() error = %v", err)
 	}
@@ -517,7 +517,7 @@ quality_gates:
 		t.Fatal(err)
 	}
 
-	info, err := parseFestivalInfo(context.Background(), festivalDir)
+	info, err := parseFestivalInfo(context.Background(), festivalDir, "")
 	if err != nil {
 		t.Fatalf("parseFestivalInfo() error = %v", err)
 	}

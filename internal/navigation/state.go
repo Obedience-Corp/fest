@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/pathutil"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"gopkg.in/yaml.v3"
 )
@@ -52,27 +52,6 @@ func getCampaignRoot() (string, error) {
 	return workspace.DetectCampaign(ctx, "")
 }
 
-// toRelativePath converts an absolute path to campaign-relative if possible.
-// Returns the original path if it's outside the campaign or already relative.
-func toRelativePath(absPath, campaignRoot string) string {
-	if !filepath.IsAbs(absPath) {
-		return absPath // Already relative
-	}
-	rel, err := filepath.Rel(campaignRoot, absPath)
-	if err != nil || strings.HasPrefix(rel, "..") {
-		return absPath // Outside campaign, keep absolute
-	}
-	return rel
-}
-
-// toAbsolutePath converts a campaign-relative path to absolute.
-// Returns the original path if it's already absolute.
-func toAbsolutePath(path, campaignRoot string) string {
-	if filepath.IsAbs(path) {
-		return path
-	}
-	return filepath.Join(campaignRoot, path)
-}
 
 // LoadNavigation loads navigation state from disk
 func LoadNavigation() (*Navigation, error) {
@@ -121,9 +100,9 @@ func LoadNavigation() (*Navigation, error) {
 
 	// Convert relative paths to absolute for in-memory usage
 	for _, link := range nav.Links {
-		link.Path = toAbsolutePath(link.Path, campaignRoot)
+		link.Path = pathutil.ToAbsolutePath(link.Path, campaignRoot)
 		if link.FestivalPath != "" {
-			link.FestivalPath = toAbsolutePath(link.FestivalPath, campaignRoot)
+			link.FestivalPath = pathutil.ToAbsolutePath(link.FestivalPath, campaignRoot)
 		}
 	}
 
@@ -158,8 +137,8 @@ func (n *Navigation) Save() error {
 
 	for name, link := range n.Links {
 		saveCopy.Links[name] = &Link{
-			Path:         toRelativePath(link.Path, campaignRoot),
-			FestivalPath: toRelativePath(link.FestivalPath, campaignRoot),
+			Path:         pathutil.ToRelativePath(link.Path, campaignRoot),
+			FestivalPath: pathutil.ToRelativePath(link.FestivalPath, campaignRoot),
 			LinkedAt:     link.LinkedAt,
 		}
 	}

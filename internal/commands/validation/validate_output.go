@@ -70,7 +70,7 @@ func printContextHeader(festivalPath string) {
 	fmt.Println(ui.H2("Current Context"))
 
 	// Load festival metadata
-	festConfig, err := config.LoadFestivalConfig(festivalPath)
+	festConfig, err := config.LoadFestivalConfig(festivalPath, "")
 	if err != nil || festConfig.Metadata.ID == "" {
 		fmt.Println(ui.Dim("No ID detected (legacy festival)."))
 		return

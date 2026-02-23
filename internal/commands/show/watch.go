@@ -48,7 +48,7 @@ func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions
 	}, func() {
 		clearScreen()
 		// Refresh festival info to get latest data
-		refreshed, err := DetectCurrentFestival(ctx, festival.Path)
+		refreshed, err := DetectCurrentFestival(ctx, festival.Path, "")
 		if err == nil && refreshed != nil {
 			festival = refreshed
 		}
@@ -90,7 +90,7 @@ func runPollingMode(ctx context.Context, festival *FestivalInfo, opts *showOptio
 			clearScreen()
 
 			// Refresh festival info to get latest data
-			refreshed, err := DetectCurrentFestival(ctx, festival.Path)
+			refreshed, err := DetectCurrentFestival(ctx, festival.Path, "")
 			if err == nil && refreshed != nil {
 				festival = refreshed
 			}
@@ -109,7 +109,7 @@ func renderFestivalView(ctx context.Context, festival *FestivalInfo, opts *showO
 
 	// Use tree view by default, summary view with --summary flag
 	if opts.summary {
-		fmt.Println(FormatFestivalDetails(festival, verbose))
+		fmt.Println(FormatFestivalDetails(festival, verbose, ""))
 		return nil
 	}
 
@@ -117,7 +117,7 @@ func renderFestivalView(ctx context.Context, festival *FestivalInfo, opts *showO
 	tree, err := BuildFestivalTree(ctx, festival.Path)
 	if err != nil {
 		// Fall back to summary view on error
-		fmt.Println(FormatFestivalDetails(festival, verbose))
+		fmt.Println(FormatFestivalDetails(festival, verbose, ""))
 		return nil
 	}
 

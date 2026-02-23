@@ -633,7 +633,7 @@ func loadFeedbackCriteria(ctx context.Context, festivalPath string) []string {
 
 // checkPlanningStatus blocks implementation/review phases when the festival is still in planning status.
 func checkPlanningStatus(festivalPath, phasePath string) error {
-	festCfg, err := config.LoadFestivalConfig(festivalPath)
+	festCfg, err := config.LoadFestivalConfig(festivalPath, "")
 	if err != nil {
 		return nil // Can't load config — don't block
 	}

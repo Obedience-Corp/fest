@@ -121,11 +121,11 @@ func runRitual(ctx context.Context, nameOrID string, opts *runOptions) error {
 	display := ui.New(shared.IsNoColor(), shared.IsVerbose())
 
 	// Update ritual_config in the source ritual's fest.yaml
-	ritualCfg, cfgErr := config.LoadFestivalConfig(ritualPath)
+	ritualCfg, cfgErr := config.LoadFestivalConfig(ritualPath, "")
 	if cfgErr == nil && ritualCfg.RitualConfig != nil {
 		ritualCfg.RitualConfig.RunCount++
 		ritualCfg.RitualConfig.LastRun = time.Now().UTC().Format("2006-01-02")
-		if saveErr := config.SaveFestivalConfig(ritualPath, ritualCfg); saveErr != nil {
+		if saveErr := config.SaveFestivalConfig(ritualPath, "", ritualCfg); saveErr != nil {
 			display.Warning("Failed to update ritual run count: %v", saveErr)
 		}
 	}

@@ -69,7 +69,7 @@ func (c *Chainer) CheckChaining(ctx context.Context, completedPhasePath string) 
 	completedType := guidance.DetectPhaseType(completedPhasePath)
 
 	// Load festival config
-	cfg, err := config.LoadFestivalConfig(c.festivalPath)
+	cfg, err := config.LoadFestivalConfig(c.festivalPath, "")
 	if err != nil {
 		return nil, fmt.Errorf("loading festival config: %w", err)
 	}
@@ -112,13 +112,13 @@ func (c *Chainer) ExecuteChain(ctx context.Context, target *ChainTarget) (*Chain
 	}
 
 	// Remove the pending phase from config now that it's been created
-	cfg, err := config.LoadFestivalConfig(c.festivalPath)
+	cfg, err := config.LoadFestivalConfig(c.festivalPath, "")
 	if err != nil {
 		return nil, fmt.Errorf("updating festival config after phase creation: %w", err)
 	}
 
 	cfg.RemovePendingPhase(target.PendingPhase.Name)
-	if err := config.SaveFestivalConfig(c.festivalPath, cfg); err != nil {
+	if err := config.SaveFestivalConfig(c.festivalPath, "", cfg); err != nil {
 		return nil, fmt.Errorf("saving festival config: %w", err)
 	}
 

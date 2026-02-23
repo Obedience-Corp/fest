@@ -41,7 +41,7 @@ func BuildContextFromPath(targetPath, festivalPath string) (*Context, error) {
 	parts := strings.Split(relPath, string(filepath.Separator))
 
 	// Try reading fest.yaml for accurate festival metadata
-	if festCfg, cfgErr := config.LoadFestivalConfig(festivalPath); cfgErr == nil && festCfg.Metadata.HasMetadata() {
+	if festCfg, cfgErr := config.LoadFestivalConfig(festivalPath, ""); cfgErr == nil && festCfg.Metadata.HasMetadata() {
 		ctx.SetFestival(festCfg.Metadata.Name, festCfg.Metadata.Goal, nil)
 		ctx.SetFestivalID(festCfg.Metadata.ID)
 	} else {

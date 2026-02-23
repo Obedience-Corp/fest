@@ -271,7 +271,7 @@ func RunCreateSequence(ctx context.Context, opts *CreateSequenceOptions) error {
 			// Load config markers for Category B markers
 			var configMarkers map[string]string
 			if festivalPath != "" {
-				festCfg, cfgErr := config.LoadFestivalConfig(festivalPath)
+				festCfg, cfgErr := config.LoadFestivalConfig(festivalPath, "")
 				if cfgErr == nil && festCfg != nil {
 					configMarkers = extractConfigMarkers(festCfg)
 				}

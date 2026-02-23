@@ -5,6 +5,7 @@ import (
 	"math"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/internal/pathutil"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/ui"
 )
@@ -20,7 +21,7 @@ func FormatNodeReference(festivalID string, phase, sequence, task int) string {
 }
 
 // FormatFestivalDetails formats a single festival with full details.
-func FormatFestivalDetails(festival *FestivalInfo, verbose bool) string {
+func FormatFestivalDetails(festival *FestivalInfo, verbose bool, campaignRoot string) string {
 	var sb strings.Builder
 
 	// Header
@@ -36,10 +37,19 @@ func FormatFestivalDetails(festival *FestivalInfo, verbose bool) string {
 	}
 
 	sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Status"), ui.GetStatusStyle(festival.Status).Render(festival.Status)))
-	sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Path"), ui.Dim(festival.Path)))
+
+	// Display campaign-relative paths
+	displayFestPath := festival.Path
+	displayProjectPath := festival.ProjectPath
+	if campaignRoot != "" {
+		displayFestPath = pathutil.DisplayPath(festival.Path, campaignRoot)
+		displayProjectPath = pathutil.DisplayPath(festival.ProjectPath, campaignRoot)
+	}
+
+	sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Path"), ui.Dim(displayFestPath)))
 
 	if festival.ProjectPath != "" {
-		sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Project"), ui.Value(festival.ProjectPath, ui.SequenceColor)))
+		sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Project"), ui.Value(displayProjectPath, ui.SequenceColor)))
 	}
 
 	if festival.Priority != "" {

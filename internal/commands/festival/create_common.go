@@ -33,7 +33,7 @@ func LoadEffectiveAgentConfig(festivalsRoot, festivalPath string) *config.AgentC
 
 	// Load festival config
 	if festivalPath != "" {
-		festivalCfg, err := config.LoadFestivalConfig(festivalPath)
+		festivalCfg, err := config.LoadFestivalConfig(festivalPath, "")
 		if err == nil && festivalCfg != nil {
 			festivalAgent = &festivalCfg.Agent
 		}

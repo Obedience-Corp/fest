@@ -309,9 +309,9 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 	}
 
 	// Update fest.yaml metadata with the new status
-	if festCfg, cfgErr := config.LoadFestivalConfig(newPath); cfgErr == nil {
+	if festCfg, cfgErr := config.LoadFestivalConfig(newPath, ""); cfgErr == nil {
 		festCfg.Metadata.AddStatusChange(newStatus, newPath, "")
-		if saveErr := config.SaveFestivalConfig(newPath, festCfg); saveErr != nil {
+		if saveErr := config.SaveFestivalConfig(newPath, "", festCfg); saveErr != nil {
 			fmt.Printf("%s %s\n", ui.Dim("Warning: could not update fest.yaml status:"), ui.Dim(saveErr.Error()))
 		}
 	}
