@@ -1,9 +1,11 @@
 package status
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -16,10 +18,12 @@ import (
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/ui/theme"
 	"github.com/Obedience-Corp/fest/internal/workflow"
 	"github.com/Obedience-Corp/fest/internal/workspace"
+	"github.com/obediencecorp/camp/pkg/commitkit"
 )
 
 // selectFestivalForStatus opens an interactive selector for choosing a festival.
@@ -309,7 +313,9 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 	}
 
 	// Update fest.yaml metadata with the new status
+	var festivalID string
 	if festCfg, cfgErr := config.LoadFestivalConfig(newPath, ""); cfgErr == nil {
+		festivalID = festCfg.Metadata.ID
 		festCfg.Metadata.AddStatusChange(newStatus, newPath, "")
 		if saveErr := config.SaveFestivalConfig(newPath, "", festCfg); saveErr != nil {
 			fmt.Printf("%s %s\n", ui.Dim("Warning: could not update fest.yaml status:"), ui.Dim(saveErr.Error()))
@@ -319,7 +325,18 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 	// Update navigation links after successful move
 	linkAction := updateNavigationAfterMove(festival.Name, newStatus, newPath)
 
-	return emitFestivalMoveSuccess(opts, festival, newStatus, newPath, linkAction)
+	// Auto-commit the status change unless --no-commit was specified
+	var commitHash string
+	if !opts.noCommit {
+		hash, err := autoCommitStatusChange(ctx, festival.Name, festivalID, festival.Status, newStatus)
+		if err != nil {
+			fmt.Printf("%s %s\n", ui.Dim("Warning: auto-commit failed:"), ui.Dim(err.Error()))
+		} else if hash != "" {
+			commitHash = hash
+		}
+	}
+
+	return emitFestivalMoveSuccess(opts, festival, newStatus, newPath, linkAction, commitHash)
 }
 
 // updateNavigationAfterMove updates the navigation link after a festival move.
@@ -357,7 +374,7 @@ func updateNavigationAfterMove(festivalName, newStatus, newPath string) string {
 }
 
 // emitFestivalMoveSuccess outputs success message after moving a festival.
-func emitFestivalMoveSuccess(opts *statusOptions, festival *show.FestivalInfo, newStatus, newPath, linkAction string) error {
+func emitFestivalMoveSuccess(opts *statusOptions, festival *show.FestivalInfo, newStatus, newPath, linkAction, commitHash string) error {
 	if opts.json {
 		result := map[string]any{
 			"success":    true,
@@ -369,6 +386,9 @@ func emitFestivalMoveSuccess(opts *statusOptions, festival *show.FestivalInfo, n
 		}
 		if linkAction != "" {
 			result["link_action"] = linkAction
+		}
+		if commitHash != "" {
+			result["commit"] = commitHash
 		}
 		if err := shared.EncodeJSON(os.Stdout, result); err != nil {
 			return errors.Wrap(err, "encoding JSON output")
@@ -382,6 +402,68 @@ func emitFestivalMoveSuccess(opts *statusOptions, festival *show.FestivalInfo, n
 		if linkAction != "" {
 			fmt.Printf("%s %s\n", ui.Label("Link"), ui.Dim(linkAction))
 		}
+		if commitHash != "" {
+			fmt.Printf("%s %s\n", ui.Label("Commit"), ui.Value(commitHash))
+		}
 	}
 	return nil
+}
+
+// autoCommitStatusChange stages and commits the filesystem changes from a festival
+// status move. It follows the non-blocking pattern: failures produce warnings,
+// never blocking the status change itself.
+func autoCommitStatusChange(ctx context.Context, festivalName, festivalID, oldStatus, newStatus string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+
+	ws, ok := scope.WorkspaceFrom(ctx)
+	if !ok || ws == nil {
+		return "", fmt.Errorf("workspace not available in context")
+	}
+
+	// Stage all changes from the directory move
+	addCmd := exec.CommandContext(ctx, "git", "-C", ws.Root, "add", "-A")
+	if out, err := addCmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("git add: %s: %w", bytes.TrimSpace(out), err)
+	}
+
+	// Check if anything is actually staged
+	diffCmd := exec.CommandContext(ctx, "git", "-C", ws.Root, "diff", "--cached", "--quiet")
+	if err := diffCmd.Run(); err == nil {
+		// Exit code 0 means no staged changes
+		return "", nil
+	}
+
+	// Build commit message
+	message := fmt.Sprintf("chore(fest): status change: %s", festivalName)
+	if festivalID != "" {
+		message = fmt.Sprintf("chore(fest): status change: %s (%s) %s -> %s", festivalName, festivalID, oldStatus, newStatus)
+	} else {
+		message = fmt.Sprintf("chore(fest): status change: %s %s -> %s", festivalName, oldStatus, newStatus)
+	}
+
+	// Prepend campaign tag if in a campaign workspace
+	if ws.Type == scope.WorkspaceTypeCampaign {
+		cid, err := commitkit.DetectCampaign(ctx)
+		if err == nil && cid != "" {
+			message = commitkit.PrependCampaignTag(cid, message)
+		}
+	}
+
+	// Commit
+	commitCmd := exec.CommandContext(ctx, "git", "-C", ws.Root, "commit", "-m", message)
+	if out, err := commitCmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("git commit: %s: %w", bytes.TrimSpace(out), err)
+	}
+
+	// Get short hash
+	hashCmd := exec.CommandContext(ctx, "git", "-C", ws.Root, "rev-parse", "--short", "HEAD")
+	hashOut, err := hashCmd.Output()
+	if err != nil {
+		// Commit succeeded but we couldn't get the hash — not critical
+		return "committed", nil
+	}
+
+	return strings.TrimSpace(string(hashOut)), nil
 }
