@@ -45,9 +45,9 @@ Verify all functionality implemented in this sequence works correctly through co
 
 Walk through each requirement from the sequence:
 
-1. [ ] **Requirement 1**: [Describe manual test steps and expected result]
-2. [ ] **Requirement 2**: [Describe manual test steps and expected result]
-3. [ ] **Requirement 3**: [Describe manual test steps and expected result]
+1. [ ] **Requirement 1**: [FILL: Describe manual test steps and expected result]
+2. [ ] **Requirement 2**: [FILL: Describe manual test steps and expected result]
+3. [ ] **Requirement 3**: [FILL: Describe manual test steps and expected result]
 
 ## Coverage Requirements
 
@@ -157,15 +157,15 @@ Review all code changes in this sequence for quality, correctness, and adherence
 
 ### Critical Issues (Must Fix)
 
-1. [ ] [Issue description and recommendation]
+1. [ ] [FILL: Issue description and recommendation]
 
 ### Suggestions (Should Consider)
 
-1. [ ] [Suggestion and rationale]
+1. [ ] [FILL: Suggestion and rationale]
 
 ### Positive Observations
 
-- [Note good patterns or practices observed]
+- [FILL: Note good patterns or practices observed]
 
 ## Definition of Done
 
@@ -177,12 +177,12 @@ Review all code changes in this sequence for quality, correctness, and adherence
 
 ## Review Summary
 
-**Reviewer:** [Name/Agent]
-**Date:** [Date]
+**Reviewer:** [FILL: Name/Agent]
+**Date:** [FILL: Date]
 **Verdict:** [ ] Approved / [ ] Needs Changes
 
 **Notes:**
-[Summary of the review and any outstanding concerns]
+[FILL: Summary of the review and any outstanding concerns]
 `,
 	"QUALITY_GATE_ITERATE.md": `# Task: Review Results and Iterate
 
@@ -198,15 +198,15 @@ Address all findings from code review and testing, iterate until the sequence me
 
 | Finding | Priority | Status | Notes |
 |---------|----------|--------|-------|
-| [Finding 1] | [High/Medium/Low] | [ ] Fixed | |
-| [Finding 2] | [High/Medium/Low] | [ ] Fixed | |
+| [FILL: Finding description] | [FILL: High/Medium/Low] | [ ] Fixed | |
+| [FILL: Finding description] | [FILL: High/Medium/Low] | [ ] Fixed | |
 
 ### From Code Review
 
 | Finding | Priority | Status | Notes |
 |---------|----------|--------|-------|
-| [Finding 1] | [High/Medium/Low] | [ ] Fixed | |
-| [Finding 2] | [High/Medium/Low] | [ ] Fixed | |
+| [FILL: Finding description] | [FILL: High/Medium/Low] | [ ] Fixed | |
+| [FILL: Finding description] | [FILL: High/Medium/Low] | [ ] Fixed | |
 
 ## Iteration Process
 
@@ -214,8 +214,8 @@ Address all findings from code review and testing, iterate until the sequence me
 
 **Changes Made:**
 
-- [ ] [Change 1 description]
-- [ ] [Change 2 description]
+- [ ] [FILL: Change description]
+- [ ] [FILL: Change description]
 
 **Verification:**
 
@@ -227,7 +227,7 @@ Address all findings from code review and testing, iterate until the sequence me
 
 **Changes Made:**
 
-- [ ] [Change 1 description]
+- [ ] [FILL: Change description]
 
 **Verification:**
 
@@ -251,15 +251,15 @@ Document patterns or issues to avoid in future sequences:
 
 ### What Went Well
 
-- [Positive observation]
+- [FILL: Positive observation]
 
 ### What Could Improve
 
-- [Area for improvement]
+- [FILL: Area for improvement]
 
 ### Process Improvements
 
-- [Suggestion for future work]
+- [FILL: Suggestion for future work]
 
 ## Definition of Done
 
@@ -281,12 +281,12 @@ Document patterns or issues to avoid in future sequences:
 - Quality: [ ] Meets Standards
 
 **Notes:**
-[Any final notes or observations about this sequence]
+[FILL: Any final notes or observations about this sequence]
 
 ---
 
 **Next Steps:**
-[Identify what follows - next sequence, phase completion, etc.]
+[FILL: Identify what follows - next sequence, phase completion, etc.]
 `,
 
 	// Commit gate for sequence completion tracking

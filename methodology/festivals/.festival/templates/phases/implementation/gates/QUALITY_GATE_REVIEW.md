@@ -92,15 +92,15 @@ Review all code changes in this sequence for quality, correctness, and adherence
 
 ### Critical Issues (Must Fix)
 
-1. [ ] [Issue description and recommendation]
+1. [ ] [FILL: Issue description and recommendation]
 
 ### Suggestions (Should Consider)
 
-1. [ ] [Suggestion and rationale]
+1. [ ] [FILL: Suggestion and rationale]
 
 ### Positive Observations
 
-- [Note good patterns or practices observed]
+- [FILL: Note good patterns or practices observed]
 
 ## Definition of Done
 
@@ -112,9 +112,9 @@ Review all code changes in this sequence for quality, correctness, and adherence
 
 ## Review Summary
 
-**Reviewer:** [Name/Agent]
-**Date:** [Date]
+**Reviewer:** [FILL: Name/Agent]
+**Date:** [FILL: Date]
 **Verdict:** [ ] Approved / [ ] Needs Changes
 
 **Notes:**
-[Summary of the review and any outstanding concerns]
+[FILL: Summary of the review and any outstanding concerns]

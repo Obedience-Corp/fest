@@ -134,4 +134,4 @@ Part of: 003_CHAT_CORE/03_streaming_integration
 
 - Pre-commit checks: [ ] Pass / [ ] Fail
 - Commit created: [ ] Yes / [ ] No
-- Commit hash: ________________
+- Commit hash: [FILL: commit hash after creating commit]
