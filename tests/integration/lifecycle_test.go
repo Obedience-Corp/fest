@@ -29,7 +29,7 @@ func TestMultiPhaseNavigation(t *testing.T) {
 	// Test that different phase types get different navigators
 	t.Run("PhaseTypeDetection", func(t *testing.T) {
 		// Run from a specific phase directory to detect phase type
-		phasePath := festPath + "/001_PLAN_PHASE"
+		phasePath := festPath + "/001_PLANNING"
 		output, err := container.RunFestInDir(phasePath, "next")
 		if err == nil {
 			t.Logf("Phase type detection output: %s", output)

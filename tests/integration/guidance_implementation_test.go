@@ -250,6 +250,21 @@ func TestImplementationMode_Completion(t *testing.T) {
 
 	festPath := findFestivalPath(t, container, festivalsPath+"/active", "test-impl-done")
 
+	// Write fest.yaml with quality gates enabled
+	festYaml := "version: \"1.0\"\nquality_gates:\n  enabled: true\n  auto_append: true\n  implementation:\n    - id: testing\n      template: gates/implementation/QUALITY_GATE_TESTING\n      enabled: true\n    - id: review\n      template: gates/implementation/QUALITY_GATE_REVIEW\n      enabled: true\n    - id: iterate\n      template: gates/implementation/QUALITY_GATE_ITERATE\n      enabled: true\n    - id: fest-commit\n      template: gates/implementation/QUALITY_GATE_FEST_COMMIT\n      enabled: true\n"
+	err = writeFileInContainer(container, festPath+"/fest.yaml", festYaml)
+	require.NoError(t, err)
+
+	// Create FESTIVAL_OVERVIEW.md (required by validator)
+	overviewContent := "---\nfest_type: overview\n---\n\n# Test Festival Overview\n\n## Goals\n- Test completion behavior\n\n## Success Criteria\n- All tasks completed\n"
+	err = writeFileInContainer(container, festPath+"/FESTIVAL_OVERVIEW.md", overviewContent)
+	require.NoError(t, err)
+
+	// Create FESTIVAL_RULES.md (recommended by validator)
+	rulesContent := "# Festival Rules\n\n- Follow naming conventions\n"
+	err = writeFileInContainer(container, festPath+"/FESTIVAL_RULES.md", rulesContent)
+	require.NoError(t, err)
+
 	_, err = container.RunFestInDir(festPath, "create", "phase", "--name", "ONLY_PHASE", "--type", "implementation")
 	require.NoError(t, err)
 	_, err = container.RunFestInDir(festPath+"/001_ONLY_PHASE", "create", "sequence", "--name", "only_seq")
@@ -274,12 +289,36 @@ Complete the only_task task.
 	err = writeFileInContainer(container, festPath+"/001_ONLY_PHASE/01_only_seq/01_only_task.md", onlyTaskContent)
 	require.NoError(t, err)
 
+	// Add quality gate stubs (required by validator)
+	for _, gate := range []struct {
+		num                int
+		name, gType, title string
+	}{
+		{2, "testing", "testing", "Testing"},
+		{3, "review", "review", "Code Review"},
+		{4, "iterate", "iterate", "Iterate"},
+		{5, "fest_commit", "fest-commit", "Fest Commit"},
+	} {
+		gateContent := fmt.Sprintf("---\nfest_type: gate\nfest_gate_type: %s\nfest_status: pending\n---\n# Quality Gate: %s\n- [ ] Gate passed\n", gate.gType, gate.title)
+		err = writeFileInContainer(container, fmt.Sprintf("%s/001_ONLY_PHASE/01_only_seq/%02d_%s.md", festPath, gate.num, gate.name), gateContent)
+		require.NoError(t, err)
+	}
+
 	// Run execute
 	_ = runExecuteMode(t, container, festPath)
 
-	// Complete the only task
-	_, err = container.RunFestInDir(festPath, "progress", "--complete", "--task", "001_ONLY_PHASE/01_only_seq/01_only_task.md")
-	require.NoError(t, err)
+	// Complete all tasks (real task + gate stubs)
+	allTasks := []string{
+		"001_ONLY_PHASE/01_only_seq/01_only_task.md",
+		"001_ONLY_PHASE/01_only_seq/02_testing.md",
+		"001_ONLY_PHASE/01_only_seq/03_review.md",
+		"001_ONLY_PHASE/01_only_seq/04_iterate.md",
+		"001_ONLY_PHASE/01_only_seq/05_fest_commit.md",
+	}
+	for _, task := range allTasks {
+		_, err = container.RunFestInDir(festPath, "progress", "--complete", "--task", task)
+		require.NoError(t, err, "should complete %s", task)
+	}
 
 	// Execute again - should indicate completion
 	output := runExecuteMode(t, container, festPath)

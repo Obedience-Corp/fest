@@ -39,8 +39,7 @@ func TestGatesCommands(t *testing.T) {
 		require.Contains(t, output, "gates", "Help should mention gates")
 		require.Contains(t, output, "show", "Help should mention show subcommand")
 		require.Contains(t, output, "apply", "Help should mention apply subcommand")
-		require.Contains(t, output, "init", "Help should mention init subcommand")
-		require.Contains(t, output, "validate", "Help should mention validate subcommand")
+		require.Contains(t, output, "remove", "Help should mention remove subcommand")
 		t.Logf("gates help: %s", output)
 	})
 

@@ -171,6 +171,16 @@ func setupPlanFestival(t *testing.T, tc *TestContainer, festName string) string 
 	// Find the actual festival path (fest adds an ID suffix)
 	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
 
+	// Create FESTIVAL_OVERVIEW.md (required by validator)
+	overviewContent := "---\nfest_type: overview\n---\n\n# Test Festival Overview\n\n## Goals\n- Complete planning testing\n\n## Success Criteria\n- All planning steps completed\n"
+	err = writeFileInContainer(tc, festPath+"/FESTIVAL_OVERVIEW.md", overviewContent)
+	require.NoError(t, err, "should create FESTIVAL_OVERVIEW.md")
+
+	// Create FESTIVAL_RULES.md (recommended by validator)
+	rulesContent := "# Festival Rules\n\n- Follow naming conventions\n"
+	err = writeFileInContainer(tc, festPath+"/FESTIVAL_RULES.md", rulesContent)
+	require.NoError(t, err, "should create FESTIVAL_RULES.md")
+
 	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "PLANNING", "--type", "planning")
 	require.NoError(t, err)
 
@@ -210,6 +220,16 @@ func setupResearchFestival(t *testing.T, tc *TestContainer, festName string) str
 	// Find the actual festival path (fest adds an ID suffix)
 	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
 
+	// Create FESTIVAL_OVERVIEW.md (required by validator)
+	overviewContent := "---\nfest_type: overview\n---\n\n# Test Festival Overview\n\n## Goals\n- Complete research testing\n\n## Success Criteria\n- All research topics covered\n"
+	err = writeFileInContainer(tc, festPath+"/FESTIVAL_OVERVIEW.md", overviewContent)
+	require.NoError(t, err, "should create FESTIVAL_OVERVIEW.md")
+
+	// Create FESTIVAL_RULES.md (recommended by validator)
+	rulesContent := "# Festival Rules\n\n- Follow naming conventions\n"
+	err = writeFileInContainer(tc, festPath+"/FESTIVAL_RULES.md", rulesContent)
+	require.NoError(t, err, "should create FESTIVAL_RULES.md")
+
 	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "RESEARCH", "--type", "research")
 	require.NoError(t, err)
 
@@ -245,6 +265,16 @@ func setupReviewFestival(t *testing.T, tc *TestContainer, festName string) strin
 
 	// Find the actual festival path (fest adds an ID suffix)
 	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
+
+	// Create FESTIVAL_OVERVIEW.md (required by validator)
+	overviewContent := "---\nfest_type: overview\n---\n\n# Test Festival Overview\n\n## Goals\n- Complete review testing\n\n## Success Criteria\n- All review items checked\n"
+	err = writeFileInContainer(tc, festPath+"/FESTIVAL_OVERVIEW.md", overviewContent)
+	require.NoError(t, err, "should create FESTIVAL_OVERVIEW.md")
+
+	// Create FESTIVAL_RULES.md (recommended by validator)
+	rulesContent := "# Festival Rules\n\n- Follow naming conventions\n"
+	err = writeFileInContainer(tc, festPath+"/FESTIVAL_RULES.md", rulesContent)
+	require.NoError(t, err, "should create FESTIVAL_RULES.md")
 
 	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "REVIEW", "--type", "review")
 	require.NoError(t, err)
@@ -283,6 +313,16 @@ func setupActionFestival(t *testing.T, tc *TestContainer, festName string) strin
 	// Find the actual festival path (fest adds an ID suffix)
 	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
 
+	// Create FESTIVAL_OVERVIEW.md (required by validator)
+	overviewContent := "---\nfest_type: overview\n---\n\n# Test Festival Overview\n\n## Goals\n- Complete action testing\n\n## Success Criteria\n- All actions executed\n"
+	err = writeFileInContainer(tc, festPath+"/FESTIVAL_OVERVIEW.md", overviewContent)
+	require.NoError(t, err, "should create FESTIVAL_OVERVIEW.md")
+
+	// Create FESTIVAL_RULES.md (recommended by validator)
+	rulesContent := "# Festival Rules\n\n- Follow naming conventions\n"
+	err = writeFileInContainer(tc, festPath+"/FESTIVAL_RULES.md", rulesContent)
+	require.NoError(t, err, "should create FESTIVAL_RULES.md")
+
 	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "ACTIONS", "--type", "non_coding_action")
 	require.NoError(t, err)
 
@@ -319,6 +359,16 @@ func setupIngestFestival(t *testing.T, tc *TestContainer, festName string) strin
 
 	// Find the actual festival path (fest adds an ID suffix)
 	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
+
+	// Create FESTIVAL_OVERVIEW.md (required by validator)
+	overviewContent := "---\nfest_type: overview\n---\n\n# Test Festival Overview\n\n## Goals\n- Complete ingest testing\n\n## Success Criteria\n- All items ingested\n"
+	err = writeFileInContainer(tc, festPath+"/FESTIVAL_OVERVIEW.md", overviewContent)
+	require.NoError(t, err, "should create FESTIVAL_OVERVIEW.md")
+
+	// Create FESTIVAL_RULES.md (recommended by validator)
+	rulesContent := "# Festival Rules\n\n- Follow naming conventions\n"
+	err = writeFileInContainer(tc, festPath+"/FESTIVAL_RULES.md", rulesContent)
+	require.NoError(t, err, "should create FESTIVAL_RULES.md")
 
 	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "INGEST", "--type", "ingest")
 	require.NoError(t, err)
@@ -525,26 +575,80 @@ func setupMultiModeFestival(t *testing.T, tc *TestContainer, festName string) st
 	// Find the actual festival path (fest adds an ID suffix)
 	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
 
+	// Create FESTIVAL_OVERVIEW.md (required by validator)
+	overviewContent := "---\nfest_type: overview\n---\n\n# Test Festival Overview\n\n## Goals\n- Complete multi-mode testing\n\n## Success Criteria\n- All phase types navigated\n"
+	err = writeFileInContainer(tc, festPath+"/FESTIVAL_OVERVIEW.md", overviewContent)
+	require.NoError(t, err, "should create FESTIVAL_OVERVIEW.md")
+
+	// Create FESTIVAL_RULES.md (recommended by validator)
+	rulesContent := "# Festival Rules\n\n- Follow naming conventions\n"
+	err = writeFileInContainer(tc, festPath+"/FESTIVAL_RULES.md", rulesContent)
+	require.NoError(t, err, "should create FESTIVAL_RULES.md")
+
+	// Write fest.yaml with quality gates
+	festYaml := "version: \"1.0\"\nquality_gates:\n  enabled: true\n  auto_append: true\n  implementation:\n    - id: testing\n      template: gates/implementation/QUALITY_GATE_TESTING\n      enabled: true\n    - id: review\n      template: gates/implementation/QUALITY_GATE_REVIEW\n      enabled: true\n    - id: iterate\n      template: gates/implementation/QUALITY_GATE_ITERATE\n      enabled: true\n    - id: fest-commit\n      template: gates/implementation/QUALITY_GATE_FEST_COMMIT\n      enabled: true\n"
+	err = writeFileInContainer(tc, festPath+"/fest.yaml", festYaml)
+	require.NoError(t, err)
+
 	// Create planning phase
 	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "PLANNING", "--type", "planning")
 	require.NoError(t, err, "should create planning phase")
+
+	// Overwrite planning PHASE_GOAL.md with marker-free content
+	planGoal := "---\nfest_type: phase\nfest_phase_type: planning\n---\n\n# Planning Phase\n\n## Planning Objectives\n\n- [ ] Define Requirements\n- [ ] Create Design\n"
+	err = writeFileInContainer(tc, festPath+"/001_PLANNING/PHASE_GOAL.md", planGoal)
+	require.NoError(t, err)
 
 	// Create implementation phase
 	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "IMPLEMENTATION", "--type", "implementation")
 	require.NoError(t, err, "should create implementation phase")
 
-	// Add sequence and tasks to implementation phase
+	// Overwrite implementation PHASE_GOAL.md with marker-free content
+	implGoal := "---\nfest_type: phase\nfest_phase_type: implementation\n---\n\n# Implementation Phase\n\n## Goal\nImplement core features.\n"
+	err = writeFileInContainer(tc, festPath+"/002_IMPLEMENTATION/PHASE_GOAL.md", implGoal)
+	require.NoError(t, err)
+
+	// Add sequence to implementation phase
 	phasePath := festPath + "/002_IMPLEMENTATION"
 	_, err = tc.RunFestInDir(phasePath, "create", "sequence", "--name", "core_work")
 	require.NoError(t, err)
 
+	// Overwrite SEQUENCE_GOAL.md with marker-free content
 	seqPath := phasePath + "/01_core_work"
-	_, err = tc.RunFestInDir(seqPath, "create", "task", "--name", "task_one", "--name", "task_two")
+	seqGoal := "---\nfest_type: sequence\n---\n\n# Core Work\n\n## Goal\nComplete core work tasks.\n"
+	err = writeFileInContainer(tc, seqPath+"/SEQUENCE_GOAL.md", seqGoal)
 	require.NoError(t, err)
+
+	// Write task files directly without markers
+	for i, name := range []string{"task_one", "task_two"} {
+		taskContent := fmt.Sprintf("---\nfest_type: task\nfest_id: %02d_%s.md\nfest_name: %s\nfest_status: pending\n---\n\n# Task: %s\n\n## Objective\nComplete %s.\n\n## Done When\n- [ ] Task completed\n", i+1, name, name, name, name)
+		err = writeFileInContainer(tc, fmt.Sprintf("%s/%02d_%s.md", seqPath, i+1, name), taskContent)
+		require.NoError(t, err)
+	}
+
+	// Add quality gate stubs
+	for _, gate := range []struct {
+		num                int
+		name, gType, title string
+	}{
+		{3, "testing", "testing", "Testing"},
+		{4, "review", "review", "Code Review"},
+		{5, "iterate", "iterate", "Iterate"},
+		{6, "fest_commit", "fest-commit", "Fest Commit"},
+	} {
+		gateContent := fmt.Sprintf("---\nfest_type: gate\nfest_gate_type: %s\nfest_status: pending\n---\n# Quality Gate: %s\n- [ ] Gate passed\n", gate.gType, gate.title)
+		err = writeFileInContainer(tc, fmt.Sprintf("%s/%02d_%s.md", seqPath, gate.num, gate.name), gateContent)
+		require.NoError(t, err)
+	}
 
 	// Create review phase
 	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "REVIEW", "--type", "review")
 	require.NoError(t, err, "should create review phase")
+
+	// Overwrite review PHASE_GOAL.md with marker-free content
+	reviewGoal := "---\nfest_type: phase\nfest_phase_type: review\n---\n\n# Review Phase\n\n## Review Items\n\n- [ ] Code Quality Check\n- [ ] Security Review\n"
+	err = writeFileInContainer(tc, festPath+"/003_REVIEW/PHASE_GOAL.md", reviewGoal)
+	require.NoError(t, err)
 
 	return festPath
 }
@@ -567,6 +671,16 @@ func setupLifecycleFestival(t *testing.T, tc *TestContainer, festName string) st
 
 	// Find the actual festival path (fest adds an ID suffix)
 	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
+
+	// Create FESTIVAL_OVERVIEW.md (required by validator)
+	overviewContent := "---\nfest_type: overview\n---\n\n# Test Festival Overview\n\n## Goals\n- Complete lifecycle testing\n\n## Success Criteria\n- All lifecycle phases completed\n"
+	err = writeFileInContainer(tc, festPath+"/FESTIVAL_OVERVIEW.md", overviewContent)
+	require.NoError(t, err, "should create FESTIVAL_OVERVIEW.md")
+
+	// Create FESTIVAL_RULES.md (recommended by validator)
+	rulesContent := "# Festival Rules\n\n- Follow naming conventions\n"
+	err = writeFileInContainer(tc, festPath+"/FESTIVAL_RULES.md", rulesContent)
+	require.NoError(t, err, "should create FESTIVAL_RULES.md")
 
 	// Create ingest phase
 	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "INGEST", "--type", "ingest")
