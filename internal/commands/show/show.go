@@ -21,6 +21,7 @@ type showOptions struct {
 	goals      bool // Show goals for phases and sequences
 	collapsed  bool // Show collapsed tree with counters only
 	inProgress bool // Expand only in_progress phases/sequences
+	roadmap    bool // Show full execution roadmap with task statuses
 }
 
 // NewShowCommand creates the show command with all subcommands.
@@ -58,6 +59,7 @@ SUBCOMMANDS:
 	cmd.Flags().BoolVar(&opts.goals, "goals", false, "show goals for phases and sequences")
 	cmd.Flags().BoolVar(&opts.collapsed, "collapsed", false, "show collapsed tree with counters only")
 	cmd.Flags().BoolVar(&opts.inProgress, "inprogress", false, "expand only in-progress phases and sequences")
+	cmd.Flags().BoolVar(&opts.roadmap, "roadmap", false, "show full execution roadmap with task statuses")
 
 	// Add subcommands for status directories
 	cmd.AddCommand(newShowActiveCommand(opts))
@@ -207,6 +209,14 @@ func runShowCurrent(ctx context.Context, opts *showOptions) error {
 		return runWatchMode(ctx, festival, opts)
 	}
 
+	// Roadmap mode - full execution plan
+	if opts.roadmap {
+		if opts.json {
+			return emitRoadmapJSON(ctx, festival, campaignRoot)
+		}
+		return emitRoadmapText(ctx, festival)
+	}
+
 	if opts.json {
 		return emitFestivalJSON(festival, campaignRoot)
 	}
@@ -237,6 +247,14 @@ func runShow(ctx context.Context, target string, opts *showOptions) error {
 			return emitShowErrorJSON(fmt.Sprintf("festival '%s' not found", target))
 		}
 		return err
+	}
+
+	// Roadmap mode - full execution plan
+	if opts.roadmap {
+		if opts.json {
+			return emitRoadmapJSON(ctx, festival, campaignRoot)
+		}
+		return emitRoadmapText(ctx, festival)
 	}
 
 	if opts.json {
