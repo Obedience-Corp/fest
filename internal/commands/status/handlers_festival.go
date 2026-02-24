@@ -1,11 +1,9 @@
 package status
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -440,6 +438,8 @@ func emitFestivalMoveSuccess(opts *statusOptions, festival *show.FestivalInfo, n
 // autoCommitStatusChange stages and commits the filesystem changes from a festival
 // status move. It follows the non-blocking pattern: failures produce warnings,
 // never blocking the status change itself.
+//
+// Uses commitkit for lock-aware git operations with automatic stale lock cleanup.
 func autoCommitStatusChange(ctx context.Context, festivalName, festivalID, oldStatus, newStatus string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
@@ -450,20 +450,21 @@ func autoCommitStatusChange(ctx context.Context, festivalName, festivalID, oldSt
 		return "", fmt.Errorf("workspace not available in context")
 	}
 
-	// Stage all changes from the directory move
-	addCmd := exec.CommandContext(ctx, "git", "-C", ws.Root, "add", "-A")
-	if out, err := addCmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("git add: %s: %w", bytes.TrimSpace(out), err)
+	// Stage all changes from the directory move (lock-aware with retry).
+	if err := commitkit.StageAll(ctx, ws.Root); err != nil {
+		return "", fmt.Errorf("stage: %w", err)
 	}
 
-	// Check if anything is actually staged
-	diffCmd := exec.CommandContext(ctx, "git", "-C", ws.Root, "diff", "--cached", "--quiet")
-	if err := diffCmd.Run(); err == nil {
-		// Exit code 0 means no staged changes
+	// Check if anything is actually staged.
+	hasChanges, err := commitkit.HasStagedChanges(ctx, ws.Root)
+	if err != nil {
+		return "", fmt.Errorf("check staged: %w", err)
+	}
+	if !hasChanges {
 		return "", nil
 	}
 
-	// Build commit message
+	// Build commit message.
 	message := fmt.Sprintf("chore(fest): status change: %s", festivalName)
 	if festivalID != "" {
 		message = fmt.Sprintf("chore(fest): status change: %s (%s) %s -> %s", festivalName, festivalID, oldStatus, newStatus)
@@ -471,7 +472,7 @@ func autoCommitStatusChange(ctx context.Context, festivalName, festivalID, oldSt
 		message = fmt.Sprintf("chore(fest): status change: %s %s -> %s", festivalName, oldStatus, newStatus)
 	}
 
-	// Prepend campaign tag if in a campaign workspace
+	// Prepend campaign tag if in a campaign workspace.
 	if ws.Type == scope.WorkspaceTypeCampaign {
 		cid, err := commitkit.DetectCampaign(ctx)
 		if err == nil && cid != "" {
@@ -479,19 +480,17 @@ func autoCommitStatusChange(ctx context.Context, festivalName, festivalID, oldSt
 		}
 	}
 
-	// Commit
-	commitCmd := exec.CommandContext(ctx, "git", "-C", ws.Root, "commit", "-m", message)
-	if out, err := commitCmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("git commit: %s: %w", bytes.TrimSpace(out), err)
+	// Commit (lock-aware with retry).
+	if err := commitkit.Commit(ctx, ws.Root, commitkit.CommitOptions{Message: message}); err != nil {
+		return "", fmt.Errorf("commit: %w", err)
 	}
 
-	// Get short hash
-	hashCmd := exec.CommandContext(ctx, "git", "-C", ws.Root, "rev-parse", "--short", "HEAD")
-	hashOut, err := hashCmd.Output()
+	// Get short hash for display.
+	hash, err := commitkit.ShortHash(ctx, ws.Root)
 	if err != nil {
-		// Commit succeeded but we couldn't get the hash — not critical
+		// Commit succeeded but we couldn't get the hash — not critical.
 		return "committed", nil
 	}
 
-	return strings.TrimSpace(string(hashOut)), nil
+	return hash, nil
 }
