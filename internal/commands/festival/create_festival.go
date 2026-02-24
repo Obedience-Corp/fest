@@ -134,7 +134,10 @@ func resolveCreateConfig(ctx context.Context, opts *CreateFestivalOptions) (*cre
 	}
 
 	display := ui.New(shared.IsNoColor(), shared.IsVerbose())
-	cwd, _ := os.Getwd()
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, errors.Wrap(err, "getting working directory")
+	}
 
 	festivalsRoot, err := workspace.FindFestivals(cwd)
 	if err != nil {
@@ -276,7 +279,7 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 	// will replace them with the same values. This handles the case where
 	// fest init ran before camp init (so .campaign/ didn't exist yet),
 	// or where the contract file was deleted and needs regeneration.
-	writeContractEntries(ctx, cfg.festivalsRoot)
+	writeContractEntries(cfg.campaignRoot)
 
 	res.created = created
 	res.copiedGates = copiedGates
@@ -856,11 +859,9 @@ func Slugify(s string) string {
 }
 
 // writeContractEntries writes fest's entries to the campaign contract file.
-// Skips gracefully if no campaign is found (standalone fest workspace).
-func writeContractEntries(ctx context.Context, festivalsRoot string) {
-	workspaceRoot := filepath.Dir(festivalsRoot)
-	campaignRoot, err := workspace.DetectCampaign(ctx, workspaceRoot)
-	if err != nil {
+// Skips gracefully if campaignRoot is empty (standalone fest workspace).
+func writeContractEntries(campaignRoot string) {
+	if campaignRoot == "" {
 		return
 	}
 
