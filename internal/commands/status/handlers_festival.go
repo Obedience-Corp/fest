@@ -287,6 +287,17 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 	festivalsRoot := festivalsRootFromPath(festival.Path, festival.Status)
 	newPath := filepath.Join(festivalsRoot, newStatus, festival.Name)
 
+	// Detect if CWD is inside the festival being moved
+	cwd, cwdErr := os.Getwd()
+	var cdHint string
+	if cwdErr == nil {
+		rel, relErr := filepath.Rel(festival.Path, cwd)
+		if relErr == nil && !strings.HasPrefix(rel, "..") {
+			// CWD is inside this festival — compute equivalent path in new location
+			cdHint = filepath.Join(newPath, rel)
+		}
+	}
+
 	// Check if destination exists
 	if _, err := os.Stat(newPath); err == nil {
 		return errors.Validation("destination already exists").WithField("path", newPath)
@@ -336,7 +347,7 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 		}
 	}
 
-	return emitFestivalMoveSuccess(opts, festival, newStatus, newPath, linkAction, commitHash)
+	return emitFestivalMoveSuccess(opts, festival, newStatus, newPath, linkAction, commitHash, cdHint)
 }
 
 // updateNavigationAfterMove updates the navigation link after a festival move.
@@ -374,7 +385,7 @@ func updateNavigationAfterMove(festivalName, newStatus, newPath string) string {
 }
 
 // emitFestivalMoveSuccess outputs success message after moving a festival.
-func emitFestivalMoveSuccess(opts *statusOptions, festival *show.FestivalInfo, newStatus, newPath, linkAction, commitHash string) error {
+func emitFestivalMoveSuccess(opts *statusOptions, festival *show.FestivalInfo, newStatus, newPath, linkAction, commitHash, cdHint string) error {
 	if opts.json {
 		result := map[string]any{
 			"success":    true,
@@ -390,6 +401,9 @@ func emitFestivalMoveSuccess(opts *statusOptions, festival *show.FestivalInfo, n
 		if commitHash != "" {
 			result["commit"] = commitHash
 		}
+		if cdHint != "" {
+			result["cd_hint"] = cdHint
+		}
 		if err := shared.EncodeJSON(os.Stdout, result); err != nil {
 			return errors.Wrap(err, "encoding JSON output")
 		}
@@ -404,6 +418,11 @@ func emitFestivalMoveSuccess(opts *statusOptions, festival *show.FestivalInfo, n
 		}
 		if commitHash != "" {
 			fmt.Printf("%s %s\n", ui.Label("Commit"), ui.Value(commitHash))
+		}
+		if cdHint != "" {
+			fmt.Println()
+			fmt.Println(ui.Warning("Your current directory was inside the moved festival."))
+			fmt.Printf("%s cd %s\n", ui.Label("Navigate"), cdHint)
 		}
 	}
 	return nil
