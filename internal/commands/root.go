@@ -7,12 +7,10 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/config"
 	contextcmd "github.com/Obedience-Corp/fest/internal/commands/context"
 	depscmd "github.com/Obedience-Corp/fest/internal/commands/deps"
-	executecmd "github.com/Obedience-Corp/fest/internal/commands/execute"
 	explorecmd "github.com/Obedience-Corp/fest/internal/commands/explore"
 	"github.com/Obedience-Corp/fest/internal/commands/extensions"
 	feedbackcmd "github.com/Obedience-Corp/fest/internal/commands/feedback"
 	"github.com/Obedience-Corp/fest/internal/commands/festival"
-	flowcmd "github.com/Obedience-Corp/fest/internal/commands/flow"
 	"github.com/Obedience-Corp/fest/internal/commands/gates"
 	introcmd "github.com/Obedience-Corp/fest/internal/commands/intro"
 	listcmd "github.com/Obedience-Corp/fest/internal/commands/list"
@@ -26,6 +24,7 @@ import (
 	promotecmd "github.com/Obedience-Corp/fest/internal/commands/promote"
 	"github.com/Obedience-Corp/fest/internal/commands/research"
 	ritualcmd "github.com/Obedience-Corp/fest/internal/commands/ritual"
+	searchcmd "github.com/Obedience-Corp/fest/internal/commands/search"
 	scaffoldcmd "github.com/Obedience-Corp/fest/internal/commands/scaffold"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
@@ -213,11 +212,11 @@ func init() {
 	linksCmd.GroupID = "navigation"
 	rootCmd.AddCommand(linksCmd)
 
-	// === WORKFLOW COMMANDS ===
-	executeCmd := executecmd.NewExecuteCommand()
-	executeCmd.GroupID = "workflow"
-	rootCmd.AddCommand(executeCmd)
+	moveCmd := navigation.NewMoveCommand()
+	moveCmd.GroupID = "navigation"
+	rootCmd.AddCommand(moveCmd)
 
+	// === WORKFLOW COMMANDS ===
 	nextCmd := nextcmd.NewNextCommand()
 	nextCmd.GroupID = "workflow"
 	rootCmd.AddCommand(nextCmd)
@@ -233,10 +232,6 @@ func init() {
 	promoteCmd := promotecmd.NewPromoteCommand()
 	promoteCmd.GroupID = "workflow"
 	rootCmd.AddCommand(promoteCmd)
-
-	flowCmd := flowcmd.NewFlowCommand()
-	flowCmd.GroupID = "workflow"
-	rootCmd.AddCommand(flowCmd)
 
 	ritualCmd := ritualcmd.NewRitualCommand()
 	ritualCmd.GroupID = "workflow"
@@ -271,6 +266,10 @@ func init() {
 	listCmd.GroupID = "query"
 	rootCmd.AddCommand(listCmd)
 
+	searchCmd := searchcmd.NewSearchCommand()
+	searchCmd.GroupID = "query"
+	rootCmd.AddCommand(searchCmd)
+
 	exploreCmd := explorecmd.NewExploreCommand()
 	exploreCmd.GroupID = "navigation"
 	rootCmd.AddCommand(exploreCmd)
@@ -301,6 +300,7 @@ func init() {
 	rootCmd.AddCommand(shellInitCmd)
 
 	extensionCmd := extensions.NewExtensionCommand()
+	extensionCmd.Hidden = true
 	extensionCmd.GroupID = "system"
 	rootCmd.AddCommand(extensionCmd)
 

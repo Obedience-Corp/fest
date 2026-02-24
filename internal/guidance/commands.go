@@ -29,14 +29,14 @@ type ModeCommands struct {
 var DefaultModeCommands = map[Mode]ModeCommands{
 	ModeImplementation: {
 		DisplayName:     "Implementation Mode",
-		StartCommand:    "fest execute",
+		StartCommand:    "fest next",
 		NextCommand:     "fest next",
 		CompleteCommand: "fest task completed",
 		AdditionalCmds:  nil,
 	},
 	ModePlan: {
 		DisplayName:     "Planning Mode",
-		StartCommand:    "fest execute --mode plan",
+		StartCommand:    "fest next --mode plan",
 		NextCommand:     "fest next",
 		CompleteCommand: "fest workflow advance",
 		AdditionalCmds: map[string]string{
@@ -49,7 +49,7 @@ var DefaultModeCommands = map[Mode]ModeCommands{
 	},
 	ModeResearch: {
 		DisplayName:     "Research Mode",
-		StartCommand:    "fest execute --mode research",
+		StartCommand:    "fest next --mode research",
 		NextCommand:     "fest next",
 		CompleteCommand: "fest workflow advance",
 		AdditionalCmds: map[string]string{
@@ -62,7 +62,7 @@ var DefaultModeCommands = map[Mode]ModeCommands{
 	},
 	ModeReview: {
 		DisplayName:     "Review Mode",
-		StartCommand:    "fest execute --mode review",
+		StartCommand:    "fest next --mode review",
 		NextCommand:     "fest next --mode review",
 		CompleteCommand: "fest task completed",
 		AdditionalCmds: map[string]string{
@@ -73,7 +73,7 @@ var DefaultModeCommands = map[Mode]ModeCommands{
 	},
 	ModeAction: {
 		DisplayName:     "Action Mode",
-		StartCommand:    "fest execute --mode action",
+		StartCommand:    "fest next --mode action",
 		NextCommand:     "fest next --mode action",
 		CompleteCommand: "fest task completed",
 		AdditionalCmds: map[string]string{
@@ -84,7 +84,7 @@ var DefaultModeCommands = map[Mode]ModeCommands{
 	},
 	ModeIngest: {
 		DisplayName:     "Ingest Mode",
-		StartCommand:    "fest execute --mode ingest",
+		StartCommand:    "fest next --mode ingest",
 		NextCommand:     "fest next",
 		CompleteCommand: "fest workflow advance",
 		AdditionalCmds: map[string]string{

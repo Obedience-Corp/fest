@@ -116,7 +116,7 @@ func fileExists(path string) bool {
 // and freeform phases (review, non_coding_action) are excluded.
 func isImplementationPhase(phaseName string) bool {
 	normalized := strings.ToUpper(phaseName)
-	nonImpl := []string{"RESEARCH", "PLANNING", "PLAN", "DESIGN", "INGEST", "REVIEW", "NON_CODING"}
+	nonImpl := []string{"RESEARCH", "PLANNING", "PLAN", "DESIGN", "INGEST", "REVIEW", "NON_CODING", "ACTION"}
 	for _, skip := range nonImpl {
 		if strings.Contains(normalized, skip) {
 			return false

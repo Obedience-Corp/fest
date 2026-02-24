@@ -771,14 +771,39 @@ func TestContextCancellation(t *testing.T) {
 		t.Fatal("expected init command")
 	}
 
-	// Execute the command
+	// Init returns a tea.Batch; execute the result to get inner msgs
 	msg := cmd()
-	loadedMsg, ok := msg.(festivalsLoadedMsg)
-	if !ok {
-		t.Fatalf("expected festivalsLoadedMsg, got %T", msg)
+	// The batch returns a tea.BatchMsg containing sub-commands
+	batchMsg, isBatch := msg.(tea.BatchMsg)
+	if !isBatch {
+		// Direct cmd (non-batch) — check it directly
+		loadedMsg, ok := msg.(festivalsLoadedMsg)
+		if !ok {
+			t.Fatalf("expected festivalsLoadedMsg, got %T", msg)
+		}
+		if loadedMsg.err == nil {
+			t.Error("expected error from cancelled context")
+		}
+		return
 	}
-	if loadedMsg.err == nil {
-		t.Error("expected error from cancelled context")
+
+	// Find the festivalsLoadedMsg in the batch
+	var found bool
+	for _, subCmd := range batchMsg {
+		if subCmd == nil {
+			continue
+		}
+		subMsg := subCmd()
+		if loadedMsg, ok := subMsg.(festivalsLoadedMsg); ok {
+			found = true
+			if loadedMsg.err == nil {
+				t.Error("expected error from cancelled context")
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("expected festivalsLoadedMsg in batch")
 	}
 }
 
@@ -986,6 +1011,708 @@ func modelWithStatusItems() Model {
 	m.width = 120
 	m.height = 30
 	return m
+}
+
+func TestDetectStatusFromPath(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{"active festival", "/festivals/active/my-fest", "active"},
+		{"planning festival", "/festivals/planning/my-fest", "planning"},
+		{"dungeon completed", "/festivals/dungeon/completed/my-fest", "dungeon/completed"},
+		{"dungeon archived", "/festivals/dungeon/archived/my-fest", "dungeon/archived"},
+		{"dungeon someday", "/festivals/dungeon/someday/my-fest", "dungeon/someday"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := detectStatusFromPath(tt.path)
+			if got != tt.want {
+				t.Errorf("detectStatusFromPath(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTreeWidthCalculation(t *testing.T) {
+	tests := []struct {
+		name    string
+		width   int
+		wantMin int
+		wantMax int
+	}{
+		{"narrow", 60, 25, 25},
+		{"medium", 120, 25, 50},
+		{"wide", 200, 25, 50},
+		{"very narrow", 20, 25, 25},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := modelWithItems(3)
+			m.width = tt.width
+			tw := m.treeWidth()
+			if tw < tt.wantMin || tw > tt.wantMax {
+				t.Errorf("treeWidth(%d) = %d, want [%d, %d]", tt.width, tw, tt.wantMin, tt.wantMax)
+			}
+		})
+	}
+}
+
+func TestStripFrontmatter(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{"no frontmatter", "# Hello\nWorld", "# Hello\nWorld"},
+		{"with frontmatter", "---\nfoo: bar\n---\n# Hello", "# Hello"},
+		{"unclosed frontmatter", "---\nfoo: bar\n# Hello", "---\nfoo: bar\n# Hello"},
+		{"empty after frontmatter", "---\nfoo: bar\n---\n", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stripFrontmatter(tt.content)
+			if got != tt.want {
+				t.Errorf("stripFrontmatter() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestStatusStyleAllStatuses(t *testing.T) {
+	statuses := []string{
+		"active", "planning", "ready", "ritual",
+		"completed", "dungeon/completed",
+		"archived", "dungeon/archived",
+		"someday", "dungeon/someday",
+		"dungeon", "unknown",
+	}
+	for _, s := range statuses {
+		t.Run(s, func(t *testing.T) {
+			style := StatusStyle(s)
+			// Should not panic
+			_ = style.Render("test")
+		})
+	}
+}
+
+func TestHandlePreviewKeyScroll(t *testing.T) {
+	m := modelWithItems(3)
+	m.focusPreview = true
+	m.width = 120
+	m.height = 30
+	m.syncViewportSize()
+
+	// j key should delegate to viewport
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	m2 := updated.(Model)
+	if !m2.focusPreview {
+		t.Error("preview should still be focused after j")
+	}
+
+	// q quits
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	m3 := updated.(Model)
+	if !m3.quitting {
+		t.Error("q should quit from preview mode")
+	}
+	_ = cmd
+}
+
+func TestRenderContentItemTypes(t *testing.T) {
+	types := []struct {
+		itemType  ItemType
+		wantTitle string
+	}{
+		{ItemStatus, "Status"},
+		{ItemFestival, "Festival Goal"},
+		{ItemPhase, "Phase Goal"},
+		{ItemSequence, "Sequence Goal"},
+		{ItemTask, "Task"},
+	}
+	for _, tt := range types {
+		t.Run(string(tt.itemType), func(t *testing.T) {
+			m := New(context.Background(), "")
+			m.loading = false
+			m.width = 120
+			m.height = 30
+			m.items = []FestivalItem{{Name: "test", Type: tt.itemType, Path: "/tmp/test"}}
+			m.syncViewportSize()
+			content := m.renderContent(60)
+			if !strings.Contains(content, tt.wantTitle) {
+				t.Errorf("renderContent for %s should contain %q", tt.itemType, tt.wantTitle)
+			}
+		})
+	}
+}
+
+func TestRenderItemFestivalShowsDate(t *testing.T) {
+	m := modelWithItems(1)
+	item := m.items[0]
+	rendered := m.renderItem(item, false)
+	// Should contain date like "Feb 24"
+	if !strings.Contains(rendered, time.Now().Format("Jan")) {
+		t.Errorf("renderItem for festival should show date, got: %s", rendered)
+	}
+}
+
+func TestCurrentTitle(t *testing.T) {
+	m := modelWithItems(1)
+	m.status = ""
+	m.breadcrumbs = nil
+	if got := m.currentTitle(); got != "Festivals" {
+		t.Errorf("currentTitle() = %q, want %q", got, "Festivals")
+	}
+
+	m.status = "active"
+	if got := m.currentTitle(); !strings.Contains(got, "active") {
+		t.Errorf("currentTitle() = %q, want to contain 'active'", got)
+	}
+
+	m.breadcrumbs = []string{"phase1", "seq1"}
+	if got := m.currentTitle(); got != "seq1" {
+		t.Errorf("currentTitle() = %q, want %q", got, "seq1")
+	}
+}
+
+func TestStatusDisplayNameAllCases(t *testing.T) {
+	tests := []struct {
+		status string
+		want   string
+	}{
+		{"dungeon/completed", "Completed"},
+		{"dungeon/archived", "Archived"},
+		{"dungeon/someday", "Someday"},
+		{"planning", "Planning"},
+		{"ready", "Ready"},
+		{"active", "Active"},
+		{"ritual", "Ritual"},
+		{"unknown", "unknown"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.status, func(t *testing.T) {
+			got := statusDisplayName(tt.status)
+			if got != tt.want {
+				t.Errorf("statusDisplayName(%q) = %q, want %q", tt.status, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFilterKeyEsc(t *testing.T) {
+	m := modelWithItems(5)
+	m.filtering = true
+	m.allItems = m.items
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m2 := updated.(Model)
+	if m2.filtering {
+		t.Error("esc should exit filter mode")
+	}
+	if len(m2.items) != 5 {
+		t.Errorf("esc should restore all items, got %d", len(m2.items))
+	}
+}
+
+func TestFilterKeyEnter(t *testing.T) {
+	m := modelWithItems(5)
+	m.filtering = true
+	m.allItems = m.items
+	// Simulate having filtered to 2 items
+	m.items = m.items[:2]
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m2 := updated.(Model)
+	if m2.filtering {
+		t.Error("enter should exit filter mode")
+	}
+	// Items should stay filtered (not restored)
+	if len(m2.items) != 2 {
+		t.Errorf("enter should keep filtered items, got %d", len(m2.items))
+	}
+}
+
+func TestBuildStatusItems(t *testing.T) {
+	items := buildStatusItems()
+	if len(items) != len(id.StatusDirectories) {
+		t.Errorf("buildStatusItems() produced %d items, want %d", len(items), len(id.StatusDirectories))
+	}
+	for _, item := range items {
+		if item.Type != ItemStatus {
+			t.Errorf("item %q has type %v, want ItemStatus", item.Name, item.Type)
+		}
+		if item.Count != -1 {
+			t.Errorf("item %q has count %d, want -1 (loading)", item.Name, item.Count)
+		}
+	}
+}
+
+func TestEscWithNavStack(t *testing.T) {
+	m := modelWithItems(3)
+	m.navStack = append(m.navStack, navEntry{
+		items:    m.items,
+		selected: 0,
+		scroll:   0,
+	})
+	m.breadcrumbs = append(m.breadcrumbs, "test")
+	m.items = []FestivalItem{{Name: "child", Type: ItemPhase, Path: "/tmp/child"}}
+
+	newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = newModel.(Model)
+
+	if m.quitting {
+		t.Error("esc with navStack should navigate up, not quit")
+	}
+	if len(m.navStack) != 0 {
+		t.Error("expected navStack to be popped")
+	}
+	if len(m.items) != 3 {
+		t.Errorf("expected 3 items restored, got %d", len(m.items))
+	}
+}
+
+func TestFilterTypingFiltersItems(t *testing.T) {
+	m := modelWithItems(5)
+	// Items: fest-1 through fest-5
+
+	// Enter filter mode
+	newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	m = newModel.(Model)
+	if !m.filtering {
+		t.Fatal("expected filtering mode")
+	}
+
+	// Type "3" to filter
+	newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'3'}})
+	m = newModel.(Model)
+
+	if len(m.items) != 1 {
+		t.Errorf("expected 1 filtered item, got %d", len(m.items))
+	}
+	if len(m.items) > 0 && m.items[0].Name != "fest-3" {
+		t.Errorf("expected fest-3, got %s", m.items[0].Name)
+	}
+}
+
+func TestFilterTypingNoMatch(t *testing.T) {
+	m := modelWithItems(3)
+
+	// Enter filter mode
+	newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	m = newModel.(Model)
+
+	// Type "xyz" — no match
+	for _, r := range "xyz" {
+		newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		m = newModel.(Model)
+	}
+
+	if len(m.items) != 0 {
+		t.Errorf("expected 0 items for non-matching filter, got %d", len(m.items))
+	}
+}
+
+func TestPreviewKeyHReturnsToTree(t *testing.T) {
+	m := modelWithItems(3)
+	m.focusPreview = true
+
+	newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	m = newModel.(Model)
+	if m.focusPreview {
+		t.Error("h should return focus to tree from preview mode")
+	}
+}
+
+func TestPreviewKeyTabReturnsToTree(t *testing.T) {
+	m := modelWithItems(3)
+	m.focusPreview = true
+
+	newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
+	m = newModel.(Model)
+	if m.focusPreview {
+		t.Error("Tab should return focus to tree from preview mode")
+	}
+}
+
+func TestPreviewKeyCtrlCQuits(t *testing.T) {
+	m := modelWithItems(3)
+	m.focusPreview = true
+
+	newModel, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	m = newModel.(Model)
+	if !m.quitting {
+		t.Error("ctrl+c should quit from preview mode")
+	}
+	if cmd == nil {
+		t.Error("expected tea.Quit command")
+	}
+}
+
+func TestGOnEmptyList(t *testing.T) {
+	m := modelWithItems(0)
+
+	newModel, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'G'}})
+	m = newModel.(Model)
+	if m.selected != 0 {
+		t.Errorf("G on empty list should be no-op, got selected=%d", m.selected)
+	}
+	if cmd != nil {
+		t.Error("G on empty list should return nil cmd")
+	}
+}
+
+func TestKAtTopBoundary(t *testing.T) {
+	m := modelWithItems(3)
+	m.selected = 0
+
+	newModel, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'k'}})
+	m = newModel.(Model)
+	if m.selected != 0 {
+		t.Errorf("k at top should stay at 0, got %d", m.selected)
+	}
+	if cmd != nil {
+		t.Error("k at top boundary should return nil cmd")
+	}
+}
+
+func TestJAtBottomBoundary(t *testing.T) {
+	m := modelWithItems(3)
+	m.selected = 2
+
+	newModel, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	m = newModel.(Model)
+	if m.selected != 2 {
+		t.Errorf("j at bottom should stay at 2, got %d", m.selected)
+	}
+	if cmd != nil {
+		t.Error("j at bottom boundary should return nil cmd")
+	}
+}
+
+func TestLoadPreviewCmdOutOfBounds(t *testing.T) {
+	m := modelWithItems(3)
+	m.selected = -1
+
+	cmd := m.loadPreviewCmd()
+	if cmd == nil {
+		t.Fatal("expected non-nil cmd even for out-of-bounds")
+	}
+
+	// Execute cmd — should return empty previewLoadedMsg
+	msg := cmd()
+	loaded, ok := msg.(previewLoadedMsg)
+	if !ok {
+		t.Fatalf("expected previewLoadedMsg, got %T", msg)
+	}
+	if loaded.rendered != "" {
+		t.Errorf("expected empty rendered for out-of-bounds, got %q", loaded.rendered)
+	}
+}
+
+func TestPreviewLoadedMsgSetsContent(t *testing.T) {
+	m := modelWithItems(3)
+	m.width = 120
+	m.height = 30
+	m.syncViewportSize()
+
+	msg := previewLoadedMsg{rendered: "# Hello World\n\nSome content here."}
+	newModel, _ := m.Update(msg)
+	m = newModel.(Model)
+
+	content := m.viewport.View()
+	if !strings.Contains(content, "Hello World") {
+		t.Error("expected viewport content to contain rendered markdown")
+	}
+}
+
+func TestPreviewLoadedMsgEmptyShowsFallback(t *testing.T) {
+	m := modelWithItems(3)
+	m.width = 120
+	m.height = 30
+	m.syncViewportSize()
+
+	msg := previewLoadedMsg{rendered: ""}
+	newModel, _ := m.Update(msg)
+	m = newModel.(Model)
+
+	content := m.viewport.View()
+	if !strings.Contains(content, "No preview available") {
+		t.Error("expected 'No preview available' fallback in viewport")
+	}
+}
+
+func TestChildrenLoadedSuccessPushesNavStack(t *testing.T) {
+	m := modelWithItems(3)
+	m.pendingNav = &navEntry{
+		items:    m.items,
+		selected: 1,
+		scroll:   0,
+	}
+
+	children := []FestivalItem{
+		{Name: "phase-1", Type: ItemPhase, Path: "/tmp/phase-1"},
+		{Name: "phase-2", Type: ItemPhase, Path: "/tmp/phase-2"},
+	}
+
+	newModel, _ := m.Update(childrenLoadedMsg{items: children, breadcrumb: "fest-1"})
+	m = newModel.(Model)
+
+	if len(m.navStack) != 1 {
+		t.Errorf("expected 1 navStack entry, got %d", len(m.navStack))
+	}
+	if m.pendingNav != nil {
+		t.Error("expected pendingNav to be cleared")
+	}
+	if len(m.items) != 2 {
+		t.Errorf("expected 2 child items, got %d", len(m.items))
+	}
+	if m.selected != 0 {
+		t.Errorf("expected selected=0 after drill-down, got %d", m.selected)
+	}
+	if len(m.breadcrumbs) != 1 || m.breadcrumbs[0] != "fest-1" {
+		t.Errorf("expected breadcrumbs=[fest-1], got %v", m.breadcrumbs)
+	}
+}
+
+func TestNavigateDownOutOfBounds(t *testing.T) {
+	m := modelWithItems(3)
+	m.selected = 10 // out of bounds
+
+	result, cmd := m.navigateDown()
+	m = result.(Model)
+
+	if cmd != nil {
+		t.Error("navigateDown with out-of-bounds should return nil cmd")
+	}
+}
+
+func TestMdRendererMinWidth(t *testing.T) {
+	r := &mdRenderer{}
+	content := "# Hello\n\nWorld\n"
+
+	// Width < 20 should be clamped to 60
+	result := r.render(content, 10)
+	if !strings.Contains(result, "Hello") {
+		t.Error("expected rendered content with clamped width")
+	}
+	if r.width != 60 {
+		t.Errorf("expected width clamped to 60, got %d", r.width)
+	}
+}
+
+func TestHAtTopLevelNoOp(t *testing.T) {
+	m := modelWithItems(3)
+	// No navStack entries
+
+	newModel, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	m = newModel.(Model)
+
+	if m.quitting {
+		t.Error("h at top level should be no-op, not quit")
+	}
+	if cmd != nil {
+		t.Error("h at top level should return nil cmd")
+	}
+}
+
+func TestNavigateDownEnterKey(t *testing.T) {
+	m := modelWithItems(3)
+	m.items[0].Type = ItemFestival
+
+	// Enter key should behave same as l (drilldown)
+	newModel, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = newModel.(Model)
+
+	if cmd == nil {
+		t.Error("expected command from enter key (drilldown)")
+	}
+	if m.pendingNav == nil {
+		t.Error("expected pendingNav to be set")
+	}
+}
+
+func TestGoalFileForItemSequence(t *testing.T) {
+	item := FestivalItem{Type: ItemSequence, Path: "/tmp/seq"}
+	result := goalFileForItem(item)
+	if result != "/tmp/seq/SEQUENCE_GOAL.md" {
+		t.Errorf("expected /tmp/seq/SEQUENCE_GOAL.md, got %s", result)
+	}
+}
+
+func TestGoalFileForItemStatus(t *testing.T) {
+	item := FestivalItem{Type: ItemStatus, Path: "/tmp/status"}
+	result := goalFileForItem(item)
+	if result != "" {
+		t.Errorf("expected empty string for status item, got %s", result)
+	}
+}
+
+func TestGoalFileForItemFestivalFallback(t *testing.T) {
+	tmp := t.TempDir()
+
+	// Festival with FESTIVAL_OVERVIEW.md but no FESTIVAL_GOAL.md
+	os.WriteFile(filepath.Join(tmp, "FESTIVAL_OVERVIEW.md"), []byte("# Overview\n"), 0644)
+
+	item := FestivalItem{Type: ItemFestival, Path: tmp}
+	result := goalFileForItem(item)
+	expected := filepath.Join(tmp, "FESTIVAL_OVERVIEW.md")
+	if result != expected {
+		t.Errorf("expected %s, got %s", expected, result)
+	}
+}
+
+func TestGoalFileForItemFestivalNoGoal(t *testing.T) {
+	tmp := t.TempDir()
+
+	item := FestivalItem{Type: ItemFestival, Path: tmp}
+	result := goalFileForItem(item)
+	if result != "" {
+		t.Errorf("expected empty string for festival without goal, got %s", result)
+	}
+}
+
+func TestRefreshMsgTriggersReload(t *testing.T) {
+	m := modelWithItems(3)
+
+	newModel, cmd := m.Update(refreshMsg{})
+	m = newModel.(Model)
+
+	if cmd == nil {
+		t.Error("expected reload command from refreshMsg")
+	}
+}
+
+func TestRefreshMsgPreservesSelection(t *testing.T) {
+	m := modelWithItems(5)
+	m.selected = 3
+	m.scrollStart = 1
+
+	newModel, _ := m.Update(refreshMsg{})
+	m = newModel.(Model)
+
+	if m.selected != 3 {
+		t.Errorf("expected selected=3 preserved, got %d", m.selected)
+	}
+	if m.scrollStart != 1 {
+		t.Errorf("expected scrollStart=1 preserved, got %d", m.scrollStart)
+	}
+}
+
+func TestRefreshItemsMsgClampsSelection(t *testing.T) {
+	m := modelWithItems(5)
+	m.selected = 4
+
+	// Refresh with fewer items
+	newModel, _ := m.Update(refreshItemsMsg{items: []FestivalItem{
+		{Name: "a", Type: ItemFestival},
+		{Name: "b", Type: ItemFestival},
+	}})
+	m = newModel.(Model)
+
+	if m.selected != 1 {
+		t.Errorf("expected selected clamped to 1, got %d", m.selected)
+	}
+	if len(m.items) != 2 {
+		t.Errorf("expected 2 items, got %d", len(m.items))
+	}
+}
+
+func TestRefreshItemsMsgEmptyList(t *testing.T) {
+	m := modelWithItems(3)
+	m.selected = 2
+
+	newModel, _ := m.Update(refreshItemsMsg{items: nil})
+	m = newModel.(Model)
+
+	if m.selected != 0 {
+		t.Errorf("expected selected=0 for empty list, got %d", m.selected)
+	}
+}
+
+func TestSortFestivalsByCreated(t *testing.T) {
+	now := time.Now()
+	items := []FestivalItem{
+		{Name: "old-fest", Type: ItemFestival, CreatedAt: now.Add(-48 * time.Hour)},
+		{Name: "new-fest", Type: ItemFestival, CreatedAt: now},
+		{Name: "mid-fest", Type: ItemFestival, CreatedAt: now.Add(-24 * time.Hour)},
+	}
+
+	sortFestivalsByCreated(items)
+
+	if items[0].Name != "new-fest" {
+		t.Errorf("expected newest first, got %q", items[0].Name)
+	}
+	if items[1].Name != "mid-fest" {
+		t.Errorf("expected mid second, got %q", items[1].Name)
+	}
+	if items[2].Name != "old-fest" {
+		t.Errorf("expected oldest last, got %q", items[2].Name)
+	}
+}
+
+func TestSortFestivalsByCreatedMissingDates(t *testing.T) {
+	now := time.Now()
+	items := []FestivalItem{
+		{Name: "no-date", Type: ItemFestival},
+		{Name: "has-date", Type: ItemFestival, CreatedAt: now},
+	}
+
+	sortFestivalsByCreated(items)
+
+	if items[0].Name != "has-date" {
+		t.Errorf("expected dated item first, got %q", items[0].Name)
+	}
+	if items[1].Name != "no-date" {
+		t.Errorf("expected undated item last, got %q", items[1].Name)
+	}
+}
+
+func TestSortFestivalsByCreatedStable(t *testing.T) {
+	now := time.Now()
+	items := []FestivalItem{
+		{Name: "alpha", Type: ItemFestival, CreatedAt: now},
+		{Name: "beta", Type: ItemFestival, CreatedAt: now},
+	}
+
+	sortFestivalsByCreated(items)
+
+	if items[0].Name != "alpha" {
+		t.Errorf("expected stable sort to preserve order, got %q first", items[0].Name)
+	}
+}
+
+func TestSortFestivalsByCreatedAllZero(t *testing.T) {
+	items := []FestivalItem{
+		{Name: "beta", Type: ItemFestival},
+		{Name: "alpha", Type: ItemFestival},
+	}
+
+	sortFestivalsByCreated(items)
+
+	if items[0].Name != "alpha" {
+		t.Errorf("expected alphabetical fallback, got %q first", items[0].Name)
+	}
+}
+
+func TestRefreshCurrentViewAtStatusRoot(t *testing.T) {
+	m := New(context.Background(), "")
+	m.loading = false
+	m.items = buildStatusItems()
+
+	cmd := m.refreshCurrentView()
+	if cmd == nil {
+		t.Error("expected reload cmd for status root")
+	}
+}
+
+func TestRefreshCurrentViewAtFestivalList(t *testing.T) {
+	m := modelWithItems(3)
+
+	cmd := m.refreshCurrentView()
+	if cmd == nil {
+		t.Error("expected reload cmd for festival list root")
+	}
 }
 
 // modelWithItems creates a test model with N festival items.

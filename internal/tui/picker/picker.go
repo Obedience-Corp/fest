@@ -160,6 +160,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			m.ensureVisible()
 			return m, nil
+
+		case "tab":
+			if len(m.filtered) > 0 {
+				m.selected = (m.selected + 1) % len(m.filtered)
+				m.ensureVisible()
+			}
+			return m, nil
+
+		case "shift+tab":
+			if len(m.filtered) > 0 {
+				m.selected = (m.selected - 1 + len(m.filtered)) % len(m.filtered)
+				m.ensureVisible()
+			}
+			return m, nil
 		}
 
 	case tea.WindowSizeMsg:
@@ -267,7 +281,7 @@ func (m Model) View() string {
 	}
 
 	// Help line
-	help := m.helpStyle.Render("↑/↓: navigate • enter: select • esc: cancel")
+	help := m.helpStyle.Render("↑/↓/tab: navigate • enter: select • esc: cancel")
 	b.WriteString(help)
 
 	return b.String()

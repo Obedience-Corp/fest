@@ -134,6 +134,16 @@ func printValidationResult(display *ui.UI, festivalPath string, result *Validati
 
 	// Agent self-check prompts
 	printAgentReflection(display, result)
+
+	// Final PASS/FAIL banner
+	fmt.Println()
+	fmt.Println(strings.Repeat("═", 60))
+	if result.Valid {
+		fmt.Println(ui.Success("  VALIDATION PASSED"))
+	} else {
+		fmt.Println(ui.Error("  VALIDATION FAILED"))
+	}
+	fmt.Println(strings.Repeat("═", 60))
 }
 
 func printValidationSection(display *ui.UI, title string, issues []ValidationIssue) {

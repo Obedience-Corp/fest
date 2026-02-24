@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestPlanMode_InitialDisplay verifies fest execute in planning phase shows planning objectives.
+// TestPlanMode_InitialDisplay verifies fest next in planning phase shows planning objectives.
 func TestPlanMode_InitialDisplay(t *testing.T) {
 	container := GetSharedContainer(t)
 
@@ -17,8 +17,8 @@ func TestPlanMode_InitialDisplay(t *testing.T) {
 	// Run execute from within the phase directory for phase-type-aware navigation
 	output := runExecuteModeFromPhase(t, container, phasePath)
 
-	// Should show planning phase content
-	verifyOutputContains(t, output, "Planning")
+	// Should show planning phase content (header is uppercase PLANNING)
+	verifyOutputContains(t, output, "PLANNING")
 }
 
 // TestPlanMode_PhaseTypeDetection verifies phase type is correctly detected.
@@ -32,8 +32,8 @@ func TestPlanMode_PhaseTypeDetection(t *testing.T) {
 	// The mode detection reads PHASE_GOAL.md frontmatter's fest_phase_type field
 	output := runExecuteModeFromPhase(t, container, phasePath)
 
-	// Should show planning mode - output includes mode-specific instructions
-	verifyOutputContains(t, output, "Planning")
+	// Should show planning mode - detected type shown as "Type planning"
+	verifyOutputContains(t, output, "planning")
 }
 
 // TestPlanMode_ModeOverride verifies --mode flag can override auto-detection.

@@ -7,7 +7,6 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
-	gatescore "github.com/Obedience-Corp/fest/internal/gates"
 )
 
 // resolvePaths resolves festival, phase, and sequence paths from flags or cwd.
@@ -48,26 +47,6 @@ func resolvePaths(festivalsRoot, cwd, phase, sequence string) (festivalPath, pha
 	return festivalPath, phasePath, sequencePath, nil
 }
 
-// getConfigRoot returns the user config root directory.
-func getConfigRoot() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".config", "fest", "active")
-}
-
-// resolveTargetPath determines the target path and override file name.
-func resolveTargetPath(festivalPath, phasePath, sequencePath string) (targetPath, overrideFile string) {
-	if sequencePath != "" {
-		return sequencePath, gatescore.PhaseOverrideFileName
-	}
-	if phasePath != "" {
-		return phasePath, gatescore.PhaseOverrideFileName
-	}
-	return festivalPath, filepath.Join(".festival", "gates.yml")
-}
-
 // gateOutput is the JSON output format for a gate.
 type gateOutput struct {
 	ID       string `json:"id"`
@@ -85,9 +64,3 @@ type sourceOutput struct {
 	Name  string `json:"name,omitempty"`
 }
 
-// validationIssue represents a validation error or warning.
-type validationIssue struct {
-	Path     string `json:"path"`
-	Severity string `json:"severity"`
-	Message  string `json:"message"`
-}

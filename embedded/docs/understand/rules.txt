@@ -17,6 +17,20 @@ NAMING CONVENTIONS
   • Sequences: 2-digit prefix, lowercase name
   • Tasks:     2-digit prefix, lowercase name, .md extension
 
+STATUS DIRECTORIES
+------------------
+
+  festivals/
+    planning/              Festivals being planned
+    ready/                 Planned and reviewed, ready for execution
+    active/                Currently executing
+    ritual/                Recurring festivals (run periodically)
+    dungeon/completed/     Successfully finished
+    dungeon/archived/      Preserved but inactive
+    dungeon/someday/       Deferred indefinitely
+
+  Lifecycle flow: planning → ready → active → dungeon/completed
+
 REQUIRED FILES
 --------------
 
@@ -29,18 +43,23 @@ REQUIRED FILES
   Each Phase (NNN_NAME/):
     PHASE_GOAL.md           [REQUIRED] Phase objectives and evaluation
 
-  Each Sequence (NN_name/):
+  Workflow Phases (planning, research, ingest):
+    WORKFLOW.md             [REQUIRED] Workflow process description
+    (No numbered sequences or task files)
+
+  Each Implementation Sequence (NN_name/):
     SEQUENCE_GOAL.md        [REQUIRED] Sequence objectives and dependencies
 
 QUALITY GATES
 -------------
 
-Every IMPLEMENTATION sequence MUST end with these 3 tasks:
+Every IMPLEMENTATION sequence MUST end with quality gate tasks:
 
     [your tasks here...]
-    XX_testing_and_verify.md       ← Validates all deliverables
-    XX+1_code_review.md            ← Reviews implementation quality
-    XX+2_review_results_iterate.md ← Addresses review findings
+    XX_testing.md          ← Validates all deliverables
+    XX+1_review.md         ← Reviews implementation quality
+    XX+2_iterate.md        ← Addresses review findings
+    XX+3_commit.md         ← Commit changes
 
   Use 'fest gates apply --approve' to add quality gates automatically.
 

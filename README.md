@@ -43,8 +43,7 @@ Fest is both a **project scaffolding tool** and an **agent guidance system**. It
 
 - Built-in documentation teaches agents the methodology on-demand (`fest intro`, `fest understand`)
 - Agents learn what they need, when they need it - no upfront context dump
-- `fest next` shows agents exactly what to work on next with just the context they need
-- `fest execute` orchestrates task execution, guiding agents through the festival systematically
+- `fest next` shows agents exactly what to work on next with full inline context
 - Self-documenting commands guide agents through proper usage
 
 **Project Management:**
@@ -119,8 +118,7 @@ fest status                   # View festival progress
 ### 4. Execute
 
 ```bash
-fest execute                  # Execute festival tasks
-fest next                     # Find next task to work on
+fest next                     # Get next task with full context
 fest progress                 # Track execution progress
 ```
 
@@ -175,12 +173,10 @@ Fest has 40+ commands organized into 7 groups. Here's a summary — run `fest --
 **Workflow** — Execute and track festival work
 | Command | Purpose |
 |---------|---------|
-| `fest execute` | Orchestrate task execution |
-| `fest next` | Find the next task to work on |
+| `fest next` | Get next task with full inline context |
 | `fest task` | Manage task status (complete, block, reset) |
 | `fest progress` | Track execution progress |
 | `fest commit` | Create git commit with task reference |
-| `fest flow` | Manage festival status workflow |
 | `fest promote` | Promote festival to next lifecycle status |
 | `fest workflow` | Manage workflow-based phase execution |
 | `fest feedback` | Manage structured feedback collection |

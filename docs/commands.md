@@ -352,8 +352,6 @@ fest gates list                      # List all policies
 fest gates apply                     # Preview gate creation (dry-run)
 fest gates apply --approve           # Create gate task files
 fest gates apply --sequence 002_IMPLEMENT/01_core --approve
-fest gates init                      # Create fest.yaml
-fest gates init --phase 002_IMPLEMENT  # Create phase override
 ```
 
 #### gates: JSON Output

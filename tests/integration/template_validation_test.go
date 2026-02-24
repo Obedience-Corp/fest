@@ -82,9 +82,9 @@ fest_type: overview
 	return festPath
 }
 
-// TestExecuteTemplateOutputIsValid verifies that fest execute produces
+// TestNextTemplateOutputIsValidBasic verifies that fest next produces
 // valid template output without unrendered tokens.
-func TestExecuteTemplateOutputIsValid(t *testing.T) {
+func TestNextTemplateOutputIsValidBasic(t *testing.T) {
 	tc := GetSharedContainer(t)
 
 	// Create a minimal festival for testing
@@ -102,44 +102,30 @@ func TestExecuteTemplateOutputIsValid(t *testing.T) {
 	_, err = tc.RunFestInDir(seqPath, "create", "task", "--name", "first_task", "--skip-markers")
 	require.NoError(t, err, "failed to create task")
 
-	// Run execute command - this uses the implementation/instructions template
-	output, err := tc.RunFestInDir(festPath, "execute")
-	require.NoError(t, err, "fest execute failed")
+	// Add quality gate task stubs (required by validator for implementation sequences)
+	for _, gate := range []struct {
+		num                int
+		name, gType, title string
+	}{
+		{2, "testing", "testing", "Testing"},
+		{3, "review", "review", "Code Review"},
+		{4, "iterate", "iterate", "Iterate"},
+		{5, "fest_commit", "fest-commit", "Fest Commit"},
+	} {
+		gateContent := fmt.Sprintf("---\nfest_type: gate\nfest_gate_type: %s\nfest_status: pending\n---\n# Quality Gate: %s\n- [ ] Gate passed\n", gate.gType, gate.title)
+		err = writeFileInContainer(tc, fmt.Sprintf("%s/%02d_%s.md", seqPath, gate.num, gate.name), gateContent)
+		require.NoError(t, err)
+	}
+
+	// Run next command - this uses the implementation/instructions template
+	output, err := tc.RunFestInDir(festPath, "next")
+	require.NoError(t, err, "fest next failed")
 
 	// Verify no forbidden tokens in output
-	assertNoForbiddenTokens(t, output, "execute")
+	assertNoForbiddenTokens(t, output, "next")
 
 	// Verify output has expected structural elements (not specific content)
-	assert.True(t, len(output) > 50, "execute output should not be empty")
-}
-
-// TestExecuteDryRunTemplateOutputIsValid verifies dry run output is valid.
-func TestExecuteDryRunTemplateOutputIsValid(t *testing.T) {
-	tc := GetSharedContainer(t)
-
-	// Create a festival with a phase for dry run
-	festPath := setupTemplateFestival(t, tc, "dryrun-test")
-
-	_, err := tc.RunFestInDir(festPath, "create", "phase", "--name", "PHASE_ONE", "--type", "implementation")
-	require.NoError(t, err)
-
-	phasePath := festPath + "/001_PHASE_ONE"
-	_, err = tc.RunFestInDir(phasePath, "create", "sequence", "--name", "seq")
-	require.NoError(t, err)
-
-	seqPath := phasePath + "/01_seq"
-	_, err = tc.RunFestInDir(seqPath, "create", "task", "--name", "task", "--skip-markers")
-	require.NoError(t, err)
-
-	// Run execute with --dry-run flag
-	output, err := tc.RunFestInDir(festPath, "execute", "--dry-run")
-	require.NoError(t, err, "fest execute --dry-run failed")
-
-	// Verify no forbidden tokens in output
-	assertNoForbiddenTokens(t, output, "execute --dry-run")
-
-	// Verify structural elements exist
-	assert.True(t, len(output) > 50, "dry run output should not be empty")
+	assert.True(t, len(output) > 50, "next output should not be empty")
 }
 
 // TestNextTemplateOutputIsValid verifies fest next produces valid output.
