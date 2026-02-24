@@ -4,7 +4,6 @@
 package integration
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
@@ -140,80 +139,27 @@ fest_type: overview
 	_, err = container.RunFestInDir(festPath, "create", "phase", "--name", "PHASE_TWO", "--type", "implementation")
 	require.NoError(t, err)
 
-	// Create sequence and task in each phase (use --skip-markers to avoid quality gate blocks)
+	// Create sequences and tasks using the real CLI workflow
 	_, err = container.RunFestInDir(festPath+"/001_PHASE_ONE", "create", "sequence", "--name", "seq1")
 	require.NoError(t, err)
 
-	// Write task file directly without markers to pass quality gates
-	phase1TaskContent := `---
-fest_type: task
-fest_id: 01_phase1_task.md
-fest_name: phase1_task
-fest_status: pending
----
-
-# Task: phase1_task
-
-## Objective
-Complete the phase1_task task.
-
-## Done When
-- [ ] Task completed
-`
-	err = writeFileInContainer(container, festPath+"/001_PHASE_ONE/01_seq1/01_phase1_task.md", phase1TaskContent)
+	_, err = container.RunFestInDir(festPath+"/001_PHASE_ONE/01_seq1", "create", "task", "--name", "phase1_task")
 	require.NoError(t, err)
-
-	// Add gate stubs to phase 1 sequence (must match taskParsePattern: ^(\d{2})_(.+)\.md$)
-	for _, gate := range []struct {
-		num               int
-		name, gType, title string
-	}{
-		{2, "testing", "testing", "Testing"},
-		{3, "review", "review", "Code Review"},
-		{4, "iterate", "iterate", "Iterate"},
-		{5, "fest_commit", "fest-commit", "Fest Commit"},
-	} {
-		gateContent := fmt.Sprintf("---\nfest_type: gate\nfest_gate_type: %s\nfest_status: pending\n---\n# Quality Gate: %s\n- [ ] Gate passed\n", gate.gType, gate.title)
-		err = writeFileInContainer(container, fmt.Sprintf("%s/001_PHASE_ONE/01_seq1/%02d_%s.md", festPath, gate.num, gate.name), gateContent)
-		require.NoError(t, err)
-	}
 
 	_, err = container.RunFestInDir(festPath+"/002_PHASE_TWO", "create", "sequence", "--name", "seq2")
 	require.NoError(t, err)
 
-	// Write task file directly without markers to pass quality gates
-	phase2TaskContent := `---
-fest_type: task
-fest_id: 01_phase2_task.md
-fest_name: phase2_task
-fest_status: pending
----
-
-# Task: phase2_task
-
-## Objective
-Complete the phase2_task task.
-
-## Done When
-- [ ] Task completed
-`
-	err = writeFileInContainer(container, festPath+"/002_PHASE_TWO/01_seq2/01_phase2_task.md", phase2TaskContent)
+	_, err = container.RunFestInDir(festPath+"/002_PHASE_TWO/01_seq2", "create", "task", "--name", "phase2_task")
 	require.NoError(t, err)
 
-	// Add gate stubs to phase 2 sequence (must match taskParsePattern: ^(\d{2})_(.+)\.md$)
-	for _, gate := range []struct {
-		num               int
-		name, gType, title string
-	}{
-		{2, "testing", "testing", "Testing"},
-		{3, "review", "review", "Code Review"},
-		{4, "iterate", "iterate", "Iterate"},
-		{5, "fest_commit", "fest-commit", "Fest Commit"},
-	} {
-		gateContent := fmt.Sprintf("---\nfest_type: gate\nfest_gate_type: %s\nfest_status: pending\n---\n# Quality Gate: %s\n- [ ] Gate passed\n", gate.gType, gate.title)
-		err = writeFileInContainer(container, fmt.Sprintf("%s/002_PHASE_TWO/01_seq2/%02d_%s.md", festPath, gate.num, gate.name), gateContent)
-		require.NoError(t, err)
-	}
+	// Ensure gate templates exist and apply quality gates
+	ensureGateTemplates(t, container, festPath)
+	_, err = container.RunFestInDir(festPath, "gates", "apply", "--approve")
+	require.NoError(t, err, "should apply quality gates")
+
+	// Replace markers across entire festival (simulates user/agent filling them in)
+	err = replaceMarkersInContainer(container, festPath)
+	require.NoError(t, err, "should replace markers")
 
 	// Run execute - should show phase 1 task
 	output := runExecuteMode(t, container, festPath)
@@ -270,39 +216,18 @@ func TestImplementationMode_Completion(t *testing.T) {
 	_, err = container.RunFestInDir(festPath+"/001_ONLY_PHASE", "create", "sequence", "--name", "only_seq")
 	require.NoError(t, err)
 
-	// Write task file directly without markers to pass quality gates
-	onlyTaskContent := `---
-fest_type: task
-fest_id: 01_only_task.md
-fest_name: only_task
-fest_status: pending
----
-
-# Task: only_task
-
-## Objective
-Complete the only_task task.
-
-## Done When
-- [ ] Task completed
-`
-	err = writeFileInContainer(container, festPath+"/001_ONLY_PHASE/01_only_seq/01_only_task.md", onlyTaskContent)
+	// Create task using the real CLI workflow
+	_, err = container.RunFestInDir(festPath+"/001_ONLY_PHASE/01_only_seq", "create", "task", "--name", "only_task")
 	require.NoError(t, err)
 
-	// Add quality gate stubs (required by validator)
-	for _, gate := range []struct {
-		num                int
-		name, gType, title string
-	}{
-		{2, "testing", "testing", "Testing"},
-		{3, "review", "review", "Code Review"},
-		{4, "iterate", "iterate", "Iterate"},
-		{5, "fest_commit", "fest-commit", "Fest Commit"},
-	} {
-		gateContent := fmt.Sprintf("---\nfest_type: gate\nfest_gate_type: %s\nfest_status: pending\n---\n# Quality Gate: %s\n- [ ] Gate passed\n", gate.gType, gate.title)
-		err = writeFileInContainer(container, fmt.Sprintf("%s/001_ONLY_PHASE/01_only_seq/%02d_%s.md", festPath, gate.num, gate.name), gateContent)
-		require.NoError(t, err)
-	}
+	// Ensure gate templates exist and apply quality gates
+	ensureGateTemplates(t, container, festPath)
+	_, err = container.RunFestInDir(festPath, "gates", "apply", "--approve")
+	require.NoError(t, err, "should apply quality gates")
+
+	// Replace markers across entire festival (simulates user/agent filling them in)
+	err = replaceMarkersInContainer(container, festPath)
+	require.NoError(t, err, "should replace markers")
 
 	// Run execute
 	_ = runExecuteMode(t, container, festPath)
