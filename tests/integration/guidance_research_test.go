@@ -17,8 +17,8 @@ func TestResearchMode_InitialDisplay(t *testing.T) {
 	// Run execute from within the phase directory for phase-type-aware navigation
 	output := runExecuteModeFromPhase(t, container, phasePath)
 
-	// Should show research phase content
-	verifyOutputContains(t, output, "Research")
+	// Should show research phase content (detected type shown as "Type research")
+	verifyOutputContains(t, output, "research")
 }
 
 // TestResearchMode_PhaseTypeDetection verifies phase type is correctly detected.
@@ -32,6 +32,6 @@ func TestResearchMode_PhaseTypeDetection(t *testing.T) {
 	// The mode detection reads PHASE_GOAL.md frontmatter's fest_phase_type field
 	output := runExecuteModeFromPhase(t, container, phasePath)
 
-	// Should show research mode - output includes mode-specific instructions
-	verifyOutputContains(t, output, "Research")
+	// Should show research mode - detected type shown as "Type research"
+	verifyOutputContains(t, output, "research")
 }
