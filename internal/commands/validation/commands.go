@@ -11,6 +11,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
@@ -268,6 +269,7 @@ func runValidateAll(ctx context.Context, opts *validateOptions) error {
 	validateTaskFilesChecks(ctx, festivalPath, result)
 	validateQualityGatesChecks(ctx, festivalPath, result, opts.fix)
 	validateTemplateMarkers(festivalPath, result)
+	validateImplementationStructure(festivalPath, result)
 	validateOrderingChecks(ctx, festivalPath, result)
 
 	// Calculate score
@@ -285,11 +287,21 @@ func runValidateAll(ctx context.Context, opts *validateOptions) error {
 	}
 
 	if opts.jsonOutput {
-		return emitValidateJSON(result)
+		if err := emitValidateJSON(result); err != nil {
+			return err
+		}
+		if !result.Valid {
+			os.Exit(1)
+		}
+		return nil
 	}
 
 	// Human-readable output
 	printValidationResult(display, festivalPath, result)
+
+	if !result.Valid {
+		os.Exit(1)
+	}
 	return nil
 }
 
@@ -366,8 +378,15 @@ func validateTemplateMarkers(festivalPath string, result *ValidationResult) {
 				markerTypes = append(markerTypes, marker)
 			}
 
+			// Severity depends on phase type: implementation/review = error, planning/research = warning
+			level := LevelWarning
+			phaseType := getPhaseType(festivalPath, relPath)
+			if phaseType == frontmatter.PhaseTypeImplementation || phaseType == frontmatter.PhaseTypeReview || phaseType == frontmatter.PhaseTypeDeployment {
+				level = LevelError
+			}
+
 			result.Issues = append(result.Issues, ValidationIssue{
-				Level:   LevelError,
+				Level:   level,
 				Code:    CodeUnfilledTemplate,
 				Path:    relPath,
 				Message: fmt.Sprintf("File contains %d unfilled template markers (%s)", fileMarkerCount, strings.Join(markerTypes, ", ")),
@@ -381,6 +400,76 @@ func validateTemplateMarkers(festivalPath string, result *ValidationResult) {
 	// Only set MarkerInfo if markers were found
 	if markerInfo.TotalCount > 0 {
 		result.MarkerInfo = markerInfo
+	}
+}
+
+// getPhaseType reads the PHASE_GOAL.md frontmatter to determine the phase type.
+// Returns the PhaseType for the phase containing the given relative path.
+func getPhaseType(festivalPath, relPath string) frontmatter.PhaseType {
+	parts := strings.Split(relPath, string(filepath.Separator))
+	if len(parts) < 1 {
+		return ""
+	}
+	goalPath := filepath.Join(festivalPath, parts[0], "PHASE_GOAL.md")
+	content, err := os.ReadFile(goalPath)
+	if err != nil {
+		return frontmatter.PhaseTypeImplementation // default assumption
+	}
+	fm, _, err := frontmatter.Parse(content)
+	if err != nil || fm == nil {
+		return frontmatter.PhaseTypeImplementation
+	}
+	if fm.PhaseType == "" {
+		return frontmatter.PhaseTypeImplementation
+	}
+	return fm.PhaseType
+}
+
+// validateImplementationStructure checks that implementation phases have sequences.
+func validateImplementationStructure(festivalPath string, result *ValidationResult) {
+	entries, err := os.ReadDir(festivalPath)
+	if err != nil {
+		return
+	}
+
+	phasePattern := regexp.MustCompile(`^\d{3}_`)
+	seqPattern := regexp.MustCompile(`^\d{2}_`)
+
+	for _, entry := range entries {
+		if !entry.IsDir() || !phasePattern.MatchString(entry.Name()) {
+			continue
+		}
+
+		phasePath := filepath.Join(festivalPath, entry.Name())
+		phaseType := getPhaseType(festivalPath, entry.Name())
+
+		if phaseType != frontmatter.PhaseTypeImplementation {
+			continue
+		}
+
+		// Check for sequence directories
+		seqEntries, err := os.ReadDir(phasePath)
+		if err != nil {
+			continue
+		}
+
+		hasSequences := false
+		for _, seqEntry := range seqEntries {
+			if seqEntry.IsDir() && seqPattern.MatchString(seqEntry.Name()) {
+				hasSequences = true
+				break
+			}
+		}
+
+		if !hasSequences {
+			result.Issues = append(result.Issues, ValidationIssue{
+				Level:   LevelError,
+				Code:    CodeMissingTaskFiles,
+				Path:    entry.Name(),
+				Message: fmt.Sprintf("Implementation phase %s has no sequence directories", entry.Name()),
+				Fix:     fmt.Sprintf("Create sequences with: fest create sequence --path %s", entry.Name()),
+			})
+		}
 	}
 }
 
