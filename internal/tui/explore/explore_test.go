@@ -988,6 +988,241 @@ func modelWithStatusItems() Model {
 	return m
 }
 
+func TestDetectStatusFromPath(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{"active festival", "/festivals/active/my-fest", "active"},
+		{"planning festival", "/festivals/planning/my-fest", "planning"},
+		{"dungeon completed", "/festivals/dungeon/completed/my-fest", "dungeon/completed"},
+		{"dungeon archived", "/festivals/dungeon/archived/my-fest", "dungeon/archived"},
+		{"dungeon someday", "/festivals/dungeon/someday/my-fest", "dungeon/someday"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := detectStatusFromPath(tt.path)
+			if got != tt.want {
+				t.Errorf("detectStatusFromPath(%q) = %q, want %q", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTreeWidthCalculation(t *testing.T) {
+	tests := []struct {
+		name    string
+		width   int
+		wantMin int
+		wantMax int
+	}{
+		{"narrow", 60, 25, 25},
+		{"medium", 120, 25, 50},
+		{"wide", 200, 25, 50},
+		{"very narrow", 20, 25, 25},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := modelWithItems(3)
+			m.width = tt.width
+			tw := m.treeWidth()
+			if tw < tt.wantMin || tw > tt.wantMax {
+				t.Errorf("treeWidth(%d) = %d, want [%d, %d]", tt.width, tw, tt.wantMin, tt.wantMax)
+			}
+		})
+	}
+}
+
+func TestStripFrontmatter(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{"no frontmatter", "# Hello\nWorld", "# Hello\nWorld"},
+		{"with frontmatter", "---\nfoo: bar\n---\n# Hello", "# Hello"},
+		{"unclosed frontmatter", "---\nfoo: bar\n# Hello", "---\nfoo: bar\n# Hello"},
+		{"empty after frontmatter", "---\nfoo: bar\n---\n", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := stripFrontmatter(tt.content)
+			if got != tt.want {
+				t.Errorf("stripFrontmatter() = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestStatusStyleAllStatuses(t *testing.T) {
+	statuses := []string{
+		"active", "planning", "ready", "ritual",
+		"completed", "dungeon/completed",
+		"archived", "dungeon/archived",
+		"someday", "dungeon/someday",
+		"dungeon", "unknown",
+	}
+	for _, s := range statuses {
+		t.Run(s, func(t *testing.T) {
+			style := StatusStyle(s)
+			// Should not panic
+			_ = style.Render("test")
+		})
+	}
+}
+
+func TestHandlePreviewKeyScroll(t *testing.T) {
+	m := modelWithItems(3)
+	m.focusPreview = true
+	m.width = 120
+	m.height = 30
+	m.syncViewportSize()
+
+	// j key should delegate to viewport
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
+	m2 := updated.(Model)
+	if !m2.focusPreview {
+		t.Error("preview should still be focused after j")
+	}
+
+	// q quits
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	m3 := updated.(Model)
+	if !m3.quitting {
+		t.Error("q should quit from preview mode")
+	}
+	_ = cmd
+}
+
+func TestRenderContentItemTypes(t *testing.T) {
+	types := []struct {
+		itemType  ItemType
+		wantTitle string
+	}{
+		{ItemStatus, "Status"},
+		{ItemFestival, "Festival Goal"},
+		{ItemPhase, "Phase Goal"},
+		{ItemSequence, "Sequence Goal"},
+		{ItemTask, "Task"},
+	}
+	for _, tt := range types {
+		t.Run(string(tt.itemType), func(t *testing.T) {
+			m := New(context.Background(), "")
+			m.loading = false
+			m.width = 120
+			m.height = 30
+			m.items = []FestivalItem{{Name: "test", Type: tt.itemType, Path: "/tmp/test"}}
+			m.syncViewportSize()
+			content := m.renderContent(60)
+			if !strings.Contains(content, tt.wantTitle) {
+				t.Errorf("renderContent for %s should contain %q", tt.itemType, tt.wantTitle)
+			}
+		})
+	}
+}
+
+func TestRenderItemFestivalShowsDate(t *testing.T) {
+	m := modelWithItems(1)
+	item := m.items[0]
+	rendered := m.renderItem(item, false)
+	// Should contain date like "Feb 24"
+	if !strings.Contains(rendered, time.Now().Format("Jan")) {
+		t.Errorf("renderItem for festival should show date, got: %s", rendered)
+	}
+}
+
+func TestCurrentTitle(t *testing.T) {
+	m := modelWithItems(1)
+	m.status = ""
+	m.breadcrumbs = nil
+	if got := m.currentTitle(); got != "Festivals" {
+		t.Errorf("currentTitle() = %q, want %q", got, "Festivals")
+	}
+
+	m.status = "active"
+	if got := m.currentTitle(); !strings.Contains(got, "active") {
+		t.Errorf("currentTitle() = %q, want to contain 'active'", got)
+	}
+
+	m.breadcrumbs = []string{"phase1", "seq1"}
+	if got := m.currentTitle(); got != "seq1" {
+		t.Errorf("currentTitle() = %q, want %q", got, "seq1")
+	}
+}
+
+func TestStatusDisplayNameAllCases(t *testing.T) {
+	tests := []struct {
+		status string
+		want   string
+	}{
+		{"dungeon/completed", "Completed"},
+		{"dungeon/archived", "Archived"},
+		{"dungeon/someday", "Someday"},
+		{"planning", "Planning"},
+		{"ready", "Ready"},
+		{"active", "Active"},
+		{"ritual", "Ritual"},
+		{"unknown", "unknown"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.status, func(t *testing.T) {
+			got := statusDisplayName(tt.status)
+			if got != tt.want {
+				t.Errorf("statusDisplayName(%q) = %q, want %q", tt.status, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestFilterKeyEsc(t *testing.T) {
+	m := modelWithItems(5)
+	m.filtering = true
+	m.allItems = m.items
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m2 := updated.(Model)
+	if m2.filtering {
+		t.Error("esc should exit filter mode")
+	}
+	if len(m2.items) != 5 {
+		t.Errorf("esc should restore all items, got %d", len(m2.items))
+	}
+}
+
+func TestFilterKeyEnter(t *testing.T) {
+	m := modelWithItems(5)
+	m.filtering = true
+	m.allItems = m.items
+	// Simulate having filtered to 2 items
+	m.items = m.items[:2]
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m2 := updated.(Model)
+	if m2.filtering {
+		t.Error("enter should exit filter mode")
+	}
+	// Items should stay filtered (not restored)
+	if len(m2.items) != 2 {
+		t.Errorf("enter should keep filtered items, got %d", len(m2.items))
+	}
+}
+
+func TestBuildStatusItems(t *testing.T) {
+	items := buildStatusItems()
+	if len(items) != len(id.StatusDirectories) {
+		t.Errorf("buildStatusItems() produced %d items, want %d", len(items), len(id.StatusDirectories))
+	}
+	for _, item := range items {
+		if item.Type != ItemStatus {
+			t.Errorf("item %q has type %v, want ItemStatus", item.Name, item.Type)
+		}
+		if item.Count != -1 {
+			t.Errorf("item %q has count %d, want -1 (loading)", item.Name, item.Count)
+		}
+	}
+}
+
 // modelWithItems creates a test model with N festival items.
 func modelWithItems(n int) Model {
 	tmp := os.TempDir()
