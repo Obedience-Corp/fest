@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestPlanMode_InitialDisplay verifies fest execute in planning phase shows planning objectives.
+// TestPlanMode_InitialDisplay verifies fest next in planning phase shows planning objectives.
 func TestPlanMode_InitialDisplay(t *testing.T) {
 	container := GetSharedContainer(t)
 

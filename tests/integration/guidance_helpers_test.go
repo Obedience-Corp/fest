@@ -444,38 +444,30 @@ func extractCurrentTask(t *testing.T, output string) string {
 // COMMAND EXECUTION HELPERS
 // ============================================================================
 
-// runExecuteMode runs fest execute and returns the output.
+// runExecuteMode runs fest next and returns the output.
 // When run from the festival root, it defaults to implementation mode.
 // For phase-type-aware navigation, use runExecuteModeFromPhase.
 func runExecuteMode(t *testing.T, tc *TestContainer, festPath string) string {
 	t.Helper()
-	output, err := tc.RunFestInDir(festPath, "execute")
-	require.NoError(t, err, "fest execute should succeed")
+	output, err := tc.RunFestInDir(festPath, "next")
+	require.NoError(t, err, "fest next should succeed")
 	return output
 }
 
-// runExecuteModeFromPhase runs fest execute from within a phase directory.
+// runExecuteModeFromPhase runs fest next from within a phase directory.
 // This enables phase-type-aware navigation based on PHASE_GOAL.md frontmatter.
 func runExecuteModeFromPhase(t *testing.T, tc *TestContainer, phasePath string) string {
 	t.Helper()
-	output, err := tc.RunFestInDir(phasePath, "execute")
-	require.NoError(t, err, "fest execute (from phase) should succeed")
+	output, err := tc.RunFestInDir(phasePath, "next")
+	require.NoError(t, err, "fest next (from phase) should succeed")
 	return output
 }
 
-// runExecuteModeWithMode runs fest execute with a specific mode flag.
+// runExecuteModeWithMode runs fest next with a specific mode flag.
 func runExecuteModeWithMode(t *testing.T, tc *TestContainer, festPath string, mode string) string {
 	t.Helper()
-	output, err := tc.RunFestInDir(festPath, "execute", "--mode", mode)
-	require.NoError(t, err, "fest execute --mode %s should succeed", mode)
-	return output
-}
-
-// runRoadmap runs fest execute --roadmap and returns the output.
-func runRoadmap(t *testing.T, tc *TestContainer, festPath string) string {
-	t.Helper()
-	output, err := tc.RunFestInDir(festPath, "execute", "--roadmap")
-	require.NoError(t, err, "fest execute --roadmap should succeed")
+	output, err := tc.RunFestInDir(festPath, "next", "--mode", mode)
+	require.NoError(t, err, "fest next --mode %s should succeed", mode)
 	return output
 }
 

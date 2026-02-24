@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestIngestMode_InitialDisplay verifies fest execute in ingest phase shows ingest items.
+// TestIngestMode_InitialDisplay verifies fest next in ingest phase shows ingest items.
 func TestIngestMode_InitialDisplay(t *testing.T) {
 	container := GetSharedContainer(t)
 

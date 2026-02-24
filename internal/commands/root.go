@@ -7,12 +7,10 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/config"
 	contextcmd "github.com/Obedience-Corp/fest/internal/commands/context"
 	depscmd "github.com/Obedience-Corp/fest/internal/commands/deps"
-	executecmd "github.com/Obedience-Corp/fest/internal/commands/execute"
 	explorecmd "github.com/Obedience-Corp/fest/internal/commands/explore"
 	"github.com/Obedience-Corp/fest/internal/commands/extensions"
 	feedbackcmd "github.com/Obedience-Corp/fest/internal/commands/feedback"
 	"github.com/Obedience-Corp/fest/internal/commands/festival"
-	flowcmd "github.com/Obedience-Corp/fest/internal/commands/flow"
 	"github.com/Obedience-Corp/fest/internal/commands/gates"
 	introcmd "github.com/Obedience-Corp/fest/internal/commands/intro"
 	listcmd "github.com/Obedience-Corp/fest/internal/commands/list"
@@ -214,10 +212,6 @@ func init() {
 	rootCmd.AddCommand(linksCmd)
 
 	// === WORKFLOW COMMANDS ===
-	executeCmd := executecmd.NewExecuteCommand()
-	executeCmd.GroupID = "workflow"
-	rootCmd.AddCommand(executeCmd)
-
 	nextCmd := nextcmd.NewNextCommand()
 	nextCmd.GroupID = "workflow"
 	rootCmd.AddCommand(nextCmd)
@@ -233,10 +227,6 @@ func init() {
 	promoteCmd := promotecmd.NewPromoteCommand()
 	promoteCmd.GroupID = "workflow"
 	rootCmd.AddCommand(promoteCmd)
-
-	flowCmd := flowcmd.NewFlowCommand()
-	flowCmd.GroupID = "workflow"
-	rootCmd.AddCommand(flowCmd)
 
 	ritualCmd := ritualcmd.NewRitualCommand()
 	ritualCmd.GroupID = "workflow"

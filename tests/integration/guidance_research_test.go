@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestResearchMode_InitialDisplay verifies fest execute in research phase shows topics.
+// TestResearchMode_InitialDisplay verifies fest next in research phase shows topics.
 func TestResearchMode_InitialDisplay(t *testing.T) {
 	container := GetSharedContainer(t)
 

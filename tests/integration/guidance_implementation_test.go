@@ -11,14 +11,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestImplementationMode_InitialTask verifies that fest execute shows the first task.
+// TestImplementationMode_InitialTask verifies that fest next shows the first task.
 func TestImplementationMode_InitialTask(t *testing.T) {
 	container := GetSharedContainer(t)
 
 	// Setup: Create festival with tasks
 	festPath := setupImplementationFestival(t, container, "test-impl-initial")
 
-	// Act: Run fest execute
+	// Act: Run fest next
 	output := runExecuteMode(t, container, festPath)
 
 	// Assert: Should show first task
@@ -313,23 +313,6 @@ func TestImplementationMode_EmptyFestival(t *testing.T) {
 	} else {
 		t.Logf("Execute on empty festival output: %s", output)
 	}
-}
-
-// TestImplementationMode_Roadmap verifies roadmap output shows all phases.
-func TestImplementationMode_Roadmap(t *testing.T) {
-	container := GetSharedContainer(t)
-
-	festPath := setupImplementationFestival(t, container, "test-impl-roadmap")
-
-	// Run roadmap
-	output := runRoadmap(t, container, festPath)
-
-	// Should show phase structure
-	verifyOutputContains(t, output, "FESTIVAL ROADMAP")
-	verifyOutputContains(t, output, "IMPLEMENTATION")
-	verifyOutputContains(t, output, "first_task")
-	verifyOutputContains(t, output, "second_task")
-	verifyOutputContains(t, output, "third_task")
 }
 
 // containsAnyOf checks if the string contains any of the substrings.

@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestReviewMode_InitialDisplay verifies fest execute in review phase shows review items.
+// TestReviewMode_InitialDisplay verifies fest next in review phase shows review items.
 func TestReviewMode_InitialDisplay(t *testing.T) {
 	container := GetSharedContainer(t)
 

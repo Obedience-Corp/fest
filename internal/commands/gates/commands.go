@@ -28,16 +28,12 @@ Gates are configured in fest.yaml under the implementation section.
 Available Commands:
   show      Show effective gate policy from fest.yaml
   apply     Apply quality gates to sequences
-  remove    Remove quality gate files from sequences
-  init      Initialize a fest.yaml gate configuration
-  validate  Validate gate configuration`,
+  remove    Remove quality gate files from sequences`,
 	}
 
 	cmd.AddCommand(newGatesShowCmd())
 	cmd.AddCommand(newGatesApplyCmd())
 	cmd.AddCommand(newGatesRemoveCmd())
-	cmd.AddCommand(newGatesInitCmd())
-	cmd.AddCommand(newGatesValidateCmd())
 
 	return cmd
 }
@@ -250,116 +246,7 @@ func printGatesShowMergedTable(cmd *cobra.Command, merged *gatescore.MergedPolic
 	return nil
 }
 
-// Apply and init commands in apply.go and init.go
-
-// --- VALIDATE COMMAND ---
-
-func newGatesValidateCmd() *cobra.Command {
-	var fix bool
-	var jsonOutput bool
-
-	cmd := &cobra.Command{
-		Use:   "validate",
-		Short: "Validate gate configuration",
-		Long:  `Check gate configuration files for errors and inconsistencies.`,
-		Example: `  fest gates validate
-  fest gates validate --fix
-  fest gates validate --json`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runGatesValidate(cmd.Context(), cmd, fix, jsonOutput)
-		},
-	}
-
-	cmd.Flags().BoolVar(&fix, "fix", false, "Attempt to fix issues automatically")
-	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Output in JSON format")
-
-	return cmd
-}
-
-func runGatesValidate(ctx context.Context, cmd *cobra.Command, fix, jsonOutput bool) error {
-	if err := ctx.Err(); err != nil {
-		return errors.Wrap(err, "context cancelled").WithOp("runGatesValidate")
-	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		return errors.IO("getting working directory", err)
-	}
-
-	// Try to get festivals root (may fail from linked project, that's ok)
-	festivalsRoot, _ := tpl.FindFestivalsRoot(cwd)
-
-	// For validate, we need a festival path to derive festivalsRoot if needed
-	festivalPath, _, _, pathErr := resolvePaths(festivalsRoot, cwd, "", "")
-	if pathErr != nil {
-		return errors.Wrap(pathErr, "resolving festival").WithOp("runGatesValidate")
-	}
-
-	// Derive festivalsRoot from festivalPath if needed (for linked festivals)
-	if festivalsRoot == "" {
-		festivalsRoot = filepath.Dir(filepath.Dir(festivalPath))
-	}
-
-	var issues []validationIssue
-
-	// Check for override files and validate them
-	err = filepath.Walk(festivalsRoot, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return nil // Skip inaccessible paths
-		}
-
-		if info.Name() == gatescore.PhaseOverrideFileName {
-			if _, loadErr := gatescore.LoadPolicy(path); loadErr != nil {
-				issues = append(issues, validationIssue{
-					Path:     path,
-					Severity: "error",
-					Message:  fmt.Sprintf("Invalid gate override: %v", loadErr),
-				})
-			}
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return errors.IO("walking directory", err).WithField("path", festivalsRoot)
-	}
-
-	if jsonOutput {
-		output := struct {
-			Valid  bool              `json:"valid"`
-			Issues []validationIssue `json:"issues"`
-		}{
-			Valid:  len(issues) == 0,
-			Issues: issues,
-		}
-		enc := json.NewEncoder(cmd.OutOrStdout())
-		enc.SetIndent("", "  ")
-		return enc.Encode(output)
-	}
-
-	out := cmd.OutOrStdout()
-	if len(issues) == 0 {
-		fmt.Fprintln(out, ui.Success("✓ Gate configuration is valid."))
-		return nil
-	}
-
-	fmt.Fprintln(out, ui.H1("Gate Validation"))
-	fmt.Fprintf(out, "%s %s\n", ui.Label("Issues"), ui.Value(fmt.Sprintf("%d", len(issues))))
-	for _, issue := range issues {
-		severity := strings.ToUpper(issue.Severity)
-		severityLabel := ui.Warning(severity)
-		if strings.EqualFold(issue.Severity, "error") {
-			severityLabel = ui.Error(severity)
-		}
-		fmt.Fprintf(out, "\n%s %s\n", severityLabel, ui.Dim(issue.Path))
-		fmt.Fprintf(out, "  %s\n", issue.Message)
-	}
-
-	return nil
-}
-
-// Note: helper types and functions moved to gates_helpers.go
+// Apply command in apply.go
 
 // extractPhaseFromTemplate extracts the phase type from a template path.
 // e.g., "gates/implementation/QUALITY_GATE_TESTING" -> "implementation"

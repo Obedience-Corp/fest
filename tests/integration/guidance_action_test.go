@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestActionMode_InitialDisplay verifies fest execute in action phase shows actions.
+// TestActionMode_InitialDisplay verifies fest next in action phase shows actions.
 func TestActionMode_InitialDisplay(t *testing.T) {
 	container := GetSharedContainer(t)
 

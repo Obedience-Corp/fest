@@ -336,7 +336,7 @@ Types:
 Examples:
 
 ```text
-feat: add gates validate subcommand
+feat: add quality-gates validation subcommand
 
 fix: handle context cancellation in validator
 

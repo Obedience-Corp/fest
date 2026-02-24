@@ -265,16 +265,6 @@ phase_type: planning
 
 		// Test task navigation
 		t.Run("TaskNavigation", func(t *testing.T) {
-			// Run fest execute to initialize state
-			output, err := container.RunFestInDir(festPath, "execute")
-			if err != nil {
-				t.Logf("Execute output (may fail on initial state): %s", output)
-			} else {
-				t.Logf("Execute output: %s", output)
-				// Should show first task from implementation phase
-				verifyTaskNavigation(t, output)
-			}
-
 			// Run fest next from festival root
 			output, err = container.RunFestInDir(festPath, "next")
 			if err != nil {
