@@ -24,6 +24,7 @@ import (
 	promotecmd "github.com/Obedience-Corp/fest/internal/commands/promote"
 	"github.com/Obedience-Corp/fest/internal/commands/research"
 	ritualcmd "github.com/Obedience-Corp/fest/internal/commands/ritual"
+	searchcmd "github.com/Obedience-Corp/fest/internal/commands/search"
 	scaffoldcmd "github.com/Obedience-Corp/fest/internal/commands/scaffold"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
@@ -264,6 +265,10 @@ func init() {
 	listCmd := listcmd.NewListCommand()
 	listCmd.GroupID = "query"
 	rootCmd.AddCommand(listCmd)
+
+	searchCmd := searchcmd.NewSearchCommand()
+	searchCmd.GroupID = "query"
+	rootCmd.AddCommand(searchCmd)
 
 	exploreCmd := explorecmd.NewExploreCommand()
 	exploreCmd.GroupID = "navigation"
