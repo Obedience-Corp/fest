@@ -15,10 +15,16 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-const (
-	ggTimeout       = 500 * time.Millisecond
-	previewDebounce = 80 * time.Millisecond
-)
+const ggTimeout = 500 * time.Millisecond
+
+// navEntry stores the state of a navigation level for the drilldown stack.
+type navEntry struct {
+	roots      []*TreeNode
+	title      string
+	cursor     int
+	scroll     int
+	breadcrumb string
+}
 
 // festivalsLoadedMsg is sent when festival data is loaded from the filesystem.
 type festivalsLoadedMsg struct {
@@ -30,6 +36,13 @@ type festivalsLoadedMsg struct {
 type childrenLoadedMsg struct {
 	items      []FestivalItem
 	parentPath string // path of the parent node whose children were loaded
+	breadcrumb string
+	err        error
+}
+
+// drilldownLoadedMsg is sent when drilldown children (status→festivals, festival→phases) load.
+type drilldownLoadedMsg struct {
+	items      []FestivalItem
 	breadcrumb string
 	err        error
 }
@@ -52,15 +65,10 @@ type refreshItemsMsg struct {
 	items []FestivalItem
 }
 
-// debouncePreviewMsg fires after debounce delay to load preview for a specific node.
-type debouncePreviewMsg struct {
-	nodePath string
-}
-
 // Model is the BubbleTea model for the festival explorer.
 type Model struct {
-	ctx    context.Context
-	roots  []*TreeNode // Top-level tree nodes
+	ctx     context.Context
+	roots   []*TreeNode // Current level's tree nodes
 	visible []*TreeNode // Flattened visible nodes (expanded descendants)
 	cursor  int         // Index into visible slice
 	width   int
@@ -71,7 +79,12 @@ type Model struct {
 	loading     bool
 	err         error
 	quitting    bool
-	festivalPath string // Auto-expand to this festival on load
+	festivalPath string // Auto-navigate into this festival on load
+
+	// Drilldown stack (status → festival list → festival hierarchy)
+	navStack    []navEntry
+	breadcrumbs []string
+	pendingNav  *navEntry // pending push — only committed on successful load
 
 	// Shared markdown renderer (fixes caching bug)
 	mdRenderer *mdRenderer
@@ -178,12 +191,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.Quit
 		}
 
-		// Convert items to tree nodes
-		depth := 0
-		if m.status != "" {
-			depth = 1 // festival nodes under a specific status
-		}
-		m.roots = itemsToTreeNodes(msg.items, depth, nil)
+		// Convert items to flat tree nodes (depth 0, no expand/collapse icons)
+		m.roots = itemsToTreeNodes(msg.items, 0, nil)
 		m.rebuildVisible()
 
 		// Only quit on empty items for specific-status views, not the overview
@@ -194,9 +203,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 
-		// Auto-expand into a specific festival if requested
+		// Auto-navigate into a specific festival if requested
 		if m.festivalPath != "" {
-			m.autoExpandToFestival()
+			for i, node := range m.visible {
+				if node.Item.Path == m.festivalPath {
+					m.cursor = i
+					m.festivalPath = ""
+					return m.navigateDown()
+				}
+			}
+			m.festivalPath = ""
 		}
 
 		return m, m.loadPreviewCmd()
@@ -213,16 +229,37 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case drilldownLoadedMsg:
+		m.loading = false
+		if msg.err != nil || len(msg.items) == 0 {
+			// Discard pending nav — children failed or empty
+			m.pendingNav = nil
+			return m, nil
+		}
+		// Push nav stack on successful load
+		if m.pendingNav != nil {
+			m.navStack = append(m.navStack, *m.pendingNav)
+			m.pendingNav = nil
+		}
+
+		// For festivals drilled into: phases become tree roots (expandable)
+		depth := 0
+		m.roots = itemsToTreeNodes(msg.items, depth, nil)
+		m.rebuildVisible()
+		m.cursor = 0
+		m.scrollStart = 0
+		m.breadcrumbs = append(m.breadcrumbs, msg.breadcrumb)
+		return m, m.loadPreviewCmd()
+
 	case childrenLoadedMsg:
+		// This is for tree expand/collapse within a festival
 		if msg.err != nil {
-			// Find the loading node and clear its state
 			if node := findNode(m.roots, msg.parentPath); node != nil {
 				node.Loading = false
 			}
 			return m, nil
 		}
 
-		// Find parent node and set children
 		parent := findNode(m.roots, msg.parentPath)
 		if parent == nil {
 			return m, nil
@@ -241,7 +278,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		parent.Children = itemsToTreeNodes(msg.items, childDepth, parent)
 		parent.Expanded = true
 		m.rebuildVisible()
-		return m, m.debouncedPreview()
+		return m, m.loadPreviewCmd()
 
 	case previewLoadedMsg:
 		if msg.rendered == "" {
@@ -252,23 +289,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport.GotoTop()
 		return m, nil
 
-	case debouncePreviewMsg:
-		// Only load preview if cursor is still on the same node
-		if m.cursor >= 0 && m.cursor < len(m.visible) && m.visible[m.cursor].NodeID() == msg.nodePath {
-			return m, m.loadPreviewCmd()
-		}
-		return m, nil
-
 	case refreshMsg:
 		return m, tea.Batch(m.refreshCurrentView(), watchCmd(m.ctx))
 
 	case refreshItemsMsg:
-		// Rebuild root nodes from refreshed items
-		depth := 0
-		if m.status != "" {
-			depth = 1
-		}
-		m.roots = itemsToTreeNodes(msg.items, depth, nil)
+		m.roots = itemsToTreeNodes(msg.items, 0, nil)
 		m.rebuildVisible()
 		if m.cursor >= len(m.visible) {
 			m.cursor = max(len(m.visible)-1, 0)
@@ -295,7 +320,85 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// toggleExpand expands or collapses the currently selected tree node.
+// navigateDown drills into the selected item (status→festivals, festival→phases).
+// Used for status and festival nodes. Phase/sequence use tree expand/collapse instead.
+func (m Model) navigateDown() (tea.Model, tea.Cmd) {
+	if m.cursor < 0 || m.cursor >= len(m.visible) {
+		return m, nil
+	}
+
+	node := m.visible[m.cursor]
+	item := node.Item
+
+	// Tasks are leaf nodes — focus the preview pane
+	if item.Type == ItemTask {
+		m.focusPreview = true
+		return m, nil
+	}
+
+	// Phase/Sequence inside a festival → tree expand/collapse
+	if item.Type == ItemPhase || item.Type == ItemSequence {
+		return m.toggleExpand()
+	}
+
+	// Status/Festival → drilldown (push nav stack, replace roots)
+	m.pendingNav = &navEntry{
+		roots:  m.roots,
+		title:  m.currentTitle(),
+		cursor: m.cursor,
+		scroll: m.scrollStart,
+	}
+	m.loading = true
+	ctx := m.ctx
+
+	if item.Type == ItemStatus {
+		status := item.Status
+		return m, func() tea.Msg {
+			result := loadFestivalsForStatus(ctx, status)
+			// Convert childrenLoadedMsg to drilldownLoadedMsg
+			if clm, ok := result.(childrenLoadedMsg); ok {
+				return drilldownLoadedMsg{
+					items:      clm.items,
+					breadcrumb: clm.breadcrumb,
+					err:        clm.err,
+				}
+			}
+			return result
+		}
+	}
+
+	// Festival → load phases as tree roots
+	return m, func() tea.Msg {
+		children, err := loadChildren(ctx, item)
+		return drilldownLoadedMsg{
+			items:      children,
+			breadcrumb: item.Name,
+			err:        err,
+		}
+	}
+}
+
+// navigateUp pops the navigation stack and restores the previous level.
+func (m Model) navigateUp() Model {
+	if len(m.navStack) == 0 {
+		return m
+	}
+
+	entry := m.navStack[len(m.navStack)-1]
+	m.navStack = m.navStack[:len(m.navStack)-1]
+	m.roots = entry.roots
+	m.cursor = entry.cursor
+	m.scrollStart = entry.scroll
+	m.rebuildVisible()
+
+	if len(m.breadcrumbs) > 0 {
+		m.breadcrumbs = m.breadcrumbs[:len(m.breadcrumbs)-1]
+	}
+
+	return m
+}
+
+// toggleExpand expands or collapses a tree node (used for phase/sequence inside a festival).
 func (m Model) toggleExpand() (tea.Model, tea.Cmd) {
 	if m.cursor < 0 || m.cursor >= len(m.visible) {
 		return m, nil
@@ -313,32 +416,23 @@ func (m Model) toggleExpand() (tea.Model, tea.Cmd) {
 	if node.Expanded {
 		node.Expanded = false
 		m.rebuildVisible()
-		return m, m.debouncedPreview()
+		return m, m.loadPreviewCmd()
 	}
 
 	// Already loaded — just expand
 	if node.Loaded {
 		node.Expanded = true
 		m.rebuildVisible()
-		return m, m.debouncedPreview()
+		return m, m.loadPreviewCmd()
 	}
 
 	// Need to load children asynchronously
 	node.Loading = true
 	m.rebuildVisible()
 	ctx := m.ctx
-
-	// Status items: lazy-load festivals for that status
-	if node.Item.Type == ItemStatus {
-		parentPath := node.Item.Status
-		return m, func() tea.Msg {
-			return loadFestivalsForStatus(ctx, parentPath)
-		}
-	}
-
-	// Other hierarchy items: load children
 	item := node.Item
 	parentPath := node.NodeID()
+
 	return m, func() tea.Msg {
 		children, err := loadChildren(ctx, item)
 		return childrenLoadedMsg{
@@ -377,38 +471,6 @@ func (m *Model) rebuildVisible() {
 	m.ensureVisible()
 }
 
-// autoExpandToFestival expands the tree to show the specified festival's children.
-func (m *Model) autoExpandToFestival() {
-	festPath := m.festivalPath
-	m.festivalPath = "" // Clear to prevent re-navigation
-
-	// If we loaded at a specific status, the roots are festival nodes
-	if m.status != "" {
-		for i, node := range m.roots {
-			if node.Item.Path == festPath {
-				m.cursor = i
-				m.rebuildVisible()
-				return
-			}
-		}
-		return
-	}
-
-	// At status overview, find and expand the status node, then the festival
-	statusDir := detectStatusFromPath(festPath)
-	for _, statusNode := range m.roots {
-		if statusNode.Item.Status == statusDir {
-			// Expand status node — children will load async
-			// We can't auto-expand further until children arrive
-			statusNode.Loading = true
-			m.rebuildVisible()
-			// Store festivalPath for second pass after children load
-			m.festivalPath = festPath
-			return
-		}
-	}
-}
-
 func (m *Model) ensureVisible() {
 	if m.cursor < m.scrollStart {
 		m.scrollStart = m.cursor
@@ -436,17 +498,6 @@ func (m Model) loadPreviewCmd() tea.Cmd {
 	}
 }
 
-// debouncedPreview returns a tea.Cmd that fires after a short delay for debounced preview loading.
-func (m Model) debouncedPreview() tea.Cmd {
-	if m.cursor < 0 || m.cursor >= len(m.visible) {
-		return nil
-	}
-	nodePath := m.visible[m.cursor].NodeID()
-	return tea.Tick(previewDebounce, func(time.Time) tea.Msg {
-		return debouncePreviewMsg{nodePath: nodePath}
-	})
-}
-
 func (m Model) previewWidth() int {
 	if m.width < 80 {
 		return m.width
@@ -455,8 +506,7 @@ func (m Model) previewWidth() int {
 }
 
 func (m Model) treeWidth() int {
-	w := min(max(m.width*30/100, 25), 50)
-	return w
+	return min(max(m.width*30/100, 25), 50)
 }
 
 func (m *Model) syncViewportSize() {
@@ -467,11 +517,27 @@ func (m *Model) syncViewportSize() {
 }
 
 func (m Model) currentTitle() string {
+	if len(m.breadcrumbs) > 0 {
+		return m.breadcrumbs[len(m.breadcrumbs)-1]
+	}
 	title := "Festivals"
 	if m.status != "" {
 		title += " (" + m.status + ")"
 	}
 	return title
+}
+
+// inTreeMode returns true when we're inside a festival hierarchy (phases/sequences/tasks).
+func (m Model) inTreeMode() bool {
+	if len(m.navStack) == 0 {
+		return false
+	}
+	// If we have navStack entries and the visible items are phases/sequences/tasks, we're in tree mode
+	if len(m.visible) > 0 {
+		t := m.visible[0].Item.Type
+		return t == ItemPhase || t == ItemSequence || t == ItemTask
+	}
+	return false
 }
 
 // SelectedItem returns the currently selected festival item, or nil.
@@ -512,8 +578,6 @@ func RunWithFestival(ctx context.Context, festivalPath string) (*FestivalItem, e
 }
 
 // detectStatusFromPath determines the status directory from a festival's path.
-// For /festivals/active/my-fest -> "active"
-// For /festivals/dungeon/completed/my-fest -> "dungeon/completed"
 func detectStatusFromPath(festivalPath string) string {
 	parent := filepath.Base(filepath.Dir(festivalPath))
 	grandparent := filepath.Base(filepath.Dir(filepath.Dir(festivalPath)))

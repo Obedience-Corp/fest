@@ -59,7 +59,7 @@ func (m Model) renderNarrowView() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("j/k: nav • Enter: expand • h: collapse • q: quit"))
+	b.WriteString(helpStyle.Render("j/k nav • Enter select • h back • q quit"))
 	return b.String()
 }
 
@@ -100,7 +100,7 @@ func (m Model) renderTree(width int) string {
 		b.WriteString(cursorStyle.Render("/ "))
 		b.WriteString(m.filterInput.View())
 	} else {
-		help := "j/k nav • Enter expand • /search"
+		help := "j/k nav • Enter select • h back • /search"
 		b.WriteString(helpStyle.Render(help))
 	}
 
@@ -166,8 +166,11 @@ func (m Model) renderBreadcrumb() string {
 		parts[0] = fmt.Sprintf("Festivals (%s)", m.status)
 	}
 
-	// Build breadcrumbs from cursor position in tree
-	if m.cursor >= 0 && m.cursor < len(m.visible) {
+	// Add breadcrumbs from navStack drilldowns
+	parts = append(parts, m.breadcrumbs...)
+
+	// In tree mode, add parent chain from current cursor node
+	if m.inTreeMode() && m.cursor >= 0 && m.cursor < len(m.visible) {
 		crumbs := breadcrumbsFromNode(m.visible[m.cursor])
 		if len(crumbs) > 1 {
 			// Skip the last element (it's the current node, not an ancestor)
@@ -196,10 +199,11 @@ func (m Model) renderTreeLine(node *TreeNode, isSelected bool, maxW int) string 
 	// Indentation: 2 spaces per depth level
 	indent := strings.Repeat("  ", node.Depth)
 
-	// Expand/collapse icon
+	// Expand/collapse icon — only for phase/sequence nodes (tree expand mode)
+	// Status and Festival items use drilldown navigation, not tree expand
 	var icon string
-	if node.IsLeaf() {
-		icon = "  " // Blank for leaves (same width as icon)
+	if node.Item.Type == ItemStatus || node.Item.Type == ItemFestival || node.IsLeaf() {
+		icon = "  " // No tree icon for drilldown items or leaves
 	} else if node.Loading {
 		icon = loadingIcon + " "
 	} else if node.Expanded {

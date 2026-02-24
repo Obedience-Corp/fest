@@ -15,37 +15,45 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case "esc":
-		// If cursor is on an expanded node, collapse it
-		if m.cursor >= 0 && m.cursor < len(m.visible) {
+		// In tree mode, collapse current node or move to parent
+		if m.inTreeMode() && m.cursor >= 0 && m.cursor < len(m.visible) {
 			node := m.visible[m.cursor]
 			if node.Expanded {
 				node.Expanded = false
 				m.rebuildVisible()
-				return m, m.debouncedPreview()
+				return m, m.loadPreviewCmd()
 			}
-			// If collapsed but has parent, move cursor to parent
 			if node.Parent != nil {
 				m.moveCursorToNode(node.Parent)
-				return m, m.debouncedPreview()
+				return m, m.loadPreviewCmd()
 			}
+		}
+		// If we have navStack, pop it
+		if len(m.navStack) > 0 {
+			m = m.navigateUp()
+			return m, m.loadPreviewCmd()
 		}
 		m.quitting = true
 		return m, tea.Quit
 
 	case "backspace", "h":
-		if m.cursor >= 0 && m.cursor < len(m.visible) {
+		// In tree mode, try collapse or parent first
+		if m.inTreeMode() && m.cursor >= 0 && m.cursor < len(m.visible) {
 			node := m.visible[m.cursor]
-			// If expanded, collapse
 			if node.Expanded {
 				node.Expanded = false
 				m.rebuildVisible()
-				return m, m.debouncedPreview()
+				return m, m.loadPreviewCmd()
 			}
-			// If collapsed with parent, move to parent
 			if node.Parent != nil {
 				m.moveCursorToNode(node.Parent)
-				return m, m.debouncedPreview()
+				return m, m.loadPreviewCmd()
 			}
+		}
+		// If we have navStack, pop it
+		if len(m.navStack) > 0 {
+			m = m.navigateUp()
+			return m, m.loadPreviewCmd()
 		}
 		// h at root level is no-op; backspace quits
 		if msg.String() != "h" {
@@ -57,18 +65,18 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.cursor > 0 {
 			m.cursor--
 			m.ensureVisible()
-			return m, m.debouncedPreview()
+			return m, m.loadPreviewCmd()
 		}
 
 	case "down", "j":
 		if m.cursor < len(m.visible)-1 {
 			m.cursor++
 			m.ensureVisible()
-			return m, m.debouncedPreview()
+			return m, m.loadPreviewCmd()
 		}
 
 	case "enter", "l":
-		return m.toggleExpand()
+		return m.navigateDown()
 
 	case "tab":
 		m.focusPreview = true
@@ -78,7 +86,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.visible) > 0 {
 			m.cursor = len(m.visible) - 1
 			m.ensureVisible()
-			return m, m.debouncedPreview()
+			return m, m.loadPreviewCmd()
 		}
 
 	case "g":
@@ -87,7 +95,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.cursor = 0
 			m.ensureVisible()
 			m.lastGTime = time.Time{}
-			return m, m.debouncedPreview()
+			return m, m.loadPreviewCmd()
 		}
 		m.lastGTime = now
 

@@ -364,25 +364,66 @@ func TestNavigateDownTask(t *testing.T) {
 	}
 }
 
-func TestExpandCollapse(t *testing.T) {
+// TestDrilldownFestival tests that Enter on a festival item triggers drilldown (not tree expand).
+func TestDrilldownFestival(t *testing.T) {
 	m := modelWithItems(3)
-	// Nodes are festival items, not loaded yet
-	m.roots[0].Item.Type = ItemFestival
 
-	// Enter should trigger load (not yet loaded)
+	// Enter on a festival item should trigger drilldown
 	newModel, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m = newModel.(Model)
 	if cmd == nil {
-		t.Error("expected load command from enter key")
+		t.Error("expected load command from drilldown")
+	}
+	if !m.loading {
+		t.Error("expected model loading=true during drilldown")
+	}
+	if m.pendingNav == nil {
+		t.Error("expected pendingNav to be set")
+	}
+
+	// Simulate drilldown loaded (phases of the festival)
+	phases := []FestivalItem{
+		{Name: "001_DESIGN", Type: ItemPhase, Path: "/tmp/phase-1"},
+		{Name: "002_BUILD", Type: ItemPhase, Path: "/tmp/phase-2"},
+	}
+	newModel, _ = m.Update(drilldownLoadedMsg{
+		items:      phases,
+		breadcrumb: "fest-1",
+	})
+	m = newModel.(Model)
+
+	if len(m.navStack) != 1 {
+		t.Errorf("expected navStack length 1, got %d", len(m.navStack))
+	}
+	if len(m.visible) != 2 {
+		t.Errorf("expected 2 visible phase items, got %d", len(m.visible))
+	}
+	if m.visible[0].Item.Type != ItemPhase {
+		t.Errorf("expected phase items after drilldown, got %s", m.visible[0].Item.Type)
+	}
+	if len(m.breadcrumbs) != 1 || m.breadcrumbs[0] != "fest-1" {
+		t.Errorf("expected breadcrumbs ['fest-1'], got %v", m.breadcrumbs)
+	}
+}
+
+// TestPhaseExpandCollapse tests tree expand/collapse for phase items inside a festival.
+func TestPhaseExpandCollapse(t *testing.T) {
+	m := modelWithPhaseItems(3)
+
+	// Enter on a phase should trigger async child load
+	newModel, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = newModel.(Model)
+	if cmd == nil {
+		t.Error("expected load command from phase expand")
 	}
 	if !m.roots[0].Loading {
-		t.Error("expected node to be in loading state")
+		t.Error("expected node loading=true during expand")
 	}
 
 	// Simulate children loaded
 	children := []FestivalItem{
-		{Name: "phase-1", Type: ItemPhase, Path: "/tmp/phase-1"},
-		{Name: "phase-2", Type: ItemPhase, Path: "/tmp/phase-2"},
+		{Name: "01_sequence", Type: ItemSequence, Path: "/tmp/seq-1"},
+		{Name: "02_sequence", Type: ItemSequence, Path: "/tmp/seq-2"},
 	}
 	newModel, _ = m.Update(childrenLoadedMsg{
 		items:      children,
@@ -396,12 +437,12 @@ func TestExpandCollapse(t *testing.T) {
 	if len(m.roots[0].Children) != 2 {
 		t.Errorf("expected 2 children, got %d", len(m.roots[0].Children))
 	}
-	// Visible should now include root + 2 children + other 2 roots = 5
+	// Visible: 3 roots + 2 children = 5
 	if len(m.visible) != 5 {
 		t.Errorf("expected 5 visible items, got %d", len(m.visible))
 	}
 
-	// Collapse with Enter again (cursor should still be on first root)
+	// Collapse with Enter again (cursor on first root)
 	m.cursor = 0
 	newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	m = newModel.(Model)
@@ -414,11 +455,11 @@ func TestExpandCollapse(t *testing.T) {
 }
 
 func TestExpandAlreadyLoaded(t *testing.T) {
-	m := modelWithItems(1)
+	m := modelWithPhaseItems(1)
 	node := m.roots[0]
 	node.Loaded = true
 	node.Children = []*TreeNode{
-		{Item: FestivalItem{Name: "child", Path: "/child", Type: ItemPhase}, Depth: 1, Parent: node},
+		{Item: FestivalItem{Name: "child", Path: "/child", Type: ItemSequence}, Depth: 1, Parent: node},
 	}
 
 	// Enter should expand without loading
@@ -433,33 +474,44 @@ func TestExpandAlreadyLoaded(t *testing.T) {
 }
 
 func TestHCollapseAndParent(t *testing.T) {
-	m := modelWithItems(1)
+	m := modelWithPhaseItems(1)
+	// Put in tree mode by adding navStack entry
+	m.navStack = []navEntry{{roots: nil, title: "test"}}
+
 	node := m.roots[0]
 	node.Expanded = true
 	node.Loaded = true
-	child := &TreeNode{Item: FestivalItem{Name: "child", Path: "/child", Type: ItemPhase}, Depth: 1, Parent: node}
+	child := &TreeNode{Item: FestivalItem{Name: "child", Path: "/child", Type: ItemSequence}, Depth: 1, Parent: node}
 	node.Children = []*TreeNode{child}
 	m.rebuildVisible()
 
 	// Move cursor to child
 	m.cursor = 1
 
-	// h should collapse parent (since child is not expanded)
+	// h should move cursor to parent (since child is not expanded)
 	newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
 	m = newModel.(Model)
-	// Should have moved cursor to parent
 	if m.cursor != 0 {
 		t.Errorf("expected cursor=0 (parent), got %d", m.cursor)
 	}
 }
 
-func TestEscCollapseOrQuit(t *testing.T) {
-	m := modelWithItems(1)
+func TestEscCollapseOrNavigateUp(t *testing.T) {
+	m := modelWithPhaseItems(1)
+	// Simulate being drilled into a festival (navStack has entry)
+	m.navStack = []navEntry{{
+		roots: itemsToTreeNodes([]FestivalItem{
+			{Name: "fest-1", Type: ItemFestival, Path: "/tmp/fest-1"},
+		}, 0, nil),
+		title: "Active",
+	}}
+	m.breadcrumbs = []string{"Active"}
+
 	node := m.roots[0]
 	node.Expanded = true
 	node.Loaded = true
 	node.Children = []*TreeNode{
-		{Item: FestivalItem{Name: "child", Path: "/child"}, Depth: 1, Parent: node},
+		{Item: FestivalItem{Name: "child", Path: "/child", Type: ItemSequence}, Depth: 1, Parent: node},
 	}
 	m.rebuildVisible()
 
@@ -473,7 +525,21 @@ func TestEscCollapseOrQuit(t *testing.T) {
 		t.Error("should not quit when collapsing")
 	}
 
-	// Esc on collapsed root node should quit
+	// Esc on collapsed node with no parent should navigate up
+	newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	m = newModel.(Model)
+	if len(m.navStack) != 0 {
+		t.Errorf("expected navStack to be empty after navigate up, got %d", len(m.navStack))
+	}
+	if m.quitting {
+		t.Error("should not quit when navigating up")
+	}
+}
+
+func TestEscQuitsAtRoot(t *testing.T) {
+	m := modelWithItems(3)
+
+	// Esc at root (no navStack, no expanded nodes) should quit
 	newModel, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	m = newModel.(Model)
 	if !m.quitting {
@@ -481,6 +547,26 @@ func TestEscCollapseOrQuit(t *testing.T) {
 	}
 	if cmd == nil {
 		t.Error("expected tea.Quit command")
+	}
+}
+
+func TestBackspaceNavigatesUp(t *testing.T) {
+	m := modelWithPhaseItems(2)
+	// Simulate being drilled into a festival
+	originalRoots := itemsToTreeNodes([]FestivalItem{
+		{Name: "fest-1", Type: ItemFestival, Path: "/tmp/fest-1"},
+	}, 0, nil)
+	m.navStack = []navEntry{{roots: originalRoots, title: "Active", cursor: 0}}
+	m.breadcrumbs = []string{"Active"}
+
+	// Backspace should navigate up (pop navStack)
+	newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	m = newModel.(Model)
+	if len(m.navStack) != 0 {
+		t.Errorf("expected navStack empty after backspace, got %d", len(m.navStack))
+	}
+	if m.quitting {
+		t.Error("should not quit when navigating up")
 	}
 }
 
@@ -657,18 +743,19 @@ func TestViewNarrowTerminal(t *testing.T) {
 	}
 }
 
-func TestViewBreadcrumbs(t *testing.T) {
-	m := modelWithItems(3)
+func TestViewBreadcrumbsWithNavStack(t *testing.T) {
+	m := modelWithPhaseItems(2)
 	m.width = 120
 	m.height = 30
-
-	// Set up parent chain for breadcrumbs
-	parent := &TreeNode{Item: FestivalItem{Name: "fest-parent"}}
-	m.visible[0].Parent = parent
+	m.breadcrumbs = []string{"Active", "my-fest"}
+	m.navStack = []navEntry{
+		{roots: nil, title: "root"},
+		{roots: nil, title: "Active"},
+	}
 
 	view := m.View()
-	if !strings.Contains(view, "fest-parent") {
-		t.Error("expected breadcrumb 'fest-parent' in view")
+	if !strings.Contains(view, "Active") {
+		t.Error("expected breadcrumb 'Active' in view")
 	}
 }
 
@@ -893,12 +980,12 @@ func TestLoadGenericChildren(t *testing.T) {
 }
 
 func TestChildrenLoadedMsgSetsChildren(t *testing.T) {
-	m := modelWithItems(3)
+	m := modelWithPhaseItems(3)
 	m.roots[0].Loading = true
 
 	children := []FestivalItem{
-		{Name: "phase-1", Type: ItemPhase, Path: "/tmp/phase-1"},
-		{Name: "phase-2", Type: ItemPhase, Path: "/tmp/phase-2"},
+		{Name: "seq-1", Type: ItemSequence, Path: "/tmp/seq-1"},
+		{Name: "seq-2", Type: ItemSequence, Path: "/tmp/seq-2"},
 	}
 
 	parentPath := m.roots[0].NodeID()
@@ -920,7 +1007,7 @@ func TestChildrenLoadedMsgSetsChildren(t *testing.T) {
 }
 
 func TestChildrenLoadedMsgEmpty(t *testing.T) {
-	m := modelWithItems(3)
+	m := modelWithPhaseItems(3)
 	parentPath := m.roots[0].NodeID()
 	m.roots[0].Loading = true
 
@@ -936,7 +1023,7 @@ func TestChildrenLoadedMsgEmpty(t *testing.T) {
 }
 
 func TestChildrenLoadedMsgError(t *testing.T) {
-	m := modelWithItems(3)
+	m := modelWithPhaseItems(3)
 	parentPath := m.roots[0].NodeID()
 	m.roots[0].Loading = true
 
@@ -1084,10 +1171,13 @@ func TestNavigateDownStatus(t *testing.T) {
 	m = newModel.(Model)
 
 	if cmd == nil {
-		t.Error("expected load command when expanding status item")
+		t.Error("expected load command when drilling into status item")
 	}
-	if !m.roots[0].Loading {
-		t.Error("expected loading=true during status expansion")
+	if !m.loading {
+		t.Error("expected model loading=true during status drilldown")
+	}
+	if m.pendingNav == nil {
+		t.Error("expected pendingNav to be set for drilldown")
 	}
 }
 
@@ -1336,47 +1426,8 @@ func TestLoadPreviewCmdOutOfBounds(t *testing.T) {
 	}
 }
 
-func TestDebouncedPreview(t *testing.T) {
-	m := modelWithItems(3)
-	cmd := m.debouncedPreview()
-	if cmd == nil {
-		t.Fatal("expected non-nil debounce cmd")
-	}
-}
-
-func TestDebouncedPreviewOutOfBounds(t *testing.T) {
-	m := modelWithItems(3)
-	m.cursor = -1
-	cmd := m.debouncedPreview()
-	if cmd != nil {
-		t.Error("expected nil cmd for out-of-bounds cursor")
-	}
-}
-
-func TestDebouncePreviewMsgCursorMoved(t *testing.T) {
-	m := modelWithItems(3)
-	// Simulate debounce msg for a node that is no longer under cursor
-	msg := debouncePreviewMsg{nodePath: "/nonexistent"}
-	newModel, cmd := m.Update(msg)
-	_ = newModel.(Model)
-	if cmd != nil {
-		t.Error("expected nil cmd when cursor has moved away from debounce target")
-	}
-}
-
-func TestDebouncePreviewMsgCursorStill(t *testing.T) {
-	m := modelWithItems(3)
-	nodePath := m.visible[0].NodeID()
-	msg := debouncePreviewMsg{nodePath: nodePath}
-	newModel, cmd := m.Update(msg)
-	_ = newModel.(Model)
-	if cmd == nil {
-		t.Error("expected preview load cmd when cursor matches debounce target")
-	}
-}
-
 func TestCursorStabilityAfterExpand(t *testing.T) {
-	m := modelWithItems(3)
+	m := modelWithPhaseItems(3)
 	// Move cursor to item 1
 	m.cursor = 1
 	originalNodeID := m.visible[1].NodeID()
@@ -1384,7 +1435,7 @@ func TestCursorStabilityAfterExpand(t *testing.T) {
 	// Expand item 0
 	m.roots[0].Loaded = true
 	m.roots[0].Children = []*TreeNode{
-		{Item: FestivalItem{Name: "child", Path: "/child", Type: ItemPhase}, Depth: 1, Parent: m.roots[0]},
+		{Item: FestivalItem{Name: "child", Path: "/child", Type: ItemSequence}, Depth: 1, Parent: m.roots[0]},
 	}
 	m.roots[0].Expanded = true
 	m.rebuildVisible()
@@ -1450,6 +1501,27 @@ func TestHAtTopLevelNoOp(t *testing.T) {
 	}
 	if cmd != nil {
 		t.Error("h at top level should return nil cmd")
+	}
+}
+
+func TestHNavigatesUpWithNavStack(t *testing.T) {
+	m := modelWithItems(2)
+	originalRoots := m.roots
+	// Push to navStack (simulate drilldown)
+	m.navStack = []navEntry{{roots: originalRoots, title: "root", cursor: 0}}
+	m.breadcrumbs = []string{"Active"}
+	// Replace roots with phase items
+	m.roots = itemsToTreeNodes([]FestivalItem{
+		{Name: "phase-1", Type: ItemPhase, Path: "/tmp/p1"},
+	}, 0, nil)
+	m.rebuildVisible()
+
+	// h should navigate up since we're not in tree mode (phases at root but navStack check first)
+	newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'h'}})
+	m = newModel.(Model)
+
+	if len(m.navStack) != 0 {
+		t.Errorf("expected navStack empty after h, got %d", len(m.navStack))
 	}
 }
 
@@ -1808,29 +1880,47 @@ func TestRefreshCurrentViewAtFestivalList(t *testing.T) {
 func TestRenderTreeLine(t *testing.T) {
 	m := modelWithItems(1)
 
-	// Test expanded node renders with expanded icon
+	// Test status node renders WITHOUT tree icons (flat mode)
 	node := &TreeNode{
-		Item:     FestivalItem{Name: "Active", Type: ItemStatus, Count: 5},
-		Expanded: true,
+		Item: FestivalItem{Name: "Active", Type: ItemStatus, Count: 5},
 	}
 	line := m.renderTreeLine(node, false, 40)
-	if !strings.Contains(line, expandedIcon) {
-		t.Error("expected expanded icon in tree line")
+	if strings.Contains(line, expandedIcon) || strings.Contains(line, collapsedIcon) {
+		t.Error("status items should not have tree icons")
 	}
 	if !strings.Contains(line, "(5)") {
 		t.Error("expected count in tree line")
 	}
 
-	// Test collapsed node
-	node.Expanded = false
-	line = m.renderTreeLine(node, false, 40)
-	if !strings.Contains(line, collapsedIcon) {
-		t.Error("expected collapsed icon in tree line")
+	// Test festival node renders WITHOUT tree icons (flat mode)
+	festNode := &TreeNode{
+		Item: FestivalItem{Name: "my-fest", Type: ItemFestival, Status: "active"},
+	}
+	line = m.renderTreeLine(festNode, false, 40)
+	if strings.Contains(line, expandedIcon) || strings.Contains(line, collapsedIcon) {
+		t.Error("festival items should not have tree icons")
 	}
 
-	// Test loading node
-	node.Loading = true
-	line = m.renderTreeLine(node, false, 40)
+	// Test phase node renders WITH tree icons
+	phaseNode := &TreeNode{
+		Item: FestivalItem{Name: "001_DESIGN", Type: ItemPhase, Path: "/tmp/phase"},
+	}
+	line = m.renderTreeLine(phaseNode, false, 40)
+	if !strings.Contains(line, collapsedIcon) {
+		t.Error("expected collapsed icon for phase node")
+	}
+
+	// Test expanded phase node
+	phaseNode.Expanded = true
+	phaseNode.Loaded = true
+	line = m.renderTreeLine(phaseNode, false, 40)
+	if !strings.Contains(line, expandedIcon) {
+		t.Error("expected expanded icon for expanded phase node")
+	}
+
+	// Test loading phase node
+	phaseNode.Loading = true
+	line = m.renderTreeLine(phaseNode, false, 40)
 	if !strings.Contains(line, loadingIcon) {
 		t.Error("expected loading icon in tree line")
 	}
@@ -1843,6 +1933,127 @@ func TestRenderTreeLine(t *testing.T) {
 	line = m.renderTreeLine(taskNode, false, 40)
 	if strings.Contains(line, expandedIcon) || strings.Contains(line, collapsedIcon) {
 		t.Error("leaf nodes should not have expand/collapse icons")
+	}
+}
+
+func TestNavigateUp(t *testing.T) {
+	// Create a model that has been drilled into a festival
+	m := modelWithPhaseItems(2)
+	originalRoots := itemsToTreeNodes([]FestivalItem{
+		{Name: "fest-1", Type: ItemFestival, Path: "/tmp/fest-1"},
+		{Name: "fest-2", Type: ItemFestival, Path: "/tmp/fest-2"},
+	}, 0, nil)
+	m.navStack = []navEntry{{roots: originalRoots, title: "Active", cursor: 0, scroll: 0}}
+	m.breadcrumbs = []string{"Active"}
+
+	// Navigate up
+	m = m.navigateUp()
+
+	if len(m.navStack) != 0 {
+		t.Errorf("expected empty navStack, got %d", len(m.navStack))
+	}
+	if len(m.breadcrumbs) != 0 {
+		t.Errorf("expected empty breadcrumbs, got %v", m.breadcrumbs)
+	}
+	if len(m.roots) != 2 {
+		t.Errorf("expected 2 restored roots, got %d", len(m.roots))
+	}
+	if m.roots[0].Item.Name != "fest-1" {
+		t.Errorf("expected fest-1 as first root, got %s", m.roots[0].Item.Name)
+	}
+}
+
+func TestNavigateUpAtRoot(t *testing.T) {
+	m := modelWithItems(3)
+
+	// Navigate up with empty navStack should be no-op
+	m2 := m.navigateUp()
+	if len(m2.visible) != len(m.visible) {
+		t.Error("navigateUp at root should be no-op")
+	}
+}
+
+func TestInTreeMode(t *testing.T) {
+	// Not in tree mode: no navStack
+	m := modelWithItems(3)
+	if m.inTreeMode() {
+		t.Error("expected not in tree mode with empty navStack")
+	}
+
+	// Not in tree mode: navStack has entries but visible items are festivals
+	m.navStack = []navEntry{{roots: nil, title: "test"}}
+	if m.inTreeMode() {
+		t.Error("expected not in tree mode with festival items visible")
+	}
+
+	// In tree mode: navStack has entries and visible items are phases
+	m2 := modelWithPhaseItems(2)
+	m2.navStack = []navEntry{{roots: nil, title: "test"}}
+	if !m2.inTreeMode() {
+		t.Error("expected in tree mode with phase items and navStack")
+	}
+}
+
+func TestDrilldownLoadedMsg(t *testing.T) {
+	m := modelWithStatusItems()
+	// Simulate pending drilldown
+	m.pendingNav = &navEntry{roots: m.roots, title: "Festivals", cursor: 0}
+	m.loading = true
+
+	festivals := []FestivalItem{
+		{Name: "my-fest", Type: ItemFestival, Path: "/tmp/fest-1", Status: "active"},
+	}
+
+	newModel, _ := m.Update(drilldownLoadedMsg{items: festivals, breadcrumb: "Active"})
+	m = newModel.(Model)
+
+	if m.loading {
+		t.Error("expected loading=false after drilldown loaded")
+	}
+	if m.pendingNav != nil {
+		t.Error("expected pendingNav=nil after commit")
+	}
+	if len(m.navStack) != 1 {
+		t.Errorf("expected navStack length 1, got %d", len(m.navStack))
+	}
+	if len(m.visible) != 1 {
+		t.Errorf("expected 1 visible item, got %d", len(m.visible))
+	}
+	if m.visible[0].Item.Type != ItemFestival {
+		t.Errorf("expected festival item, got %s", m.visible[0].Item.Type)
+	}
+}
+
+func TestDrilldownLoadedMsgEmpty(t *testing.T) {
+	m := modelWithStatusItems()
+	m.pendingNav = &navEntry{roots: m.roots, title: "Festivals", cursor: 0}
+	m.loading = true
+
+	// Empty drilldown — should discard pendingNav
+	newModel, _ := m.Update(drilldownLoadedMsg{items: nil, breadcrumb: "Active"})
+	m = newModel.(Model)
+
+	if m.pendingNav != nil {
+		t.Error("expected pendingNav discarded on empty drilldown")
+	}
+	if len(m.navStack) != 0 {
+		t.Errorf("expected navStack unchanged (empty), got %d", len(m.navStack))
+	}
+}
+
+func TestDrilldownLoadedMsgError(t *testing.T) {
+	m := modelWithStatusItems()
+	m.pendingNav = &navEntry{roots: m.roots, title: "Festivals", cursor: 0}
+	m.loading = true
+
+	newModel, _ := m.Update(drilldownLoadedMsg{err: context.Canceled})
+	m = newModel.(Model)
+
+	if m.pendingNav != nil {
+		t.Error("expected pendingNav discarded on error")
+	}
+	if len(m.navStack) != 0 {
+		t.Error("expected navStack unchanged on error")
 	}
 }
 
@@ -1872,6 +2083,28 @@ func modelWithItems(n int) Model {
 			CreatedAt: time.Now(),
 			Path:      filepath.Join(tmp, "fest-"+itoa(i+1)),
 			Type:      ItemFestival,
+		}
+	}
+
+	m := New(context.Background(), "active")
+	m.loading = false
+	m.roots = itemsToTreeNodes(items, 0, nil)
+	m.rebuildVisible()
+	m.width = 120
+	m.height = 30
+	return m
+}
+
+// modelWithPhaseItems creates a test model with N phase items as tree nodes.
+// Simulates being inside a festival hierarchy (for tree expand/collapse testing).
+func modelWithPhaseItems(n int) Model {
+	tmp := os.TempDir()
+	items := make([]FestivalItem, n)
+	for i := range n {
+		items[i] = FestivalItem{
+			Name: padNum(i+1) + "_PHASE_" + itoa(i+1),
+			Path: filepath.Join(tmp, padNum(i+1)+"_PHASE_"+itoa(i+1)),
+			Type: ItemPhase,
 		}
 	}
 
