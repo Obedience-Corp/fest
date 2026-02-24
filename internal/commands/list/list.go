@@ -8,6 +8,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -29,12 +30,15 @@ var validStatuses = func() []string {
 var defaultStatuses = id.PrimaryStatusDirs
 
 type listOptions struct {
-	json     bool
-	all      bool
-	progress bool
-	alpha    bool
-	status   string
-	sortBy   string
+	json          bool
+	all           bool
+	progress      bool
+	alpha         bool
+	status        string
+	sortBy        string
+	filterProject string
+	since         string
+	until         string
 }
 
 // NewListCommand creates the list command for listing festivals by status.
@@ -52,11 +56,13 @@ STATUS can be: active, planning, completed, dungeon, dungeon/completed, dungeon/
 
 By default, shows only active and planning festivals.
 Use --all to include completed and dungeon festivals.`,
-		Example: `  fest list              # List active and planning festivals
-  fest list --all        # List all festivals (including completed/dungeon)
-  fest list active       # List only active festivals
-  fest list completed    # List completed festivals
-  fest list --json       # Output in JSON format`,
+		Example: `  fest list                                       # List active and planning festivals
+  fest list --all                                  # List all festivals
+  fest list --filter-project camp                  # Festivals linked to "camp" project
+  fest list --since 2026-01-01                     # Festivals created since Jan 1
+  fest list --since 2026-01-01 --until 2026-02-01  # Created in January 2026
+  fest list --filter-project fest --status active   # Active festivals for "fest" project
+  fest list --json                                 # Output in JSON format`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			status := opts.status
@@ -74,7 +80,17 @@ Use --all to include completed and dungeon festivals.`,
 			if opts.sortBy != "" && !isValidSortBy(opts.sortBy) {
 				return errors.Validation("invalid sort").
 					WithField("sort", opts.sortBy).
-					WithField("valid", "date, status, progress, name")
+					WithField("valid", "date, status, progress, name, created, updated")
+			}
+			if opts.since != "" {
+				if _, err := parseFilterDate(opts.since); err != nil {
+					return err
+				}
+			}
+			if opts.until != "" {
+				if _, err := parseFilterDate(opts.until); err != nil {
+					return err
+				}
 			}
 			return runList(cmd.Context(), status, opts)
 		},
@@ -85,7 +101,10 @@ Use --all to include completed and dungeon festivals.`,
 	cmd.Flags().BoolVar(&opts.progress, "progress", false, "show detailed progress for each festival")
 	cmd.Flags().BoolVar(&opts.alpha, "alpha", false, "sort alphabetically by name instead of by date")
 	cmd.Flags().StringVar(&opts.status, "status", "", "filter by status: active|planning|completed|dungeon")
-	cmd.Flags().StringVar(&opts.sortBy, "sort", "", "sort by: date|status|progress|name")
+	cmd.Flags().StringVar(&opts.sortBy, "sort", "", "sort by: date|status|progress|name|created|updated")
+	cmd.Flags().StringVar(&opts.filterProject, "filter-project", "", "filter festivals linked to a project path (substring match)")
+	cmd.Flags().StringVar(&opts.since, "since", "", "show festivals created on or after this date (YYYY-MM-DD or RFC3339)")
+	cmd.Flags().StringVar(&opts.until, "until", "", "show festivals created on or before this date (YYYY-MM-DD or RFC3339)")
 
 	return cmd
 }
@@ -128,7 +147,7 @@ func runList(ctx context.Context, filterStatus string, opts *listOptions) error 
 }
 
 // validSortValues defines the accepted sort field names.
-var validSortValues = []string{"date", "status", "progress", "name"}
+var validSortValues = []string{"date", "status", "progress", "name", "created", "updated"}
 
 func isValidSortBy(s string) bool {
 	for _, v := range validSortValues {
@@ -191,6 +210,14 @@ func applySorting(festivals []*show.FestivalInfo, sortBy string, alpha bool) {
 		sort.Slice(festivals, func(i, j int) bool {
 			return festivals[i].Name < festivals[j].Name
 		})
+	case "created":
+		sort.Slice(festivals, func(i, j int) bool {
+			return festivals[i].CreatedAt.After(festivals[j].CreatedAt)
+		})
+	case "updated":
+		sort.Slice(festivals, func(i, j int) bool {
+			return festivals[i].UpdatedAt.After(festivals[j].UpdatedAt)
+		})
 	case "date", "":
 		if alpha {
 			sort.Slice(festivals, func(i, j int) bool {
@@ -200,6 +227,60 @@ func applySorting(festivals []*show.FestivalInfo, sortBy string, alpha bool) {
 			sortByDate(festivals)
 		}
 	}
+}
+
+// parseFilterDate parses a date string in YYYY-MM-DD or RFC3339 format.
+func parseFilterDate(s string) (time.Time, error) {
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+	if t, err := time.Parse("2006-01-02", s); err == nil {
+		return t, nil
+	}
+	return time.Time{}, errors.Validation("invalid date format").
+		WithField("value", s).
+		WithField("expected", "YYYY-MM-DD or RFC3339")
+}
+
+// applyFilters applies project and date range filters to a festival list.
+func applyFilters(festivals []*show.FestivalInfo, opts *listOptions) ([]*show.FestivalInfo, error) {
+	if opts.filterProject == "" && opts.since == "" && opts.until == "" {
+		return festivals, nil
+	}
+
+	var sinceTime, untilTime time.Time
+	var err error
+
+	if opts.since != "" {
+		sinceTime, err = parseFilterDate(opts.since)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if opts.until != "" {
+		untilTime, err = parseFilterDate(opts.until)
+		if err != nil {
+			return nil, err
+		}
+		untilTime = untilTime.Add(24*time.Hour - time.Nanosecond)
+	}
+
+	result := make([]*show.FestivalInfo, 0, len(festivals))
+	for _, f := range festivals {
+		if opts.filterProject != "" {
+			if !strings.Contains(strings.ToLower(f.ProjectPath), strings.ToLower(opts.filterProject)) {
+				continue
+			}
+		}
+		if !sinceTime.IsZero() && !f.CreatedAt.IsZero() && f.CreatedAt.Before(sinceTime) {
+			continue
+		}
+		if !untilTime.IsZero() && !f.CreatedAt.IsZero() && f.CreatedAt.After(untilTime) {
+			continue
+		}
+		result = append(result, f)
+	}
+	return result, nil
 }
 
 // dungeonSubstatuses defines the valid dungeon child statuses.
@@ -216,6 +297,10 @@ func listDungeon(ctx context.Context, festivalsDir string, opts *listOptions, ca
 		festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status, campaignRoot)
 		if err != nil {
 			continue
+		}
+		festivals, err = applyFilters(festivals, opts)
+		if err != nil {
+			return err
 		}
 		if len(festivals) > 0 {
 			applySorting(festivals, opts.sortBy, opts.alpha)
@@ -254,6 +339,11 @@ func listDungeon(ctx context.Context, festivalsDir string, opts *listOptions, ca
 
 func listByStatus(ctx context.Context, festivalsDir, status string, opts *listOptions, campaignRoot string) error {
 	festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status, campaignRoot)
+	if err != nil {
+		return err
+	}
+
+	festivals, err = applyFilters(festivals, opts)
 	if err != nil {
 		return err
 	}
@@ -301,6 +391,10 @@ func listAll(ctx context.Context, festivalsDir string, opts *listOptions, campai
 		festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status, campaignRoot)
 		if err != nil {
 			continue
+		}
+		festivals, err = applyFilters(festivals, opts)
+		if err != nil {
+			return err
 		}
 		if len(festivals) > 0 {
 			applySorting(festivals, opts.sortBy, opts.alpha)
@@ -350,6 +444,12 @@ func festivalsToMap(festivals []*show.FestivalInfo) []map[string]interface{} {
 		if f.Stats != nil {
 			m["progress"] = f.Stats.Progress
 		}
+		if !f.CreatedAt.IsZero() {
+			m["created_at"] = f.CreatedAt.Format(time.RFC3339)
+		}
+		if !f.UpdatedAt.IsZero() {
+			m["updated_at"] = f.UpdatedAt.Format(time.RFC3339)
+		}
 		result = append(result, m)
 	}
 	return result
@@ -391,6 +491,12 @@ func festivalsToMapWithProgress(festivals []*show.FestivalInfo, progressMap map[
 		}
 		if f.Stats != nil {
 			m["progress"] = f.Stats.Progress
+		}
+		if !f.CreatedAt.IsZero() {
+			m["created_at"] = f.CreatedAt.Format(time.RFC3339)
+		}
+		if !f.UpdatedAt.IsZero() {
+			m["updated_at"] = f.UpdatedAt.Format(time.RFC3339)
 		}
 		// Add detailed progress if available
 		if progressMap != nil {

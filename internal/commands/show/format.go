@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"time"
 
 	"github.com/Obedience-Corp/fest/internal/pathutil"
 	"github.com/Obedience-Corp/fest/internal/progress"
@@ -54,6 +55,13 @@ func FormatFestivalDetails(festival *FestivalInfo, verbose bool, campaignRoot st
 
 	if festival.Priority != "" {
 		sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Priority"), ui.Value(festival.Priority)))
+	}
+
+	if !festival.CreatedAt.IsZero() {
+		sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Created"), ui.Dim(formatTimestamp(festival.CreatedAt))))
+	}
+	if !festival.UpdatedAt.IsZero() {
+		sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Updated"), ui.Dim(formatTimestamp(festival.UpdatedAt))))
 	}
 
 	// Statistics
@@ -152,6 +160,14 @@ func FormatFestivalListWithProgress(status string, festivals []*FestivalInfo, pr
 		styledName := ui.GetStatusStyle(status).Render(f.Name)
 		sb.WriteString(fmt.Sprintf("  %s\n", styledName))
 
+		// Show timestamps
+		if !f.CreatedAt.IsZero() {
+			sb.WriteString(fmt.Sprintf("    %s %s\n", ui.Label("Created"), ui.Dim(formatTimestamp(f.CreatedAt))))
+		}
+		if !f.UpdatedAt.IsZero() {
+			sb.WriteString(fmt.Sprintf("    %s %s\n", ui.Label("Updated"), ui.Dim(formatTimestamp(f.UpdatedAt))))
+		}
+
 		// Show detailed progress if available
 		if prog, ok := progressMap[f.Path]; ok && prog != nil && prog.Overall != nil {
 			overall := prog.Overall
@@ -248,6 +264,14 @@ func FormatLocation(loc *LocationInfo) string {
 	}
 
 	return sb.String()
+}
+
+// formatTimestamp formats a time for display.
+func formatTimestamp(t time.Time) string {
+	if t.IsZero() {
+		return "unknown"
+	}
+	return t.Format("2006-01-02 15:04")
 }
 
 func renderPercentBar(progress float64) string {

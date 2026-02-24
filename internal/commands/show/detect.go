@@ -8,6 +8,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
 	"github.com/Obedience-Corp/fest/internal/workspace"
@@ -217,6 +218,27 @@ func ListFestivalsByStatusLight(ctx context.Context, festivalsDir, status string
 
 		if dirInfo, statErr := os.Stat(festivalDir); statErr == nil {
 			info.ModTime = dirInfo.ModTime()
+			info.UpdatedAt = dirInfo.ModTime()
+		}
+
+		// Extract timestamps from festival goal/overview frontmatter
+		for _, goalFile := range []string{FestivalGoalFile, FestivalOverviewFile} {
+			goalPath := filepath.Join(festivalDir, goalFile)
+			data, readErr := os.ReadFile(goalPath)
+			if readErr != nil {
+				continue
+			}
+			fm, _, parseErr := frontmatter.Parse(data)
+			if parseErr != nil || fm == nil {
+				continue
+			}
+			if !fm.Created.IsZero() {
+				info.CreatedAt = fm.Created
+			}
+			if !fm.Updated.IsZero() {
+				info.UpdatedAt = fm.Updated
+			}
+			break
 		}
 
 		festivals = append(festivals, info)
@@ -259,6 +281,27 @@ func parseFestivalInfo(ctx context.Context, festivalDir, campaignRoot string) (*
 	// Populate modification time from directory stat
 	if dirInfo, statErr := os.Stat(festivalDir); statErr == nil {
 		info.ModTime = dirInfo.ModTime()
+		info.UpdatedAt = dirInfo.ModTime()
+	}
+
+	// Extract timestamps from festival goal/overview frontmatter
+	for _, goalFile := range []string{FestivalGoalFile, FestivalOverviewFile} {
+		goalPath := filepath.Join(festivalDir, goalFile)
+		data, readErr := os.ReadFile(goalPath)
+		if readErr != nil {
+			continue
+		}
+		fm, _, parseErr := frontmatter.Parse(data)
+		if parseErr != nil || fm == nil {
+			continue
+		}
+		if !fm.Created.IsZero() {
+			info.CreatedAt = fm.Created
+		}
+		if !fm.Updated.IsZero() {
+			info.UpdatedAt = fm.Updated
+		}
+		break
 	}
 
 	// Try to load fest.yaml to get metadata ID and project path

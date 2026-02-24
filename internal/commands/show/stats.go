@@ -25,7 +25,11 @@ type FestivalInfo struct {
 	Path         string         `json:"path"`
 	ProjectPath  string         `json:"project_path,omitempty"` // Linked project directory from fest.yaml
 	ModTime      time.Time      `json:"mod_time"`               // Directory modification time
-	Stats        *FestivalStats `json:"stats,omitempty"`
+	// CreatedAt is when the festival was first created (from fest_created frontmatter or directory mod time).
+	CreatedAt time.Time `json:"created_at,omitempty"`
+	// UpdatedAt is the last modification time (from fest_updated frontmatter or directory mod time).
+	UpdatedAt time.Time `json:"updated_at,omitempty"`
+	Stats     *FestivalStats `json:"stats,omitempty"`
 }
 
 // FestivalStats holds statistical information about a festival's progress.

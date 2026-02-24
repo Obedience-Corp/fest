@@ -38,6 +38,8 @@ func TestIsValidSortBy(t *testing.T) {
 		{"status", true},
 		{"progress", true},
 		{"name", true},
+		{"created", true},
+		{"updated", true},
 		{"invalid", false},
 		{"", false},
 	}
@@ -161,5 +163,227 @@ func TestApplySorting_ProgressNilStats(t *testing.T) {
 
 	if festivals[0].Name != "has-stats" {
 		t.Errorf("expected has-stats first (50%% > 0%%); got %s", festivals[0].Name)
+	}
+}
+
+func TestApplySorting_ByCreated(t *testing.T) {
+	now := time.Now()
+	festivals := []*show.FestivalInfo{
+		{Name: "oldest", CreatedAt: now.Add(-3 * time.Hour)},
+		{Name: "newest", CreatedAt: now.Add(-1 * time.Hour)},
+		{Name: "middle", CreatedAt: now.Add(-2 * time.Hour)},
+	}
+
+	applySorting(festivals, "created", false)
+
+	expected := []string{"newest", "middle", "oldest"}
+	for i, want := range expected {
+		if festivals[i].Name != want {
+			t.Errorf("position %d: got %s, want %s", i, festivals[i].Name, want)
+		}
+	}
+}
+
+func TestApplySorting_ByUpdated(t *testing.T) {
+	now := time.Now()
+	festivals := []*show.FestivalInfo{
+		{Name: "stale", UpdatedAt: now.Add(-3 * time.Hour)},
+		{Name: "fresh", UpdatedAt: now.Add(-1 * time.Hour)},
+		{Name: "medium", UpdatedAt: now.Add(-2 * time.Hour)},
+	}
+
+	applySorting(festivals, "updated", false)
+
+	expected := []string{"fresh", "medium", "stale"}
+	for i, want := range expected {
+		if festivals[i].Name != want {
+			t.Errorf("position %d: got %s, want %s", i, festivals[i].Name, want)
+		}
+	}
+}
+
+func TestParseFilterDate(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+	}{
+		{"YYYY-MM-DD", "2026-01-15", false},
+		{"RFC3339", "2026-01-15T10:30:00Z", false},
+		{"RFC3339 with offset", "2026-01-15T10:30:00-07:00", false},
+		{"invalid format", "01/15/2026", true},
+		{"garbage", "not-a-date", true},
+		{"empty string", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := parseFilterDate(tt.input)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseFilterDate(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestParseFilterDate_Values(t *testing.T) {
+	t.Run("YYYY-MM-DD returns midnight", func(t *testing.T) {
+		got, err := parseFilterDate("2026-03-15")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Year() != 2026 || got.Month() != 3 || got.Day() != 15 {
+			t.Errorf("got %v, want 2026-03-15", got)
+		}
+	})
+
+	t.Run("RFC3339 preserves time", func(t *testing.T) {
+		got, err := parseFilterDate("2026-03-15T14:30:00Z")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.Hour() != 14 || got.Minute() != 30 {
+			t.Errorf("got %v, want 14:30", got)
+		}
+	})
+}
+
+func TestApplyFilters(t *testing.T) {
+	now := time.Now()
+	festivals := []*show.FestivalInfo{
+		{Name: "fest-a", ProjectPath: "/path/to/camp", CreatedAt: now.Add(-48 * time.Hour)},
+		{Name: "fest-b", ProjectPath: "/path/to/fest", CreatedAt: now.Add(-24 * time.Hour)},
+		{Name: "fest-c", ProjectPath: "/path/to/camp/sub", CreatedAt: now},
+	}
+
+	tests := []struct {
+		name          string
+		filterProject string
+		since         string
+		until         string
+		wantCount     int
+		wantNames     []string
+		wantErr       bool
+	}{
+		{name: "no filters", wantCount: 3},
+		{name: "project filter match", filterProject: "camp", wantCount: 2, wantNames: []string{"fest-a", "fest-c"}},
+		{name: "project filter no match", filterProject: "daemon", wantCount: 0},
+		{name: "project filter case insensitive", filterProject: "CAMP", wantCount: 2},
+		{name: "since filter", since: now.Add(-25 * time.Hour).Format(time.RFC3339), wantCount: 2},
+		{name: "until filter", until: now.Add(-49 * time.Hour).Format(time.RFC3339), wantCount: 1, wantNames: []string{"fest-a"}},
+		{name: "combined filters", filterProject: "camp", since: now.Add(-1 * time.Hour).Format(time.RFC3339), wantCount: 1, wantNames: []string{"fest-c"}},
+		{name: "invalid since date", since: "not-a-date", wantErr: true},
+		{name: "invalid until date", until: "13/13/2026", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := &listOptions{
+				filterProject: tt.filterProject,
+				since:         tt.since,
+				until:         tt.until,
+			}
+			result, err := applyFilters(festivals, opts)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if len(result) != tt.wantCount {
+				names := make([]string, len(result))
+				for i, f := range result {
+					names[i] = f.Name
+				}
+				t.Errorf("got %d results %v, want %d", len(result), names, tt.wantCount)
+			}
+			if tt.wantNames != nil {
+				for i, name := range tt.wantNames {
+					if i < len(result) && result[i].Name != name {
+						t.Errorf("position %d: got %s, want %s", i, result[i].Name, name)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestApplyFilters_EmptyList(t *testing.T) {
+	result, err := applyFilters([]*show.FestivalInfo{}, &listOptions{filterProject: "any"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(result) != 0 {
+		t.Errorf("expected empty result, got %d", len(result))
+	}
+}
+
+func TestApplyFilters_ZeroTimestamps(t *testing.T) {
+	festivals := []*show.FestivalInfo{
+		{Name: "no-date", CreatedAt: time.Time{}},
+		{Name: "has-date", CreatedAt: time.Now()},
+	}
+
+	result, err := applyFilters(festivals, &listOptions{since: "2020-01-01"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Festivals with zero CreatedAt pass through date filters
+	// because there's no date to compare against
+	if len(result) != 2 {
+		names := make([]string, len(result))
+		for i, f := range result {
+			names[i] = f.Name
+		}
+		t.Errorf("expected 2 results (zero timestamps pass through), got %d: %v", len(result), names)
+	}
+}
+
+func TestFestivalsToMap_IncludesTimestamps(t *testing.T) {
+	now := time.Now().Truncate(time.Second)
+	festivals := []*show.FestivalInfo{
+		{Name: "test-fest", Path: "/tmp/test", Status: "active",
+			CreatedAt: now, UpdatedAt: now.Add(time.Hour)},
+	}
+	result := festivalsToMap(festivals)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(result))
+	}
+	if _, ok := result[0]["created_at"]; !ok {
+		t.Error("missing created_at in JSON map")
+	}
+	if _, ok := result[0]["updated_at"]; !ok {
+		t.Error("missing updated_at in JSON map")
+	}
+}
+
+func TestFestivalsToMap_OmitsZeroTimestamps(t *testing.T) {
+	festivals := []*show.FestivalInfo{
+		{Name: "test-fest", Path: "/tmp/test", Status: "active"},
+	}
+	result := festivalsToMap(festivals)
+	if _, ok := result[0]["created_at"]; ok {
+		t.Error("zero-value created_at should be omitted from JSON map")
+	}
+	if _, ok := result[0]["updated_at"]; ok {
+		t.Error("zero-value updated_at should be omitted from JSON map")
+	}
+}
+
+func TestFestivalsToMapWithProgress_IncludesTimestamps(t *testing.T) {
+	now := time.Now().Truncate(time.Second)
+	festivals := []*show.FestivalInfo{
+		{Name: "test-fest", Path: "/tmp/test", Status: "active",
+			CreatedAt: now, UpdatedAt: now.Add(time.Hour)},
+	}
+	result := festivalsToMapWithProgress(festivals, nil)
+	if _, ok := result[0]["created_at"]; !ok {
+		t.Error("missing created_at in progress JSON map")
+	}
+	if _, ok := result[0]["updated_at"]; !ok {
+		t.Error("missing updated_at in progress JSON map")
 	}
 }
