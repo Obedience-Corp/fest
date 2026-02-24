@@ -1,6 +1,8 @@
 package contract
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/obediencecorp/obey-shared/contract"
@@ -133,6 +135,67 @@ func TestFestEntries_FallbackPaths(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestFestEntries_StatusField(t *testing.T) {
+	entryMap := make(map[string]contract.Entry)
+	for _, e := range FestEntries() {
+		entryMap[e.ID] = e
+	}
+
+	tasks, ok := entryMap["festival-tasks"]
+	require.True(t, ok, "missing festival-tasks entry")
+	assert.Equal(t, "fest_status", tasks.StatusField,
+		"festival-tasks must use fest_status as StatusField")
+}
+
+func TestFestEntries_FallbackPathValues(t *testing.T) {
+	entryMap := make(map[string]contract.Entry)
+	for _, e := range FestEntries() {
+		entryMap[e.ID] = e
+	}
+
+	meta := entryMap["festival-metadata"]
+	require.Len(t, meta.FallbackPaths, 1)
+	assert.Equal(t, "{festival}/festival.yaml", meta.FallbackPaths[0])
+
+	prog := entryMap["festival-progress"]
+	require.Len(t, prog.FallbackPaths, 2)
+	assert.Equal(t, "{festival}/.fest/progress.yaml", prog.FallbackPaths[0])
+	assert.Equal(t, "{festival}/.fest/progress.json", prog.FallbackPaths[1])
+}
+
+func TestFestEntries_WriteReadRoundTrip(t *testing.T) {
+	tmpDir := t.TempDir()
+	campaignDir := filepath.Join(tmpDir, ".campaign")
+	require.NoError(t, os.MkdirAll(campaignDir, 0o755))
+
+	contractPath := contract.ContractPath(tmpDir)
+	entries := FestEntries()
+	require.NoError(t, contract.WriteEntries(contractPath, contract.OwnerFest, entries))
+
+	_, err := os.Stat(contractPath)
+	require.NoError(t, err, "contract file must be created")
+
+	c, err := contract.Read(contractPath)
+	require.NoError(t, err)
+
+	assert.Len(t, c.Entries, len(entries), "round-trip must preserve entry count")
+
+	readIDs := make(map[string]bool, len(c.Entries))
+	for _, e := range c.Entries {
+		readIDs[e.ID] = true
+	}
+	for _, e := range entries {
+		assert.True(t, readIDs[e.ID], "entry %q was written but not read back", e.ID)
+	}
+
+	for _, e := range c.Entries {
+		assert.Equal(t, contract.OwnerFest, e.Owner,
+			"entry %q must retain Owner after round-trip", e.ID)
+	}
+
+	assert.Equal(t, contract.ContractVersion, c.Version)
 }
 
 func TestFestEntries_ExpectedCount(t *testing.T) {
