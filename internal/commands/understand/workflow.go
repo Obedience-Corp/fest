@@ -180,9 +180,15 @@ Before executing a festival, verify:
   ✓ Phase Level
     □ Each phase has PHASE_GOAL.md
     □ Phases are numbered correctly (001_, 002_, ...)
+    □ Phase types are correctly assigned
+
+  ✓ Workflow Phases
+    □ Workflow phases (planning, research, ingest) have WORKFLOW.md
+    □ Required subdirectories present (inputs/, decisions/, sources/, etc.)
+    □ No numbered sequences in workflow phases
 
   ✓ Sequence Level
-    □ Each sequence has SEQUENCE_GOAL.md
+    □ Each implementation sequence has SEQUENCE_GOAL.md
     □ Sequences are numbered correctly (01_, 02_, ...)
 
   ✗ CRITICAL: Task Files
@@ -193,9 +199,9 @@ Before executing a festival, verify:
 
   ✓ Quality Gates
     □ Implementation sequences end with quality gates
-    □ XX_testing_and_verify.md
-    □ XX_code_review.md
-    □ XX_review_results_iterate.md
+    □ XX_testing.md
+    □ XX_review.md
+    □ XX_iterate.md
     □ XX_commit.md
 
   ✓ Templates
