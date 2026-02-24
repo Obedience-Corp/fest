@@ -140,11 +140,15 @@ func showFestivalProgress(ctx context.Context, mgr *progress.Manager, loc *show.
 					} else if completed > 0 {
 						state = "in_progress"
 					}
+					wfTime := ""
+					if phase.Progress.TimeSpentMin > 0 {
+						wfTime = " | " + ui.FormatDuration(phase.Progress.TimeSpentMin)
+					}
 					fmt.Printf("%s %s %s %s\n",
 						ui.StateIcon(state),
 						ui.Value(phase.PhaseName, ui.PhaseColor),
 						ui.Dim(fmt.Sprintf("%3d%%", percentage)),
-						ui.Dim(fmt.Sprintf("(%d/%d steps)", completed, total)))
+						ui.Dim(fmt.Sprintf("(%d/%d steps)%s", completed, total, wfTime)))
 					continue
 				}
 			}
@@ -156,11 +160,15 @@ func showFestivalProgress(ctx context.Context, mgr *progress.Manager, loc *show.
 			} else if phase.Progress.InProgress > 0 || phase.Progress.Completed > 0 {
 				state = "in_progress"
 			}
+			implTime := ""
+			if phase.Progress.TimeSpentMin > 0 {
+				implTime = " | " + ui.FormatDuration(phase.Progress.TimeSpentMin)
+			}
 			fmt.Printf("%s %s %s %s\n",
 				ui.StateIcon(state),
 				ui.Value(phase.PhaseName, ui.PhaseColor),
 				ui.Dim(fmt.Sprintf("%3d%%", phase.Progress.Percentage)),
-				ui.Dim(fmt.Sprintf("(%d/%d tasks)", phase.Progress.Completed, phase.Progress.Total)))
+				ui.Dim(fmt.Sprintf("(%d/%d tasks)%s", phase.Progress.Completed, phase.Progress.Total, implTime)))
 		}
 	}
 
@@ -228,7 +236,7 @@ func showPhaseProgress(ctx context.Context, mgr *progress.Manager, loc *show.Loc
 	if prog.TimeSpentMin > 0 {
 		fmt.Printf("%s %s\n",
 			ui.Label("Time spent"),
-			ui.Value(fmt.Sprintf("%d min", prog.TimeSpentMin)))
+			ui.Value(ui.FormatDuration(prog.TimeSpentMin)))
 	}
 
 	// Show blockers if any
@@ -346,7 +354,7 @@ func showSequenceProgress(ctx context.Context, mgr *progress.Manager, loc *show.
 	if prog.TimeSpentMin > 0 {
 		fmt.Printf("%s %s\n",
 			ui.Label("Time spent"),
-			ui.Value(fmt.Sprintf("%d min", prog.TimeSpentMin)))
+			ui.Value(ui.FormatDuration(prog.TimeSpentMin)))
 	}
 
 	// Show blockers if any
