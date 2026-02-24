@@ -771,14 +771,39 @@ func TestContextCancellation(t *testing.T) {
 		t.Fatal("expected init command")
 	}
 
-	// Execute the command
+	// Init returns a tea.Batch; execute the result to get inner msgs
 	msg := cmd()
-	loadedMsg, ok := msg.(festivalsLoadedMsg)
-	if !ok {
-		t.Fatalf("expected festivalsLoadedMsg, got %T", msg)
+	// The batch returns a tea.BatchMsg containing sub-commands
+	batchMsg, isBatch := msg.(tea.BatchMsg)
+	if !isBatch {
+		// Direct cmd (non-batch) — check it directly
+		loadedMsg, ok := msg.(festivalsLoadedMsg)
+		if !ok {
+			t.Fatalf("expected festivalsLoadedMsg, got %T", msg)
+		}
+		if loadedMsg.err == nil {
+			t.Error("expected error from cancelled context")
+		}
+		return
 	}
-	if loadedMsg.err == nil {
-		t.Error("expected error from cancelled context")
+
+	// Find the festivalsLoadedMsg in the batch
+	var found bool
+	for _, subCmd := range batchMsg {
+		if subCmd == nil {
+			continue
+		}
+		subMsg := subCmd()
+		if loadedMsg, ok := subMsg.(festivalsLoadedMsg); ok {
+			found = true
+			if loadedMsg.err == nil {
+				t.Error("expected error from cancelled context")
+			}
+			break
+		}
+	}
+	if !found {
+		t.Error("expected festivalsLoadedMsg in batch")
 	}
 }
 
@@ -1544,6 +1569,149 @@ func TestGoalFileForItemFestivalNoGoal(t *testing.T) {
 	result := goalFileForItem(item)
 	if result != "" {
 		t.Errorf("expected empty string for festival without goal, got %s", result)
+	}
+}
+
+func TestRefreshMsgTriggersReload(t *testing.T) {
+	m := modelWithItems(3)
+
+	newModel, cmd := m.Update(refreshMsg{})
+	m = newModel.(Model)
+
+	if cmd == nil {
+		t.Error("expected reload command from refreshMsg")
+	}
+}
+
+func TestRefreshMsgPreservesSelection(t *testing.T) {
+	m := modelWithItems(5)
+	m.selected = 3
+	m.scrollStart = 1
+
+	newModel, _ := m.Update(refreshMsg{})
+	m = newModel.(Model)
+
+	if m.selected != 3 {
+		t.Errorf("expected selected=3 preserved, got %d", m.selected)
+	}
+	if m.scrollStart != 1 {
+		t.Errorf("expected scrollStart=1 preserved, got %d", m.scrollStart)
+	}
+}
+
+func TestRefreshItemsMsgClampsSelection(t *testing.T) {
+	m := modelWithItems(5)
+	m.selected = 4
+
+	// Refresh with fewer items
+	newModel, _ := m.Update(refreshItemsMsg{items: []FestivalItem{
+		{Name: "a", Type: ItemFestival},
+		{Name: "b", Type: ItemFestival},
+	}})
+	m = newModel.(Model)
+
+	if m.selected != 1 {
+		t.Errorf("expected selected clamped to 1, got %d", m.selected)
+	}
+	if len(m.items) != 2 {
+		t.Errorf("expected 2 items, got %d", len(m.items))
+	}
+}
+
+func TestRefreshItemsMsgEmptyList(t *testing.T) {
+	m := modelWithItems(3)
+	m.selected = 2
+
+	newModel, _ := m.Update(refreshItemsMsg{items: nil})
+	m = newModel.(Model)
+
+	if m.selected != 0 {
+		t.Errorf("expected selected=0 for empty list, got %d", m.selected)
+	}
+}
+
+func TestSortFestivalsByCreated(t *testing.T) {
+	now := time.Now()
+	items := []FestivalItem{
+		{Name: "old-fest", Type: ItemFestival, CreatedAt: now.Add(-48 * time.Hour)},
+		{Name: "new-fest", Type: ItemFestival, CreatedAt: now},
+		{Name: "mid-fest", Type: ItemFestival, CreatedAt: now.Add(-24 * time.Hour)},
+	}
+
+	sortFestivalsByCreated(items)
+
+	if items[0].Name != "new-fest" {
+		t.Errorf("expected newest first, got %q", items[0].Name)
+	}
+	if items[1].Name != "mid-fest" {
+		t.Errorf("expected mid second, got %q", items[1].Name)
+	}
+	if items[2].Name != "old-fest" {
+		t.Errorf("expected oldest last, got %q", items[2].Name)
+	}
+}
+
+func TestSortFestivalsByCreatedMissingDates(t *testing.T) {
+	now := time.Now()
+	items := []FestivalItem{
+		{Name: "no-date", Type: ItemFestival},
+		{Name: "has-date", Type: ItemFestival, CreatedAt: now},
+	}
+
+	sortFestivalsByCreated(items)
+
+	if items[0].Name != "has-date" {
+		t.Errorf("expected dated item first, got %q", items[0].Name)
+	}
+	if items[1].Name != "no-date" {
+		t.Errorf("expected undated item last, got %q", items[1].Name)
+	}
+}
+
+func TestSortFestivalsByCreatedStable(t *testing.T) {
+	now := time.Now()
+	items := []FestivalItem{
+		{Name: "alpha", Type: ItemFestival, CreatedAt: now},
+		{Name: "beta", Type: ItemFestival, CreatedAt: now},
+	}
+
+	sortFestivalsByCreated(items)
+
+	if items[0].Name != "alpha" {
+		t.Errorf("expected stable sort to preserve order, got %q first", items[0].Name)
+	}
+}
+
+func TestSortFestivalsByCreatedAllZero(t *testing.T) {
+	items := []FestivalItem{
+		{Name: "beta", Type: ItemFestival},
+		{Name: "alpha", Type: ItemFestival},
+	}
+
+	sortFestivalsByCreated(items)
+
+	if items[0].Name != "alpha" {
+		t.Errorf("expected alphabetical fallback, got %q first", items[0].Name)
+	}
+}
+
+func TestRefreshCurrentViewAtStatusRoot(t *testing.T) {
+	m := New(context.Background(), "")
+	m.loading = false
+	m.items = buildStatusItems()
+
+	cmd := m.refreshCurrentView()
+	if cmd == nil {
+		t.Error("expected reload cmd for status root")
+	}
+}
+
+func TestRefreshCurrentViewAtFestivalList(t *testing.T) {
+	m := modelWithItems(3)
+
+	cmd := m.refreshCurrentView()
+	if cmd == nil {
+		t.Error("expected reload cmd for festival list root")
 	}
 }
 

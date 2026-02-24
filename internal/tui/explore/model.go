@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/festival"
 	"github.com/Obedience-Corp/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/watch"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -50,6 +52,14 @@ type previewLoadedMsg struct {
 // statusCountsMsg is sent when festival counts per status are loaded asynchronously.
 type statusCountsMsg struct {
 	counts map[string]int
+}
+
+// refreshMsg triggers a reload of the current view's data.
+type refreshMsg struct{}
+
+// refreshItemsMsg delivers refreshed items without pushing the nav stack.
+type refreshItemsMsg struct {
+	items []FestivalItem
 }
 
 // Model is the BubbleTea model for the festival explorer.
@@ -121,11 +131,12 @@ func (m Model) Init() tea.Cmd {
 			func() tea.Msg {
 				return loadStatusCounts(ctx)
 			},
+			watchCmd(ctx),
 		)
 	}
 
 	// Specific status: load festivals for that status
-	return func() tea.Msg {
+	loadCmd := func() tea.Msg {
 		if err := ctx.Err(); err != nil {
 			return festivalsLoadedMsg{err: err}
 		}
@@ -155,8 +166,11 @@ func (m Model) Init() tea.Cmd {
 			})
 		}
 
+		sortFestivalsByCreated(items)
 		return festivalsLoadedMsg{items: items}
 	}
+
+	return tea.Batch(loadCmd, watchCmd(ctx))
 }
 
 // buildStatusItems creates status overview items from constants (zero I/O).
@@ -172,6 +186,25 @@ func buildStatusItems() []FestivalItem {
 		})
 	}
 	return items
+}
+
+// sortFestivalsByCreated sorts festival items by CreatedAt descending (newest first).
+// Items without dates sort last; ties fall back to alphabetical name.
+func sortFestivalsByCreated(items []FestivalItem) {
+	sort.SliceStable(items, func(i, j int) bool {
+		ti := items[i].CreatedAt
+		tj := items[j].CreatedAt
+		if ti.IsZero() && tj.IsZero() {
+			return items[i].Name < items[j].Name
+		}
+		if ti.IsZero() {
+			return false
+		}
+		if tj.IsZero() {
+			return true
+		}
+		return ti.After(tj)
+	})
 }
 
 // loadStatusCounts does lightweight directory counting (ReadDir only, no stat validation).
@@ -234,6 +267,7 @@ func loadFestivalsForStatus(ctx context.Context, status string) tea.Msg {
 		})
 	}
 
+	sortFestivalsByCreated(items)
 	return childrenLoadedMsg{
 		items:      items,
 		breadcrumb: statusDisplayName(status),
@@ -331,6 +365,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.viewport.GotoTop()
 		return m, nil
+
+	case refreshMsg:
+		// Refresh current view and restart watcher for next change
+		return m, tea.Batch(m.refreshCurrentView(), watchCmd(m.ctx))
+
+	case refreshItemsMsg:
+		// Replace items without changing navigation state
+		m.items = msg.items
+		if m.selected >= len(m.items) {
+			m.selected = max(len(m.items)-1, 0)
+		}
+		m.ensureVisible()
+		return m, m.loadPreviewCmd()
 
 	case tea.KeyMsg:
 		if m.filtering {
@@ -654,6 +701,104 @@ func (m Model) loadPreviewCmd() tea.Cmd {
 		r := &mdRenderer{}
 		rendered := r.render(raw, width)
 		return previewLoadedMsg{rendered: rendered}
+	}
+}
+
+// refreshCurrentView reloads the current view's data while preserving navigation state.
+func (m Model) refreshCurrentView() tea.Cmd {
+	ctx := m.ctx
+
+	// At status overview root: reload status counts
+	if len(m.navStack) == 0 && m.status == "" {
+		return func() tea.Msg { return loadStatusCounts(ctx) }
+	}
+
+	// At festival list root: reload festivals
+	if len(m.navStack) == 0 {
+		status := m.status
+		return func() tea.Msg {
+			cwd, err := os.Getwd()
+			if err != nil {
+				return refreshItemsMsg{}
+			}
+			festivalsDir, err := workspace.FindFestivals(cwd)
+			if err != nil || festivalsDir == "" {
+				return refreshItemsMsg{}
+			}
+			festivals, loadErr := show.ListFestivalsByStatusLight(ctx, festivalsDir, status)
+			if loadErr != nil {
+				return refreshItemsMsg{}
+			}
+			var items []FestivalItem
+			for _, f := range festivals {
+				items = append(items, FestivalItem{
+					Name:      f.Name,
+					Status:    f.Status,
+					CreatedAt: f.ModTime,
+					Path:      f.Path,
+					Type:      ItemFestival,
+				})
+			}
+			sortFestivalsByCreated(items)
+			return refreshItemsMsg{items: items}
+		}
+	}
+
+	// Inside a hierarchy: reload children for the current parent
+	entry := m.navStack[len(m.navStack)-1]
+	if entry.selected < len(entry.items) {
+		parent := entry.items[entry.selected]
+		return func() tea.Msg {
+			children, err := loadChildren(ctx, parent)
+			if err != nil {
+				return refreshItemsMsg{}
+			}
+			return refreshItemsMsg{items: children}
+		}
+	}
+	return nil
+}
+
+// watchCmd returns a tea.Cmd that monitors the festivals directory for changes
+// and sends refreshMsg to the TUI when files are modified.
+func watchCmd(ctx context.Context) tea.Cmd {
+	return func() tea.Msg {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return nil
+		}
+		festivalsDir, err := workspace.FindFestivals(cwd)
+		if err != nil || festivalsDir == "" {
+			return nil
+		}
+
+		changed := make(chan struct{}, 1)
+
+		w, err := watch.New(watch.Config{
+			Paths:    []string{festivalsDir},
+			Debounce: 300 * time.Millisecond,
+		}, func() {
+			select {
+			case changed <- struct{}{}:
+			default:
+			}
+		})
+		if err != nil {
+			return nil
+		}
+
+		go func() {
+			w.Watch(ctx)
+		}()
+
+		select {
+		case <-ctx.Done():
+			w.Close()
+			return nil
+		case <-changed:
+			w.Close()
+			return refreshMsg{}
+		}
 	}
 }
 
