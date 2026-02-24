@@ -3,18 +3,24 @@ package explore
 import (
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/charmbracelet/glamour"
 )
 
 // mdRenderer caches a glamour renderer and its configured width.
+// Thread-safe for use from async tea.Cmd goroutines.
 type mdRenderer struct {
+	mu       sync.Mutex
 	renderer *glamour.TermRenderer
 	width    int
 }
 
 // render renders markdown content, reusing the cached renderer when possible.
 func (r *mdRenderer) render(content string, width int) string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	if width < 20 {
 		width = 60
 	}
