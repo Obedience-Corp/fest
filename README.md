@@ -257,4 +257,4 @@ fest [command] --help    # Detailed command help
 
 ## License
 
-Angry Goat License v0.2 - See [LICENSE](LICENSE) for details.
+Business Source License 1.1 - See [LICENSE](LICENSE) for details.
