@@ -79,4 +79,5 @@ next level="patch":
 
     git tag -a "$new" -m "$new"
     git push origin "$new"
+    gh release create "$new" --title "$new" --generate-notes --prerelease
     echo "Released $new"
