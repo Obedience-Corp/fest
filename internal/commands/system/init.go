@@ -5,12 +5,14 @@ import (
 	"os"
 	"path/filepath"
 
+	festcontract "github.com/Obedience-Corp/fest/internal/contract"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/fileops"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
+	"github.com/obediencecorp/obey-shared/contract"
 	"github.com/spf13/cobra"
 )
 
@@ -190,6 +192,22 @@ func RunInit(ctx context.Context, targetPath string, opts *InitOptions) error {
 		marker, _ := workspace.ReadMarker(festivalPath)
 		if marker != nil {
 			display.Info("Registered as workspace: %s", marker.Workspace)
+		}
+	}
+
+	// Write fest entries to the campaign contract if inside a campaign.
+	// This declares fest's state files and directories so the daemon knows
+	// what to watch. If no campaign exists (standalone fest workspace),
+	// skip gracefully -- the contract only matters when a daemon is present.
+	campaignRoot, campaignErr := workspace.DetectCampaign(ctx, absPath)
+	if campaignErr == nil {
+		contractPath := contract.ContractPath(campaignRoot)
+		if err := contract.WriteEntries(contractPath, contract.OwnerFest, festcontract.FestEntries()); err != nil {
+			display.Warning("Could not write contract entries: %v", err)
+		} else {
+			if shared.IsVerbose() {
+				display.Info("Wrote fest entries to %s", contractPath)
+			}
 		}
 	}
 
