@@ -137,6 +137,15 @@ func handleFestivalStatusChange(ctx context.Context, display *ui.UI, festival *s
 		return errors.Wrap(err, "context cancelled")
 	}
 
+	// NOTE: No contract changes needed here. The watcher contract declares
+	// status *directories* (e.g., festivals/planning/, festivals/active/),
+	// not individual festivals within them. Moving a festival between
+	// directories triggers the daemon's directory watcher automatically --
+	// the daemon sees the create/delete events in the watched directories
+	// and discovers or removes festivals accordingly. The contract only
+	// changes when NEW directories are added (fest init), not when
+	// festivals move between existing ones.
+
 	// Resolve user-facing aliases to filesystem paths (e.g., "completed" -> "dungeon/completed")
 	newStatus = id.ResolveStatusPath(newStatus)
 

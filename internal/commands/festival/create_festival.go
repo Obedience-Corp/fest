@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	festcontract "github.com/Obedience-Corp/fest/internal/contract"
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
@@ -25,6 +26,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/google/uuid"
+	"github.com/obediencecorp/obey-shared/contract"
 	"github.com/spf13/cobra"
 )
 
@@ -132,7 +134,10 @@ func resolveCreateConfig(ctx context.Context, opts *CreateFestivalOptions) (*cre
 	}
 
 	display := ui.New(shared.IsNoColor(), shared.IsVerbose())
-	cwd, _ := os.Getwd()
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, errors.Wrap(err, "getting working directory")
+	}
 
 	festivalsRoot, err := workspace.FindFestivals(cwd)
 	if err != nil {
@@ -268,6 +273,13 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 
 	recordInitialSize(ctx, cfg, res.festConfig)
 	registerFestival(ctx, cfg)
+
+	// Ensure fest contract entries are present in .campaign/watchers.yaml.
+	// This is idempotent: if fest init already wrote them, WriteEntries
+	// will replace them with the same values. This handles the case where
+	// fest init ran before camp init (so .campaign/ didn't exist yet),
+	// or where the contract file was deleted and needs regeneration.
+	writeContractEntries(cfg.campaignRoot)
 
 	res.created = created
 	res.copiedGates = copiedGates
@@ -844,6 +856,21 @@ func Slugify(s string) string {
 		slug = "festival"
 	}
 	return slug
+}
+
+// writeContractEntries writes fest's entries to the campaign contract file.
+// Skips gracefully if campaignRoot is empty (standalone fest workspace).
+func writeContractEntries(campaignRoot string) {
+	if campaignRoot == "" {
+		return
+	}
+
+	contractPath := contract.ContractPath(campaignRoot)
+	if writeErr := contract.WriteEntries(contractPath, contract.OwnerFest, festcontract.FestEntries()); writeErr != nil {
+		if shared.IsVerbose() {
+			fmt.Fprintf(os.Stderr, "Warning: could not write contract entries: %v\n", writeErr)
+		}
+	}
 }
 
 // mapPhaseSpecType maps festival type phase spec type to create phase command type.
