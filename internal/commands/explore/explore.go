@@ -66,16 +66,20 @@ STATUS can be: active, planning, completed, dungeon`,
 func newStatusSubcommand(status, short string) *cobra.Command {
 	opts := &exploreOptions{}
 
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   status,
 		Short: short,
 		Annotations: map[string]string{
 			"scope": string(scope.Workspace),
 		},
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return runExplore(cmd.Context(), opts, status)
+		RunE: func(c *cobra.Command, args []string) error {
+			return runExplore(c.Context(), opts, status)
 		},
 	}
+
+	cmd.Flags().BoolVar(&opts.json, "json", false, "Output as JSON")
+
+	return cmd
 }
 
 func runExplore(ctx context.Context, opts *exploreOptions, status string) error {
