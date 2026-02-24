@@ -133,7 +133,16 @@ func runGo(ctx context.Context, target string, opts *goOptions) error {
 			outputPath(resultPath, opts)
 			return nil
 		}
-		// Fall back to festivals root
+
+		// Try interactive picker if TTY available
+		if pickerPath, err := launchFestivalPicker(festivalsDir); err != nil {
+			return err
+		} else if pickerPath != "" {
+			outputPath(pickerPath, opts)
+			return nil
+		}
+
+		// Fall back to festivals root (non-TTY or no festivals)
 		outputPath(festivalsDir, opts)
 		return nil
 	}
@@ -411,6 +420,61 @@ func resolveSequenceShortcut(shortcut, phaseDir string) (string, error) {
 	}
 
 	return "", errors.NotFound("sequence").WithField("shortcut", shortcut).WithField("phase", filepath.Base(phaseDir))
+}
+
+// launchFestivalPicker shows an interactive fuzzy picker for all festivals.
+// Returns the selected path, or empty string if cancelled or not available.
+func launchFestivalPicker(festivalsDir string) (string, error) {
+	stdinIsTTY := term.IsTerminal(int(os.Stdin.Fd()))
+	stderrIsTTY := term.IsTerminal(int(os.Stderr.Fd()))
+	if !stdinIsTTY || !stderrIsTTY {
+		return "", nil
+	}
+
+	items := collectPickerItems(festivalsDir)
+	if len(items) == 0 {
+		return "", nil
+	}
+
+	selected, err := picker.Run(items, navigation.Score)
+	if err != nil {
+		return "", errors.Wrap(err, "running festival picker")
+	}
+	if selected == nil {
+		return "", nil
+	}
+
+	return selected.Value, nil
+}
+
+// collectPickerItems gathers all festivals and status directories as picker items.
+func collectPickerItems(festivalsDir string) []picker.Item {
+	var items []picker.Item
+
+	for _, status := range id.StatusDirectories {
+		statusPath := filepath.Join(festivalsDir, status)
+		entries, err := os.ReadDir(statusPath)
+		if err != nil {
+			continue
+		}
+
+		items = append(items, picker.Item{
+			Name:  fmt.Sprintf("[%s]/", status),
+			Value: statusPath,
+		})
+
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			items = append(items, picker.Item{
+				Name:  fmt.Sprintf("[%s] %s", status, entry.Name()),
+				Value: filepath.Join(statusPath, entry.Name()),
+			})
+		}
+	}
+
+	return items
 }
 
 // showFuzzyPicker displays an interactive picker for ambiguous matches.
