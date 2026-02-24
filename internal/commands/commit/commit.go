@@ -15,7 +15,6 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/id"
-	"github.com/Obedience-Corp/fest/internal/navigation"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/obediencecorp/camp/pkg/commitkit"
@@ -40,12 +39,12 @@ func NewCommitCommand() *cobra.Command {
 		Use:   "commit",
 		Short: "Create git commit with task reference",
 		Annotations: map[string]string{
-			"scope": string(scope.Workspace),
+			"scope": string(scope.Festival),
 		},
 		Long: `Create a git commit with the festival/task ID embedded in the message.
 
-Works from any directory within a campaign workspace. The festival reference
-is auto-detected when possible, or can be specified with --festival.
+Requires festival context: either run from inside a festival directory,
+a linked project directory (see 'fest link'), or use --festival to specify one.
 
 The fest commit command wraps git commit and automatically:
   1. Stages all changes (git add -A) unless --stage=false
@@ -59,9 +58,8 @@ Reference format: [OBEY-FE-{id}]
 Detection priority:
   1. Explicit --task flag value
   2. Task fest_ref from current directory (if inside festival task)
-  3. Festival ID from scope context (fest.yaml metadata)
+  3. Festival ID from fest.yaml metadata
   4. Explicit --festival flag (name or ID)
-  5. Navigation link reverse-lookup (linked project detection)
 
 Examples:
   fest commit -m "Implement feature"
@@ -153,11 +151,6 @@ func runCommit(cmd *cobra.Command, args []string) error {
 			} else if festivalFlag != "" {
 				// Strategy 3: Explicit --festival flag
 				if fid, err := detectFestivalIDFromFlag(ctx, festivalFlag); err == nil && fid != "" {
-					ref = formatCommitRef(fid)
-				}
-			} else {
-				// Strategy 4: Navigation link reverse-lookup
-				if fid, err := detectFestivalIDFromNavigation(ctx); err == nil && fid != "" {
 					ref = formatCommitRef(fid)
 				}
 			}
@@ -329,41 +322,6 @@ func detectFestivalIDFromFlag(ctx context.Context, flag string) (string, error) 
 	}
 
 	return "", errors.NotFound(fmt.Sprintf("festival matching flag %q", flag))
-}
-
-// detectFestivalIDFromNavigation finds the festival linked to the current
-// working directory (or a parent) via navigation links. This handles the case
-// where CWD is inside a linked project but deeper than the exact link target.
-func detectFestivalIDFromNavigation(ctx context.Context) (string, error) {
-	ws, ok := scope.WorkspaceFrom(ctx)
-	if !ok || ws == nil {
-		return "", errors.NotFound("workspace")
-	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", errors.Wrap(err, "getting working directory")
-	}
-
-	nav, err := navigation.LoadNavigation()
-	if err != nil {
-		return "", errors.Wrap(err, "loading navigation")
-	}
-
-	festivalName := nav.FindFestivalForPath(cwd)
-	if festivalName == "" {
-		return "", errors.NotFound("navigation link for current directory")
-	}
-
-	// Search for the festival by name in status directories.
-	for _, status := range id.StatusDirectories {
-		festivalPath := filepath.Join(ws.FestivalsPath, status, festivalName)
-		if info, err := os.Stat(festivalPath); err == nil && info.IsDir() {
-			return loadFestivalID(festivalPath, ws.Root)
-		}
-	}
-
-	return "", errors.NotFound(fmt.Sprintf("festival directory for %q", festivalName))
 }
 
 // loadFestivalID loads fest.yaml from the given festival directory and returns
