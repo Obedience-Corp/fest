@@ -69,7 +69,7 @@ brews:
 
     homepage: "https://github.com/lancekrogers/festival-methodology/tree/main/fest"
     description: "Festival methodology CLI for managing software development festivals"
-    license: "MIT"
+    license: "BUSL-1.1"
 
     folder: Formula
 
