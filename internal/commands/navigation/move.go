@@ -36,8 +36,18 @@ type MoveResult struct {
 	Message     string `json:"message,omitempty"`
 }
 
-// NewGoMoveCommand creates the go move subcommand
+// NewMoveCommand creates the top-level fest move command.
+func NewMoveCommand() *cobra.Command {
+	cmd := newMoveCmd()
+	return cmd
+}
+
+// NewGoMoveCommand creates the go move subcommand.
 func NewGoMoveCommand() *cobra.Command {
+	return newMoveCmd()
+}
+
+func newMoveCmd() *cobra.Command {
 	opts := &moveOptions{}
 
 	cmd := &cobra.Command{
@@ -53,16 +63,16 @@ current directory:
 
 Examples:
   # In project directory, move file to festival
-  fest go move ./analysis.md
+  fest move ./analysis.md
 
   # In festival directory, move file to project
-  fest go move ./specs/api.go --to-project
+  fest move ./specs/api.go --to-project
 
   # Copy instead of move (keeps original)
-  fest go move --copy ./notes.md
+  fest move --copy ./notes.md
 
   # Force overwrite existing files
-  fest go move --force ./config.yml
+  fest move --force ./config.yml
 
 Requirements:
   - Festival must have project_path set in fest.yaml

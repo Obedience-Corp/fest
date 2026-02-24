@@ -52,6 +52,9 @@ func NewManifestCommand() *cobra.Command {
 // commands that have agent restriction annotations.
 func WalkCommands(cmd *cobra.Command, prefix string, entries *[]CommandEntry) {
 	for _, child := range cmd.Commands() {
+		if child.Hidden {
+			continue
+		}
 		path := child.Name()
 		if prefix != "" {
 			path = prefix + " " + child.Name()

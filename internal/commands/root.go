@@ -211,6 +211,10 @@ func init() {
 	linksCmd.GroupID = "navigation"
 	rootCmd.AddCommand(linksCmd)
 
+	moveCmd := navigation.NewMoveCommand()
+	moveCmd.GroupID = "navigation"
+	rootCmd.AddCommand(moveCmd)
+
 	// === WORKFLOW COMMANDS ===
 	nextCmd := nextcmd.NewNextCommand()
 	nextCmd.GroupID = "workflow"
@@ -291,6 +295,7 @@ func init() {
 	rootCmd.AddCommand(shellInitCmd)
 
 	extensionCmd := extensions.NewExtensionCommand()
+	extensionCmd.Hidden = true
 	extensionCmd.GroupID = "system"
 	rootCmd.AddCommand(extensionCmd)
 
