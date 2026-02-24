@@ -11,8 +11,10 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/pathutil"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	tuiexplore "github.com/Obedience-Corp/fest/internal/tui/explore"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -135,7 +137,8 @@ func exploreFestival(ctx context.Context, opts *exploreOptions, festivalPath str
 		return errors.Wrap(err, "running explore TUI")
 	}
 	if selected != nil {
-		fmt.Println(selected.Path)
+		campaignRoot, _ := workspace.DetectCampaign(ctx, "")
+		fmt.Println(pathutil.DisplayPath(selected.Path, campaignRoot))
 	}
 	return nil
 }
@@ -154,7 +157,8 @@ func exploreFestivalList(ctx context.Context, opts *exploreOptions, status strin
 		return errors.Wrap(err, "running explore TUI")
 	}
 	if selected != nil {
-		fmt.Println(selected.Path)
+		campaignRoot, _ := workspace.DetectCampaign(ctx, "")
+		fmt.Println(pathutil.DisplayPath(selected.Path, campaignRoot))
 	}
 	return nil
 }

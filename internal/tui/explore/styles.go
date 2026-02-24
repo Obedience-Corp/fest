@@ -56,6 +56,13 @@ var (
 	previewTitle    = lipgloss.NewStyle().Foreground(colorBorder).Bold(true)
 )
 
+// Tree node icons.
+const (
+	expandedIcon  = "▼"
+	collapsedIcon = "▶"
+	loadingIcon   = "◌"
+)
+
 // panelBorder returns a border style for a panel with the given focus state.
 func panelBorder(focused bool) lipgloss.Style {
 	bc := colorDimBorder
