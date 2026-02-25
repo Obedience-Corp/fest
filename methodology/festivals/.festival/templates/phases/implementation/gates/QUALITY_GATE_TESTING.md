@@ -21,9 +21,29 @@ fest_created: {{ .created_date }}
 
 # Gate: Testing and Verification
 
-Run all tests for this sequence. Verify no regressions.
+Verify all functionality implemented in this sequence works correctly.
+
+## Test Categories
+
+### Unit Tests
 
 - [ ] All unit tests pass
+- [ ] New/modified code has test coverage
+- [ ] Tests are meaningful (not just coverage padding)
+
+### Integration Tests
+
 - [ ] Integration tests pass
-- [ ] No regressions introduced
+- [ ] Components work together correctly
+
+### Error Handling
+
+- [ ] Invalid inputs are rejected gracefully
+- [ ] Error messages are clear and actionable
+- [ ] Recovery paths work correctly
+
+## Verification
+
 - [ ] Build completes without warnings
+- [ ] No regressions introduced
+- [ ] Coverage meets project requirements

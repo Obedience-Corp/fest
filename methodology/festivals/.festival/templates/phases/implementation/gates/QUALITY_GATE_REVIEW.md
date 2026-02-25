@@ -21,11 +21,39 @@ fest_created: {{ .created_date }}
 
 # Gate: Code Review
 
-Review all changes in this sequence for correctness and standards compliance.
+Review all code changes in this sequence for quality, correctness, and standards compliance.
+
+## Review Checklist
+
+### Code Quality
+
+- [ ] Code is readable and well-organized
+- [ ] Functions are focused (single responsibility)
+- [ ] Naming is clear and consistent
+- [ ] No unnecessary complexity or duplication
+
+### Standards Compliance
 
 - [ ] Linting passes without warnings
-- [ ] Code is readable and follows project conventions
-- [ ] No obvious bugs or security issues
-- [ ] Changes align with sequence goal
+- [ ] Formatting is consistent
+- [ ] Project conventions are followed
 
-**Findings:** Document any issues that must be addressed before commit.
+### Error Handling & Security
+
+- [ ] Errors are handled appropriately
+- [ ] No secrets in code
+- [ ] Input validation present where needed
+- [ ] No obvious security issues
+
+### Alignment
+
+- [ ] Changes align with sequence goal
+- [ ] No scope creep beyond what was requested
+
+## Findings
+
+Document any issues that must be addressed before commit.
+
+**Critical Issues:** (must fix)
+
+**Suggestions:** (should consider)
