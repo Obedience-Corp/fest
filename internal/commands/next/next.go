@@ -204,6 +204,15 @@ func runNext(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Check if an earlier phase has incomplete after-workflow steps
+	// that should run before jumping to later phases
+	if result.Task != nil {
+		earlierWorkflow, ewErr := findEarlierIncompleteAfterWorkflow(ctx, festivalPath, result.Task.PhaseName)
+		if ewErr == nil && earlierWorkflow != "" {
+			return runWorkflowMode(ctx, festivalPath, earlierWorkflow)
+		}
+	}
+
 	// If selector says festival is complete, check for remaining incomplete workflow phases
 	if result.FestivalComplete {
 		incompleteWorkflow, wErr := findFirstIncompleteWorkflowPhase(ctx, festivalPath)
@@ -523,6 +532,58 @@ func findFirstIncompleteWorkflowPhase(ctx context.Context, festivalPath string) 
 		if !ok || state.TotalSteps == 0 || !state.IsComplete() {
 			return phasePath, nil
 		}
+	}
+
+	return "", nil
+}
+
+// findEarlierIncompleteAfterWorkflow scans phases in numerical order before the given phase
+// and returns the first one with an incomplete after-position workflow. This handles hybrid
+// phases where sequences are complete but the after-workflow steps remain.
+func findEarlierIncompleteAfterWorkflow(ctx context.Context, festivalPath, currentPhaseName string) (string, error) {
+	entries, err := os.ReadDir(festivalPath)
+	if err != nil {
+		return "", err
+	}
+
+	var phases []string
+	for _, entry := range entries {
+		if entry.IsDir() && isNumberedDir(entry.Name()) {
+			phases = append(phases, entry.Name())
+		}
+	}
+	sort.Strings(phases)
+
+	store := progress.NewStore(festivalPath)
+	storeLoaded := store.Load(ctx) == nil
+
+	for _, phaseName := range phases {
+		// Stop before the current task's phase
+		if phaseName >= currentPhaseName {
+			break
+		}
+
+		phasePath := filepath.Join(festivalPath, phaseName)
+		workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
+		if _, statErr := os.Stat(workflowPath); statErr != nil {
+			continue
+		}
+
+		// Only consider after-position workflows (default)
+		position := shared.WorkflowPositionForPhase(phasePath)
+		if position == frontmatter.WorkflowPositionBefore {
+			continue
+		}
+
+		// Check if workflow is incomplete
+		if storeLoaded {
+			state, ok := store.WorkflowPhaseState(phaseName)
+			if ok && state.TotalSteps > 0 && state.IsComplete() {
+				continue // Workflow is complete
+			}
+		}
+
+		return phasePath, nil
 	}
 
 	return "", nil
