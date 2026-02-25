@@ -64,7 +64,7 @@ Workspace Registration:
 	}
 
 	cmd.Flags().BoolVar(&opts.Force, "force", false, "overwrite existing festival directory")
-	cmd.Flags().StringVar(&opts.From, "from", "", "source directory (default: ~/.config/obey/fest)")
+	cmd.Flags().StringVar(&opts.From, "from", "", "source directory (default: ~/.obey/fest)")
 	cmd.Flags().BoolVar(&opts.Minimal, "minimal", false, "create minimal structure only")
 	cmd.Flags().BoolVar(&opts.NoChecksums, "no-checksums", false, "skip checksum generation")
 	cmd.Flags().BoolVar(&opts.Register, "register", false, "register existing festivals as active workspace")

@@ -98,7 +98,7 @@ func ConfigDir() string {
 		return ".fest"
 	}
 
-	return filepath.Join(home, ".config", "obey", "fest")
+	return filepath.Join(home, ".obey", "fest")
 }
 
 // Load loads configuration from file
