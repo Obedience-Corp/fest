@@ -131,8 +131,7 @@ func buildPhaseNode(ctx context.Context, phaseDir string, store *progress.Store,
 					node.Stats.Pending++
 				}
 			}
-			node.Status = determineStatus(node.Stats)
-			return node
+			// Don't return — fall through to also load sequences if they exist
 		}
 	}
 
