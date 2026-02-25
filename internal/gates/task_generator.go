@@ -142,7 +142,8 @@ func (g *TaskGenerator) GenerateForSequence(
 			// Inject frontmatter if content doesn't already have it
 			if !strings.HasPrefix(strings.TrimSpace(content), "---") {
 				parentSequenceID := filepath.Base(sequencePath)
-				fm := frontmatter.NewGateFrontmatter(taskFileName, gate.Name, parentSequenceID, taskNum, inferGateType(gate.ID))
+				gateType := inferGateType(gate.ID)
+				fm := frontmatter.NewGateFrontmatter(taskFileName, gate.Name, parentSequenceID, taskNum, gateType, gateTypeAutonomy(gateType))
 				contentWithFM, fmErr := frontmatter.InjectString(content, fm)
 				if fmErr != nil {
 					warnings = append(warnings, fmt.Sprintf("Failed to inject frontmatter for %s: %v", taskPath, fmErr))
@@ -546,6 +547,18 @@ func FindSequencesWithInfo(festivalRoot string, excludePatterns []string) ([]Seq
 	}
 
 	return sequences, skipped, nil
+}
+
+// gateTypeAutonomy returns the default autonomy level for a gate type.
+func gateTypeAutonomy(gt frontmatter.GateType) frontmatter.Autonomy {
+	switch gt {
+	case frontmatter.GateReview:
+		return frontmatter.AutonomyLow
+	case frontmatter.GateCommit:
+		return frontmatter.AutonomyHigh
+	default:
+		return frontmatter.AutonomyMedium
+	}
 }
 
 // inferGateType infers the gate type from the gate ID.

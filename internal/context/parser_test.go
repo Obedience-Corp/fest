@@ -153,9 +153,13 @@ Added --json flag to all commands.
 }
 
 func TestParseTaskFile(t *testing.T) {
-	content := []byte(`# Task: 03_fest_context
+	content := []byte(`---
+fest_autonomy: high
+---
 
-> **Task Number**: 03 | **Parallel Execution**: Yes | **Dependencies**: None | **Autonomy Level**: high
+# Task: 03_fest_context
+
+> **Parallel Execution**: Yes | **Dependencies**: None
 
 ## Objective
 

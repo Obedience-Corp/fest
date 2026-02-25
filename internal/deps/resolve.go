@@ -238,13 +238,13 @@ func (r *Resolver) parseTaskMetadata(task *Task) {
 					task.ParallelGroup = num
 				}
 			}
-		}
-	}
 
-	// Extract autonomy level
-	autonomyRe := regexp.MustCompile(`(?i)Autonomy\s+Level\*{0,2}[:\s*]+(\w+)`)
-	if match := autonomyRe.FindStringSubmatch(text); len(match) > 1 {
-		task.AutonomyLevel = strings.ToLower(match[1])
+			// Extract fest_autonomy
+			autonomyRe := regexp.MustCompile(`fest_autonomy:\s*(\w+)`)
+			if match := autonomyRe.FindStringSubmatch(frontmatter); len(match) > 1 {
+				task.AutonomyLevel = strings.ToLower(match[1])
+			}
+		}
 	}
 }
 

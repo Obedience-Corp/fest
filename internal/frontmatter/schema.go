@@ -332,7 +332,7 @@ func NewTaskFrontmatter(id, name, parent string, order int, autonomy Autonomy) *
 }
 
 // NewGateFrontmatter creates frontmatter for a quality gate document
-func NewGateFrontmatter(id, name, parent string, order int, gateType GateType) *Frontmatter {
+func NewGateFrontmatter(id, name, parent string, order int, gateType GateType, autonomy Autonomy) *Frontmatter {
 	tracking := true
 	return &Frontmatter{
 		Type:     TypeGate,
@@ -341,6 +341,7 @@ func NewGateFrontmatter(id, name, parent string, order int, gateType GateType) *
 		Parent:   parent,
 		Order:    order,
 		GateType: gateType,
+		Autonomy: autonomy,
 		Status:   StatusPending,
 		Tracking: &tracking,
 		Created:  time.Now(),
