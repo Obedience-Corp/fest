@@ -9,6 +9,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	festctx "github.com/Obedience-Corp/fest/internal/context"
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/taskfilter"
@@ -109,59 +110,68 @@ func buildPhaseNode(ctx context.Context, phaseDir string, store *progress.Store,
 		Status:   "pending",
 	}
 
-	// Check if this is a workflow phase (has WORKFLOW.md)
+	// Load workflow steps if WORKFLOW.md exists
+	var stepNodes []*DisplayNode
+	var stepStats StatusCounts
 	if shared.HasWorkflowFile(phaseDir) {
-		// Load workflow steps as children
 		steps, err := shared.LoadWorkflowStepsForPhase(ctx, festivalRoot, phaseDir)
 		if err == nil && len(steps) > 0 {
 			for _, step := range steps {
-				stepNode := buildStepNode(step)
-				node.Children = append(node.Children, stepNode)
-
-				// Aggregate stats based on step status
-				node.Stats.Total++
+				stepNodes = append(stepNodes, buildStepNode(step))
+				stepStats.Total++
 				switch step.Status {
 				case wf.StepStatusCompleted:
-					node.Stats.Completed++
+					stepStats.Completed++
 				case wf.StepStatusInProgress:
-					node.Stats.InProgress++
+					stepStats.InProgress++
 				case wf.StepStatusBlocked:
-					node.Stats.Blocked++
+					stepStats.Blocked++
 				default:
-					node.Stats.Pending++
+					stepStats.Pending++
 				}
 			}
-			node.Status = determineStatus(node.Stats)
-			return node
 		}
 	}
 
-	// Implementation phase - load sequences
+	// Load sequence nodes
+	var seqNodes []*DisplayNode
+	var seqStats StatusCounts
 	entries, err := os.ReadDir(phaseDir)
-	if err != nil {
-		return node
+	if err == nil {
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			seqDir := filepath.Join(phaseDir, entry.Name())
+			if !isSequenceDir(seqDir) && !hasNumericPrefix(entry.Name()) {
+				continue
+			}
+			seqNode := buildSequenceNode(seqDir, store, festivalRoot)
+			seqNodes = append(seqNodes, seqNode)
+			seqStats.Total += seqNode.Stats.Total
+			seqStats.Completed += seqNode.Stats.Completed
+			seqStats.InProgress += seqNode.Stats.InProgress
+			seqStats.Pending += seqNode.Stats.Pending
+			seqStats.Blocked += seqNode.Stats.Blocked
+		}
 	}
 
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		seqDir := filepath.Join(phaseDir, entry.Name())
-		if !isSequenceDir(seqDir) && !hasNumericPrefix(entry.Name()) {
-			continue
-		}
-
-		seqNode := buildSequenceNode(seqDir, store, festivalRoot)
-		node.Children = append(node.Children, seqNode)
-
-		// Aggregate stats
-		node.Stats.Total += seqNode.Stats.Total
-		node.Stats.Completed += seqNode.Stats.Completed
-		node.Stats.InProgress += seqNode.Stats.InProgress
-		node.Stats.Pending += seqNode.Stats.Pending
-		node.Stats.Blocked += seqNode.Stats.Blocked
+	// Order children based on workflow_position (default: after sequences)
+	position := shared.WorkflowPositionForPhase(phaseDir)
+	if position == frontmatter.WorkflowPositionBefore {
+		node.Children = append(node.Children, stepNodes...)
+		node.Children = append(node.Children, seqNodes...)
+	} else {
+		node.Children = append(node.Children, seqNodes...)
+		node.Children = append(node.Children, stepNodes...)
 	}
+
+	// Aggregate all stats
+	node.Stats.Total = stepStats.Total + seqStats.Total
+	node.Stats.Completed = stepStats.Completed + seqStats.Completed
+	node.Stats.InProgress = stepStats.InProgress + seqStats.InProgress
+	node.Stats.Pending = stepStats.Pending + seqStats.Pending
+	node.Stats.Blocked = stepStats.Blocked + seqStats.Blocked
 
 	node.Status = determineStatus(node.Stats)
 	return node

@@ -13,6 +13,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/feedback"
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/guidance/selection"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
@@ -134,21 +135,26 @@ func runNext(cmd *cobra.Command, args []string) error {
 	}
 
 	// Auto-detect WORKFLOW.md in current phase and route to workflow navigator
+	// Only route immediately if workflow_position is "before" (workflow runs before sequences)
 	phasePath := shared.ResolvePhasePath(cwd, festivalPath)
 	if phasePath != "" {
 		workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
 		if _, err := os.Stat(workflowPath); err == nil {
-			// WORKFLOW.md exists - check if workflow is complete before routing
-			phaseName := filepath.Base(phasePath)
-			store := progress.NewStore(festivalPath)
-			if loadErr := store.Load(ctx); loadErr != nil {
-				return runWorkflowMode(ctx, festivalPath, phasePath)
+			position := shared.WorkflowPositionForPhase(phasePath)
+			if position == frontmatter.WorkflowPositionBefore {
+				// WORKFLOW.md exists with position=before - check if workflow is complete before routing
+				phaseName := filepath.Base(phasePath)
+				store := progress.NewStore(festivalPath)
+				if loadErr := store.Load(ctx); loadErr != nil {
+					return runWorkflowMode(ctx, festivalPath, phasePath)
+				}
+				state, ok := store.WorkflowPhaseState(phaseName)
+				if !ok || state.TotalSteps == 0 || !state.IsComplete() {
+					return runWorkflowMode(ctx, festivalPath, phasePath)
+				}
 			}
-			state, ok := store.WorkflowPhaseState(phaseName)
-			if !ok || state.TotalSteps == 0 || !state.IsComplete() {
-				return runWorkflowMode(ctx, festivalPath, phasePath)
-			}
-			// Workflow complete - fall through to selector for next task
+			// position=after: fall through to selector; workflow runs after sequences complete
+			// Workflow complete: fall through to selector for next task
 		}
 	}
 
@@ -156,7 +162,12 @@ func runNext(cmd *cobra.Command, args []string) error {
 	if phasePath == "" {
 		nextPhase, isWorkflow, fipErr := findFirstIncompletePhase(ctx, festivalPath)
 		if fipErr == nil && nextPhase != "" && isWorkflow {
-			return runWorkflowMode(ctx, festivalPath, nextPhase)
+			// Only route to workflow immediately if position=before
+			position := shared.WorkflowPositionForPhase(nextPhase)
+			if position == frontmatter.WorkflowPositionBefore {
+				return runWorkflowMode(ctx, festivalPath, nextPhase)
+			}
+			// position=after: fall through to selector; workflow runs after sequences
 		}
 		// If nextPhase is task-based or empty, fall through to selector
 	}

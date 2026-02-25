@@ -13,111 +13,38 @@ fest_name: Review Results and Iterate
 fest_parent: {{ .SequenceID }}
 fest_order: {{ .TaskNumber }}
 fest_gate_type: iterate
+fest_autonomy: medium
 fest_status: pending
 fest_tracking: true
 fest_created: {{ .created_date }}
 ---
 
-# Task: Review Results and Iterate
+# Gate: Review Results and Iterate
 
-**Task Number:** {{ .TaskNumber }} | **Parallel Group:** None | **Dependencies:** Code Review | **Autonomy:** medium
+Address all findings from testing and code review. Iterate until the sequence meets quality standards.
 
-## Objective
-
-Address all findings from code review and testing, iterate until the sequence meets quality standards.
-
-## Review Findings to Address
+## Findings to Address
 
 ### From Testing
 
-| Finding | Priority | Status | Notes |
-|---------|----------|--------|-------|
-| [FILL: Finding description] | [FILL: High/Medium/Low] | [ ] Fixed | |
-| [FILL: Finding description] | [FILL: High/Medium/Low] | [ ] Fixed | |
+- [ ] (list findings from testing gate)
 
 ### From Code Review
 
-| Finding | Priority | Status | Notes |
-|---------|----------|--------|-------|
-| [FILL: Finding description] | [FILL: High/Medium/Low] | [ ] Fixed | |
-| [FILL: Finding description] | [FILL: High/Medium/Low] | [ ] Fixed | |
+- [ ] (list findings from review gate)
 
-## Iteration Process
+## Iteration
 
-### Round 1
+For each finding:
 
-**Changes Made:**
-
-- [ ] [FILL: Change description]
-- [ ] [FILL: Change description]
-
-**Verification:**
-
-- [ ] Tests re-run and pass
-- [ ] Linting passes
-- [ ] Changes reviewed
-
-### Round 2 (if needed)
-
-**Changes Made:**
-
-- [ ] [FILL: Change description]
-
-**Verification:**
-
-- [ ] Tests re-run and pass
-- [ ] Linting passes
-- [ ] Changes reviewed
-
-## Final Verification
-
-After all iterations:
-
-- [ ] All critical findings addressed
-- [ ] All tests pass
-- [ ] Linting passes
-- [ ] Code review approved
-- [ ] Sequence objectives met
-
-## Lessons Learned
-
-Document patterns or issues to avoid in future sequences:
-
-### What Went Well
-
-- [FILL: Positive observation]
-
-### What Could Improve
-
-- [FILL: Area for improvement]
-
-### Process Improvements
-
-- [FILL: Suggestion for future work]
+1. Fix the issue
+2. Re-run affected tests
+3. Verify linting passes
 
 ## Definition of Done
 
 - [ ] All critical findings fixed
-- [ ] All tests pass
+- [ ] All tests pass after changes
 - [ ] Linting passes
-- [ ] Code review approval received
-- [ ] Lessons learned documented
-- [ ] Ready to proceed to next sequence
-
-## Sign-Off
-
-**Sequence Complete:** [ ] Yes / [ ] No
-
-**Final Status:**
-
-- Tests: [ ] All Pass
-- Review: [ ] Approved
-- Quality: [ ] Meets Standards
-
-**Notes:**
-[FILL: Any final notes or observations about this sequence]
-
----
-
-**Next Steps:**
-[FILL: Identify what follows - next sequence, phase completion, etc.]
+- [ ] Code review findings addressed
+- [ ] Ready to commit

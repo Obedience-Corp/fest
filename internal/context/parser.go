@@ -283,15 +283,8 @@ func ParseTaskFile(content []byte) (*TaskContext, error) {
 	// Extract objective
 	task.Objective = extractSection(text, "Objective", "##")
 
-	// Extract autonomy level from frontmatter or header
-	task.AutonomyLevel = extractFrontmatterField(text, "autonomy_level")
-	if task.AutonomyLevel == "" {
-		// Try to find in header blockquote - handles **Autonomy Level**: value format
-		autonomyRe := regexp.MustCompile(`(?i)Autonomy\s+Level\*{0,2}[:\s*]+(\w+)`)
-		if match := autonomyRe.FindStringSubmatch(text); len(match) > 1 {
-			task.AutonomyLevel = strings.ToLower(match[1])
-		}
-	}
+	// Extract autonomy level from frontmatter
+	task.AutonomyLevel = extractFrontmatterField(text, "fest_autonomy")
 
 	// Extract parallel execution flag - handles **Parallel Execution**: Yes format
 	parallelRe := regexp.MustCompile(`(?i)Parallel\s+Execution\*{0,2}[:\s*]+(\w+)`)

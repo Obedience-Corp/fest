@@ -13,125 +13,61 @@ fest_name: Fest Commit Sequence Changes
 fest_parent: {{ .SequenceID }}
 fest_order: {{ .TaskNumber }}
 fest_gate_type: iterate
+fest_autonomy: high
 fest_status: pending
 fest_tracking: true
 fest_created: {{ .created_date }}
 ---
 
-# Task: Fest Commit Sequence Changes
+# Gate: Commit Sequence Changes
 
-**Task Number:** {{ .TaskNumber }} | **Parallel Group:** None | **Dependencies:** Testing, Code Review, Iteration | **Autonomy:** medium
-
-## Objective
-
-Create a clean, descriptive commit that captures all changes made in this sequence.
+Commit all changes from this sequence using the `fest commit` command.
 
 ## Pre-Commit Checklist
 
-Before committing, verify:
-
 - [ ] All tests pass
 - [ ] Linting is clean
-- [ ] Code is formatted
-- [ ] No debug code or temporary files included
+- [ ] No debug code or temporary files
 - [ ] No secrets or credentials in staged changes
 
-## Commit Message Requirements
+## Commit Command
 
-The commit message MUST:
+You **MUST** use `fest commit` — not `git commit`. The `fest commit` command tags
+commits with task reference IDs for tracking and metrics.
 
-### Describe WHAT Changed
-
-- List the concrete changes made (files, functions, features)
-- Be specific about what was added, modified, or removed
-- Reference the sequence goal when relevant
-
-### Describe WHY It Changed
-
-- Explain the purpose and motivation for the changes
-- Connect changes to requirements or user needs
-- Provide context for future readers
-
-### Format Guidelines
-
-```text
-<type>: <concise summary of changes>
-
-<detailed description of what changed>
-
-<explanation of why these changes were made>
-
-<reference to sequence/phase if applicable>
+```bash
+fest commit -m "<type>: <summary>"
 ```
 
-**Types:** feat, fix, refactor, test, docs, chore
+**CRITICAL:** Do NOT use `git commit`, `git add && git commit`, or any other git
+commit workflow. Always use `fest commit` so task references are preserved.
+
+## Commit Message Format
+
+```
+<type>: <concise summary of changes>
+
+<what changed — list concrete modifications>
+
+<why it changed — purpose and motivation>
+```
+
+**Types:** `feat`, `fix`, `refactor`, `test`, `docs`, `chore`
+
+The message should describe WHAT changed and WHY. Be specific about files,
+functions, or features that were added, modified, or removed.
 
 ## Ethical Requirements
 
-**CRITICAL**: The following practices are explicitly prohibited:
+The following practices are **prohibited** in commit messages:
 
-- [ ] **NO** "Co-authored-by" tags for AI assistants
-- [ ] **NO** advertisements or promotional content
-- [ ] **NO** AI tool attribution in commit messages
-- [ ] **NO** links to AI services or products
-
-Commit messages are for describing code changes, not for marketing or self-promotion. Adding such content is considered unethical and unprofessional.
-
-## Commit Process
-
-1. **Review staged changes**
-
-   ```bash
-   git status
-   git diff --staged
-   ```
-
-2. **Write commit message** following the format above
-
-3. **Create commit with fest (adds task reference ID)**
-
-   ```bash
-   fest commit -m "<type>: <summary>"
-   # If you need to attach a specific task reference:
-   fest commit --task FEST-XXXX -m "<type>: <summary>"
-   ```
-
-   Use `fest commit` so task references are preserved. Avoid raw `git commit`
-   unless you intentionally omit tags (`fest commit --no-tag`).
-
-4. **Verify commit**
-
-   ```bash
-   git log -1 --stat
-   ```
+- NO "Co-authored-by" tags for AI assistants
+- NO AI tool attribution or advertisements
+- NO links to AI services or products
 
 ## Definition of Done
 
 - [ ] Pre-commit checklist verified
-- [ ] Commit message describes WHAT changed
-- [ ] Commit message describes WHY it changed
+- [ ] Commit created with `fest commit` (not `git commit`)
+- [ ] Message describes what changed and why
 - [ ] No prohibited content in commit message
-- [ ] Commit successfully created
-- [ ] Changes are properly attributed to the sequence
-
-## Example Commit Message
-
-```text
-feat: add streaming support for message display
-
-Implemented real-time streaming for LLM responses in the chat interface.
-Messages now render incrementally as tokens arrive from the provider.
-
-This change improves user experience by showing immediate feedback
-during long responses, rather than waiting for complete generation.
-
-Part of: 003_CHAT_CORE/03_streaming_integration
-```
-
----
-
-**Commit Status:**
-
-- Pre-commit checks: [ ] Pass / [ ] Fail
-- Commit created: [ ] Yes / [ ] No
-- Commit hash: [FILL: commit hash after creating commit]

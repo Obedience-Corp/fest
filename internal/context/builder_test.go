@@ -61,9 +61,11 @@ Perform initial analysis.
 	}
 
 	// Create task file
-	taskContent := `# Task: 01_analyze
+	taskContent := `---
+fest_autonomy: high
+---
 
-> **Task Number**: 01 | **Parallel Execution**: No | **Dependencies**: None | **Autonomy Level**: high
+# Task: 01_analyze
 
 ## Objective
 
