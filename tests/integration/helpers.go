@@ -74,7 +74,7 @@ func NewTestContainer(t *testing.T) (*TestContainer, error) {
    {
     // Mount templates so fest init can use them without network
     Source:   testcontainers.GenericBindMountSource{HostPath: templatesPath},
-    Target:   "/root/.config/obey/fest/festivals/.festival",
+    Target:   "/root/.obey/fest/festivals/.festival",
     ReadOnly: true,
    },
   },
@@ -511,7 +511,7 @@ func NewSharedContainer() (*TestContainer, error) {
    {
     // Mount templates so fest init can use them without network
     Source:   testcontainers.GenericBindMountSource{HostPath: templatesPath},
-    Target:   "/root/.config/obey/fest/festivals/.festival",
+    Target:   "/root/.obey/fest/festivals/.festival",
     ReadOnly: true,
    },
   },

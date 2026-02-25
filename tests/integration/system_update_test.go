@@ -20,7 +20,7 @@ func TestSystemUpdate_DeletesOrphanedFiles(t *testing.T) {
 	// Use unique paths to avoid conflicts with other tests
 	// Note: fest init appends "festivals" to the path, so we use a parent dir
 	parentDir := "/sysupdate-delete-test"
-	sourceDir := "/root/.config/obey/fest/festivals"
+	sourceDir := "/root/.obey/fest/festivals"
 	workspaceDir := parentDir + "/festivals" // init creates this
 
 	// Step 1: Create a minimal source template structure (simulating ~/.config/fest/festivals/)
@@ -114,7 +114,7 @@ func TestSystemUpdate_ShowsOrphanedInDryRun(t *testing.T) {
 	// Use unique paths to avoid conflicts with other tests
 	// Note: fest init appends "festivals" to the path, so we use a parent dir
 	parentDir := "/sysupdate-dryrun-test"
-	sourceDir := "/root/.config/obey/fest/festivals"
+	sourceDir := "/root/.obey/fest/festivals"
 	workspaceDir := parentDir + "/festivals" // init creates this
 
 	// Setup source templates

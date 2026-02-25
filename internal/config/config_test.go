@@ -162,10 +162,10 @@ func TestConfigDir(t *testing.T) {
 		t.Errorf("Expected %s, got %s", testDir, dir)
 	}
 
-	// Test without environment variable — should resolve to ~/.config/obey/fest
+	// Test without environment variable — should resolve to ~/.obey/fest
 	os.Unsetenv("FEST_CONFIG_DIR")
 	dir = ConfigDir()
-	expected := filepath.Join(".config", "obey", "fest")
+	expected := filepath.Join(".obey", "fest")
 	if !filepath.IsAbs(dir) || !strings.HasSuffix(dir, expected) {
 		t.Errorf("Expected absolute path ending in %s, got %s", expected, dir)
 	}

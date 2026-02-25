@@ -35,7 +35,7 @@ func NewSyncCommand() *cobra.Command {
 			"agent_allowed": "false",
 			"agent_reason":  "Downloads from GitHub, requires network and human judgment",
 		},
-		Long: `Download the latest fest methodology templates from GitHub to ~/.config/obey/fest/
+		Long: `Download the latest fest methodology templates from GitHub to ~/.obey/fest/
 
 This is a SYSTEM command that maintains fest itself, not your festival content.
 It fetches the complete .festival/ template structure from the configured
