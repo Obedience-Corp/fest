@@ -168,6 +168,7 @@ func init() {
 	createCmd.AddCommand(festival.NewCreatePhaseCommand())
 	createCmd.AddCommand(festival.NewCreateSequenceCommand())
 	createCmd.AddCommand(festival.NewCreateTaskCommand())
+	createCmd.AddCommand(festival.NewCreateWorkflowCommand())
 	rootCmd.AddCommand(createCmd)
 
 	scaffoldCmd := scaffoldcmd.NewScaffoldCommand()
