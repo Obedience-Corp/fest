@@ -112,6 +112,14 @@ const (
 	TaskTypeDetailed TaskType = "detailed" // Full documentation
 )
 
+// WorkflowPosition controls when a WORKFLOW.md executes relative to sequences in hybrid phases.
+type WorkflowPosition string
+
+const (
+	WorkflowPositionBefore WorkflowPosition = "before" // Workflow runs before sequences (planning/scaffolding)
+	WorkflowPositionAfter  WorkflowPosition = "after"  // Workflow runs after sequences (review/validation)
+)
+
 // WorkType represents the kind of work a task involves
 // Used for visual indicators like [impl], [analysis], [review], [verify]
 type WorkType string
@@ -191,6 +199,9 @@ type Frontmatter struct {
 	Dependencies  []string `yaml:"fest_dependencies,omitempty" json:"fest_dependencies,omitempty"`
 	ParallelGroup string   `yaml:"fest_parallel_group,omitempty" json:"fest_parallel_group,omitempty"`
 	WorkType      WorkType `yaml:"fest_work_type,omitempty" json:"fest_work_type,omitempty"` // Kind of work: impl, analysis, review, verify
+
+	// Workflow-specific fields
+	WorkflowPosition WorkflowPosition `yaml:"fest_workflow_position,omitempty" json:"fest_workflow_position,omitempty"`
 
 	// Future fields for task routing (reserved)
 	Agent           string     `yaml:"fest_agent,omitempty" json:"fest_agent,omitempty"`

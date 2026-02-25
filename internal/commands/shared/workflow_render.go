@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/progress"
@@ -190,4 +191,22 @@ func HasWorkflowFile(phaseDir string) bool {
 	workflowPath := filepath.Join(phaseDir, "WORKFLOW.md")
 	_, err := os.Stat(workflowPath)
 	return err == nil
+}
+
+// WorkflowPositionForPhase reads the workflow_position from a phase's WORKFLOW.md frontmatter.
+// Returns "after" (default) if not set or on error.
+func WorkflowPositionForPhase(phaseDir string) frontmatter.WorkflowPosition {
+	workflowPath := filepath.Join(phaseDir, "WORKFLOW.md")
+	content, err := os.ReadFile(workflowPath)
+	if err != nil {
+		return frontmatter.WorkflowPositionAfter
+	}
+	fm, _, err := frontmatter.Parse(content)
+	if err != nil || fm == nil {
+		return frontmatter.WorkflowPositionAfter
+	}
+	if fm.WorkflowPosition == frontmatter.WorkflowPositionBefore {
+		return frontmatter.WorkflowPositionBefore
+	}
+	return frontmatter.WorkflowPositionAfter
 }
