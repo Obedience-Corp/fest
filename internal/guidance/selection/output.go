@@ -768,7 +768,9 @@ func buildGateSection(task *TaskInfo) string {
 	// Task location
 	taskRelPath := filepath.Join(task.PhaseName, task.SequenceName, task.Name+".md")
 	sb.WriteString(labelValue("Task", ui.Value(task.Name, ui.TaskColor)))
+	sb.WriteString("\n")
 	sb.WriteString(labelValue("Path", ui.Dim(taskRelPath)))
+	sb.WriteString("\n")
 	sb.WriteString(labelValue("Type", ui.Value(fmt.Sprintf("gate (%s)", fm.GateType))))
 	sb.WriteString("\n")
 
