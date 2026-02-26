@@ -80,7 +80,7 @@ release: darwin linux windows
     echo "✅ All release packages created in dist/"
     ls -la dist/
 
-# Bump version, tag, and push (patch|minor|major)
+# Bump version, tag, and push (delegates to tags dev)
 [no-cd]
-next level="patch":
-    @just tags next {{level}}
+next level="":
+    @just tags dev {{level}}
