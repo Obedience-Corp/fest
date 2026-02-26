@@ -4,44 +4,75 @@
 
 ![Festival Methodology Banner](docs/images/banner.jpg)
 
-Fest is a CLI tool for working with **Festival Methodology** - a hierarchical agentic planning and execution system designed for AI agent workflows. Festival plans in **steps to completion**, not time estimates — what matters is the sequence of steps between where you are and where you need to be.
+Fest is a CLI tool for working with **Festival Methodology** - a hierarchical agentic planning and execution system designed for AI agent workflows. Festival plans in **steps to completion**, not time estimates - what matters is the sequence of steps between where you are and where you need to be.
 
-Festivals live within **campaigns** — isolated workspaces managed by [camp](https://github.com/Obedience-Corp/camp). A campaign organizes your projects, plans, and context in one place. See the [methodology README](methodology/README.md) for the full picture.
+Festivals live within **campaigns** - isolated workspaces managed by [camp](https://github.com/Obedience-Corp/camp). A campaign organizes your projects, plans, and context in one place. See the [methodology README](methodology/README.md) for the full picture.
 
 ## What is Festival Methodology?
 
-Festival Methodology is a structured approach to **hierarchical agentic planning and execution**. It organizes complex projects into a three-level hierarchy that AI agents can systematically work through:
+A goal-based methodology that helps you **collaboratively create actionable tasks** for AI agents to execute in long-running autonomous sessions. Festival transforms high-level objectives into structured, executable work that AI can complete independently.
 
-```
-Festival (the project)
-├── Phase (major milestone)
-│   ├── Sequence (related tasks)
-│   │   ├── Task 1
-│   │   ├── Task 2
-│   │   └── Task 3
-│   └── Sequence
-└── Phase
+```mermaid
+graph LR
+    G[Define Goal] --> S[Scaffold]
+    S --> R[Review & Refine]
+    R --> E[Execute]
+    E --> Q[Verify]
+    Q --> C[Complete]
 ```
 
-**Why this structure?**
+Festival enables:
 
-- **Context Management**: AI agents have limited context windows. Festivals break work into digestible chunks that fit within agent context limits.
-- **Goal-Oriented**: Each level (festival, phase, sequence, task) has explicit goals. Agents always know what they're working toward.
-- **Resumable**: Work can be paused and resumed. A new agent session can pick up exactly where the last one left off.
-- **Traceable**: Every task links to its parent sequence and phase. Progress is trackable across the entire project.
-- **Just-in-Time Context**: Agents only load the context they need for the current task, minimizing token usage while maintaining full awareness of the project structure.
+- **Sustained autonomous builds** - AI agents work through complex projects step by step without losing context
+- **Goal-driven development** - Hierarchical goals with built-in evaluation frameworks at every level
+- **Executable specifications** - Every task includes concrete steps AI can follow
+- **Context preservation** - Decisions and rationale maintained across sessions via CONTEXT.md
+- **Autonomy awareness** - Tasks marked for independent vs collaborative work
+- **Parallel execution** - Multiple agents work simultaneously on different parts
 
-**Key Concepts:**
+### Three-Level Structure
 
-- **Festival**: A complete project or initiative with a defined outcome
-- **Phase**: A major milestone (e.g., "Design", "Implementation", "Testing")
-- **Sequence**: A group of related tasks that accomplish a specific goal
-- **Task**: A markdown document containing a unit of work. Similar to a Claude Code plan - each task document contains multiple actions, acceptance criteria, and context. Tasks are not single to-dos; they're comprehensive work units that may include many steps.
-- **Quality Gates**: Validation checkpoints at the end of sequences (testing, code review, etc.)
+Festival organizes work into **phases**, **sequences**, and **tasks**:
+
+```text
+Goal: Build E-Commerce Platform
+├── FESTIVAL_GOAL.md                    # Overall success metrics
+├── FESTIVAL_OVERVIEW.md                # Project description
+├── fest.yaml                           # Configuration
+│
+├── 001_PLAN/ (type: planning)          # Uses WORKFLOW.md
+│   ├── PHASE_GOAL.md
+│   ├── WORKFLOW.md                     # Step-by-step planning guidance
+│   ├── inputs/                         # Reference materials
+│   ├── decisions/                      # Captured decisions
+│   └── plan/                           # Resulting plans
+│
+├── 002_IMPLEMENT/ (type: implementation)  # Uses numbered sequences
+│   ├── PHASE_GOAL.md
+│   ├── 01_backend/
+│   │   ├── SEQUENCE_GOAL.md
+│   │   ├── 01_database_setup.md
+│   │   ├── 02_api_endpoints.md
+│   │   ├── 03_testing.md              # Quality gate
+│   │   ├── 04_review.md               # Quality gate
+│   │   └── 05_iterate.md              # Quality gate
+│   └── 02_frontend/
+│       ├── SEQUENCE_GOAL.md
+│       ├── 01_components.md
+│       ├── 02_state_management.md
+│       ├── 03_testing.md              # Quality gate
+│       ├── 04_review.md               # Quality gate
+│       └── 05_iterate.md              # Quality gate
+│
+└── 003_VALIDATE/ (type: review)
+    └── PHASE_GOAL.md
+```
+
+**Key distinction**: Planning phases use `WORKFLOW.md` for guided process. Implementation phases use numbered sequences with task files. This is the most important structural concept in Festival.
 
 ## What fest Does
 
-Fest is both a **project scaffolding tool** and an **agent guidance system**. It teaches agents how to work with Festival Methodology and guides them through execution with minimal context overhead.
+Fest is both a **planning and scaffolding tool** and an **agent guidance system**. It teaches agents how to work with Festival Methodology and guides them through execution with minimal context overhead.
 
 **Agent Guidance System:**
 
@@ -108,7 +139,7 @@ Choose a festival type to auto-scaffold the right structure:
 
 | Type | Auto-Scaffolded Phases | When to Use |
 |------|----------------------|-------------|
-| **standard** | INGEST + PLAN | Most projects — gather requirements then plan |
+| **standard** | INGEST + PLAN | Most projects - gather requirements then plan |
 | **implementation** | IMPLEMENT | Requirements already defined |
 | **research** | INGEST + RESEARCH + SYNTHESIZE | Investigation or exploration |
 | **ritual** | Custom (no defaults) | Recurring processes |
@@ -180,83 +211,14 @@ After shell integration:
 
 ## Command Reference
 
-Fest has 40+ commands organized into 7 groups. Here's a summary - run `fest --help` for the full list with descriptions.
+Fest has 40+ commands organized into 7 groups (Learning, Creation, Structure, Workflow, Query, Navigation, System). The most common commands are covered in the [Agent Workflow](#agent-workflow) section above.
 
-**Learning** - Learn the methodology before executing tasks
-| Command | Purpose |
-|---------|---------|
-| `fest intro` | Getting started guide (run first!) |
-| `fest understand` | Learn methodology concepts |
-| `fest validate` | Check festival structure for issues |
-| `fest wizard` | Interactive guidance for festival creation |
-| `fest gates` | Manage quality gates at sequence boundaries |
-| `fest markers` | Manage template markers in festival files |
+For the full reference with flags, examples, and JSON output formats, see [docs/cli-reference/](docs/cli-reference/) or run:
 
-**Creation** - Build festival structures
-| Command | Purpose |
-|---------|---------|
-| `fest create` | Create festivals/phases/sequences/tasks (TUI) |
-| `fest scaffold` | Generate festival structures from plans |
-| `fest tui` | Interactive UI for festival creation and editing |
-| `fest insert` | Insert new festival elements |
-| `fest apply` | Apply a local template to a destination file |
-| `fest templates` | Manage agent-created templates |
-| `fest research` | Manage research phase documents |
-
-**Structure** - Reorganize festival elements
-| Command | Purpose |
-|---------|---------|
-| `fest remove` | Remove elements and renumber |
-| `fest renumber` | Renumber festival elements |
-| `fest reorder` | Reorder festival elements |
-
-**Workflow** - Execute and track festival work
-| Command | Purpose |
-|---------|---------|
-| `fest next` | Get next task with full inline context |
-| `fest task` | Manage task status (complete, block, reset) |
-| `fest progress` | Track execution progress |
-| `fest commit` | Create git commit with task reference |
-| `fest promote` | Promote festival to next lifecycle status |
-| `fest workflow` | Manage workflow-based phase execution |
-| `fest feedback` | Manage structured feedback collection |
-| `fest ritual` | Manage repeatable ritual festivals |
-
-**Query** - Inspect festival data
-| Command | Purpose |
-|---------|---------|
-| `fest status` | Query festival entity statuses |
-| `fest show` | Display festival information |
-| `fest list` | List festivals by status |
-| `fest context` | Get context for current location or task |
-| `fest deps` | Show task dependencies |
-| `fest commits` | Query commits by festival element |
-| `fest parse` | Parse festival documents into structured output |
-| `fest rules` | Display festival rules |
-| `fest types` | Discover and explore template types |
-
-**Navigation** - Move between festival elements
-| Command | Purpose |
-|---------|---------|
-| `fest go` | Navigate to festivals directory |
-| `fest explore` | Interactive hierarchy drilldown |
-| `fest link` | Link festival to project directory |
-| `fest links` | List all festival-project links |
-| `fest unlink` | Remove festival-project link |
-
-**System** - Configuration and maintenance
-| Command | Purpose |
-|---------|---------|
-| `fest config` | Manage fest configuration |
-| `fest init` | Initialize a new festival directory structure |
-| `fest system` | Manage templates and tool configuration |
-| `fest index` | Manage festival indices |
-| `fest count` | Count tokens in files or directories |
-| `fest migrate` | Migrate festival documents |
-| `fest extension` | Manage methodology extensions |
-| `fest completion` | Generate shell completion scripts |
-
-See [docs/commands.md](docs/commands.md) for the full command reference.
+```bash
+fest --help              # All commands grouped by category
+fest [command] --help    # Detailed help for any command
+```
 
 ## Configuration
 
@@ -285,19 +247,9 @@ just release      # Release packaging
 just tags         # Git tag management
 ```
 
-## Learn More
-
-The CLI is self-documenting:
-
-```bash
-fest --help              # All commands with workflows
-fest understand          # Methodology learning hub
-fest [command] --help    # Detailed command help
-```
-
 ## Part of Festival
 
-Fest is one half of the Festival product. The other half is [camp](https://github.com/Obedience-Corp/camp), which manages campaign workspaces — isolated environments for individual missions. Camp creates the workspace (`camp init`), fest manages the planning and execution within it. Together, camp + fest = Festival.
+Fest is one half of the Festival product. The other half is [camp](https://github.com/Obedience-Corp/camp), which manages campaign workspaces - isolated environments for individual missions. Camp creates the workspace (`camp init`), fest manages the planning and execution within it. Together, camp + fest = Festival.
 
 - [Festival documentation](https://fest.build) - Full docs, methodology, tutorials
 - [camp CLI](https://github.com/Obedience-Corp/camp) - Campaign workspace management
