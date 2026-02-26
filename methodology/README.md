@@ -29,6 +29,17 @@ Festival enables:
 - **Autonomy awareness** - Tasks marked for independent vs collaborative work
 - **Parallel execution** - Multiple agents work simultaneously on different parts
 
+## When to Use a Festival
+
+A festival scales to the work. It can be:
+
+- A **complex feature** that spans multiple services and needs careful sequencing
+- An **entire quarter's worth of epics** broken into phases with clear milestones
+- All the **infrastructure for a new initiative** from zero to production
+- A **multi-week refactor** that touches every layer of the stack
+
+Festivals are useful when the work is non-trivial, non-standard, or needs to be done in a particular way. If you can describe the task in a single prompt and an agent can finish it in one session, you don't need a festival. If the work has dependencies, requires decisions, spans multiple sessions, or needs to follow specific patterns - that's what festivals are for.
+
 ## Campaigns: The Workspace Layer
 
 A **campaign** is an isolated workspace for a single mission - your day job, a startup, an open-source project. Everything related to that mission lives in one place: projects, plans, research, and context.
