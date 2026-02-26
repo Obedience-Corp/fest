@@ -12,10 +12,11 @@ Festival bridges the gap between what you want to build and what AI agents can a
 
 ```mermaid
 graph LR
-    G[Your Goal] --> P[Plan Together]
-    P --> T[Create Tasks]
-    T --> E[AI Executes]
-    E --> D[Delivered System]
+    G[Define Goal] --> S[Scaffold]
+    S --> R[Review & Refine]
+    R --> E[Execute]
+    E --> Q[Verify]
+    Q --> C[Complete]
 ```
 
 ## Steps, Not Time
