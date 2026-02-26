@@ -8,4 +8,8 @@ coverage.out
 
 .gocache/
 
+# Go workspace (local development only)
+go.work
+go.work.sum
+
 CLAUDE.md

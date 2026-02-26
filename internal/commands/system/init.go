@@ -12,7 +12,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/fileops"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
-	"github.com/obediencecorp/obey-shared/contract"
+	"github.com/Obedience-Corp/obey-shared/contract"
 	"github.com/spf13/cobra"
 )
 

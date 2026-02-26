@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/obediencecorp/obey-shared/contract"
+	"github.com/Obedience-Corp/obey-shared/contract"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

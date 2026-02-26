@@ -4,7 +4,7 @@
 package contract
 
 import (
-	"github.com/obediencecorp/obey-shared/contract"
+	"github.com/Obedience-Corp/obey-shared/contract"
 )
 
 // FestEntries returns all contract entries owned by the fest CLI.

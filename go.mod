@@ -4,6 +4,8 @@ go 1.25.6
 
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
+	github.com/Obedience-Corp/camp v0.1.3-alpha-stable
+	github.com/Obedience-Corp/obey-shared v0.1.0
 	github.com/charmbracelet/bubbles v0.21.1
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/glamour v0.10.0
@@ -14,8 +16,6 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/mattn/go-isatty v0.0.20
 	github.com/muesli/termenv v0.16.0
-	github.com/obediencecorp/camp v0.0.0-00010101000000-000000000000
-	github.com/obediencecorp/obey-shared v0.0.0-00010101000000-000000000000
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
@@ -118,7 +118,3 @@ require (
 	golang.org/x/sys v0.40.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
 )
-
-replace github.com/obediencecorp/camp => ../camp
-
-replace github.com/obediencecorp/obey-shared => ../obey-shared
