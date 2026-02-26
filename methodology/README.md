@@ -345,7 +345,7 @@ Festival Methodology is **battle-tested on complex, multi-month projects** and r
 
 - Festivals **run until completion** regardless of complexity, and often finish much faster than you'd expect
 - **Significant reduction in token usage** - structured context means agents don't waste cycles figuring out what to do
-- **Fewer steps to final solution** - agents follow defined paths instead of exploring blindly
+- **Faster time to final solution** - agents follow defined paths instead of exploring blindly
 - **Compounding productivity gains** - each festival builds on patterns from previous ones
 - Used regularly with **Claude Code** and **Codex**; works with any agentic tool that has tool-calling ability
 
