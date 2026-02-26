@@ -44,31 +44,42 @@ camp doctor                   # Health check the workspace
 ### Campaign Structure
 
 ```
-my-startup/                        # Campaign root
-├── projects/                      # Git submodules for all code
-│   ├── api/
+my-platform/                           # Campaign root
+├── projects/                          # 15+ project submodules
+│   ├── api-gateway/
+│   ├── auth-service/
+│   ├── billing-service/
 │   ├── frontend/
-│   └── docs-site/
-├── festivals/                     # Festival planning workspace
-│   ├── planning/                  # Festivals being designed
-│   ├── ready/                     # Planned, awaiting execution
-│   ├── active/                    # Currently executing
-│   ├── ritual/                    # Recurring processes
-│   └── dungeon/                   # Terminal statuses
-│       ├── completed/             # Successfully finished
-│       ├── archived/              # Preserved for reference
-│       └── someday/               # Deprioritized for later
-├── workflow/                      # Lightweight planning (no festival needed)
-│   ├── intents/                   # Ideas, bugs, features (inbox -> done)
-│   ├── design/                    # Architecture docs, API specs, wireframes
-│   ├── code_reviews/              # Code review materials
-│   └── pipelines/                 # CI/CD definitions
-├── docs/                          # Human-authored documentation
-├── ai_docs/                       # AI research and documentation
-└── CLAUDE.md                      # Agent instructions
+│   ├── mobile-app/
+│   ├── shared-libs/
+│   ├── infrastructure/
+│   ├── docs-site/
+│   └── ...
+├── festivals/                         # Festival workspace
+│   ├── planning/                      # Festivals being designed
+│   ├── ready/                         # Planned, awaiting execution
+│   ├── active/                        # Currently executing
+│   ├── ritual/                        # Recurring processes
+│   └── dungeon/                       # Terminal statuses
+│       ├── completed/                 # Successfully finished
+│       ├── archived/                  # Preserved for reference
+│       └── someday/                   # Deprioritized for later
+├── workflow/                          # Extensible workflow directories
+│   ├── intents/                       # Default: ideas, bugs, features
+│   ├── design/                        # Default: architecture docs, API specs
+│   ├── code_reviews/                  # Default: review materials
+│   ├── pipelines/                     # Default: CI/CD definitions
+│   ├── proposals/                     # Custom: team proposals
+│   ├── postman/                       # Custom: API collections
+│   └── ...                            # Add any workflows you need
+├── docs/                              # Human-authored documentation
+├── ai_docs/                           # AI research and documentation
+└── CLAUDE.md                          # Agent instructions
 ```
 
-Festivals live inside campaigns, but **not all planning requires a festival**. Campaigns provide lighter-weight planning tools too:
+The `workflow/` directory ships with sensible defaults (intents, design, code_reviews, pipelines) but is fully extensible - add directories for any recurring process your campaign needs. Real campaigns include things like `proposals/`, `postman/`, `bugs/`, `feedback/`, `pitch/`, and `simulations/`.
+
+Festivals live inside campaigns, but **not all planning requires a festival**. Campaigns also provide:
 
 ### Intents - Lightweight Idea Capture
 
@@ -399,7 +410,7 @@ fest understand workflow       # Workflow phase patterns
 
 ```
 my-campaign/
-├── projects/                           # Git submodules
+├── projects/                           # Git submodules (10-20+ repos)
 ├── festivals/                          # Festival workspace
 │   ├── planning/                       # Being designed
 │   ├── ready/                          # Awaiting execution
@@ -409,11 +420,14 @@ my-campaign/
 │       ├── completed/                  # Successfully finished
 │       ├── archived/                   # Preserved for reference
 │       └── someday/                    # Deprioritized
-├── workflow/                           # Lightweight planning
-│   ├── intents/                        # Ideas and work items
-│   ├── design/                         # Architecture docs
-│   ├── code_reviews/                   # Review materials
-│   └── pipelines/                      # CI/CD definitions
+├── workflow/                           # Extensible workflow directories
+│   ├── intents/                        # Default: ideas and work items
+│   ├── design/                         # Default: architecture docs
+│   ├── code_reviews/                   # Default: review materials
+│   ├── pipelines/                      # Default: CI/CD definitions
+│   └── .../                            # Custom: add your own
+├── docs/
+├── ai_docs/
 └── CLAUDE.md                           # Agent instructions
 ```
 
