@@ -17,7 +17,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
-	"github.com/obediencecorp/camp/pkg/commitkit"
+	"github.com/Obedience-Corp/camp/pkg/commitkit"
 	"github.com/spf13/cobra"
 )
 

@@ -21,7 +21,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/ui/theme"
 	"github.com/Obedience-Corp/fest/internal/workflow"
 	"github.com/Obedience-Corp/fest/internal/workspace"
-	"github.com/obediencecorp/camp/pkg/commitkit"
+	"github.com/Obedience-Corp/camp/pkg/commitkit"
 )
 
 // selectFestivalForStatus opens an interactive selector for choosing a festival.
