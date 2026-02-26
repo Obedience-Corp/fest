@@ -4,7 +4,9 @@
 
 ![Festival Methodology Banner](docs/images/banner.jpg)
 
-Fest is a CLI tool for working with **Festival Methodology** - a hierarchical agentic planning and execution system designed for AI agent workflows.
+Fest is a CLI tool for working with **Festival Methodology** - a hierarchical agentic planning and execution system designed for AI agent workflows. Festival plans in **steps to completion**, not time estimates — what matters is the sequence of steps between where you are and where you need to be.
+
+Festivals live within **campaigns** — isolated workspaces managed by [camp](https://github.com/Obedience-Corp/camp). A campaign organizes your projects, plans, and context in one place. See the [methodology README](methodology/README.md) for the full picture.
 
 ## What is Festival Methodology?
 
@@ -100,28 +102,64 @@ fest understand methodology   # Core principles
 fest understand structure     # 3-level hierarchy
 ```
 
-### 2. Initialize & Create
+### 2. Scaffold
+
+Choose a festival type to auto-scaffold the right structure:
+
+| Type | Auto-Scaffolded Phases | When to Use |
+|------|----------------------|-------------|
+| **standard** | INGEST + PLAN | Most projects — gather requirements then plan |
+| **implementation** | IMPLEMENT | Requirements already defined |
+| **research** | INGEST + RESEARCH + SYNTHESIZE | Investigation or exploration |
+| **ritual** | Custom (no defaults) | Recurring processes |
 
 ```bash
-fest init                     # Initialize festivals directory
-fest create festival          # Create a new festival (TUI)
-fest create phase             # Add phases
-fest create sequence          # Add sequences
+fest init                                          # Initialize festivals directory
+fest create festival --type standard "my-project"  # Auto-scaffolds phases
+fest create phase                                  # Add more phases
+fest create sequence                               # Add sequences to phases
 ```
 
-### 3. Plan & Validate
+### 3. Review & Refine
+
+Review the full plan before agents start executing:
 
 ```bash
 fest validate                 # Check structure for issues
 fest validate --fix           # Auto-fix common problems
-fest status                   # View festival progress
+fest show --roadmap           # Full execution roadmap with task statuses
+fest status                   # Festival progress overview
 ```
 
 ### 4. Execute
 
 ```bash
 fest next                     # Get next task with full context
+fest task completed           # Mark current task done
+fest commit -m "message"      # Git commit with festival tracking
+```
+
+For workflow phases (planning, research, ingest):
+
+```bash
+fest workflow status           # Current step in the workflow
+fest workflow show             # Full details of current step
+fest workflow advance          # Complete step, move to next
+```
+
+### 5. Verify
+
+Quality gates run at the end of every implementation sequence (testing, review, iterate):
+
+```bash
 fest progress                 # Track execution progress
+fest gates apply --approve    # Propagate quality gates to all sequences
+```
+
+### 6. Complete
+
+```bash
+fest promote                  # Move festival to next lifecycle status
 ```
 
 ## Quick Commands
@@ -259,7 +297,7 @@ fest [command] --help    # Detailed command help
 
 ## Part of Festival
 
-Fest is one half of the Festival product. The other half is [camp](https://github.com/Obedience-Corp/camp), which manages campaign workspaces - isolated environments for individual missions. Together, camp + fest = Festival.
+Fest is one half of the Festival product. The other half is [camp](https://github.com/Obedience-Corp/camp), which manages campaign workspaces — isolated environments for individual missions. Camp creates the workspace (`camp init`), fest manages the planning and execution within it. Together, camp + fest = Festival.
 
 - [Festival documentation](https://fest.build) - Full docs, methodology, tutorials
 - [camp CLI](https://github.com/Obedience-Corp/camp) - Campaign workspace management
