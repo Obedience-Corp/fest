@@ -1,6 +1,6 @@
 # Fest CLI
 
-> **Part of [Festival](https://github.com/Obedience-Corp/festival)** — mission-based AI workspace management. Fest handles hierarchical planning; [camp](https://github.com/Obedience-Corp/camp) handles workspace management. Together they give structure to how you work across multiple projects, contexts, and AI agents.
+> **Part of [Festival](https://github.com/Obedience-Corp/festival)** - mission-based AI workspace management. Fest handles hierarchical planning; [camp](https://github.com/Obedience-Corp/camp) handles workspace management. Together they give structure to how you work across multiple projects, contexts, and AI agents.
 
 ![Festival Methodology Banner](docs/images/banner.jpg)
 
@@ -142,9 +142,9 @@ After shell integration:
 
 ## Command Reference
 
-Fest has 40+ commands organized into 7 groups. Here's a summary — run `fest --help` for the full list with descriptions.
+Fest has 40+ commands organized into 7 groups. Here's a summary - run `fest --help` for the full list with descriptions.
 
-**Learning** — Learn the methodology before executing tasks
+**Learning** - Learn the methodology before executing tasks
 | Command | Purpose |
 |---------|---------|
 | `fest intro` | Getting started guide (run first!) |
@@ -154,7 +154,7 @@ Fest has 40+ commands organized into 7 groups. Here's a summary — run `fest --
 | `fest gates` | Manage quality gates at sequence boundaries |
 | `fest markers` | Manage template markers in festival files |
 
-**Creation** — Build festival structures
+**Creation** - Build festival structures
 | Command | Purpose |
 |---------|---------|
 | `fest create` | Create festivals/phases/sequences/tasks (TUI) |
@@ -165,14 +165,14 @@ Fest has 40+ commands organized into 7 groups. Here's a summary — run `fest --
 | `fest templates` | Manage agent-created templates |
 | `fest research` | Manage research phase documents |
 
-**Structure** — Reorganize festival elements
+**Structure** - Reorganize festival elements
 | Command | Purpose |
 |---------|---------|
 | `fest remove` | Remove elements and renumber |
 | `fest renumber` | Renumber festival elements |
 | `fest reorder` | Reorder festival elements |
 
-**Workflow** — Execute and track festival work
+**Workflow** - Execute and track festival work
 | Command | Purpose |
 |---------|---------|
 | `fest next` | Get next task with full inline context |
@@ -184,7 +184,7 @@ Fest has 40+ commands organized into 7 groups. Here's a summary — run `fest --
 | `fest feedback` | Manage structured feedback collection |
 | `fest ritual` | Manage repeatable ritual festivals |
 
-**Query** — Inspect festival data
+**Query** - Inspect festival data
 | Command | Purpose |
 |---------|---------|
 | `fest status` | Query festival entity statuses |
@@ -197,7 +197,7 @@ Fest has 40+ commands organized into 7 groups. Here's a summary — run `fest --
 | `fest rules` | Display festival rules |
 | `fest types` | Discover and explore template types |
 
-**Navigation** — Move between festival elements
+**Navigation** - Move between festival elements
 | Command | Purpose |
 |---------|---------|
 | `fest go` | Navigate to festivals directory |
@@ -206,7 +206,7 @@ Fest has 40+ commands organized into 7 groups. Here's a summary — run `fest --
 | `fest links` | List all festival-project links |
 | `fest unlink` | Remove festival-project link |
 
-**System** — Configuration and maintenance
+**System** - Configuration and maintenance
 | Command | Purpose |
 |---------|---------|
 | `fest config` | Manage fest configuration |
@@ -259,11 +259,11 @@ fest [command] --help    # Detailed command help
 
 ## Part of Festival
 
-Fest is one half of the Festival product. The other half is [camp](https://github.com/Obedience-Corp/camp), which manages campaign workspaces — isolated environments for individual missions. Together, camp + fest = Festival.
+Fest is one half of the Festival product. The other half is [camp](https://github.com/Obedience-Corp/camp), which manages campaign workspaces - isolated environments for individual missions. Together, camp + fest = Festival.
 
-- [Festival documentation](https://obedience-corp.github.io/festival) — Full docs, methodology, tutorials
-- [camp CLI](https://github.com/Obedience-Corp/camp) — Campaign workspace management
-- [Festival repo](https://github.com/Obedience-Corp/festival) — Distribution hub and releases
+- [Festival documentation](https://obedience-corp.github.io/festival) - Full docs, methodology, tutorials
+- [camp CLI](https://github.com/Obedience-Corp/camp) - Campaign workspace management
+- [Festival repo](https://github.com/Obedience-Corp/festival) - Distribution hub and releases
 
 ## License
 
