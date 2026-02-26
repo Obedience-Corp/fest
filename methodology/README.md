@@ -12,10 +12,11 @@ Festival bridges the gap between what you want to build and what AI agents can a
 
 ```mermaid
 graph LR
-    G[Your Goal] --> P[Plan Together]
-    P --> T[Create Tasks]
-    T --> E[AI Executes]
-    E --> D[Delivered System]
+    G[Define Goal] --> S[Scaffold]
+    S --> R[Review & Refine]
+    R --> E[Execute]
+    E --> Q[Verify]
+    Q --> C[Complete]
 ```
 
 ## Steps, Not Time
@@ -571,7 +572,7 @@ auth_system/
 
 ## What's Included
 
-### Templates (42 files across all levels)
+### Templates
 
 - **Festival Templates** - Overview, goal, rules, quickstart, TODO tracking
 - **Phase Templates** - Per-type templates for all 6 phase types (planning, implementation, research, ingest, review, non_coding_action), each with appropriate WORKFLOW.md or goal files
