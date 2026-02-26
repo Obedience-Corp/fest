@@ -18,11 +18,15 @@ graph LR
     E --> D[Delivered System]
 ```
 
+## Steps, Not Time
+
+Festival plans in **steps to completion**, not time estimates. AI agents work exponentially faster than humans and are improving faster than anyone can predict - a festival that takes a week today might take 10 minutes next month. Time-based estimation is meaningless in this context. What matters is the sequence of steps between where you are and where you need to be.
+
 ## Core Benefits
 
 Festival enables:
 
-- **Long-running autonomous builds** - AI agents work for hours or days, not minutes
+- **Sustained autonomous builds** - AI agents work through complex projects step by step without losing context
 - **Goal-driven development** - Hierarchical goals with built-in evaluation frameworks
 - **Executable specifications** - Every task includes concrete steps AI can follow
 - **Context preservation** - Decisions and rationale maintained across sessions
@@ -36,7 +40,7 @@ A festival scales to the work. It can be:
 - A **complex feature** that spans multiple services and needs careful sequencing
 - An **entire quarter's worth of epics** broken into phases with clear milestones
 - All the **infrastructure for a new initiative** from zero to production
-- A **multi-week refactor** that touches every layer of the stack
+- A **massive refactor** that touches every layer of the stack
 
 Festivals are useful when the work is non-trivial, non-standard, or needs to be done in a particular way. If you can describe the task in a single prompt and an agent can finish it in one session, you don't need a festival. If the work has dependencies, requires decisions, spans multiple sessions, or needs to follow specific patterns - that's what festivals are for.
 
@@ -340,8 +344,8 @@ This level of detail, combined with autonomy levels, enables AI agents to work i
 Festival Methodology is **battle-tested on complex, multi-month projects** and refined through daily use. It's a living system built on real-world experience across platform engineering, blockchain infrastructure, and multi-service architectures:
 
 - Festivals **run until completion** regardless of complexity, and often finish much faster than you'd expect
-- **Significant reduction in token usage** - structured context means agents spend less time figuring out what to do
-- **Faster time to final solution** - agents follow defined paths instead of exploring blindly
+- **Significant reduction in token usage** - structured context means agents don't waste cycles figuring out what to do
+- **Fewer steps to final solution** - agents follow defined paths instead of exploring blindly
 - **Compounding productivity gains** - each festival builds on patterns from previous ones
 - Used regularly with **Claude Code** and **Codex**; works with any agentic tool that has tool-calling ability
 
@@ -484,7 +488,7 @@ fest understand workflow       # Workflow phase patterns
 | ------------------- | ----------------------------- | -------------- | ------------------ |
 | **Focus**           | Goal achievement via tasks    | Task tracking  | Quick answers      |
 | **Task Detail**     | Complete executable specs     | User stories   | Vague prompts      |
-| **Execution Time**  | Hours to days                 | Sprint cycles  | Minutes            |
+| **Planning Model**  | Steps to completion           | Sprint cycles  | One-shot prompts   |
 | **Context**         | Persists in CONTEXT.md        | Meeting notes  | Lost between chats |
 | **AI Autonomy**     | Guided by autonomy levels     | N/A            | Constant prompting |
 | **Collaboration**   | Human-AI task creation        | Human teams    | Human directs      |
