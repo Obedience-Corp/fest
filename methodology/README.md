@@ -227,7 +227,7 @@ fest workflow reject     # Reject with feedback
 
 ### Quality Gates
 
-Every implementation sequence MUST end with quality gate tasks:
+Quality gates are default tasks appended to the end of each sequence for quality checks:
 
 ```
 01_feature_code.md
@@ -237,10 +237,10 @@ Every implementation sequence MUST end with quality gate tasks:
 05_iterate.md            # Address feedback, iterate
 ```
 
-Quality gates are auto-propagated to all sequences:
+Sensible defaults are included, but gates are easily editable or replaceable - customize them at the campaign level via the `.festival/` directory, or override on a per-festival basis.
 
 ```bash
-fest gates apply --approve    # Add gates to all sequences
+fest gates apply --approve    # Propagate gates to all sequences
 ```
 
 ## Festival Types
