@@ -235,7 +235,7 @@ When creating a festival, choose a type to get auto-scaffolded phases:
 | Festival Type | Auto-Scaffolded Phases | When to Use |
 |--------------|------------------------|-------------|
 | **standard** | INGEST (ingest) + PLAN (planning) | Most projects - need to gather requirements then plan |
-| **implementation** | IMPLEMENT (implementation) | Requirements already defined, just execute |
+| **implementation** | IMPLEMENT (implementation) | Requirements defined enough to break down into phases, sequences, and task documents |
 | **research** | INGEST (ingest) + RESEARCH (research) + SYNTHESIZE (planning) | Investigation, audit, or exploration work |
 | **ritual** | Custom (no defaults) | Recurring or repeatable processes |
 
@@ -326,12 +326,19 @@ This level of detail, combined with autonomy levels, enables AI agents to work i
 
 ## Real-World Usage
 
-Festival Methodology is **actively used and refined through daily development**. It's a living system that evolves based on practical experience:
+Festival Methodology has been **used daily for months** across multiple campaigns ranging from platform engineering to blockchain gaming infrastructure. It's a living system refined through constant real-world use:
 
-- Extends autonomous AI coding sessions from hours to multiple days
-- Reduces context switching between human and AI work
-- Enables complex feature development with minimal supervision
-- Particularly effective with tools like Claude Code, Cursor, and Windsurf
+- Festivals run for **multiple weeks** of sustained autonomous execution
+- **Significant reduction in token usage** - structured context means agents spend less time figuring out what to do
+- **Faster time to final solution** - agents follow defined paths instead of exploring blindly
+- **Compounding productivity gains** - each festival builds on patterns from previous ones
+- Used regularly with **Claude Code** and **Codex**; works with any agentic tool that has tool-calling ability
+
+### Why It Works
+
+The core value of Festival is that it **guides agents to do things the way the system configures them to be done**. The methodology files, templates, and festival documents all shape agent behavior. Users can customize the `.festival/` directory and individual festival files to ensure agents work the way they want - not just the defaults.
+
+Festival structure also enables **pre-execution review and refinement**. Before any agent starts executing, you can review the full plan - phases, sequences, tasks, goals - and adjust until it's right. This front-loaded review produces far more predictable outcomes. When a festival completes, it's typically executed exactly according to plan because the agentic guidance system and structured documents leave far less room for variable results than unstructured prompting.
 
 ### Realistic Expectations
 
@@ -339,6 +346,74 @@ Festival Methodology is **actively used and refined through daily development**.
 - **Human expertise guides the final 10%** - Your insight ensures quality and correctness
 - **Goals evolve as you learn** - Multiple festivals may be needed as requirements clarify
 - **Best for complex, multi-day projects** - Not needed for simple, single-task work
+
+## Using the fest CLI
+
+The `fest` CLI is how you and your agents interact with festivals day-to-day.
+
+### Finding What to Do Next
+
+`fest next` is the most important command. It analyzes the festival structure, checks progress, and returns the next task with full layered context - goals from the festival, phase, and sequence levels plus the complete task content:
+
+```bash
+fest next                    # Full context for the next task
+fest next --no-context       # Minimal output (just the task path and status)
+fest next --path             # Just the file path (for piping to other tools)
+```
+
+For workflow phases, `fest next` detects the phase type and returns the current workflow step instead of a task file.
+
+### Monitoring Progress
+
+```bash
+fest show                    # Current festival details (from cwd)
+fest show --roadmap          # Full execution roadmap with task statuses
+fest show --watch            # Continuously refresh display
+fest show active             # List all active festivals
+fest show all                # All festivals grouped by status
+fest status                  # Festival status overview
+fest progress                # Execution progress tracking
+```
+
+### Enforcing Structure
+
+`fest validate` catches structural problems before agents hit them:
+
+```bash
+fest validate                # Check methodology compliance
+fest validate --fix          # Auto-fix safe issues (add missing quality gates, etc.)
+fest validate tasks          # Verify task files exist (not just goals)
+fest validate quality-gates  # Check gates are present in implementation sequences
+fest validate structure      # Naming conventions and hierarchy
+```
+
+### Working Through Workflow Phases
+
+```bash
+fest workflow status          # Current step in the workflow
+fest workflow show            # Full details of current step
+fest workflow advance         # Complete step, move to next
+fest workflow approve         # Approve a blocking checkpoint
+fest workflow reject          # Reject with feedback
+```
+
+### Working Through Implementation Phases
+
+```bash
+fest task completed           # Mark current task done
+fest commit -m "message"     # Git commit with festival tracking
+fest gates apply --approve   # Propagate quality gates to all sequences
+```
+
+### Customization
+
+The `.festival/` directory at the root of your `festivals/` workspace contains methodology resources - templates, agents, and examples. These files shape how agents plan and execute:
+
+- **Templates** control what gets scaffolded when you create phases, sequences, and tasks
+- **Agent prompts** guide AI behavior during planning and execution
+- **Quality gate templates** define what verification looks like
+
+Modify these to match your team's standards. Individual festivals can also override defaults through their own `FESTIVAL_RULES.md` and `fest.yaml` configuration.
 
 ## Getting Started
 
@@ -480,19 +555,24 @@ auth_system/
 
 ## What's Included
 
-### Templates
+### Templates (42 files across all levels)
 
-- **Goal Templates** - Festival, Phase, and Sequence goal tracking
-- **Task Templates** - With autonomy level support
-- **Workflow Templates** - Phase-type-specific WORKFLOW.md files
-- **Context Template** - For decision and rationale tracking
-- **Quality Gate Templates** - Testing, review, and iterate gates
+- **Festival Templates** - Overview, goal, rules, quickstart, TODO tracking
+- **Phase Templates** - Per-type templates for all 6 phase types (planning, implementation, research, ingest, review, non_coding_action), each with appropriate WORKFLOW.md or goal files
+- **Sequence Templates** - Goals, sequence descriptions
+- **Task Templates** - With autonomy level, requirements, validation, and deliverables
+- **Utility Templates** - CONTEXT.md for session memory, INDEX.md for organization
 
-### AI Agents
+### Extensions
 
-- **Planning Agent** - Guides festival structure creation
-- **Review Agent** - Validates methodology compliance
-- **Manager Agent** - Enforces process during execution
+- **Interface Planning** - Templates for defining system contracts and common interfaces
+- **Orchestration** - Agent templates and orchestration plan templates for multi-agent workflows
+
+### AI Agent Prompts
+
+- **Planning Agent** - Guides festival structure creation and goal decomposition
+- **Review Agent** - Validates methodology compliance and structure
+- **Manager Agent** - Enforces process during execution, manages phase transitions
 
 ## Why Festival Works
 
@@ -501,9 +581,10 @@ auth_system/
 3. **Context persists** - CONTEXT.md maintains continuity across sessions
 4. **Phase types match the work** - Workflow guidance for planning, sequences for building
 5. **Quality gates enforce standards** - Every implementation sequence ends with verification
-6. **Parallel execution** - Multiple agents work simultaneously
-7. **Human judgment preserved** - You guide strategy while AI handles implementation
-8. **Living methodology** - Continuously refined through real-world use
+6. **Pre-execution review** - Review and refine the full plan before agents execute, producing predictable outcomes
+7. **Parallel execution** - Multiple agents work simultaneously
+8. **Human judgment preserved** - You guide strategy while AI handles implementation
+9. **Living methodology** - Continuously refined through real-world use
 
 ---
 
