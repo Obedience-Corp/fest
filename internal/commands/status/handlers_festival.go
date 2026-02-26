@@ -346,7 +346,7 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 	// Auto-commit the status change unless --no-commit was specified
 	var commitHash string
 	if !opts.noCommit {
-		hash, err := autoCommitStatusChange(ctx, festival.Name, festivalID, festival.Status, newStatus)
+		hash, err := AutoCommitStatusChange(ctx, festival.Name, festivalID, festival.Status, newStatus)
 		if err != nil {
 			fmt.Printf("%s %s\n", ui.Dim("Warning: auto-commit failed:"), ui.Dim(err.Error()))
 		} else if hash != "" {
@@ -440,7 +440,7 @@ func emitFestivalMoveSuccess(opts *statusOptions, festival *show.FestivalInfo, n
 // never blocking the status change itself.
 //
 // Uses commitkit for lock-aware git operations with automatic stale lock cleanup.
-func autoCommitStatusChange(ctx context.Context, festivalName, festivalID, oldStatus, newStatus string) (string, error) {
+func AutoCommitStatusChange(ctx context.Context, festivalName, festivalID, oldStatus, newStatus string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
