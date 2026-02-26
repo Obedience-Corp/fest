@@ -1,5 +1,7 @@
 # Fest CLI
 
+> **Part of [Festival](https://github.com/Obedience-Corp/festival)** — mission-based AI workspace management. Fest handles hierarchical planning; [camp](https://github.com/Obedience-Corp/camp) handles workspace management. Together they give structure to how you work across multiple projects, contexts, and AI agents.
+
 ![Festival Methodology Banner](docs/images/banner.jpg)
 
 Fest is a CLI tool for working with **Festival Methodology** - a hierarchical agentic planning and execution system designed for AI agent workflows.
@@ -254,6 +256,14 @@ fest --help              # All commands with workflows
 fest understand          # Methodology learning hub
 fest [command] --help    # Detailed command help
 ```
+
+## Part of Festival
+
+Fest is one half of the Festival product. The other half is [camp](https://github.com/Obedience-Corp/camp), which manages campaign workspaces — isolated environments for individual missions. Together, camp + fest = Festival.
+
+- [Festival documentation](https://obedience-corp.github.io/festival) — Full docs, methodology, tutorials
+- [camp CLI](https://github.com/Obedience-Corp/camp) — Campaign workspace management
+- [Festival repo](https://github.com/Obedience-Corp/festival) — Distribution hub and releases
 
 ## License
 
