@@ -102,7 +102,7 @@ func handlePhaseStatusSetWithPath(ctx context.Context, display *ui.UI, festivalP
 		return emitPhaseStatusAlready(display, opts, phaseName, newStatus)
 	}
 
-	if err := updateGoalFrontmatter(ctx, goalPath, frontmatter.Status(newStatus)); err != nil {
+	if err := UpdateGoalFrontmatter(ctx, goalPath, frontmatter.Status(newStatus)); err != nil {
 		return err
 	}
 
@@ -348,7 +348,7 @@ func handlePhaseStatusSet(ctx context.Context, display *ui.UI, cwd, newStatus st
 		return emitPhaseStatusAlready(display, opts, phaseName, newStatus)
 	}
 
-	if err := updateGoalFrontmatter(ctx, goalPath, frontmatter.Status(newStatus)); err != nil {
+	if err := UpdateGoalFrontmatter(ctx, goalPath, frontmatter.Status(newStatus)); err != nil {
 		return err
 	}
 
@@ -470,7 +470,7 @@ func handleSequenceStatusSet(ctx context.Context, display *ui.UI, cwd, newStatus
 		return emitSequenceStatusAlready(display, opts, seqName, newStatus)
 	}
 
-	if err := updateGoalFrontmatter(ctx, goalPath, frontmatter.Status(newStatus)); err != nil {
+	if err := UpdateGoalFrontmatter(ctx, goalPath, frontmatter.Status(newStatus)); err != nil {
 		return err
 	}
 

@@ -77,7 +77,7 @@ func applyStatusToFestival(ctx context.Context, display *ui.UI, festival *show.F
 }
 
 // updateGoalFrontmatter reads a goal file, updates its fest_status in frontmatter, and writes it back.
-func updateGoalFrontmatter(ctx context.Context, goalPath string, newStatus frontmatter.Status) error {
+func UpdateGoalFrontmatter(ctx context.Context, goalPath string, newStatus frontmatter.Status) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -324,7 +324,7 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 	// Update FESTIVAL_GOAL.md frontmatter with the new status
 	festivalGoalPath := filepath.Join(newPath, "FESTIVAL_GOAL.md")
 	if _, err := os.Stat(festivalGoalPath); err == nil {
-		if fmErr := updateGoalFrontmatter(ctx, festivalGoalPath, frontmatter.Status(newStatus)); fmErr != nil {
+		if fmErr := UpdateGoalFrontmatter(ctx, festivalGoalPath, frontmatter.Status(newStatus)); fmErr != nil {
 			// Log but don't fail — the directory move already succeeded
 			fmt.Printf("%s %s\n", ui.Dim("Warning: could not update FESTIVAL_GOAL.md frontmatter:"), ui.Dim(fmErr.Error()))
 		}
@@ -341,12 +341,12 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 	}
 
 	// Update navigation links after successful move
-	linkAction := updateNavigationAfterMove(festival.Name, newStatus, newPath)
+	linkAction := UpdateNavigationAfterMove(festival.Name, newStatus, newPath)
 
 	// Auto-commit the status change unless --no-commit was specified
 	var commitHash string
 	if !opts.noCommit {
-		hash, err := autoCommitStatusChange(ctx, festival.Name, festivalID, festival.Status, newStatus)
+		hash, err := AutoCommitStatusChange(ctx, festival.Name, festivalID, festival.Status, newStatus)
 		if err != nil {
 			fmt.Printf("%s %s\n", ui.Dim("Warning: auto-commit failed:"), ui.Dim(err.Error()))
 		} else if hash != "" {
@@ -361,7 +361,7 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 // On completion, the link is removed (project freed). On other transitions, the
 // festival path is updated so the link stays accurate.
 // Returns a human-readable description of the action taken, or empty string.
-func updateNavigationAfterMove(festivalName, newStatus, newPath string) string {
+func UpdateNavigationAfterMove(festivalName, newStatus, newPath string) string {
 	nav, err := navigation.LoadNavigation()
 	if err != nil {
 		// Navigation not available (no campaign context, etc.) - skip silently
@@ -440,7 +440,7 @@ func emitFestivalMoveSuccess(opts *statusOptions, festival *show.FestivalInfo, n
 // never blocking the status change itself.
 //
 // Uses commitkit for lock-aware git operations with automatic stale lock cleanup.
-func autoCommitStatusChange(ctx context.Context, festivalName, festivalID, oldStatus, newStatus string) (string, error) {
+func AutoCommitStatusChange(ctx context.Context, festivalName, festivalID, oldStatus, newStatus string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}

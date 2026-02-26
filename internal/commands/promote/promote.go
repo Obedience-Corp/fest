@@ -10,7 +10,9 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/commands/status"
+	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -25,8 +27,9 @@ var validTransitions = map[string]string{
 }
 
 type promoteOptions struct {
-	force bool
-	json  bool
+	force    bool
+	json     bool
+	noCommit bool
 }
 
 // NewPromoteCommand creates the fest promote command.
@@ -51,6 +54,7 @@ Each transition validates readiness:
 
 	cmd.Flags().BoolVar(&opts.force, "force", false, "skip readiness validation")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "output as JSON")
+	cmd.Flags().BoolVar(&opts.noCommit, "no-commit", false, "skip auto-commit after promotion")
 
 	return cmd
 }
@@ -116,15 +120,51 @@ func runPromote(ctx context.Context, opts *promoteOptions) error {
 		return errors.Wrap(err, "promoting festival")
 	}
 
+	// Update FESTIVAL_GOAL.md frontmatter with the new status
+	festivalGoalPath := filepath.Join(newPath, "FESTIVAL_GOAL.md")
+	if _, statErr := os.Stat(festivalGoalPath); statErr == nil {
+		if fmErr := status.UpdateGoalFrontmatter(ctx, festivalGoalPath, frontmatter.Status(nextStatus)); fmErr != nil {
+			fmt.Printf("%s %s\n", ui.Dim("Warning: could not update FESTIVAL_GOAL.md frontmatter:"), ui.Dim(fmErr.Error()))
+		}
+	}
+
+	// Update fest.yaml metadata with the new status
+	var festivalID string
+	if festCfg, cfgErr := config.LoadFestivalConfig(newPath, ""); cfgErr == nil {
+		festivalID = festCfg.Metadata.ID
+		festCfg.Metadata.AddStatusChange(nextStatus, newPath, "")
+		if saveErr := config.SaveFestivalConfig(newPath, "", festCfg); saveErr != nil {
+			fmt.Printf("%s %s\n", ui.Dim("Warning: could not update fest.yaml status:"), ui.Dim(saveErr.Error()))
+		}
+	}
+
+	// Update navigation links after successful move
+	status.UpdateNavigationAfterMove(festival.Name, nextStatus, newPath)
+
+	// Auto-commit the status change unless --no-commit was specified
+	var commitHash string
+	if !opts.noCommit {
+		hash, commitErr := status.AutoCommitStatusChange(ctx, festival.Name, festivalID, currentStatus, nextStatus)
+		if commitErr != nil {
+			fmt.Printf("%s %s\n", ui.Dim("Warning: auto-commit failed:"), ui.Dim(commitErr.Error()))
+		} else if hash != "" {
+			commitHash = hash
+		}
+	}
+
 	// Output result
 	if opts.json {
-		return shared.EncodeJSON(os.Stdout, map[string]any{
+		result := map[string]any{
 			"success":  true,
 			"festival": festival.Name,
 			"from":     currentStatus,
 			"to":       nextStatus,
 			"new_path": newPath,
-		})
+		}
+		if commitHash != "" {
+			result["commit"] = commitHash
+		}
+		return shared.EncodeJSON(os.Stdout, result)
 	}
 
 	fmt.Println(ui.H2("Festival Promoted"))
@@ -134,6 +174,9 @@ func runPromote(ctx context.Context, opts *promoteOptions) error {
 		ui.GetStateStyle(currentStatus).Render(currentStatus),
 		ui.GetStateStyle(nextStatus).Render(nextStatus))
 	fmt.Printf("%s %s\n", ui.Label("New path"), ui.Dim(newPath))
+	if commitHash != "" {
+		fmt.Printf("%s %s\n", ui.Label("Commit"), ui.Dim(commitHash))
+	}
 
 	return nil
 }
