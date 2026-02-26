@@ -261,7 +261,7 @@ fest [command] --help    # Detailed command help
 
 Fest is one half of the Festival product. The other half is [camp](https://github.com/Obedience-Corp/camp), which manages campaign workspaces - isolated environments for individual missions. Together, camp + fest = Festival.
 
-- [Festival documentation](https://obedience-corp.github.io/festival) - Full docs, methodology, tutorials
+- [Festival documentation](https://fest.build) - Full docs, methodology, tutorials
 - [camp CLI](https://github.com/Obedience-Corp/camp) - Campaign workspace management
 - [Festival repo](https://github.com/Obedience-Corp/festival) - Distribution hub and releases
 
