@@ -326,7 +326,7 @@ This level of detail, combined with autonomy levels, enables AI agents to work i
 
 ## Real-World Usage
 
-Festival Methodology has been **used daily for months** across multiple campaigns ranging from platform engineering to blockchain gaming infrastructure. It's a living system refined through constant real-world use:
+Festival Methodology is **battle-tested on complex, multi-month projects** and refined through daily use. It's a living system built on real-world experience across platform engineering, blockchain infrastructure, and multi-service architectures:
 
 - Festivals run for **multiple weeks** of sustained autonomous execution
 - **Significant reduction in token usage** - structured context means agents spend less time figuring out what to do
