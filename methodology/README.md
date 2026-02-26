@@ -74,7 +74,7 @@ my-platform/                           # Campaign root
 │   └── ...                            # Add any workflows you need
 ├── docs/                              # Human-authored documentation
 ├── ai_docs/                           # AI research and documentation
-└── CLAUDE.md                          # Agent instructions
+└── AGENTS.md                          # Agent instructions
 ```
 
 The `workflow/` directory ships with sensible defaults (intents, design, code_reviews, pipelines) but is fully extensible - add directories for any recurring process your campaign needs. Real campaigns include things like `proposals/`, `postman/`, `bugs/`, `feedback/`, `pitch/`, and `simulations/`.
@@ -428,7 +428,7 @@ my-campaign/
 │   └── .../                            # Custom: add your own
 ├── docs/
 ├── ai_docs/
-└── CLAUDE.md                           # Agent instructions
+└── AGENTS.md                           # Agent instructions
 ```
 
 ### Inside a Festival
