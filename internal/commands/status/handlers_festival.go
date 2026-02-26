@@ -77,7 +77,7 @@ func applyStatusToFestival(ctx context.Context, display *ui.UI, festival *show.F
 }
 
 // updateGoalFrontmatter reads a goal file, updates its fest_status in frontmatter, and writes it back.
-func updateGoalFrontmatter(ctx context.Context, goalPath string, newStatus frontmatter.Status) error {
+func UpdateGoalFrontmatter(ctx context.Context, goalPath string, newStatus frontmatter.Status) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -324,7 +324,7 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 	// Update FESTIVAL_GOAL.md frontmatter with the new status
 	festivalGoalPath := filepath.Join(newPath, "FESTIVAL_GOAL.md")
 	if _, err := os.Stat(festivalGoalPath); err == nil {
-		if fmErr := updateGoalFrontmatter(ctx, festivalGoalPath, frontmatter.Status(newStatus)); fmErr != nil {
+		if fmErr := UpdateGoalFrontmatter(ctx, festivalGoalPath, frontmatter.Status(newStatus)); fmErr != nil {
 			// Log but don't fail — the directory move already succeeded
 			fmt.Printf("%s %s\n", ui.Dim("Warning: could not update FESTIVAL_GOAL.md frontmatter:"), ui.Dim(fmErr.Error()))
 		}
@@ -341,7 +341,7 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 	}
 
 	// Update navigation links after successful move
-	linkAction := updateNavigationAfterMove(festival.Name, newStatus, newPath)
+	linkAction := UpdateNavigationAfterMove(festival.Name, newStatus, newPath)
 
 	// Auto-commit the status change unless --no-commit was specified
 	var commitHash string
@@ -361,7 +361,7 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 // On completion, the link is removed (project freed). On other transitions, the
 // festival path is updated so the link stays accurate.
 // Returns a human-readable description of the action taken, or empty string.
-func updateNavigationAfterMove(festivalName, newStatus, newPath string) string {
+func UpdateNavigationAfterMove(festivalName, newStatus, newPath string) string {
 	nav, err := navigation.LoadNavigation()
 	if err != nil {
 		// Navigation not available (no campaign context, etc.) - skip silently

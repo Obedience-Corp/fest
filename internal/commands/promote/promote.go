@@ -12,6 +12,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/status"
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -119,11 +120,26 @@ func runPromote(ctx context.Context, opts *promoteOptions) error {
 		return errors.Wrap(err, "promoting festival")
 	}
 
-	// Extract festival ID from config for commit message
+	// Update FESTIVAL_GOAL.md frontmatter with the new status
+	festivalGoalPath := filepath.Join(newPath, "FESTIVAL_GOAL.md")
+	if _, statErr := os.Stat(festivalGoalPath); statErr == nil {
+		if fmErr := status.UpdateGoalFrontmatter(ctx, festivalGoalPath, frontmatter.Status(nextStatus)); fmErr != nil {
+			fmt.Printf("%s %s\n", ui.Dim("Warning: could not update FESTIVAL_GOAL.md frontmatter:"), ui.Dim(fmErr.Error()))
+		}
+	}
+
+	// Update fest.yaml metadata with the new status
 	var festivalID string
 	if festCfg, cfgErr := config.LoadFestivalConfig(newPath, ""); cfgErr == nil {
 		festivalID = festCfg.Metadata.ID
+		festCfg.Metadata.AddStatusChange(nextStatus, newPath, "")
+		if saveErr := config.SaveFestivalConfig(newPath, "", festCfg); saveErr != nil {
+			fmt.Printf("%s %s\n", ui.Dim("Warning: could not update fest.yaml status:"), ui.Dim(saveErr.Error()))
+		}
 	}
+
+	// Update navigation links after successful move
+	status.UpdateNavigationAfterMove(festival.Name, nextStatus, newPath)
 
 	// Auto-commit the status change unless --no-commit was specified
 	var commitHash string
