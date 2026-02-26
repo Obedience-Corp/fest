@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -281,6 +282,12 @@ type festivalInfo struct {
 	path        string
 }
 
+// projectEntry represents a project directory that can be linked to a festival.
+type projectEntry struct {
+	path  string // Absolute path to the project directory
+	label string // Display label (e.g., "camp" or "obey-platform-monorepo@obey")
+}
+
 // collectFestivals finds all festivals in primary status directories
 func collectFestivals(festivalsDir string) ([]festivalInfo, error) {
 	var festivals []festivalInfo
@@ -329,28 +336,28 @@ func resolveFestivalPath(festivalsDir, festivalName string) string {
 }
 
 // selectProjectDirectory shows an interactive picker for selecting a project directory.
-// It lists only the directories inside campaignRoot/projects/.
+// It lists directories inside campaignRoot/projects/, expanding monorepos into sub-entries.
 func selectProjectDirectory(festivalPath, festivalName string) (string, error) {
 	// Find campaign root by walking up from festival path
 	// festivalPath is like: /path/to/campaign/festivals/active/festival-name
 	// We want campaign root: /path/to/campaign
 	campaignRoot := campaignRootFromFestival(festivalPath)
 
-	directories, err := collectProjectDirectories(campaignRoot)
+	entries, err := collectProjectDirectories(campaignRoot)
 	if err != nil {
 		return "", festErrors.Wrap(err, "collecting project directories")
 	}
 
-	if len(directories) == 0 {
+	if len(entries) == 0 {
 		return "", festErrors.NotFound("project directories").
 			WithField("hint", "no directories found in projects/")
 	}
 
-	// Build options — show just the project name
-	options := make([]huh.Option[string], 0, len(directories))
-	for _, dir := range directories {
-		label := pathStyle.Render(filepath.Base(dir))
-		options = append(options, huh.NewOption(label, dir))
+	// Build options — show project label (with monorepo@sub notation)
+	options := make([]huh.Option[string], 0, len(entries))
+	for _, entry := range entries {
+		label := pathStyle.Render(entry.label)
+		options = append(options, huh.NewOption(label, entry.path))
 	}
 
 	var selectedDir string
@@ -383,20 +390,56 @@ func campaignRootFromFestival(festivalPath string) string {
 	return filepath.Dir(festivalsDir)                        // → campaign root
 }
 
-// collectProjectDirectories returns the directories inside campaignRoot/projects/.
-func collectProjectDirectories(campaignRoot string) ([]string, error) {
+// collectProjectDirectories returns project directories inside campaignRoot/projects/,
+// expanding monorepos (detected via .gitmodules) into sub-project entries using the
+// name@submodule convention (matching camp CLI's project listing).
+func collectProjectDirectories(campaignRoot string) ([]projectEntry, error) {
 	projectsDir := filepath.Join(campaignRoot, "projects")
 	entries, err := os.ReadDir(projectsDir)
 	if err != nil {
 		return nil, err
 	}
 
-	var dirs []string
+	var results []projectEntry
 	for _, entry := range entries {
 		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
 			continue
 		}
-		dirs = append(dirs, filepath.Join(projectsDir, entry.Name()))
+
+		dirName := entry.Name()
+		dirPath := filepath.Join(projectsDir, dirName)
+
+		results = append(results, projectEntry{path: dirPath, label: dirName})
+
+		// Expand monorepo sub-projects
+		for _, sub := range listSubmodulePaths(dirPath) {
+			results = append(results, projectEntry{
+				path:  filepath.Join(dirPath, sub),
+				label: dirName + "@" + sub,
+			})
+		}
 	}
-	return dirs, nil
+	return results, nil
+}
+
+// listSubmodulePaths parses .gitmodules to discover submodule paths.
+// Returns nil if no .gitmodules exists or parsing fails.
+func listSubmodulePaths(projectDir string) []string {
+	cmd := exec.Command("git", "-C", projectDir, "config", "-f", ".gitmodules", "--list")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+
+	var paths []string
+	for _, line := range strings.Split(string(output), "\n") {
+		if !strings.Contains(line, ".path=") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) == 2 {
+			paths = append(paths, parts[1])
+		}
+	}
+	return paths
 }

@@ -2,6 +2,7 @@ package navigation
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -110,7 +111,6 @@ func TestCollectProjectDirectories(t *testing.T) {
 		"ai_docs/research",
 		"dungeon/old-stuff",
 	}
-	// Also add a regular file inside projects/
 	for _, d := range dirs {
 		if err := os.MkdirAll(filepath.Join(tmpDir, d), 0755); err != nil {
 			t.Fatal(err)
@@ -126,20 +126,90 @@ func TestCollectProjectDirectories(t *testing.T) {
 		t.Fatalf("collectProjectDirectories() error = %v", err)
 	}
 
-	// Should only contain the 3 non-hidden project directories
-	want := map[string]bool{
-		filepath.Join(tmpDir, "projects", "camp"):        true,
-		filepath.Join(tmpDir, "projects", "fest"):        true,
-		filepath.Join(tmpDir, "projects", "obey-daemon"): true,
+	// Should only contain the 3 non-hidden project directories (no monorepo sub-entries)
+	want := map[string]string{
+		filepath.Join(tmpDir, "projects", "camp"):        "camp",
+		filepath.Join(tmpDir, "projects", "fest"):        "fest",
+		filepath.Join(tmpDir, "projects", "obey-daemon"): "obey-daemon",
 	}
 
 	if len(got) != len(want) {
-		t.Fatalf("collectProjectDirectories() returned %d dirs, want %d\ngot: %v", len(got), len(want), got)
+		t.Fatalf("collectProjectDirectories() returned %d entries, want %d\ngot: %v", len(got), len(want), got)
 	}
 
-	for _, dir := range got {
-		if !want[dir] {
-			t.Errorf("unexpected directory in results: %s", dir)
+	for _, entry := range got {
+		expectedLabel, ok := want[entry.path]
+		if !ok {
+			t.Errorf("unexpected entry: path=%s label=%s", entry.path, entry.label)
+			continue
+		}
+		if entry.label != expectedLabel {
+			t.Errorf("entry path=%s: label=%q, want %q", entry.path, entry.label, expectedLabel)
+		}
+	}
+}
+
+func TestCollectProjectDirectoriesMonorepo(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create a standalone project
+	if err := os.MkdirAll(filepath.Join(tmpDir, "projects", "camp"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create a monorepo with submodules
+	monorepoDir := filepath.Join(tmpDir, "projects", "my-monorepo")
+	if err := os.MkdirAll(monorepoDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Initialize git and create .gitmodules
+	if err := exec.Command("git", "init", monorepoDir).Run(); err != nil {
+		t.Fatalf("git init: %v", err)
+	}
+	for _, sub := range []string{"obey", "festui"} {
+		if err := exec.Command("git", "-C", monorepoDir, "config", "-f", ".gitmodules",
+			"submodule."+sub+".path", sub).Run(); err != nil {
+			t.Fatalf("git config submodule path: %v", err)
+		}
+		if err := exec.Command("git", "-C", monorepoDir, "config", "-f", ".gitmodules",
+			"submodule."+sub+".url", "https://example.com/"+sub+".git").Run(); err != nil {
+			t.Fatalf("git config submodule url: %v", err)
+		}
+		if err := os.MkdirAll(filepath.Join(monorepoDir, sub), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got, err := collectProjectDirectories(tmpDir)
+	if err != nil {
+		t.Fatalf("error = %v", err)
+	}
+
+	// Expect: camp, my-monorepo (root), my-monorepo@obey, my-monorepo@festui
+	want := map[string]string{
+		filepath.Join(tmpDir, "projects", "camp"):                   "camp",
+		filepath.Join(tmpDir, "projects", "my-monorepo"):            "my-monorepo",
+		filepath.Join(tmpDir, "projects", "my-monorepo", "obey"):    "my-monorepo@obey",
+		filepath.Join(tmpDir, "projects", "my-monorepo", "festui"):  "my-monorepo@festui",
+	}
+
+	if len(got) != len(want) {
+		var labels []string
+		for _, e := range got {
+			labels = append(labels, e.label)
+		}
+		t.Fatalf("got %d entries %v, want %d", len(got), labels, len(want))
+	}
+
+	for _, entry := range got {
+		expectedLabel, ok := want[entry.path]
+		if !ok {
+			t.Errorf("unexpected entry: path=%s label=%s", entry.path, entry.label)
+			continue
+		}
+		if entry.label != expectedLabel {
+			t.Errorf("path=%s: label=%q, want %q", entry.path, entry.label, expectedLabel)
 		}
 	}
 }
