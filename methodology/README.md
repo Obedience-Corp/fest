@@ -563,11 +563,6 @@ auth_system/
 - **Task Templates** - With autonomy level, requirements, validation, and deliverables
 - **Utility Templates** - CONTEXT.md for session memory, INDEX.md for organization
 
-### Extensions
-
-- **Interface Planning** - Templates for defining system contracts and common interfaces
-- **Orchestration** - Agent templates and orchestration plan templates for multi-agent workflows
-
 ### AI Agent Prompts
 
 - **Planning Agent** - Guides festival structure creation and goal decomposition
