@@ -328,7 +328,7 @@ This level of detail, combined with autonomy levels, enables AI agents to work i
 
 Festival Methodology is **battle-tested on complex, multi-month projects** and refined through daily use. It's a living system built on real-world experience across platform engineering, blockchain infrastructure, and multi-service architectures:
 
-- Festivals run for **multiple weeks** of sustained autonomous execution
+- Festivals **run until completion** regardless of complexity, and often finish much faster than you'd expect
 - **Significant reduction in token usage** - structured context means agents spend less time figuring out what to do
 - **Faster time to final solution** - agents follow defined paths instead of exploring blindly
 - **Compounding productivity gains** - each festival builds on patterns from previous ones
