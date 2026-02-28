@@ -212,11 +212,12 @@ Choose a festival type to auto-scaffold the right structure:
 | **standard** | INGEST + PLAN | Most projects - gather requirements then plan |
 | **implementation** | IMPLEMENT | Requirements already defined |
 | **research** | INGEST + RESEARCH + SYNTHESIZE | Investigation or exploration |
+| **quick** | Minimal scaffold | Small, focused tasks |
 | **ritual** | Custom (no defaults) | Recurring processes |
 
 ```bash
 fest init                                          # Initialize festivals directory
-fest create festival --type standard "my-project"  # Auto-scaffolds phases
+fest create festival --type standard --name "my-project"  # Auto-scaffolds phases
 fest create phase                                  # Add more phases
 fest create sequence                               # Add sequences to phases
 ```
