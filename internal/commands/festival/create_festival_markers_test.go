@@ -185,7 +185,7 @@ func TestCreateFestivalZeroMarkers(t *testing.T) {
 				Name:       tt.festName,
 				Goal:       tt.festGoal,
 				Type:       tt.festType,
-				Dest:       "active",
+				Dest:       "planning",
 				JSONOutput: true,
 			}
 
@@ -195,15 +195,15 @@ func TestCreateFestivalZeroMarkers(t *testing.T) {
 			}
 
 			// Find created festival directory
-			activeDir := filepath.Join(festivalsDir, "active")
-			entries, err := os.ReadDir(activeDir)
+			planningDir := filepath.Join(festivalsDir, "planning")
+			entries, err := os.ReadDir(planningDir)
 			if err != nil {
-				t.Fatalf("failed to read active dir: %v", err)
+				t.Fatalf("failed to read planning dir: %v", err)
 			}
 			if len(entries) != 1 {
-				t.Fatalf("expected 1 entry in active/, got %d", len(entries))
+				t.Fatalf("expected 1 entry in planning/, got %d", len(entries))
 			}
-			festivalDir := filepath.Join(activeDir, entries[0].Name())
+			festivalDir := filepath.Join(planningDir, entries[0].Name())
 
 			// Scan all .md files for unfilled markers
 			findings := scanForUnfilledMarkers(t, festivalDir)

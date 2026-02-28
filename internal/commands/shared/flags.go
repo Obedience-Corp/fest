@@ -37,7 +37,7 @@ type CreateFestivalOpts struct {
 	Type       string
 	VarsFile   string
 	JSONOutput bool
-	Dest       string
+	Dest       string // "planning" (default) or "ritual". Never "active" — use fest promote.
 }
 
 // CreatePhaseOpts holds options for the create phase command.

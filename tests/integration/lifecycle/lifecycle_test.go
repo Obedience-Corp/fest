@@ -17,7 +17,7 @@ func TestFullFestivalLifecycle(t *testing.T) {
 	container := GetSharedContainer(t)
 
 	// The festivals root is at /workspace/festivals with .festival marker
-	// Festivals are created under festivals/active/ or festivals/planning/
+	// Festivals are always created under festivals/planning/ (use fest promote to advance)
 	// Note: fest create festival adds a unique ID suffix (e.g., lifecycle-test-LT0001)
 	workspaceRoot := "/workspace"
 	festivalsRoot := workspaceRoot + "/festivals"
@@ -58,10 +58,10 @@ func TestFullFestivalLifecycle(t *testing.T) {
 	// Phase 2: Festival Creation - Create a new festival and verify structure
 	t.Run("CreateFestival", func(t *testing.T) {
 		// Create the festival from within the festivals root directory
-		// The fest create festival command uses --dest (active/planning) not --path
+		// The fest create festival command uses --dest (planning/ritual) not --path
 		output, err := container.RunFestInDir(festivalsRoot, "create", "festival",
 			"--name", "lifecycle-test",
-			"--dest", "active")
+			"--dest", "planning")
 		t.Logf("Festival creation output: %s", output)
 		if err != nil {
 			t.Logf("Festival creation error: %v", err)
@@ -69,15 +69,15 @@ func TestFullFestivalLifecycle(t *testing.T) {
 		require.NoError(t, err, "should create festival: %s", output)
 
 		// List what was created - fest generates a unique ID suffix
-		dirs, err := container.ListDirectories(festivalsRoot + "/active")
+		dirs, err := container.ListDirectories(festivalsRoot + "/planning")
 		require.NoError(t, err)
-		t.Logf("Directories in /festivals/active: %v", dirs)
+		t.Logf("Directories in /festivals/planning: %v", dirs)
 		require.NotEmpty(t, dirs, "should have at least one festival directory")
 
 		// Find the festival directory (should start with lifecycle-test-)
 		for _, dir := range dirs {
 			if strings.HasPrefix(dir, "lifecycle-test") {
-				festPath = festivalsRoot + "/active/" + dir
+				festPath = festivalsRoot + "/planning/" + dir
 				break
 			}
 		}
