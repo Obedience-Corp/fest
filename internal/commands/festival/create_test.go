@@ -349,7 +349,7 @@ func TestCreateFestival_GatesDirectory(t *testing.T) {
 		Name:        "test-festival",
 		Goal:        "Test goal",
 		SkipMarkers: true,
-		Dest:        "active",
+		Dest:        "planning",
 	}
 
 	err := RunCreateFestival(context.Background(), opts)
@@ -358,12 +358,12 @@ func TestCreateFestival_GatesDirectory(t *testing.T) {
 	}
 
 	// Find the created festival directory (now includes ID suffix)
-	activeDir := filepath.Join(festivalsDir, "active")
-	entries, err := os.ReadDir(activeDir)
+	planningDir := filepath.Join(festivalsDir, "planning")
+	entries, err := os.ReadDir(planningDir)
 	if err != nil || len(entries) != 1 {
-		t.Fatalf("expected 1 entry in active/: %v", err)
+		t.Fatalf("expected 1 entry in planning/: %v", err)
 	}
-	festivalDir := filepath.Join(activeDir, entries[0].Name())
+	festivalDir := filepath.Join(planningDir, entries[0].Name())
 
 	// Verify gates/ directory exists at festival root
 	gatesDir := filepath.Join(festivalDir, "gates")
@@ -437,7 +437,7 @@ func TestCreateFestival_FestYAMLGenerated(t *testing.T) {
 		Name:        "gates-test",
 		Goal:        "Test gates configuration",
 		SkipMarkers: true,
-		Dest:        "active",
+		Dest:        "planning",
 	}
 
 	err := RunCreateFestival(context.Background(), opts)
@@ -446,12 +446,12 @@ func TestCreateFestival_FestYAMLGenerated(t *testing.T) {
 	}
 
 	// Find the created festival directory (now includes ID suffix)
-	activeDir := filepath.Join(festivalsDir, "active")
-	entries, err := os.ReadDir(activeDir)
+	planningDir := filepath.Join(festivalsDir, "planning")
+	entries, err := os.ReadDir(planningDir)
 	if err != nil || len(entries) != 1 {
-		t.Fatalf("expected 1 entry in active/: %v", err)
+		t.Fatalf("expected 1 entry in planning/: %v", err)
 	}
-	festivalDir := filepath.Join(activeDir, entries[0].Name())
+	festivalDir := filepath.Join(planningDir, entries[0].Name())
 	festYAMLPath := filepath.Join(festivalDir, "fest.yaml")
 
 	if _, err := os.Stat(festYAMLPath); err != nil {
@@ -544,7 +544,7 @@ func TestCreateFestival_WithTypeStandard(t *testing.T) {
 		Goal:        "Test standard type",
 		Type:        "standard",
 		SkipMarkers: true,
-		Dest:        "active",
+		Dest:        "planning",
 		JSONOutput:  false,
 	}
 
@@ -554,12 +554,12 @@ func TestCreateFestival_WithTypeStandard(t *testing.T) {
 	}
 
 	// Find created festival directory
-	activeDir := filepath.Join(festivalsDir, "active")
-	entries, err := os.ReadDir(activeDir)
+	planningDir := filepath.Join(festivalsDir, "planning")
+	entries, err := os.ReadDir(planningDir)
 	if err != nil || len(entries) != 1 {
-		t.Fatalf("expected 1 entry in active/: %v", err)
+		t.Fatalf("expected 1 entry in planning/: %v", err)
 	}
-	festivalDir := filepath.Join(activeDir, entries[0].Name())
+	festivalDir := filepath.Join(planningDir, entries[0].Name())
 
 	// Verify INGEST and PLAN phases were auto-created
 	ingestPhase := filepath.Join(festivalDir, "001_INGEST")
@@ -601,7 +601,7 @@ func TestCreateFestival_WithoutType(t *testing.T) {
 		Name:        "no-type-test",
 		Goal:        "Test without type",
 		SkipMarkers: true,
-		Dest:        "active",
+		Dest:        "planning",
 		JSONOutput:  false,
 	}
 
@@ -611,12 +611,12 @@ func TestCreateFestival_WithoutType(t *testing.T) {
 	}
 
 	// Find created festival directory
-	activeDir := filepath.Join(festivalsDir, "active")
-	entries, err := os.ReadDir(activeDir)
+	planningDir := filepath.Join(festivalsDir, "planning")
+	entries, err := os.ReadDir(planningDir)
 	if err != nil || len(entries) != 1 {
-		t.Fatalf("expected 1 entry in active/: %v", err)
+		t.Fatalf("expected 1 entry in planning/: %v", err)
 	}
-	festivalDir := filepath.Join(activeDir, entries[0].Name())
+	festivalDir := filepath.Join(planningDir, entries[0].Name())
 
 	// Verify NO phases were auto-created
 	phases, err := os.ReadDir(festivalDir)
@@ -669,13 +669,46 @@ func TestCreateFestival_WithUnknownType(t *testing.T) {
 		Goal:        "Test bad type",
 		Type:        "unknown-type",
 		SkipMarkers: true,
-		Dest:        "active",
+		Dest:        "planning",
 		JSONOutput:  false,
 	}
 
 	err := RunCreateFestival(context.Background(), opts)
 	if err == nil {
 		t.Error("expected error for unknown festival type")
+	}
+}
+
+// TestCreateFestival_RejectsActiveDest verifies that creating a festival
+// with --dest active returns a validation error.
+func TestCreateFestival_RejectsActiveDest(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create festivals directory structure with templates
+	festivalsDir := filepath.Join(tmpDir, "festivals")
+	setupFestivalTemplates(t, festivalsDir)
+
+	// Change working directory
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+	os.Chdir(festivalsDir)
+
+	opts := &CreateFestivalOptions{
+		Name:        "should-fail",
+		Goal:        "Test active rejection",
+		SkipMarkers: true,
+		Dest:        "active",
+	}
+
+	err := RunCreateFestival(context.Background(), opts)
+	if err == nil {
+		t.Fatal("expected error when creating festival with --dest active")
+	}
+
+	// Verify the error message mentions planning and promote
+	errMsg := err.Error()
+	if !contains(errMsg, "active") {
+		t.Errorf("error should mention 'active', got: %s", errMsg)
 	}
 }
 

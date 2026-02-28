@@ -24,7 +24,6 @@ func charmCreateFestival(ctx context.Context) error {
 	}
 
 	var name, goal, tags string
-	var dest string = "active"
 	festivalTypes := []string{"standard", "implementation", "research", "quick", "ritual"}
 	var festType string = festivalTypes[0]
 	form := huh.NewForm(
@@ -40,10 +39,6 @@ func charmCreateFestival(ctx context.Context) error {
 			huh.NewSelect[string]().Title("Festival type").
 				Options(toOptions(festivalTypes)...).
 				Value(&festType),
-			huh.NewSelect[string]().Title("Destination").Options(
-				huh.NewOption("active", "active"),
-				huh.NewOption("planning", "planning"),
-			).Value(&dest),
 		),
 	)
 	if err := uitheme.RunForm(ctx, form); err != nil {
@@ -81,7 +76,7 @@ func charmCreateFestival(ctx context.Context) error {
 		return err
 	}
 
-	opts := &shared.CreateFestivalOpts{Name: name, Goal: goal, Tags: tags, Type: festType, VarsFile: varsFile, Dest: dest}
+	opts := &shared.CreateFestivalOpts{Name: name, Goal: goal, Tags: tags, Type: festType, VarsFile: varsFile, Dest: "planning"}
 	return shared.RunCreateFestival(ctx, opts)
 }
 
@@ -99,7 +94,6 @@ func charmPlanFestivalWizard(ctx context.Context) error {
 		return err
 	}
 	var name, goal, tags string
-	var dest string = "planning"
 	festivalTypes := []string{"standard", "implementation", "research", "quick", "ritual"}
 	var festType string = festivalTypes[0]
 	base := huh.NewForm(
@@ -115,10 +109,6 @@ func charmPlanFestivalWizard(ctx context.Context) error {
 			huh.NewSelect[string]().Title("Festival type").
 				Options(toOptions(festivalTypes)...).
 				Value(&festType),
-			huh.NewSelect[string]().Title("Destination").Options(
-				huh.NewOption("planning", "planning"),
-				huh.NewOption("active", "active"),
-			).Value(&dest),
 		),
 	)
 	if err := uitheme.RunForm(ctx, base); err != nil {
@@ -153,11 +143,11 @@ func charmPlanFestivalWizard(ctx context.Context) error {
 		return err
 	}
 
-	if err := shared.RunCreateFestival(ctx, &shared.CreateFestivalOpts{Name: name, Goal: goal, Tags: tags, Type: festType, VarsFile: varsFile, Dest: dest}); err != nil {
+	if err := shared.RunCreateFestival(ctx, &shared.CreateFestivalOpts{Name: name, Goal: goal, Tags: tags, Type: festType, VarsFile: varsFile, Dest: "planning"}); err != nil {
 		return err
 	}
 	slug := slugify(name)
-	festivalDir := filepath.Join(festivalsRoot, dest, slug)
+	festivalDir := filepath.Join(festivalsRoot, "planning", slug)
 
 	// Add phases
 	var addPhases bool

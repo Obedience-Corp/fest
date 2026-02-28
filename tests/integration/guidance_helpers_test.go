@@ -44,11 +44,11 @@ func setupImplementationFestival(t *testing.T, tc *TestContainer, festName strin
 	festivalsPath := setupWorkspace(t, tc, "/")
 
 	// Create festival using --dest flag (not --path which doesn't exist)
-	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "active")
+	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "planning")
 	require.NoError(t, err, "should create festival: %s", output)
 
 	// Find the actual festival path (fest adds an ID suffix like "test-fest-TF0001")
-	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
+	festPath := findFestivalPath(t, tc, festivalsPath+"/planning", festName)
 
 	// Write fest.yaml with quality gates enabled (gates should never be skippable)
 	festYaml := `version: "1.0"
@@ -129,11 +129,11 @@ func setupPlanFestival(t *testing.T, tc *TestContainer, festName string) string 
 	festivalsPath := setupWorkspace(t, tc, "/")
 
 	// Create festival using --dest flag
-	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "active")
+	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "planning")
 	require.NoError(t, err, "should create festival: %s", output)
 
 	// Find the actual festival path (fest adds an ID suffix)
-	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
+	festPath := findFestivalPath(t, tc, festivalsPath+"/planning", festName)
 
 	// Create FESTIVAL_OVERVIEW.md (required by validator)
 	overviewContent := "---\nfest_type: overview\n---\n\n# Test Festival Overview\n\n## Goals\n- Complete planning testing\n\n## Success Criteria\n- All planning steps completed\n"
@@ -178,11 +178,11 @@ func setupResearchFestival(t *testing.T, tc *TestContainer, festName string) str
 	festivalsPath := setupWorkspace(t, tc, "/")
 
 	// Create festival using --dest flag
-	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "active")
+	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "planning")
 	require.NoError(t, err, "should create festival: %s", output)
 
 	// Find the actual festival path (fest adds an ID suffix)
-	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
+	festPath := findFestivalPath(t, tc, festivalsPath+"/planning", festName)
 
 	// Create FESTIVAL_OVERVIEW.md (required by validator)
 	overviewContent := "---\nfest_type: overview\n---\n\n# Test Festival Overview\n\n## Goals\n- Complete research testing\n\n## Success Criteria\n- All research topics covered\n"
@@ -224,11 +224,11 @@ func setupReviewFestival(t *testing.T, tc *TestContainer, festName string) strin
 	festivalsPath := setupWorkspace(t, tc, "/")
 
 	// Create festival using --dest flag
-	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "active")
+	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "planning")
 	require.NoError(t, err, "should create festival: %s", output)
 
 	// Find the actual festival path (fest adds an ID suffix)
-	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
+	festPath := findFestivalPath(t, tc, festivalsPath+"/planning", festName)
 
 	// Create FESTIVAL_OVERVIEW.md (required by validator)
 	overviewContent := "---\nfest_type: overview\n---\n\n# Test Festival Overview\n\n## Goals\n- Complete review testing\n\n## Success Criteria\n- All review items checked\n"
@@ -271,11 +271,11 @@ func setupActionFestival(t *testing.T, tc *TestContainer, festName string) strin
 	festivalsPath := setupWorkspace(t, tc, "/")
 
 	// Create festival using --dest flag
-	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "active")
+	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "planning")
 	require.NoError(t, err, "should create festival: %s", output)
 
 	// Find the actual festival path (fest adds an ID suffix)
-	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
+	festPath := findFestivalPath(t, tc, festivalsPath+"/planning", festName)
 
 	// Create FESTIVAL_OVERVIEW.md (required by validator)
 	overviewContent := "---\nfest_type: overview\n---\n\n# Test Festival Overview\n\n## Goals\n- Complete action testing\n\n## Success Criteria\n- All actions executed\n"
@@ -318,11 +318,11 @@ func setupIngestFestival(t *testing.T, tc *TestContainer, festName string) strin
 	festivalsPath := setupWorkspace(t, tc, "/")
 
 	// Create festival using --dest flag
-	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "active")
+	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "planning")
 	require.NoError(t, err, "should create festival: %s", output)
 
 	// Find the actual festival path (fest adds an ID suffix)
-	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
+	festPath := findFestivalPath(t, tc, festivalsPath+"/planning", festName)
 
 	// Create FESTIVAL_OVERVIEW.md (required by validator)
 	overviewContent := "---\nfest_type: overview\n---\n\n# Test Festival Overview\n\n## Goals\n- Complete ingest testing\n\n## Success Criteria\n- All items ingested\n"
@@ -565,11 +565,11 @@ func setupMultiModeFestival(t *testing.T, tc *TestContainer, festName string) st
 	festivalsPath := setupWorkspace(t, tc, "/")
 
 	// Create festival using --dest flag
-	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "active")
+	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "planning")
 	require.NoError(t, err, "should create festival: %s", output)
 
 	// Find the actual festival path (fest adds an ID suffix)
-	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
+	festPath := findFestivalPath(t, tc, festivalsPath+"/planning", festName)
 
 	// Create FESTIVAL_OVERVIEW.md (required by validator)
 	overviewContent := "---\nfest_type: overview\n---\n\n# Test Festival Overview\n\n## Goals\n- Complete multi-mode testing\n\n## Success Criteria\n- All phase types navigated\n"
@@ -633,11 +633,11 @@ func setupLifecycleFestival(t *testing.T, tc *TestContainer, festName string) st
 	festivalsPath := setupWorkspace(t, tc, "/")
 
 	// Create festival using --dest flag
-	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "active")
+	output, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "planning")
 	require.NoError(t, err, "should create festival: %s", output)
 
 	// Find the actual festival path (fest adds an ID suffix)
-	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
+	festPath := findFestivalPath(t, tc, festivalsPath+"/planning", festName)
 
 	// Create FESTIVAL_OVERVIEW.md (required by validator)
 	overviewContent := "---\nfest_type: overview\n---\n\n# Test Festival Overview\n\n## Goals\n- Complete lifecycle testing\n\n## Success Criteria\n- All lifecycle phases completed\n"

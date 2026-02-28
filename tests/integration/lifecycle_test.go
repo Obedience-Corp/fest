@@ -51,11 +51,11 @@ func TestWorkflowMode(t *testing.T) {
 	festivalsPath := setupWorkspace(t, container, "/")
 
 	// Create festival
-	_, err := container.RunFestInDir(festivalsPath, "create", "festival", "--name", "workflow-test", "--dest", "active")
+	_, err := container.RunFestInDir(festivalsPath, "create", "festival", "--name", "workflow-test", "--dest", "planning")
 	require.NoError(t, err)
 
 	// Find the actual festival path (fest adds an ID suffix)
-	festPath := findFestivalPath(t, container, festivalsPath+"/active", "workflow-test")
+	festPath := findFestivalPath(t, container, festivalsPath+"/planning", "workflow-test")
 
 	// Create an implementation phase
 	_, err = container.RunFestInDir(festPath, "create", "phase", "--name", "WORKFLOW_PHASE", "--type", "implementation")

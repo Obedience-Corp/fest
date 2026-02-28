@@ -72,7 +72,7 @@ func TestCreateFestival_DirectoryNaming(t *testing.T) {
 			// Run create festival
 			opts := &CreateFestivalOptions{
 				Name:        tt.festivalName,
-				Dest:        "active",
+				Dest:        "planning",
 				SkipMarkers: true,
 				JSONOutput:  true, // Suppress console output
 			}
@@ -84,14 +84,14 @@ func TestCreateFestival_DirectoryNaming(t *testing.T) {
 
 			// Verify directory was created with ID suffix
 			slug := Slugify(tt.festivalName)
-			activeDir := filepath.Join(festivalsRoot, "active")
-			entries, err := os.ReadDir(activeDir)
+			planningDir := filepath.Join(festivalsRoot, "planning")
+			entries, err := os.ReadDir(planningDir)
 			if err != nil {
-				t.Fatalf("Failed to read active dir: %v", err)
+				t.Fatalf("Failed to read planning dir: %v", err)
 			}
 
 			if len(entries) != 1 {
-				t.Fatalf("Expected 1 entry in active/, got %d", len(entries))
+				t.Fatalf("Expected 1 entry in planning/, got %d", len(entries))
 			}
 
 			dirName := entries[0].Name()
@@ -173,7 +173,7 @@ func TestCreateFestival_MetadataPopulation(t *testing.T) {
 	opts := &CreateFestivalOptions{
 		Name:        "test festival",
 		Goal:        "Test the metadata population",
-		Dest:        "active",
+		Dest:        "planning",
 		SkipMarkers: true,
 		JSONOutput:  true,
 	}
@@ -184,13 +184,13 @@ func TestCreateFestival_MetadataPopulation(t *testing.T) {
 	}
 
 	// Find the created directory
-	activeDir := filepath.Join(festivalsRoot, "active")
-	entries, err := os.ReadDir(activeDir)
+	planningDir := filepath.Join(festivalsRoot, "planning")
+	entries, err := os.ReadDir(planningDir)
 	if err != nil || len(entries) != 1 {
-		t.Fatalf("Expected 1 entry in active/")
+		t.Fatalf("Expected 1 entry in planning/")
 	}
 
-	festivalDir := filepath.Join(activeDir, entries[0].Name())
+	festivalDir := filepath.Join(planningDir, entries[0].Name())
 
 	// Load the fest.yaml
 	cfg, err := config.LoadFestivalConfig(festivalDir, "")
@@ -226,8 +226,8 @@ func TestCreateFestival_MetadataPopulation(t *testing.T) {
 
 	if len(cfg.Metadata.StatusHistory) > 0 {
 		firstChange := cfg.Metadata.StatusHistory[0]
-		if firstChange.Status != "active" && firstChange.Status != "planning" {
-			t.Errorf("First status should be 'active' or 'planning', got %q", firstChange.Status)
+		if firstChange.Status != "planning" {
+			t.Errorf("First status should be 'planning', got %q", firstChange.Status)
 		}
 		if firstChange.Timestamp.IsZero() {
 			t.Error("Status change timestamp should not be zero")
@@ -268,7 +268,7 @@ func TestCreateFestival_UniqueIDs(t *testing.T) {
 	// Create first festival with "GU" prefix
 	opts1 := &CreateFestivalOptions{
 		Name:        "guild usable",
-		Dest:        "active",
+		Dest:        "planning",
 		SkipMarkers: true,
 		JSONOutput:  true,
 	}
@@ -290,7 +290,7 @@ func TestCreateFestival_UniqueIDs(t *testing.T) {
 	// Create third festival with different prefix
 	opts3 := &CreateFestivalOptions{
 		Name:        "fest node",
-		Dest:        "active",
+		Dest:        "planning",
 		SkipMarkers: true,
 		JSONOutput:  true,
 	}
@@ -298,32 +298,15 @@ func TestCreateFestival_UniqueIDs(t *testing.T) {
 		t.Fatalf("Third RunCreateFestival failed: %v", err)
 	}
 
-	// Verify directory names
-	activeEntries, _ := os.ReadDir(filepath.Join(festivalsRoot, "active"))
+	// Verify directory names — all 3 should be in planning/
 	planningEntries, _ := os.ReadDir(filepath.Join(festivalsRoot, "planning"))
 
-	// Should have 2 in active, 1 in planning
-	if len(activeEntries) != 2 {
-		t.Errorf("Expected 2 entries in active/, got %d", len(activeEntries))
-	}
-	if len(planningEntries) != 1 {
-		t.Errorf("Expected 1 entry in planning/, got %d", len(planningEntries))
+	if len(planningEntries) != 3 {
+		t.Errorf("Expected 3 entries in planning/, got %d", len(planningEntries))
 	}
 
 	// Collect all IDs (extract from end of directory name after last hyphen)
 	ids := make(map[string]bool)
-	for _, e := range activeEntries {
-		name := e.Name()
-		lastHyphen := strings.LastIndex(name, "-")
-		if lastHyphen == -1 {
-			continue
-		}
-		id := name[lastHyphen+1:]
-		if ids[id] {
-			t.Errorf("Duplicate ID found: %s", id)
-		}
-		ids[id] = true
-	}
 	for _, e := range planningEntries {
 		name := e.Name()
 		lastHyphen := strings.LastIndex(name, "-")
@@ -396,7 +379,7 @@ func TestCreateFestival_BackwardsCompatibility(t *testing.T) {
 	// Create a new festival - should still work even with old festival present
 	opts := &CreateFestivalOptions{
 		Name:        "new festival",
-		Dest:        "active",
+		Dest:        "planning",
 		SkipMarkers: true,
 		JSONOutput:  true,
 	}
@@ -406,20 +389,24 @@ func TestCreateFestival_BackwardsCompatibility(t *testing.T) {
 		t.Fatalf("RunCreateFestival failed: %v", err)
 	}
 
-	// Verify both old and new festivals exist
-	entries, _ := os.ReadDir(filepath.Join(festivalsRoot, "active"))
-	if len(entries) != 2 {
-		t.Errorf("Expected 2 entries in active/, got %d", len(entries))
+	// Verify old festival still exists in active/
+	activeEntries, _ := os.ReadDir(filepath.Join(festivalsRoot, "active"))
+	if len(activeEntries) != 1 {
+		t.Errorf("Expected 1 entry in active/ (old festival), got %d", len(activeEntries))
 	}
-
-	// Old festival should still be there unchanged
 	oldExists := false
-	for _, e := range entries {
+	for _, e := range activeEntries {
 		if e.Name() == "old-festival" {
 			oldExists = true
 		}
 	}
 	if !oldExists {
-		t.Error("Old festival directory should still exist")
+		t.Error("Old festival directory should still exist in active/")
+	}
+
+	// Verify new festival was created in planning/
+	planningEntries, _ := os.ReadDir(filepath.Join(festivalsRoot, "planning"))
+	if len(planningEntries) != 1 {
+		t.Errorf("Expected 1 entry in planning/ (new festival), got %d", len(planningEntries))
 	}
 }

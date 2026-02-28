@@ -30,11 +30,11 @@ func setupTemplateFestival(t *testing.T, tc *TestContainer, festName string) str
 	festivalsPath := setupWorkspace(t, tc, "/")
 
 	// Create festival using correct flags
-	_, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "active")
+	_, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", festName, "--dest", "planning")
 	require.NoError(t, err, "failed to create festival")
 
 	// Find the actual festival path (fest adds an ID suffix)
-	festPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
+	festPath := findFestivalPath(t, tc, festivalsPath+"/planning", festName)
 
 	// Write fest.yaml with quality gates enabled
 	festYaml := `version: "1.0"

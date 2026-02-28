@@ -88,10 +88,10 @@ func TestImplementationMode_PhaseBoundaries(t *testing.T) {
 	festivalsPath := setupWorkspace(t, container, "/")
 
 	// Create festival with multiple phases
-	_, err := container.RunFestInDir(festivalsPath, "create", "festival", "--name", "test-impl-phases", "--dest", "active")
+	_, err := container.RunFestInDir(festivalsPath, "create", "festival", "--name", "test-impl-phases", "--dest", "planning")
 	require.NoError(t, err)
 
-	festPath := findFestivalPath(t, container, festivalsPath+"/active", "test-impl-phases")
+	festPath := findFestivalPath(t, container, festivalsPath+"/planning", "test-impl-phases")
 
 	// Write fest.yaml with quality gates enabled
 	festYaml := `version: "1.0"
@@ -191,10 +191,10 @@ func TestImplementationMode_Completion(t *testing.T) {
 	festivalsPath := setupWorkspace(t, container, "/")
 
 	// Create minimal festival with one task
-	_, err := container.RunFestInDir(festivalsPath, "create", "festival", "--name", "test-impl-done", "--dest", "active")
+	_, err := container.RunFestInDir(festivalsPath, "create", "festival", "--name", "test-impl-done", "--dest", "planning")
 	require.NoError(t, err)
 
-	festPath := findFestivalPath(t, container, festivalsPath+"/active", "test-impl-done")
+	festPath := findFestivalPath(t, container, festivalsPath+"/planning", "test-impl-done")
 
 	// Write fest.yaml with quality gates enabled
 	festYaml := "version: \"1.0\"\nquality_gates:\n  enabled: true\n  auto_append: true\n  implementation:\n    - id: testing\n      template: gates/implementation/QUALITY_GATE_TESTING\n      enabled: true\n    - id: review\n      template: gates/implementation/QUALITY_GATE_REVIEW\n      enabled: true\n    - id: iterate\n      template: gates/implementation/QUALITY_GATE_ITERATE\n      enabled: true\n    - id: fest-commit\n      template: gates/implementation/QUALITY_GATE_FEST_COMMIT\n      enabled: true\n"
@@ -261,10 +261,10 @@ func TestImplementationMode_EmptyFestival(t *testing.T) {
 	festivalsPath := setupWorkspace(t, container, "/")
 
 	// Create festival with phase but no tasks
-	_, err := container.RunFestInDir(festivalsPath, "create", "festival", "--name", "test-impl-empty", "--dest", "active")
+	_, err := container.RunFestInDir(festivalsPath, "create", "festival", "--name", "test-impl-empty", "--dest", "planning")
 	require.NoError(t, err)
 
-	festPath := findFestivalPath(t, container, festivalsPath+"/active", "test-impl-empty")
+	festPath := findFestivalPath(t, container, festivalsPath+"/planning", "test-impl-empty")
 
 	_, err = container.RunFestInDir(festPath, "create", "phase", "--name", "EMPTY_PHASE", "--type", "implementation")
 	require.NoError(t, err)

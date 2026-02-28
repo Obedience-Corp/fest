@@ -43,7 +43,7 @@ type CreateFestivalOptions struct {
 	SkipMarkers bool   // Skip marker processing
 	DryRun      bool   // Show markers without creating file
 	JSONOutput  bool
-	Dest        string // "active" or "planning"
+	Dest        string // "planning" (default) or "ritual" (for ritual-type festivals)
 	AgentMode   bool   // Strict mode for AI agents
 }
 
@@ -93,7 +93,7 @@ func NewCreateFestivalCommand() *cobra.Command {
 	opts := &CreateFestivalOptions{}
 	cmd := &cobra.Command{
 		Use:   "festival",
-		Short: "Create a new festival scaffold under festivals/(active|planning)",
+		Short: "Create a new festival scaffold under festivals/planning",
 		Annotations: map[string]string{
 			"scope": string(scope.Workspace),
 		},
@@ -120,7 +120,7 @@ func NewCreateFestivalCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&opts.SkipMarkers, "skip-markers", false, "Skip REPLACE marker processing")
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "Show template markers without creating file")
 	cmd.Flags().BoolVar(&opts.JSONOutput, "json", false, "Emit JSON output")
-	cmd.Flags().StringVar(&opts.Dest, "dest", "active", "Destination under festivals/: active, planning, or ritual")
+	cmd.Flags().StringVar(&opts.Dest, "dest", "planning", "Destination under festivals/: planning or ritual (use 'fest promote' to advance to active)")
 	cmd.Flags().BoolVar(&opts.AgentMode, "agent", false, "Strict mode: require markers, auto-validate, block on errors, JSON output")
 	return cmd
 }
@@ -165,11 +165,16 @@ func resolveCreateConfig(ctx context.Context, opts *CreateFestivalOptions) (*cre
 
 	slug := Slugify(opts.Name)
 	destCategory := strings.ToLower(strings.TrimSpace(opts.Dest))
-	if opts.Type == "ritual" && destCategory == "active" {
+	if opts.Type == "ritual" {
 		destCategory = "ritual"
 	}
-	if destCategory != "planning" && destCategory != "active" && destCategory != "ritual" {
-		destCategory = "active"
+	if destCategory == "active" {
+		return nil, errors.Validation("cannot create festival directly in active/").
+			WithHint("Festivals must be created in planning/ first. Use 'fest promote' to advance through the lifecycle: planning → ready → active")
+	}
+	if destCategory != "planning" && destCategory != "ritual" {
+		return nil, errors.Validation(fmt.Sprintf("invalid destination: %q", destCategory)).
+			WithHint("Valid destinations: planning (default), ritual (for ritual-type festivals)")
 	}
 
 	var festivalID string
