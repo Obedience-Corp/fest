@@ -62,7 +62,6 @@ echo ""
 echo "Next steps:"
 echo "1. Push tag: git push origin ${VERSION}"
 echo "2. Create GitHub release with the archives in dist/"
-echo "3. Update Homebrew formula with new URLs and SHA256 checksums"
 echo ""
 echo "SHA256 checksums:"
 cat dist/checksums.txt

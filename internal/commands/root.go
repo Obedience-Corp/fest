@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 
+	chaincmd "github.com/Obedience-Corp/fest/internal/commands/chain"
 	commitcmd "github.com/Obedience-Corp/fest/internal/commands/commit"
 	"github.com/Obedience-Corp/fest/internal/commands/config"
 	contextcmd "github.com/Obedience-Corp/fest/internal/commands/context"
@@ -241,6 +242,10 @@ func init() {
 	taskCmd := taskcmd.NewTaskCommand()
 	taskCmd.GroupID = "workflow"
 	rootCmd.AddCommand(taskCmd)
+
+	chainCmd := chaincmd.NewChainCmd()
+	chainCmd.GroupID = "workflow"
+	rootCmd.AddCommand(chainCmd)
 
 	// === QUERY COMMANDS ===
 	showCmd := show.NewShowCommand()

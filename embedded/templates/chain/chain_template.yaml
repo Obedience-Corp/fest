@@ -1,0 +1,55 @@
+# Festival Chain Definition
+# ─────────────────────────
+# Inter-festival dependency graph for a single initiative.
+# See: fest chain validate <chain-id> to verify.
+
+chain_version: "1.0"
+
+# ─── Chain Identity ──────────────────────────────────────
+metadata:
+  id: "{{.ID}}"
+  name: "{{.Name}}"
+  goal: "{{.Goal}}"
+  created_at: "{{.CreatedAt}}"
+  status: planning
+  status_history:
+    - status: planning
+      timestamp: "{{.CreatedAt}}"
+      notes: "Chain created"
+
+# ─── Festival Nodes ──────────────────────────────────────
+# Each festival in this chain.
+# ref: short alias used in edges and waves below
+# id:  must match the festival's fest.yaml metadata.id
+festivals:
+  - ref: example1
+    id: EX0001
+    name: example-festival-1
+    projects: []
+
+  - ref: example2
+    id: EX0002
+    name: example-festival-2
+    projects: []
+
+# ─── Dependency Edges ────────────────────────────────────
+# from → to: from must complete before to can activate
+# type: hard (blocks all work) or soft (can start with mocks)
+edges:
+  - from: example1
+    to: example2
+    type: hard
+    note: "example2 depends on example1"
+
+# ─── Waves (optional) ───────────────────────────────────
+# Parallel execution groups derived from edges.
+waves:
+  - id: 1
+    name: "Wave 1"
+    unlock: "none"
+    festivals: [example1]
+
+  - id: 2
+    name: "Wave 2"
+    unlock: "example1:completed"
+    festivals: [example2]
