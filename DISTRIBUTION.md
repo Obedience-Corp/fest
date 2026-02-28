@@ -148,33 +148,6 @@ Include:
 
 ### Package Managers
 
-#### Homebrew (macOS/Linux)
-
-Create a formula:
-
-```ruby
-class Fest < Formula
-  desc "Festival Methodology CLI tool"
-  homepage "https://github.com/festival-methodology/fest"
-  version "1.0.0"
-
-  if OS.mac? && Hardware::CPU.arm?
-    url "https://github.com/festival-methodology/fest/releases/download/v1.0.0/fest-darwin-arm64.tar.gz"
-    sha256 "ACTUAL_SHA256_HERE"
-  elsif OS.mac?
-    url "https://github.com/festival-methodology/fest/releases/download/v1.0.0/fest-darwin-amd64.tar.gz"
-    sha256 "ACTUAL_SHA256_HERE"
-  else
-    url "https://github.com/festival-methodology/fest/releases/download/v1.0.0/fest-linux-amd64.tar.gz"
-    sha256 "ACTUAL_SHA256_HERE"
-  end
-
-  def install
-    bin.install "fest"
-  end
-end
-```
-
 #### Go Install
 
 For Go developers:
@@ -241,8 +214,8 @@ chmod +x fest
 
 | Platform | Architecture | Signing | Distribution |
 |----------|-------------|---------|--------------|
-| macOS | Intel (amd64) | Ad-hoc / Developer ID | Direct, Homebrew |
-| macOS | Apple Silicon (arm64) | Ad-hoc / Developer ID | Direct, Homebrew |
+| macOS | Intel (amd64) | Ad-hoc / Developer ID | Direct, Go Install |
+| macOS | Apple Silicon (arm64) | Ad-hoc / Developer ID | Direct, Go Install |
 | Linux | amd64 | Optional (GPG) | Direct, Package managers |
 | Windows | amd64 | Optional (Certificate) | Direct, Chocolatey |
 
