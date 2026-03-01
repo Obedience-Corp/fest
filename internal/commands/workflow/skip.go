@@ -96,10 +96,6 @@ func runSkip(ctx context.Context, reason string, terminalState wf.StepStatus) er
 		return nil
 	}
 
-	if terminalState != wf.StepStatusSkipped && terminalState != wf.StepStatusCompleted {
-		return fmt.Errorf("invalid terminal state: %s", terminalState)
-	}
-
 	updatedCount := 0
 	for !state.IsComplete() {
 		currentStepNum := state.CurrentStep

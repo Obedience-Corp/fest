@@ -78,18 +78,13 @@ func RenderWorkflowStepLine(step WorkflowStepView, compact bool) string {
 		sb.WriteString(fmt.Sprintf("     %s: %s\n", ui.Dim("Goal"), step.Goal))
 	}
 
-	// Show feedback/note metadata for blocked and skipped steps.
-	if !compact && step.Feedback != "" && (step.Status == wf.StepStatusBlocked || step.Status == wf.StepStatusSkipped) {
-		label := ui.Error("Feedback")
-		if step.Status == wf.StepStatusSkipped {
-			label = ui.Warning("Note")
+	if !compact && step.Feedback != "" {
+		switch step.Status {
+		case wf.StepStatusBlocked:
+			sb.WriteString(fmt.Sprintf("     %s: %s\n", ui.Error("Feedback"), step.Feedback))
+		case wf.StepStatusSkipped, wf.StepStatusCompleted:
+			sb.WriteString(fmt.Sprintf("     %s: %s\n", ui.Warning("Note"), step.Feedback))
 		}
-		sb.WriteString(fmt.Sprintf("     %s: %s\n", label, step.Feedback))
-	}
-
-	// Keep completed notes visible when present (used by workflow skip --as completed).
-	if !compact && step.Feedback != "" && step.Status == wf.StepStatusCompleted {
-		sb.WriteString(fmt.Sprintf("     %s: %s\n", ui.Warning("Note"), step.Feedback))
 	}
 
 	return sb.String()
