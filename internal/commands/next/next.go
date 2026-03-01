@@ -738,11 +738,33 @@ func checkPreActiveStatus(festivalPath, phasePath string) error {
 		return nil
 	}
 
+	festName := filepath.Base(festivalPath)
+
 	if status == "ready" {
-		return errors.Validation("Festival is in ready status.\n\nBefore executing, confirm:\n  - Is this the correct festival you should be working on?\n  - Did the user approve implementation of this festival?\n\nIf approved, promote to active: fest promote")
+		var sb strings.Builder
+		sb.WriteString("STOP — FESTIVAL NOT YET ACTIVE\n")
+		sb.WriteString("──────────────────────────────\n")
+		sb.WriteString(fmt.Sprintf("Festival %q is in ready status.\n", festName))
+		sb.WriteString("Lifecycle: planning -> ready -> [active] -> completed\n\n")
+		sb.WriteString("Before executing, confirm:\n")
+		sb.WriteString("  - Is this the correct festival you should be working on?\n")
+		sb.WriteString("  - Did the user approve implementation of this festival?\n\n")
+		sb.WriteString("If approved, promote to active: fest promote\n")
+		fmt.Print(sb.String())
+		return errors.Validation("festival is in ready status").
+			WithField("festival", festName)
 	}
 
-	return errors.Validation("Festival must be in active status to execute implementation phases. Run: fest promote")
+	var sb strings.Builder
+	sb.WriteString("STOP — FESTIVAL NOT YET ACTIVE\n")
+	sb.WriteString("──────────────────────────────\n")
+	sb.WriteString(fmt.Sprintf("Festival %q is in planning status.\n", festName))
+	sb.WriteString("Lifecycle: [planning] -> ready -> active -> completed\n\n")
+	sb.WriteString("Implementation phases require active status.\n")
+	sb.WriteString("Promote to ready first: fest promote\n")
+	fmt.Print(sb.String())
+	return errors.Validation("festival is in planning status").
+		WithField("festival", festName)
 }
 
 // printFeedbackReminder appends the full feedback reminder (criteria + recording instructions)
