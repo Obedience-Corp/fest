@@ -30,6 +30,7 @@ const (
 	EventWorkflowInit      EventType = "wf_init"
 	EventWorkflowStepStart EventType = "wf_step_start"
 	EventWorkflowStepDone  EventType = "wf_step_done"
+	EventWorkflowStepSkip  EventType = "wf_step_skip"
 	EventWorkflowStepBlock EventType = "wf_step_block"
 	EventWorkflowAdvance   EventType = "wf_advance"
 	EventWorkflowReset     EventType = "wf_reset"
@@ -390,6 +391,14 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 			ss.Status = wf.StepStatusCompleted
 			ts := e.Timestamp
 			ss.CompletedAt = &ts
+			ss.Feedback = e.Feedback
+
+		case EventWorkflowStepSkip:
+			ss := phaseState.GetOrCreateStepState(e.Step)
+			ss.Status = wf.StepStatusSkipped
+			ts := e.Timestamp
+			ss.CompletedAt = &ts
+			ss.Feedback = e.Feedback
 
 		case EventWorkflowStepBlock:
 			ss := phaseState.GetOrCreateStepState(e.Step)
@@ -468,6 +477,20 @@ func generateWorkflowEventsFromYAML(state *wf.FestivalWorkflowState) []ProgressE
 					Event:     EventWorkflowStepDone,
 					Phase:     phaseName,
 					Step:      i,
+					Feedback:  ss.Feedback,
+				})
+
+			case wf.StepStatusSkipped:
+				ts := initTS.Add(time.Duration(i) * time.Second) // Fallback ordering
+				if ss.CompletedAt != nil {
+					ts = *ss.CompletedAt
+				}
+				events = append(events, ProgressEvent{
+					Timestamp: ts,
+					Event:     EventWorkflowStepSkip,
+					Phase:     phaseName,
+					Step:      i,
+					Feedback:  ss.Feedback,
 				})
 
 			case wf.StepStatusBlocked:

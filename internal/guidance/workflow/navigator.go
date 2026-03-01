@@ -250,6 +250,28 @@ func (n *Navigator) MarkSkipped(ctx context.Context, stepID string) error {
 	if err := n.EnsureInitialized(); err != nil {
 		return err
 	}
+	if err := n.validateCurrentStepID(stepID); err != nil {
+		return err
+	}
+	return n.SkipCurrentStep(ctx, StepStatusSkipped, "")
+}
+
+func (n *Navigator) validateCurrentStepID(stepID string) error {
+	if strings.TrimSpace(stepID) == "" {
+		return nil
+	}
+	expected := fmt.Sprintf("step_%d", n.workflowState.CurrentStep)
+	if stepID != expected {
+		return fmt.Errorf("step ID mismatch: expected %s, got %s", expected, stepID)
+	}
+	return nil
+}
+
+// SkipCurrentStep marks the current step as skipped/completed with an audit reason.
+func (n *Navigator) SkipCurrentStep(ctx context.Context, status StepStatus, reason string) error {
+	if err := n.EnsureInitialized(); err != nil {
+		return err
+	}
 
 	if ctx != nil {
 		if err := ctx.Err(); err != nil {
@@ -257,11 +279,19 @@ func (n *Navigator) MarkSkipped(ctx context.Context, stepID string) error {
 		}
 	}
 
+	if status != StepStatusSkipped && status != StepStatusCompleted {
+		return fmt.Errorf("invalid terminal status for skip: %s", status)
+	}
+
 	currentStep := n.workflowState.CurrentStep
-	n.workflowState.CompleteCurrentStep()
+	n.workflowState.MarkCurrentStep(status, reason)
 
 	if n.store != nil {
-		n.store.QueueWorkflowEvents(EmitStepDoneEvents(n.phaseName, currentStep))
+		if status == StepStatusSkipped {
+			n.store.QueueWorkflowEvents(EmitStepSkipEvents(n.phaseName, currentStep, reason))
+		} else {
+			n.store.QueueWorkflowEvents(EmitStepDoneWithFeedbackEvents(n.phaseName, currentStep, reason))
+		}
 		if n.workflowState.CurrentStep < n.workflowState.TotalSteps {
 			_ = n.workflowState.Advance()
 			n.store.QueueWorkflowEvents(EmitAdvanceEvents(n.phaseName, n.workflowState.CurrentStep))

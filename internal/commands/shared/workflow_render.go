@@ -31,6 +31,8 @@ func WorkflowStepIcon(status wf.StepStatus) string {
 	switch status {
 	case wf.StepStatusCompleted:
 		return ui.Success("✓")
+	case wf.StepStatusSkipped:
+		return ui.Warning("⤼")
 	case wf.StepStatusInProgress:
 		return ui.ColoredText("●", ui.InProgressColor)
 	case wf.StepStatusBlocked:
@@ -76,9 +78,13 @@ func RenderWorkflowStepLine(step WorkflowStepView, compact bool) string {
 		sb.WriteString(fmt.Sprintf("     %s: %s\n", ui.Dim("Goal"), step.Goal))
 	}
 
-	// Show rejection feedback if blocked (and not compact)
-	if !compact && step.Status == wf.StepStatusBlocked && step.Feedback != "" {
-		sb.WriteString(fmt.Sprintf("     %s: %s\n", ui.Error("Feedback"), step.Feedback))
+	if !compact && step.Feedback != "" {
+		switch step.Status {
+		case wf.StepStatusBlocked:
+			sb.WriteString(fmt.Sprintf("     %s: %s\n", ui.Error("Feedback"), step.Feedback))
+		case wf.StepStatusSkipped, wf.StepStatusCompleted:
+			sb.WriteString(fmt.Sprintf("     %s: %s\n", ui.Warning("Note"), step.Feedback))
+		}
 	}
 
 	return sb.String()
@@ -163,7 +169,7 @@ func LoadWorkflowStepsForPhase(ctx context.Context, festivalPath, phasePath stri
 func WorkflowStepCounts(steps []WorkflowStepView) (completed, total int) {
 	total = len(steps)
 	for _, step := range steps {
-		if step.Status == wf.StepStatusCompleted {
+		if step.Status == wf.StepStatusCompleted || step.Status == wf.StepStatusSkipped {
 			completed++
 		}
 	}

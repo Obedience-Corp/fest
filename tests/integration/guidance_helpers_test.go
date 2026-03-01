@@ -13,6 +13,25 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const implementationQualityGatesYAML = `
+quality_gates:
+  enabled: true
+  auto_append: true
+  implementation:
+    - id: testing
+      template: gates/implementation/QUALITY_GATE_TESTING
+      enabled: true
+    - id: review
+      template: gates/implementation/QUALITY_GATE_REVIEW
+      enabled: true
+    - id: iterate
+      template: gates/implementation/QUALITY_GATE_ITERATE
+      enabled: true
+    - id: fest-commit
+      template: gates/implementation/QUALITY_GATE_FEST_COMMIT
+      enabled: true
+`
+
 // findFestivalPath locates the actual festival directory after creation.
 // fest create festival adds an ID suffix (e.g., "test-fest-TF0001"), so we need
 // to find the directory by prefix matching.
@@ -64,27 +83,8 @@ func setupImplementationFestival(t *testing.T, tc *TestContainer, festName strin
 	// Find the actual festival path (fest adds an ID suffix like "test-fest-TF0001")
 	festPath := findFestivalPath(t, tc, festivalsPath+"/planning", festName)
 
-	// Append quality_gates config to existing fest.yaml (preserves metadata including status_history)
-	qualityGatesYaml := `
-quality_gates:
-  enabled: true
-  auto_append: true
-  implementation:
-    - id: testing
-      template: gates/implementation/QUALITY_GATE_TESTING
-      enabled: true
-    - id: review
-      template: gates/implementation/QUALITY_GATE_REVIEW
-      enabled: true
-    - id: iterate
-      template: gates/implementation/QUALITY_GATE_ITERATE
-      enabled: true
-    - id: fest-commit
-      template: gates/implementation/QUALITY_GATE_FEST_COMMIT
-      enabled: true
-`
-	err = appendFileInContainer(tc, festPath+"/fest.yaml", qualityGatesYaml)
-	require.NoError(t, err, "should append quality gates to fest.yaml")
+	err = ensureQualityGatesInFestivalConfig(tc, festPath)
+	require.NoError(t, err, "should ensure quality gates in fest.yaml")
 
 	// Create FESTIVAL_OVERVIEW.md (required by validator completeness check)
 	overviewContent := `---
@@ -541,6 +541,20 @@ func appendFileInContainer(tc *TestContainer, path, content string) error {
 	return err
 }
 
+// ensureQualityGatesInFestivalConfig ensures quality_gates exists in fest.yaml
+// without duplicating the top-level YAML key.
+func ensureQualityGatesInFestivalConfig(tc *TestContainer, festPath string) error {
+	festYAMLPath := festPath + "/fest.yaml"
+	content, err := tc.ReadFile(festYAMLPath)
+	if err != nil {
+		return err
+	}
+	if strings.Contains(content, "quality_gates:") {
+		return nil
+	}
+	return appendFileInContainer(tc, festYAMLPath, implementationQualityGatesYAML)
+}
+
 // ensureGateTemplates creates quality gate template files in the festival's gates/ directory.
 // These templates are required by fest gates apply --approve to generate gate task files.
 // In a real workflow, fest create festival copies these from the workspace .festival/templates/.
@@ -601,10 +615,8 @@ func setupMultiModeFestival(t *testing.T, tc *TestContainer, festName string) st
 	err = writeFileInContainer(tc, festPath+"/FESTIVAL_RULES.md", rulesContent)
 	require.NoError(t, err, "should create FESTIVAL_RULES.md")
 
-	// Append quality_gates config to existing fest.yaml (preserves metadata including status_history)
-	qualityGatesYaml := "\nquality_gates:\n  enabled: true\n  auto_append: true\n  implementation:\n    - id: testing\n      template: gates/implementation/QUALITY_GATE_TESTING\n      enabled: true\n    - id: review\n      template: gates/implementation/QUALITY_GATE_REVIEW\n      enabled: true\n    - id: iterate\n      template: gates/implementation/QUALITY_GATE_ITERATE\n      enabled: true\n    - id: fest-commit\n      template: gates/implementation/QUALITY_GATE_FEST_COMMIT\n      enabled: true\n"
-	err = appendFileInContainer(tc, festPath+"/fest.yaml", qualityGatesYaml)
-	require.NoError(t, err, "should append quality gates to fest.yaml")
+	err = ensureQualityGatesInFestivalConfig(tc, festPath)
+	require.NoError(t, err, "should ensure quality gates in fest.yaml")
 
 	// Create planning phase (fest create generates PHASE_GOAL.md with markers)
 	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "PLANNING", "--type", "planning")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Obedience-Corp/fest/internal/guidance"
@@ -271,9 +272,38 @@ func TestNavigator_MarkSkipped(t *testing.T) {
 		t.Fatalf("MarkSkipped() error = %v", err)
 	}
 
+	stepState := nav.workflowState.GetStepState(1)
+	if stepState == nil {
+		t.Fatal("Step state should not be nil")
+	}
+	if stepState.Status != StepStatusSkipped {
+		t.Errorf("Status = %v, want %v", stepState.Status, StepStatusSkipped)
+	}
+
 	// Should have advanced
 	if nav.workflowState.CurrentStep != 2 {
 		t.Errorf("CurrentStep = %d, want 2", nav.workflowState.CurrentStep)
+	}
+}
+
+func TestNavigator_MarkSkipped_StepIDMismatch(t *testing.T) {
+	gctx := createTestGuidanceContext(t)
+	createTestWorkflow(t, gctx.FestivalPath)
+
+	nav, err := NewNavigator(gctx, guidance.ModeIngest)
+	if err != nil {
+		t.Fatalf("NewNavigator() error = %v", err)
+	}
+	if err := nav.Initialize(context.Background()); err != nil {
+		t.Fatalf("Initialize() error = %v", err)
+	}
+
+	err = nav.MarkSkipped(context.Background(), "wrong_step_id")
+	if err == nil {
+		t.Fatal("MarkSkipped() with mismatched step ID should return error")
+	}
+	if !strings.Contains(err.Error(), "step ID mismatch") {
+		t.Fatalf("error = %v, want step ID mismatch", err)
 	}
 }
 
