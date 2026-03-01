@@ -124,8 +124,8 @@ func runNext(cmd *cobra.Command, args []string) error {
 		return emitValidationBlock(festivalPath, vResult)
 	}
 
-	// Block implementation/review phases in planning festivals
-	if err := checkPlanningStatus(festivalPath, shared.ResolvePhasePath(cwd, festivalPath)); err != nil {
+	// Block implementation/review phases in pre-active festivals (planning or ready)
+	if err := checkPreActiveStatus(festivalPath, shared.ResolvePhasePath(cwd, festivalPath)); err != nil {
 		return err
 	}
 
@@ -703,15 +703,15 @@ func loadFeedbackCriteria(ctx context.Context, festivalPath string) []string {
 	return names
 }
 
-// checkPlanningStatus blocks implementation/review phases when the festival is still in planning status.
-func checkPlanningStatus(festivalPath, phasePath string) error {
+// checkPreActiveStatus blocks implementation/review phases when the festival is in planning or ready status.
+func checkPreActiveStatus(festivalPath, phasePath string) error {
 	festCfg, err := config.LoadFestivalConfig(festivalPath, "")
 	if err != nil {
 		return nil // Can't load config — don't block
 	}
 
 	status := festCfg.Metadata.CurrentStatus()
-	if status != "planning" {
+	if status != "planning" && status != "ready" {
 		return nil
 	}
 
@@ -734,11 +734,15 @@ func checkPlanningStatus(festivalPath, phasePath string) error {
 	}
 
 	phaseType := guidance.DetectPhaseType(phasePath)
-	if phaseType == "implementation" || phaseType == "review" {
-		return errors.Validation("Festival must be in active status to execute implementation phases. Run: fest status set active")
+	if phaseType != "implementation" && phaseType != "review" {
+		return nil
 	}
 
-	return nil
+	if status == "ready" {
+		return errors.Validation("Festival is in ready status.\n\nBefore executing, confirm:\n  - Is this the correct festival you should be working on?\n  - Did the user approve implementation of this festival?\n\nIf approved, promote to active: fest promote")
+	}
+
+	return errors.Validation("Festival must be in active status to execute implementation phases. Run: fest promote")
 }
 
 // printFeedbackReminder appends the full feedback reminder (criteria + recording instructions)
