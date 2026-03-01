@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
@@ -13,6 +14,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -30,6 +32,7 @@ type promoteOptions struct {
 	force    bool
 	json     bool
 	noCommit bool
+	dungeon  string
 }
 
 // NewPromoteCommand creates the fest promote command.
@@ -43,7 +46,12 @@ func NewPromoteCommand() *cobra.Command {
 Each transition validates readiness:
   planning → ready:    Festival goal must be defined
   ready → active:      Festival is ready to begin execution
-  active → completed:  All tasks must be completed`,
+  active → completed:  All tasks must be completed
+
+Use --dungeon to send a festival directly to a dungeon status:
+  fest promote --dungeon someday     Shelve for later
+  fest promote --dungeon archived    Archive the festival
+  fest promote --dungeon completed   Mark as completed (skips task validation)`,
 		Annotations: map[string]string{
 			"scope": string(scope.Festival),
 		},
@@ -55,6 +63,7 @@ Each transition validates readiness:
 	cmd.Flags().BoolVar(&opts.force, "force", false, "skip readiness validation")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "output as JSON")
 	cmd.Flags().BoolVar(&opts.noCommit, "no-commit", false, "skip auto-commit after promotion")
+	cmd.Flags().StringVar(&opts.dungeon, "dungeon", "", "send to dungeon status (completed, archived, someday)")
 
 	return cmd
 }
@@ -81,36 +90,50 @@ func runPromote(ctx context.Context, opts *promoteOptions) error {
 	festival := loc.Festival
 	currentStatus := festival.Status
 
-	// Determine next status
-	nextStatus, ok := validTransitions[currentStatus]
-	if !ok {
-		if opts.json {
-			return shared.EncodeJSON(os.Stdout, map[string]any{
-				"success": false,
-				"error":   fmt.Sprintf("cannot promote festival with status %q", currentStatus),
-				"status":  currentStatus,
-			})
-		}
-		return errors.Validation("cannot promote festival").
-			WithField("status", currentStatus).
-			WithField("hint", "only planning, ready, and active festivals can be promoted")
-	}
+	var nextStatus string
 
-	// Validate readiness unless forced
-	if !opts.force {
-		if err := validateReadiness(ctx, festival, currentStatus, nextStatus); err != nil {
+	if opts.dungeon != "" {
+		// Dungeon override: resolve the dungeon status
+		resolved := id.ResolveStatusPath(opts.dungeon)
+		if !strings.HasPrefix(resolved, "dungeon/") {
+			return errors.Validation("invalid dungeon status").
+				WithField("value", opts.dungeon).
+				WithField("hint", "valid values: completed, archived, someday")
+		}
+		nextStatus = resolved
+	} else {
+		// Standard lifecycle promotion
+		var ok bool
+		nextStatus, ok = validTransitions[currentStatus]
+		if !ok {
 			if opts.json {
 				return shared.EncodeJSON(os.Stdout, map[string]any{
 					"success": false,
-					"error":   err.Error(),
-					"from":    currentStatus,
-					"to":      nextStatus,
-					"hint":    "use --force to skip validation",
+					"error":   fmt.Sprintf("cannot promote festival with status %q", currentStatus),
+					"status":  currentStatus,
 				})
 			}
-			fmt.Printf("%s %s\n", ui.Warning("Promotion blocked"), ui.Dim(err.Error()))
-			fmt.Printf("\n  %s\n", ui.Dim("Use --force to skip validation"))
-			return nil
+			return errors.Validation("cannot promote festival").
+				WithField("status", currentStatus).
+				WithField("hint", "only planning, ready, and active festivals can be promoted")
+		}
+
+		// Validate readiness unless forced (skip for dungeon moves)
+		if !opts.force {
+			if err := validateReadiness(ctx, festival, currentStatus, nextStatus); err != nil {
+				if opts.json {
+					return shared.EncodeJSON(os.Stdout, map[string]any{
+						"success": false,
+						"error":   err.Error(),
+						"from":    currentStatus,
+						"to":      nextStatus,
+						"hint":    "use --force to skip validation",
+					})
+				}
+				fmt.Printf("%s %s\n", ui.Warning("Promotion blocked"), ui.Dim(err.Error()))
+				fmt.Printf("\n  %s\n", ui.Dim("Use --force to skip validation"))
+				return nil
+			}
 		}
 	}
 

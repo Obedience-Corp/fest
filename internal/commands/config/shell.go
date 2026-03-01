@@ -96,7 +96,7 @@ _fgo_completions() {
         completions=$(command fest go completions 2>/dev/null)
     elif [[ ${COMP_CWORD} -eq 2 ]]; then
         case "${COMP_WORDS[1]}" in
-            active|planning|completed|dungeon)
+            active|planning|ready|completed|someday|archived|dungeon)
                 completions=$(command fest go completions --status "${COMP_WORDS[1]}" 2>/dev/null)
                 ;;
         esac
@@ -119,7 +119,7 @@ if [[ -n "$ZSH_VERSION" ]]; then
         elif (( CURRENT == 3 )); then
             # Second arg: if first arg is a status dir, show its festivals
             case "${words[2]}" in
-                active|planning|completed|dungeon)
+                active|planning|ready|completed|someday|archived|dungeon)
                     cmd_args="--color --status ${words[2]}"
                     ;;
                 *) return ;;
@@ -237,7 +237,7 @@ fgo() {
             # Normal navigation (festival/phase/status directories)
             # Note: Don't use 2>&1 - stderr must flow to terminal for TUI picker to render
             local dest
-            if [[ -n "$2" && "$1" =~ ^(active|planning|completed|dungeon)$ ]]; then
+            if [[ -n "$2" && "$1" =~ ^(active|planning|ready|completed|someday|archived|dungeon)$ ]]; then
                 # Status dir + festival name: combine (e.g., active my-fest → active/my-fest)
                 dest=$(command fest go "$1/$2" --print)
             else
@@ -283,7 +283,7 @@ fest() {
                     ;;
                 *)
                     local dest
-                    if [ -n "$2" ] && echo "$1" | grep -qE '^(active|planning|completed|dungeon)$'; then
+                    if [ -n "$2" ] && echo "$1" | grep -qE '^(active|planning|ready|completed|someday|archived|dungeon)$'; then
                         dest=$(command fest go "$1/$2" --print 2>/dev/null)
                     else
                         dest=$(command fest go "$@" --print 2>/dev/null)
@@ -319,7 +319,7 @@ function __fgo_completions
     else if test $count -eq 2
         # Second arg: if first arg is a status dir, show its festivals
         switch $tokens[2]
-            case active planning completed dungeon
+            case active planning ready completed someday archived dungeon
                 command fest go completions --status $tokens[2] 2>/dev/null
         end
     end
@@ -394,7 +394,7 @@ function fgo
             set -l target
             if test (count $argv) -ge 2
                 switch $argv[1]
-                    case active planning completed dungeon
+                    case active planning ready completed someday archived dungeon
                         set target "$argv[1]/$argv[2]"
                     case '*'
                         set target $argv
@@ -441,7 +441,7 @@ function fest
                     set -l dest
                     if test (count $argv) -ge 2
                         switch $argv[1]
-                            case active planning completed dungeon
+                            case active planning ready completed someday archived dungeon
                                 set dest (command fest go "$argv[1]/$argv[2]" --print 2>/dev/null)
                             case '*'
                                 set dest (command fest go $argv --print 2>/dev/null)

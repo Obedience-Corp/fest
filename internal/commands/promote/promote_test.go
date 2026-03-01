@@ -3,9 +3,11 @@ package promote
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
+	"github.com/Obedience-Corp/fest/internal/id"
 )
 
 func TestValidTransitions(t *testing.T) {
@@ -92,12 +94,36 @@ func TestNewPromoteCommand(t *testing.T) {
 	}
 
 	// Check flags exist
-	forceFlag := cmd.Flags().Lookup("force")
-	if forceFlag == nil {
-		t.Error("expected --force flag")
+	flags := []string{"force", "json", "dungeon"}
+	for _, name := range flags {
+		if cmd.Flags().Lookup(name) == nil {
+			t.Errorf("expected --%s flag", name)
+		}
 	}
-	jsonFlag := cmd.Flags().Lookup("json")
-	if jsonFlag == nil {
-		t.Error("expected --json flag")
+}
+
+func TestDungeonFlagValidation(t *testing.T) {
+	tests := []struct {
+		name    string
+		dungeon string
+		wantErr bool
+	}{
+		{"valid completed", "completed", false},
+		{"valid archived", "archived", false},
+		{"valid someday", "someday", false},
+		{"invalid status", "active", true},
+		{"invalid arbitrary", "nonsense", true},
+		{"invalid planning", "planning", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resolved := id.ResolveStatusPath(tt.dungeon)
+			isDungeon := strings.HasPrefix(resolved, "dungeon/")
+			if isDungeon == tt.wantErr {
+				t.Errorf("dungeon=%q: resolved=%q, isDungeon=%v, wantErr=%v",
+					tt.dungeon, resolved, isDungeon, tt.wantErr)
+			}
+		})
 	}
 }

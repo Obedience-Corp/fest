@@ -280,6 +280,14 @@ func resolveGoTarget(target, festivalsDir string) (string, error) {
 		}
 	}
 
+	// Resolve dungeon status aliases (completed → dungeon/completed, etc.)
+	if resolved := id.ResolveStatusPath(target); resolved != target {
+		fullPath := filepath.Join(festivalsDir, resolved)
+		if info, err := os.Stat(fullPath); err == nil && info.IsDir() {
+			return fullPath, nil
+		}
+	}
+
 	// Try to resolve as festival name (searches active/, planning/, completed/)
 	if festPath := resolveFestivalByName(target, festivalsDir); festPath != "" {
 		return festPath, nil
