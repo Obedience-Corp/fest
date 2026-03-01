@@ -240,6 +240,13 @@ func setupReviewFestival(t *testing.T, tc *TestContainer, festName string) strin
 	err = writeFileInContainer(tc, festPath+"/FESTIVAL_RULES.md", rulesContent)
 	require.NoError(t, err, "should create FESTIVAL_RULES.md")
 
+	// Write fest.yaml without status_history so checkPlanningStatus doesn't block
+	// review phases. (CurrentStatus() returns "" when no history exists, which bypasses
+	// the planning-status guard in next.go. This matches setupImplementationFestival's pattern.)
+	festYaml := "version: \"1.0\"\n"
+	err = writeFileInContainer(tc, festPath+"/fest.yaml", festYaml)
+	require.NoError(t, err, "should write fest.yaml")
+
 	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "REVIEW", "--type", "review")
 	require.NoError(t, err)
 
