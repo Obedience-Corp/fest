@@ -15,6 +15,9 @@ const (
 	// StepStatusCompleted indicates the step has been successfully completed.
 	StepStatusCompleted StepStatus = "completed"
 
+	// StepStatusSkipped indicates the step was intentionally bypassed by an operator.
+	StepStatusSkipped StepStatus = "skipped"
+
 	// StepStatusBlocked indicates the step cannot proceed due to a dependency or issue.
 	StepStatusBlocked StepStatus = "blocked"
 )
@@ -27,7 +30,7 @@ func (s StepStatus) String() string {
 // IsValid returns true if the status is a known valid status.
 func (s StepStatus) IsValid() bool {
 	switch s {
-	case StepStatusPending, StepStatusInProgress, StepStatusCompleted, StepStatusBlocked:
+	case StepStatusPending, StepStatusInProgress, StepStatusCompleted, StepStatusSkipped, StepStatusBlocked:
 		return true
 	default:
 		return false
@@ -36,7 +39,7 @@ func (s StepStatus) IsValid() bool {
 
 // IsTerminal returns true if the status represents a final state.
 func (s StepStatus) IsTerminal() bool {
-	return s == StepStatusCompleted
+	return s == StepStatusCompleted || s == StepStatusSkipped
 }
 
 // CheckpointType represents the type of approval checkpoint for a step.

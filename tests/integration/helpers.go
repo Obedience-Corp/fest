@@ -17,6 +17,7 @@ import (
  "github.com/docker/docker/pkg/stdcopy"
  "github.com/stretchr/testify/require"
  "github.com/testcontainers/testcontainers-go"
+ tcexec "github.com/testcontainers/testcontainers-go/exec"
  "github.com/testcontainers/testcontainers-go/wait"
 )
 
@@ -156,6 +157,64 @@ func (tc *TestContainer) RunFestInDir(dir string, args ...string) (string, error
  }
 
  // Return error on non-zero exit (like RunFest does)
+ if exitCode != 0 {
+  return output, fmt.Errorf("fest exited with code %d: %s", exitCode, output)
+ }
+
+ return output, nil
+}
+
+// RunFestTTY executes fest command in the container with a pseudo-TTY.
+func (tc *TestContainer) RunFestTTY(args ...string) (string, error) {
+ cmd := append([]string{"/fest"}, args...)
+
+ options := []tcexec.ProcessOption{
+  tcexec.ProcessOptionFunc(func(opts *tcexec.ProcessOptions) {
+   opts.ExecConfig.Tty = true
+   opts.ExecConfig.AttachStdin = true
+  }),
+ }
+
+ exitCode, reader, err := tc.container.Exec(tc.ctx, cmd, options...)
+ if err != nil {
+  return "", fmt.Errorf("failed to execute fest in TTY: %w", err)
+ }
+
+ outputBytes, err := io.ReadAll(reader)
+ if err != nil {
+  return "", fmt.Errorf("failed to read TTY output: %w", err)
+ }
+ output := string(outputBytes)
+
+ if exitCode != 0 {
+  return output, fmt.Errorf("fest exited with code %d: %s", exitCode, output)
+ }
+
+ return output, nil
+}
+
+// RunFestInDirTTY runs fest command from a specific directory with a pseudo-TTY.
+func (tc *TestContainer) RunFestInDirTTY(dir string, args ...string) (string, error) {
+ cmd := []string{"sh", "-c", "cd " + dir + " && /fest " + strings.Join(args, " ")}
+
+ options := []tcexec.ProcessOption{
+  tcexec.ProcessOptionFunc(func(opts *tcexec.ProcessOptions) {
+   opts.ExecConfig.Tty = true
+   opts.ExecConfig.AttachStdin = true
+  }),
+ }
+
+ exitCode, reader, err := tc.container.Exec(tc.ctx, cmd, options...)
+ if err != nil {
+  return "", fmt.Errorf("failed to execute fest in dir with TTY: %w", err)
+ }
+
+ outputBytes, err := io.ReadAll(reader)
+ if err != nil {
+  return "", fmt.Errorf("failed to read TTY output: %w", err)
+ }
+ output := string(outputBytes)
+
  if exitCode != 0 {
   return output, fmt.Errorf("fest exited with code %d: %s", exitCode, output)
  }

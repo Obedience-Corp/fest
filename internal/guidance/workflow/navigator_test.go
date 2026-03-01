@@ -271,6 +271,14 @@ func TestNavigator_MarkSkipped(t *testing.T) {
 		t.Fatalf("MarkSkipped() error = %v", err)
 	}
 
+	stepState := nav.workflowState.GetStepState(1)
+	if stepState == nil {
+		t.Fatal("Step state should not be nil")
+	}
+	if stepState.Status != StepStatusSkipped {
+		t.Errorf("Status = %v, want %v", stepState.Status, StepStatusSkipped)
+	}
+
 	// Should have advanced
 	if nav.workflowState.CurrentStep != 2 {
 		t.Errorf("CurrentStep = %d, want 2", nav.workflowState.CurrentStep)

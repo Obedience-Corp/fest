@@ -132,9 +132,13 @@ func runShow(ctx context.Context, stepNum int) error {
 		sb.WriteString("\n\n")
 	}
 
-	// Feedback if blocked
-	if stepState != nil && stepState.Status == wf.StepStatusBlocked && stepState.Feedback != "" {
-		sb.WriteString(ui.Error("Rejection Feedback:"))
+	// Show feedback/note metadata for blocked and skipped/completed-with-note states.
+	if stepState != nil && stepState.Feedback != "" {
+		label := ui.Error("Rejection Feedback:")
+		if stepState.Status == wf.StepStatusSkipped || stepState.Status == wf.StepStatusCompleted {
+			label = ui.Warning("Operator Note:")
+		}
+		sb.WriteString(label)
 		sb.WriteString("\n  ")
 		sb.WriteString(stepState.Feedback)
 		sb.WriteString("\n\n")
@@ -160,6 +164,8 @@ func formatStepStatus(status wf.StepStatus) string {
 	switch status {
 	case wf.StepStatusCompleted:
 		return ui.Success("completed")
+	case wf.StepStatusSkipped:
+		return ui.Warning("skipped")
 	case wf.StepStatusInProgress:
 		return ui.ColoredText("in progress", ui.InProgressColor)
 	case wf.StepStatusBlocked:

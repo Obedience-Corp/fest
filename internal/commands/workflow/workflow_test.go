@@ -46,6 +46,7 @@ id: TEST-001
 fest_type: phase_goal
 fest_id: 001_INGEST
 fest_mode: ingest
+fest_phase_type: ingest
 ---
 
 # Phase Goal
@@ -325,6 +326,7 @@ func TestStatusIcon(t *testing.T) {
 		{wf.StepStatusPending, "○"},
 		{wf.StepStatusInProgress, "●"},
 		{wf.StepStatusCompleted, "✓"},
+		{wf.StepStatusSkipped, "⤼"},
 		{wf.StepStatusBlocked, "✗"},
 		{wf.StepStatus("unknown"), "○"},
 	}

@@ -319,6 +319,8 @@ func (m *Manager) getWorkflowPhaseProgress(ctx context.Context, phasePath string
 		switch stepState.Status {
 		case wf.StepStatusCompleted:
 			aggregate.Completed++
+		case wf.StepStatusSkipped:
+			aggregate.Completed++
 		case wf.StepStatusInProgress:
 			aggregate.InProgress++
 		case wf.StepStatusBlocked:

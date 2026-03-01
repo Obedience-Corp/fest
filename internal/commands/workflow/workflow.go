@@ -43,6 +43,7 @@ Examples:
   fest workflow status              # Show workflow progress
   fest workflow status --phase 001_INGEST  # Show specific phase
   fest workflow advance             # Complete current step and move to next
+  fest workflow skip --reason "already completed externally" # Operator override
   fest workflow approve             # Approve a blocking checkpoint
   fest workflow reject              # Reject checkpoint with feedback
   fest workflow reset               # Reset workflow to step 1
@@ -56,6 +57,7 @@ Examples:
 	cmd.AddCommand(
 		newStatusCmd(),
 		newAdvanceCmd(),
+		newSkipCmd(),
 		newApproveCmd(),
 		newRejectCmd(),
 		newResetCmd(),
@@ -68,6 +70,8 @@ Examples:
 // newStatusCmd is defined in status.go
 
 // newAdvanceCmd is defined in advance.go
+
+// newSkipCmd is defined in skip.go
 
 // newApproveCmd is defined in approve.go
 

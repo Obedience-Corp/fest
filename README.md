@@ -247,6 +247,9 @@ For workflow phases (planning, research, ingest):
 fest workflow status           # Current step in the workflow
 fest workflow show             # Full details of current step
 fest workflow advance          # Complete step, move to next
+fest workflow skip --reason "already completed externally" --as skipped
+                             # Human-only operator override for externally completed phases
+                             # Example: ai-investor-outreach-system-AI0001 backfill phases
 ```
 
 ### 5. Verify

@@ -187,12 +187,13 @@ func TestExpectedRestrictedCommands(t *testing.T) {
 		"config",
 		"shell-init",
 		"wizard fill",
+		"workflow skip",
 		"system config",
 		"system sync",
 		"system update",
 	}
 
-	if len(expected) != 8 {
-		t.Errorf("expected 8 restricted commands, got %d", len(expected))
+	if len(expected) != 9 {
+		t.Errorf("expected 9 restricted commands, got %d", len(expected))
 	}
 }

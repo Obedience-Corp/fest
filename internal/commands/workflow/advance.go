@@ -12,8 +12,6 @@ import (
 )
 
 func newAdvanceCmd() *cobra.Command {
-	var skipFlag bool
-
 	cmd := &cobra.Command{
 		Use:   "advance",
 		Short: "Complete current step and move to next",
@@ -29,16 +27,14 @@ Note: If the current step has a blocking checkpoint, use 'fest workflow approve'
 			"scope": string(scope.Festival),
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runAdvance(cmd.Context(), skipFlag)
+			return runAdvance(cmd.Context())
 		},
 	}
-
-	cmd.Flags().BoolVar(&skipFlag, "skip", false, "Skip current step without completing")
 
 	return cmd
 }
 
-func runAdvance(ctx context.Context, skip bool) error {
+func runAdvance(ctx context.Context) error {
 	nav, err := getWorkflowNavigator(ctx)
 	if err != nil {
 		return err
@@ -69,15 +65,6 @@ func runAdvance(ctx context.Context, skip bool) error {
 			feedback = fmt.Sprintf(": %s", stepState.Feedback)
 		}
 		return fmt.Errorf("step %d is blocked%s\n\nAddress the feedback and try again, or use 'fest workflow reset' to start over", currentStepNum, feedback)
-	}
-
-	// Handle skip
-	if skip {
-		fmt.Printf("%s Skipping Step %d: %s\n", ui.Warning("⚠"), currentStepNum, step.Name)
-		if err := nav.MarkSkipped(ctx, fmt.Sprintf("step_%d", currentStepNum)); err != nil {
-			return fmt.Errorf("skipping step: %w", err)
-		}
-		return showNextStep(ctx, nav, steps)
 	}
 
 	// Check for blocking checkpoint

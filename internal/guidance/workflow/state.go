@@ -280,18 +280,24 @@ func (s *WorkflowState) StartCurrentStep() {
 
 // CompleteCurrentStep marks the current step as completed.
 func (s *WorkflowState) CompleteCurrentStep() {
+	s.MarkCurrentStep(StepStatusCompleted, "")
+}
+
+// MarkCurrentStep marks the current step with a terminal status and optional note.
+func (s *WorkflowState) MarkCurrentStep(status StepStatus, note string) {
 	state := s.GetOrCreateStepState(s.CurrentStep)
-	state.Status = StepStatusCompleted
+	state.Status = status
+	state.Feedback = note
 	now := time.Now().UTC()
 	state.CompletedAt = &now
 }
 
 // Advance moves to the next step if current is completed.
-// Returns error if current step is not completed or if already at the last step.
+// Returns error if current step is not terminal or if already at the last step.
 func (s *WorkflowState) Advance() error {
 	state := s.GetCurrentStepState()
-	if state == nil || state.Status != StepStatusCompleted {
-		return errors.New("current step must be completed before advancing")
+	if state == nil || !state.Status.IsTerminal() {
+		return errors.New("current step must be terminal before advancing")
 	}
 
 	if s.CurrentStep >= s.TotalSteps {
@@ -339,18 +345,18 @@ func (s *WorkflowState) IsComplete() bool {
 
 	for i := 1; i <= s.TotalSteps; i++ {
 		state := s.Steps[i]
-		if state == nil || state.Status != StepStatusCompleted {
+		if state == nil || !state.Status.IsTerminal() {
 			return false
 		}
 	}
 	return true
 }
 
-// CompletedCount returns the number of completed steps.
+// CompletedCount returns the number of terminal steps (completed or skipped).
 func (s *WorkflowState) CompletedCount() int {
 	count := 0
 	for _, state := range s.Steps {
-		if state.Status == StepStatusCompleted {
+		if state.Status.IsTerminal() {
 			count++
 		}
 	}
@@ -405,10 +411,26 @@ func EmitStepStartEvents(phaseName string, step int) []WorkflowEvent {
 
 // EmitStepDoneEvents generates events for completing a step.
 func EmitStepDoneEvents(phaseName string, step int) []WorkflowEvent {
+	return EmitStepDoneWithFeedbackEvents(phaseName, step, "")
+}
+
+// EmitStepDoneWithFeedbackEvents generates completion events with optional note metadata.
+func EmitStepDoneWithFeedbackEvents(phaseName string, step int, feedback string) []WorkflowEvent {
 	return []WorkflowEvent{{
 		EventType: "wf_step_done",
 		Phase:     phaseName,
 		Step:      step,
+		Feedback:  feedback,
+	}}
+}
+
+// EmitStepSkipEvents generates events for intentionally skipped steps.
+func EmitStepSkipEvents(phaseName string, step int, feedback string) []WorkflowEvent {
+	return []WorkflowEvent{{
+		EventType: "wf_step_skip",
+		Phase:     phaseName,
+		Step:      step,
+		Feedback:  feedback,
 	}}
 }
 

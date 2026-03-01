@@ -401,6 +401,26 @@ func TestWorkflowState_IsComplete(t *testing.T) {
 			expected: true,
 		},
 		{
+			name: "all skipped",
+			setup: func(s *WorkflowState) {
+				s.TotalSteps = 3
+				s.Steps[1] = &StepState{Number: 1, Status: StepStatusSkipped}
+				s.Steps[2] = &StepState{Number: 2, Status: StepStatusSkipped}
+				s.Steps[3] = &StepState{Number: 3, Status: StepStatusSkipped}
+			},
+			expected: true,
+		},
+		{
+			name: "mixed completed and skipped",
+			setup: func(s *WorkflowState) {
+				s.TotalSteps = 3
+				s.Steps[1] = &StepState{Number: 1, Status: StepStatusCompleted}
+				s.Steps[2] = &StepState{Number: 2, Status: StepStatusSkipped}
+				s.Steps[3] = &StepState{Number: 3, Status: StepStatusCompleted}
+			},
+			expected: true,
+		},
+		{
 			name: "some pending",
 			setup: func(s *WorkflowState) {
 				s.TotalSteps = 3
@@ -454,12 +474,12 @@ func TestWorkflowState_CompletedCount(t *testing.T) {
 	state := NewWorkflowState(5)
 	state.Steps[1] = &StepState{Number: 1, Status: StepStatusCompleted}
 	state.Steps[2] = &StepState{Number: 2, Status: StepStatusCompleted}
-	state.Steps[3] = &StepState{Number: 3, Status: StepStatusInProgress}
+	state.Steps[3] = &StepState{Number: 3, Status: StepStatusSkipped}
 	state.Steps[4] = &StepState{Number: 4, Status: StepStatusPending}
 
 	count := state.CompletedCount()
-	if count != 2 {
-		t.Errorf("CompletedCount() = %d, want 2", count)
+	if count != 3 {
+		t.Errorf("CompletedCount() = %d, want 3", count)
 	}
 }
 
@@ -542,6 +562,7 @@ func TestStepStatus_Methods(t *testing.T) {
 		{StepStatusPending, "pending", true, false},
 		{StepStatusInProgress, "in_progress", true, false},
 		{StepStatusCompleted, "completed", true, true},
+		{StepStatusSkipped, "skipped", true, true},
 		{StepStatusBlocked, "blocked", true, false},
 		{StepStatus("invalid"), "invalid", false, false},
 	}
