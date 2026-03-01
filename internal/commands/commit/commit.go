@@ -25,12 +25,13 @@ import (
 const commitRefPrefix = "OBEY-FE"
 
 var (
-	message      string
-	taskRef      string
-	festivalFlag string
-	noTag        bool
-	jsonOut      bool
-	autoStage    bool
+	message          string
+	taskRef          string
+	festivalFlag     string
+	noTag            bool
+	jsonOut          bool
+	autoStage        bool
+	syncSubmoduleRef bool
 )
 
 // NewCommitCommand creates the fest commit command
@@ -86,6 +87,7 @@ Examples:
 	cmd.Flags().BoolVar(&noTag, "no-tag", false, "don't prepend task reference")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "output result as JSON")
 	cmd.Flags().BoolVar(&autoStage, "stage", true, "auto-stage all changes before commit")
+	cmd.Flags().BoolVar(&syncSubmoduleRef, "sync-submodule-ref", false, "sync submodule ref at campaign root after commit")
 
 	cmd.MarkFlagRequired("message")
 
@@ -362,7 +364,7 @@ func commitWithCampaignSupport(ctx context.Context, ws *scope.WorkspaceInfo, fes
 	result.Hash = hash
 	result.Message = commitMessage
 
-	if campaignID != "" && ws != nil {
+	if syncSubmoduleRef && campaignID != "" && ws != nil {
 		relPath, relErr := resolveProjectRelPath(ws.Root)
 		if relErr == nil {
 			syncErr := commitkit.SyncSubmoduleRef(ctx, ws.Root, relPath, campaignID)
