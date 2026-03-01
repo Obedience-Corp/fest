@@ -60,17 +60,20 @@ type Model struct {
 	borderStyle   lipgloss.Style
 }
 
-// New creates a new picker with the given items and scorer.
-func New(items []Item, scorer Scorer) Model {
+// New creates a new picker with the given items, scorer, and lipgloss renderer.
+// The renderer controls which output the color profile is detected from.
+// When rendering to stderr (e.g. fgo piping stdout), pass a renderer created
+// from os.Stderr so colors are detected against the actual TTY.
+func New(items []Item, scorer Scorer, renderer *lipgloss.Renderer) Model {
 	ti := textinput.New()
 	ti.Placeholder = "Type to filter..."
 	ti.Focus()
 	ti.CharLimit = 100
 	ti.Width = 50
-	ti.PromptStyle = lipgloss.NewStyle().Foreground(colorFocus)
-	ti.TextStyle = lipgloss.NewStyle().Foreground(colorText)
-	ti.PlaceholderStyle = lipgloss.NewStyle().Foreground(colorPlaceholder)
-	ti.Cursor.Style = lipgloss.NewStyle().Foreground(colorFocus)
+	ti.PromptStyle = renderer.NewStyle().Foreground(colorFocus)
+	ti.TextStyle = renderer.NewStyle().Foreground(colorText)
+	ti.PlaceholderStyle = renderer.NewStyle().Foreground(colorPlaceholder)
+	ti.Cursor.Style = renderer.NewStyle().Foreground(colorFocus)
 
 	m := Model{
 		items:      items,
@@ -79,14 +82,14 @@ func New(items []Item, scorer Scorer) Model {
 		scorer:     scorer,
 		maxVisible: 10, // Fixed height like fzf --height
 
-		promptStyle:   lipgloss.NewStyle().Foreground(colorFocus).Bold(true),
-		cursorStyle:   lipgloss.NewStyle().Foreground(colorFocus),
-		matchStyle:    lipgloss.NewStyle().Foreground(colorSelected).Bold(true),
-		selectedStyle: lipgloss.NewStyle().Foreground(colorSelected).Bold(true),
-		normalStyle:   lipgloss.NewStyle().Foreground(colorText),
-		countStyle:    lipgloss.NewStyle().Foreground(colorPlaceholder),
-		helpStyle:     lipgloss.NewStyle().Foreground(colorPlaceholder).Faint(true),
-		borderStyle:   lipgloss.NewStyle().Foreground(colorBorder),
+		promptStyle:   renderer.NewStyle().Foreground(colorFocus).Bold(true),
+		cursorStyle:   renderer.NewStyle().Foreground(colorFocus),
+		matchStyle:    renderer.NewStyle().Foreground(colorSelected).Bold(true),
+		selectedStyle: renderer.NewStyle().Foreground(colorSelected).Bold(true),
+		normalStyle:   renderer.NewStyle().Foreground(colorText),
+		countStyle:    renderer.NewStyle().Foreground(colorPlaceholder),
+		helpStyle:     renderer.NewStyle().Foreground(colorPlaceholder).Faint(true),
+		borderStyle:   renderer.NewStyle().Foreground(colorBorder),
 	}
 
 	return m
@@ -314,8 +317,12 @@ func (m Model) Confirmed() bool {
 func Run(items []Item, scorer Scorer) (*Item, error) {
 	debug := os.Getenv("FEST_DEBUG") != ""
 
+	// Create a renderer bound to stderr so the color profile is detected against
+	// the actual TTY, not stdout which may be a pipe (e.g. fgo captures stdout).
+	renderer := lipgloss.NewRenderer(os.Stderr)
+
 	start := time.Now()
-	m := New(items, scorer)
+	m := New(items, scorer, renderer)
 	if debug {
 		log.Printf("[DEBUG] picker.New: %v", time.Since(start))
 	}
