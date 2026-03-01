@@ -495,6 +495,146 @@ quality_gates:
 	}
 }
 
+// TestParseFestivalInfo_DateDirectoryStatus tests that festivals inside date directories
+// have their status correctly detected.
+func TestParseFestivalInfo_DateDirectoryStatus(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	tests := []struct {
+		name       string
+		relPath    string
+		wantStatus string
+	}{
+		{
+			name:       "completed in date dir YYYY-MM-DD",
+			relPath:    "festivals/dungeon/completed/2026-02-28/my-fest",
+			wantStatus: "dungeon/completed",
+		},
+		{
+			name:       "archived in date dir YYYY-MM-DD",
+			relPath:    "festivals/dungeon/archived/2026-01-15/my-fest",
+			wantStatus: "dungeon/archived",
+		},
+		{
+			name:       "someday in date dir YYYY-MM-DD",
+			relPath:    "festivals/dungeon/someday/2025-12-01/my-fest",
+			wantStatus: "dungeon/someday",
+		},
+		{
+			name:       "completed in date dir YYYY-MM (legacy)",
+			relPath:    "festivals/dungeon/completed/2025-01/my-fest",
+			wantStatus: "dungeon/completed",
+		},
+		{
+			name:       "completed without date dir",
+			relPath:    "festivals/dungeon/completed/my-fest",
+			wantStatus: "dungeon/completed",
+		},
+		{
+			name:       "active without date dir",
+			relPath:    "festivals/active/my-fest",
+			wantStatus: "active",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			festivalDir := filepath.Join(tmpDir, tc.relPath)
+			if err := os.MkdirAll(festivalDir, 0755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(festivalDir, FestivalGoalFile), []byte("# Test"), 0644); err != nil {
+				t.Fatal(err)
+			}
+
+			info, err := parseFestivalInfo(context.Background(), festivalDir, "")
+			if err != nil {
+				t.Fatalf("parseFestivalInfo() error = %v", err)
+			}
+
+			if info.Status != tc.wantStatus {
+				t.Errorf("Status = %q, want %q", info.Status, tc.wantStatus)
+			}
+		})
+	}
+}
+
+// TestListFestivalsByStatus_DateDirectories tests that listing festivals finds festivals
+// inside date subdirectories.
+func TestListFestivalsByStatus_DateDirectories(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Create festivals in date subdirectories
+	dateDirFest := filepath.Join(tmpDir, "dungeon", "completed", "2026-02-28", "fest-in-date-dir")
+	directFest := filepath.Join(tmpDir, "dungeon", "completed", "fest-direct")
+
+	for _, d := range []string{dateDirFest, directFest} {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(d, FestivalGoalFile), []byte("# Test"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	festivals, err := ListFestivalsByStatus(context.Background(), tmpDir, "dungeon/completed", "")
+	if err != nil {
+		t.Fatalf("ListFestivalsByStatus() error = %v", err)
+	}
+
+	if len(festivals) != 2 {
+		t.Errorf("expected 2 festivals (direct + date dir), got %d", len(festivals))
+		for _, f := range festivals {
+			t.Logf("  found: %s at %s", f.Name, f.Path)
+		}
+	}
+
+	// Verify both are found
+	names := map[string]bool{}
+	for _, f := range festivals {
+		names[f.Name] = true
+	}
+	if !names["fest-in-date-dir"] {
+		t.Error("festival in date directory not found")
+	}
+	if !names["fest-direct"] {
+		t.Error("direct festival not found")
+	}
+}
+
+// TestFindFestivalByName_DateDirectories tests that searching finds festivals inside date dirs.
+func TestFindFestivalByName_DateDirectories(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Set up full status directory structure
+	for _, status := range []string{"planning", "ready", "active", "dungeon/completed", "dungeon/archived", "dungeon/someday"} {
+		if err := os.MkdirAll(filepath.Join(tmpDir, status), 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Create a festival inside a date directory
+	festDir := filepath.Join(tmpDir, "dungeon", "completed", "2026-02-28", "my-completed-fest")
+	if err := os.MkdirAll(festDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(festDir, FestivalGoalFile), []byte("# Test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := FindFestivalByName(context.Background(), tmpDir, "my-completed-fest", "")
+	if err != nil {
+		t.Fatalf("FindFestivalByName() error = %v", err)
+	}
+
+	if info.Name != "my-completed-fest" {
+		t.Errorf("Name = %q, want %q", info.Name, "my-completed-fest")
+	}
+	if info.Status != "dungeon/completed" {
+		t.Errorf("Status = %q, want %q", info.Status, "dungeon/completed")
+	}
+}
+
 // TestParseFestivalInfo_LegacyFestivalNoMetadata tests legacy festivals without metadata
 func TestParseFestivalInfo_LegacyFestivalNoMetadata(t *testing.T) {
 	tmpDir := t.TempDir()

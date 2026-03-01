@@ -3,12 +3,31 @@ package status
 import (
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/workflow"
 )
+
+// dateDirPattern matches YYYY-MM-DD or YYYY-MM formatted date directory names.
+var dateDirPattern = regexp.MustCompile(`^\d{4}-\d{2}(-\d{2})?$`)
+
+// LooksLikeDateDir checks if a directory name matches a date directory pattern (YYYY-MM-DD or YYYY-MM).
+func LooksLikeDateDir(name string) bool {
+	return dateDirPattern.MatchString(name)
+}
+
+// isKnownDungeonStatus checks if a name is a known dungeon substatus.
+func isKnownDungeonStatus(name string) bool {
+	switch name {
+	case "completed", "archived", "someday":
+		return true
+	default:
+		return false
+	}
+}
 
 // resolveFestivalFromPath resolves a festival name or path from anywhere in the workspace.
 // It searches: cwd (if path is relative), festivals/active/, festivals/planning/,
@@ -42,6 +61,23 @@ func resolveFestivalFromPath(cwd, pathArg string) (string, error) {
 		candidatePath := filepath.Join(festivalsRoot, status, pathArg)
 		if isValidFestivalDir(candidatePath) {
 			return candidatePath, nil
+		}
+
+		// For dungeon statuses, also search inside date subdirectories
+		if strings.HasPrefix(status, "dungeon/") {
+			statusDir := filepath.Join(festivalsRoot, status)
+			entries, err := os.ReadDir(statusDir)
+			if err != nil {
+				continue
+			}
+			for _, entry := range entries {
+				if entry.IsDir() && LooksLikeDateDir(entry.Name()) {
+					dateDirPath := filepath.Join(statusDir, entry.Name(), pathArg)
+					if isValidFestivalDir(dateDirPath) {
+						return dateDirPath, nil
+					}
+				}
+			}
 		}
 	}
 
@@ -205,10 +241,15 @@ func getValidFestivalStatuses() []string {
 // festivalsRootFromPath derives the festivals root directory from a festival's path and status.
 // For simple statuses (e.g., "active"), the path is festivals/<status>/<name>.
 // For nested statuses (e.g., "dungeon/completed"), the path is festivals/dungeon/completed/<name>.
+// For date-organized dungeon statuses, the path is festivals/dungeon/completed/YYYY-MM-DD/<name>.
 func festivalsRootFromPath(festivalPath, status string) string {
 	root := festivalPath
 	// Strip festival name
 	root = filepath.Dir(root)
+	// If parent is a date directory, strip it too
+	if LooksLikeDateDir(filepath.Base(root)) {
+		root = filepath.Dir(root)
+	}
 	// Strip each status path component
 	for range strings.Split(status, "/") {
 		root = filepath.Dir(root)

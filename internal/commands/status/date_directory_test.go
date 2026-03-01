@@ -7,73 +7,82 @@ import (
 	"time"
 )
 
-func TestCalculateCompletionDateDir(t *testing.T) {
+func TestCalculateDateDir(t *testing.T) {
 	tests := []struct {
 		name      string
 		timestamp time.Time
 		want      string
 	}{
 		// Standard cases
-		{"january 2025", time.Date(2025, 1, 15, 0, 0, 0, 0, time.Local), "2025-01"},
-		{"december 2024", time.Date(2024, 12, 31, 23, 59, 59, 0, time.Local), "2024-12"},
-		{"mid month", time.Date(2025, 6, 15, 12, 0, 0, 0, time.Local), "2025-06"},
+		{"january 2025", time.Date(2025, 1, 15, 0, 0, 0, 0, time.Local), "2025-01-15"},
+		{"december 2024", time.Date(2024, 12, 31, 23, 59, 59, 0, time.Local), "2024-12-31"},
+		{"mid month", time.Date(2025, 6, 15, 12, 0, 0, 0, time.Local), "2025-06-15"},
 
 		// Month boundaries
-		{"month boundary start", time.Date(2025, 2, 1, 0, 0, 0, 0, time.Local), "2025-02"},
-		{"month boundary end", time.Date(2025, 3, 31, 23, 59, 59, 0, time.Local), "2025-03"},
-		{"last of january", time.Date(2025, 1, 31, 23, 59, 59, 999999999, time.Local), "2025-01"},
+		{"month boundary start", time.Date(2025, 2, 1, 0, 0, 0, 0, time.Local), "2025-02-01"},
+		{"month boundary end", time.Date(2025, 3, 31, 23, 59, 59, 0, time.Local), "2025-03-31"},
+		{"last of january", time.Date(2025, 1, 31, 23, 59, 59, 999999999, time.Local), "2025-01-31"},
 
 		// Year boundaries
-		{"new years eve", time.Date(2024, 12, 31, 23, 59, 59, 0, time.Local), "2024-12"},
-		{"new years day", time.Date(2025, 1, 1, 0, 0, 1, 0, time.Local), "2025-01"},
-		{"new year 2026", time.Date(2026, 1, 1, 0, 0, 0, 0, time.Local), "2026-01"},
+		{"new years eve", time.Date(2024, 12, 31, 23, 59, 59, 0, time.Local), "2024-12-31"},
+		{"new years day", time.Date(2025, 1, 1, 0, 0, 1, 0, time.Local), "2025-01-01"},
+		{"new year 2026", time.Date(2026, 1, 1, 0, 0, 0, 0, time.Local), "2026-01-01"},
 
 		// Leap year
-		{"leap year february", time.Date(2024, 2, 29, 12, 0, 0, 0, time.Local), "2024-02"},
+		{"leap year february", time.Date(2024, 2, 29, 12, 0, 0, 0, time.Local), "2024-02-29"},
 
-		// Single digit months (verify zero-padding)
-		{"single digit january", time.Date(2025, 1, 15, 0, 0, 0, 0, time.Local), "2025-01"},
-		{"single digit september", time.Date(2025, 9, 15, 0, 0, 0, 0, time.Local), "2025-09"},
+		// Single digit months and days (verify zero-padding)
+		{"single digit january", time.Date(2025, 1, 5, 0, 0, 0, 0, time.Local), "2025-01-05"},
+		{"single digit september", time.Date(2025, 9, 3, 0, 0, 0, 0, time.Local), "2025-09-03"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := CalculateCompletionDateDir(tc.timestamp)
+			got := CalculateDateDir(tc.timestamp)
 			if got != tc.want {
-				t.Errorf("CalculateCompletionDateDir(%v) = %q, want %q",
+				t.Errorf("CalculateDateDir(%v) = %q, want %q",
 					tc.timestamp, got, tc.want)
 			}
 		})
 	}
 }
 
-func TestCalculateCompletionDateDirNow(t *testing.T) {
+func TestCalculateDateDirNow(t *testing.T) {
 	now := time.Now()
-	expected := now.Format("2006-01")
-	got := CalculateCompletionDateDir(now)
+	expected := now.Format("2006-01-02")
+	got := CalculateDateDir(now)
 
 	if got != expected {
-		t.Errorf("CalculateCompletionDateDir(now) = %q, want %q", got, expected)
+		t.Errorf("CalculateDateDir(now) = %q, want %q", got, expected)
 	}
 }
 
-func TestCalculateCompletionDateDir_UsesLocalTime(t *testing.T) {
+func TestCalculateCompletionDateDir_BackwardCompatAlias(t *testing.T) {
+	// CalculateCompletionDateDir is a backward-compat alias for CalculateDateDir
+	now := time.Now()
+	got := CalculateCompletionDateDir(now)
+	expected := CalculateDateDir(now)
+
+	if got != expected {
+		t.Errorf("CalculateCompletionDateDir(now) = %q, want CalculateDateDir result %q", got, expected)
+	}
+}
+
+func TestCalculateDateDir_UsesLocalTime(t *testing.T) {
 	// Verify that the function uses the time as provided (local time)
-	// This ensures consistent behavior regardless of timezone
 	utcTime := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	localTime := utcTime.Local()
 
-	// Both should work correctly based on their respective times
-	utcResult := CalculateCompletionDateDir(utcTime)
-	localResult := CalculateCompletionDateDir(localTime)
+	utcResult := CalculateDateDir(utcTime)
+	localResult := CalculateDateDir(localTime)
 
-	// UTC Jan 1 00:00 should give 2025-01 in UTC
-	if utcResult != "2025-01" {
-		t.Errorf("UTC time: got %q, want %q", utcResult, "2025-01")
+	// UTC Jan 1 00:00 should give 2025-01-01 in UTC
+	if utcResult != "2025-01-01" {
+		t.Errorf("UTC time: got %q, want %q", utcResult, "2025-01-01")
 	}
 
-	// Local result depends on timezone, but should match local time's month
-	expectedLocal := localTime.Format("2006-01")
+	// Local result depends on timezone, but should match local time's date
+	expectedLocal := localTime.Format("2006-01-02")
 	if localResult != expectedLocal {
 		t.Errorf("Local time: got %q, want %q", localResult, expectedLocal)
 	}
@@ -85,8 +94,8 @@ func TestCreateDateDirectory(t *testing.T) {
 		dateDir   string
 		wantError bool
 	}{
-		{"valid date dir", "2025-01", false},
-		{"another valid", "2024-12", false},
+		{"valid date dir YYYY-MM-DD", "2025-01-15", false},
+		{"valid date dir YYYY-MM", "2024-12", false},
 	}
 
 	for _, tc := range tests {
@@ -112,9 +121,8 @@ func TestCreateDateDirectory(t *testing.T) {
 func TestCreateDateDirectoryIdempotent(t *testing.T) {
 	baseDir := t.TempDir()
 	completedDir := filepath.Join(baseDir, "dungeon", "completed")
-	dateDir := "2025-01"
+	dateDir := "2025-01-15"
 
-	// Create twice - should not error
 	if err := CreateDateDirectory(completedDir, dateDir); err != nil {
 		t.Fatalf("First CreateDateDirectory() failed: %v", err)
 	}
@@ -132,8 +140,8 @@ func TestMoveToDateDirectory(t *testing.T) {
 		wantError     bool
 		setupExisting bool // if true, create conflicting destination
 	}{
-		{"normal move", "my-festival", "2025-01", false, false},
-		{"conflict exists", "my-festival", "2025-01", true, true},
+		{"normal move", "my-festival", "2025-01-15", false, false},
+		{"conflict exists", "my-festival", "2025-01-15", true, true},
 	}
 
 	for _, tc := range tests {
@@ -158,7 +166,6 @@ func TestMoveToDateDirectory(t *testing.T) {
 			}
 
 			if tc.setupExisting {
-				// Create conflicting destination
 				existingPath := filepath.Join(completedDir, tc.dateDir, tc.festivalName)
 				if err := os.MkdirAll(existingPath, 0755); err != nil {
 					t.Fatalf("Failed to create existing path: %v", err)
@@ -171,17 +178,12 @@ func TestMoveToDateDirectory(t *testing.T) {
 			}
 
 			if !tc.wantError {
-				// Verify source no longer exists
 				if _, err := os.Stat(activePath); !os.IsNotExist(err) {
 					t.Error("Source directory still exists after move")
 				}
-
-				// Verify destination exists
 				if _, err := os.Stat(newPath); os.IsNotExist(err) {
 					t.Error("Destination directory does not exist after move")
 				}
-
-				// Verify file was moved
 				movedFile := filepath.Join(newPath, "FESTIVAL_OVERVIEW.md")
 				if _, err := os.Stat(movedFile); os.IsNotExist(err) {
 					t.Error("Test file was not moved with directory")
@@ -194,16 +196,14 @@ func TestMoveToDateDirectory(t *testing.T) {
 func TestMoveToDateDirectoryCreatesParent(t *testing.T) {
 	baseDir := t.TempDir()
 
-	// Create source
 	sourcePath := filepath.Join(baseDir, "active", "test-festival")
 	if err := os.MkdirAll(sourcePath, 0755); err != nil {
 		t.Fatalf("Failed to create source: %v", err)
 	}
 
-	// completedDir doesn't exist yet
 	completedDir := filepath.Join(baseDir, "dungeon", "completed")
 
-	_, err := MoveToDateDirectory(sourcePath, completedDir, "2025-01")
+	_, err := MoveToDateDirectory(sourcePath, completedDir, "2025-01-15")
 	if err != nil {
 		t.Errorf("MoveToDateDirectory() should create parent dirs, got error: %v", err)
 	}
@@ -216,8 +216,8 @@ func TestGetCompletedPath(t *testing.T) {
 		dateDir      string
 		want         string
 	}{
-		{"simple", "my-festival", "2025-01", "dungeon/completed/2025-01/my-festival"},
-		{"with suffix", "my-project_AB0001", "2024-12", "dungeon/completed/2024-12/my-project_AB0001"},
+		{"simple", "my-festival", "2025-01-15", "dungeon/completed/2025-01-15/my-festival"},
+		{"with suffix", "my-project_AB0001", "2024-12-31", "dungeon/completed/2024-12-31/my-project_AB0001"},
 	}
 
 	for _, tc := range tests {
@@ -289,4 +289,33 @@ func TestCopyFile(t *testing.T) {
 			t.Fatal("expected error for invalid destination path")
 		}
 	})
+}
+
+func TestLooksLikeDateDir(t *testing.T) {
+	tests := []struct {
+		name string
+		want bool
+	}{
+		{"2025-01-15", true},
+		{"2024-12-31", true},
+		{"2025-01", true},
+		{"2024-02", true},
+		{"not-a-date", false},
+		{"my-festival", false},
+		{"2025", false},
+		{"01-15", false},
+		{"2025-1-15", false},  // missing zero padding
+		{"2025-01-5", false},  // missing zero padding
+		{"20250115", false},   // no hyphens
+		{"", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := LooksLikeDateDir(tc.name)
+			if got != tc.want {
+				t.Errorf("LooksLikeDateDir(%q) = %v, want %v", tc.name, got, tc.want)
+			}
+		})
+	}
 }

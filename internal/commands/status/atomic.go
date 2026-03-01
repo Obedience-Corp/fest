@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/id"
@@ -12,14 +13,14 @@ import (
 )
 
 // AtomicStatusChange performs an atomic status change for a festival.
-// For "completed" status (stored under dungeon/completed), it uses date-based directories.
+// For dungeon statuses (completed, archived, someday), it uses date-based directories.
 // Returns the new path of the festival.
 func AtomicStatusChange(ctx context.Context, festivalPath, fromStatus, toStatus string) (string, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	festivalName := filepath.Base(festivalPath)
-	festivalsRoot := filepath.Dir(filepath.Dir(festivalPath))
+	festivalsRoot := festivalsRootFromPath(festivalPath, fromStatus)
 
 	// Record status history before move
 	if err := RecordStatusChange(ctx, festivalPath, fromStatus, toStatus, ""); err != nil {
@@ -27,18 +28,21 @@ func AtomicStatusChange(ctx context.Context, festivalPath, fromStatus, toStatus 
 		_ = err
 	}
 
+	// Resolve aliases like "completed" -> "dungeon/completed"
+	resolvedStatus := id.ResolveStatusPath(toStatus)
+
 	var newPath string
-	if toStatus == "completed" {
-		// Use date-based directory for completed festivals
-		dateDir := CalculateCompletionDateDir(time.Now())
-		completedDir := filepath.Join(festivalsRoot, "dungeon", "completed")
+	if strings.HasPrefix(resolvedStatus, "dungeon/") {
+		// All dungeon statuses use date-based directories
+		dateDir := CalculateDateDir(time.Now())
+		statusDir := filepath.Join(festivalsRoot, resolvedStatus)
 		var err error
-		newPath, err = MoveToDateDirectory(festivalPath, completedDir, dateDir)
+		newPath, err = MoveToDateDirectory(festivalPath, statusDir, dateDir)
 		if err != nil {
 			return "", err
 		}
 	} else {
-		newPath = filepath.Join(festivalsRoot, toStatus, festivalName)
+		newPath = filepath.Join(festivalsRoot, resolvedStatus, festivalName)
 
 		// Check if destination exists
 		if _, err := os.Stat(newPath); err == nil {

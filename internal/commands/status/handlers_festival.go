@@ -292,7 +292,36 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 
 	// Calculate new path
 	festivalsRoot := festivalsRootFromPath(festival.Path, festival.Status)
-	newPath := filepath.Join(festivalsRoot, newStatus, festival.Name)
+
+	var newPath string
+	if strings.HasPrefix(newStatus, "dungeon/") {
+		// All dungeon statuses use date-based directories
+		dateDir := CalculateDateDir(time.Now())
+		dungeonStatusDir := filepath.Join(festivalsRoot, newStatus)
+		var err error
+		newPath, err = MoveToDateDirectory(festival.Path, dungeonStatusDir, dateDir)
+		if err != nil {
+			return errors.Wrap(err, "moving festival to date directory")
+		}
+	} else {
+		newPath = filepath.Join(festivalsRoot, newStatus, festival.Name)
+
+		// Check if destination exists
+		if _, err := os.Stat(newPath); err == nil {
+			return errors.Validation("destination already exists").WithField("path", newPath)
+		}
+
+		// Create destination directory if needed
+		destDir := filepath.Join(festivalsRoot, newStatus)
+		if err := os.MkdirAll(destDir, 0755); err != nil {
+			return errors.IO("creating destination directory", err)
+		}
+
+		// Move the directory
+		if err := os.Rename(festival.Path, newPath); err != nil {
+			return errors.IO("moving festival directory", err)
+		}
+	}
 
 	// Detect if CWD is inside the festival being moved
 	cwd, cwdErr := os.Getwd()
@@ -303,22 +332,6 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 			// CWD is inside this festival — compute equivalent path in new location
 			cdHint = filepath.Join(newPath, rel)
 		}
-	}
-
-	// Check if destination exists
-	if _, err := os.Stat(newPath); err == nil {
-		return errors.Validation("destination already exists").WithField("path", newPath)
-	}
-
-	// Create destination directory if needed
-	destDir := filepath.Join(festivalsRoot, newStatus)
-	if err := os.MkdirAll(destDir, 0755); err != nil {
-		return errors.IO("creating destination directory", err)
-	}
-
-	// Move the directory
-	if err := os.Rename(festival.Path, newPath); err != nil {
-		return errors.IO("moving festival directory", err)
 	}
 
 	// Update FESTIVAL_GOAL.md frontmatter with the new status
