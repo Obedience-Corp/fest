@@ -85,7 +85,7 @@ func Build(verbose bool) error {
 	// Create bin directory
 	os.MkdirAll("bin", 0o755)
 
-	cmd := exec.Command("go", "build", "-o", "bin/fest", "./cmd/fest")
+	cmd := exec.Command("go", "build", "-ldflags", versionLdflags(), "-o", "bin/fest", "./cmd/fest")
 	if verbose {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -218,6 +218,26 @@ func discoverPackages() ([]string, error) {
 	return packages, nil
 }
 
+// versionLdflags returns ldflags for injecting version info into the binary.
+func versionLdflags() string {
+	pkg := "github.com/Obedience-Corp/fest/internal/version"
+
+	commit := "unknown"
+	if out, err := exec.Command("git", "rev-parse", "--short", "HEAD").Output(); err == nil {
+		commit = strings.TrimSpace(string(out))
+	}
+
+	buildDate := time.Now().UTC().Format("2006-01-02T15:04:05Z")
+
+	ver := os.Getenv("VERSION")
+	if ver == "" {
+		ver = "dev"
+	}
+
+	return fmt.Sprintf("-X %s.Version=%s -X %s.Commit=%s -X %s.BuildDate=%s",
+		pkg, ver, pkg, commit, pkg, buildDate)
+}
+
 // getModuleName reads the module name from go.mod
 func getModuleName() string {
 	data, err := os.ReadFile("go.mod")
@@ -246,7 +266,7 @@ func BuildOnly(verbose bool) error {
 	ui.Task("Building", "fest binary")
 
 	// Build main binary only
-	cmd := exec.Command("go", "build", "-o", "bin/fest", "./cmd/fest")
+	cmd := exec.Command("go", "build", "-ldflags", versionLdflags(), "-o", "bin/fest", "./cmd/fest")
 	if verbose {
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr

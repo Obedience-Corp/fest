@@ -9,6 +9,13 @@ bin_dir := "bin"
 gobin := env_var_or_default("GOBIN", `go env GOPATH` + "/bin")
 BUILDTOOL := "go run ./internal/buildutil"
 
+# Version injection
+version_pkg := "github.com/Obedience-Corp/fest/internal/version"
+version := env_var_or_default("VERSION", "dev")
+commit := `git rev-parse --short HEAD 2>/dev/null || echo "unknown"`
+build_date := `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+ldflags := "-X " + version_pkg + ".Version=" + version + " -X " + version_pkg + ".Commit=" + commit + " -X " + version_pkg + ".BuildDate=" + build_date
+
 # Modules
 [doc('Cross-platform builds')]
 mod xbuild '.justfiles/build.just'
@@ -36,7 +43,10 @@ build:
 
 # Build fest binary only (fast, no vet)
 build-only:
-    @{{BUILDTOOL}} build-only
+    @echo "Building fest..."
+    @mkdir -p {{bin_dir}}
+    go build -ldflags '{{ldflags}}' -o {{bin_dir}}/{{binary_name}} ./cmd/fest
+    @echo "Built {{bin_dir}}/{{binary_name}}"
 
 # Format Go code
 fmt:
