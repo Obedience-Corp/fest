@@ -1,14 +1,18 @@
 package picker
 
 import (
+	"os"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 func dummyScorer(q, target string) (int, []int) {
 	return 1, nil
 }
+
+var testRenderer = lipgloss.NewRenderer(os.Stderr)
 
 func TestTabCycling(t *testing.T) {
 	items := []Item{
@@ -16,7 +20,7 @@ func TestTabCycling(t *testing.T) {
 		{Name: "bravo", Value: "/b"},
 		{Name: "charlie", Value: "/c"},
 	}
-	m := New(items, dummyScorer)
+	m := New(items, dummyScorer, testRenderer)
 
 	if m.selected != 0 {
 		t.Fatalf("initial selected = %d, want 0", m.selected)
@@ -50,7 +54,7 @@ func TestShiftTabCycling(t *testing.T) {
 		{Name: "bravo", Value: "/b"},
 		{Name: "charlie", Value: "/c"},
 	}
-	m := New(items, dummyScorer)
+	m := New(items, dummyScorer, testRenderer)
 
 	shiftTabMsg := tea.KeyMsg{Type: tea.KeyShiftTab}
 
@@ -69,7 +73,7 @@ func TestShiftTabCycling(t *testing.T) {
 }
 
 func TestTabCycling_EmptyFiltered(t *testing.T) {
-	m := New(nil, dummyScorer)
+	m := New(nil, dummyScorer, testRenderer)
 	m.filtered = nil
 
 	tabMsg := tea.KeyMsg{Type: tea.KeyTab}
@@ -85,7 +89,7 @@ func TestSelected_Confirmed(t *testing.T) {
 		{Name: "alpha", Value: "/a"},
 		{Name: "bravo", Value: "/b"},
 	}
-	m := New(items, dummyScorer)
+	m := New(items, dummyScorer, testRenderer)
 
 	// Move to second item
 	tabMsg := tea.KeyMsg{Type: tea.KeyTab}
@@ -111,7 +115,7 @@ func TestSelected_Confirmed(t *testing.T) {
 
 func TestSelected_Cancelled(t *testing.T) {
 	items := []Item{{Name: "alpha", Value: "/a"}}
-	m := New(items, dummyScorer)
+	m := New(items, dummyScorer, testRenderer)
 
 	escMsg := tea.KeyMsg{Type: tea.KeyEsc}
 	updated, _ := m.Update(escMsg)
@@ -130,7 +134,7 @@ func TestView_RendersItems(t *testing.T) {
 		{Name: "alpha", Value: "/a"},
 		{Name: "bravo", Value: "/b"},
 	}
-	m := New(items, dummyScorer)
+	m := New(items, dummyScorer, testRenderer)
 
 	view := m.View()
 	if view == "" {

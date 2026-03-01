@@ -220,7 +220,11 @@ func discoverPackages() ([]string, error) {
 
 // versionLdflags returns ldflags for injecting version info into the binary.
 func versionLdflags() string {
-	pkg := "github.com/Obedience-Corp/fest/internal/version"
+	mod := getModuleName()
+	if mod == "" {
+		return ""
+	}
+	pkg := mod + "/internal/version"
 
 	commit := "unknown"
 	if out, err := exec.Command("git", "rev-parse", "--short", "HEAD").Output(); err == nil {
