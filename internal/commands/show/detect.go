@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/config"
@@ -13,6 +14,24 @@ import (
 	"github.com/Obedience-Corp/fest/internal/navigation"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 )
+
+// dateDirPattern matches YYYY-MM-DD or YYYY-MM formatted date directory names.
+var dateDirPattern = regexp.MustCompile(`^\d{4}-\d{2}(-\d{2})?$`)
+
+// looksLikeDateDir checks if a directory name matches a date directory pattern.
+func looksLikeDateDir(name string) bool {
+	return dateDirPattern.MatchString(name)
+}
+
+// isKnownDungeonStatus checks if a name is a known dungeon substatus.
+func isKnownDungeonStatus(name string) bool {
+	switch name {
+	case "completed", "archived", "someday":
+		return true
+	default:
+		return false
+	}
+}
 
 const (
 	// FestivalGoalFile is the primary festival marker file
@@ -70,12 +89,33 @@ func DetectCurrentFestival(ctx context.Context, startDir, campaignRoot string) (
 }
 
 // findLinkedFestivalPath searches for a festival by name in all status directories.
+// For dungeon statuses, also searches inside date subdirectories.
 func findLinkedFestivalPath(festivalsRoot, name string) string {
 	for _, status := range id.StatusDirectories {
+		// Try direct path
 		festivalPath := filepath.Join(festivalsRoot, status, name)
 		if info, err := os.Stat(festivalPath); err == nil && info.IsDir() {
 			if isValidFestival(festivalPath) {
 				return festivalPath
+			}
+		}
+
+		// For dungeon statuses, search inside date subdirectories
+		if strings.HasPrefix(status, "dungeon/") {
+			statusDir := filepath.Join(festivalsRoot, status)
+			entries, err := os.ReadDir(statusDir)
+			if err != nil {
+				continue
+			}
+			for _, entry := range entries {
+				if entry.IsDir() && looksLikeDateDir(entry.Name()) {
+					datePath := filepath.Join(statusDir, entry.Name(), name)
+					if info, err := os.Stat(datePath); err == nil && info.IsDir() {
+						if isValidFestival(datePath) {
+							return datePath
+						}
+					}
+				}
 			}
 		}
 	}
@@ -105,6 +145,7 @@ func isValidFestival(dir string) bool {
 }
 
 // FindFestivalByName searches for a festival by name in all status directories.
+// For dungeon statuses, also searches inside date subdirectories.
 func FindFestivalByName(ctx context.Context, festivalsDir, name, campaignRoot string) (*FestivalInfo, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -133,6 +174,30 @@ func FindFestivalByName(ctx context.Context, festivalsDir, name, campaignRoot st
 					return info, nil
 				}
 			}
+
+			// If this is a date directory, search inside it
+			if looksLikeDateDir(entry.Name()) {
+				subEntries, subErr := os.ReadDir(filepath.Join(statusDir, entry.Name()))
+				if subErr != nil {
+					continue
+				}
+				for _, sub := range subEntries {
+					if !sub.IsDir() {
+						continue
+					}
+					if sub.Name() == name || strings.HasPrefix(sub.Name(), name+"_") || strings.Contains(sub.Name(), name) {
+						festivalDir := filepath.Join(statusDir, entry.Name(), sub.Name())
+						if isValidFestival(festivalDir) {
+							info, err := parseFestivalInfo(ctx, festivalDir, campaignRoot)
+							if err != nil {
+								continue
+							}
+							info.Status = status
+							return info, nil
+						}
+					}
+				}
+			}
 		}
 	}
 
@@ -141,6 +206,7 @@ func FindFestivalByName(ctx context.Context, festivalsDir, name, campaignRoot st
 }
 
 // ListFestivalsByStatus returns all festivals in a given status directory.
+// For dungeon statuses, also recurses into date subdirectories.
 func ListFestivalsByStatus(ctx context.Context, festivalsDir, status, campaignRoot string) ([]*FestivalInfo, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -161,22 +227,45 @@ func ListFestivalsByStatus(ctx context.Context, festivalsDir, status, campaignRo
 		}
 
 		festivalDir := filepath.Join(statusDir, entry.Name())
-		if !isValidFestival(festivalDir) {
-			continue
-		}
-
-		info, err := parseFestivalInfo(ctx, festivalDir, campaignRoot)
-		if err != nil {
-			// Include with minimal info on parse error
-			info = &FestivalInfo{
-				ID:     entry.Name(),
-				Name:   entry.Name(),
-				Status: status,
-				Path:   festivalDir,
+		if isValidFestival(festivalDir) {
+			info, err := parseFestivalInfo(ctx, festivalDir, campaignRoot)
+			if err != nil {
+				info = &FestivalInfo{
+					ID:     entry.Name(),
+					Name:   entry.Name(),
+					Status: status,
+					Path:   festivalDir,
+				}
+			}
+			info.Status = status
+			festivals = append(festivals, info)
+		} else if looksLikeDateDir(entry.Name()) {
+			// Recurse into date subdirectory
+			subEntries, subErr := os.ReadDir(festivalDir)
+			if subErr != nil {
+				continue
+			}
+			for _, sub := range subEntries {
+				if !sub.IsDir() {
+					continue
+				}
+				subDir := filepath.Join(festivalDir, sub.Name())
+				if !isValidFestival(subDir) {
+					continue
+				}
+				info, err := parseFestivalInfo(ctx, subDir, campaignRoot)
+				if err != nil {
+					info = &FestivalInfo{
+						ID:     sub.Name(),
+						Name:   sub.Name(),
+						Status: status,
+						Path:   subDir,
+					}
+				}
+				info.Status = status
+				festivals = append(festivals, info)
 			}
 		}
-		info.Status = status
-		festivals = append(festivals, info)
 	}
 
 	return festivals, nil
@@ -185,6 +274,7 @@ func ListFestivalsByStatus(ctx context.Context, festivalsDir, status, campaignRo
 // ListFestivalsByStatusLight returns festivals with minimal metadata (no stats computation).
 // Use this for UIs that only need name, status, path, and modtime — avoids the expensive
 // recursive walk that CalculateFestivalStats performs on every task file.
+// For dungeon statuses, also recurses into date subdirectories.
 func ListFestivalsByStatusLight(ctx context.Context, festivalsDir, status string) ([]*FestivalInfo, error) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -205,46 +295,67 @@ func ListFestivalsByStatusLight(ctx context.Context, festivalsDir, status string
 		}
 
 		festivalDir := filepath.Join(statusDir, entry.Name())
-		if !isValidFestival(festivalDir) {
-			continue
-		}
-
-		info := &FestivalInfo{
-			ID:     entry.Name(),
-			Name:   entry.Name(),
-			Status: status,
-			Path:   festivalDir,
-		}
-
-		if dirInfo, statErr := os.Stat(festivalDir); statErr == nil {
-			info.ModTime = dirInfo.ModTime()
-			info.UpdatedAt = dirInfo.ModTime()
-		}
-
-		// Extract timestamps from festival goal/overview frontmatter
-		for _, goalFile := range []string{FestivalGoalFile, FestivalOverviewFile} {
-			goalPath := filepath.Join(festivalDir, goalFile)
-			data, readErr := os.ReadFile(goalPath)
-			if readErr != nil {
+		if isValidFestival(festivalDir) {
+			info := lightFestivalInfo(festivalDir, entry.Name(), status)
+			festivals = append(festivals, info)
+		} else if looksLikeDateDir(entry.Name()) {
+			// Recurse into date subdirectory
+			subEntries, subErr := os.ReadDir(festivalDir)
+			if subErr != nil {
 				continue
 			}
-			fm, _, parseErr := frontmatter.Parse(data)
-			if parseErr != nil || fm == nil {
-				continue
+			for _, sub := range subEntries {
+				if !sub.IsDir() {
+					continue
+				}
+				subDir := filepath.Join(festivalDir, sub.Name())
+				if !isValidFestival(subDir) {
+					continue
+				}
+				info := lightFestivalInfo(subDir, sub.Name(), status)
+				festivals = append(festivals, info)
 			}
-			if !fm.Created.IsZero() {
-				info.CreatedAt = fm.Created
-			}
-			if !fm.Updated.IsZero() {
-				info.UpdatedAt = fm.Updated
-			}
-			break
 		}
-
-		festivals = append(festivals, info)
 	}
 
 	return festivals, nil
+}
+
+// lightFestivalInfo creates a FestivalInfo with minimal metadata from a festival directory.
+func lightFestivalInfo(festivalDir, name, status string) *FestivalInfo {
+	info := &FestivalInfo{
+		ID:     name,
+		Name:   name,
+		Status: status,
+		Path:   festivalDir,
+	}
+
+	if dirInfo, statErr := os.Stat(festivalDir); statErr == nil {
+		info.ModTime = dirInfo.ModTime()
+		info.UpdatedAt = dirInfo.ModTime()
+	}
+
+	// Extract timestamps from festival goal/overview frontmatter
+	for _, goalFile := range []string{FestivalGoalFile, FestivalOverviewFile} {
+		goalPath := filepath.Join(festivalDir, goalFile)
+		data, readErr := os.ReadFile(goalPath)
+		if readErr != nil {
+			continue
+		}
+		fm, _, parseErr := frontmatter.Parse(data)
+		if parseErr != nil || fm == nil {
+			continue
+		}
+		if !fm.Created.IsZero() {
+			info.CreatedAt = fm.Created
+		}
+		if !fm.Updated.IsZero() {
+			info.UpdatedAt = fm.Updated
+		}
+		break
+	}
+
+	return info
 }
 
 // parseFestivalInfo parses festival information from a directory.
@@ -275,7 +386,19 @@ func parseFestivalInfo(ctx context.Context, festivalDir, campaignRoot string) (*
 	case "dungeon":
 		info.Status = "dungeon"
 	default:
-		info.Status = "unknown"
+		// Check if parent is a date directory (YYYY-MM-DD or YYYY-MM)
+		if looksLikeDateDir(parentName) {
+			// Walk up one more level to find the status name
+			statusName := filepath.Base(filepath.Dir(parentDir))             // e.g., "completed"
+			grandparent := filepath.Base(filepath.Dir(filepath.Dir(parentDir))) // e.g., "dungeon"
+			if grandparent == "dungeon" && isKnownDungeonStatus(statusName) {
+				info.Status = "dungeon/" + statusName
+			} else {
+				info.Status = "unknown"
+			}
+		} else {
+			info.Status = "unknown"
+		}
 	}
 
 	// Populate modification time from directory stat

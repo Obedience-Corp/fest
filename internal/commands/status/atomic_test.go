@@ -98,10 +98,38 @@ func TestAtomicStatusChange_Comprehensive(t *testing.T) {
 			ctx:        context.Background(),
 			validate: func(t *testing.T, root, newPath string) {
 				t.Helper()
-				dateDir := CalculateCompletionDateDir(time.Now())
+				dateDir := CalculateDateDir(time.Now())
 				expectedPrefix := filepath.Join(root, "dungeon", "completed", dateDir)
 				if !strings.HasPrefix(newPath, expectedPrefix) {
 					t.Errorf("completed path should start with %s, got %s", expectedPrefix, newPath)
+				}
+			},
+		},
+		{
+			name:       "active to dungeon/archived uses date directory",
+			fromStatus: "active",
+			toStatus:   "dungeon/archived",
+			ctx:        context.Background(),
+			validate: func(t *testing.T, root, newPath string) {
+				t.Helper()
+				dateDir := CalculateDateDir(time.Now())
+				expectedPrefix := filepath.Join(root, "dungeon", "archived", dateDir)
+				if !strings.HasPrefix(newPath, expectedPrefix) {
+					t.Errorf("archived path should start with %s, got %s", expectedPrefix, newPath)
+				}
+			},
+		},
+		{
+			name:       "active to dungeon/someday uses date directory",
+			fromStatus: "active",
+			toStatus:   "dungeon/someday",
+			ctx:        context.Background(),
+			validate: func(t *testing.T, root, newPath string) {
+				t.Helper()
+				dateDir := CalculateDateDir(time.Now())
+				expectedPrefix := filepath.Join(root, "dungeon", "someday", dateDir)
+				if !strings.HasPrefix(newPath, expectedPrefix) {
+					t.Errorf("someday path should start with %s, got %s", expectedPrefix, newPath)
 				}
 			},
 		},
@@ -161,15 +189,15 @@ func TestAtomicStatusChange_Comprehensive(t *testing.T) {
 			},
 		},
 		{
-			name:       "completed creates YYYY-MM format",
+			name:       "completed creates YYYY-MM-DD format",
 			fromStatus: "active",
 			toStatus:   "completed",
 			ctx:        context.Background(),
 			validate: func(t *testing.T, root, newPath string) {
 				t.Helper()
-				expectedMonth := time.Now().Format("2006-01")
-				if !strings.Contains(newPath, expectedMonth) {
-					t.Errorf("path should contain %s, got %s", expectedMonth, newPath)
+				expectedDate := time.Now().Format("2006-01-02")
+				if !strings.Contains(newPath, expectedDate) {
+					t.Errorf("path should contain %s, got %s", expectedDate, newPath)
 				}
 			},
 		},

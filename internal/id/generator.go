@@ -311,6 +311,7 @@ func ParseHexCounter(dirName string) (int, error) {
 
 // FindNextRitualRun scans active/ and dungeon/ for the highest existing
 // run counter for the given ritual directory name prefix, and returns the next one.
+// For dungeon statuses, also scans inside date subdirectories.
 func FindNextRitualRun(ctx context.Context, festivalsRoot, ritualDirName string) (int, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
@@ -326,27 +327,34 @@ func FindNextRitualRun(ctx context.Context, festivalsRoot, ritualDirName string)
 		}
 
 		statusPath := filepath.Join(festivalsRoot, status)
-		entries, err := os.ReadDir(statusPath)
-		if err != nil {
-			continue
-		}
 
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			name := entry.Name()
-			// Check if this directory is a run of the given ritual
-			if !strings.HasPrefix(name, ritualDirName+"-") {
-				continue
-			}
-			run, err := ParseHexCounter(name)
+		// Use WalkDir to recurse into date subdirectories
+		err := filepath.WalkDir(statusPath, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
-				continue
+				return nil // Skip inaccessible directories
+			}
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return ctxErr
+			}
+			if !d.IsDir() {
+				return nil
+			}
+
+			name := d.Name()
+			if !strings.HasPrefix(name, ritualDirName+"-") {
+				return nil
+			}
+			run, parseErr := ParseHexCounter(name)
+			if parseErr != nil {
+				return nil
 			}
 			if run > maxRun {
 				maxRun = run
 			}
+			return nil
+		})
+		if err != nil {
+			continue
 		}
 	}
 

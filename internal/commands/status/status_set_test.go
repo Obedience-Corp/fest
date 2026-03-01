@@ -83,8 +83,8 @@ func TestAtomicStatusChangeRollback(t *testing.T) {
 	}
 
 	// Create conflicting destination at the correct date-based path
-	// The dateDir will be the current month in YYYY-MM format
-	dateDir := CalculateCompletionDateDir(time.Now())
+	// The dateDir will be the current date in YYYY-MM-DD format
+	dateDir := CalculateDateDir(time.Now())
 	conflictPath := filepath.Join(baseDir, "dungeon", "completed", dateDir, "test-festival")
 	if err := os.MkdirAll(conflictPath, 0755); err != nil {
 		t.Fatalf("Failed to create conflict: %v", err)
@@ -207,17 +207,17 @@ func TestCompletedUsesDateDirectory(t *testing.T) {
 		t.Fatalf("AtomicStatusChange() error = %v", err)
 	}
 
-	// Verify path includes date directory (YYYY-MM format)
-	// Path should be like: baseDir/dungeon/completed/2025-01/test-festival
+	// Verify path includes date directory (YYYY-MM-DD format)
+	// Path should be like: baseDir/dungeon/completed/2025-01-15/test-festival
 	relPath, err := filepath.Rel(baseDir, newPath)
 	if err != nil {
 		t.Fatalf("Failed to get relative path: %v", err)
 	}
 
-	// Should have dungeon/completed/YYYY-MM/festival-name structure
+	// Should have dungeon/completed/YYYY-MM-DD/festival-name structure
 	// Parse path parts to verify structure
 	_ = filepath.SplitList(relPath) // Verify path can be parsed
-	if len(relPath) < 10 {          // At minimum: dungeon/completed/YYYY-MM
+	if len(relPath) < 10 {          // At minimum: dungeon/completed/YYYY-MM-DD
 		t.Errorf("Path too short for date directory structure: %s", relPath)
 	}
 	if !strings.HasPrefix(relPath, "dungeon") {

@@ -1,4 +1,4 @@
-// Package status provides date-based directory management for festival completion.
+// Package status provides date-based directory management for festival dungeon statuses.
 package status
 
 import (
@@ -10,10 +10,10 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
-// CalculateCompletionDateDir returns the YYYY-MM formatted date directory
-// for organizing completed festivals by month.
-func CalculateCompletionDateDir(t time.Time) string {
-	return t.Format("2006-01")
+// CalculateDateDir returns the YYYY-MM-DD formatted date directory
+// for organizing dungeon festivals by date.
+func CalculateDateDir(t time.Time) string {
+	return t.Format("2006-01-02")
 }
 
 // CreateDateDirectory creates a date-organized directory under the completed folder.
@@ -26,7 +26,7 @@ func CreateDateDirectory(completedDir, dateDir string) error {
 	return nil
 }
 
-// MoveToDateDirectory moves a festival to a date-organized completed directory.
+// MoveToDateDirectory moves a festival to a date-organized dungeon directory.
 // It returns the new path on success.
 func MoveToDateDirectory(sourcePath, completedDir, dateDir string) (string, error) {
 	festivalName := filepath.Base(sourcePath)
