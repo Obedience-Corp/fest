@@ -94,21 +94,21 @@ When a festival reaches `completed` status (via promote or status set), it is or
 
 ```
 dungeon/completed/
-├── 2026-01/
+├── 2026-01-15/
 │   └── my-january-festival-MJ0001/
-├── 2026-02/
+├── 2026-02-28/
 │   ├── api-refactor-AR0001/
 │   └── ui-redesign-UR0001/
 └── ...
 ```
 
-The date directory uses `YYYY-MM` format based on the completion timestamp. This is handled by `CalculateCompletionDateDir()` in `internal/commands/status/date_directory.go`.
+The date directory uses `YYYY-MM-DD` format based on the timestamp. This is handled by `CalculateDateDir()` in `internal/commands/status/date_directory.go`. All dungeon statuses (`completed`, `archived`, `someday`) use date-based directories.
 
 ### Implementation Details
 
-1. `AtomicStatusChange()` detects `toStatus == "completed"`
-2. `CalculateCompletionDateDir(time.Now())` generates the YYYY-MM string
-3. `MoveToDateDirectory()` moves the festival to `dungeon/completed/YYYY-MM/`
+1. `AtomicStatusChange()` detects `dungeon/*` statuses
+2. `CalculateDateDir(time.Now())` generates the YYYY-MM-DD string
+3. `MoveToDateDirectory()` moves the festival to `dungeon/<status>/YYYY-MM-DD/`
 4. If `os.Rename` fails (cross-filesystem), falls back to copy+delete
 
 ## Ritual Workflow

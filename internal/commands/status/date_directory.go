@@ -16,12 +16,6 @@ func CalculateDateDir(t time.Time) string {
 	return t.Format("2006-01-02")
 }
 
-// CalculateCompletionDateDir is a deprecated alias for CalculateDateDir.
-// Kept for backward compatibility during migration.
-func CalculateCompletionDateDir(t time.Time) string {
-	return CalculateDateDir(t)
-}
-
 // CreateDateDirectory creates a date-organized directory under the completed folder.
 // It's idempotent - calling multiple times with the same arguments is safe.
 func CreateDateDirectory(completedDir, dateDir string) error {

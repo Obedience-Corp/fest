@@ -57,17 +57,6 @@ func TestCalculateDateDirNow(t *testing.T) {
 	}
 }
 
-func TestCalculateCompletionDateDir_BackwardCompatAlias(t *testing.T) {
-	// CalculateCompletionDateDir is a backward-compat alias for CalculateDateDir
-	now := time.Now()
-	got := CalculateCompletionDateDir(now)
-	expected := CalculateDateDir(now)
-
-	if got != expected {
-		t.Errorf("CalculateCompletionDateDir(now) = %q, want CalculateDateDir result %q", got, expected)
-	}
-}
-
 func TestCalculateDateDir_UsesLocalTime(t *testing.T) {
 	// Verify that the function uses the time as provided (local time)
 	utcTime := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
