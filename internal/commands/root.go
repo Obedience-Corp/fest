@@ -9,11 +9,11 @@ import (
 	contextcmd "github.com/Obedience-Corp/fest/internal/commands/context"
 	depscmd "github.com/Obedience-Corp/fest/internal/commands/deps"
 	explorecmd "github.com/Obedience-Corp/fest/internal/commands/explore"
-	idcmd "github.com/Obedience-Corp/fest/internal/commands/id"
 	"github.com/Obedience-Corp/fest/internal/commands/extensions"
 	feedbackcmd "github.com/Obedience-Corp/fest/internal/commands/feedback"
 	"github.com/Obedience-Corp/fest/internal/commands/festival"
 	"github.com/Obedience-Corp/fest/internal/commands/gates"
+	idcmd "github.com/Obedience-Corp/fest/internal/commands/id"
 	introcmd "github.com/Obedience-Corp/fest/internal/commands/intro"
 	listcmd "github.com/Obedience-Corp/fest/internal/commands/list"
 	manifestcmd "github.com/Obedience-Corp/fest/internal/commands/manifest"
@@ -26,8 +26,8 @@ import (
 	promotecmd "github.com/Obedience-Corp/fest/internal/commands/promote"
 	"github.com/Obedience-Corp/fest/internal/commands/research"
 	ritualcmd "github.com/Obedience-Corp/fest/internal/commands/ritual"
-	searchcmd "github.com/Obedience-Corp/fest/internal/commands/search"
 	scaffoldcmd "github.com/Obedience-Corp/fest/internal/commands/scaffold"
+	searchcmd "github.com/Obedience-Corp/fest/internal/commands/search"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/commands/status"
@@ -42,6 +42,7 @@ import (
 	workflowcmd "github.com/Obedience-Corp/fest/internal/commands/workflow"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/version"
 	"github.com/spf13/cobra"
 
 	// Import tui package for its init() side effects (registers hooks)
@@ -54,11 +55,6 @@ var (
 	verbose    bool
 	noColor    bool
 	debug      bool
-
-	// Version information (set at build time)
-	Version   = "dev"
-	BuildTime = "unknown"
-	GitCommit = "unknown"
 )
 
 // IsVerbose returns the global verbose flag value.
@@ -69,7 +65,7 @@ func IsVerbose() bool {
 var rootCmd = &cobra.Command{
 	Use:     "fest",
 	Short:   "Festival Methodology CLI - goal-oriented project management for AI agents",
-	Version: fmt.Sprintf("%s (built %s, commit %s)", Version, BuildTime, GitCommit),
+	Version: fmt.Sprintf("%s (built %s, commit %s)", version.Version, version.BuildDate, version.Commit),
 }
 
 // Execute runs the root command
