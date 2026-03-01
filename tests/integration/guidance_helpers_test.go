@@ -5,6 +5,7 @@ package integration
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -31,6 +32,19 @@ func findFestivalPath(t *testing.T, tc *TestContainer, activeDir string, festNam
 	return "" // unreachable
 }
 
+// promoteToActive promotes a festival from planning to active status using the
+// real fest status set workflow. Returns the new festival path under active/.
+func promoteToActive(t *testing.T, tc *TestContainer, festivalsPath, festPath string) string {
+	t.Helper()
+	festName := filepath.Base(festPath)
+
+	output, err := tc.RunFestInDir(festPath, "status", "set", "active", "--force", "--no-commit")
+	require.NoError(t, err, "should promote to active: %s", output)
+
+	newPath := findFestivalPath(t, tc, festivalsPath+"/active", festName)
+	return newPath
+}
+
 // ============================================================================
 // FESTIVAL SETUP HELPERS
 // ============================================================================
@@ -50,8 +64,8 @@ func setupImplementationFestival(t *testing.T, tc *TestContainer, festName strin
 	// Find the actual festival path (fest adds an ID suffix like "test-fest-TF0001")
 	festPath := findFestivalPath(t, tc, festivalsPath+"/planning", festName)
 
-	// Write fest.yaml with quality gates enabled (gates should never be skippable)
-	festYaml := `version: "1.0"
+	// Append quality_gates config to existing fest.yaml (preserves metadata including status_history)
+	qualityGatesYaml := `
 quality_gates:
   enabled: true
   auto_append: true
@@ -69,8 +83,8 @@ quality_gates:
       template: gates/implementation/QUALITY_GATE_FEST_COMMIT
       enabled: true
 `
-	err = writeFileInContainer(tc, festPath+"/fest.yaml", festYaml)
-	require.NoError(t, err, "should create fest.yaml")
+	err = appendFileInContainer(tc, festPath+"/fest.yaml", qualityGatesYaml)
+	require.NoError(t, err, "should append quality gates to fest.yaml")
 
 	// Create FESTIVAL_OVERVIEW.md (required by validator completeness check)
 	overviewContent := `---
@@ -117,6 +131,9 @@ fest_type: overview
 	// Replace markers across entire festival (simulates user/agent filling them in)
 	err = replaceMarkersInContainer(tc, festPath)
 	require.NoError(t, err, "should replace markers")
+
+	// Promote to active — implementation phases are blocked in planning status
+	festPath = promoteToActive(t, tc, festivalsPath, festPath)
 
 	return festPath
 }
@@ -240,13 +257,6 @@ func setupReviewFestival(t *testing.T, tc *TestContainer, festName string) strin
 	err = writeFileInContainer(tc, festPath+"/FESTIVAL_RULES.md", rulesContent)
 	require.NoError(t, err, "should create FESTIVAL_RULES.md")
 
-	// Write fest.yaml without status_history so checkPlanningStatus doesn't block
-	// review phases. (CurrentStatus() returns "" when no history exists, which bypasses
-	// the planning-status guard in next.go. This matches setupImplementationFestival's pattern.)
-	festYaml := "version: \"1.0\"\n"
-	err = writeFileInContainer(tc, festPath+"/fest.yaml", festYaml)
-	require.NoError(t, err, "should write fest.yaml")
-
 	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "REVIEW", "--type", "review")
 	require.NoError(t, err)
 
@@ -266,6 +276,9 @@ fest_phase_type: review
 `
 	err = writeFileInContainer(tc, phasePath+"/PHASE_GOAL.md", goalContent)
 	require.NoError(t, err)
+
+	// Promote to active — review phases are blocked in planning status
+	festPath = promoteToActive(t, tc, festivalsPath, festPath)
 
 	return festPath
 }
@@ -588,10 +601,10 @@ func setupMultiModeFestival(t *testing.T, tc *TestContainer, festName string) st
 	err = writeFileInContainer(tc, festPath+"/FESTIVAL_RULES.md", rulesContent)
 	require.NoError(t, err, "should create FESTIVAL_RULES.md")
 
-	// Write fest.yaml with quality gates
-	festYaml := "version: \"1.0\"\nquality_gates:\n  enabled: true\n  auto_append: true\n  implementation:\n    - id: testing\n      template: gates/implementation/QUALITY_GATE_TESTING\n      enabled: true\n    - id: review\n      template: gates/implementation/QUALITY_GATE_REVIEW\n      enabled: true\n    - id: iterate\n      template: gates/implementation/QUALITY_GATE_ITERATE\n      enabled: true\n    - id: fest-commit\n      template: gates/implementation/QUALITY_GATE_FEST_COMMIT\n      enabled: true\n"
-	err = writeFileInContainer(tc, festPath+"/fest.yaml", festYaml)
-	require.NoError(t, err)
+	// Append quality_gates config to existing fest.yaml (preserves metadata including status_history)
+	qualityGatesYaml := "\nquality_gates:\n  enabled: true\n  auto_append: true\n  implementation:\n    - id: testing\n      template: gates/implementation/QUALITY_GATE_TESTING\n      enabled: true\n    - id: review\n      template: gates/implementation/QUALITY_GATE_REVIEW\n      enabled: true\n    - id: iterate\n      template: gates/implementation/QUALITY_GATE_ITERATE\n      enabled: true\n    - id: fest-commit\n      template: gates/implementation/QUALITY_GATE_FEST_COMMIT\n      enabled: true\n"
+	err = appendFileInContainer(tc, festPath+"/fest.yaml", qualityGatesYaml)
+	require.NoError(t, err, "should append quality gates to fest.yaml")
 
 	// Create planning phase (fest create generates PHASE_GOAL.md with markers)
 	_, err = tc.RunFestInDir(festPath, "create", "phase", "--name", "PLANNING", "--type", "planning")
@@ -623,6 +636,9 @@ func setupMultiModeFestival(t *testing.T, tc *TestContainer, festName string) st
 	// Replace ALL markers across the entire festival
 	err = replaceMarkersInContainer(tc, festPath)
 	require.NoError(t, err, "should replace markers")
+
+	// Promote to active — implementation and review phases are blocked in planning status
+	festPath = promoteToActive(t, tc, festivalsPath, festPath)
 
 	return festPath
 }
@@ -683,6 +699,9 @@ func setupLifecycleFestival(t *testing.T, tc *TestContainer, festName string) st
 	// Replace markers across entire festival
 	err = replaceMarkersInContainer(tc, festPath)
 	require.NoError(t, err, "should replace markers")
+
+	// Promote to active — implementation and review phases are blocked in planning status
+	festPath = promoteToActive(t, tc, festivalsPath, festPath)
 
 	return festPath
 }
