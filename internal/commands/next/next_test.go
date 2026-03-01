@@ -310,24 +310,27 @@ type feedbackTestResult struct {
 	FeedbackCriteria []string `json:"feedback_criteria,omitempty"`
 }
 
-func TestCheckPlanningStatus(t *testing.T) {
+func TestCheckPreActiveStatus(t *testing.T) {
 	tests := []struct {
-		name          string
-		status        string
-		phaseType     string
-		expectBlocked bool
+		name           string
+		status         string
+		phaseType      string
+		expectBlocked  bool
+		expectContains string // substring to check in error message
 	}{
 		{
-			name:          "planning+implementation is blocked",
-			status:        "planning",
-			phaseType:     "implementation",
-			expectBlocked: true,
+			name:           "planning+implementation is blocked",
+			status:         "planning",
+			phaseType:      "implementation",
+			expectBlocked:  true,
+			expectContains: "Festival must be in active status",
 		},
 		{
-			name:          "planning+review is blocked",
-			status:        "planning",
-			phaseType:     "review",
-			expectBlocked: true,
+			name:           "planning+review is blocked",
+			status:         "planning",
+			phaseType:      "review",
+			expectBlocked:  true,
+			expectContains: "Festival must be in active status",
 		},
 		{
 			name:          "planning+ingest is allowed",
@@ -359,6 +362,38 @@ func TestCheckPlanningStatus(t *testing.T) {
 			phaseType:     "review",
 			expectBlocked: false,
 		},
+		{
+			name:           "ready+implementation is blocked",
+			status:         "ready",
+			phaseType:      "implementation",
+			expectBlocked:  true,
+			expectContains: "Festival is in ready status",
+		},
+		{
+			name:           "ready+review is blocked",
+			status:         "ready",
+			phaseType:      "review",
+			expectBlocked:  true,
+			expectContains: "Festival is in ready status",
+		},
+		{
+			name:          "ready+ingest is allowed",
+			status:        "ready",
+			phaseType:     "ingest",
+			expectBlocked: false,
+		},
+		{
+			name:          "ready+research is allowed",
+			status:        "ready",
+			phaseType:     "research",
+			expectBlocked: false,
+		},
+		{
+			name:          "ready+planning is allowed",
+			status:        "ready",
+			phaseType:     "planning",
+			expectBlocked: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -381,13 +416,13 @@ func TestCheckPlanningStatus(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			err := checkPlanningStatus(festDir, phaseDir)
+			err := checkPreActiveStatus(festDir, phaseDir)
 
 			if tt.expectBlocked {
 				if err == nil {
 					t.Error("expected blocked error, got nil")
-				} else if !strings.Contains(err.Error(), "Festival must be in active status") {
-					t.Errorf("expected blocking message, got: %v", err)
+				} else if tt.expectContains != "" && !strings.Contains(err.Error(), tt.expectContains) {
+					t.Errorf("expected error containing %q, got: %v", tt.expectContains, err)
 				}
 			} else {
 				if err != nil {
@@ -398,16 +433,16 @@ func TestCheckPlanningStatus(t *testing.T) {
 	}
 }
 
-func TestCheckPlanningStatus_NoConfig(t *testing.T) {
+func TestCheckPreActiveStatus_NoConfig(t *testing.T) {
 	festDir := t.TempDir()
 	// No fest.yaml — should not block
-	err := checkPlanningStatus(festDir, "")
+	err := checkPreActiveStatus(festDir, "")
 	if err != nil {
 		t.Errorf("expected no error without config, got: %v", err)
 	}
 }
 
-func TestCheckPlanningStatus_NoPhasePath(t *testing.T) {
+func TestCheckPreActiveStatus_NoPhasePath(t *testing.T) {
 	festDir := t.TempDir()
 	phaseDir := filepath.Join(festDir, "001_IMPL")
 	if err := os.MkdirAll(phaseDir, 0755); err != nil {
@@ -427,8 +462,42 @@ func TestCheckPlanningStatus_NoPhasePath(t *testing.T) {
 	}
 
 	// Pass empty phasePath — should auto-detect first phase
-	err := checkPlanningStatus(festDir, "")
+	err := checkPreActiveStatus(festDir, "")
 	if err == nil {
 		t.Error("expected blocked error when auto-detecting implementation phase, got nil")
+	}
+}
+
+func TestCheckPreActiveStatus_ReadyMessage(t *testing.T) {
+	festDir := t.TempDir()
+	phaseDir := filepath.Join(festDir, "001_PHASE")
+	if err := os.MkdirAll(phaseDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	festYAML := "version: \"1.0\"\nmetadata:\n  id: TS0001\n  status_history:\n    - status: ready\n      timestamp: 2026-02-10T00:00:00Z\n"
+	if err := os.WriteFile(filepath.Join(festDir, "fest.yaml"), []byte(festYAML), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	goalContent := "---\nfest_phase_type: implementation\n---\n# Phase Goal\n"
+	if err := os.WriteFile(filepath.Join(phaseDir, "PHASE_GOAL.md"), []byte(goalContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := checkPreActiveStatus(festDir, phaseDir)
+	if err == nil {
+		t.Fatal("expected blocked error for ready+implementation, got nil")
+	}
+
+	msg := err.Error()
+	if !strings.Contains(msg, "ready status") {
+		t.Errorf("expected message to mention ready status, got: %v", msg)
+	}
+	if !strings.Contains(msg, "fest promote") {
+		t.Errorf("expected message to include promote instruction, got: %v", msg)
+	}
+	if !strings.Contains(msg, "Did the user approve") {
+		t.Errorf("expected message to ask about user approval, got: %v", msg)
 	}
 }
