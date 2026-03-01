@@ -283,6 +283,50 @@ func TestResolveFestivalByName(t *testing.T) {
 	}
 }
 
+func TestResolveGoTargetDungeonAliases(t *testing.T) {
+	tmpDir := t.TempDir()
+	festivalsDir := filepath.Join(tmpDir, "festivals")
+
+	// Create dungeon status directories
+	dungeonDirs := []string{
+		filepath.Join(festivalsDir, "dungeon", "completed"),
+		filepath.Join(festivalsDir, "dungeon", "archived"),
+		filepath.Join(festivalsDir, "dungeon", "someday"),
+	}
+	for _, d := range dungeonDirs {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	tests := []struct {
+		target   string
+		expected string
+		wantErr  bool
+	}{
+		{"completed", filepath.Join(festivalsDir, "dungeon", "completed"), false},
+		{"archived", filepath.Join(festivalsDir, "dungeon", "archived"), false},
+		{"someday", filepath.Join(festivalsDir, "dungeon", "someday"), false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.target, func(t *testing.T) {
+			result, err := resolveGoTarget(tc.target, festivalsDir)
+			if tc.wantErr {
+				if err == nil {
+					t.Errorf("resolveGoTarget(%q) expected error, got nil", tc.target)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("resolveGoTarget(%q) unexpected error: %v", tc.target, err)
+				} else if result != tc.expected {
+					t.Errorf("resolveGoTarget(%q) = %q, want %q", tc.target, result, tc.expected)
+				}
+			}
+		})
+	}
+}
+
 func TestResolveGoTargetWithFestivalName(t *testing.T) {
 	tmpDir := t.TempDir()
 	festivalsDir := filepath.Join(tmpDir, "festivals")

@@ -83,8 +83,8 @@ func runGoCompletions(descriptions, color bool, statusFilter string) error {
 		return runStatusCompletions(festivalsDir, statusFilter, descriptions, color)
 	}
 
-	// Primary status directories only (completed/dungeon available via second-arg completion)
-	statuses := id.PrimaryStatusDirs
+	// Primary status directories + dungeon aliases for direct navigation
+	statuses := append(id.PrimaryStatusDirs, "completed", "someday", "archived")
 
 	statusSet := make(map[string]bool, len(statuses))
 	for _, s := range statuses {
@@ -143,7 +143,9 @@ func runGoCompletions(descriptions, color bool, statusFilter string) error {
 
 // runStatusCompletions outputs only festivals from a specific status directory.
 func runStatusCompletions(festivalsDir, status string, descriptions, color bool) error {
-	targets := navigation.CollectFestivalsInStatus(festivalsDir, status)
+	// Resolve dungeon aliases (completed → dungeon/completed, etc.)
+	resolved := id.ResolveStatusPath(status)
+	targets := navigation.CollectFestivalsInStatus(festivalsDir, resolved)
 	c := statusANSI(status)
 	for _, t := range targets {
 		switch {
