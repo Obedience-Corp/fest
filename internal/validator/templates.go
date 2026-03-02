@@ -32,10 +32,10 @@ func stripInlineCode(line string) string {
 
 // MarkerFileResult holds per-file marker scan results.
 type MarkerFileResult struct {
-	RelPath      string
-	MarkerCount  int
-	MarkerTypes  []string
-	Level        string
+	RelPath     string
+	MarkerCount int
+	MarkerTypes []string
+	Level       string
 }
 
 // ValidateTemplateMarkers scans .md files for unfilled markers with phase-aware severity.
