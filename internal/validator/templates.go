@@ -165,7 +165,7 @@ func CheckTemplatesFilled(festivalPath string) bool {
 func resolveMarkerLevel(festivalPath, relPath string) string {
 	phaseType := resolvePhaseType(festivalPath, relPath)
 	switch phaseType {
-	case frontmatter.PhaseTypeImplementation, frontmatter.PhaseTypeReview, frontmatter.PhaseTypeDeployment:
+	case frontmatter.PhaseTypeImplementation, frontmatter.PhaseTypeReview, frontmatter.PhaseTypeNonCodingAction:
 		return LevelError
 	default:
 		return LevelWarning

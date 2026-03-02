@@ -87,7 +87,7 @@ func ModeFromPhaseType(phaseType string) Mode {
 		return ModeResearch
 	case "review":
 		return ModeReview
-	case "deployment", "action", "non_coding_action":
+	case "action", "non_coding_action":
 		return ModeAction
 	case "ingest":
 		return ModeIngest
@@ -110,7 +110,7 @@ func PhaseTypeFromMode(mode Mode) string {
 	case ModeReview:
 		return "review"
 	case ModeAction:
-		return "deployment"
+		return "non_coding_action"
 	case ModeIngest:
 		return "ingest"
 	default:

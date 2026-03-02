@@ -6,13 +6,26 @@ fest_parent: [REPLACE: PHASE_ID]
 
 # Review Phase Gate
 
-This gate verifies the review phase was completed correctly before advancing.
+This gate verifies the review phase achieved its goal and produced incorporated feedback.
 
 ---
 
-## Step 1: COVERAGE — Verify All Items Reviewed
+## Step 1: PHASE GOAL — Verify Goal Achievement
 
-**Question:** Were all review items examined and addressed?
+**Question:** Did the review achieve its stated objective? Were the right things reviewed against the right criteria?
+
+**Actions:**
+1. Re-read PHASE_GOAL.md and compare stated review objectives against actual review work
+2. Verify the review criteria were appropriate for the deliverables examined
+3. Confirm the review answered the questions the phase was created to answer
+
+**Checkpoint:** APPROVAL REQUIRED — Confirm review goal is met
+
+---
+
+## Step 2: COVERAGE — Verify All Items Reviewed
+
+**Question:** Were all items in scope examined?
 
 **Actions:**
 1. Confirm every item in scope was reviewed
@@ -23,22 +36,9 @@ This gate verifies the review phase was completed correctly before advancing.
 
 ---
 
-## Step 2: DOCUMENTATION — Verify Findings Recorded
-
-**Question:** Are review findings documented with clear outcomes?
-
-**Actions:**
-1. Check that each finding has a resolution (fixed, deferred, accepted)
-2. Verify critical findings are flagged appropriately
-3. Confirm feedback is actionable and specific
-
-**Checkpoint:** APPROVAL REQUIRED — Confirm findings documented
-
----
-
 ## Step 3: INCORPORATION — Verify Feedback Applied
 
-**Question:** Was review feedback incorporated into the relevant deliverables?
+**Question:** Was feedback applied to relevant deliverables?
 
 **Actions:**
 1. Confirm fixes were applied for accepted findings
@@ -53,6 +53,6 @@ This gate verifies the review phase was completed correctly before advancing.
 
 | Step | Status | Notes |
 |------|--------|-------|
-| 1. COVERAGE | [ ] pending | All items reviewed |
-| 2. DOCUMENTATION | [ ] pending | Findings recorded |
+| 1. PHASE GOAL | [ ] pending | Review goal achieved |
+| 2. COVERAGE | [ ] pending | All items reviewed |
 | 3. INCORPORATION | [ ] pending | Feedback applied |

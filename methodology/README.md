@@ -211,6 +211,7 @@ This is the core structural distinction:
 **Workflow phases** (planning, research, ingest) use a `WORKFLOW.md` file that provides step-by-step guidance with checkpoints. No numbered sequences - the workflow document IS the structure.
 
 Each step in a WORKFLOW.md includes:
+
 - **Goal** - What this step accomplishes
 - **Actions** - Ordered list of things to do
 - **Output** - Expected result

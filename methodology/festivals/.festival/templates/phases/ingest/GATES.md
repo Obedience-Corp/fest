@@ -6,16 +6,29 @@ fest_parent: [REPLACE: PHASE_ID]
 
 # Ingest Phase Gate
 
-This gate verifies the ingest phase was completed correctly before advancing.
+This gate verifies the ingest phase achieved its goal and produced approved structured output.
 
 ---
 
-## Step 1: COMPLETENESS — Verify All Inputs Processed
+## Step 1: PHASE GOAL — Verify Goal Achievement
 
-**Question:** Were all input specifications read completely and not skimmed?
+**Question:** Does the structured output capture the user's intent as specified in the ingest objective?
 
 **Actions:**
-1. Confirm every file in `input_specs/` was read
+1. Re-read PHASE_GOAL.md and compare stated ingest objectives against produced output
+2. Verify the structured output faithfully represents the original input meaning
+3. Confirm interpretive decisions are documented and justified
+
+**Checkpoint:** APPROVAL REQUIRED — Confirm ingest goal is met
+
+---
+
+## Step 2: COMPLETENESS — Verify All Inputs Processed
+
+**Question:** Were all input specifications processed?
+
+**Actions:**
+1. Confirm every file in `input_specs/` was read completely
 2. Verify no inputs were overlooked or partially processed
 3. Check that ambiguities and questions were noted
 
@@ -23,25 +36,12 @@ This gate verifies the ingest phase was completed correctly before advancing.
 
 ---
 
-## Step 2: ACCURACY — Verify Output Specs Capture Intent
-
-**Question:** Do the output specifications accurately capture the user's intent?
-
-**Actions:**
-1. Check that `output_specs/` documents exist (purpose, requirements, constraints, context)
-2. Verify the structured output matches the original input meaning
-3. Confirm interpretive decisions are documented
-
-**Checkpoint:** APPROVAL REQUIRED — Confirm output specs are accurate
-
----
-
 ## Step 3: APPROVAL — Verify User Validated Output
 
-**Question:** Did the user review and approve the structured output?
+**Question:** Did the user validate the structured output?
 
 **Actions:**
-1. Confirm the PRESENT step received user approval
+1. Confirm the user reviewed and approved the output specifications
 2. Verify any user corrections were incorporated
 3. Check that requirements are clear enough for downstream planning
 
@@ -53,6 +53,6 @@ This gate verifies the ingest phase was completed correctly before advancing.
 
 | Step | Status | Notes |
 |------|--------|-------|
-| 1. COMPLETENESS | [ ] pending | All inputs processed |
-| 2. ACCURACY | [ ] pending | Output specs capture intent |
+| 1. PHASE GOAL | [ ] pending | Ingest goal achieved |
+| 2. COMPLETENESS | [ ] pending | All inputs processed |
 | 3. APPROVAL | [ ] pending | User validated output |

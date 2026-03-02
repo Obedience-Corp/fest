@@ -6,30 +6,30 @@ fest_parent: [REPLACE: PHASE_ID]
 
 # Planning Phase Gate
 
-This gate verifies the planning phase was completed correctly before advancing.
+This gate verifies the planning phase achieved its goal and produced an approved, valid plan.
 
 ---
 
-## Step 1: METHODOLOGY — Verify Workflow Compliance
+## Step 1: PHASE GOAL — Verify Goal Achievement
 
-**Question:** Did you follow each step of the planning WORKFLOW.md in order (REVIEW, GAP ANALYSIS, DECOMPOSE, DESIGN, STRUCTURE, PRESENT, SCAFFOLD, VALIDATE)?
+**Question:** Does the plan address the stated planning objective? Is the planned approach sound and complete?
 
 **Actions:**
-1. Confirm no workflow steps were skipped
-2. Verify each step produced its expected output
-3. Check that checkpoints requiring user approval were honored
+1. Re-read PHASE_GOAL.md and compare stated objectives against the produced plan
+2. Verify the plan covers all aspects of the planning objective
+3. Confirm the approach is feasible and the decomposition is appropriate
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm methodology compliance before proceeding
+**Checkpoint:** APPROVAL REQUIRED — Confirm planning goal is met
 
 ---
 
 ## Step 2: APPROVAL — Verify User Sign-Off
 
-**Question:** Did the user explicitly approve the plan before scaffolding began?
+**Question:** Did the user explicitly approve the plan?
 
 **Actions:**
-1. Confirm the PRESENT step received user approval
-2. Verify any user feedback was incorporated before scaffolding
+1. Confirm the plan received user approval before scaffolding
+2. Verify any user feedback was incorporated
 3. Check that the plan was not scaffolded without approval
 
 **Checkpoint:** APPROVAL REQUIRED — Confirm user approved the plan
@@ -38,13 +38,12 @@ This gate verifies the planning phase was completed correctly before advancing.
 
 ## Step 3: STRUCTURE — Verify Festival Integrity
 
-**Question:** Is the scaffolded festival structurally valid with all markers filled?
+**Question:** Is the scaffolded festival structurally valid?
 
 **Actions:**
 1. Run `fest validate` and confirm it passes
 2. Verify no `[REPLACE: ...]` markers remain in any document
 3. Confirm phases are properly ordered with clear goals
-4. Check that implementation sequences have appropriate task specifications
 
 **Checkpoint:** APPROVAL REQUIRED — Confirm structure is valid
 
@@ -54,6 +53,6 @@ This gate verifies the planning phase was completed correctly before advancing.
 
 | Step | Status | Notes |
 |------|--------|-------|
-| 1. METHODOLOGY | [ ] pending | Workflow compliance |
+| 1. PHASE GOAL | [ ] pending | Planning goal achieved |
 | 2. APPROVAL | [ ] pending | User sign-off |
 | 3. STRUCTURE | [ ] pending | Festival integrity |

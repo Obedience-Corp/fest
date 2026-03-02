@@ -123,8 +123,8 @@ func TestValidateTemplateMarkers_ReviewPhaseReturnsError(t *testing.T) {
 	t.Error("expected an unfilled_template issue for the task file")
 }
 
-func TestValidateTemplateMarkers_DeploymentPhaseReturnsError(t *testing.T) {
-	dir := setupTemplateTestFestival(t, "deployment", "# Task\n\n{{ variable }}\n")
+func TestValidateTemplateMarkers_NonCodingActionPhaseReturnsError(t *testing.T) {
+	dir := setupTemplateTestFestival(t, "non_coding_action", "# Task\n\n{{ variable }}\n")
 
 	issues, err := ValidateTemplateMarkers(dir)
 	if err != nil {
@@ -134,7 +134,7 @@ func TestValidateTemplateMarkers_DeploymentPhaseReturnsError(t *testing.T) {
 	for _, issue := range issues {
 		if issue.Code == CodeUnfilledTemplate && issue.Path == filepath.Join("001_PHASE", "01_seq", "01_task.md") {
 			if issue.Level != LevelError {
-				t.Errorf("deployment phase markers should be errors, got %s", issue.Level)
+				t.Errorf("non_coding_action phase markers should be errors, got %s", issue.Level)
 			}
 			return
 		}
