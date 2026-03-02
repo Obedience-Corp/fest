@@ -24,9 +24,9 @@ type MarkerOptions struct {
 // MarkerResult holds the result of marker processing for JSON output.
 type MarkerResult struct {
 	Markers       []map[string]any `json:"markers,omitempty"`
-	Filled        int                      `json:"filled,omitempty"`
-	Total         int                      `json:"total,omitempty"`
-	UnfilledHints []string                 `json:"unfilled_hints,omitempty"`
+	Filled        int              `json:"filled,omitempty"`
+	Total         int              `json:"total,omitempty"`
+	UnfilledHints []string         `json:"unfilled_hints,omitempty"`
 }
 
 // ProcessMarkers handles post-creation marker completion.

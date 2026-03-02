@@ -45,10 +45,10 @@ func TestFestEntries_RequiredFieldsPresent(t *testing.T) {
 
 func TestFestEntries_ValidFormats(t *testing.T) {
 	validFormats := map[contract.Format]bool{
-		contract.FormatYAML:              true,
-		contract.FormatJSON:              true,
-		contract.FormatJSONL:             true,
-		contract.FormatDirectory:         true,
+		contract.FormatYAML:                true,
+		contract.FormatJSON:                true,
+		contract.FormatJSONL:               true,
+		contract.FormatDirectory:           true,
 		contract.FormatMarkdownFrontmatter: true,
 	}
 	for _, e := range FestEntries() {

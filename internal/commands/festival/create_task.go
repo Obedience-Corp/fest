@@ -34,20 +34,20 @@ type CreateTaskOptions struct {
 }
 
 type createTaskResult struct {
-	OK              bool                     `json:"ok"`
-	Action          string                   `json:"action"`
-	Task            map[string]any   `json:"task,omitempty"`
-	Created         []string                 `json:"created,omitempty"`
-	Renumber        []string                 `json:"renumbered,omitempty"`
-	Markers         []map[string]any `json:"markers,omitempty"`
-	MarkersFilled   int                      `json:"markers_filled,omitempty"`
-	MarkersTotal    int                      `json:"markers_total,omitempty"`
-	MarkersUnfilled int                      `json:"markers_unfilled,omitempty"`
-	MarkersWarning  string                   `json:"markers_warning,omitempty"`
-	Validation      *ValidationSummary       `json:"validation,omitempty"`
-	Errors          []map[string]any         `json:"errors,omitempty"`
-	Warnings        []string                 `json:"warnings,omitempty"`
-	Suggestions     []string                 `json:"suggestions,omitempty"`
+	OK              bool               `json:"ok"`
+	Action          string             `json:"action"`
+	Task            map[string]any     `json:"task,omitempty"`
+	Created         []string           `json:"created,omitempty"`
+	Renumber        []string           `json:"renumbered,omitempty"`
+	Markers         []map[string]any   `json:"markers,omitempty"`
+	MarkersFilled   int                `json:"markers_filled,omitempty"`
+	MarkersTotal    int                `json:"markers_total,omitempty"`
+	MarkersUnfilled int                `json:"markers_unfilled,omitempty"`
+	MarkersWarning  string             `json:"markers_warning,omitempty"`
+	Validation      *ValidationSummary `json:"validation,omitempty"`
+	Errors          []map[string]any   `json:"errors,omitempty"`
+	Warnings        []string           `json:"warnings,omitempty"`
+	Suggestions     []string           `json:"suggestions,omitempty"`
 }
 
 // NewCreateTaskCommand adds 'create task'

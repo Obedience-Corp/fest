@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
 
 	chainpkg "github.com/Obedience-Corp/fest/internal/chain"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
@@ -60,13 +59,30 @@ func runCheck(ctx context.Context, refOrID, chainIDFlag string) error {
 		return nil
 	}
 
-	// Without live festival statuses, report the dependency structure.
+	// Resolve live festival statuses.
+	statuses, _ := resolveChainStatuses(ctx, c)
+
 	fmt.Printf("%s (%s) has %d hard dependencies:\n", ref, node.ID, len(hardUpstream))
+
+	pendingCount := 0
 	for _, e := range hardUpstream {
 		upstream := c.FestivalByRef(e.From)
-		if upstream != nil {
-			fmt.Printf("  %s (%s): %s\n", e.From, upstream.ID, upstream.Name)
+		if upstream == nil {
+			continue
 		}
+		s := statuses[e.From]
+		icon := statusIcon(s)
+		fmt.Printf("  %s (%s) %s  %s\n", e.From, upstream.ID, icon, upstream.Name)
+		if s != chainpkg.FestivalCompleted {
+			pendingCount++
+		}
+	}
+
+	fmt.Println()
+	if pendingCount == 0 {
+		fmt.Printf("%s — all hard dependencies are completed\n", ui.Accent("UNBLOCKED"))
+	} else {
+		fmt.Printf("%s (%d deps pending)\n", ui.Warning("BLOCKED"), pendingCount)
 	}
 
 	return nil
@@ -92,7 +108,12 @@ func findChainForFestival(ctx context.Context, refOrID, chainIDFlag string) (*ch
 	}
 
 	// Search all chains for the ref or ID.
-	chains, err := discoverAllChains(ctx)
+	root, err := festivalsRoot()
+	if err != nil {
+		return nil, "", err
+	}
+
+	chains, err := chainpkg.DiscoverAll(ctx, root)
 	if err != nil {
 		return nil, "", err
 	}
@@ -111,32 +132,15 @@ func findChainForFestival(ctx context.Context, refOrID, chainIDFlag string) (*ch
 	return nil, "", fmt.Errorf("festival %q not found in any chain", refOrID)
 }
 
-// discoverAllChains loads chains from active and completed directories.
-func discoverAllChains(ctx context.Context) ([]*chainpkg.Chain, error) {
-	dirs, err := workspaceChainDirs()
-	if err != nil {
-		return nil, err
-	}
-
-	var all []*chainpkg.Chain
-	for _, dir := range dirs {
-		chains, _ := discoverChains(ctx, dir)
-		all = append(all, chains...)
-	}
-	return all, nil
-}
-
-func workspaceChainDirs() ([]string, error) {
+// festivalsRoot returns the festivals root directory.
+func festivalsRoot() (string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return nil, fmt.Errorf("getting working directory: %w", err)
+		return "", fmt.Errorf("getting working directory: %w", err)
 	}
 	root, err := tpl.FindFestivalsRoot(cwd)
 	if err != nil {
-		return nil, fmt.Errorf("finding festivals root: %w", err)
+		return "", fmt.Errorf("finding festivals root: %w", err)
 	}
-	return []string{
-		filepath.Join(root, "chains"),
-		filepath.Join(root, "dungeon", "completed", "chains"),
-	}, nil
+	return root, nil
 }

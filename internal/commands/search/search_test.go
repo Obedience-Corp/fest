@@ -209,10 +209,10 @@ func TestScoreTarget(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		query     string
-		wantMin   int
-		wantZero  bool
+		name     string
+		query    string
+		wantMin  int
+		wantZero bool
 	}{
 		{"exact name match scores highest", "deploy-service-DS0001", 100, false},
 		{"prefix name match", "deploy", 1, false},

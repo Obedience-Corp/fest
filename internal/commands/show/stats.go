@@ -16,19 +16,19 @@ import (
 
 // FestivalInfo holds information about a festival.
 type FestivalInfo struct {
-	ID           string         `json:"id"`                      // Directory-based ID (e.g., "my-project_GU0001")
-	MetadataID   string         `json:"metadata_id,omitempty"`   // ID from fest.yaml metadata (e.g., "GU0001")
-	Name         string         `json:"name"`                    // Directory name (used for linking)
-	MetadataName string         `json:"metadata_name,omitempty"` // Name from fest.yaml metadata (clean name without ID)
-	Status       string         `json:"status"`
-	Priority     string         `json:"priority,omitempty"`
-	Path         string         `json:"path"`
-	ProjectPath  string         `json:"project_path,omitempty"` // Linked project directory from fest.yaml
-	ModTime      time.Time      `json:"mod_time"`               // Directory modification time
+	ID           string    `json:"id"`                      // Directory-based ID (e.g., "my-project_GU0001")
+	MetadataID   string    `json:"metadata_id,omitempty"`   // ID from fest.yaml metadata (e.g., "GU0001")
+	Name         string    `json:"name"`                    // Directory name (used for linking)
+	MetadataName string    `json:"metadata_name,omitempty"` // Name from fest.yaml metadata (clean name without ID)
+	Status       string    `json:"status"`
+	Priority     string    `json:"priority,omitempty"`
+	Path         string    `json:"path"`
+	ProjectPath  string    `json:"project_path,omitempty"` // Linked project directory from fest.yaml
+	ModTime      time.Time `json:"mod_time"`               // Directory modification time
 	// CreatedAt is when the festival was first created (from fest_created frontmatter or directory mod time).
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt is the last modification time (from fest_updated frontmatter or directory mod time).
-	UpdatedAt time.Time `json:"updated_at,omitempty"`
+	UpdatedAt time.Time      `json:"updated_at,omitempty"`
 	Stats     *FestivalStats `json:"stats,omitempty"`
 }
 

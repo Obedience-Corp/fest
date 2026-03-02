@@ -4,14 +4,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
-	chainpkg "github.com/Obedience-Corp/fest/internal/chain"
+	chaintpl "github.com/Obedience-Corp/fest/embedded/templates/chain"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 func newCreateCmd() *cobra.Command {
@@ -60,46 +61,46 @@ func runCreate(cmd *cobra.Command, name, goal string) error {
 	// Generate chain ID from name prefix.
 	slug := strings.ToLower(strings.ReplaceAll(name, " ", "-"))
 	prefix := chainIDPrefix(name)
-	id := fmt.Sprintf("%s0001", prefix)
+	id := nextChainID(chainsDir, prefix)
 
-	// Check for existing chains to auto-increment.
-	entries, _ := os.ReadDir(chainsDir)
-	for _, e := range entries {
-		if strings.Contains(e.Name(), prefix) {
-			// Increment: simple strategy, just bump to next number.
-			id = fmt.Sprintf("%s%04d", prefix, len(entries)+1)
-		}
-	}
-
-	c := &chainpkg.Chain{
-		ChainVersion: "1.0",
-		Metadata: chainpkg.Metadata{
-			ID:        id,
-			Name:      slug,
-			Goal:      goal,
-			CreatedAt: time.Now().UTC(),
-			Status:    chainpkg.StatusPlanning,
-			StatusHistory: []chainpkg.StatusEntry{
-				{
-					Status:    chainpkg.StatusPlanning,
-					Timestamp: time.Now().UTC(),
-					Notes:     "Chain created",
-				},
-			},
-		},
-		Festivals: []chainpkg.FestivalNode{},
-		Edges:     []chainpkg.Edge{},
-	}
-
-	data, err := yaml.Marshal(c)
+	// Render embedded chain template.
+	tplData, err := chaintpl.Templates.ReadFile("chain_template.yaml")
 	if err != nil {
-		return fmt.Errorf("marshaling chain: %w", err)
+		return fmt.Errorf("reading chain template: %w", err)
+	}
+
+	tmpl, err := template.New("chain").Parse(string(tplData))
+	if err != nil {
+		return fmt.Errorf("parsing chain template: %w", err)
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	data := struct {
+		ID        string
+		Name      string
+		Goal      string
+		CreatedAt string
+	}{
+		ID:        id,
+		Name:      slug,
+		Goal:      goal,
+		CreatedAt: now,
 	}
 
 	filename := fmt.Sprintf("%s-%s.yaml", slug, id)
 	path := filepath.Join(chainsDir, filename)
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return fmt.Errorf("writing chain file: %w", err)
+
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		if os.IsExist(err) {
+			return fmt.Errorf("chain file already exists: %s", path)
+		}
+		return fmt.Errorf("creating chain file: %w", err)
+	}
+	defer f.Close()
+
+	if err := tmpl.Execute(f, data); err != nil {
+		return fmt.Errorf("rendering chain template: %w", err)
 	}
 
 	fmt.Println(ui.Label("CHAIN CREATED"))
@@ -111,6 +112,36 @@ func runCreate(cmd *cobra.Command, name, goal string) error {
 	fmt.Println("then run 'fest chain validate " + id + "' to verify.")
 
 	return nil
+}
+
+// nextChainID scans existing files in chainsDir to find the highest numeric
+// suffix for the given prefix, then returns prefix + max+1 (zero-padded to 4).
+// This avoids collisions with non-contiguous IDs.
+func nextChainID(chainsDir, prefix string) string {
+	entries, _ := os.ReadDir(chainsDir)
+	maxNum := 0
+	for _, e := range entries {
+		name := e.Name()
+		idx := strings.Index(name, prefix)
+		if idx < 0 {
+			continue
+		}
+		// Extract digits immediately after the prefix.
+		after := name[idx+len(prefix):]
+		// Take consecutive digits.
+		numStr := ""
+		for _, ch := range after {
+			if ch >= '0' && ch <= '9' {
+				numStr += string(ch)
+			} else {
+				break
+			}
+		}
+		if n, err := strconv.Atoi(numStr); err == nil && n > maxNum {
+			maxNum = n
+		}
+	}
+	return fmt.Sprintf("%s%04d", prefix, maxNum+1)
 }
 
 // chainIDPrefix extracts a 2-letter uppercase prefix from the chain name.

@@ -5,9 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
-	festcontract "github.com/Obedience-Corp/fest/internal/contract"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/config"
+	festcontract "github.com/Obedience-Corp/fest/internal/contract"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/fileops"
 	"github.com/Obedience-Corp/fest/internal/ui"

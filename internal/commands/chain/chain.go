@@ -24,6 +24,8 @@ func NewChainCmd() *cobra.Command {
 		newStatusCmd(),
 		newValidateCmd(),
 		newCheckCmd(),
+		newGraphCmd(),
+		newCompleteCmd(),
 	)
 
 	return cmd

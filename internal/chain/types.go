@@ -26,22 +26,22 @@ const (
 
 // Chain represents a festival chain definition — the top-level YAML document.
 type Chain struct {
-	ChainVersion   string          `yaml:"chain_version"`
-	Metadata       Metadata        `yaml:"metadata"`
-	Festivals      []FestivalNode  `yaml:"festivals"`
-	Edges          []Edge          `yaml:"edges"`
-	Waves          []Wave          `yaml:"waves,omitempty"`
-	SequenceHints  []SequenceHint  `yaml:"sequence_hints,omitempty"`
+	ChainVersion  string         `yaml:"chain_version"`
+	Metadata      Metadata       `yaml:"metadata"`
+	Festivals     []FestivalNode `yaml:"festivals"`
+	Edges         []Edge         `yaml:"edges"`
+	Waves         []Wave         `yaml:"waves,omitempty"`
+	SequenceHints []SequenceHint `yaml:"sequence_hints,omitempty"`
 }
 
 // Metadata holds chain identity and lifecycle information.
 type Metadata struct {
-	ID            string          `yaml:"id"`
-	Name          string          `yaml:"name"`
-	Goal          string          `yaml:"goal,omitempty"`
-	CreatedAt     time.Time       `yaml:"created_at"`
-	Status        ChainStatus     `yaml:"status"`
-	StatusHistory []StatusEntry   `yaml:"status_history"`
+	ID            string        `yaml:"id"`
+	Name          string        `yaml:"name"`
+	Goal          string        `yaml:"goal,omitempty"`
+	CreatedAt     time.Time     `yaml:"created_at"`
+	Status        ChainStatus   `yaml:"status"`
+	StatusHistory []StatusEntry `yaml:"status_history"`
 }
 
 // StatusEntry is a single lifecycle state transition in the audit trail.
@@ -78,10 +78,10 @@ type Wave struct {
 
 // SequenceHint provides intra-festival parallelism guidance.
 type SequenceHint struct {
-	Festival            string        `yaml:"festival"`
-	EarlyStart          *HintBlock    `yaml:"early_start,omitempty"`
-	NeedsUpstream       *HintBlock    `yaml:"needs_upstream,omitempty"`
-	InternalParallelism *Parallelism  `yaml:"internal_parallelism,omitempty"`
+	Festival            string       `yaml:"festival"`
+	EarlyStart          *HintBlock   `yaml:"early_start,omitempty"`
+	NeedsUpstream       *HintBlock   `yaml:"needs_upstream,omitempty"`
+	InternalParallelism *Parallelism `yaml:"internal_parallelism,omitempty"`
 }
 
 // HintBlock describes sequences that can or cannot start early.

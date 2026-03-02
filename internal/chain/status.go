@@ -14,12 +14,12 @@ const (
 
 // ChainProgress holds computed progress information for a chain.
 type ChainProgress struct {
-	State       ChainStatus
-	Completed   int
-	Total       int
-	Percentage  float64
-	WaveStatus  map[int]WaveProgress
-	Unblocked   []string // refs that can now start
+	State      ChainStatus
+	Completed  int
+	Total      int
+	Percentage float64
+	WaveStatus map[int]WaveProgress
+	Unblocked  []string // refs that can now start
 }
 
 // WaveProgress holds the progress of a single wave.
@@ -101,14 +101,38 @@ func ComputeProgress(ctx context.Context, c *Chain, statuses map[string]Festival
 	return progress, nil
 }
 
+// GateStatus holds the completion state of a specific gate within a festival.
+// Gate names follow the pattern "phase:sequence" or "phase" for phase-level gates.
+type GateStatus struct {
+	Festival string
+	Gate     string
+	Complete bool
+}
+
+// GateResolver is a function that checks whether a specific gate is complete
+// for a given festival. If nil, gate-level unblocking is not used.
+type GateResolver func(festivalRef, gate string) bool
+
 // findUnblocked returns festivals whose hard dependencies are all completed
-// and that haven't started yet.
+// (or whose gate conditions are met) and that haven't started yet.
 func findUnblocked(c *Chain, statuses map[string]FestivalStatus) []string {
-	// Build hard-dep map: ref -> list of upstream refs with hard edges.
-	hardDeps := make(map[string][]string)
+	return findUnblockedWithGates(c, statuses, nil)
+}
+
+// findUnblockedWithGates returns festivals whose hard dependencies are met,
+// using gate-level resolution when available. If gateResolver is nil, full
+// festival completion is required for all hard deps.
+func findUnblockedWithGates(c *Chain, statuses map[string]FestivalStatus, gateResolver GateResolver) []string {
+	type hardDep struct {
+		from string
+		gate string // empty means full festival completion required
+	}
+
+	// Build hard-dep map: ref -> list of upstream deps with optional gates.
+	deps := make(map[string][]hardDep)
 	for _, e := range c.Edges {
 		if e.Type == EdgeHard {
-			hardDeps[e.To] = append(hardDeps[e.To], e.From)
+			deps[e.To] = append(deps[e.To], hardDep{from: e.From, gate: e.Gate})
 		}
 	}
 
@@ -120,10 +144,19 @@ func findUnblocked(c *Chain, statuses map[string]FestivalStatus) []string {
 		}
 
 		allDepsMet := true
-		for _, dep := range hardDeps[f.Ref] {
-			if statuses[dep] != FestivalCompleted {
-				allDepsMet = false
-				break
+		for _, dep := range deps[f.Ref] {
+			if dep.gate != "" && gateResolver != nil {
+				// Gate-level check: specific gate completion is sufficient.
+				if !gateResolver(dep.from, dep.gate) {
+					allDepsMet = false
+					break
+				}
+			} else {
+				// Full festival completion required.
+				if statuses[dep.from] != FestivalCompleted {
+					allDepsMet = false
+					break
+				}
 			}
 		}
 		if allDepsMet {
@@ -132,6 +165,71 @@ func findUnblocked(c *Chain, statuses map[string]FestivalStatus) []string {
 	}
 
 	return unblocked
+}
+
+// ComputeProgressWithGates is like ComputeProgress but uses gate-level resolution.
+func ComputeProgressWithGates(ctx context.Context, c *Chain, statuses map[string]FestivalStatus, gateResolver GateResolver) (*ChainProgress, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	progress := &ChainProgress{
+		Total:      len(c.Festivals),
+		WaveStatus: make(map[int]WaveProgress),
+	}
+
+	for _, f := range c.Festivals {
+		if statuses[f.Ref] == FestivalCompleted {
+			progress.Completed++
+		}
+	}
+
+	if progress.Total > 0 {
+		progress.Percentage = float64(progress.Completed) / float64(progress.Total) * 100
+	}
+
+	switch {
+	case progress.Completed == progress.Total:
+		progress.State = StatusCompleted
+	case progress.Completed > 0 || hasActiveStatus(statuses):
+		progress.State = StatusActive
+	default:
+		progress.State = StatusPlanning
+	}
+
+	for _, w := range c.Waves {
+		wp := WaveProgress{
+			WaveID: w.ID,
+			Name:   w.Name,
+			Total:  len(w.Festivals),
+		}
+		allCompleted := true
+		anyActive := false
+		for _, ref := range w.Festivals {
+			s := statuses[ref]
+			if s == FestivalCompleted {
+				wp.Completed++
+			} else {
+				allCompleted = false
+			}
+			if s == FestivalActive || s == FestivalReady {
+				anyActive = true
+			}
+		}
+		switch {
+		case allCompleted:
+			wp.State = "completed"
+		case anyActive || wp.Completed > 0:
+			wp.State = "active"
+		default:
+			wp.State = "pending"
+		}
+		progress.WaveStatus[w.ID] = wp
+	}
+
+	progress.Unblocked = findUnblockedWithGates(c, statuses, gateResolver)
+
+	return progress, nil
 }
 
 func hasActiveStatus(statuses map[string]FestivalStatus) bool {

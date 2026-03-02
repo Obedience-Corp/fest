@@ -38,18 +38,18 @@ type CreatePhaseOptions struct {
 }
 
 type createPhaseResult struct {
-	OK            bool                     `json:"ok"`
-	Action        string                   `json:"action"`
-	Phase         map[string]any   `json:"phase,omitempty"`
-	Created       []string                 `json:"created,omitempty"`
-	Renumber      []string                 `json:"renumbered,omitempty"`
-	Markers       []map[string]any `json:"markers,omitempty"`
-	MarkersFilled int                      `json:"markers_filled,omitempty"`
-	MarkersTotal  int                      `json:"markers_total,omitempty"`
-	Validation    *ValidationSummary       `json:"validation,omitempty"`
-	Errors        []map[string]any         `json:"errors,omitempty"`
-	Warnings      []string                 `json:"warnings,omitempty"`
-	Suggestions   []string                 `json:"suggestions,omitempty"`
+	OK            bool               `json:"ok"`
+	Action        string             `json:"action"`
+	Phase         map[string]any     `json:"phase,omitempty"`
+	Created       []string           `json:"created,omitempty"`
+	Renumber      []string           `json:"renumbered,omitempty"`
+	Markers       []map[string]any   `json:"markers,omitempty"`
+	MarkersFilled int                `json:"markers_filled,omitempty"`
+	MarkersTotal  int                `json:"markers_total,omitempty"`
+	Validation    *ValidationSummary `json:"validation,omitempty"`
+	Errors        []map[string]any   `json:"errors,omitempty"`
+	Warnings      []string           `json:"warnings,omitempty"`
+	Suggestions   []string           `json:"suggestions,omitempty"`
 }
 
 // selectPhaseTemplate returns the appropriate template ID and filename for a given phase type.

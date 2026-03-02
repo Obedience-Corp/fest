@@ -19,16 +19,16 @@ const StepTypeWorkflowStep = "workflow_step"
 // Also supports GATES.md files via SetDocFilename and SetStateKeyPrefix.
 type Navigator struct {
 	*guidance.BaseNavigator
-	parser        *Parser
-	steps         []WorkflowStep
-	workflowState *WorkflowState
-	festivalPath  string
-	phaseName     string
-	phaseDir      string
-	mode          guidance.Mode
-	store         StateStore // optional: if set, use JSONL events instead of YAML
-	docFilename   string     // defaults to "WORKFLOW.md", can be overridden for GATES.md
-	stateKeyPrefix string    // prefix for state key, e.g. "gate:" for phase gates
+	parser         *Parser
+	steps          []WorkflowStep
+	workflowState  *WorkflowState
+	festivalPath   string
+	phaseName      string
+	phaseDir       string
+	mode           guidance.Mode
+	store          StateStore // optional: if set, use JSONL events instead of YAML
+	docFilename    string     // defaults to "WORKFLOW.md", can be overridden for GATES.md
+	stateKeyPrefix string     // prefix for state key, e.g. "gate:" for phase gates
 }
 
 // Ensure Navigator implements guidance.Navigator.

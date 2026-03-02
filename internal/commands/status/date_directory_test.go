@@ -293,9 +293,9 @@ func TestLooksLikeDateDir(t *testing.T) {
 		{"my-festival", false},
 		{"2025", false},
 		{"01-15", false},
-		{"2025-1-15", false},  // missing zero padding
-		{"2025-01-5", false},  // missing zero padding
-		{"20250115", false},   // no hyphens
+		{"2025-1-15", false}, // missing zero padding
+		{"2025-01-5", false}, // missing zero padding
+		{"20250115", false},  // no hyphens
 		{"", false},
 	}
 

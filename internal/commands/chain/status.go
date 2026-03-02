@@ -43,15 +43,34 @@ func runStatus(ctx context.Context, chainID string) error {
 	fmt.Printf("Created: %s\n", c.Metadata.CreatedAt.Format("2006-01-02"))
 	fmt.Println()
 
-	// Waves
+	// Resolve live statuses.
+	statuses, resolveErr := resolveChainStatuses(ctx, c)
+	if resolveErr != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not resolve all statuses: %s\n", resolveErr)
+	}
+
+	// Compute progress if we have statuses.
+	var progress *chainpkg.ChainProgress
+	if statuses != nil {
+		progress, _ = chainpkg.ComputeProgress(ctx, c, statuses)
+	}
+
+	// Waves with live status annotations.
 	for _, w := range c.Waves {
-		fmt.Printf("Wave %d: %s\n", w.ID, w.Name)
+		waveLabel := fmt.Sprintf("Wave %d: %s", w.ID, w.Name)
+		if progress != nil {
+			if wp, ok := progress.WaveStatus[w.ID]; ok {
+				waveLabel += fmt.Sprintf(" [%s]", wp.State)
+			}
+		}
+		fmt.Println(waveLabel)
 		for _, ref := range w.Festivals {
 			node := c.FestivalByRef(ref)
 			if node == nil {
 				continue
 			}
-			fmt.Printf("  %-4s %-8s %s\n", node.Ref, node.ID, node.Name)
+			icon := statusIcon(statuses[ref])
+			fmt.Printf("  %-4s %-8s %-10s %s\n", node.Ref, node.ID, icon, node.Name)
 		}
 		fmt.Println()
 	}
@@ -73,9 +92,39 @@ func runStatus(ctx context.Context, chainID string) error {
 		fmt.Println()
 	}
 
-	fmt.Printf("Festivals: %d total\n", len(c.Festivals))
+	// Progress bar.
+	if progress != nil {
+		pct := int(progress.Percentage)
+		bar := progressBar(progress.Completed, progress.Total, 30)
+		fmt.Printf("%s %s [%d/%d] %d%%\n", ui.Label("Progress:"), bar, progress.Completed, progress.Total, pct)
+
+		if len(progress.Unblocked) > 0 {
+			fmt.Println()
+			fmt.Println(ui.Label("Unblocked:"))
+			for _, ref := range progress.Unblocked {
+				node := c.FestivalByRef(ref)
+				if node != nil {
+					fmt.Printf("  %s (%s) %s\n", ref, node.ID, node.Name)
+				}
+			}
+		}
+	} else {
+		fmt.Printf("Festivals: %d total\n", len(c.Festivals))
+	}
 
 	return nil
+}
+
+// progressBar renders a simple ASCII progress bar.
+func progressBar(completed, total, width int) string {
+	if total == 0 {
+		return strings.Repeat("░", width)
+	}
+	filled := width * completed / total
+	if filled > width {
+		filled = width
+	}
+	return strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
 }
 
 // findChainByID searches for a chain file by its ID across active and completed dirs.

@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
-	festcontract "github.com/Obedience-Corp/fest/internal/contract"
 	"github.com/Obedience-Corp/fest/internal/config"
+	festcontract "github.com/Obedience-Corp/fest/internal/contract"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/id"
@@ -25,8 +25,8 @@ import (
 	"github.com/Obedience-Corp/fest/internal/types"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
-	"github.com/google/uuid"
 	"github.com/Obedience-Corp/obey-shared/contract"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
@@ -48,23 +48,23 @@ type CreateFestivalOptions struct {
 }
 
 type createFestivalResult struct {
-	OK                bool                     `json:"ok"`
-	Action            string                   `json:"action"`
-	Festival          map[string]string        `json:"festival,omitempty"`
-	Created           []string                 `json:"created,omitempty"`
-	AutoPhasesCreated []string                 `json:"auto_phases_created,omitempty"`
-	GatesDirectory    string                   `json:"gates_directory,omitempty"`
-	FestYAML          string                   `json:"fest_yaml,omitempty"`
-	GateTemplates     []string                 `json:"gate_templates,omitempty"`
-	ProjectPath       string                   `json:"project_path,omitempty"`
-	ProjectLinked     bool                     `json:"project_linked,omitempty"`
-	Markers           []map[string]any `json:"markers,omitempty"`
-	MarkersFilled     int                      `json:"markers_filled,omitempty"`
-	MarkersTotal      int                      `json:"markers_total,omitempty"`
-	Validation        *ValidationSummary       `json:"validation,omitempty"`
-	Errors            []map[string]any         `json:"errors,omitempty"`
-	Warnings          []string                 `json:"warnings,omitempty"`
-	Extra             map[string]any   `json:"extra,omitempty"`
+	OK                bool               `json:"ok"`
+	Action            string             `json:"action"`
+	Festival          map[string]string  `json:"festival,omitempty"`
+	Created           []string           `json:"created,omitempty"`
+	AutoPhasesCreated []string           `json:"auto_phases_created,omitempty"`
+	GatesDirectory    string             `json:"gates_directory,omitempty"`
+	FestYAML          string             `json:"fest_yaml,omitempty"`
+	GateTemplates     []string           `json:"gate_templates,omitempty"`
+	ProjectPath       string             `json:"project_path,omitempty"`
+	ProjectLinked     bool               `json:"project_linked,omitempty"`
+	Markers           []map[string]any   `json:"markers,omitempty"`
+	MarkersFilled     int                `json:"markers_filled,omitempty"`
+	MarkersTotal      int                `json:"markers_total,omitempty"`
+	Validation        *ValidationSummary `json:"validation,omitempty"`
+	Errors            []map[string]any   `json:"errors,omitempty"`
+	Warnings          []string           `json:"warnings,omitempty"`
+	Extra             map[string]any     `json:"extra,omitempty"`
 }
 
 // createConfig holds all resolved configuration for festival creation.

@@ -26,14 +26,14 @@ type ApplyOptions struct {
 }
 
 type applyResult struct {
-	OK          bool                   `json:"ok"`
-	Action      string                 `json:"action"`
-	Template    map[string]string      `json:"template,omitempty"`
-	Destination string                 `json:"destination,omitempty"`
-	Mode        string                 `json:"mode,omitempty"`
-	Errors      []map[string]any       `json:"errors,omitempty"`
-	Warnings    []string               `json:"warnings,omitempty"`
-	Extra       map[string]any `json:"extra,omitempty"`
+	OK          bool              `json:"ok"`
+	Action      string            `json:"action"`
+	Template    map[string]string `json:"template,omitempty"`
+	Destination string            `json:"destination,omitempty"`
+	Mode        string            `json:"mode,omitempty"`
+	Errors      []map[string]any  `json:"errors,omitempty"`
+	Warnings    []string          `json:"warnings,omitempty"`
+	Extra       map[string]any    `json:"extra,omitempty"`
 }
 
 // NewApplyCommand creates the 'apply' command (copy-first single template)

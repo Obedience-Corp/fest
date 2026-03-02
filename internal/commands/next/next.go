@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	chainpkg "github.com/Obedience-Corp/fest/internal/chain"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -17,7 +18,9 @@ import (
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/guidance/selection"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/scope"
+	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/validator"
 	"github.com/spf13/cobra"
 
@@ -280,11 +283,13 @@ func runNext(cmd *cobra.Command, args []string) error {
 
 	if verboseOutput {
 		fmt.Print(selection.FormatVerbose(result, showInlineContext))
+		printChainContext(ctx, festivalPath, result.FestivalComplete)
 		printFeedbackReminder(ctx, festivalPath)
 		return nil
 	}
 
 	fmt.Print(selection.FormatText(result, showInlineContext))
+	printChainContext(ctx, festivalPath, result.FestivalComplete)
 	printFeedbackReminder(ctx, festivalPath)
 	return nil
 }
@@ -916,6 +921,88 @@ func isPhaseWorkAndWorkflowComplete(ctx context.Context, storeLoaded bool, store
 	}
 
 	return true
+}
+
+// printChainContext shows chain-awareness context when a festival is complete.
+// Best-effort only — any error silently skips.
+func printChainContext(ctx context.Context, festivalPath string, festivalComplete bool) {
+	if !festivalComplete {
+		return
+	}
+
+	// Load festival ID from fest.yaml.
+	festCfg, cfgErr := config.LoadFestivalConfig(festivalPath, "")
+	if cfgErr != nil || !festCfg.Metadata.HasMetadata() {
+		return
+	}
+	festivalID := festCfg.Metadata.ID
+
+	// Find festivals root.
+	root, err := tpl.FindFestivalsRoot(festivalPath)
+	if err != nil {
+		return
+	}
+
+	// Find chain containing this festival.
+	c, _, findErr := chainpkg.FindForFestival(ctx, festivalID, root)
+	if findErr != nil || c == nil {
+		return // Not in any chain.
+	}
+
+	// Build search dirs for status resolution.
+	searchDirs := make([]string, len(id.StatusDirectories))
+	for i, d := range id.StatusDirectories {
+		searchDirs[i] = filepath.Join(root, d)
+	}
+
+	// Resolve live statuses.
+	resolved, _ := chainpkg.Resolve(ctx, c, searchDirs)
+	statuses := make(map[string]chainpkg.FestivalStatus, len(c.Festivals))
+	for _, node := range c.Festivals {
+		rf, ok := resolved[node.Ref]
+		if !ok || rf.Path == "" {
+			statuses[node.Ref] = chainpkg.FestivalPlanning
+			continue
+		}
+		cfg, cfgErr := config.LoadFestivalConfig(rf.Path, "")
+		if cfgErr != nil {
+			statuses[node.Ref] = chainpkg.FestivalPlanning
+			continue
+		}
+		statuses[node.Ref] = mapChainFestivalStatus(cfg.Metadata.CurrentStatus())
+	}
+
+	// Compute progress to find newly unblocked.
+	chainProgress, _ := chainpkg.ComputeProgress(ctx, c, statuses)
+	if chainProgress == nil || len(chainProgress.Unblocked) == 0 {
+		return
+	}
+
+	fmt.Println()
+	fmt.Println("CHAIN CONTEXT")
+	fmt.Println("Completing this festival unblocks:")
+	for _, ref := range chainProgress.Unblocked {
+		node := c.FestivalByRef(ref)
+		if node != nil {
+			fmt.Printf("  -> %s (%s) %s [ready to start]\n", ref, node.ID, node.Name)
+		}
+	}
+}
+
+// mapChainFestivalStatus converts a string status to a chain FestivalStatus.
+func mapChainFestivalStatus(s string) chainpkg.FestivalStatus {
+	switch s {
+	case "planning":
+		return chainpkg.FestivalPlanning
+	case "ready":
+		return chainpkg.FestivalReady
+	case "active":
+		return chainpkg.FestivalActive
+	case "completed", "dungeon/completed":
+		return chainpkg.FestivalCompleted
+	default:
+		return chainpkg.FestivalPlanning
+	}
 }
 
 // runPhaseGateMode uses the workflow navigator configured for GATES.md navigation.

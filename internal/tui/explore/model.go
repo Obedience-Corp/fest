@@ -67,18 +67,18 @@ type refreshItemsMsg struct {
 
 // Model is the BubbleTea model for the festival explorer.
 type Model struct {
-	ctx     context.Context
-	roots   []*TreeNode // Current level's tree nodes
-	visible []*TreeNode // Flattened visible nodes (expanded descendants)
-	cursor  int         // Index into visible slice
-	width   int
-	height  int
-	maxVisible  int
-	scrollStart int
-	status      string
-	loading     bool
-	err         error
-	quitting    bool
+	ctx          context.Context
+	roots        []*TreeNode // Current level's tree nodes
+	visible      []*TreeNode // Flattened visible nodes (expanded descendants)
+	cursor       int         // Index into visible slice
+	width        int
+	height       int
+	maxVisible   int
+	scrollStart  int
+	status       string
+	loading      bool
+	err          error
+	quitting     bool
 	festivalPath string // Auto-navigate into this festival on load
 
 	// Drilldown stack (status → festival list → festival hierarchy)

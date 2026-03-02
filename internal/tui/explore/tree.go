@@ -3,7 +3,7 @@ package explore
 // TreeNode represents a node in the expandable tree view.
 type TreeNode struct {
 	Item     FestivalItem
-	Depth    int  // 0=status, 1=festival, 2=phase, 3=sequence, 4=task
+	Depth    int // 0=status, 1=festival, 2=phase, 3=sequence, 4=task
 	Expanded bool
 	Loading  bool // true while async child load in progress
 	Loaded   bool // true once children fetched (even if empty)

@@ -141,23 +141,23 @@ fest_phase_type: implementation
 		{
 			name: "review frontmatter phase without sequences passes",
 			structure: map[string]string{
-				"FESTIVAL_OVERVIEW.md":        "overview",
-				"003_VALIDATE/PHASE_GOAL.md":  reviewFrontmatter,
+				"FESTIVAL_OVERVIEW.md":       "overview",
+				"003_VALIDATE/PHASE_GOAL.md": reviewFrontmatter,
 			},
 			wantSequenceErrs: 0,
 		},
 		{
 			name: "implementation frontmatter phase without sequences fails",
 			structure: map[string]string{
-				"FESTIVAL_OVERVIEW.md":        "overview",
-				"003_VALIDATE/PHASE_GOAL.md":  implFrontmatter,
+				"FESTIVAL_OVERVIEW.md":       "overview",
+				"003_VALIDATE/PHASE_GOAL.md": implFrontmatter,
 			},
 			wantSequenceErrs: 1,
 		},
 		{
 			name: "frontmatter overrides name heuristic",
 			structure: map[string]string{
-				"FESTIVAL_OVERVIEW.md":       "overview",
+				"FESTIVAL_OVERVIEW.md":        "overview",
 				"001_IMPLEMENT/PHASE_GOAL.md": reviewFrontmatter,
 			},
 			wantSequenceErrs: 0, // name says impl, frontmatter says review

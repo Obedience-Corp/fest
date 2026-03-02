@@ -36,18 +36,18 @@ type CreateSequenceOptions struct {
 }
 
 type createSequenceResult struct {
-	OK            bool                     `json:"ok"`
-	Action        string                   `json:"action"`
-	Sequence      map[string]any   `json:"sequence,omitempty"`
-	Created       []string                 `json:"created,omitempty"`
-	Renumber      []string                 `json:"renumbered,omitempty"`
-	Markers       []map[string]any `json:"markers,omitempty"`
-	MarkersFilled int                      `json:"markers_filled,omitempty"`
-	MarkersTotal  int                      `json:"markers_total,omitempty"`
-	Validation    *ValidationSummary       `json:"validation,omitempty"`
-	Errors        []map[string]any         `json:"errors,omitempty"`
-	Warnings      []string                 `json:"warnings,omitempty"`
-	Suggestions   []string                 `json:"suggestions,omitempty"`
+	OK            bool               `json:"ok"`
+	Action        string             `json:"action"`
+	Sequence      map[string]any     `json:"sequence,omitempty"`
+	Created       []string           `json:"created,omitempty"`
+	Renumber      []string           `json:"renumbered,omitempty"`
+	Markers       []map[string]any   `json:"markers,omitempty"`
+	MarkersFilled int                `json:"markers_filled,omitempty"`
+	MarkersTotal  int                `json:"markers_total,omitempty"`
+	Validation    *ValidationSummary `json:"validation,omitempty"`
+	Errors        []map[string]any   `json:"errors,omitempty"`
+	Warnings      []string           `json:"warnings,omitempty"`
+	Suggestions   []string           `json:"suggestions,omitempty"`
 }
 
 // NewCreateSequenceCommand adds 'create sequence'

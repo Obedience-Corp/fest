@@ -165,12 +165,12 @@ func FestEntries() []contract.Entry {
 
 		// Task progress event log (append-only JSONL of task completions).
 		{
-			ID:     "festival-progress",
-			Path:   "{festival}/.fest/progress_events.jsonl",
-			Type:   contract.TypeFestivalProgress,
-			Format: contract.FormatJSONL,
-			Watch:  contract.WatchAppend,
-			Owner:  contract.OwnerFest,
+			ID:       "festival-progress",
+			Path:     "{festival}/.fest/progress_events.jsonl",
+			Type:     contract.TypeFestivalProgress,
+			Format:   contract.FormatJSONL,
+			Watch:    contract.WatchAppend,
+			Owner:    contract.OwnerFest,
 			Template: true,
 			FallbackPaths: []string{
 				"{festival}/.fest/progress.yaml",
