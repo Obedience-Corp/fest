@@ -1,6 +1,7 @@
 package next
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -323,14 +324,14 @@ func TestCheckPreActiveStatus(t *testing.T) {
 			status:         "planning",
 			phaseType:      "implementation",
 			expectBlocked:  true,
-			expectContains: "Festival must be in active status",
+			expectContains: "festival is in planning status",
 		},
 		{
 			name:           "planning+review is blocked",
 			status:         "planning",
 			phaseType:      "review",
 			expectBlocked:  true,
-			expectContains: "Festival must be in active status",
+			expectContains: "festival is in planning status",
 		},
 		{
 			name:          "planning+ingest is allowed",
@@ -367,14 +368,14 @@ func TestCheckPreActiveStatus(t *testing.T) {
 			status:         "ready",
 			phaseType:      "implementation",
 			expectBlocked:  true,
-			expectContains: "Festival is in ready status",
+			expectContains: "festival is in ready status",
 		},
 		{
 			name:           "ready+review is blocked",
 			status:         "ready",
 			phaseType:      "review",
 			expectBlocked:  true,
-			expectContains: "Festival is in ready status",
+			expectContains: "festival is in ready status",
 		},
 		{
 			name:          "ready+ingest is allowed",
@@ -485,19 +486,39 @@ func TestCheckPreActiveStatus_ReadyMessage(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Capture stdout to verify prompt block content
+	old := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
 	err := checkPreActiveStatus(festDir, phaseDir)
+
+	w.Close()
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	os.Stdout = old
+	output := buf.String()
+
 	if err == nil {
 		t.Fatal("expected blocked error for ready+implementation, got nil")
 	}
 
-	msg := err.Error()
-	if !strings.Contains(msg, "ready status") {
-		t.Errorf("expected message to mention ready status, got: %v", msg)
+	// Error should be short
+	if !strings.Contains(err.Error(), "festival is in ready status") {
+		t.Errorf("expected short error about ready status, got: %v", err)
 	}
-	if !strings.Contains(msg, "fest promote") {
-		t.Errorf("expected message to include promote instruction, got: %v", msg)
+
+	// Prompt block on stdout should contain the detailed guidance
+	if !strings.Contains(output, "STOP") {
+		t.Errorf("expected prompt block header, got: %s", output)
 	}
-	if !strings.Contains(msg, "Did the user approve") {
-		t.Errorf("expected message to ask about user approval, got: %v", msg)
+	if !strings.Contains(output, "fest promote") {
+		t.Errorf("expected promote instruction in prompt block, got: %s", output)
+	}
+	if !strings.Contains(output, "Did the user approve") {
+		t.Errorf("expected user approval check in prompt block, got: %s", output)
+	}
+	if !strings.Contains(output, "planning -> ready -> [active] -> completed") {
+		t.Errorf("expected lifecycle in prompt block, got: %s", output)
 	}
 }
