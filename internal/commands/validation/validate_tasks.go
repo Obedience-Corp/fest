@@ -6,9 +6,8 @@ import (
 	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
-	"github.com/Obedience-Corp/fest/internal/festival"
-	"github.com/Obedience-Corp/fest/internal/gates"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/validator"
 	"github.com/spf13/cobra"
 )
 
@@ -91,33 +90,17 @@ func runValidateTasks(ctx context.Context, opts *validateOptions) error {
 }
 
 func validateTaskFilesChecks(ctx context.Context, festivalPath string, result *ValidationResult) {
-	parser := festival.NewParser()
-	phases, _ := parser.ParsePhases(ctx, festivalPath)
-	policy := gates.DefaultPolicy()
-
-	for _, phase := range phases {
-		sequences, _ := parser.ParseSequences(ctx, phase.Path)
-		for _, seq := range sequences {
-			// Check if this is an implementation sequence
-			if isExcludedSequence(seq.Name, policy.ExcludePatterns) {
-				continue
-			}
-
-			// Check for task files
-			tasks, _ := parser.ParseTasks(ctx, seq.Path)
-			if len(tasks) == 0 {
-				relPath, _ := filepath.Rel(festivalPath, seq.Path)
-				result.Issues = append(result.Issues, ValidationIssue{
-					Level:       LevelError,
-					Code:        CodeMissingTaskFiles,
-					Path:        relPath,
-					Message:     "Implementation sequence has SEQUENCE_GOAL.md but no task files",
-					Fix:         fmt.Sprintf("fest create task --name \"design\" --path %s --json", relPath),
-					AutoFixable: false,
-				})
-			}
-		}
+	issues, err := validator.ValidateTasks(ctx, festivalPath)
+	if err != nil {
+		result.Issues = append(result.Issues, ValidationIssue{
+			Level:   LevelError,
+			Code:    CodeMissingTaskFiles,
+			Path:    festivalPath,
+			Message: fmt.Sprintf("Failed to validate tasks: %v", err),
+		})
+		return
 	}
+	result.Issues = append(result.Issues, convertIssues(issues)...)
 }
 
 func printTaskValidationSection(display *ui.UI, issues []ValidationIssue) {

@@ -1,10 +1,17 @@
 package validator
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
 )
+
+// templateMarkers is the canonical set of unfilled template markers.
+// Both ValidateTemplateMarkers and CheckTemplatesFilled use this set.
+var templateMarkers = []string{"[FILL:", "[REPLACE:", "[GUIDANCE:", "{{ "}
 
 // stripInlineCode removes text inside backticks from a line.
 // This prevents markers inside inline code examples from being counted.
@@ -23,10 +30,18 @@ func stripInlineCode(line string) string {
 	return result.String()
 }
 
-// ValidateTemplateMarkers scans .md files for unfilled markers
+// MarkerFileResult holds per-file marker scan results.
+type MarkerFileResult struct {
+	RelPath      string
+	MarkerCount  int
+	MarkerTypes  []string
+	Level        string
+}
+
+// ValidateTemplateMarkers scans .md files for unfilled markers with phase-aware severity.
+// Implementation/review/deployment phases produce errors; planning/research produce warnings.
 func ValidateTemplateMarkers(festivalPath string) ([]Issue, error) {
-	issues := []Issue{}
-	markers := []string{"[FILL:", "[GUIDANCE:", "{{ "}
+	var issues []Issue
 
 	_ = filepath.Walk(festivalPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
@@ -47,11 +62,15 @@ func ValidateTemplateMarkers(festivalPath string) ([]Issue, error) {
 		if err != nil {
 			return nil
 		}
+
 		// Scan line-by-line, skipping code blocks
 		lines := strings.Split(string(content), "\n")
 		inCodeBlock := false
+		fileMarkerCount := 0
+		foundMarkers := make(map[string]bool)
+
 		for _, line := range lines {
-			// Toggle fence state on ``` lines
+			// Toggle fence state on ``` lines (handles ```go, ```yaml, etc.)
 			if strings.HasPrefix(strings.TrimSpace(line), "```") {
 				inCodeBlock = !inCodeBlock
 				continue
@@ -62,28 +81,40 @@ func ValidateTemplateMarkers(festivalPath string) ([]Issue, error) {
 			}
 			// Strip inline code (backticks) before checking for markers
 			lineWithoutCode := stripInlineCode(line)
-			for _, m := range markers {
-				if strings.Contains(lineWithoutCode, m) {
-					issues = append(issues, Issue{
-						Level:   LevelWarning,
-						Code:    CodeUnfilledTemplate,
-						Path:    rel,
-						Message: "File contains unfilled template marker: " + m,
-						Fix:     "Edit file and replace template markers with actual content",
-					})
-					break
+			for _, m := range templateMarkers {
+				count := strings.Count(lineWithoutCode, m)
+				if count > 0 {
+					fileMarkerCount += count
+					foundMarkers[m] = true
 				}
 			}
 		}
+
+		if fileMarkerCount > 0 {
+			markerTypes := make([]string, 0, len(foundMarkers))
+			for m := range foundMarkers {
+				markerTypes = append(markerTypes, m)
+			}
+
+			// Phase-aware severity
+			level := resolveMarkerLevel(festivalPath, rel)
+
+			issues = append(issues, Issue{
+				Level:   level,
+				Code:    CodeUnfilledTemplate,
+				Path:    rel,
+				Message: fmt.Sprintf("File contains %d unfilled template markers (%s)", fileMarkerCount, strings.Join(markerTypes, ", ")),
+				Fix:     "Edit file and replace template markers with actual content",
+			})
+		}
+
 		return nil
 	})
 	return issues, nil
 }
 
-// Checklist helpers reused by validate command
-
+// CheckTemplatesFilled returns true if no unfilled template markers remain.
 func CheckTemplatesFilled(festivalPath string) bool {
-	markers := []string{"[FILL:", "[GUIDANCE:", "{{ "}
 	filled := true
 	_ = filepath.Walk(festivalPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".md") {
@@ -116,7 +147,7 @@ func CheckTemplatesFilled(festivalPath string) bool {
 			}
 			// Strip inline code (backticks) before checking for markers
 			lineWithoutCode := stripInlineCode(line)
-			for _, m := range markers {
+			for _, m := range templateMarkers {
 				if strings.Contains(lineWithoutCode, m) {
 					filled = false
 					return filepath.SkipAll
@@ -126,4 +157,40 @@ func CheckTemplatesFilled(festivalPath string) bool {
 		return nil
 	})
 	return filled
+}
+
+// resolveMarkerLevel determines the severity level for template markers
+// based on the phase type containing the file.
+// Implementation/review/deployment phases → error; planning/research → warning.
+func resolveMarkerLevel(festivalPath, relPath string) string {
+	phaseType := resolvePhaseType(festivalPath, relPath)
+	switch phaseType {
+	case frontmatter.PhaseTypeImplementation, frontmatter.PhaseTypeReview, frontmatter.PhaseTypeDeployment:
+		return LevelError
+	default:
+		return LevelWarning
+	}
+}
+
+// resolvePhaseType reads the PHASE_GOAL.md frontmatter to determine the phase type.
+// Returns the PhaseType for the phase containing the given relative path.
+// Defaults to implementation if frontmatter is missing or unreadable.
+func resolvePhaseType(festivalPath, relPath string) frontmatter.PhaseType {
+	parts := strings.Split(relPath, string(filepath.Separator))
+	if len(parts) < 1 {
+		return frontmatter.PhaseTypeImplementation
+	}
+	goalPath := filepath.Join(festivalPath, parts[0], "PHASE_GOAL.md")
+	content, err := os.ReadFile(goalPath)
+	if err != nil {
+		return frontmatter.PhaseTypeImplementation // default assumption
+	}
+	fm, _, err := frontmatter.Parse(content)
+	if err != nil || fm == nil {
+		return frontmatter.PhaseTypeImplementation
+	}
+	if fm.PhaseType == "" {
+		return frontmatter.PhaseTypeImplementation
+	}
+	return fm.PhaseType
 }

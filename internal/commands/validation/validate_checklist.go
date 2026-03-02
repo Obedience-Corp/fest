@@ -3,13 +3,11 @@ package validation
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
-	"github.com/Obedience-Corp/fest/internal/festival"
-	"github.com/Obedience-Corp/fest/internal/gates"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/validator"
 	"github.com/spf13/cobra"
 )
 
@@ -60,19 +58,19 @@ func runValidateChecklist(ctx context.Context, opts *validateOptions) error {
 	}
 
 	// Run all checks and populate checklist
-	templatesFilled := checkTemplatesFilled(festivalPath)
+	templatesFilled := validator.CheckTemplatesFilled(festivalPath)
 	result.Checklist.TemplatesFilled = &templatesFilled
 
 	// Goals achievable is a manual check - always null
 	result.Checklist.GoalsAchievable = nil
 
-	taskFilesExist := checkTaskFilesExist(ctx, festivalPath)
+	taskFilesExist := validator.CheckTaskFilesExist(festivalPath)
 	result.Checklist.TaskFilesExist = &taskFilesExist
 
-	orderCorrect := checkOrderCorrect(ctx, festivalPath)
+	orderCorrect := validator.CheckOrderCorrect(festivalPath)
 	result.Checklist.OrderCorrect = &orderCorrect
 
-	parallelCorrect := checkParallelCorrect(festivalPath)
+	parallelCorrect := validator.CheckParallelCorrect(festivalPath)
 	result.Checklist.ParallelCorrect = &parallelCorrect
 
 	if opts.jsonOutput {
@@ -81,89 +79,6 @@ func runValidateChecklist(ctx context.Context, opts *validateOptions) error {
 
 	printChecklistResult(result.Checklist)
 	return nil
-}
-
-// Checklist check functions
-
-func checkTemplatesFilled(festivalPath string) bool {
-	markers := []string{"[FILL:", "[GUIDANCE:", "{{ "}
-	filled := true
-
-	filepath.Walk(festivalPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".md") {
-			return nil
-		}
-
-		relPath, _ := filepath.Rel(festivalPath, path)
-		if strings.HasPrefix(relPath, ".") || strings.Contains(relPath, "/.") {
-			return nil
-		}
-		// Skip gates/ directory - these are intentional template files
-		if strings.HasPrefix(relPath, "gates/") || strings.HasPrefix(relPath, "gates"+string(filepath.Separator)) {
-			return nil
-		}
-
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return nil
-		}
-
-		contentStr := string(content)
-		for _, marker := range markers {
-			if strings.Contains(contentStr, marker) {
-				filled = false
-				return filepath.SkipAll
-			}
-		}
-		return nil
-	})
-
-	return filled
-}
-
-func checkTaskFilesExist(ctx context.Context, festivalPath string) bool {
-	parser := festival.NewParser()
-	phases, _ := parser.ParsePhases(ctx, festivalPath)
-	policy := gates.DefaultPolicy()
-
-	for _, phase := range phases {
-		sequences, _ := parser.ParseSequences(ctx, phase.Path)
-		for _, seq := range sequences {
-			if isExcludedSequence(seq.Name, policy.ExcludePatterns) {
-				continue
-			}
-			tasks, _ := parser.ParseTasks(ctx, seq.Path)
-			if len(tasks) == 0 {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-func checkOrderCorrect(ctx context.Context, festivalPath string) bool {
-	parser := festival.NewParser()
-	phases, err := parser.ParsePhases(ctx, festivalPath)
-	if err != nil {
-		return true // Can't check, assume OK
-	}
-
-	// Check phases are sequential
-	lastNum := 0
-	for _, phase := range phases {
-		if phase.Number < lastNum {
-			return false
-		}
-		lastNum = phase.Number
-	}
-
-	return true
-}
-
-func checkParallelCorrect(festivalPath string) bool {
-	// For now, always return true - parallel validation is complex
-	// and false positives would be confusing
-	return true
 }
 
 // Output functions for checklist
