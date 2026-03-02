@@ -4,7 +4,7 @@ go 1.25.6
 
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
-	github.com/Obedience-Corp/camp v0.1.3-alpha-stable
+	github.com/Obedience-Corp/camp v0.2.0-dev.1
 	github.com/Obedience-Corp/obey-shared v0.1.0
 	github.com/charmbracelet/bubbles v0.21.1
 	github.com/charmbracelet/bubbletea v1.3.10
