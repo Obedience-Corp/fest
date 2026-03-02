@@ -10,6 +10,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/progress"
 )
 
 // createGuidanceContext creates a guidance context for testing.
@@ -402,5 +403,329 @@ func TestFormatInstructions(t *testing.T) {
 	}
 	if !strings.Contains(output, "READ") {
 		t.Error("output missing step name 'READ'")
+	}
+}
+
+// --- Phase Gate Command Integration Tests ---
+
+// setupGateOnlyFestival creates a festival with an implementation phase
+// that has GATES.md but NO WORKFLOW.md. This is the critical case that
+// previously caused a deadlock (getWorkflowNavigator rejected non-workflow phases).
+func setupGateOnlyFestival(t *testing.T) string {
+	t.Helper()
+
+	dir := t.TempDir()
+
+	festYAML := "name: gate-cmd-test\nid: GATE-CMD-001\n"
+	if err := os.WriteFile(filepath.Join(dir, "fest.yaml"), []byte(festYAML), 0o644); err != nil {
+		t.Fatalf("write fest.yaml: %v", err)
+	}
+
+	phaseDir := filepath.Join(dir, "001_IMPLEMENT")
+	if err := os.MkdirAll(phaseDir, 0o755); err != nil {
+		t.Fatalf("mkdir phase: %v", err)
+	}
+
+	phaseGoal := "---\nfest_type: phase\nfest_id: 001_IMPLEMENT\nfest_phase_type: implementation\n---\n\n# Phase Goal\n\nTest implementation phase.\n"
+	if err := os.WriteFile(filepath.Join(phaseDir, "PHASE_GOAL.md"), []byte(phaseGoal), 0o644); err != nil {
+		t.Fatalf("write PHASE_GOAL.md: %v", err)
+	}
+
+	gatesMD := `---
+fest_type: phase_gate
+fest_id: 001_IMPLEMENT-GATE
+fest_parent: 001_IMPLEMENT
+---
+
+# Implementation Phase Gate
+
+## Step 1: COMPLETENESS — Verify Work Done
+
+**Question:** Were all tasks completed?
+
+**Actions:**
+1. Verify task completion
+
+**Checkpoint:** APPROVAL REQUIRED
+
+---
+
+## Step 2: QUALITY — Verify Quality
+
+**Question:** Do build and tests pass?
+
+**Actions:**
+1. Run build and tests
+
+**Checkpoint:** APPROVAL REQUIRED
+`
+	if err := os.WriteFile(filepath.Join(phaseDir, "GATES.md"), []byte(gatesMD), 0o644); err != nil {
+		t.Fatalf("write GATES.md: %v", err)
+	}
+
+	return dir
+}
+
+// TestGetWorkflowNavigator_GateOnlyPhase verifies that getWorkflowNavigator()
+// correctly routes to GATES.md when called from a non-workflow phase (implementation)
+// that has no WORKFLOW.md. This was the blocking bug reported in PR #100 review.
+func TestGetWorkflowNavigator_GateOnlyPhase(t *testing.T) {
+	dir := setupGateOnlyFestival(t)
+	phaseDir := filepath.Join(dir, "001_IMPLEMENT")
+
+	oldWd, _ := os.Getwd()
+	defer func() { _ = os.Chdir(oldWd) }()
+	if err := os.Chdir(phaseDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	// This previously returned: "not a workflow-based phase (detected: implementation)"
+	nav, err := getWorkflowNavigator(context.Background())
+	if err != nil {
+		t.Fatalf("getWorkflowNavigator() should succeed for gate-only phase, got: %v", err)
+	}
+
+	state := nav.GetWorkflowState()
+	if state == nil {
+		t.Fatal("GetWorkflowState returned nil")
+	}
+	if state.TotalSteps != 2 {
+		t.Errorf("TotalSteps = %d, want 2 (from GATES.md)", state.TotalSteps)
+	}
+
+	// Verify **Question:** was parsed into Goal field
+	steps := nav.GetSteps()
+	if len(steps) != 2 {
+		t.Fatalf("got %d steps, want 2", len(steps))
+	}
+	if steps[0].Goal == "" {
+		t.Error("step 1 Goal is empty — **Question:** not parsed")
+	}
+}
+
+// TestGetWorkflowNavigator_GateOnlyPhase_AdvanceApprove tests the full
+// advance/approve cycle through getWorkflowNavigator for a gate-only phase.
+// This is the exact command path that agents use: fest workflow advance → approve.
+func TestGetWorkflowNavigator_GateOnlyPhase_AdvanceApprove(t *testing.T) {
+	dir := setupGateOnlyFestival(t)
+	phaseDir := filepath.Join(dir, "001_IMPLEMENT")
+
+	oldWd, _ := os.Getwd()
+	defer func() { _ = os.Chdir(oldWd) }()
+	if err := os.Chdir(phaseDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// Step 1: approve checkpoint (simulates `fest workflow approve`)
+	nav1, err := getWorkflowNavigator(ctx)
+	if err != nil {
+		t.Fatalf("getWorkflowNavigator (step 1): %v", err)
+	}
+	if err := nav1.Approve(ctx); err != nil {
+		t.Fatalf("approve step 1: %v", err)
+	}
+
+	// Re-acquire navigator (simulates agent calling fest workflow approve again)
+	nav2, err := getWorkflowNavigator(ctx)
+	if err != nil {
+		t.Fatalf("getWorkflowNavigator (step 2): %v", err)
+	}
+	state := nav2.GetWorkflowState()
+	if state.CurrentStep != 2 {
+		t.Errorf("after step 1 approve, current step = %d, want 2", state.CurrentStep)
+	}
+
+	// Step 2: approve checkpoint → gate complete
+	if err := nav2.Approve(ctx); err != nil {
+		if err != guidance.ErrAlreadyComplete {
+			state = nav2.GetWorkflowState()
+			if !state.IsComplete() {
+				t.Fatalf("approve step 2: %v", err)
+			}
+		}
+	}
+
+	// Verify completion via fresh navigator
+	nav3, err := getWorkflowNavigator(ctx)
+	if err != nil {
+		t.Fatalf("getWorkflowNavigator (verify): %v", err)
+	}
+	finalState := nav3.GetWorkflowState()
+	if !finalState.IsComplete() {
+		t.Error("gate should be complete after approving all steps")
+	}
+}
+
+// TestGetWorkflowNavigator_WorkflowCompleteRoutesToGate verifies that when
+// a workflow phase has both WORKFLOW.md and GATES.md, getWorkflowNavigator
+// routes to GATES.md after the workflow is complete.
+func TestGetWorkflowNavigator_WorkflowCompleteRoutesToGate(t *testing.T) {
+	dir := setupWorkflowFestival(t)
+	phaseDir := filepath.Join(dir, "001_INGEST")
+
+	// Add a GATES.md to the existing ingest phase
+	gatesMD := `---
+fest_type: phase_gate
+fest_id: 001_INGEST-GATE
+fest_parent: 001_INGEST
+---
+
+# Ingest Phase Gate
+
+## Step 1: VERIFY — Verify ingest complete
+
+**Question:** Was the ingest completed correctly?
+
+**Actions:**
+1. Verify outputs
+
+**Checkpoint:** APPROVAL REQUIRED
+`
+	if err := os.WriteFile(filepath.Join(phaseDir, "GATES.md"), []byte(gatesMD), 0o644); err != nil {
+		t.Fatalf("write GATES.md: %v", err)
+	}
+
+	oldWd, _ := os.Getwd()
+	defer func() { _ = os.Chdir(oldWd) }()
+	if err := os.Chdir(phaseDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	ctx := context.Background()
+
+	// First, complete the WORKFLOW.md through getWorkflowNavigator
+	nav, err := getWorkflowNavigator(ctx)
+	if err != nil {
+		t.Fatalf("getWorkflowNavigator (workflow): %v", err)
+	}
+
+	// Should start on WORKFLOW.md step 1
+	if nav.GetWorkflowState().TotalSteps != 3 {
+		t.Fatalf("workflow should have 3 steps, got %d", nav.GetWorkflowState().TotalSteps)
+	}
+
+	// Complete all workflow steps
+	if err := nav.Advance(ctx); err != nil {
+		t.Fatalf("wf advance 1: %v", err)
+	}
+	if err := nav.Advance(ctx); err != nil {
+		t.Fatalf("wf advance 2: %v", err)
+	}
+	if err := nav.Approve(ctx); err != nil {
+		t.Fatalf("wf approve 2: %v", err)
+	}
+	err = nav.Advance(ctx)
+	if err != nil && err != guidance.ErrAlreadyComplete {
+		state := nav.GetWorkflowState()
+		if !state.IsComplete() {
+			t.Fatalf("wf advance 3: %v", err)
+		}
+	}
+
+	// Now get navigator again — should route to GATES.md since workflow is complete
+	gateNav, err := getWorkflowNavigator(ctx)
+	if err != nil {
+		t.Fatalf("getWorkflowNavigator (gate): %v", err)
+	}
+
+	gateState := gateNav.GetWorkflowState()
+	if gateState.TotalSteps != 1 {
+		t.Errorf("gate should have 1 step, got %d (may still be on WORKFLOW.md)", gateState.TotalSteps)
+	}
+	if gateState.IsComplete() {
+		t.Error("gate should not be complete yet")
+	}
+}
+
+// TestResolveNavigationMode verifies the routing logic directly.
+func TestResolveNavigationMode(t *testing.T) {
+	tests := []struct {
+		name           string
+		hasWorkflow    bool
+		hasGates       bool
+		wfComplete     bool
+		wantDoc        string
+		wantPrefix     string
+	}{
+		{
+			name:       "workflow only, incomplete",
+			hasWorkflow: true,
+			wantDoc:    "WORKFLOW.md",
+		},
+		{
+			name:       "gates only (non-workflow phase)",
+			hasGates:   true,
+			wantDoc:    "GATES.md",
+			wantPrefix: "gate:",
+		},
+		{
+			name:        "workflow complete, gates exist",
+			hasWorkflow: true,
+			hasGates:    true,
+			wfComplete:  true,
+			wantDoc:     "GATES.md",
+			wantPrefix:  "gate:",
+		},
+		{
+			name:        "workflow incomplete, gates exist",
+			hasWorkflow: true,
+			hasGates:    true,
+			wfComplete:  false,
+			wantDoc:     "WORKFLOW.md",
+		},
+		{
+			name:    "neither exists",
+			wantDoc: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			phaseDir := filepath.Join(dir, "001_TEST")
+			if err := os.MkdirAll(phaseDir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+
+			if tt.hasWorkflow {
+				wfContent := "---\nfest_type: workflow\n---\n\n# WF\n\n## Step 1: DO — Do it\n\n**Goal:** Do the thing.\n\n**Checkpoint:** None\n"
+				os.WriteFile(filepath.Join(phaseDir, "WORKFLOW.md"), []byte(wfContent), 0o644)
+			}
+			if tt.hasGates {
+				gateContent := "---\nfest_type: phase_gate\n---\n\n# Gate\n\n## Step 1: CHECK — Check it\n\n**Question:** Is it done?\n\n**Checkpoint:** APPROVAL REQUIRED\n"
+				os.WriteFile(filepath.Join(phaseDir, "GATES.md"), []byte(gateContent), 0o644)
+			}
+
+			// If workflow should be complete, use a navigator to complete it
+			if tt.wfComplete && tt.hasWorkflow {
+				os.WriteFile(filepath.Join(dir, "fest.yaml"), []byte("name: test\nid: T\n"), 0o644)
+
+				gctx := &guidance.GuidanceContext{
+					FestivalPath: dir,
+					PhasePath:    phaseDir,
+					PhaseName:    "001_TEST",
+				}
+				nav, navErr := wf.NewNavigator(gctx, guidance.ModeWorkflow)
+				if navErr != nil {
+					t.Fatalf("NewNavigator: %v", navErr)
+				}
+				store := progress.NewStore(dir)
+				store.Load(context.Background())
+				nav.SetStateStore(store)
+				nav.Initialize(context.Background())
+				// Complete the single step
+				nav.Advance(context.Background())
+			}
+
+			doc, prefix := resolveNavigationMode(context.Background(), dir, phaseDir)
+			if doc != tt.wantDoc {
+				t.Errorf("doc = %q, want %q", doc, tt.wantDoc)
+			}
+			if prefix != tt.wantPrefix {
+				t.Errorf("prefix = %q, want %q", prefix, tt.wantPrefix)
+			}
+		})
 	}
 }
