@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/festival"
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
 )
 
 // CompletenessValidator validates that required files exist.
@@ -74,7 +74,7 @@ func (v *CompletenessValidator) Validate(ctx context.Context, path string) ([]Is
 		sequences, _ := parser.ParseSequences(ctx, phase.Path)
 
 		// Implementation phases require at least one sequence
-		if isImplementationPhase(phase.Name) && len(sequences) == 0 {
+		if isImplementationPhaseFromPath(phase.Path, phase.Name) && len(sequences) == 0 {
 			issues = append(issues, Issue{
 				Level:   LevelError,
 				Code:    CodeMissingSequence,
@@ -111,9 +111,25 @@ func fileExists(path string) bool {
 	return err == nil && !info.IsDir()
 }
 
+// isImplementationPhaseFromPath checks PHASE_GOAL.md frontmatter for the phase type.
+// Falls back to the name-based heuristic for legacy festivals without frontmatter.
+func isImplementationPhaseFromPath(phasePath, phaseName string) bool {
+	goalPath := filepath.Join(phasePath, "PHASE_GOAL.md")
+	content, err := os.ReadFile(goalPath)
+	if err == nil {
+		fm, _, fmErr := frontmatter.Parse(content)
+		if fmErr == nil && fm != nil && fm.PhaseType != "" {
+			return fm.PhaseType == frontmatter.PhaseTypeImplementation
+		}
+	}
+	// Fallback: name-based heuristic for legacy festivals without frontmatter
+	return isImplementationPhase(phaseName)
+}
+
 // isImplementationPhase returns true if a phase name indicates an implementation-type phase
 // that requires numbered sequences and task files. Workflow phases (planning, research, ingest)
 // and freeform phases (review, non_coding_action) are excluded.
+// This is the legacy fallback used when PHASE_GOAL.md has no frontmatter.
 func isImplementationPhase(phaseName string) bool {
 	normalized := strings.ToUpper(phaseName)
 	nonImpl := []string{"RESEARCH", "PLANNING", "PLAN", "DESIGN", "INGEST", "REVIEW", "NON_CODING", "ACTION"}
