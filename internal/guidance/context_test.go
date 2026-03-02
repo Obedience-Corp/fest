@@ -59,7 +59,7 @@ func TestGuidanceContext_WithPhase(t *testing.T) {
 		{"planning phase sets plan mode", "planning", ModePlan},
 		{"research phase sets research mode", "research", ModeResearch},
 		{"review phase sets review mode", "review", ModeReview},
-		{"deployment phase sets action mode", "deployment", ModeAction},
+		{"non_coding_action phase sets action mode", "non_coding_action", ModeAction},
 		{"ingest phase sets ingest mode", "ingest", ModeIngest},
 	}
 

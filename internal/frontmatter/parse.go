@@ -221,8 +221,8 @@ func parsePhaseType(s string) PhaseType {
 		return PhaseTypeResearch
 	case "review", "qa":
 		return PhaseTypeReview
-	case "deployment", "deploy", "release":
-		return PhaseTypeDeployment
+	case "deployment", "deploy", "release", "non_coding_action", "action":
+		return PhaseTypeNonCodingAction
 	default:
 		return ""
 	}

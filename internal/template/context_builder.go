@@ -170,7 +170,7 @@ func detectPhaseType(dirName string) string {
 	case strings.Contains(lower, "review"):
 		return "review"
 	case strings.Contains(lower, "deployment"):
-		return "deployment"
+		return "non_coding_action"
 	default:
 		return ""
 	}

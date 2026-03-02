@@ -6,29 +6,29 @@ fest_parent: [REPLACE: PHASE_ID]
 
 # Non-Coding Action Phase Gate
 
-This gate verifies the non-coding action phase was completed correctly before advancing.
+This gate verifies the non-coding action phase achieved its goal and produced documented results.
 
 ---
 
-## Step 1: COMPLETION — Verify Action Executed
+## Step 1: PHASE GOAL — Verify Goal Achievement
 
-**Question:** Was the specified action completed as defined in the phase goal?
+**Question:** Was the action completed and does the outcome match the phase goal?
 
 **Actions:**
-1. Confirm the action was performed (not just planned)
-2. Verify the action matches what was specified
-3. Check that no required steps were skipped
+1. Re-read PHASE_GOAL.md and compare stated action objectives against actual outcome
+2. Verify the action was performed (not just planned)
+3. Confirm the outcome satisfies the phase's success criteria
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm action completed
+**Checkpoint:** APPROVAL REQUIRED — Confirm phase goal is met
 
 ---
 
 ## Step 2: DOCUMENTATION — Verify Results Recorded
 
-**Question:** Are the results of the action documented?
+**Question:** Are results recorded and artifacts saved?
 
 **Actions:**
-1. Check that outcomes are recorded
+1. Check that outcomes are documented
 2. Verify any artifacts produced are saved in the appropriate location
 3. Confirm unexpected results or issues are noted
 
@@ -36,14 +36,14 @@ This gate verifies the non-coding action phase was completed correctly before ad
 
 ---
 
-## Step 3: FOLLOW-UP — Verify Next Steps Identified
+## Step 3: FOLLOW-UP — Verify Downstream Dependencies Identified
 
-**Question:** Were any follow-up actions or dependencies identified?
+**Question:** Are downstream dependencies identified?
 
 **Actions:**
-1. Note any downstream work triggered by this action
+1. Note any follow-up work triggered by this action
 2. Verify blockers or risks are flagged for later phases
-3. Confirm the phase goal's success criteria are met
+3. Confirm nothing was left unresolved that affects downstream work
 
 **Checkpoint:** APPROVAL REQUIRED — Confirm follow-ups identified
 
@@ -53,6 +53,6 @@ This gate verifies the non-coding action phase was completed correctly before ad
 
 | Step | Status | Notes |
 |------|--------|-------|
-| 1. COMPLETION | [ ] pending | Action executed |
+| 1. PHASE GOAL | [ ] pending | Goal achievement verified |
 | 2. DOCUMENTATION | [ ] pending | Results recorded |
-| 3. FOLLOW-UP | [ ] pending | Next steps identified |
+| 3. FOLLOW-UP | [ ] pending | Dependencies identified |

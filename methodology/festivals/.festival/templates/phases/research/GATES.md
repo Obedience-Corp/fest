@@ -6,20 +6,20 @@ fest_parent: [REPLACE: PHASE_ID]
 
 # Research Phase Gate
 
-This gate verifies the research phase was completed correctly before advancing.
+This gate verifies the research phase achieved its goal and produced actionable findings.
 
 ---
 
-## Step 1: SCOPE — Verify Research Questions Addressed
+## Step 1: PHASE GOAL — Verify Goal Achievement
 
-**Question:** Were all research questions clearly defined and answered?
+**Question:** Were all research questions answered? Do findings satisfy the stated research objective?
 
 **Actions:**
-1. Check that research scope was established before investigation began
+1. Re-read PHASE_GOAL.md and compare stated research questions against actual findings
 2. Verify each question received findings or an explicit "inconclusive" note
 3. Confirm no research questions were silently dropped
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm research questions addressed
+**Checkpoint:** APPROVAL REQUIRED — Confirm research goal is met
 
 ---
 
@@ -36,16 +36,16 @@ This gate verifies the research phase was completed correctly before advancing.
 
 ---
 
-## Step 3: VALIDATION — Verify User Approved Summary
+## Step 3: ACTIONABILITY — Verify Conclusions Are Usable
 
-**Question:** Did the user review and approve the research summary?
+**Question:** Are conclusions actionable by downstream phases?
 
 **Actions:**
-1. Confirm the PRESENT step received user approval
-2. Verify any user feedback was incorporated
-3. Check that conclusions are actionable for downstream phases
+1. Confirm findings translate into clear recommendations or decisions
+2. Verify downstream phases can act on the research without re-investigation
+3. Check that open questions are flagged for follow-up
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm user approved research
+**Checkpoint:** APPROVAL REQUIRED — Confirm conclusions are actionable
 
 ---
 
@@ -53,6 +53,6 @@ This gate verifies the research phase was completed correctly before advancing.
 
 | Step | Status | Notes |
 |------|--------|-------|
-| 1. SCOPE | [ ] pending | Research questions addressed |
+| 1. PHASE GOAL | [ ] pending | Research goal achieved |
 | 2. EVIDENCE | [ ] pending | Findings documented |
-| 3. VALIDATION | [ ] pending | User approved summary |
+| 3. ACTIONABILITY | [ ] pending | Conclusions are usable |

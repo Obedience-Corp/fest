@@ -79,11 +79,11 @@ const (
 type PhaseType string
 
 const (
-	PhaseTypePlanning       PhaseType = "planning"
-	PhaseTypeImplementation PhaseType = "implementation"
-	PhaseTypeResearch       PhaseType = "research"
-	PhaseTypeReview         PhaseType = "review"
-	PhaseTypeDeployment     PhaseType = "deployment"
+	PhaseTypePlanning        PhaseType = "planning"
+	PhaseTypeImplementation  PhaseType = "implementation"
+	PhaseTypeResearch        PhaseType = "research"
+	PhaseTypeReview          PhaseType = "review"
+	PhaseTypeNonCodingAction PhaseType = "non_coding_action"
 )
 
 // FestivalType represents the scope/complexity of a festival

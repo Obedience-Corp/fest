@@ -175,7 +175,7 @@ func TestDetectPhaseType(t *testing.T) {
 		{name: "research", dirName: "002_RESEARCH", expected: "research"},
 		{name: "implementation", dirName: "003_IMPLEMENTATION", expected: "implementation"},
 		{name: "review", dirName: "004_REVIEW", expected: "review"},
-		{name: "deployment", dirName: "005_DEPLOYMENT", expected: "deployment"},
+		{name: "deployment dir maps to non_coding_action", dirName: "005_DEPLOYMENT", expected: "non_coding_action"},
 		{name: "unknown", dirName: "006_CUSTOM", expected: ""},
 	}
 
