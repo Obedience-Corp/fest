@@ -213,11 +213,28 @@ func runNext(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Check if an earlier phase has an incomplete phase gate (GATES.md)
+	// Phase gates run after all tasks and workflows in a phase are complete
+	if result.Task != nil {
+		earlierGate, egErr := findEarlierIncompletePhaseGate(ctx, festivalPath, result.Task.PhaseName)
+		if egErr == nil && earlierGate != "" {
+			return runPhaseGateMode(ctx, festivalPath, earlierGate)
+		}
+	}
+
 	// If selector says festival is complete, check for remaining incomplete workflow phases
 	if result.FestivalComplete {
 		incompleteWorkflow, wErr := findFirstIncompleteWorkflowPhase(ctx, festivalPath)
 		if wErr == nil && incompleteWorkflow != "" {
 			return runWorkflowMode(ctx, festivalPath, incompleteWorkflow)
+		}
+	}
+
+	// If selector says festival is complete, check for remaining incomplete phase gates
+	if result.FestivalComplete {
+		incompleteGate, gErr := findFirstIncompletePhaseGate(ctx, festivalPath)
+		if gErr == nil && incompleteGate != "" {
+			return runPhaseGateMode(ctx, festivalPath, incompleteGate)
 		}
 	}
 
@@ -476,9 +493,10 @@ func findFirstIncompletePhase(ctx context.Context, festivalPath string) (string,
 	storeLoaded := store.Load(ctx) == nil
 
 	for _, phasePath := range phases {
+		phaseName := filepath.Base(phasePath)
+
 		workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
 		if _, err := os.Stat(workflowPath); err == nil {
-			phaseName := filepath.Base(phasePath)
 			if storeLoaded {
 				state, ok := store.WorkflowPhaseState(phaseName)
 				if !ok || state.TotalSteps == 0 || !state.IsComplete() {
@@ -487,10 +505,19 @@ func findFirstIncompletePhase(ctx context.Context, festivalPath string) (string,
 			} else {
 				return phasePath, true, nil // Can't load store, assume incomplete
 			}
+			// Workflow is complete — check if phase gate is incomplete
+			if hasIncompletePhaseGate(storeLoaded, store, phasePath, phaseName) {
+				return phasePath, false, nil
+			}
 			continue
 		}
 
 		if hasSequenceDirs(phasePath) && !isPhaseMarkedComplete(phasePath) {
+			return phasePath, false, nil
+		}
+
+		// Sequences done / phase marked complete — check phase gate
+		if hasIncompletePhaseGate(storeLoaded, store, phasePath, phaseName) {
 			return phasePath, false, nil
 		}
 	}
@@ -776,4 +803,191 @@ func printFeedbackReminder(ctx context.Context, festivalPath string) {
 		return
 	}
 	fmt.Printf("\n%s%s", strings.Repeat("─", 60), text)
+}
+
+// hasIncompletePhaseGate checks if a phase has a GATES.md that is not yet complete.
+func hasIncompletePhaseGate(storeLoaded bool, store *progress.Store, phasePath, phaseName string) bool {
+	gatesPath := filepath.Join(phasePath, "GATES.md")
+	if _, err := os.Stat(gatesPath); err != nil {
+		return false // No GATES.md
+	}
+	if !storeLoaded {
+		return true // Can't check store, assume incomplete
+	}
+	state, ok := store.GatePhaseState(phaseName)
+	if !ok || state.TotalSteps == 0 || !state.IsComplete() {
+		return true
+	}
+	return false
+}
+
+// findEarlierIncompletePhaseGate scans phases in numerical order before the given phase
+// and returns the first one with an incomplete phase gate (GATES.md).
+// Phase gates run after all tasks, sequence gates, and workflows in a phase are complete.
+func findEarlierIncompletePhaseGate(ctx context.Context, festivalPath, currentPhaseName string) (string, error) {
+	entries, err := os.ReadDir(festivalPath)
+	if err != nil {
+		return "", err
+	}
+
+	var phases []string
+	for _, entry := range entries {
+		if entry.IsDir() && isNumberedDir(entry.Name()) {
+			phases = append(phases, entry.Name())
+		}
+	}
+	sort.Strings(phases)
+
+	store := progress.NewStore(festivalPath)
+	storeLoaded := store.Load(ctx) == nil
+
+	for _, phaseName := range phases {
+		// Stop before the current task's phase
+		if phaseName >= currentPhaseName {
+			break
+		}
+
+		phasePath := filepath.Join(festivalPath, phaseName)
+
+		// Only check gates for phases where all other work is complete
+		// (workflows done, sequences done)
+		if !isPhaseWorkAndWorkflowComplete(ctx, storeLoaded, store, phasePath, phaseName) {
+			continue
+		}
+
+		if hasIncompletePhaseGate(storeLoaded, store, phasePath, phaseName) {
+			return phasePath, nil
+		}
+	}
+
+	return "", nil
+}
+
+// findFirstIncompletePhaseGate scans phases in numerical order for the first with an incomplete phase gate.
+// Used as a fallback when the selector reports all tasks and workflows complete.
+func findFirstIncompletePhaseGate(ctx context.Context, festivalPath string) (string, error) {
+	entries, err := os.ReadDir(festivalPath)
+	if err != nil {
+		return "", err
+	}
+
+	var phases []string
+	for _, entry := range entries {
+		if entry.IsDir() && isNumberedDir(entry.Name()) {
+			phases = append(phases, filepath.Join(festivalPath, entry.Name()))
+		}
+	}
+	sort.Strings(phases)
+
+	store := progress.NewStore(festivalPath)
+	storeLoaded := store.Load(ctx) == nil
+
+	for _, phasePath := range phases {
+		phaseName := filepath.Base(phasePath)
+		if hasIncompletePhaseGate(storeLoaded, store, phasePath, phaseName) {
+			return phasePath, nil
+		}
+	}
+
+	return "", nil
+}
+
+// isPhaseWorkAndWorkflowComplete checks if all non-gate work in a phase is done
+// (sequences, tasks, and any WORKFLOW.md steps).
+func isPhaseWorkAndWorkflowComplete(ctx context.Context, storeLoaded bool, store *progress.Store, phasePath, phaseName string) bool {
+	_ = ctx // reserved for future use
+
+	// Check WORKFLOW.md completion
+	workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
+	if _, err := os.Stat(workflowPath); err == nil {
+		if !storeLoaded {
+			return false
+		}
+		state, ok := store.WorkflowPhaseState(phaseName)
+		if !ok || state.TotalSteps == 0 || !state.IsComplete() {
+			return false
+		}
+	}
+
+	// Check if sequences exist and phase is marked complete
+	if hasSequenceDirs(phasePath) && !isPhaseMarkedComplete(phasePath) {
+		return false
+	}
+
+	return true
+}
+
+// runPhaseGateMode uses the workflow navigator configured for GATES.md navigation.
+func runPhaseGateMode(ctx context.Context, festivalPath, phasePath string) error {
+	// Create guidance context for phase gate navigation
+	gctx := &guidance.GuidanceContext{
+		FestivalPath: festivalPath,
+		FestivalName: filepath.Base(festivalPath),
+		PhasePath:    phasePath,
+		PhaseName:    filepath.Base(phasePath),
+		PhaseType:    guidance.DetectPhaseType(phasePath),
+		Mode:         guidance.ModeWorkflow,
+		Config:       guidance.DefaultConfig(),
+	}
+
+	// Create workflow navigator configured for GATES.md
+	nav, err := guidance.NewNavigator(ctx, gctx)
+	if err != nil {
+		return errors.Wrap(err, "creating phase gate navigator").
+			WithField("phase_path", phasePath)
+	}
+
+	// Configure for GATES.md with gate: state prefix
+	if wfNav, ok := nav.(*wf.Navigator); ok {
+		wfNav.SetDocFilename("GATES.md")
+		wfNav.SetStateKeyPrefix("gate:")
+	}
+
+	// Create and load progress Store, inject into navigator
+	store := progress.NewStore(festivalPath)
+	if err := store.Load(ctx); err != nil {
+		return errors.Wrap(err, "loading progress store")
+	}
+	if wfNav, ok := nav.(*wf.Navigator); ok {
+		wfNav.SetStateStore(store)
+	}
+
+	// Initialize the navigator
+	if err := nav.Initialize(ctx); err != nil {
+		return errors.Wrap(err, "initializing phase gate navigator")
+	}
+
+	// Check if we got a valid next step
+	nextStep, err := nav.GetNext(ctx)
+	if err != nil {
+		return errors.Wrap(err, "getting next phase gate step")
+	}
+
+	// If no next step, gate may be complete or malformed
+	if nextStep == nil {
+		gateProgress, _ := nav.GetProgress(ctx)
+		if gateProgress != nil && gateProgress.Completed == gateProgress.Total && gateProgress.Total > 0 {
+			fmt.Println("PHASE GATE COMPLETE")
+			fmt.Println("───────────────────")
+			fmt.Printf("All %d gate steps have been completed.\n", gateProgress.Total)
+			return nil
+		}
+
+		gatesPath := filepath.Join(phasePath, "GATES.md")
+		return errors.Validation("GATES.md has no valid steps").
+			WithField("path", gatesPath).
+			WithHint("GATES.md must contain step headers in format:\n" +
+				"  ## Step 1: STEP_NAME\n" +
+				"  **Question:** What to verify\n" +
+				"  **Checkpoint:** APPROVAL REQUIRED")
+	}
+
+	// Format and display instructions
+	instructions, err := nav.FormatInstructions(ctx)
+	if err != nil {
+		return errors.Wrap(err, "formatting phase gate instructions")
+	}
+	fmt.Print(instructions)
+	printFeedbackReminder(ctx, festivalPath)
+	return nil
 }
