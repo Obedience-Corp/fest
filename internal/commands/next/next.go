@@ -630,11 +630,12 @@ func hasSequenceDirs(phasePath string) bool {
 	return false
 }
 
-// hasBlockingIssues returns true if the result contains errors or warnings.
-// Only LevelInfo issues pass through without blocking.
+// hasBlockingIssues returns true if the result contains error-level issues.
+// Warnings and info-level issues pass through without blocking.
+// This matches fest validate's definition: result.Valid = !result.HasErrors().
 func hasBlockingIssues(result *validator.Result) bool {
 	for _, issue := range result.Issues {
-		if issue.Level == validator.LevelError || issue.Level == validator.LevelWarning {
+		if issue.Level == validator.LevelError {
 			return true
 		}
 	}
