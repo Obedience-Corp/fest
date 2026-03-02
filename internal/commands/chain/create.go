@@ -90,7 +90,7 @@ func runCreate(cmd *cobra.Command, name, goal string) error {
 	filename := fmt.Sprintf("%s-%s.yaml", slug, id)
 	path := filepath.Join(chainsDir, filename)
 
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	f, err := createChainFile(path)
 	if err != nil {
 		if os.IsExist(err) {
 			return fmt.Errorf("chain file already exists: %s", path)
@@ -142,6 +142,10 @@ func nextChainID(chainsDir, prefix string) string {
 		}
 	}
 	return fmt.Sprintf("%s%04d", prefix, maxNum+1)
+}
+
+func createChainFile(path string) (*os.File, error) {
+	return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 }
 
 // chainIDPrefix extracts a 2-letter uppercase prefix from the chain name.
