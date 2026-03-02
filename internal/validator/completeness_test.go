@@ -36,6 +36,19 @@ func countIssuesByCode(issues []Issue, code string) int {
 }
 
 func TestCompletenessValidator_ImplementationPhaseRequiresSequences(t *testing.T) {
+	reviewFrontmatter := `---
+fest_type: phase
+fest_phase_type: review
+---
+# Phase Goal
+`
+	implFrontmatter := `---
+fest_type: phase
+fest_phase_type: implementation
+---
+# Phase Goal
+`
+
 	tests := []struct {
 		name             string
 		structure        map[string]string
@@ -124,6 +137,30 @@ func TestCompletenessValidator_ImplementationPhaseRequiresSequences(t *testing.T
 				"002_BUILD/PHASE_GOAL.md":               "goal",
 			},
 			wantSequenceErrs: 1, // 002_BUILD has no sequences
+		},
+		{
+			name: "review frontmatter phase without sequences passes",
+			structure: map[string]string{
+				"FESTIVAL_OVERVIEW.md":        "overview",
+				"003_VALIDATE/PHASE_GOAL.md":  reviewFrontmatter,
+			},
+			wantSequenceErrs: 0,
+		},
+		{
+			name: "implementation frontmatter phase without sequences fails",
+			structure: map[string]string{
+				"FESTIVAL_OVERVIEW.md":        "overview",
+				"003_VALIDATE/PHASE_GOAL.md":  implFrontmatter,
+			},
+			wantSequenceErrs: 1,
+		},
+		{
+			name: "frontmatter overrides name heuristic",
+			structure: map[string]string{
+				"FESTIVAL_OVERVIEW.md":       "overview",
+				"001_IMPLEMENT/PHASE_GOAL.md": reviewFrontmatter,
+			},
+			wantSequenceErrs: 0, // name says impl, frontmatter says review
 		},
 	}
 

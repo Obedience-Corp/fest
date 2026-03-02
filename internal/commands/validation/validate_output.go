@@ -101,7 +101,7 @@ func printValidationResult(display *ui.UI, festivalPath string, result *Validati
 
 	// Group issues by category
 	structureIssues := filterIssuesByCode(result.Issues, CodeNamingConvention)
-	completenessIssues := filterIssuesByCode(result.Issues, CodeMissingFile, CodeMissingGoal)
+	completenessIssues := filterIssuesByCode(result.Issues, CodeMissingFile, CodeMissingGoal, CodeMissingSequence)
 	taskIssues := filterIssuesByCode(result.Issues, CodeMissingTaskFiles)
 	gateIssues := filterIssuesByCode(result.Issues, CodeMissingQualityGate)
 	templateIssues := filterIssuesByCode(result.Issues, CodeUnfilledTemplate)
