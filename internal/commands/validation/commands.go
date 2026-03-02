@@ -14,6 +14,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/validator"
 	"github.com/spf13/cobra"
 )
 
@@ -99,6 +100,23 @@ type ValidationResult struct {
 	FixesApplied []FixApplied      `json:"fixes_applied,omitempty"`
 	Suggestions  []string          `json:"suggestions,omitempty"`
 	MarkerInfo   *MarkerInfo       `json:"marker_info,omitempty"`
+}
+
+// convertIssues converts validator.Issue slice to the command-layer ValidationIssue slice.
+// This bridges between the validator package's canonical types and the CLI output types.
+func convertIssues(issues []validator.Issue) []ValidationIssue {
+	out := make([]ValidationIssue, len(issues))
+	for i, issue := range issues {
+		out[i] = ValidationIssue{
+			Level:       issue.Level,
+			Code:        issue.Code,
+			Path:        issue.Path,
+			Message:     issue.Message,
+			Fix:         issue.Fix,
+			AutoFixable: issue.AutoFixable,
+		}
+	}
+	return out
 }
 
 type validateOptions struct {
@@ -270,7 +288,6 @@ func runValidateAll(ctx context.Context, opts *validateOptions) error {
 	validateTaskFilesChecks(ctx, festivalPath, result)
 	validateQualityGatesChecks(ctx, festivalPath, result, opts.fix)
 	validateTemplateMarkers(festivalPath, result)
-	validateImplementationStructure(festivalPath, result)
 	validateOrderingChecks(ctx, festivalPath, result)
 
 	// Calculate score
@@ -424,54 +441,6 @@ func getPhaseType(festivalPath, relPath string) frontmatter.PhaseType {
 		return frontmatter.PhaseTypeImplementation
 	}
 	return fm.PhaseType
-}
-
-// validateImplementationStructure checks that implementation phases have sequences.
-func validateImplementationStructure(festivalPath string, result *ValidationResult) {
-	entries, err := os.ReadDir(festivalPath)
-	if err != nil {
-		return
-	}
-
-	phasePattern := regexp.MustCompile(`^\d{3}_`)
-	seqPattern := regexp.MustCompile(`^\d{2}_`)
-
-	for _, entry := range entries {
-		if !entry.IsDir() || !phasePattern.MatchString(entry.Name()) {
-			continue
-		}
-
-		phasePath := filepath.Join(festivalPath, entry.Name())
-		phaseType := getPhaseType(festivalPath, entry.Name())
-
-		if phaseType != frontmatter.PhaseTypeImplementation {
-			continue
-		}
-
-		// Check for sequence directories
-		seqEntries, err := os.ReadDir(phasePath)
-		if err != nil {
-			continue
-		}
-
-		hasSequences := false
-		for _, seqEntry := range seqEntries {
-			if seqEntry.IsDir() && seqPattern.MatchString(seqEntry.Name()) {
-				hasSequences = true
-				break
-			}
-		}
-
-		if !hasSequences {
-			result.Issues = append(result.Issues, ValidationIssue{
-				Level:   LevelError,
-				Code:    CodeMissingTaskFiles,
-				Path:    entry.Name(),
-				Message: fmt.Sprintf("Implementation phase %s has no sequence directories", entry.Name()),
-				Fix:     fmt.Sprintf("Create sequences with: fest create sequence --path %s", entry.Name()),
-			})
-		}
-	}
 }
 
 // Score calculation

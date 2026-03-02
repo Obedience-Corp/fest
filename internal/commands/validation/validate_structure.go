@@ -4,11 +4,10 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"regexp"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
-	"github.com/Obedience-Corp/fest/internal/festival"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/validator"
 	"github.com/spf13/cobra"
 )
 
@@ -75,61 +74,15 @@ func runValidateStructure(ctx context.Context, opts *validateOptions) error {
 }
 
 func validateStructureChecks(ctx context.Context, festivalPath string, result *ValidationResult) {
-	parser := festival.NewParser()
-
-	// Parse festival structure
-	phases, err := parser.ParsePhases(ctx, festivalPath)
+	issues, err := validator.ValidateStructure(ctx, festivalPath)
 	if err != nil {
 		result.Issues = append(result.Issues, ValidationIssue{
 			Level:   LevelError,
 			Code:    CodeNamingConvention,
 			Path:    festivalPath,
-			Message: fmt.Sprintf("Failed to parse phases: %v", err),
+			Message: fmt.Sprintf("Failed to validate structure: %v", err),
 		})
 		return
 	}
-
-	// Check phase naming (should be UPPERCASE after number)
-	phaseUpperPattern := regexp.MustCompile(`^\d{3}_[A-Z][A-Z0-9_]*$`)
-	for _, phase := range phases {
-		if !phaseUpperPattern.MatchString(phase.FullName) {
-			result.Issues = append(result.Issues, ValidationIssue{
-				Level:   LevelError,
-				Code:    CodeNamingConvention,
-				Path:    phase.Path,
-				Message: fmt.Sprintf("Phase name should be UPPERCASE: %s", phase.FullName),
-				Fix:     "Rename phase directory to use UPPERCASE (e.g., 001_PHASE_NAME)",
-			})
-		}
-
-		// Check sequences
-		sequences, _ := parser.ParseSequences(ctx, phase.Path)
-		seqLowerPattern := regexp.MustCompile(`^\d{2}_[a-z][a-z0-9_]*$`)
-		for _, seq := range sequences {
-			if !seqLowerPattern.MatchString(seq.FullName) {
-				result.Issues = append(result.Issues, ValidationIssue{
-					Level:   LevelError,
-					Code:    CodeNamingConvention,
-					Path:    seq.Path,
-					Message: fmt.Sprintf("Sequence name should be lowercase: %s", seq.FullName),
-					Fix:     "Rename sequence directory to use lowercase (e.g., 01_sequence_name)",
-				})
-			}
-
-			// Check tasks
-			tasks, _ := parser.ParseTasks(ctx, seq.Path)
-			taskLowerPattern := regexp.MustCompile(`^\d{2}_[a-z][a-z0-9_]*\.md$`)
-			for _, task := range tasks {
-				if !taskLowerPattern.MatchString(task.FullName) {
-					result.Issues = append(result.Issues, ValidationIssue{
-						Level:   LevelError,
-						Code:    CodeNamingConvention,
-						Path:    task.Path,
-						Message: fmt.Sprintf("Task name should be lowercase: %s", task.FullName),
-						Fix:     "Rename task file to use lowercase (e.g., 01_task_name.md)",
-					})
-				}
-			}
-		}
-	}
+	result.Issues = append(result.Issues, convertIssues(issues)...)
 }
