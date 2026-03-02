@@ -11,6 +11,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/progress"
+	"github.com/Obedience-Corp/fest/internal/scope"
 )
 
 // createGuidanceContext creates a guidance context for testing.
@@ -639,29 +640,85 @@ fest_parent: 001_INGEST
 	}
 }
 
+// TestGetWorkflowNavigator_GateBlockedUntilPhaseWorkComplete verifies that
+// gate mode is not accessible until phase sequences/tasks are complete.
+// This prevents the ordering bypass where gates could be completed before phase work.
+func TestGetWorkflowNavigator_GateBlockedUntilPhaseWorkComplete(t *testing.T) {
+	dir := t.TempDir()
+	phaseDir := filepath.Join(dir, "001_IMPLEMENT")
+	os.MkdirAll(phaseDir, 0o755)
+
+	// Fest config
+	os.WriteFile(filepath.Join(dir, "fest.yaml"), []byte("name: test\nid: T\n"), 0o644)
+
+	// Phase has GATES.md (no WORKFLOW.md — it's an implementation phase)
+	gatesMD := "---\nfest_type: phase_gate\n---\n\n# Gate\n\n## Step 1: CHECK — Verify\n\n**Question:** Is implementation done?\n\n**Checkpoint:** APPROVAL REQUIRED\n"
+	os.WriteFile(filepath.Join(phaseDir, "GATES.md"), []byte(gatesMD), 0o644)
+
+	// Phase has a numbered sequence directory (sequences in progress)
+	os.MkdirAll(filepath.Join(phaseDir, "01_build"), 0o755)
+
+	// Phase is NOT marked complete in PHASE_GOAL.md
+	phaseGoal := "---\nfest_status: active\n---\n\n# Implementation\n"
+	os.WriteFile(filepath.Join(phaseDir, "PHASE_GOAL.md"), []byte(phaseGoal), 0o644)
+
+	// Set up scope context pointing at the phase
+	ctx := context.Background()
+	ctx = scope.WithFestival(ctx, dir)
+	phaseFlag = "001_IMPLEMENT"
+	defer func() { phaseFlag = "" }()
+
+	// Attempt to get navigator — should FAIL because sequences aren't done
+	_, err := getWorkflowNavigator(ctx)
+	if err == nil {
+		t.Fatal("getWorkflowNavigator should fail when gate is not yet eligible")
+	}
+	if !strings.Contains(err.Error(), "not yet eligible") {
+		t.Errorf("error should mention 'not yet eligible', got: %s", err.Error())
+	}
+
+	// Now mark the phase as complete
+	phaseGoalDone := "---\nfest_status: completed\n---\n\n# Implementation\n"
+	os.WriteFile(filepath.Join(phaseDir, "PHASE_GOAL.md"), []byte(phaseGoalDone), 0o644)
+
+	// Attempt again — should succeed now
+	nav, err := getWorkflowNavigator(ctx)
+	if err != nil {
+		t.Fatalf("getWorkflowNavigator should succeed after phase marked complete: %v", err)
+	}
+
+	state := nav.GetWorkflowState()
+	if state.TotalSteps != 1 {
+		t.Errorf("gate should have 1 step, got %d", state.TotalSteps)
+	}
+}
+
 // TestResolveNavigationMode verifies the routing logic directly.
 func TestResolveNavigationMode(t *testing.T) {
 	tests := []struct {
-		name           string
-		hasWorkflow    bool
-		hasGates       bool
-		wfComplete     bool
-		wantDoc        string
-		wantPrefix     string
+		name         string
+		hasWorkflow  bool
+		hasGates     bool
+		wfComplete   bool
+		hasSequences bool // add numbered subdirectories to simulate sequences
+		phaseMarked  bool // mark phase as completed in PHASE_GOAL.md
+		wantDoc      string
+		wantPrefix   string
+		wantNotReady bool // expect not-ready message instead of routing
 	}{
 		{
-			name:       "workflow only, incomplete",
+			name:        "workflow only, incomplete",
 			hasWorkflow: true,
-			wantDoc:    "WORKFLOW.md",
+			wantDoc:     "WORKFLOW.md",
 		},
 		{
-			name:       "gates only (non-workflow phase)",
+			name:       "gates only, no sequences (non-workflow phase)",
 			hasGates:   true,
 			wantDoc:    "GATES.md",
 			wantPrefix: "gate:",
 		},
 		{
-			name:        "workflow complete, gates exist",
+			name:        "workflow complete, gates exist, no sequences",
 			hasWorkflow: true,
 			hasGates:    true,
 			wfComplete:  true,
@@ -678,6 +735,40 @@ func TestResolveNavigationMode(t *testing.T) {
 		{
 			name:    "neither exists",
 			wantDoc: "",
+		},
+		{
+			name:         "gates only, sequences incomplete — gate not eligible",
+			hasGates:     true,
+			hasSequences: true,
+			phaseMarked:  false,
+			wantNotReady: true,
+		},
+		{
+			name:         "gates only, sequences complete — gate eligible",
+			hasGates:     true,
+			hasSequences: true,
+			phaseMarked:  true,
+			wantDoc:      "GATES.md",
+			wantPrefix:   "gate:",
+		},
+		{
+			name:         "workflow complete + gates + sequences incomplete — gate not eligible",
+			hasWorkflow:  true,
+			hasGates:     true,
+			wfComplete:   true,
+			hasSequences: true,
+			phaseMarked:  false,
+			wantNotReady: true,
+		},
+		{
+			name:         "workflow complete + gates + sequences complete — gate eligible",
+			hasWorkflow:  true,
+			hasGates:     true,
+			wfComplete:   true,
+			hasSequences: true,
+			phaseMarked:  true,
+			wantDoc:      "GATES.md",
+			wantPrefix:   "gate:",
 		},
 	}
 
@@ -696,6 +787,14 @@ func TestResolveNavigationMode(t *testing.T) {
 			if tt.hasGates {
 				gateContent := "---\nfest_type: phase_gate\n---\n\n# Gate\n\n## Step 1: CHECK — Check it\n\n**Question:** Is it done?\n\n**Checkpoint:** APPROVAL REQUIRED\n"
 				os.WriteFile(filepath.Join(phaseDir, "GATES.md"), []byte(gateContent), 0o644)
+			}
+			if tt.hasSequences {
+				// Create a numbered subdirectory to simulate a sequence
+				os.MkdirAll(filepath.Join(phaseDir, "01_seq"), 0o755)
+			}
+			if tt.phaseMarked {
+				phaseGoal := "---\nfest_status: completed\n---\n\n# Phase Goal\n"
+				os.WriteFile(filepath.Join(phaseDir, "PHASE_GOAL.md"), []byte(phaseGoal), 0o644)
 			}
 
 			// If workflow should be complete, use a navigator to complete it
@@ -719,7 +818,21 @@ func TestResolveNavigationMode(t *testing.T) {
 				nav.Advance(context.Background())
 			}
 
-			doc, prefix := resolveNavigationMode(context.Background(), dir, phaseDir)
+			doc, prefix, notReady := resolveNavigationMode(context.Background(), dir, phaseDir)
+
+			if tt.wantNotReady {
+				if notReady == "" {
+					t.Error("expected not-ready message, got empty")
+				}
+				if doc != "" {
+					t.Errorf("expected empty doc when not ready, got %q", doc)
+				}
+				return
+			}
+
+			if notReady != "" {
+				t.Errorf("unexpected not-ready message: %s", notReady)
+			}
 			if doc != tt.wantDoc {
 				t.Errorf("doc = %q, want %q", doc, tt.wantDoc)
 			}

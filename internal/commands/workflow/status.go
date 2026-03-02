@@ -170,9 +170,12 @@ func getWorkflowNavigator(ctx context.Context) (*wf.Navigator, error) {
 
 	// Detect phase type and determine navigation mode (workflow vs gate)
 	phaseType := guidance.DetectPhaseType(phasePath)
-	docFilename, stateKeyPrefix := resolveNavigationMode(ctx, festivalPath, phasePath)
+	docFilename, stateKeyPrefix, notReadyMsg := resolveNavigationMode(ctx, festivalPath, phasePath)
 
 	if docFilename == "" {
+		if notReadyMsg != "" {
+			return nil, fmt.Errorf("%s", notReadyMsg)
+		}
 		return nil, fmt.Errorf("phase has no WORKFLOW.md or GATES.md (detected type: %s)\n\nWorkflow commands require a navigable document", phaseType)
 	}
 
@@ -214,13 +217,15 @@ func getWorkflowNavigator(ctx context.Context) (*wf.Navigator, error) {
 }
 
 // resolveNavigationMode determines whether workflow commands should target WORKFLOW.md or GATES.md.
-// Returns the document filename and state key prefix. Returns empty filename if phase has neither.
+// Returns the document filename, state key prefix, and an optional not-ready message.
+// Returns empty filename if phase has neither document or if gate is not yet eligible.
 //
 // Logic:
 //  1. If phase has WORKFLOW.md and it's incomplete → target WORKFLOW.md
-//  2. If phase has GATES.md and workflow is complete (or absent) → target GATES.md
-//  3. If neither exists → return empty (caller should error)
-func resolveNavigationMode(ctx context.Context, festivalPath, phasePath string) (docFilename, stateKeyPrefix string) {
+//  2. If phase has GATES.md and workflow is complete (or absent) AND phase work is done → target GATES.md
+//  3. If phase has GATES.md but phase work is incomplete → return not-ready message
+//  4. If neither exists → return empty (caller should error)
+func resolveNavigationMode(ctx context.Context, festivalPath, phasePath string) (docFilename, stateKeyPrefix, notReadyMsg string) {
 	phaseName := filepath.Base(phasePath)
 	hasWorkflow := false
 	workflowComplete := false
@@ -249,20 +254,24 @@ func resolveNavigationMode(ctx context.Context, festivalPath, phasePath string) 
 
 	// Route: incomplete workflow takes priority
 	if hasWorkflow && !workflowComplete {
-		return "WORKFLOW.md", ""
+		return "WORKFLOW.md", "", ""
 	}
 
 	// Route: gate mode when workflow is done (or absent) and gates exist
 	if hasGates {
-		return "GATES.md", "gate:"
+		// Phase gate runs AFTER all other phase work. Check sequence readiness.
+		if shared.HasSequenceDirs(phasePath) && !shared.IsPhaseMarkedComplete(phasePath) {
+			return "", "", "phase gate exists but is not yet eligible\n\nComplete all phase sequences/tasks first, then the gate will become accessible.\nUse 'fest next' to continue working on phase tasks."
+		}
+		return "GATES.md", "gate:", ""
 	}
 
 	// Fallback: workflow phase with completed workflow and no gates
 	if hasWorkflow {
-		return "WORKFLOW.md", ""
+		return "WORKFLOW.md", "", ""
 	}
 
-	return "", ""
+	return "", "", ""
 }
 
 // isWorkflowPhase returns true if the phase type uses WORKFLOW.md-based navigation.
@@ -378,8 +387,12 @@ func findFirstIncompleteNavigablePhase(ctx context.Context, festivalPath string)
 			}
 		}
 
-		// Check GATES.md (only if workflow is complete or absent)
+		// Check GATES.md (only if workflow is complete or absent AND phase work is done)
 		if fileExists(filepath.Join(phasePath, "GATES.md")) {
+			// Phase gate requires all other phase work to be complete first
+			if shared.HasSequenceDirs(phasePath) && !shared.IsPhaseMarkedComplete(phasePath) {
+				continue // Gate not yet eligible, skip to next phase
+			}
 			if !storeLoaded {
 				return phasePath, nil
 			}
