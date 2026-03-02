@@ -2,7 +2,8 @@ package chain
 
 import (
 	"context"
-	"fmt"
+
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // DAG represents a directed acyclic graph of festival dependencies.
@@ -98,7 +99,9 @@ func (d *DAG) TopologicalSort(ctx context.Context) ([]string, error) {
 	}
 
 	if len(sorted) != len(d.Nodes) {
-		return nil, fmt.Errorf("cycle detected: only %d of %d nodes processed", len(sorted), len(d.Nodes))
+		return nil, errors.Validation("cycle detected in dependency graph").
+			WithField("processed", len(sorted)).
+			WithField("total", len(d.Nodes))
 	}
 
 	return sorted, nil

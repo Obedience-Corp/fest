@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	chainpkg "github.com/Obedience-Corp/fest/internal/chain"
+	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -68,13 +69,13 @@ func runComplete(ctx context.Context, chainID string, force bool, notes string) 
 		notes = "Chain completed"
 	}
 	if err := chainpkg.Transition(ctx, c, chainpkg.StatusCompleted, notes); err != nil {
-		return fmt.Errorf("transitioning chain: %w", err)
+		return errors.Wrap(err, "transitioning chain").WithCode(errors.ErrCodeValidation)
 	}
 
 	// Marshal updated chain.
 	data, err := yaml.Marshal(c)
 	if err != nil {
-		return fmt.Errorf("marshaling chain: %w", err)
+		return errors.Wrap(err, "marshaling chain").WithCode(errors.ErrCodeInternal)
 	}
 
 	// Determine destination path.
@@ -85,14 +86,14 @@ func runComplete(ctx context.Context, chainID string, force bool, notes string) 
 
 	destDir := filepath.Join(root, "dungeon", "completed", "chains")
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
-		return fmt.Errorf("creating completed chains directory: %w", err)
+		return errors.IO("creating completed chains directory", err)
 	}
 
 	destPath := filepath.Join(destDir, filepath.Base(chainPath))
 
 	// Write updated chain to destination.
 	if err := os.WriteFile(destPath, data, 0o644); err != nil {
-		return fmt.Errorf("writing completed chain: %w", err)
+		return errors.IO("writing completed chain", err)
 	}
 
 	// Remove original if it moved to a new location.

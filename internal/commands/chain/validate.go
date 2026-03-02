@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	chainpkg "github.com/Obedience-Corp/fest/internal/chain"
+	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -22,7 +23,7 @@ func newValidateCmd() *cobra.Command {
 				return runCrossValidate(cmd.Context())
 			}
 			if len(args) == 0 {
-				return fmt.Errorf("chain-id required (or use --cross for cross-chain validation)")
+				return errors.Validation("chain-id required (or use --cross for cross-chain validation)")
 			}
 			return runValidate(cmd.Context(), args[0])
 		},
@@ -73,7 +74,7 @@ func runValidate(ctx context.Context, chainID string) error {
 	} else {
 		fmt.Printf("Result: INVALID (%d errors, %d warnings)\n",
 			len(result.Errors), len(result.Warnings))
-		return fmt.Errorf("validation failed with %d errors", len(result.Errors))
+		return errors.Validation("validation failed").WithField("error_count", len(result.Errors))
 	}
 
 	return nil
@@ -105,7 +106,7 @@ func runCrossValidate(ctx context.Context) error {
 	if len(chains) < 2 {
 		fmt.Printf("Found %d valid chain(s) — cross-chain validation requires at least 2.\n", len(chains))
 		if len(parseErrors) > 0 {
-			return fmt.Errorf("%d chain file(s) failed to parse", len(parseErrors))
+			return errors.Parse("chain files failed to parse", nil).WithField("count", len(parseErrors))
 		}
 		return nil
 	}
@@ -137,7 +138,7 @@ func runCrossValidate(ctx context.Context) error {
 		fmt.Println("Result: VALID — no cross-chain conflicts detected")
 	} else {
 		fmt.Printf("Result: INVALID (%d errors)\n", totalErrors)
-		return fmt.Errorf("cross-chain validation failed with %d errors", totalErrors)
+		return errors.Validation("cross-chain validation failed").WithField("error_count", totalErrors)
 	}
 
 	return nil

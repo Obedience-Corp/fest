@@ -10,6 +10,7 @@ import (
 	"time"
 
 	chaintpl "github.com/Obedience-Corp/fest/embedded/templates/chain"
+	"github.com/Obedience-Corp/fest/internal/errors"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
@@ -45,17 +46,17 @@ func runCreate(cmd *cobra.Command, name, goal string) error {
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("getting working directory: %w", err)
+		return errors.IO("getting working directory", err)
 	}
 
 	root, err := tpl.FindFestivalsRoot(cwd)
 	if err != nil {
-		return fmt.Errorf("finding festivals root: %w", err)
+		return errors.Wrap(err, "finding festivals root").WithCode(errors.ErrCodeConfig)
 	}
 
 	chainsDir := filepath.Join(root, "chains")
 	if err := os.MkdirAll(chainsDir, 0o755); err != nil {
-		return fmt.Errorf("creating chains directory: %w", err)
+		return errors.IO("creating chains directory", err)
 	}
 
 	// Generate chain ID from name prefix.
@@ -66,12 +67,12 @@ func runCreate(cmd *cobra.Command, name, goal string) error {
 	// Render embedded chain template.
 	tplData, err := chaintpl.Templates.ReadFile("chain_template.yaml")
 	if err != nil {
-		return fmt.Errorf("reading chain template: %w", err)
+		return errors.Wrap(err, "reading chain template").WithCode(errors.ErrCodeTemplate)
 	}
 
 	tmpl, err := template.New("chain").Parse(string(tplData))
 	if err != nil {
-		return fmt.Errorf("parsing chain template: %w", err)
+		return errors.Wrap(err, "parsing chain template").WithCode(errors.ErrCodeTemplate)
 	}
 
 	now := time.Now().UTC().Format(time.RFC3339)
@@ -93,14 +94,14 @@ func runCreate(cmd *cobra.Command, name, goal string) error {
 	f, err := createChainFile(path)
 	if err != nil {
 		if os.IsExist(err) {
-			return fmt.Errorf("chain file already exists: %s", path)
+			return errors.Validation("chain file already exists").WithField("path", path)
 		}
-		return fmt.Errorf("creating chain file: %w", err)
+		return errors.IO("creating chain file", err)
 	}
 	defer f.Close()
 
 	if err := tmpl.Execute(f, data); err != nil {
-		return fmt.Errorf("rendering chain template: %w", err)
+		return errors.Wrap(err, "rendering chain template").WithCode(errors.ErrCodeTemplate)
 	}
 
 	fmt.Println(ui.Label("CHAIN CREATED"))

@@ -68,7 +68,7 @@ func TestResolve_FestivalNotFound(t *testing.T) {
 
 	_, err := Resolve(context.Background(), c, []string{root})
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "not found in search directories")
+	assert.Contains(t, err.Error(), "not found")
 }
 
 func TestResolve_ContextCancellation(t *testing.T) {

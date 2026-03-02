@@ -6,6 +6,7 @@ import (
 	"os"
 
 	chainpkg "github.com/Obedience-Corp/fest/internal/chain"
+	"github.com/Obedience-Corp/fest/internal/errors"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
@@ -42,7 +43,9 @@ func runCheck(ctx context.Context, refOrID, chainIDFlag string) error {
 
 	node := c.FestivalByRef(ref)
 	if node == nil {
-		return fmt.Errorf("festival ref %q not found in chain %s", ref, c.Metadata.ID)
+		return errors.NotFound("festival").
+			WithField("ref", ref).
+			WithField("chainID", c.Metadata.ID)
 	}
 
 	// Collect hard upstream deps.
@@ -104,7 +107,9 @@ func findChainForFestival(ctx context.Context, refOrID, chainIDFlag string) (*ch
 				return c, f.Ref, nil
 			}
 		}
-		return nil, "", fmt.Errorf("festival %q not found in chain %s", refOrID, chainIDFlag)
+		return nil, "", errors.NotFound("festival").
+			WithField("refOrID", refOrID).
+			WithField("chainID", chainIDFlag)
 	}
 
 	// Search all chains for the ref or ID.
@@ -129,18 +134,20 @@ func findChainForFestival(ctx context.Context, refOrID, chainIDFlag string) (*ch
 		}
 	}
 
-	return nil, "", fmt.Errorf("festival %q not found in any chain", refOrID)
+	return nil, "", errors.NotFound("festival").
+		WithField("refOrID", refOrID).
+		WithHint("specify a chain with --chain or ensure the festival is in a chain")
 }
 
 // festivalsRoot returns the festivals root directory.
 func festivalsRoot() (string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return "", fmt.Errorf("getting working directory: %w", err)
+		return "", errors.IO("getting working directory", err)
 	}
 	root, err := tpl.FindFestivalsRoot(cwd)
 	if err != nil {
-		return "", fmt.Errorf("finding festivals root: %w", err)
+		return "", errors.Wrap(err, "finding festivals root").WithCode(errors.ErrCodeConfig)
 	}
 	return root, nil
 }
