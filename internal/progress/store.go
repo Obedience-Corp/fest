@@ -533,6 +533,12 @@ func (s *Store) WorkflowPhaseState(phaseName string) (*wf.WorkflowState, bool) {
 	return state, ok
 }
 
+// GatePhaseState returns the phase gate state for a specific phase.
+// Phase gates are stored with a "gate:" prefix to distinguish from workflow state.
+func (s *Store) GatePhaseState(phaseName string) (*wf.WorkflowState, bool) {
+	return s.WorkflowPhaseState("gate:" + phaseName)
+}
+
 // FestivalPath returns the festival path for this store.
 func (s *Store) FestivalPath() string {
 	return s.festivalPath

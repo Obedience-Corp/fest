@@ -16,6 +16,7 @@ const StepTypeWorkflowStep = "workflow_step"
 
 // Navigator provides workflow-based navigation for non-implementation phases.
 // It parses WORKFLOW.md files and tracks step progress.
+// Also supports GATES.md files via SetDocFilename and SetStateKeyPrefix.
 type Navigator struct {
 	*guidance.BaseNavigator
 	parser        *Parser
@@ -26,6 +27,8 @@ type Navigator struct {
 	phaseDir      string
 	mode          guidance.Mode
 	store         StateStore // optional: if set, use JSONL events instead of YAML
+	docFilename   string     // defaults to "WORKFLOW.md", can be overridden for GATES.md
+	stateKeyPrefix string    // prefix for state key, e.g. "gate:" for phase gates
 }
 
 // Ensure Navigator implements guidance.Navigator.
@@ -49,6 +52,31 @@ func NewNavigator(gctx *guidance.GuidanceContext, mode guidance.Mode) (*Navigato
 // When set, the navigator uses the progress event log instead of workflow_state.yaml.
 func (n *Navigator) SetStateStore(store StateStore) {
 	n.store = store
+}
+
+// SetDocFilename overrides the document filename to parse (default: "WORKFLOW.md").
+// Use "GATES.md" for phase-level gates.
+func (n *Navigator) SetDocFilename(name string) {
+	n.docFilename = name
+}
+
+// SetStateKeyPrefix sets a prefix for the progress state key.
+// For phase gates, use "gate:" so state is tracked separately from workflows.
+func (n *Navigator) SetStateKeyPrefix(prefix string) {
+	n.stateKeyPrefix = prefix
+}
+
+// stateKey returns the key used for progress state lookups.
+func (n *Navigator) stateKey() string {
+	return n.stateKeyPrefix + n.phaseName
+}
+
+// filename returns the document filename to parse.
+func (n *Navigator) filename() string {
+	if n.docFilename != "" {
+		return n.docFilename
+	}
+	return "WORKFLOW.md"
 }
 
 // Initialize loads the workflow and state.
@@ -78,35 +106,36 @@ func (n *Navigator) Initialize(ctx context.Context) error {
 	// Extract phase name from phase directory
 	n.phaseName = filepath.Base(n.phaseDir)
 
-	// Load WORKFLOW.md from phase directory
-	workflowPath := filepath.Join(n.phaseDir, "WORKFLOW.md")
-	if _, err := os.Stat(workflowPath); os.IsNotExist(err) {
-		// No WORKFLOW.md, return empty steps
+	// Load document from phase directory (WORKFLOW.md or GATES.md)
+	docPath := filepath.Join(n.phaseDir, n.filename())
+	if _, err := os.Stat(docPath); os.IsNotExist(err) {
+		// No document found, return empty steps
 		n.steps = []WorkflowStep{}
 		n.workflowState = NewWorkflowState(0)
 		return nil
 	}
 
-	steps, err := n.parser.Parse(ctx, workflowPath)
+	steps, err := n.parser.Parse(ctx, docPath)
 	if err != nil {
-		return fmt.Errorf("parsing workflow: %w", err)
+		return fmt.Errorf("parsing %s: %w", n.filename(), err)
 	}
 
 	n.steps = steps
 
-	// Load or initialize workflow state
+	// Load or initialize state (using stateKey for proper namespacing)
+	sk := n.stateKey()
 	var state *WorkflowState
 	if n.store != nil {
 		// Use JSONL-backed store
-		state, err = LoadStateFromStore(n.store, n.phaseName)
+		state, err = LoadStateFromStore(n.store, sk)
 		if err != nil {
-			return fmt.Errorf("loading workflow state from store: %w", err)
+			return fmt.Errorf("loading state from store: %w", err)
 		}
 	} else {
 		// Fall back to YAML file
-		state, err = LoadState(ctx, n.festivalPath, n.phaseName)
+		state, err = LoadState(ctx, n.festivalPath, sk)
 		if err != nil {
-			return fmt.Errorf("loading workflow state: %w", err)
+			return fmt.Errorf("loading state: %w", err)
 		}
 	}
 
@@ -116,11 +145,11 @@ func (n *Navigator) Initialize(ctx context.Context) error {
 
 		// Emit init event if using store
 		if n.store != nil {
-			n.store.QueueWorkflowEvents(EmitInitEvents(n.phaseName, len(steps)))
+			n.store.QueueWorkflowEvents(EmitInitEvents(sk, len(steps)))
 			// Also emit step_start for step 1
-			n.store.QueueWorkflowEvents(EmitStepStartEvents(n.phaseName, 1))
+			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, 1))
 			if err := n.store.SaveEvents(ctx); err != nil {
-				return fmt.Errorf("saving workflow init events: %w", err)
+				return fmt.Errorf("saving init events: %w", err)
 			}
 		}
 	}
@@ -205,10 +234,10 @@ func (n *Navigator) getContextFiles() []string {
 		files = append(files, festivalGoal)
 	}
 
-	// Phase WORKFLOW.md
-	workflowPath := filepath.Join(n.phaseDir, "WORKFLOW.md")
-	if _, err := os.Stat(workflowPath); err == nil {
-		files = append(files, workflowPath)
+	// Phase document (WORKFLOW.md or GATES.md)
+	docPath := filepath.Join(n.phaseDir, n.filename())
+	if _, err := os.Stat(docPath); err == nil {
+		files = append(files, docPath)
 	}
 
 	return files
@@ -229,12 +258,13 @@ func (n *Navigator) MarkComplete(ctx context.Context, stepID string) error {
 	currentStep := n.workflowState.CurrentStep
 	n.workflowState.CompleteCurrentStep()
 
+	sk := n.stateKey()
 	if n.store != nil {
-		n.store.QueueWorkflowEvents(EmitStepDoneEvents(n.phaseName, currentStep))
+		n.store.QueueWorkflowEvents(EmitStepDoneEvents(sk, currentStep))
 		if n.workflowState.CurrentStep < n.workflowState.TotalSteps {
 			_ = n.workflowState.Advance()
-			n.store.QueueWorkflowEvents(EmitAdvanceEvents(n.phaseName, n.workflowState.CurrentStep))
-			n.store.QueueWorkflowEvents(EmitStepStartEvents(n.phaseName, n.workflowState.CurrentStep))
+			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
+			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, n.workflowState.CurrentStep))
 		}
 		return n.store.SaveEvents(ctx)
 	}
@@ -242,7 +272,7 @@ func (n *Navigator) MarkComplete(ctx context.Context, stepID string) error {
 	if n.workflowState.CurrentStep < n.workflowState.TotalSteps {
 		_ = n.workflowState.Advance()
 	}
-	return n.workflowState.Save(ctx, n.festivalPath, n.phaseName)
+	return n.workflowState.Save(ctx, n.festivalPath, sk)
 }
 
 // MarkSkipped marks a step as skipped.
@@ -286,16 +316,17 @@ func (n *Navigator) SkipCurrentStep(ctx context.Context, status StepStatus, reas
 	currentStep := n.workflowState.CurrentStep
 	n.workflowState.MarkCurrentStep(status, reason)
 
+	sk := n.stateKey()
 	if n.store != nil {
 		if status == StepStatusSkipped {
-			n.store.QueueWorkflowEvents(EmitStepSkipEvents(n.phaseName, currentStep, reason))
+			n.store.QueueWorkflowEvents(EmitStepSkipEvents(sk, currentStep, reason))
 		} else {
-			n.store.QueueWorkflowEvents(EmitStepDoneWithFeedbackEvents(n.phaseName, currentStep, reason))
+			n.store.QueueWorkflowEvents(EmitStepDoneWithFeedbackEvents(sk, currentStep, reason))
 		}
 		if n.workflowState.CurrentStep < n.workflowState.TotalSteps {
 			_ = n.workflowState.Advance()
-			n.store.QueueWorkflowEvents(EmitAdvanceEvents(n.phaseName, n.workflowState.CurrentStep))
-			n.store.QueueWorkflowEvents(EmitStepStartEvents(n.phaseName, n.workflowState.CurrentStep))
+			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
+			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, n.workflowState.CurrentStep))
 		}
 		return n.store.SaveEvents(ctx)
 	}
@@ -303,7 +334,7 @@ func (n *Navigator) SkipCurrentStep(ctx context.Context, status StepStatus, reas
 	if n.workflowState.CurrentStep < n.workflowState.TotalSteps {
 		_ = n.workflowState.Advance()
 	}
-	return n.workflowState.Save(ctx, n.festivalPath, n.phaseName)
+	return n.workflowState.Save(ctx, n.festivalPath, sk)
 }
 
 // MarkFailed marks a step as failed.
@@ -320,11 +351,12 @@ func (n *Navigator) MarkFailed(ctx context.Context, stepID string) error {
 
 	n.workflowState.Reject("step failed")
 
+	sk := n.stateKey()
 	if n.store != nil {
-		n.store.QueueWorkflowEvents(EmitStepBlockEvents(n.phaseName, n.workflowState.CurrentStep, "step failed"))
+		n.store.QueueWorkflowEvents(EmitStepBlockEvents(sk, n.workflowState.CurrentStep, "step failed"))
 		return n.store.SaveEvents(ctx)
 	}
-	return n.workflowState.Save(ctx, n.festivalPath, n.phaseName)
+	return n.workflowState.Save(ctx, n.festivalPath, sk)
 }
 
 // Advance moves to the next step.
@@ -346,14 +378,15 @@ func (n *Navigator) Advance(ctx context.Context) error {
 	currentStep := n.workflowState.CurrentStep
 	n.workflowState.CompleteCurrentStep()
 
+	sk := n.stateKey()
 	if n.store != nil {
-		n.store.QueueWorkflowEvents(EmitStepDoneEvents(n.phaseName, currentStep))
+		n.store.QueueWorkflowEvents(EmitStepDoneEvents(sk, currentStep))
 		if n.workflowState.CurrentStep < n.workflowState.TotalSteps {
 			if err := n.workflowState.Advance(); err != nil {
 				return err
 			}
-			n.store.QueueWorkflowEvents(EmitAdvanceEvents(n.phaseName, n.workflowState.CurrentStep))
-			n.store.QueueWorkflowEvents(EmitStepStartEvents(n.phaseName, n.workflowState.CurrentStep))
+			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
+			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, n.workflowState.CurrentStep))
 		}
 		return n.store.SaveEvents(ctx)
 	}
@@ -363,7 +396,7 @@ func (n *Navigator) Advance(ctx context.Context) error {
 			return err
 		}
 	}
-	return n.workflowState.Save(ctx, n.festivalPath, n.phaseName)
+	return n.workflowState.Save(ctx, n.festivalPath, sk)
 }
 
 // GetProgress returns workflow progress.
@@ -475,8 +508,15 @@ func (n *Navigator) formatStep(step WorkflowStep, stepState *StepState) (string,
 	status := string(stepState.Status)
 	feedback := stepState.Feedback
 
+	// Show "PHASE GATE" for gate documents, phase type for workflows
+	phaseType := strings.ToUpper(string(n.mode))
+	isGate := n.docFilename == "GATES.md"
+	if isGate {
+		phaseType = strings.ToUpper(n.Ctx.PhaseType) + " PHASE GATE"
+	}
+
 	data := map[string]any{
-		"PhaseType":   strings.ToUpper(string(n.mode)),
+		"PhaseType":   phaseType,
 		"PhaseName":   n.Ctx.PhaseName,
 		"StepNumber":  step.Number,
 		"TotalSteps":  n.workflowState.TotalSteps,
@@ -488,6 +528,7 @@ func (n *Navigator) formatStep(step WorkflowStep, stepState *StepState) (string,
 		"Status":      status,
 		"Feedback":    feedback,
 		"CurrentStep": n.workflowState.CurrentStep,
+		"IsGate":      isGate,
 	}
 
 	return agent.Render("workflow/step", data)
@@ -574,15 +615,16 @@ func (n *Navigator) Approve(ctx context.Context) error {
 		return err
 	}
 
+	sk := n.stateKey()
 	if n.store != nil {
-		n.store.QueueWorkflowEvents(EmitStepDoneEvents(n.phaseName, currentStep))
+		n.store.QueueWorkflowEvents(EmitStepDoneEvents(sk, currentStep))
 		if n.workflowState.CurrentStep > currentStep {
-			n.store.QueueWorkflowEvents(EmitAdvanceEvents(n.phaseName, n.workflowState.CurrentStep))
-			n.store.QueueWorkflowEvents(EmitStepStartEvents(n.phaseName, n.workflowState.CurrentStep))
+			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
+			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, n.workflowState.CurrentStep))
 		}
 		return n.store.SaveEvents(ctx)
 	}
-	return n.workflowState.Save(ctx, n.festivalPath, n.phaseName)
+	return n.workflowState.Save(ctx, n.festivalPath, sk)
 }
 
 // Reject rejects the current step with feedback.
@@ -599,11 +641,12 @@ func (n *Navigator) Reject(ctx context.Context, reason string) error {
 
 	n.workflowState.Reject(reason)
 
+	sk := n.stateKey()
 	if n.store != nil {
-		n.store.QueueWorkflowEvents(EmitStepBlockEvents(n.phaseName, n.workflowState.CurrentStep, reason))
+		n.store.QueueWorkflowEvents(EmitStepBlockEvents(sk, n.workflowState.CurrentStep, reason))
 		return n.store.SaveEvents(ctx)
 	}
-	return n.workflowState.Save(ctx, n.festivalPath, n.phaseName)
+	return n.workflowState.Save(ctx, n.festivalPath, sk)
 }
 
 // GetWorkflowState returns the current workflow state.
@@ -630,9 +673,10 @@ func (n *Navigator) Reset(ctx context.Context) error {
 
 	n.workflowState.Reset()
 
+	sk := n.stateKey()
 	if n.store != nil {
-		n.store.QueueWorkflowEvents(EmitResetEvents(n.phaseName))
+		n.store.QueueWorkflowEvents(EmitResetEvents(sk))
 		return n.store.SaveEvents(ctx)
 	}
-	return n.workflowState.Save(ctx, n.festivalPath, n.phaseName)
+	return n.workflowState.Save(ctx, n.festivalPath, sk)
 }

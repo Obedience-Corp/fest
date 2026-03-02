@@ -508,3 +508,92 @@ fest_type: workflow
 		t.Errorf("Step 1 has %d actions, want 4", len(steps[0].Actions))
 	}
 }
+
+func TestParser_PhaseGateDocument(t *testing.T) {
+	// Test parsing a GATES.md document that uses **Question:** instead of **Goal:**
+	content := `---
+fest_type: phase_gate
+fest_id: 001_PLAN-GATE
+fest_parent: 001_PLAN
+---
+
+# Planning Phase Gate
+
+## Step 1: METHODOLOGY — Verify Workflow Compliance
+
+**Question:** Were all workflow steps completed without skipping?
+
+**Actions:**
+1. Verify all workflow steps show completed status
+2. Confirm no steps were skipped without documented justification
+
+**Checkpoint:** APPROVAL REQUIRED — Confirm methodology compliance
+
+---
+
+## Step 2: APPROVAL — Verify User Sign-off
+
+**Question:** Did the user explicitly approve the planning outputs?
+
+**Actions:**
+1. Check that the user reviewed and approved deliverables
+2. Confirm approval is documented
+
+**Checkpoint:** APPROVAL REQUIRED — Confirm user approval obtained
+
+---
+
+## Step 3: STRUCTURE — Verify Festival Integrity
+
+**Question:** Is the festival structure valid and complete?
+
+**Actions:**
+1. Run fest validate
+2. Verify all markers are filled
+3. Confirm phase dependencies are satisfied
+
+**Checkpoint:** APPROVAL REQUIRED — Confirm structure validated
+`
+
+	parser := NewParser()
+	steps, err := parser.ParseContent(context.Background(), content)
+	if err != nil {
+		t.Fatalf("ParseContent() error = %v", err)
+	}
+
+	if len(steps) != 3 {
+		t.Fatalf("ParseContent() got %d steps, want 3", len(steps))
+	}
+
+	// Verify **Question:** is parsed into the Goal field
+	expectedGoals := []string{
+		"Were all workflow steps completed without skipping?",
+		"Did the user explicitly approve the planning outputs?",
+		"Is the festival structure valid and complete?",
+	}
+	for i, want := range expectedGoals {
+		if steps[i].Goal != want {
+			t.Errorf("Step %d Goal = %q, want %q", i+1, steps[i].Goal, want)
+		}
+	}
+
+	// Verify all steps have approval checkpoints
+	for i, step := range steps {
+		if step.Checkpoint != CheckpointUserApproval {
+			t.Errorf("Step %d checkpoint = %v, want CheckpointUserApproval", i+1, step.Checkpoint)
+		}
+	}
+
+	// Verify step names
+	expectedNames := []string{"METHODOLOGY", "APPROVAL", "STRUCTURE"}
+	for i, name := range expectedNames {
+		if steps[i].Name != name {
+			t.Errorf("Step %d name = %q, want %q", i+1, steps[i].Name, name)
+		}
+	}
+
+	// Verify actions parsed
+	if len(steps[0].Actions) != 2 {
+		t.Errorf("Step 1 has %d actions, want 2", len(steps[0].Actions))
+	}
+}

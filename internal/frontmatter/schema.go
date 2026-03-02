@@ -9,11 +9,13 @@ import (
 type Type string
 
 const (
-	TypeFestival Type = "festival"
-	TypePhase    Type = "phase"
-	TypeSequence Type = "sequence"
-	TypeTask     Type = "task"
-	TypeGate     Type = "gate"
+	TypeFestival  Type = "festival"
+	TypePhase     Type = "phase"
+	TypeSequence  Type = "sequence"
+	TypeTask      Type = "task"
+	TypeGate      Type = "gate"
+	TypePhaseGate Type = "phase_gate"
+	TypeWorkflow  Type = "workflow"
 )
 
 // Status represents document status
@@ -235,6 +237,8 @@ func (f *Frontmatter) Validate() []string {
 	switch f.Type {
 	case TypeFestival:
 		// Festival doesn't need parent
+	case TypeWorkflow, TypePhaseGate:
+		// Workflow and phase gate documents use their own validation (parsed by navigator)
 	case TypePhase, TypeSequence, TypeTask, TypeGate:
 		if f.Parent == "" {
 			errors = append(errors, "fest_parent is required for "+string(f.Type))
@@ -267,6 +271,9 @@ func isValidStatus(docType Type, status Status) bool {
 	case TypeGate:
 		return status == StatusPending || status == StatusPassed ||
 			status == StatusFailed
+	case TypeWorkflow, TypePhaseGate:
+		// Workflow and phase gate documents don't use standard status validation
+		return true
 	}
 	return false
 }

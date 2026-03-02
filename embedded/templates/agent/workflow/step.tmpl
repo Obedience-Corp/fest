@@ -27,12 +27,16 @@ EXAMPLE OUTPUT:
   ═══════════════════════════════════════════════════════════════════════════════
 */}}
 ═══════════════════════════════════════════════════════════════════════════════
+{{- if .IsGate}}
+                    {{.PhaseType}} - Step {{.StepNumber}} of {{.TotalSteps}}
+{{- else}}
                     {{.PhaseType}} PHASE - Step {{.StepNumber}} of {{.TotalSteps}}
+{{- end}}
 ═══════════════════════════════════════════════════════════════════════════════
 
 ## Step {{.StepNumber}}: {{.StepName}}
 
-**Goal:** {{.Goal}}
+{{if .IsGate}}**Question:** {{.Goal}}{{else}}**Goal:** {{.Goal}}{{end}}
 {{if .Actions}}
 **Actions:**
 {{range .Actions}}  - {{.}}
