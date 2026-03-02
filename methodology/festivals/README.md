@@ -2,31 +2,34 @@
 
 ## Quick Start
 
-The fastest way to learn the methodology is through the `fest` CLI:
+The `fest` CLI teaches the methodology and manages all festival operations:
 
 ```bash
 fest understand              # Learn core methodology
 fest understand methodology  # Deep dive into principles
 fest understand structure    # See festival structure and scaffolds
+fest understand tasks        # Task vs goal distinction (common mistake)
 fest types festival          # Discover festival types
 fest types festival show <type>  # See details for a specific type
 ```
 
-## Mandatory First Steps
+## First Steps
 
-### Step 1: Verify Methodology Resources
+### Step 1: Learn the Methodology
 
 ```bash
-ls -la .festival/
+fest understand
 ```
 
-### Step 2: Read the Implementation Guide
+### Step 2: Understand the Structure
 
-Read `.festival/README.md` for navigation and resource overview.
+```bash
+fest understand structure
+```
 
-### Step 3: Understand Core Methodology
+### Step 3 (Optional): Browse Methodology Resources
 
-Read `.festival/FESTIVAL_SOFTWARE_PROJECT_MANAGEMENT.md` for the full methodology spec.
+The `.festival/` directory contains templates, extensions, and configuration. See `.festival/README.md` for details. You do not need to read these — the `fest` CLI handles scaffolding automatically.
 
 ## Context Preservation Rules
 
@@ -44,7 +47,7 @@ festivals/
 │   ├── completed/  # Successfully finished festivals
 │   ├── archived/   # Preserved for reference
 │   └── someday/    # May revisit later
-├── .festival/      # Methodology resources (read just-in-time)
+├── .festival/      # Methodology resources (templates, extensions, config)
 └── README.md       # This file
 ```
 
@@ -112,24 +115,10 @@ fest create task --name "01_setup_database"
 
 1. **Choose festival type** based on your work (`fest types festival`)
 2. **Create the festival** (`fest create festival --type <type> <name>`)
-3. **Create core documents** (FESTIVAL_OVERVIEW.md, FESTIVAL_RULES.md from templates)
+3. **Review scaffolded documents** (FESTIVAL_OVERVIEW.md, FESTIVAL_RULES.md, FESTIVAL_GOAL.md are auto-created)
 4. **Add phases as needed** with appropriate types
 5. **Create sequences and tasks** within implementation phases
 6. **Execute with `fest next`** and mark tasks done with `fest task completed`
-
-## Template Reading Strategy
-
-Read templates ONE AT A TIME as you need them:
-
-| When Creating | Read Template |
-|--------------|---------------|
-| Festival overview | `.festival/templates/FESTIVAL_OVERVIEW_TEMPLATE.md` |
-| Festival goals | `.festival/templates/FESTIVAL_GOAL_TEMPLATE.md` |
-| Rules/standards | `.festival/templates/FESTIVAL_RULES_TEMPLATE.md` |
-| Phase goals | `.festival/templates/PHASE_GOAL_TEMPLATE.md` |
-| Sequence goals | `.festival/templates/SEQUENCE_GOAL_TEMPLATE.md` |
-| Tasks | `.festival/templates/TASK_TEMPLATE.md` |
-| Progress tracking | `.festival/templates/FESTIVAL_TODO_TEMPLATE.md` |
 
 ## Lifecycle Directories
 
