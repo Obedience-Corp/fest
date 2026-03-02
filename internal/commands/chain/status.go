@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	chainpkg "github.com/Obedience-Corp/fest/internal/chain"
+	"github.com/Obedience-Corp/fest/internal/errors"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
@@ -131,12 +132,12 @@ func progressBar(completed, total, width int) string {
 func findChainByID(ctx context.Context, chainID string) (*chainpkg.Chain, string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
-		return nil, "", fmt.Errorf("getting working directory: %w", err)
+		return nil, "", errors.IO("getting working directory", err)
 	}
 
 	root, err := tpl.FindFestivalsRoot(cwd)
 	if err != nil {
-		return nil, "", fmt.Errorf("finding festivals root: %w", err)
+		return nil, "", errors.Wrap(err, "finding festivals root").WithCode(errors.ErrCodeConfig)
 	}
 
 	searchDirs := []string{
@@ -166,5 +167,5 @@ func findChainByID(ctx context.Context, chainID string) (*chainpkg.Chain, string
 		}
 	}
 
-	return nil, "", fmt.Errorf("chain %s not found", chainID)
+	return nil, "", errors.NotFound("chain").WithField("chainID", chainID)
 }

@@ -46,7 +46,7 @@ func TestTransition_PlanningToCompleted_Invalid(t *testing.T) {
 
 	err := Transition(context.Background(), c, StatusCompleted, "skip")
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid transition")
+	assert.Contains(t, err.Error(), "invalid chain status transition")
 	// Status should not change.
 	assert.Equal(t, StatusPlanning, c.Metadata.Status)
 }

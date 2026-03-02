@@ -8,6 +8,7 @@ import (
 
 	chainpkg "github.com/Obedience-Corp/fest/internal/chain"
 	"github.com/Obedience-Corp/fest/internal/config"
+	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/id"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 )
@@ -22,12 +23,12 @@ func resolveChainStatuses(ctx context.Context, c *chainpkg.Chain) (map[string]ch
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		return nil, fmt.Errorf("getting working directory: %w", err)
+		return nil, errors.IO("getting working directory", err)
 	}
 
 	root, err := tpl.FindFestivalsRoot(cwd)
 	if err != nil {
-		return nil, fmt.Errorf("finding festivals root: %w", err)
+		return nil, errors.Wrap(err, "finding festivals root").WithCode(errors.ErrCodeConfig)
 	}
 
 	// Build search directories from all lifecycle status paths.

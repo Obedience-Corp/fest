@@ -2,8 +2,9 @@ package chain
 
 import (
 	"context"
-	"fmt"
 	"time"
+
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // ValidTransitions returns the valid next states from the current state.
@@ -37,8 +38,10 @@ func Transition(ctx context.Context, c *Chain, target ChainStatus, notes string)
 	}
 
 	if !allowed {
-		return fmt.Errorf("invalid transition from %q to %q (valid: %v)",
-			c.Metadata.Status, target, valid)
+		return errors.Validation("invalid chain status transition").
+			WithField("from", string(c.Metadata.Status)).
+			WithField("to", string(target)).
+			WithField("valid", valid)
 	}
 
 	c.Metadata.Status = target

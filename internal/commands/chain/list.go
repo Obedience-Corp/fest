@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	chainpkg "github.com/Obedience-Corp/fest/internal/chain"
+	"github.com/Obedience-Corp/fest/internal/errors"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
@@ -36,12 +37,12 @@ func runList(ctx context.Context, statusFilter string) error {
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("getting working directory: %w", err)
+		return errors.IO("getting working directory", err)
 	}
 
 	root, err := tpl.FindFestivalsRoot(cwd)
 	if err != nil {
-		return fmt.Errorf("finding festivals root: %w", err)
+		return errors.Wrap(err, "finding festivals root").WithCode(errors.ErrCodeConfig)
 	}
 
 	chains, err := discoverChains(ctx, filepath.Join(root, "chains"))
@@ -110,7 +111,7 @@ func discoverChains(ctx context.Context, dir string) ([]*chainpkg.Chain, error) 
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("reading chains directory: %w", err)
+		return nil, errors.IO("reading chains directory", err)
 	}
 
 	var chains []*chainpkg.Chain

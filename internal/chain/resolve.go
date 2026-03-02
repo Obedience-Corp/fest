@@ -2,9 +2,10 @@ package chain
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // ResolvedFestival holds a festival node paired with its resolved filesystem path.
@@ -26,7 +27,8 @@ func Resolve(ctx context.Context, c *Chain, searchDirs []string) (map[string]Res
 	for _, node := range c.Festivals {
 		path, err := findFestivalDir(ctx, node.ID, searchDirs)
 		if err != nil {
-			return nil, fmt.Errorf("resolving festival ref %q (id=%s): %w", node.Ref, node.ID, err)
+			return nil, errors.Wrap(err, "resolving festival ref").
+				WithField("ref", node.Ref).WithField("id", node.ID)
 		}
 		resolved[node.Ref] = ResolvedFestival{Node: node, Path: path}
 	}
@@ -56,7 +58,7 @@ func findFestivalDir(ctx context.Context, festivalID string, searchDirs []string
 		}
 	}
 
-	return "", fmt.Errorf("festival %s not found in search directories", festivalID)
+	return "", errors.NotFound("festival").WithField("festivalID", festivalID)
 }
 
 // matchesFestivalID checks whether a directory name matches a festival ID.

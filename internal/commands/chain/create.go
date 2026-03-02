@@ -10,6 +10,7 @@ import (
 	"time"
 
 	chaintpl "github.com/Obedience-Corp/fest/embedded/templates/chain"
+	"github.com/Obedience-Corp/fest/internal/errors"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
@@ -45,17 +46,17 @@ func runCreate(cmd *cobra.Command, name, goal string) error {
 
 	cwd, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("getting working directory: %w", err)
+		return errors.IO("getting working directory", err)
 	}
 
 	root, err := tpl.FindFestivalsRoot(cwd)
 	if err != nil {
-		return fmt.Errorf("finding festivals root: %w", err)
+		return errors.Wrap(err, "finding festivals root").WithCode(errors.ErrCodeConfig)
 	}
 
 	chainsDir := filepath.Join(root, "chains")
 	if err := os.MkdirAll(chainsDir, 0o755); err != nil {
-		return fmt.Errorf("creating chains directory: %w", err)
+		return errors.IO("creating chains directory", err)
 	}
 
 	// Generate chain ID from name prefix.
@@ -66,12 +67,12 @@ func runCreate(cmd *cobra.Command, name, goal string) error {
 	// Render embedded chain template.
 	tplData, err := chaintpl.Templates.ReadFile("chain_template.yaml")
 	if err != nil {
-		return fmt.Errorf("reading chain template: %w", err)
+		return errors.Wrap(err, "reading chain template").WithCode(errors.ErrCodeTemplate)
 	}
 
 	tmpl, err := template.New("chain").Parse(string(tplData))
 	if err != nil {
-		return fmt.Errorf("parsing chain template: %w", err)
+		return errors.Wrap(err, "parsing chain template").WithCode(errors.ErrCodeTemplate)
 	}
 
 	now := time.Now().UTC().Format(time.RFC3339)
@@ -90,17 +91,17 @@ func runCreate(cmd *cobra.Command, name, goal string) error {
 	filename := fmt.Sprintf("%s-%s.yaml", slug, id)
 	path := filepath.Join(chainsDir, filename)
 
-	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	f, err := createChainFile(path)
 	if err != nil {
 		if os.IsExist(err) {
-			return fmt.Errorf("chain file already exists: %s", path)
+			return errors.Validation("chain file already exists").WithField("path", path)
 		}
-		return fmt.Errorf("creating chain file: %w", err)
+		return errors.IO("creating chain file", err)
 	}
 	defer f.Close()
 
 	if err := tmpl.Execute(f, data); err != nil {
-		return fmt.Errorf("rendering chain template: %w", err)
+		return errors.Wrap(err, "rendering chain template").WithCode(errors.ErrCodeTemplate)
 	}
 
 	fmt.Println(ui.Label("CHAIN CREATED"))
@@ -142,6 +143,10 @@ func nextChainID(chainsDir, prefix string) string {
 		}
 	}
 	return fmt.Sprintf("%s%04d", prefix, maxNum+1)
+}
+
+func createChainFile(path string) (*os.File, error) {
+	return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 }
 
 // chainIDPrefix extracts a 2-letter uppercase prefix from the chain name.

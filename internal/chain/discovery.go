@@ -2,10 +2,11 @@ package chain
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // DiscoverAll loads all chain YAML files from the given festivals root.
@@ -40,7 +41,7 @@ type ParseError struct {
 }
 
 func (e ParseError) Error() string {
-	return fmt.Sprintf("%s: %s", filepath.Base(e.File), e.Err)
+	return filepath.Base(e.File) + ": " + e.Err.Error()
 }
 
 // DiscoverAllStrict is like DiscoverAll but also returns parse errors for
@@ -79,7 +80,7 @@ func FindForFestival(ctx context.Context, festivalID, festivalsRoot string) (*Ch
 
 	chains, err := DiscoverAll(ctx, festivalsRoot)
 	if err != nil {
-		return nil, "", fmt.Errorf("discovering chains: %w", err)
+		return nil, "", errors.Wrap(err, "discovering chains")
 	}
 
 	for _, c := range chains {
@@ -101,7 +102,7 @@ func discoverInDir(ctx context.Context, dir string) ([]*Chain, []ParseError, err
 		if os.IsNotExist(err) {
 			return nil, nil, nil
 		}
-		return nil, nil, fmt.Errorf("reading chains directory: %w", err)
+		return nil, nil, errors.IO("reading chains directory", err)
 	}
 
 	var chains []*Chain
