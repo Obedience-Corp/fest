@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -60,16 +61,7 @@ func runCreate(cmd *cobra.Command, name, goal string) error {
 	// Generate chain ID from name prefix.
 	slug := strings.ToLower(strings.ReplaceAll(name, " ", "-"))
 	prefix := chainIDPrefix(name)
-	id := fmt.Sprintf("%s0001", prefix)
-
-	// Check for existing chains to auto-increment.
-	entries, _ := os.ReadDir(chainsDir)
-	for _, e := range entries {
-		if strings.Contains(e.Name(), prefix) {
-			// Increment: simple strategy, just bump to next number.
-			id = fmt.Sprintf("%s%04d", prefix, len(entries)+1)
-		}
-	}
+	id := nextChainID(chainsDir, prefix)
 
 	// Render embedded chain template.
 	tplData, err := chaintpl.Templates.ReadFile("chain_template.yaml")
@@ -98,8 +90,11 @@ func runCreate(cmd *cobra.Command, name, goal string) error {
 	filename := fmt.Sprintf("%s-%s.yaml", slug, id)
 	path := filepath.Join(chainsDir, filename)
 
-	f, err := os.Create(path)
+	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
+		if os.IsExist(err) {
+			return fmt.Errorf("chain file already exists: %s", path)
+		}
 		return fmt.Errorf("creating chain file: %w", err)
 	}
 	defer f.Close()
@@ -117,6 +112,36 @@ func runCreate(cmd *cobra.Command, name, goal string) error {
 	fmt.Println("then run 'fest chain validate " + id + "' to verify.")
 
 	return nil
+}
+
+// nextChainID scans existing files in chainsDir to find the highest numeric
+// suffix for the given prefix, then returns prefix + max+1 (zero-padded to 4).
+// This avoids collisions with non-contiguous IDs.
+func nextChainID(chainsDir, prefix string) string {
+	entries, _ := os.ReadDir(chainsDir)
+	maxNum := 0
+	for _, e := range entries {
+		name := e.Name()
+		idx := strings.Index(name, prefix)
+		if idx < 0 {
+			continue
+		}
+		// Extract digits immediately after the prefix.
+		after := name[idx+len(prefix):]
+		// Take consecutive digits.
+		numStr := ""
+		for _, ch := range after {
+			if ch >= '0' && ch <= '9' {
+				numStr += string(ch)
+			} else {
+				break
+			}
+		}
+		if n, err := strconv.Atoi(numStr); err == nil && n > maxNum {
+			maxNum = n
+		}
+	}
+	return fmt.Sprintf("%s%04d", prefix, maxNum+1)
 }
 
 // chainIDPrefix extracts a 2-letter uppercase prefix from the chain name.

@@ -89,13 +89,24 @@ func runCrossValidate(ctx context.Context) error {
 		return err
 	}
 
-	chains, err := chainpkg.DiscoverAll(ctx, root)
+	chains, parseErrors, err := chainpkg.DiscoverAllStrict(ctx, root)
 	if err != nil {
 		return err
 	}
 
+	if len(parseErrors) > 0 {
+		fmt.Println(ui.Label("Parse errors:"))
+		for _, pe := range parseErrors {
+			fmt.Printf("  %s %s\n", ui.Accent("x"), pe.Error())
+		}
+		fmt.Println()
+	}
+
 	if len(chains) < 2 {
-		fmt.Printf("Found %d chain(s) — cross-chain validation requires at least 2.\n", len(chains))
+		fmt.Printf("Found %d valid chain(s) — cross-chain validation requires at least 2.\n", len(chains))
+		if len(parseErrors) > 0 {
+			return fmt.Errorf("%d chain file(s) failed to parse", len(parseErrors))
+		}
 		return nil
 	}
 
@@ -121,11 +132,12 @@ func runCrossValidate(ctx context.Context) error {
 	}
 
 	fmt.Println()
-	if result.Valid {
+	totalErrors := len(result.Errors) + len(parseErrors)
+	if result.Valid && len(parseErrors) == 0 {
 		fmt.Println("Result: VALID — no cross-chain conflicts detected")
 	} else {
-		fmt.Printf("Result: INVALID (%d errors)\n", len(result.Errors))
-		return fmt.Errorf("cross-chain validation failed with %d errors", len(result.Errors))
+		fmt.Printf("Result: INVALID (%d errors)\n", totalErrors)
+		return fmt.Errorf("cross-chain validation failed with %d errors", totalErrors)
 	}
 
 	return nil
