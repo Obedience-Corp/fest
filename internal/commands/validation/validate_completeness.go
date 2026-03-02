@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
-	"github.com/Obedience-Corp/fest/internal/festival"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/validator"
 	"github.com/spf13/cobra"
 )
 
@@ -75,58 +75,15 @@ func runValidateCompleteness(ctx context.Context, opts *validateOptions) error {
 }
 
 func validateCompletenessChecks(ctx context.Context, festivalPath string, result *ValidationResult) {
-	// Check FESTIVAL_OVERVIEW.md
-	overviewPath := filepath.Join(festivalPath, "FESTIVAL_OVERVIEW.md")
-	if !validateFileExists(overviewPath) {
+	issues, err := validator.ValidateCompleteness(ctx, festivalPath)
+	if err != nil {
 		result.Issues = append(result.Issues, ValidationIssue{
 			Level:   LevelError,
 			Code:    CodeMissingFile,
-			Path:    overviewPath,
-			Message: "FESTIVAL_OVERVIEW.md is required",
-			Fix:     "Create FESTIVAL_OVERVIEW.md with project goals and success criteria",
+			Path:    festivalPath,
+			Message: fmt.Sprintf("Failed to validate completeness: %v", err),
 		})
+		return
 	}
-
-	// Check FESTIVAL_RULES.md (warning, not error)
-	rulesPath := filepath.Join(festivalPath, "FESTIVAL_RULES.md")
-	if !validateFileExists(rulesPath) {
-		result.Issues = append(result.Issues, ValidationIssue{
-			Level:   LevelWarning,
-			Code:    CodeMissingFile,
-			Path:    rulesPath,
-			Message: "FESTIVAL_RULES.md is recommended",
-		})
-	}
-
-	parser := festival.NewParser()
-	phases, _ := parser.ParsePhases(ctx, festivalPath)
-
-	for _, phase := range phases {
-		// Check PHASE_GOAL.md
-		phaseGoalPath := filepath.Join(phase.Path, "PHASE_GOAL.md")
-		if !validateFileExists(phaseGoalPath) {
-			result.Issues = append(result.Issues, ValidationIssue{
-				Level:   LevelError,
-				Code:    CodeMissingGoal,
-				Path:    phaseGoalPath,
-				Message: fmt.Sprintf("PHASE_GOAL.md required in %s", phase.FullName),
-				Fix:     fmt.Sprintf("fest create phase --name %q --json", phase.Name),
-			})
-		}
-
-		// Check sequences
-		sequences, _ := parser.ParseSequences(ctx, phase.Path)
-		for _, seq := range sequences {
-			seqGoalPath := filepath.Join(seq.Path, "SEQUENCE_GOAL.md")
-			if !validateFileExists(seqGoalPath) {
-				result.Issues = append(result.Issues, ValidationIssue{
-					Level:   LevelError,
-					Code:    CodeMissingGoal,
-					Path:    seqGoalPath,
-					Message: fmt.Sprintf("SEQUENCE_GOAL.md required in %s", seq.FullName),
-					Fix:     fmt.Sprintf("fest create sequence --name %q --json", seq.Name),
-				})
-			}
-		}
-	}
+	result.Issues = append(result.Issues, convertIssues(issues)...)
 }

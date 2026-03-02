@@ -71,7 +71,7 @@ func TestValidateTemplateMarkers_ImplementationPhaseFailsOnMarkers(t *testing.T)
 		Valid:  true,
 		Issues: []ValidationIssue{},
 	}
-	validateTemplateMarkers(dir, result)
+	validateTemplateChecks(dir, result)
 
 	hasError := false
 	for _, issue := range result.Issues {
@@ -97,7 +97,7 @@ func TestValidateTemplateMarkers_PlanningPhaseWarnsOnMarkers(t *testing.T) {
 		Valid:  true,
 		Issues: []ValidationIssue{},
 	}
-	validateTemplateMarkers(dir, result)
+	validateTemplateChecks(dir, result)
 
 	for _, issue := range result.Issues {
 		if issue.Code == CodeUnfilledTemplate && issue.Level == LevelError {
@@ -128,53 +128,12 @@ func TestValidateTemplateMarkers_ResearchPhaseWarnsOnMarkers(t *testing.T) {
 		Valid:  true,
 		Issues: []ValidationIssue{},
 	}
-	validateTemplateMarkers(dir, result)
+	validateTemplateChecks(dir, result)
 
 	for _, issue := range result.Issues {
 		if issue.Code == CodeUnfilledTemplate && issue.Level == LevelError {
 			t.Errorf("research phase markers should be warnings, not errors; got: %+v", issue)
 		}
-	}
-}
-
-func TestValidateImplementationStructure_NoSequencesFails(t *testing.T) {
-	dir := setupTestFestival(t, testFestivalOpts{
-		phaseType:    "implementation",
-		withSequence: false,
-	})
-	result := &ValidationResult{
-		OK:     true,
-		Valid:  true,
-		Issues: []ValidationIssue{},
-	}
-	validateImplementationStructure(dir, result)
-
-	hasError := false
-	for _, issue := range result.Issues {
-		if issue.Code == CodeMissingTaskFiles && issue.Level == LevelError {
-			hasError = true
-		}
-	}
-	if !hasError {
-		t.Error("expected error for implementation phase without sequences")
-	}
-}
-
-func TestValidateImplementationStructure_PlanningPhaseSkipped(t *testing.T) {
-	dir := setupTestFestival(t, testFestivalOpts{
-		phaseType:    "planning",
-		phaseDirName: "001_PLANNING",
-		withSequence: false,
-	})
-	result := &ValidationResult{
-		OK:     true,
-		Valid:  true,
-		Issues: []ValidationIssue{},
-	}
-	validateImplementationStructure(dir, result)
-
-	if len(result.Issues) > 0 {
-		t.Errorf("planning phase without sequences should not cause issues; got: %+v", result.Issues)
 	}
 }
 
@@ -196,8 +155,7 @@ func TestValidateAll_CleanFestivalPasses(t *testing.T) {
 	validateStructureChecks(ctx, dir, result)
 	validateCompletenessChecks(ctx, dir, result)
 	validateTaskFilesChecks(ctx, dir, result)
-	validateTemplateMarkers(dir, result)
-	validateImplementationStructure(dir, result)
+	validateTemplateChecks(dir, result)
 
 	// Check for errors (warnings are acceptable)
 	for _, issue := range result.Issues {

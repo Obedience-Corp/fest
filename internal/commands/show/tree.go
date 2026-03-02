@@ -120,7 +120,7 @@ func buildPhaseNode(ctx context.Context, phaseDir string, store *progress.Store,
 				stepNodes = append(stepNodes, buildStepNode(step))
 				stepStats.Total++
 				switch step.Status {
-				case wf.StepStatusCompleted:
+				case wf.StepStatusCompleted, wf.StepStatusSkipped:
 					stepStats.Completed++
 				case wf.StepStatusInProgress:
 					stepStats.InProgress++
@@ -187,6 +187,8 @@ func buildStepNode(step shared.WorkflowStepView) *DisplayNode {
 		status = "in_progress"
 	case wf.StepStatusBlocked:
 		status = "blocked"
+	case wf.StepStatusSkipped:
+		status = "skipped"
 	}
 
 	return &DisplayNode{
@@ -196,7 +198,7 @@ func buildStepNode(step shared.WorkflowStepView) *DisplayNode {
 		NodeType: "step",
 		Stats: StatusCounts{
 			Total:     1,
-			Completed: boolToInt(step.Status == wf.StepStatusCompleted),
+			Completed: boolToInt(step.Status == wf.StepStatusCompleted || step.Status == wf.StepStatusSkipped),
 		},
 	}
 }
@@ -281,7 +283,7 @@ func buildSequenceNode(seqDir string, store *progress.Store, festivalRoot string
 // through the tree gets marked, giving --inprogress a "next up" expansion.
 func markNextPending(node *DisplayNode) {
 	for _, child := range node.Children {
-		if child.Status != "completed" {
+		if child.Status != "completed" && child.Status != "skipped" {
 			child.IsNextPending = true
 			// Leaf nodes (tasks/steps) show as in_progress to indicate "work here next"
 			if child.NodeType == "task" || child.NodeType == "step" {

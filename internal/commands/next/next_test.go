@@ -24,11 +24,11 @@ func TestHasBlockingIssues(t *testing.T) {
 			want:   false,
 		},
 		{
-			name: "naming warning blocks",
+			name: "naming warning does not block",
 			issues: []validator.Issue{
 				{Level: validator.LevelWarning, Code: validator.CodeNamingConvention},
 			},
-			want: true,
+			want: false,
 		},
 		{
 			name: "info only does not block",
@@ -45,9 +45,16 @@ func TestHasBlockingIssues(t *testing.T) {
 			want: true,
 		},
 		{
-			name: "unfilled template warning",
+			name: "unfilled template warning does not block",
 			issues: []validator.Issue{
 				{Level: validator.LevelWarning, Code: validator.CodeUnfilledTemplate},
+			},
+			want: false,
+		},
+		{
+			name: "unfilled template error blocks",
+			issues: []validator.Issue{
+				{Level: validator.LevelError, Code: validator.CodeUnfilledTemplate},
 			},
 			want: true,
 		},
@@ -170,6 +177,95 @@ func TestNextBlocksOnUnfilledMarkers(t *testing.T) {
 	}
 	if !hasTemplateIssue {
 		t.Error("expected unfilled_template issue code")
+	}
+}
+
+func TestNextBlocksOnReplaceMarkerInImplementation(t *testing.T) {
+	// Parity test: [REPLACE:] in an implementation task should block fest next
+	// because the validator now returns error-level issues for implementation phases.
+	root := t.TempDir()
+	festDir := filepath.Join(root, "test-fest")
+	phaseDir := filepath.Join(festDir, "001_IMPL")
+	seqDir := filepath.Join(phaseDir, "01_seq")
+	if err := os.MkdirAll(seqDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Write FESTIVAL_OVERVIEW.md
+	os.WriteFile(filepath.Join(festDir, "FESTIVAL_OVERVIEW.md"), []byte("# Test\n"), 0644)
+
+	// Write PHASE_GOAL.md with implementation phase type
+	goalContent := "---\nfest_type: phase\nfest_phase_type: implementation\nfest_status: pending\nfest_id: P001\nfest_parent: F001\nfest_order: 1\nfest_created: 2026-01-01T00:00:00Z\n---\n# Phase Goal\nImplement the thing.\n"
+	os.WriteFile(filepath.Join(phaseDir, "PHASE_GOAL.md"), []byte(goalContent), 0644)
+
+	// Write SEQUENCE_GOAL.md
+	os.WriteFile(filepath.Join(seqDir, "SEQUENCE_GOAL.md"), []byte("# Sequence Goal\n"), 0644)
+
+	// Write a task file with [REPLACE:] marker
+	taskContent := "# Task: Do Thing\n\n## Objective\n[REPLACE: Describe the objective]\n"
+	os.WriteFile(filepath.Join(seqDir, "01_do_thing.md"), []byte(taskContent), 0644)
+
+	ctx := context.Background()
+	result, err := validator.FullValidate(ctx, festDir)
+	if err != nil {
+		t.Fatalf("FullValidate error: %v", err)
+	}
+
+	// Verify [REPLACE:] is detected as an error in implementation phase
+	hasError := false
+	for _, issue := range result.Issues {
+		if issue.Code == validator.CodeUnfilledTemplate && issue.Level == validator.LevelError {
+			hasError = true
+			break
+		}
+	}
+	if !hasError {
+		t.Error("expected error-level unfilled_template issue for [REPLACE:] in implementation phase")
+	}
+
+	// hasBlockingIssues should block
+	if !hasBlockingIssues(result) {
+		t.Error("expected hasBlockingIssues to return true for [REPLACE:] in implementation phase")
+	}
+}
+
+func TestNextDoesNotBlockOnPlanningWarnings(t *testing.T) {
+	// Planning-phase markers should produce warnings, which no longer block fest next.
+	root := t.TempDir()
+	festDir := filepath.Join(root, "test-fest")
+	phaseDir := filepath.Join(festDir, "001_PLAN")
+	seqDir := filepath.Join(phaseDir, "01_seq")
+	if err := os.MkdirAll(seqDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	os.WriteFile(filepath.Join(festDir, "FESTIVAL_OVERVIEW.md"), []byte("# Test\n"), 0644)
+
+	// Planning phase type → markers should be warnings
+	goalContent := "---\nfest_type: phase\nfest_phase_type: planning\nfest_status: pending\nfest_id: P001\nfest_parent: F001\nfest_order: 1\nfest_created: 2026-01-01T00:00:00Z\n---\n# Phase Goal\nPlan the thing.\n"
+	os.WriteFile(filepath.Join(phaseDir, "PHASE_GOAL.md"), []byte(goalContent), 0644)
+
+	os.WriteFile(filepath.Join(seqDir, "SEQUENCE_GOAL.md"), []byte("# Sequence Goal\n"), 0644)
+
+	taskContent := "# Task\n\n[FILL: describe planning approach]\n"
+	os.WriteFile(filepath.Join(seqDir, "01_plan_task.md"), []byte(taskContent), 0644)
+
+	ctx := context.Background()
+	result, err := validator.FullValidate(ctx, festDir)
+	if err != nil {
+		t.Fatalf("FullValidate error: %v", err)
+	}
+
+	// Verify markers are warnings, not errors
+	for _, issue := range result.Issues {
+		if issue.Code == validator.CodeUnfilledTemplate && issue.Level == validator.LevelError {
+			t.Errorf("planning phase markers should be warnings, got error: %+v", issue)
+		}
+	}
+
+	// hasBlockingIssues should NOT block (warnings don't block)
+	if hasBlockingIssues(result) {
+		t.Error("expected hasBlockingIssues to return false for planning-phase warnings")
 	}
 }
 
