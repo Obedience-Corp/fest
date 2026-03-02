@@ -68,6 +68,8 @@ func StateIcon(state string) string {
 		return ColoredText("●", InProgressColor)
 	case "blocked", "error", "failed":
 		return ColoredText("■", BlockedColor)
+	case "skipped":
+		return ColoredText("⤼", WarningColor)
 	case "pending", "todo", "queued":
 		return ColoredText("○", PendingColor)
 	default:
