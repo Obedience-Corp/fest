@@ -11,29 +11,11 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
-	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/validator"
 	"github.com/spf13/cobra"
 )
-
-// stripInlineCode removes text inside backticks from a line.
-// This prevents markers inside inline code examples from being counted.
-func stripInlineCode(line string) string {
-	result := strings.Builder{}
-	inBacktick := false
-	for _, ch := range line {
-		if ch == '`' {
-			inBacktick = !inBacktick
-			continue
-		}
-		if !inBacktick {
-			result.WriteRune(ch)
-		}
-	}
-	return result.String()
-}
 
 // Validation issue levels
 const (
@@ -287,7 +269,7 @@ func runValidateAll(ctx context.Context, opts *validateOptions) error {
 	validateCompletenessChecks(ctx, festivalPath, result)
 	validateTaskFilesChecks(ctx, festivalPath, result)
 	validateQualityGatesChecks(ctx, festivalPath, result, opts.fix)
-	validateTemplateMarkers(festivalPath, result)
+	validateTemplateChecks(festivalPath, result)
 	validateOrderingChecks(ctx, festivalPath, result)
 
 	// Calculate score
@@ -323,124 +305,43 @@ func runValidateAll(ctx context.Context, opts *validateOptions) error {
 	return nil
 }
 
-func validateTemplateMarkers(festivalPath string, result *ValidationResult) {
-	// Scan for unfilled template markers
-	markers := []string{"[FILL:", "[REPLACE:", "[GUIDANCE:", "{{ "}
-
-	markerInfo := &MarkerInfo{
-		FilesWithMarkers: []string{},
+// validateTemplateChecks delegates to the canonical validator and builds MarkerInfo
+// from the returned issues. This follows the same pattern as other check functions.
+func validateTemplateChecks(festivalPath string, result *ValidationResult) {
+	issues, err := validator.ValidateTemplateMarkers(festivalPath)
+	if err != nil {
+		result.Issues = append(result.Issues, ValidationIssue{
+			Level:   LevelError,
+			Code:    CodeUnfilledTemplate,
+			Path:    festivalPath,
+			Message: fmt.Sprintf("Failed to validate template markers: %v", err),
+		})
+		return
 	}
 
-	filepath.Walk(festivalPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() {
-			return nil
+	converted := convertIssues(issues)
+	result.Issues = append(result.Issues, converted...)
+
+	// Build MarkerInfo from the converted issues
+	if len(converted) > 0 {
+		markerInfo := &MarkerInfo{
+			FilesWithMarkers: make([]string, 0, len(converted)),
 		}
-		if !strings.HasSuffix(path, ".md") {
-			return nil
-		}
-
-		// Skip hidden directories
-		relPath, _ := filepath.Rel(festivalPath, path)
-		if strings.HasPrefix(relPath, ".") || strings.Contains(relPath, "/.") {
-			return nil
-		}
-		// Skip gates/ directory - these are intentional template files
-		if strings.HasPrefix(relPath, "gates/") || strings.HasPrefix(relPath, "gates"+string(filepath.Separator)) {
-			return nil
-		}
-
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return nil
-		}
-
-		// Count markers line-by-line, skipping code blocks
-		lines := strings.Split(string(content), "\n")
-		inCodeBlock := false
-		fileMarkerCount := 0
-		foundMarkers := make(map[string]bool)
-
-		for _, line := range lines {
-			// Toggle fence state on ``` lines (handles ```go, ```yaml, etc.)
-			if strings.HasPrefix(strings.TrimSpace(line), "```") {
-				inCodeBlock = !inCodeBlock
-				continue
-			}
-
-			// Skip markers inside code blocks - they're documentation examples
-			if inCodeBlock {
-				continue
-			}
-
-			// Strip inline code (backticks) before checking for markers
-			lineWithoutCode := stripInlineCode(line)
-
-			// Count markers on this line
-			for _, marker := range markers {
-				count := strings.Count(lineWithoutCode, marker)
-				if count > 0 {
-					fileMarkerCount += count
-					foundMarkers[marker] = true
+		for _, issue := range converted {
+			if issue.Code == CodeUnfilledTemplate {
+				markerInfo.TotalFiles++
+				markerInfo.FilesWithMarkers = append(markerInfo.FilesWithMarkers, issue.Path)
+				// Count from message: "File contains N unfilled template markers (...)"
+				var count int
+				if _, scanErr := fmt.Sscanf(issue.Message, "File contains %d unfilled template markers", &count); scanErr == nil {
+					markerInfo.TotalCount += count
+				} else {
+					markerInfo.TotalCount++ // fallback: at least 1
 				}
 			}
 		}
-
-		if fileMarkerCount > 0 {
-			markerInfo.TotalCount += fileMarkerCount
-			markerInfo.TotalFiles++
-			markerInfo.FilesWithMarkers = append(markerInfo.FilesWithMarkers, relPath)
-
-			// Create a single issue per file listing all marker types found
-			markerTypes := []string{}
-			for marker := range foundMarkers {
-				markerTypes = append(markerTypes, marker)
-			}
-
-			// Severity depends on phase type: implementation/review = error, planning/research = warning
-			level := LevelWarning
-			phaseType := getPhaseType(festivalPath, relPath)
-			if phaseType == frontmatter.PhaseTypeImplementation || phaseType == frontmatter.PhaseTypeReview || phaseType == frontmatter.PhaseTypeDeployment {
-				level = LevelError
-			}
-
-			result.Issues = append(result.Issues, ValidationIssue{
-				Level:   level,
-				Code:    CodeUnfilledTemplate,
-				Path:    relPath,
-				Message: fmt.Sprintf("File contains %d unfilled template markers (%s)", fileMarkerCount, strings.Join(markerTypes, ", ")),
-				Fix:     "Edit file and replace template markers with actual content",
-			})
-		}
-
-		return nil
-	})
-
-	// Only set MarkerInfo if markers were found
-	if markerInfo.TotalCount > 0 {
 		result.MarkerInfo = markerInfo
 	}
-}
-
-// getPhaseType reads the PHASE_GOAL.md frontmatter to determine the phase type.
-// Returns the PhaseType for the phase containing the given relative path.
-func getPhaseType(festivalPath, relPath string) frontmatter.PhaseType {
-	parts := strings.Split(relPath, string(filepath.Separator))
-	if len(parts) < 1 {
-		return ""
-	}
-	goalPath := filepath.Join(festivalPath, parts[0], "PHASE_GOAL.md")
-	content, err := os.ReadFile(goalPath)
-	if err != nil {
-		return frontmatter.PhaseTypeImplementation // default assumption
-	}
-	fm, _, err := frontmatter.Parse(content)
-	if err != nil || fm == nil {
-		return frontmatter.PhaseTypeImplementation
-	}
-	if fm.PhaseType == "" {
-		return frontmatter.PhaseTypeImplementation
-	}
-	return fm.PhaseType
 }
 
 // Score calculation

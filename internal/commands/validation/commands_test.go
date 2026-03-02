@@ -71,7 +71,7 @@ func TestValidateTemplateMarkers_ImplementationPhaseFailsOnMarkers(t *testing.T)
 		Valid:  true,
 		Issues: []ValidationIssue{},
 	}
-	validateTemplateMarkers(dir, result)
+	validateTemplateChecks(dir, result)
 
 	hasError := false
 	for _, issue := range result.Issues {
@@ -97,7 +97,7 @@ func TestValidateTemplateMarkers_PlanningPhaseWarnsOnMarkers(t *testing.T) {
 		Valid:  true,
 		Issues: []ValidationIssue{},
 	}
-	validateTemplateMarkers(dir, result)
+	validateTemplateChecks(dir, result)
 
 	for _, issue := range result.Issues {
 		if issue.Code == CodeUnfilledTemplate && issue.Level == LevelError {
@@ -128,7 +128,7 @@ func TestValidateTemplateMarkers_ResearchPhaseWarnsOnMarkers(t *testing.T) {
 		Valid:  true,
 		Issues: []ValidationIssue{},
 	}
-	validateTemplateMarkers(dir, result)
+	validateTemplateChecks(dir, result)
 
 	for _, issue := range result.Issues {
 		if issue.Code == CodeUnfilledTemplate && issue.Level == LevelError {
@@ -155,7 +155,7 @@ func TestValidateAll_CleanFestivalPasses(t *testing.T) {
 	validateStructureChecks(ctx, dir, result)
 	validateCompletenessChecks(ctx, dir, result)
 	validateTaskFilesChecks(ctx, dir, result)
-	validateTemplateMarkers(dir, result)
+	validateTemplateChecks(dir, result)
 
 	// Check for errors (warnings are acceptable)
 	for _, issue := range result.Issues {
