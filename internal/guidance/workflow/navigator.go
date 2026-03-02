@@ -508,8 +508,15 @@ func (n *Navigator) formatStep(step WorkflowStep, stepState *StepState) (string,
 	status := string(stepState.Status)
 	feedback := stepState.Feedback
 
+	// Show "PHASE GATE" for gate documents, phase type for workflows
+	phaseType := strings.ToUpper(string(n.mode))
+	isGate := n.docFilename == "GATES.md"
+	if isGate {
+		phaseType = strings.ToUpper(n.Ctx.PhaseType) + " PHASE GATE"
+	}
+
 	data := map[string]any{
-		"PhaseType":   strings.ToUpper(string(n.mode)),
+		"PhaseType":   phaseType,
 		"PhaseName":   n.Ctx.PhaseName,
 		"StepNumber":  step.Number,
 		"TotalSteps":  n.workflowState.TotalSteps,
@@ -521,6 +528,7 @@ func (n *Navigator) formatStep(step WorkflowStep, stepState *StepState) (string,
 		"Status":      status,
 		"Feedback":    feedback,
 		"CurrentStep": n.workflowState.CurrentStep,
+		"IsGate":      isGate,
 	}
 
 	return agent.Render("workflow/step", data)

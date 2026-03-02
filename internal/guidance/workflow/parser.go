@@ -15,8 +15,8 @@ var (
 	// Description is optional (some steps don't have " — Description" suffix)
 	stepHeaderRe = regexp.MustCompile(`(?m)^##\s+Step\s+(\d+):\s+(.+?)(?:\s*[—-]\s*(.*))?$`)
 
-	// goalRe matches the goal section
-	goalRe = regexp.MustCompile(`(?s)\*\*Goal:\*\*\s*(.+?)(?:\n\n|\n\*\*)`)
+	// goalRe matches the goal section (also matches **Question:** for phase gate documents)
+	goalRe = regexp.MustCompile(`(?s)\*\*(?:Goal|Question):\*\*\s*(.+?)(?:\n\n|\n\*\*)`)
 
 	// actionsRe matches the actions section
 	actionsRe = regexp.MustCompile(`(?s)\*\*Actions:\*\*\s*(.+?)(?:\n\n|\n\*\*)`)

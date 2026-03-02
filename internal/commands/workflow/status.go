@@ -120,7 +120,9 @@ func runStatus(ctx context.Context) error {
 // It supports:
 //   - --phase flag to specify a particular phase
 //   - Running from inside a phase directory
-//   - Running from festival root (auto-detects first incomplete workflow phase)
+//   - Running from festival root (auto-detects first incomplete navigable phase)
+//   - Automatic gate mode: when a phase's WORKFLOW.md is complete (or absent) and GATES.md
+//     is incomplete, the navigator targets GATES.md instead
 func getWorkflowNavigator(ctx context.Context) (*wf.Navigator, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -149,28 +151,29 @@ func getWorkflowNavigator(ctx context.Context) (*wf.Navigator, error) {
 		// Priority 2: Check if we're inside a phase directory
 		phasePath = shared.ResolvePhasePath(cwd, festivalPath)
 
-		// Priority 3: Auto-detect first incomplete workflow phase
+		// Priority 3: Auto-detect first incomplete navigable phase (workflow or gate)
 		if phasePath == "" {
-			detected, err := findFirstIncompleteWorkflowPhase(ctx, festivalPath)
+			detected, err := findFirstIncompleteNavigablePhase(ctx, festivalPath)
 			if err != nil {
-				return nil, fmt.Errorf("scanning for workflow phases: %w", err)
+				return nil, fmt.Errorf("scanning for navigable phases: %w", err)
 			}
 			if detected == "" {
-				// Check if there are any workflow phases at all
-				phases, _ := findAllWorkflowPhases(festivalPath)
+				phases, _ := findAllNavigablePhases(festivalPath)
 				if len(phases) == 0 {
-					return nil, fmt.Errorf("no workflow phases found in this festival\n\nWorkflow commands only work with phases that have a WORKFLOW.md file")
+					return nil, fmt.Errorf("no navigable phases found in this festival\n\nWorkflow commands work with phases that have a WORKFLOW.md or GATES.md file")
 				}
-				return nil, fmt.Errorf("all workflow phases are complete\n\nUse --phase to specify a particular phase, or 'fest workflow reset --phase <name>' to restart one")
+				return nil, fmt.Errorf("all navigable phases are complete\n\nUse --phase to specify a particular phase, or 'fest workflow reset --phase <name>' to restart one")
 			}
 			phasePath = detected
 		}
 	}
 
-	// Detect phase type
+	// Detect phase type and determine navigation mode (workflow vs gate)
 	phaseType := guidance.DetectPhaseType(phasePath)
-	if !isWorkflowPhase(phaseType) {
-		return nil, fmt.Errorf("not a workflow-based phase (detected: %s)\n\nWorkflow commands only work in ingest, research, or planning phases", phaseType)
+	docFilename, stateKeyPrefix := resolveNavigationMode(ctx, festivalPath, phasePath)
+
+	if docFilename == "" {
+		return nil, fmt.Errorf("phase has no WORKFLOW.md or GATES.md (detected type: %s)\n\nWorkflow commands require a navigable document", phaseType)
 	}
 
 	// Create guidance context
@@ -179,7 +182,7 @@ func getWorkflowNavigator(ctx context.Context) (*wf.Navigator, error) {
 		PhasePath:    phasePath,
 		PhaseName:    filepath.Base(phasePath),
 		PhaseType:    phaseType,
-		Mode:         guidance.ModeFromPhaseType(phaseType),
+		Mode:         guidance.ModeWorkflow,
 		Config:       guidance.DefaultConfig(),
 	}
 
@@ -187,6 +190,12 @@ func getWorkflowNavigator(ctx context.Context) (*wf.Navigator, error) {
 	nav, err := wf.NewNavigator(gctx, gctx.Mode)
 	if err != nil {
 		return nil, fmt.Errorf("creating navigator: %w", err)
+	}
+
+	// Configure for gate mode if needed
+	if docFilename != "WORKFLOW.md" {
+		nav.SetDocFilename(docFilename)
+		nav.SetStateKeyPrefix(stateKeyPrefix)
 	}
 
 	// Create and load progress Store, inject into navigator for JSONL-backed state
@@ -202,6 +211,58 @@ func getWorkflowNavigator(ctx context.Context) (*wf.Navigator, error) {
 	}
 
 	return nav, nil
+}
+
+// resolveNavigationMode determines whether workflow commands should target WORKFLOW.md or GATES.md.
+// Returns the document filename and state key prefix. Returns empty filename if phase has neither.
+//
+// Logic:
+//  1. If phase has WORKFLOW.md and it's incomplete → target WORKFLOW.md
+//  2. If phase has GATES.md and workflow is complete (or absent) → target GATES.md
+//  3. If neither exists → return empty (caller should error)
+func resolveNavigationMode(ctx context.Context, festivalPath, phasePath string) (docFilename, stateKeyPrefix string) {
+	phaseName := filepath.Base(phasePath)
+	hasWorkflow := false
+	workflowComplete := false
+
+	// Check WORKFLOW.md
+	workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
+	if _, err := os.Stat(workflowPath); err == nil {
+		hasWorkflow = true
+
+		// Check if workflow is complete
+		store := progress.NewStore(festivalPath)
+		if store.Load(ctx) == nil {
+			state, ok := store.WorkflowPhaseState(phaseName)
+			if ok && state.TotalSteps > 0 && state.IsComplete() {
+				workflowComplete = true
+			}
+		}
+	}
+
+	// Check GATES.md
+	gatesPath := filepath.Join(phasePath, "GATES.md")
+	hasGates := false
+	if _, err := os.Stat(gatesPath); err == nil {
+		hasGates = true
+	}
+
+	// Route: incomplete workflow takes priority
+	if hasWorkflow && !workflowComplete {
+		return "WORKFLOW.md", ""
+	}
+
+	// Route: gate mode when workflow is done (or absent) and gates exist
+	if hasGates {
+		return "GATES.md", "gate:"
+	}
+
+	// Fallback: workflow phase with completed workflow and no gates
+	if hasWorkflow {
+		return "WORKFLOW.md", ""
+	}
+
+	return "", ""
 }
 
 // isWorkflowPhase returns true if the phase type uses WORKFLOW.md-based navigation.
@@ -230,6 +291,31 @@ func findAllWorkflowPhases(festivalPath string) ([]string, error) {
 		phasePath := filepath.Join(festivalPath, entry.Name())
 		workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
 		if _, err := os.Stat(workflowPath); err == nil {
+			phases = append(phases, phasePath)
+		}
+	}
+
+	sort.Strings(phases)
+	return phases, nil
+}
+
+// findAllNavigablePhases returns all phase directories that have a WORKFLOW.md or GATES.md file.
+func findAllNavigablePhases(festivalPath string) ([]string, error) {
+	entries, err := os.ReadDir(festivalPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var phases []string
+	for _, entry := range entries {
+		if !entry.IsDir() || !isNumberedDir(entry.Name()) {
+			continue
+		}
+
+		phasePath := filepath.Join(festivalPath, entry.Name())
+		hasWorkflow := fileExists(filepath.Join(phasePath, "WORKFLOW.md"))
+		hasGates := fileExists(filepath.Join(phasePath, "GATES.md"))
+		if hasWorkflow || hasGates {
 			phases = append(phases, phasePath)
 		}
 	}
@@ -267,12 +353,58 @@ func findFirstIncompleteWorkflowPhase(ctx context.Context, festivalPath string) 
 	return "", nil
 }
 
+// findFirstIncompleteNavigablePhase scans phases for the first with incomplete WORKFLOW.md or GATES.md.
+// Checks workflow first (incomplete workflow takes priority), then gates.
+func findFirstIncompleteNavigablePhase(ctx context.Context, festivalPath string) (string, error) {
+	phases, err := findAllNavigablePhases(festivalPath)
+	if err != nil {
+		return "", err
+	}
+
+	store := progress.NewStore(festivalPath)
+	storeLoaded := store.Load(ctx) == nil
+
+	for _, phasePath := range phases {
+		phaseName := filepath.Base(phasePath)
+
+		// Check WORKFLOW.md first
+		if fileExists(filepath.Join(phasePath, "WORKFLOW.md")) {
+			if !storeLoaded {
+				return phasePath, nil
+			}
+			state, ok := store.WorkflowPhaseState(phaseName)
+			if !ok || state.TotalSteps == 0 || !state.IsComplete() {
+				return phasePath, nil
+			}
+		}
+
+		// Check GATES.md (only if workflow is complete or absent)
+		if fileExists(filepath.Join(phasePath, "GATES.md")) {
+			if !storeLoaded {
+				return phasePath, nil
+			}
+			gateState, ok := store.GatePhaseState(phaseName)
+			if !ok || gateState.TotalSteps == 0 || !gateState.IsComplete() {
+				return phasePath, nil
+			}
+		}
+	}
+
+	return "", nil
+}
+
 // checkPhasesIncomplete returns the first phase path if any exist, as a fallback.
 func checkPhasesIncomplete(phases []string) (string, error) {
 	if len(phases) > 0 {
 		return phases[0], nil
 	}
 	return "", nil
+}
+
+// fileExists returns true if the path exists and is accessible.
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // isNumberedDir checks if directory name starts with a number.
