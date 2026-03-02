@@ -12,7 +12,7 @@ import (
 )
 
 type roadmapOutput struct {
-	Festival *FestivalInfo               `json:"festival"`
+	Festival *FestivalInfo                `json:"festival"`
 	Roadmap  *orchestration.ExecutionPlan `json:"roadmap"`
 }
 

@@ -389,7 +389,7 @@ func parseFestivalInfo(ctx context.Context, festivalDir, campaignRoot string) (*
 		// Check if parent is a date directory (YYYY-MM-DD or YYYY-MM)
 		if looksLikeDateDir(parentName) {
 			// Walk up one more level to find the status name
-			statusName := filepath.Base(filepath.Dir(parentDir))             // e.g., "completed"
+			statusName := filepath.Base(filepath.Dir(parentDir))                // e.g., "completed"
 			grandparent := filepath.Base(filepath.Dir(filepath.Dir(parentDir))) // e.g., "dungeon"
 			if grandparent == "dungeon" && isKnownDungeonStatus(statusName) {
 				info.Status = "dungeon/" + statusName

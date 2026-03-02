@@ -188,10 +188,10 @@ func TestCollectProjectDirectoriesMonorepo(t *testing.T) {
 
 	// Expect: camp, my-monorepo (root), my-monorepo@obey, my-monorepo@festui
 	want := map[string]string{
-		filepath.Join(tmpDir, "projects", "camp"):                   "camp",
-		filepath.Join(tmpDir, "projects", "my-monorepo"):            "my-monorepo",
-		filepath.Join(tmpDir, "projects", "my-monorepo", "obey"):    "my-monorepo@obey",
-		filepath.Join(tmpDir, "projects", "my-monorepo", "festui"):  "my-monorepo@festui",
+		filepath.Join(tmpDir, "projects", "camp"):                  "camp",
+		filepath.Join(tmpDir, "projects", "my-monorepo"):           "my-monorepo",
+		filepath.Join(tmpDir, "projects", "my-monorepo", "obey"):   "my-monorepo@obey",
+		filepath.Join(tmpDir, "projects", "my-monorepo", "festui"): "my-monorepo@festui",
 	}
 
 	if len(got) != len(want) {

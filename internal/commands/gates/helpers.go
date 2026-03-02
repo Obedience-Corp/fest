@@ -63,4 +63,3 @@ type sourceOutput struct {
 	Path  string `json:"path,omitempty"`
 	Name  string `json:"name,omitempty"`
 }
-

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	chainpkg "github.com/Obedience-Corp/fest/internal/chain"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/commands/status"
@@ -17,6 +18,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
+	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -134,6 +136,23 @@ func runPromote(ctx context.Context, opts *promoteOptions) error {
 				fmt.Printf("\n  %s\n", ui.Dim("Use --force to skip validation"))
 				return nil
 			}
+		}
+	}
+
+	// Chain dependency gate: block ready → active if hard upstream deps are incomplete.
+	if nextStatus == "active" && !opts.force && opts.dungeon == "" {
+		if blocked, blockMsg := checkChainDependencies(ctx, festival); blocked {
+			if opts.json {
+				return shared.EncodeJSON(os.Stdout, map[string]any{
+					"success": false,
+					"error":   "chain dependencies not met",
+					"details": blockMsg,
+					"hint":    "use --force to skip chain dependency check",
+				})
+			}
+			fmt.Printf("%s %s\n", ui.Warning("Chain dependency gate:"), blockMsg)
+			fmt.Printf("\n  %s\n", ui.Dim("Use --force to skip chain dependency check"))
+			return nil
 		}
 	}
 
@@ -258,4 +277,91 @@ func validateActiveToCompleted(ctx context.Context, festival *show.FestivalInfo)
 	}
 
 	return nil
+}
+
+// checkChainDependencies checks if a festival's hard upstream chain dependencies
+// are all completed. Returns (blocked, message). If the festival is not part of
+// any chain, returns (false, "").
+func checkChainDependencies(ctx context.Context, festival *show.FestivalInfo) (bool, string) {
+	// Load festival ID from fest.yaml.
+	festCfg, cfgErr := config.LoadFestivalConfig(festival.Path, "")
+	if cfgErr != nil || !festCfg.Metadata.HasMetadata() {
+		return false, "" // Can't determine ID — skip silently.
+	}
+	festivalID := festCfg.Metadata.ID
+
+	// Find festivals root.
+	cwd, err := os.Getwd()
+	if err != nil {
+		return false, ""
+	}
+	root, err := tpl.FindFestivalsRoot(cwd)
+	if err != nil {
+		return false, ""
+	}
+
+	// Find chain containing this festival.
+	c, ref, err := chainpkg.FindForFestival(ctx, festivalID, root)
+	if err != nil || c == nil {
+		return false, "" // Not in any chain — skip silently.
+	}
+
+	// Build search dirs for status resolution.
+	searchDirs := make([]string, len(id.StatusDirectories))
+	for i, d := range id.StatusDirectories {
+		searchDirs[i] = filepath.Join(root, d)
+	}
+
+	// Resolve live statuses.
+	resolved, _ := chainpkg.Resolve(ctx, c, searchDirs)
+	statuses := make(map[string]chainpkg.FestivalStatus, len(c.Festivals))
+	for _, node := range c.Festivals {
+		rf, ok := resolved[node.Ref]
+		if !ok || rf.Path == "" {
+			statuses[node.Ref] = chainpkg.FestivalPlanning
+			continue
+		}
+		cfg, cfgErr := config.LoadFestivalConfig(rf.Path, "")
+		if cfgErr != nil {
+			statuses[node.Ref] = chainpkg.FestivalPlanning
+			continue
+		}
+		statuses[node.Ref] = mapFestivalStatus(cfg.Metadata.CurrentStatus())
+	}
+
+	// Check hard upstream deps.
+	var incomplete []string
+	for _, e := range c.Edges {
+		if e.To == ref && e.Type == chainpkg.EdgeHard {
+			if statuses[e.From] != chainpkg.FestivalCompleted {
+				upstream := c.FestivalByRef(e.From)
+				if upstream != nil {
+					incomplete = append(incomplete, fmt.Sprintf("%s (%s)", upstream.Name, upstream.ID))
+				}
+			}
+		}
+	}
+
+	if len(incomplete) == 0 {
+		return false, ""
+	}
+
+	return true, fmt.Sprintf("%d hard upstream dependencies incomplete: %s",
+		len(incomplete), strings.Join(incomplete, ", "))
+}
+
+// mapFestivalStatus converts a string status to a chain FestivalStatus.
+func mapFestivalStatus(s string) chainpkg.FestivalStatus {
+	switch s {
+	case "planning":
+		return chainpkg.FestivalPlanning
+	case "ready":
+		return chainpkg.FestivalReady
+	case "active":
+		return chainpkg.FestivalActive
+	case "completed", "dungeon/completed":
+		return chainpkg.FestivalCompleted
+	default:
+		return chainpkg.FestivalPlanning
+	}
 }

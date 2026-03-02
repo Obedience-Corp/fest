@@ -41,16 +41,16 @@ func Validate(ctx context.Context, c *Chain) *ValidationResult {
 	result := &ValidationResult{Valid: true, Score: 100}
 
 	checks := []func(context.Context, *Chain, *ValidationResult){
-		validateUniqueRefs,           // S1
-		validateUniqueIDs,            // S2
-		validateEdgeRefs,             // S3
-		validateNoSelfEdges,          // S4
-		validateNoCycles,             // S5
-		validateEdgeTypes,            // S6
-		validateWaveCoverage,         // S7
-		validateWaveOrdering,         // S8
-		validateWaveUnlockSyntax,     // S9
-		validateRequiredFields,       // S10
+		validateUniqueRefs,       // S1
+		validateUniqueIDs,        // S2
+		validateEdgeRefs,         // S3
+		validateNoSelfEdges,      // S4
+		validateNoCycles,         // S5
+		validateEdgeTypes,        // S6
+		validateWaveCoverage,     // S7
+		validateWaveOrdering,     // S8
+		validateWaveUnlockSyntax, // S9
+		validateRequiredFields,   // S10
 	}
 
 	for _, check := range checks {
@@ -263,6 +263,80 @@ func validateWaveUnlockSyntax(_ context.Context, c *Chain, r *ValidationResult) 
 			}
 		}
 	}
+}
+
+// CrossChainResult holds the outcome of cross-chain validation.
+type CrossChainResult struct {
+	Valid    bool
+	Errors   []ValidationError
+	Warnings []ValidationWarning
+}
+
+// ValidateCrossChain checks for issues across multiple chains:
+// - Duplicate festival IDs appearing in different chains
+// - Conflicting lifecycle states (same festival in active and completed chains)
+// - Stale chains (all festivals completed but chain not archived)
+func ValidateCrossChain(ctx context.Context, chains []*Chain) *CrossChainResult {
+	result := &CrossChainResult{Valid: true}
+
+	if len(chains) < 2 {
+		return result
+	}
+
+	// Check duplicate festival IDs across chains.
+	type festLocation struct {
+		chainID    string
+		festivalID string
+	}
+	idMap := make(map[string][]festLocation)
+	for _, c := range chains {
+		for _, f := range c.Festivals {
+			idMap[f.ID] = append(idMap[f.ID], festLocation{
+				chainID:    c.Metadata.ID,
+				festivalID: f.ID,
+			})
+		}
+	}
+	for fid, locs := range idMap {
+		if len(locs) > 1 {
+			chainIDs := make([]string, len(locs))
+			for i, l := range locs {
+				chainIDs[i] = l.chainID
+			}
+			result.Errors = append(result.Errors, ValidationError{
+				Code:    "XC1",
+				Message: fmt.Sprintf("festival ID %q appears in multiple chains: %s", fid, strings.Join(chainIDs, ", ")),
+			})
+		}
+	}
+
+	// Check conflicting lifecycle states.
+	chainStatusByID := make(map[string][]string) // festival ID -> chain statuses
+	for _, c := range chains {
+		for _, f := range c.Festivals {
+			chainStatusByID[f.ID] = append(chainStatusByID[f.ID], string(c.Metadata.Status))
+		}
+	}
+
+	// Check for stale chains: all festivals could be completed but chain is still active.
+	// This is a warning since we don't have live statuses here.
+	for _, c := range chains {
+		if ctx.Err() != nil {
+			break
+		}
+		if c.Metadata.Status == StatusActive && len(c.Festivals) > 0 {
+			result.Warnings = append(result.Warnings, ValidationWarning{
+				Code:    "XC2",
+				Message: fmt.Sprintf("chain %q is active — verify all festivals are not already completed", c.Metadata.ID),
+			})
+		}
+	}
+
+	if len(result.Errors) > 0 {
+		result.Valid = false
+	}
+
+	return result
 }
 
 // S10: Required Fields

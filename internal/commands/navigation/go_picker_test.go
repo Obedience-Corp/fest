@@ -56,10 +56,10 @@ func TestCollectPickerItems(t *testing.T) {
 
 	// Verify festival entries have correct format and paths
 	wantFests := map[string]string{
-		"[active] deploy-DS0001":          filepath.Join(festivalsDir, "active", "deploy-DS0001"),
-		"[active] auth-AI0001":            filepath.Join(festivalsDir, "active", "auth-AI0001"),
-		"[planning] search-SR0001":        filepath.Join(festivalsDir, "planning", "search-SR0001"),
-		"[dungeon/completed] old-OL0001":  filepath.Join(festivalsDir, "dungeon", "completed", "old-OL0001"),
+		"[active] deploy-DS0001":         filepath.Join(festivalsDir, "active", "deploy-DS0001"),
+		"[active] auth-AI0001":           filepath.Join(festivalsDir, "active", "auth-AI0001"),
+		"[planning] search-SR0001":       filepath.Join(festivalsDir, "planning", "search-SR0001"),
+		"[dungeon/completed] old-OL0001": filepath.Join(festivalsDir, "dungeon", "completed", "old-OL0001"),
 	}
 	for _, item := range items {
 		if expectedPath, ok := wantFests[item.Name]; ok {

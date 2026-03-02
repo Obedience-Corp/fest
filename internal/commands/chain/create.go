@@ -5,13 +5,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 	"time"
 
-	chainpkg "github.com/Obedience-Corp/fest/internal/chain"
+	chaintpl "github.com/Obedience-Corp/fest/embedded/templates/chain"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
 )
 
 func newCreateCmd() *cobra.Command {
@@ -71,35 +71,41 @@ func runCreate(cmd *cobra.Command, name, goal string) error {
 		}
 	}
 
-	c := &chainpkg.Chain{
-		ChainVersion: "1.0",
-		Metadata: chainpkg.Metadata{
-			ID:        id,
-			Name:      slug,
-			Goal:      goal,
-			CreatedAt: time.Now().UTC(),
-			Status:    chainpkg.StatusPlanning,
-			StatusHistory: []chainpkg.StatusEntry{
-				{
-					Status:    chainpkg.StatusPlanning,
-					Timestamp: time.Now().UTC(),
-					Notes:     "Chain created",
-				},
-			},
-		},
-		Festivals: []chainpkg.FestivalNode{},
-		Edges:     []chainpkg.Edge{},
+	// Render embedded chain template.
+	tplData, err := chaintpl.Templates.ReadFile("chain_template.yaml")
+	if err != nil {
+		return fmt.Errorf("reading chain template: %w", err)
 	}
 
-	data, err := yaml.Marshal(c)
+	tmpl, err := template.New("chain").Parse(string(tplData))
 	if err != nil {
-		return fmt.Errorf("marshaling chain: %w", err)
+		return fmt.Errorf("parsing chain template: %w", err)
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	data := struct {
+		ID        string
+		Name      string
+		Goal      string
+		CreatedAt string
+	}{
+		ID:        id,
+		Name:      slug,
+		Goal:      goal,
+		CreatedAt: now,
 	}
 
 	filename := fmt.Sprintf("%s-%s.yaml", slug, id)
 	path := filepath.Join(chainsDir, filename)
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		return fmt.Errorf("writing chain file: %w", err)
+
+	f, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("creating chain file: %w", err)
+	}
+	defer f.Close()
+
+	if err := tmpl.Execute(f, data); err != nil {
+		return fmt.Errorf("rendering chain template: %w", err)
 	}
 
 	fmt.Println(ui.Label("CHAIN CREATED"))
