@@ -22,6 +22,7 @@ type showOptions struct {
 	collapsed  bool // Show collapsed tree with counters only
 	inProgress bool // Expand only in_progress phases/sequences
 	roadmap    bool // Show full execution roadmap with task statuses
+	festival   string
 }
 
 // NewShowCommand creates the show command with all subcommands.
@@ -43,9 +44,18 @@ SUBCOMMANDS:
   fest show completed    List festivals in completed/ directory
   fest show dungeon      List festivals in dungeon/ directory
   fest show all          List all festivals grouped by status
-  fest show <name>       Show details of a specific festival by name`,
+  fest show <name>       Show details of a specific festival by name
+  fest show --festival <selector>  Show a festival by explicit selector (campaign workspace)`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if opts.festival != "" && len(args) > 0 {
+				return errors.Validation("cannot use positional target with --festival")
+			}
+
+			if opts.festival != "" {
+				return runShowBySelector(cmd.Context(), opts.festival, opts)
+			}
+
 			if len(args) == 0 {
 				return runShowCurrent(cmd.Context(), opts)
 			}
@@ -60,6 +70,8 @@ SUBCOMMANDS:
 	cmd.Flags().BoolVar(&opts.collapsed, "collapsed", false, "show collapsed tree with counters only")
 	cmd.Flags().BoolVar(&opts.inProgress, "inprogress", false, "expand only in-progress phases and sequences")
 	cmd.Flags().BoolVar(&opts.roadmap, "roadmap", false, "show full execution roadmap with task statuses")
+	cmd.Flags().StringVar(&opts.festival, "festival", "", "festival selector (name or ID) from within a campaign workspace")
+	_ = cmd.RegisterFlagCompletionFunc("festival", completeShowFestivalSelector)
 
 	// Add subcommands for status directories
 	cmd.AddCommand(newShowActiveCommand(opts))
@@ -205,22 +217,7 @@ func runShowCurrent(ctx context.Context, opts *showOptions) error {
 	}
 
 	// Watch mode - continuously refresh display
-	if opts.watch {
-		return runWatchMode(ctx, festival, opts)
-	}
-
-	// Roadmap mode - full execution plan
-	if opts.roadmap {
-		if opts.json {
-			return emitRoadmapJSON(ctx, festival, campaignRoot)
-		}
-		return emitRoadmapText(ctx, festival)
-	}
-
-	if opts.json {
-		return emitFestivalJSON(festival, campaignRoot)
-	}
-	return emitFestivalText(festival, opts, campaignRoot)
+	return emitShowFestival(ctx, festival, opts, campaignRoot)
 }
 
 func runShow(ctx context.Context, target string, opts *showOptions) error {
@@ -247,6 +244,41 @@ func runShow(ctx context.Context, target string, opts *showOptions) error {
 			return emitShowErrorJSON(fmt.Sprintf("festival '%s' not found", target))
 		}
 		return err
+	}
+
+	return emitShowFestival(ctx, festival, opts, campaignRoot)
+}
+
+func runShowBySelector(ctx context.Context, selector string, opts *showOptions) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return errors.IO("getting current directory", err)
+	}
+
+	festivalPath, err := shared.ResolveFestivalSelector(ctx, cwd, selector)
+	if err != nil {
+		if opts.json {
+			return emitShowErrorJSON(err.Error())
+		}
+		return err
+	}
+
+	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
+	festival, err := DetectCurrentFestival(ctx, festivalPath, campaignRoot)
+	if err != nil {
+		if opts.json {
+			return emitShowErrorJSON(err.Error())
+		}
+		return err
+	}
+
+	return emitShowFestival(ctx, festival, opts, campaignRoot)
+}
+
+func emitShowFestival(ctx context.Context, festival *FestivalInfo, opts *showOptions, campaignRoot string) error {
+	// Watch mode - continuously refresh display
+	if opts.watch {
+		return runWatchMode(ctx, festival, opts)
 	}
 
 	// Roadmap mode - full execution plan
@@ -321,6 +353,19 @@ func runShowAll(ctx context.Context, opts *showOptions) error {
 		return emitAllFestivalsJSON(allFestivals, statusOrder, campaignRoot)
 	}
 	return emitAllFestivalsText(allFestivals, statusOrder)
+}
+
+func completeShowFestivalSelector(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	selectors, err := shared.CompleteFestivalSelector(context.Background(), cwd, toComplete)
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	return selectors, cobra.ShellCompDirectiveNoFileComp
 }
 
 // toDisplayFestival returns a copy of FestivalInfo with campaign-relative paths for serialization.
