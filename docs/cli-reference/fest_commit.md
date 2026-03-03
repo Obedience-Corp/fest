@@ -25,6 +25,7 @@ Detection priority:
   4. Explicit --festival flag (name or ID)
 
 Examples:
+```
   fest commit -m "Implement feature"
   # In linked project → [OBEY-FE-CS0001] Implement feature
   # In festival task  → [OBEY-FE-FEST-a3b2c1] Implement feature
@@ -40,6 +41,7 @@ Examples:
 
   fest commit --stage=false -m "Only commit staged"
   # Skip auto-staging, commit only what's already staged
+```
 
 ```
 fest commit [flags]
@@ -48,13 +50,14 @@ fest commit [flags]
 ### Options
 
 ```
-      --festival string   festival name or ID (overrides auto-detection)
-  -h, --help              help for commit
-      --json              output result as JSON
-  -m, --message string    commit message
-      --no-tag            don't prepend task reference
-      --stage             auto-stage all changes before commit (default true)
-      --task string       task reference ID to use (e.g., FEST-a3b2c1)
+      --festival string      festival name or ID (overrides auto-detection)
+  -h, --help                 help for commit
+      --json                 output result as JSON
+  -m, --message string       commit message
+      --no-tag               don't prepend task reference
+      --stage                auto-stage all changes before commit (default true)
+      --sync-submodule-ref   sync submodule ref at campaign root after commit
+      --task string          task reference ID to use (e.g., FEST-a3b2c1)
 ```
 
 ### Options inherited from parent commands

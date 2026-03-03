@@ -8,20 +8,26 @@ fest manages Festival Methodology - a goal-oriented project management
 system designed for AI agent development workflows.
 
 GETTING STARTED (for AI agents):
+```
   fest understand methodology    Learn core principles first
   fest understand structure      Understand the 3-level hierarchy
   fest understand tasks          Learn when/how to create task files
   fest validate                  Check if a festival is properly structured
+```
 
 COMMON WORKFLOWS:
+```
   fest create festival           Create a new festival (interactive TUI)
   fest create phase/sequence     Add phases or sequences to existing festival
   fest validate --fix            Fix common structure issues automatically
   fest go                        Navigate to festivals directory
+```
 
 SYSTEM MAINTENANCE:
+```
   fest system sync               Download latest templates from source
   fest system update             Update .festival/ methodology files
+```
 
 Run 'fest understand' to learn the methodology before executing tasks.
 
@@ -38,6 +44,7 @@ Run 'fest understand' to learn the methodology before executing tasks.
 ### SEE ALSO
 
 * [fest apply](fest_apply.md)	 - Apply a local template to a destination file (copy or render)
+* [fest chain](fest_chain.md)	 - Manage festival chains (inter-festival dependencies)
 * [fest commit](fest_commit.md)	 - Create git commit with task reference
 * [fest commits](fest_commits.md)	 - Query commits by festival element
 * [fest completion](fest_completion.md)	 - Generate shell completion scripts
@@ -49,6 +56,7 @@ Run 'fest understand' to learn the methodology before executing tasks.
 * [fest feedback](fest_feedback.md)	 - Manage structured feedback collection
 * [fest gates](fest_gates.md)	 - Manage quality gates - validation steps at sequence end
 * [fest go](fest_go.md)	 - Navigate to festivals/ - use 'fgo' after shell-init setup
+* [fest id](fest_id.md)	 - Show the festival ID for the current context
 * [fest index](fest_index.md)	 - Manage festival indices
 * [fest init](fest_init.md)	 - Initialize a new festival directory structure
 * [fest insert](fest_insert.md)	 - Insert new festival elements
@@ -82,6 +90,7 @@ Run 'fest understand' to learn the methodology before executing tasks.
 * [fest understand](fest_understand.md)	 - Learn methodology FIRST - run before executing festival tasks
 * [fest unlink](fest_unlink.md)	 - Remove festival-project link (context-aware)
 * [fest validate](fest_validate.md)	 - Check festival structure - find missing task files and issues
+* [fest version](fest_version.md)	 - Show version information
 * [fest wizard](fest_wizard.md)	 - Interactive guidance and assistance for festival creation
 * [fest workflow](fest_workflow.md)	 - Manage workflow-based phase execution
 
