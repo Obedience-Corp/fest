@@ -47,6 +47,9 @@ func runGendocs(cmd *cobra.Command, args []string) error {
 		if err := doc.GenMarkdownTree(rootCmd, gendocsOutput); err != nil {
 			return fmt.Errorf("generate markdown: %w", err)
 		}
+		if err := fenceExamplesInDir(gendocsOutput); err != nil {
+			return fmt.Errorf("post-process examples: %w", err)
+		}
 		fmt.Fprintf(os.Stderr, "Markdown docs written to %s\n", gendocsOutput)
 	case "yaml":
 		if err := doc.GenYamlTree(rootCmd, gendocsOutput); err != nil {
@@ -93,6 +96,74 @@ func disableAutoGenTag(cmd *cobra.Command) {
 	}
 }
 
+// fenceExamplesInDir wraps unformatted Examples: blocks in code fences.
+// Cobra's GenMarkdownTree renders the Long description as plain markdown,
+// so lines like "# comment" inside examples become headings.
+func fenceExamplesInDir(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+		path := filepath.Join(dir, entry.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		result := fenceExamples(string(data))
+		if result != string(data) {
+			if err := os.WriteFile(path, []byte(result), 0644); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// fenceExamples finds "Examples:" blocks in markdown and wraps the
+// indented content that follows in a code fence so that # comments
+// don't render as headings.
+func fenceExamples(content string) string {
+	lines := strings.Split(content, "\n")
+	var out []string
+	i := 0
+	for i < len(lines) {
+		line := lines[i]
+		if strings.TrimSpace(line) == "Examples:" {
+			out = append(out, line)
+			i++
+			// Collect indented example lines until we hit a code fence or non-indented content
+			var exampleLines []string
+			for i < len(lines) {
+				l := lines[i]
+				// Stop at code fence (usage block) or section heading
+				if strings.HasPrefix(l, "```") || strings.HasPrefix(l, "###") {
+					break
+				}
+				exampleLines = append(exampleLines, l)
+				i++
+			}
+			// Trim trailing blank lines from examples
+			for len(exampleLines) > 0 && strings.TrimSpace(exampleLines[len(exampleLines)-1]) == "" {
+				exampleLines = exampleLines[:len(exampleLines)-1]
+			}
+			if len(exampleLines) > 0 {
+				out = append(out, "```")
+				out = append(out, exampleLines...)
+				out = append(out, "```")
+				out = append(out, "")
+			}
+			continue
+		}
+		out = append(out, line)
+		i++
+	}
+	return strings.Join(out, "\n")
+}
+
 func combineSingleFile(dir, name string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -106,7 +177,7 @@ func combineSingleFile(dir, name string) error {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
 			continue
 		}
-		if entry.Name() == name+"-reference.md" {
+		if entry.Name() == name+"-reference.md" || entry.Name() == "_index.md" {
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
