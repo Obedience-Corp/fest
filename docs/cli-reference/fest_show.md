@@ -18,6 +18,7 @@ SUBCOMMANDS:
   fest show dungeon      List festivals in dungeon/ directory
   fest show all          List all festivals grouped by status
   fest show <name>       Show details of a specific festival by name
+  fest show --festival <selector>  Show a festival by explicit selector (campaign workspace)
 ```
 
 ```
@@ -28,6 +29,7 @@ fest show [status|festival-name] [flags]
 
 ```
       --collapsed    show collapsed tree with counters only
+      --festival string   festival selector (name or ID) from within a campaign workspace
       --goals        show goals for phases and sequences
   -h, --help         help for show
       --inprogress   expand only in-progress phases and sequences
@@ -54,4 +56,3 @@ fest show [status|festival-name] [flags]
 * [fest show completed](fest_show_completed.md)	 - List completed festivals
 * [fest show dungeon](fest_show_dungeon.md)	 - List festivals in dungeon/ directory
 * [fest show planning](fest_show_planning.md)	 - List festivals in planning/ directory
-
