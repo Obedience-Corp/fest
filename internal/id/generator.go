@@ -32,6 +32,9 @@ var StatusDirectories = []string{"planning", "ready", "active", "ritual", "dunge
 // PrimaryStatusDirs are directories for active work (used in navigation, fuzzy search)
 var PrimaryStatusDirs = []string{"active", "ready", "planning"}
 
+// WorkingStatusDirectories are non-terminal directories (excludes dungeon/*).
+var WorkingStatusDirectories = []string{"planning", "ready", "active", "ritual"}
+
 // ResolveStatusPath maps user-facing status names to filesystem directory paths.
 // Dungeon sub-statuses ("completed", "archived", "someday") resolve to their
 // full paths ("dungeon/completed", etc.). All other statuses pass through unchanged.
