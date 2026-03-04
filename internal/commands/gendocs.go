@@ -254,6 +254,35 @@ func isAllCapsLabel(s string) bool {
 	return true
 }
 
+// stripSeeAlso removes the "### SEE ALSO" section from markdown content.
+// Used when combining individual command docs into a single reference page
+// where cross-links are redundant.
+func stripSeeAlso(content string) string {
+	lines := strings.Split(content, "\n")
+	var out []string
+	skip := false
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "### SEE ALSO" {
+			skip = true
+			// Also remove any blank line immediately before the heading
+			if len(out) > 0 && strings.TrimSpace(out[len(out)-1]) == "" {
+				out = out[:len(out)-1]
+			}
+			continue
+		}
+		if skip {
+			// Stop skipping at next heading or horizontal rule (section boundary)
+			if strings.HasPrefix(line, "#") || strings.TrimSpace(line) == "---" {
+				skip = false
+				out = append(out, line)
+			}
+			continue
+		}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n")
+}
+
 func combineSingleFile(dir, name string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -274,7 +303,7 @@ func combineSingleFile(dir, name string) error {
 		if err != nil {
 			return err
 		}
-		parts = append(parts, string(data))
+		parts = append(parts, stripSeeAlso(string(data)))
 	}
 
 	combined := strings.Join(parts, "\n---\n\n")
