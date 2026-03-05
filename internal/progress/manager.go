@@ -147,6 +147,9 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 		return err
 	}
 	m.SyncFrontmatterStatus(taskID, task.Status)
+	// Propagation is best-effort: a failure here should not block
+	// the task completion that already succeeded above.
+	_ = m.PropagateCompletion(ctx, taskID)
 	return nil
 }
 
@@ -357,4 +360,113 @@ func (m *Manager) SyncFrontmatterStatus(taskID, status string) {
 	}
 
 	_ = os.WriteFile(taskPath, newContent, 0o644)
+}
+
+// PropagateCompletion checks if the parent sequence and phase of a task
+// are fully complete, and updates their frontmatter status if so.
+// Errors are non-fatal — propagation is best-effort to avoid blocking
+// the primary task completion flow.
+func (m *Manager) PropagateCompletion(ctx context.Context, taskID string) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled before propagation")
+	}
+
+	festPath := m.store.FestivalPath()
+	taskPath := filepath.Join(festPath, taskID)
+	if !strings.HasSuffix(taskPath, ".md") {
+		taskPath += ".md"
+	}
+
+	seqPath := filepath.Dir(taskPath)
+	phasePath := filepath.Dir(seqPath)
+
+	if err := m.propagateSequenceCompletion(ctx, seqPath); err != nil {
+		return errors.Wrap(err, "propagating sequence completion")
+	}
+
+	if err := m.propagatePhaseCompletion(ctx, phasePath); err != nil {
+		return errors.Wrap(err, "propagating phase completion")
+	}
+
+	return nil
+}
+
+// PropagatePhaseCompletion checks if a phase is fully complete and updates
+// its PHASE_GOAL.md frontmatter. Use this after workflow completion.
+func (m *Manager) PropagatePhaseCompletion(ctx context.Context, phasePath string) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled before phase propagation")
+	}
+	return m.propagatePhaseCompletion(ctx, phasePath)
+}
+
+// propagateSequenceCompletion updates SEQUENCE_GOAL.md if all tasks are done.
+func (m *Manager) propagateSequenceCompletion(ctx context.Context, seqPath string) error {
+	seqProgress, err := m.GetSequenceProgress(ctx, seqPath)
+	if err != nil {
+		return errors.Wrap(err, "getting sequence progress")
+	}
+
+	if seqProgress.Progress.Total == 0 || seqProgress.Progress.Completed < seqProgress.Progress.Total {
+		return nil
+	}
+
+	goalPath := filepath.Join(seqPath, "SEQUENCE_GOAL.md")
+	return m.updateGoalStatus(ctx, goalPath, frontmatter.StatusCompleted)
+}
+
+// propagatePhaseCompletion updates PHASE_GOAL.md if all sequences/workflows are done.
+func (m *Manager) propagatePhaseCompletion(ctx context.Context, phasePath string) error {
+	phaseProgress, err := m.GetPhaseProgress(ctx, phasePath)
+	if err != nil {
+		return errors.Wrap(err, "getting phase progress")
+	}
+
+	if phaseProgress.Progress.Total == 0 || phaseProgress.Progress.Completed < phaseProgress.Progress.Total {
+		return nil
+	}
+
+	goalPath := filepath.Join(phasePath, "PHASE_GOAL.md")
+	return m.updateGoalStatus(ctx, goalPath, frontmatter.StatusCompleted)
+}
+
+// updateGoalStatus updates the fest_status field in a goal file's YAML frontmatter.
+// Returns nil if the file doesn't exist (goal files are optional).
+func (m *Manager) updateGoalStatus(ctx context.Context, goalPath string, status frontmatter.Status) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled")
+	}
+
+	content, err := os.ReadFile(goalPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // Goal file is optional
+		}
+		return errors.IO("reading goal file", err)
+	}
+
+	fm, remaining, err := frontmatter.Parse(content)
+	if err != nil {
+		return errors.Wrap(err, "parsing goal frontmatter")
+	}
+	if fm == nil {
+		return nil // No frontmatter to update
+	}
+
+	if fm.Status == status {
+		return nil // Already in sync
+	}
+
+	fm.Status = status
+	fm.Updated = time.Now()
+
+	newContent, err := frontmatter.Inject(remaining, fm)
+	if err != nil {
+		return errors.Wrap(err, "injecting updated frontmatter")
+	}
+
+	if err := os.WriteFile(goalPath, newContent, 0o644); err != nil {
+		return errors.IO("writing updated goal file", err)
+	}
+	return nil
 }

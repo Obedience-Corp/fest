@@ -6,6 +6,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/chaining"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
@@ -95,9 +96,14 @@ func showNextStep(ctx context.Context, nav *wf.Navigator, steps []wf.WorkflowSte
 		fmt.Println(ui.Success("🎉 Workflow complete!"))
 		fmt.Println()
 
-		// Check for phase chaining
+		// Propagate phase completion to PHASE_GOAL.md frontmatter
 		gctx := nav.GetContext()
 		if gctx.FestivalPath != "" && gctx.PhasePath != "" {
+			if mgr, mgrErr := progress.NewManager(ctx, gctx.FestivalPath); mgrErr == nil {
+				if propErr := mgr.PropagatePhaseCompletion(ctx, gctx.PhasePath); propErr != nil {
+					fmt.Printf("%s %s\n", ui.Dim("Warning: could not propagate phase completion:"), ui.Dim(propErr.Error()))
+				}
+			}
 			checkPhaseChaining(ctx, gctx.FestivalPath, gctx.PhasePath)
 		}
 

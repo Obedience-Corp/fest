@@ -143,7 +143,7 @@ func TestNextTemplateOutputIsValid(t *testing.T) {
 	// Add quality gate task stubs (required by validator for fest next)
 	// Files must match taskParsePattern: ^(\d{2})_(.+)\.md$
 	for _, gate := range []struct {
-		num               int
+		num                int
 		name, gType, title string
 	}{
 		{2, "testing", "testing", "Testing"},
@@ -155,6 +155,10 @@ func TestNextTemplateOutputIsValid(t *testing.T) {
 		err = writeFileInContainer(tc, fmt.Sprintf("%s/%02d_%s.md", seqPath, gate.num, gate.name), gateContent)
 		require.NoError(t, err)
 	}
+
+	// Replace any scaffold template markers so "fest next" can execute.
+	err = replaceMarkersInContainer(tc, festPath)
+	require.NoError(t, err, "failed to replace markers")
 
 	// Run next command
 	output, err := tc.RunFestInDir(festPath, "next")
@@ -225,7 +229,7 @@ func TestAllCommandsProduceValidOutput(t *testing.T) {
 	// Add quality gate task stubs (required by validator for fest next)
 	// Files must match taskParsePattern: ^(\d{2})_(.+)\.md$
 	for _, gate := range []struct {
-		num               int
+		num                int
 		name, gType, title string
 	}{
 		{2, "testing", "testing", "Testing"},

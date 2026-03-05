@@ -17,6 +17,7 @@ type validateStructureOutput struct {
 	Action string `json:"action"`
 	Valid  bool   `json:"valid"`
 	Issues []struct {
+		Level   string `json:"level"`
 		Code    string `json:"code"`
 		Path    string `json:"path"`
 		Message string `json:"message"`
@@ -44,7 +45,7 @@ func TestValidateStructureNamingViolations(t *testing.T) {
 	require.NoError(t, err, "should create workspace marker")
 
 	festivalPath := "/festivals/naming-violations"
-	phasePath := filepath.Join(festivalPath, "001_plan")
+	phasePath := filepath.Join(festivalPath, "001_impl")
 	sequencePath := filepath.Join(phasePath, "01_Design")
 
 	exitCode, _, err = container.container.Exec(container.ctx, []string{"mkdir", "-p", sequencePath})
@@ -70,14 +71,14 @@ func TestValidateStructureNamingViolations(t *testing.T) {
 	var result validateStructureOutput
 	err = json.Unmarshal([]byte(strings.TrimSpace(output)), &result)
 	require.NoError(t, err, "validate structure output should be valid JSON")
-	require.False(t, result.Valid, "structure validation should fail for naming violations")
+	require.True(t, result.Valid, "structure validation should be valid when only warning-level issues are present")
 
 	var hasPhase, hasSequence, hasTask bool
 	for _, issue := range result.Issues {
-		if issue.Code != "naming_convention" {
+		if issue.Code != "naming_convention" || issue.Level != "warning" {
 			continue
 		}
-		if strings.Contains(issue.Path, "001_plan") {
+		if strings.Contains(issue.Path, "001_impl") {
 			hasPhase = true
 		}
 		if strings.Contains(issue.Path, "01_Design") {
