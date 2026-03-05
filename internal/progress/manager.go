@@ -101,6 +101,11 @@ func (m *Manager) UpdateProgress(ctx context.Context, taskID string, progress in
 		return err
 	}
 	m.SyncFrontmatterStatus(taskID, task.Status)
+	if progress == 100 {
+		// Propagation is best-effort: a failure here should not block
+		// the progress update that already succeeded above.
+		_ = m.PropagateCompletion(ctx, taskID)
+	}
 	return nil
 }
 

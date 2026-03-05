@@ -838,3 +838,33 @@ func TestPropagateCompletion_Partial(t *testing.T) {
 		t.Errorf("PHASE_GOAL.md status = %q, want %q (partial completion)", got, frontmatter.StatusPending)
 	}
 }
+
+func TestUpdateProgress_Complete_PropagatesCompletion(t *testing.T) {
+	ctx := context.Background()
+	festDir, task1, task2 := setupPropagationFestival(t)
+
+	mgr, err := NewManager(ctx, festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+
+	// Complete tasks via UpdateProgress(100), not MarkComplete.
+	if err := mgr.UpdateProgress(ctx, task1, 100); err != nil {
+		t.Fatalf("UpdateProgress(%s, 100): %v", task1, err)
+	}
+	if err := mgr.UpdateProgress(ctx, task2, 100); err != nil {
+		t.Fatalf("UpdateProgress(%s, 100): %v", task2, err)
+	}
+
+	seqGoalPath := filepath.Join(festDir, "001_PHASE", "01_sequence", "SEQUENCE_GOAL.md")
+	seqStatus := readStatus(t, seqGoalPath)
+	if seqStatus != frontmatter.StatusCompleted {
+		t.Errorf("SEQUENCE_GOAL.md status = %q, want %q", seqStatus, frontmatter.StatusCompleted)
+	}
+
+	phaseGoalPath := filepath.Join(festDir, "001_PHASE", "PHASE_GOAL.md")
+	phaseStatus := readStatus(t, phaseGoalPath)
+	if phaseStatus != frontmatter.StatusCompleted {
+		t.Errorf("PHASE_GOAL.md status = %q, want %q", phaseStatus, frontmatter.StatusCompleted)
+	}
+}
