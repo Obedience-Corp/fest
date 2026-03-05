@@ -513,7 +513,7 @@ func TestCheckPreActiveStatus(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			err := checkPreActiveStatus(festDir, phaseDir)
+			err := checkPreActiveStatus(context.Background(), festDir, phaseDir)
 
 			if tt.expectBlocked {
 				if err == nil {
@@ -533,7 +533,7 @@ func TestCheckPreActiveStatus(t *testing.T) {
 func TestCheckPreActiveStatus_NoConfig(t *testing.T) {
 	festDir := t.TempDir()
 	// No fest.yaml — should not block
-	err := checkPreActiveStatus(festDir, "")
+	err := checkPreActiveStatus(context.Background(), festDir, "")
 	if err != nil {
 		t.Errorf("expected no error without config, got: %v", err)
 	}
@@ -558,8 +558,14 @@ func TestCheckPreActiveStatus_NoPhasePath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Pass empty phasePath — should auto-detect first phase
-	err := checkPreActiveStatus(festDir, "")
+	// Add a sequence directory so findFirstIncompletePhase considers the phase incomplete
+	seqDir := filepath.Join(phaseDir, "01_setup")
+	if err := os.MkdirAll(seqDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Pass empty phasePath — should auto-detect first incomplete phase
+	err := checkPreActiveStatus(context.Background(), festDir, "")
 	if err == nil {
 		t.Error("expected blocked error when auto-detecting implementation phase, got nil")
 	}
@@ -587,7 +593,7 @@ func TestCheckPreActiveStatus_ReadyMessage(t *testing.T) {
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
-	err := checkPreActiveStatus(festDir, phaseDir)
+	err := checkPreActiveStatus(context.Background(), festDir, phaseDir)
 
 	w.Close()
 	var buf bytes.Buffer

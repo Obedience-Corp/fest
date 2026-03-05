@@ -128,7 +128,7 @@ func runNext(cmd *cobra.Command, args []string) error {
 	}
 
 	// Block implementation/review phases in pre-active festivals (planning or ready)
-	if err := checkPreActiveStatus(festivalPath, shared.ResolvePhasePath(cwd, festivalPath)); err != nil {
+	if err := checkPreActiveStatus(ctx, festivalPath, shared.ResolvePhasePath(cwd, festivalPath)); err != nil {
 		return err
 	}
 
@@ -737,7 +737,7 @@ func loadFeedbackCriteria(ctx context.Context, festivalPath string) []string {
 }
 
 // checkPreActiveStatus blocks implementation/review phases when the festival is in planning or ready status.
-func checkPreActiveStatus(festivalPath, phasePath string) error {
+func checkPreActiveStatus(ctx context.Context, festivalPath, phasePath string) error {
 	festCfg, err := config.LoadFestivalConfig(festivalPath, "")
 	if err != nil {
 		return nil // Can't load config — don't block
@@ -750,20 +750,12 @@ func checkPreActiveStatus(festivalPath, phasePath string) error {
 
 	// Only block if we can detect the phase type
 	if phasePath == "" {
-		// At festival root — find the first incomplete phase to check its type
-		entries, err := os.ReadDir(festivalPath)
-		if err != nil {
+		// At festival root — find the first *incomplete* phase (the current one)
+		found, _, findErr := findFirstIncompletePhase(ctx, festivalPath)
+		if findErr != nil || found == "" {
 			return nil
 		}
-		for _, entry := range entries {
-			if entry.IsDir() && isNumberedDir(entry.Name()) {
-				phasePath = filepath.Join(festivalPath, entry.Name())
-				break
-			}
-		}
-		if phasePath == "" {
-			return nil
-		}
+		phasePath = found
 	}
 
 	phaseType := guidance.DetectPhaseType(phasePath)
