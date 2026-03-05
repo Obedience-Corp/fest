@@ -624,3 +624,54 @@ func TestCheckPreActiveStatus_ReadyMessage(t *testing.T) {
 		t.Errorf("expected lifecycle in prompt block, got: %s", output)
 	}
 }
+
+// TestCheckPreActiveStatus_MultiPhase_PlanningPhaseNotBlocked verifies the
+// regression scenario: a planning-status festival with a completed implementation
+// phase (001_IMPL) and an incomplete planning phase (002_PLAN). When run from the
+// festival root (no explicit phasePath), findFirstIncompletePhase should find
+// 002_PLAN (type=planning), NOT 001_IMPL (type=implementation), so the check
+// should NOT block.
+func TestCheckPreActiveStatus_MultiPhase_PlanningPhaseNotBlocked(t *testing.T) {
+	festDir := t.TempDir()
+
+	// Phase 1: completed implementation phase
+	phase1 := filepath.Join(festDir, "001_IMPL")
+	if err := os.MkdirAll(phase1, 0755); err != nil {
+		t.Fatal(err)
+	}
+	goalImpl := "---\nfest_phase_type: implementation\n---\n# Implementation Phase\n"
+	if err := os.WriteFile(filepath.Join(phase1, "PHASE_GOAL.md"), []byte(goalImpl), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Mark phase 1 as complete
+	if err := os.WriteFile(filepath.Join(phase1, ".phase_complete"), []byte("done"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Phase 2: incomplete planning phase (the current phase)
+	phase2 := filepath.Join(festDir, "002_PLAN")
+	if err := os.MkdirAll(phase2, 0755); err != nil {
+		t.Fatal(err)
+	}
+	goalPlan := "---\nfest_phase_type: planning\n---\n# Planning Phase\n"
+	if err := os.WriteFile(filepath.Join(phase2, "PHASE_GOAL.md"), []byte(goalPlan), 0644); err != nil {
+		t.Fatal(err)
+	}
+	// Add a sequence so findFirstIncompletePhase considers this phase incomplete
+	if err := os.MkdirAll(filepath.Join(phase2, "01_research"), 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	// fest.yaml with planning status
+	festYAML := "version: \"1.0\"\nmetadata:\n  id: MP0001\n  status_history:\n    - status: planning\n      timestamp: 2026-02-10T00:00:00Z\n"
+	if err := os.WriteFile(filepath.Join(festDir, "fest.yaml"), []byte(festYAML), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Call from festival root (empty phasePath) — should NOT block because
+	// the first incomplete phase (002_PLAN) is a planning phase, not implementation.
+	err := checkPreActiveStatus(context.Background(), festDir, "")
+	if err != nil {
+		t.Errorf("expected no block for planning phase in planning-status festival, got: %v", err)
+	}
+}
