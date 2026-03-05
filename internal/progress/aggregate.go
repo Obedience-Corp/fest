@@ -196,6 +196,9 @@ func (m *Manager) GetPhaseProgress(ctx context.Context, phasePath string) (*Phas
 		aggregate.Blockers = append(aggregate.Blockers, seqProgress.Progress.Blockers...)
 	}
 
+	// Include gate steps if GATES.md exists
+	m.addGateProgress(ctx, phasePath, phaseName, aggregate)
+
 	// Calculate percentage
 	if aggregate.Total > 0 {
 		aggregate.Percentage = (aggregate.Completed * 100) / aggregate.Total
@@ -328,6 +331,9 @@ func (m *Manager) getWorkflowPhaseProgress(ctx context.Context, phasePath string
 		}
 	}
 
+	// Include gate steps if GATES.md exists
+	m.addGateProgress(ctx, phasePath, phaseName, aggregate)
+
 	if aggregate.Total > 0 {
 		aggregate.Percentage = (aggregate.Completed * 100) / aggregate.Total
 	}
@@ -337,4 +343,42 @@ func (m *Manager) getWorkflowPhaseProgress(ctx context.Context, phasePath string
 		PhaseName: phaseName,
 		Progress:  aggregate,
 	}, nil
+}
+
+// addGateProgress adds gate step counts to an existing aggregate if GATES.md exists.
+func (m *Manager) addGateProgress(ctx context.Context, phasePath, phaseName string, aggregate *AggregateProgress) {
+	gatePath := filepath.Join(phasePath, "GATES.md")
+	if _, err := os.Stat(gatePath); err != nil {
+		return
+	}
+
+	parser := wf.NewParser()
+	gateSteps, err := parser.Parse(ctx, gatePath)
+	if err != nil || len(gateSteps) == 0 {
+		return
+	}
+
+	gateState, ok := m.store.GatePhaseState(phaseName)
+	if !ok {
+		gateState = wf.NewWorkflowState(0)
+	}
+
+	aggregate.Total += len(gateSteps)
+	for _, step := range gateSteps {
+		stepState := gateState.GetStepState(step.Number)
+		if stepState == nil {
+			aggregate.Pending++
+			continue
+		}
+		switch stepState.Status {
+		case wf.StepStatusCompleted, wf.StepStatusSkipped:
+			aggregate.Completed++
+		case wf.StepStatusInProgress:
+			aggregate.InProgress++
+		case wf.StepStatusBlocked:
+			aggregate.Blocked++
+		default:
+			aggregate.Pending++
+		}
+	}
 }

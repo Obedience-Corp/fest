@@ -435,6 +435,13 @@ func (m *Manager) propagatePhaseCompletion(ctx context.Context, phasePath string
 	return m.updateGoalStatus(ctx, goalPath, frontmatter.StatusCompleted)
 }
 
+// ResetPhaseStatus sets the phase PHASE_GOAL.md frontmatter status back to in_progress.
+// Use this when resetting a workflow or gate to reflect that the phase is no longer complete.
+func (m *Manager) ResetPhaseStatus(ctx context.Context, phasePath string) error {
+	goalPath := filepath.Join(phasePath, "PHASE_GOAL.md")
+	return m.updateGoalStatus(ctx, goalPath, frontmatter.StatusInProgress)
+}
+
 // updateGoalStatus updates the fest_status field in a goal file's YAML frontmatter.
 // Returns nil if the file doesn't exist (goal files are optional).
 func (m *Manager) updateGoalStatus(ctx context.Context, goalPath string, status frontmatter.Status) error {
