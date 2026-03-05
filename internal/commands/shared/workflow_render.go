@@ -199,6 +199,66 @@ func HasWorkflowFile(phaseDir string) bool {
 	return err == nil
 }
 
+// HasGateFile checks if a phase directory contains a GATES.md file.
+func HasGateFile(phaseDir string) bool {
+	gatePath := filepath.Join(phaseDir, "GATES.md")
+	_, err := os.Stat(gatePath)
+	return err == nil
+}
+
+// LoadGateStepsForPhase loads gate steps and state for a given phase path.
+// Returns a slice of WorkflowStepView ready for rendering, or nil if no GATES.md exists.
+func LoadGateStepsForPhase(ctx context.Context, festivalPath, phasePath string) ([]WorkflowStepView, error) {
+	phaseName := filepath.Base(phasePath)
+
+	gatePath := filepath.Join(phasePath, "GATES.md")
+	if _, err := os.Stat(gatePath); os.IsNotExist(err) {
+		return nil, nil
+	}
+
+	parser := wf.NewParser()
+	steps, err := parser.Parse(ctx, gatePath)
+	if err != nil {
+		return nil, fmt.Errorf("parsing gates: %w", err)
+	}
+
+	if len(steps) == 0 {
+		return []WorkflowStepView{}, nil
+	}
+
+	store := progress.NewStore(festivalPath)
+	if err := store.Load(ctx); err != nil {
+		return nil, fmt.Errorf("loading progress store: %w", err)
+	}
+	state, ok := store.GatePhaseState(phaseName)
+	if !ok {
+		state = wf.NewWorkflowState(0)
+	}
+
+	views := make([]WorkflowStepView, len(steps))
+	for i, step := range steps {
+		stepState := state.GetStepState(step.Number)
+		status := wf.StepStatusPending
+		feedback := ""
+		if stepState != nil {
+			status = stepState.Status
+			feedback = stepState.Feedback
+		}
+
+		views[i] = WorkflowStepView{
+			Number:        step.Number,
+			Name:          step.Name,
+			Status:        status,
+			IsCurrent:     step.Number == state.CurrentStep && !state.IsComplete(),
+			HasCheckpoint: step.HasCheckpoint(),
+			Goal:          step.Goal,
+			Feedback:      feedback,
+		}
+	}
+
+	return views, nil
+}
+
 // WorkflowPositionForPhase reads the workflow_position from a phase's WORKFLOW.md frontmatter.
 // Returns "after" (default) if not set or on error.
 func WorkflowPositionForPhase(phaseDir string) frontmatter.WorkflowPosition {

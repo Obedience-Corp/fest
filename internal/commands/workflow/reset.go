@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
@@ -64,6 +65,13 @@ func runReset(ctx context.Context, force bool) error {
 
 	if err := nav.Reset(ctx); err != nil {
 		return fmt.Errorf("resetting workflow: %w", err)
+	}
+
+	// Reset phase frontmatter status since phase is no longer complete
+	phasePath := nav.Ctx.PhasePath
+	festivalPath := nav.Ctx.FestivalPath
+	if mgr, err := progress.NewManager(ctx, festivalPath); err == nil {
+		_ = mgr.ResetPhaseStatus(ctx, phasePath)
 	}
 
 	fmt.Println(ui.Success("✓ Workflow reset to Step 1"))

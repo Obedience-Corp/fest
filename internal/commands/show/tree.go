@@ -156,7 +156,33 @@ func buildPhaseNode(ctx context.Context, phaseDir string, store *progress.Store,
 		}
 	}
 
+	// Load gate steps if GATES.md exists
+	var gateNodes []*DisplayNode
+	var gateStats StatusCounts
+	if shared.HasGateFile(phaseDir) {
+		gateSteps, err := shared.LoadGateStepsForPhase(ctx, festivalRoot, phaseDir)
+		if err == nil && len(gateSteps) > 0 {
+			for _, step := range gateSteps {
+				gateNode := buildStepNode(step)
+				gateNode.Name = "Gate " + gateNode.Name[len("Step "):]
+				gateNodes = append(gateNodes, gateNode)
+				gateStats.Total++
+				switch step.Status {
+				case wf.StepStatusCompleted, wf.StepStatusSkipped:
+					gateStats.Completed++
+				case wf.StepStatusInProgress:
+					gateStats.InProgress++
+				case wf.StepStatusBlocked:
+					gateStats.Blocked++
+				default:
+					gateStats.Pending++
+				}
+			}
+		}
+	}
+
 	// Order children based on workflow_position (default: after sequences)
+	// Gates always come last since they run after all other phase work
 	position := shared.WorkflowPositionForPhase(phaseDir)
 	if position == frontmatter.WorkflowPositionBefore {
 		node.Children = append(node.Children, stepNodes...)
@@ -165,13 +191,14 @@ func buildPhaseNode(ctx context.Context, phaseDir string, store *progress.Store,
 		node.Children = append(node.Children, seqNodes...)
 		node.Children = append(node.Children, stepNodes...)
 	}
+	node.Children = append(node.Children, gateNodes...)
 
 	// Aggregate all stats
-	node.Stats.Total = stepStats.Total + seqStats.Total
-	node.Stats.Completed = stepStats.Completed + seqStats.Completed
-	node.Stats.InProgress = stepStats.InProgress + seqStats.InProgress
-	node.Stats.Pending = stepStats.Pending + seqStats.Pending
-	node.Stats.Blocked = stepStats.Blocked + seqStats.Blocked
+	node.Stats.Total = stepStats.Total + seqStats.Total + gateStats.Total
+	node.Stats.Completed = stepStats.Completed + seqStats.Completed + gateStats.Completed
+	node.Stats.InProgress = stepStats.InProgress + seqStats.InProgress + gateStats.InProgress
+	node.Stats.Pending = stepStats.Pending + seqStats.Pending + gateStats.Pending
+	node.Stats.Blocked = stepStats.Blocked + seqStats.Blocked + gateStats.Blocked
 
 	node.Status = determineStatus(node.Stats)
 	return node
