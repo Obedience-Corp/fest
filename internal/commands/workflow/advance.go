@@ -99,8 +99,10 @@ func showNextStep(ctx context.Context, nav *wf.Navigator, steps []wf.WorkflowSte
 		// Propagate phase completion to PHASE_GOAL.md frontmatter
 		gctx := nav.GetContext()
 		if gctx.FestivalPath != "" && gctx.PhasePath != "" {
-			if mgr, err := progress.NewManager(ctx, gctx.FestivalPath); err == nil {
-				mgr.PropagatePhaseCompletion(ctx, gctx.PhasePath)
+			if mgr, mgrErr := progress.NewManager(ctx, gctx.FestivalPath); mgrErr == nil {
+				if propErr := mgr.PropagatePhaseCompletion(ctx, gctx.PhasePath); propErr != nil {
+					fmt.Printf("%s %s\n", ui.Dim("Warning: could not propagate phase completion:"), ui.Dim(propErr.Error()))
+				}
 			}
 			checkPhaseChaining(ctx, gctx.FestivalPath, gctx.PhasePath)
 		}

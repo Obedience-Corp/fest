@@ -792,6 +792,25 @@ func TestPropagateCompletion_PhaseComplete(t *testing.T) {
 	}
 }
 
+func TestPropagateCompletion_RespectsContextCancellation(t *testing.T) {
+	ctx := context.Background()
+	festDir, _, _ := setupPropagationFestival(t)
+
+	mgr, err := NewManager(ctx, festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+
+	// Cancel the context before propagation
+	cancelledCtx, cancel := context.WithCancel(ctx)
+	cancel()
+
+	err = mgr.PropagateCompletion(cancelledCtx, "001_PHASE/01_sequence/01_task.md")
+	if err == nil {
+		t.Error("PropagateCompletion should return error on cancelled context")
+	}
+}
+
 func TestPropagateCompletion_Partial(t *testing.T) {
 	ctx := context.Background()
 	festDir, task1, _ := setupPropagationFestival(t)
