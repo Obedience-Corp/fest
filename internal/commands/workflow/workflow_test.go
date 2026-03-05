@@ -1,7 +1,9 @@
 package workflow
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +15,30 @@ import (
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 )
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+
+	origStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe: %v", err)
+	}
+	os.Stdout = w
+
+	fn()
+
+	_ = w.Close()
+	os.Stdout = origStdout
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("io.Copy: %v", err)
+	}
+	_ = r.Close()
+
+	return buf.String()
+}
 
 // createGuidanceContext creates a guidance context for testing.
 func createGuidanceContext(phaseDir string) *guidance.GuidanceContext {
@@ -840,5 +866,48 @@ func TestResolveNavigationMode(t *testing.T) {
 				t.Errorf("prefix = %q, want %q", prefix, tt.wantPrefix)
 			}
 		})
+	}
+}
+
+func TestShowNextStep_WarnsWhenProgressManagerInitFails(t *testing.T) {
+	dir := setupWorkflowFestival(t)
+	phaseDir := filepath.Join(dir, "001_INGEST")
+
+	nav := getNavigator(t, phaseDir)
+	ctx := context.Background()
+
+	// Complete the workflow so showNextStep enters the completion branch.
+	if err := nav.Advance(ctx); err != nil {
+		t.Fatalf("first Advance: %v", err)
+	}
+	if err := nav.Advance(ctx); err != nil {
+		t.Fatalf("second Advance: %v", err)
+	}
+	if err := nav.Approve(ctx); err != nil {
+		t.Fatalf("Approve: %v", err)
+	}
+	if err := nav.Advance(ctx); err != nil && err != guidance.ErrAlreadyComplete {
+		state := nav.GetWorkflowState()
+		if !state.IsComplete() {
+			t.Fatalf("third Advance: %v", err)
+		}
+	}
+
+	// Force progress.NewManager to fail by providing invalid workflow YAML.
+	progressDir := filepath.Join(dir, progress.ProgressDir)
+	if err := os.MkdirAll(progressDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll(.fest): %v", err)
+	}
+	invalidYAML := filepath.Join(progressDir, wf.StateFileName)
+	if err := os.WriteFile(invalidYAML, []byte(":\n- invalid yaml"), 0o644); err != nil {
+		t.Fatalf("write invalid workflow state: %v", err)
+	}
+
+	output := captureStdout(t, func() {
+		_ = showNextStep(ctx, nav, nav.GetSteps())
+	})
+
+	if !strings.Contains(output, "Warning: could not initialize progress manager:") {
+		t.Fatalf("expected manager-init warning in output, got:\n%s", output)
 	}
 }

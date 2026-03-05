@@ -99,7 +99,9 @@ func showNextStep(ctx context.Context, nav *wf.Navigator, steps []wf.WorkflowSte
 		// Propagate phase completion to PHASE_GOAL.md frontmatter
 		gctx := nav.GetContext()
 		if gctx.FestivalPath != "" && gctx.PhasePath != "" {
-			if mgr, mgrErr := progress.NewManager(ctx, gctx.FestivalPath); mgrErr == nil {
+			if mgr, mgrErr := progress.NewManager(ctx, gctx.FestivalPath); mgrErr != nil {
+				fmt.Printf("%s %s\n", ui.Dim("Warning: could not initialize progress manager:"), ui.Dim(mgrErr.Error()))
+			} else {
 				if propErr := mgr.PropagatePhaseCompletion(ctx, gctx.PhasePath); propErr != nil {
 					fmt.Printf("%s %s\n", ui.Dim("Warning: could not propagate phase completion:"), ui.Dim(propErr.Error()))
 				}
