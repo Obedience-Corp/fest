@@ -63,9 +63,11 @@ func IsVerbose() bool {
 }
 
 var rootCmd = &cobra.Command{
-	Use:     "fest",
-	Short:   "Festival Methodology CLI - goal-oriented project management for AI agents",
-	Version: fmt.Sprintf("%s (built %s, commit %s)", version.Version, version.BuildDate, version.Commit),
+	Use:           "fest",
+	Short:         "Festival Methodology CLI - goal-oriented project management for AI agents",
+	Version:       fmt.Sprintf("%s (built %s, commit %s)", version.Version, version.BuildDate, version.Commit),
+	SilenceErrors: true,
+	SilenceUsage:  true,
 }
 
 // Execute runs the root command
