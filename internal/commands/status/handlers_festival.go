@@ -359,7 +359,14 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 	// Auto-commit the status change unless --no-commit was specified
 	var commitHash string
 	if !opts.noCommit {
-		hash, err := AutoCommitStatusChange(ctx, festival.Name, festivalID, festival.Status, newStatus)
+		// Build the list of paths touched by the status change
+		changedPaths := []string{festival.Path, newPath}
+		if linkAction != "" {
+			if navPath, navErr := navigation.NavigationPath(); navErr == nil {
+				changedPaths = append(changedPaths, navPath)
+			}
+		}
+		hash, err := AutoCommitStatusChange(ctx, festival.Name, festivalID, festival.Status, newStatus, changedPaths)
 		if err != nil {
 			fmt.Printf("%s %s\n", ui.Dim("Warning: auto-commit failed:"), ui.Dim(err.Error()))
 		} else if hash != "" {
@@ -453,25 +460,25 @@ func emitFestivalMoveSuccess(opts *statusOptions, festival *show.FestivalInfo, n
 // never blocking the status change itself.
 //
 // Uses commitkit for lock-aware git operations with automatic stale lock cleanup.
-func AutoCommitStatusChange(ctx context.Context, festivalName, festivalID, oldStatus, newStatus string) (string, error) {
+func AutoCommitStatusChange(ctx context.Context, festivalName, festivalID, oldStatus, newStatus string, changedPaths []string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
 	}
 
 	ws, ok := scope.WorkspaceFrom(ctx)
 	if !ok || ws == nil {
-		return "", fmt.Errorf("workspace not available in context")
+		return "", errors.New("workspace not available in context")
 	}
 
-	// Stage all changes from the directory move (lock-aware with retry).
-	if err := commitkit.StageAll(ctx, ws.Root); err != nil {
-		return "", fmt.Errorf("stage: %w", err)
+	// Stage only the paths affected by the status change (lock-aware with retry).
+	if err := commitkit.StageFiles(ctx, ws.Root, changedPaths...); err != nil {
+		return "", errors.Wrap(err, "stage")
 	}
 
 	// Check if anything is actually staged.
 	hasChanges, err := commitkit.HasStagedChanges(ctx, ws.Root)
 	if err != nil {
-		return "", fmt.Errorf("check staged: %w", err)
+		return "", errors.Wrap(err, "check staged")
 	}
 	if !hasChanges {
 		return "", nil
@@ -495,7 +502,7 @@ func AutoCommitStatusChange(ctx context.Context, festivalName, festivalID, oldSt
 
 	// Commit (lock-aware with retry).
 	if err := commitkit.Commit(ctx, ws.Root, commitkit.CommitOptions{Message: message}); err != nil {
-		return "", fmt.Errorf("commit: %w", err)
+		return "", errors.Wrap(err, "commit")
 	}
 
 	// Get short hash for display.
