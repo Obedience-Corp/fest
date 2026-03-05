@@ -85,15 +85,17 @@ func ResolveFestivalSelector(ctx context.Context, cwd, selector string) (string,
 }
 
 // CompleteFestivalSelector returns shell completion candidates for a selector.
+// Only includes festivals in working statuses (planning, ready, active, ritual).
 func CompleteFestivalSelector(ctx context.Context, cwd, toComplete string) ([]string, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	candidates, err := ListFestivalSelectorCandidates(ctx, cwd)
+	festivalsDir, err := findCampaignFestivalsDir(ctx, cwd)
 	if err != nil {
 		return nil, err
 	}
+	candidates := collectSelectorCandidates(festivalsDir, id.WorkingStatusDirectories)
 
 	if strings.TrimSpace(toComplete) == "" {
 		result := make([]string, 0, len(candidates))
@@ -119,7 +121,7 @@ func ListFestivalSelectorCandidates(ctx context.Context, cwd string) ([]Festival
 	if err != nil {
 		return nil, err
 	}
-	return collectSelectorCandidates(festivalsDir), nil
+	return collectSelectorCandidates(festivalsDir, id.StatusDirectories), nil
 }
 
 func findCampaignFestivalsDir(ctx context.Context, cwd string) (string, error) {
@@ -140,10 +142,10 @@ func findCampaignFestivalsDir(ctx context.Context, cwd string) (string, error) {
 	return festivalsDir, nil
 }
 
-func collectSelectorCandidates(festivalsDir string) []FestivalSelectorCandidate {
+func collectSelectorCandidates(festivalsDir string, statuses []string) []FestivalSelectorCandidate {
 	var candidates []FestivalSelectorCandidate
 
-	for _, status := range id.StatusDirectories {
+	for _, status := range statuses {
 		statusDir := filepath.Join(festivalsDir, status)
 		entries, err := os.ReadDir(statusDir)
 		if err != nil {

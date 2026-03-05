@@ -115,6 +115,40 @@ func TestCompleteFestivalSelector(t *testing.T) {
 	}
 }
 
+func TestCompleteFestivalSelector_ExcludesDungeon(t *testing.T) {
+	campaignRoot := createSelectorWorkspace(t)
+	createSelectorFestival(t, campaignRoot, "active", "launch-readiness-LR0001")
+	createSelectorFestival(t, campaignRoot, "dungeon/completed/2026-03", "old-project-OP0001")
+	createSelectorFestival(t, campaignRoot, "dungeon/archived/2026-01", "shelved-idea-SI0002")
+	createSelectorFestival(t, campaignRoot, "dungeon/someday", "maybe-later-ML0003")
+
+	all, err := CompleteFestivalSelector(context.Background(), campaignRoot, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(all) != 1 {
+		t.Fatalf("expected 1 completion candidate (dungeon excluded), got %d: %v", len(all), all)
+	}
+	if all[0] != "launch-readiness-LR0001" {
+		t.Fatalf("expected launch-readiness-LR0001, got %q", all[0])
+	}
+}
+
+func TestResolveFestivalSelector_IncludesDungeon(t *testing.T) {
+	campaignRoot := createSelectorWorkspace(t)
+	createSelectorFestival(t, campaignRoot, "active", "launch-readiness-LR0001")
+	dungeonPath := createSelectorFestival(t, campaignRoot, "dungeon/completed/2026-03", "old-project-OP0001")
+
+	// Explicit resolve should still find dungeon festivals
+	resolved, err := ResolveFestivalSelector(context.Background(), campaignRoot, "old-project-OP0001")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resolved != dungeonPath {
+		t.Fatalf("expected %q, got %q", dungeonPath, resolved)
+	}
+}
+
 func createSelectorWorkspace(t *testing.T) string {
 	t.Helper()
 	root := filepath.Join(t.TempDir(), "campaign")

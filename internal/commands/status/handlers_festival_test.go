@@ -1,10 +1,14 @@
 package status
 
 import (
+	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Obedience-Corp/fest/internal/scope"
 )
 
 func TestCwdInsideFestivalDetection(t *testing.T) {
@@ -145,5 +149,92 @@ func TestFestivalMoveDirectoryStructure(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(newPath, "FESTIVAL_OVERVIEW.md")); err != nil {
 		t.Error("overview file should exist at new path")
+	}
+}
+
+// initTestRepo creates a git repo in dir with an initial commit.
+func initTestRepo(t *testing.T, dir string) {
+	t.Helper()
+	for _, args := range [][]string{
+		{"init"},
+		{"config", "user.email", "test@test.com"},
+		{"config", "user.name", "Test"},
+		{"commit", "--allow-empty", "-m", "init"},
+	} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v failed: %s\n%s", args, err, out)
+		}
+	}
+}
+
+func TestAutoCommitStatusChange_SelectiveStaging(t *testing.T) {
+	root := t.TempDir()
+	initTestRepo(t, root)
+
+	// Create festival directories simulating a move from active/ to dungeon/completed/
+	activeDir := filepath.Join(root, "festivals", "active", "my-fest")
+	completedDir := filepath.Join(root, "festivals", "dungeon", "completed", "my-fest")
+	if err := os.MkdirAll(activeDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(completedDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	// Write a file in the completed destination (simulates the moved festival)
+	if err := os.WriteFile(filepath.Join(completedDir, "FESTIVAL_GOAL.md"), []byte("# Goal"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Create an unrelated dirty file at the workspace root
+	unrelatedFile := filepath.Join(root, "unrelated.txt")
+	if err := os.WriteFile(unrelatedFile, []byte("should not be committed"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Set up context with workspace info
+	ctx := context.Background()
+	ws := &scope.WorkspaceInfo{
+		Root:          root,
+		FestivalsPath: filepath.Join(root, "festivals"),
+		Type:          scope.WorkspaceTypeStandalone,
+	}
+	ctx = scope.WithWorkspace(ctx, ws)
+
+	// Call AutoCommitStatusChange with only the festival paths
+	changedPaths := []string{activeDir, completedDir}
+	hash, err := AutoCommitStatusChange(ctx, "my-fest", "MF001", "active", "dungeon/completed", changedPaths)
+	if err != nil {
+		t.Fatalf("AutoCommitStatusChange failed: %v", err)
+	}
+	if hash == "" {
+		t.Fatal("expected a commit hash, got empty string")
+	}
+
+	// Verify: unrelated file should NOT be staged or committed.
+	// Check git status — the unrelated file should still be untracked.
+	cmd := exec.Command("git", "status", "--porcelain")
+	cmd.Dir = root
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git status failed: %v\n%s", err, out)
+	}
+
+	statusOutput := string(out)
+	if !strings.Contains(statusOutput, "?? unrelated.txt") {
+		t.Errorf("unrelated.txt should remain untracked, got status:\n%s", statusOutput)
+	}
+
+	// Also verify the festival files were committed by checking git log --name-only
+	cmd = exec.Command("git", "log", "-1", "--name-only", "--pretty=format:")
+	cmd.Dir = root
+	out, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git log failed: %v\n%s", err, out)
+	}
+	committedFiles := string(out)
+	if strings.Contains(committedFiles, "unrelated.txt") {
+		t.Errorf("unrelated.txt should NOT appear in committed files:\n%s", committedFiles)
 	}
 }

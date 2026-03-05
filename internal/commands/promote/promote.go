@@ -16,6 +16,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/navigation"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
@@ -181,12 +182,19 @@ func runPromote(ctx context.Context, opts *promoteOptions) error {
 	}
 
 	// Update navigation links after successful move
-	status.UpdateNavigationAfterMove(festival.Name, nextStatus, newPath)
+	linkAction := status.UpdateNavigationAfterMove(festival.Name, nextStatus, newPath)
 
 	// Auto-commit the status change unless --no-commit was specified
 	var commitHash string
 	if !opts.noCommit {
-		hash, commitErr := status.AutoCommitStatusChange(ctx, festival.Name, festivalID, currentStatus, nextStatus)
+		// Build the list of paths touched by the promotion
+		changedPaths := []string{festival.Path, newPath}
+		if linkAction != "" {
+			if navPath, navErr := navigation.NavigationPath(); navErr == nil {
+				changedPaths = append(changedPaths, navPath)
+			}
+		}
+		hash, commitErr := status.AutoCommitStatusChange(ctx, festival.Name, festivalID, currentStatus, nextStatus, changedPaths)
 		if commitErr != nil {
 			fmt.Printf("%s %s\n", ui.Dim("Warning: auto-commit failed:"), ui.Dim(commitErr.Error()))
 		} else if hash != "" {
