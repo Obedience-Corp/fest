@@ -147,6 +147,7 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 		return err
 	}
 	m.SyncFrontmatterStatus(taskID, task.Status)
+	m.PropagateCompletion(ctx, taskID)
 	return nil
 }
 
@@ -357,4 +358,73 @@ func (m *Manager) SyncFrontmatterStatus(taskID, status string) {
 	}
 
 	_ = os.WriteFile(taskPath, newContent, 0o644)
+}
+
+// PropagateCompletion checks if the parent sequence and phase of a task
+// are fully complete, and updates their frontmatter status if so.
+func (m *Manager) PropagateCompletion(ctx context.Context, taskID string) {
+	festPath := m.store.FestivalPath()
+	taskPath := filepath.Join(festPath, taskID)
+	if !strings.HasSuffix(taskPath, ".md") {
+		taskPath += ".md"
+	}
+
+	// Derive sequence and phase paths from the task path
+	seqPath := filepath.Dir(taskPath)
+	phasePath := filepath.Dir(seqPath)
+
+	// Check sequence completion
+	seqProgress, err := m.GetSequenceProgress(ctx, seqPath)
+	if err == nil && seqProgress.Progress.Total > 0 &&
+		seqProgress.Progress.Completed == seqProgress.Progress.Total {
+		goalPath := filepath.Join(seqPath, "SEQUENCE_GOAL.md")
+		m.syncGoalStatus(goalPath, "completed")
+	}
+
+	// Check phase completion
+	phaseProgress, err := m.GetPhaseProgress(ctx, phasePath)
+	if err == nil && phaseProgress.Progress.Total > 0 &&
+		phaseProgress.Progress.Completed == phaseProgress.Progress.Total {
+		goalPath := filepath.Join(phasePath, "PHASE_GOAL.md")
+		m.syncGoalStatus(goalPath, "completed")
+	}
+}
+
+// PropagatePhaseCompletion checks if a phase is fully complete and updates
+// its PHASE_GOAL.md frontmatter. Use this after workflow completion.
+func (m *Manager) PropagatePhaseCompletion(ctx context.Context, phasePath string) {
+	phaseProgress, err := m.GetPhaseProgress(ctx, phasePath)
+	if err == nil && phaseProgress.Progress.Total > 0 &&
+		phaseProgress.Progress.Completed == phaseProgress.Progress.Total {
+		goalPath := filepath.Join(phasePath, "PHASE_GOAL.md")
+		m.syncGoalStatus(goalPath, "completed")
+	}
+}
+
+// syncGoalStatus updates the fest_status field in a goal file's YAML frontmatter.
+func (m *Manager) syncGoalStatus(goalPath, status string) {
+	content, err := os.ReadFile(goalPath)
+	if err != nil {
+		return
+	}
+
+	fm, remaining, err := frontmatter.Parse(content)
+	if err != nil || fm == nil {
+		return
+	}
+
+	fmStatus := frontmatter.Status(status)
+	if fm.Status == fmStatus {
+		return
+	}
+
+	fm.Status = fmStatus
+	fm.Updated = time.Now()
+
+	newContent, err := frontmatter.Inject(remaining, fm)
+	if err != nil {
+		return
+	}
+
+	_ = os.WriteFile(goalPath, newContent, 0o644)
 }

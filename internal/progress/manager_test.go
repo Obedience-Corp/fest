@@ -2,6 +2,7 @@ package progress
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -666,5 +667,155 @@ fest_created: 2026-02-20T00:00:00Z
 	}
 	if fm.Status != frontmatter.StatusCompleted {
 		t.Errorf("frontmatter fest_status = %q, want %q", fm.Status, frontmatter.StatusCompleted)
+	}
+}
+
+// setupPropagationFestival creates a minimal festival directory structure for propagation tests.
+// Returns the festival root path. Creates:
+//
+//	festivalRoot/001_PHASE/01_sequence/{01_task.md, 02_task.md, SEQUENCE_GOAL.md}
+//	festivalRoot/001_PHASE/PHASE_GOAL.md
+func setupPropagationFestival(t *testing.T) (string, string, string) {
+	t.Helper()
+	festDir := t.TempDir()
+
+	seqDir := filepath.Join(festDir, "001_PHASE", "01_sequence")
+	if err := os.MkdirAll(seqDir, 0o755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	taskFM := `---
+fest_type: task
+fest_id: %s
+fest_status: pending
+fest_created: 2026-03-01T00:00:00Z
+---
+
+# Task
+`
+	for _, name := range []string{"01_task.md", "02_task.md"} {
+		p := filepath.Join(seqDir, name)
+		if err := os.WriteFile(p, []byte(fmt.Sprintf(taskFM, name)), 0o644); err != nil {
+			t.Fatalf("WriteFile: %v", err)
+		}
+	}
+
+	seqGoal := `---
+fest_type: sequence
+fest_id: 01_sequence
+fest_status: pending
+fest_created: 2026-03-01T00:00:00Z
+---
+
+# Sequence Goal
+`
+	if err := os.WriteFile(filepath.Join(seqDir, "SEQUENCE_GOAL.md"), []byte(seqGoal), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	phaseGoal := `---
+fest_type: phase
+fest_id: 001_PHASE
+fest_status: pending
+fest_created: 2026-03-01T00:00:00Z
+---
+
+# Phase Goal
+`
+	if err := os.WriteFile(filepath.Join(festDir, "001_PHASE", "PHASE_GOAL.md"), []byte(phaseGoal), 0o644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	return festDir, "001_PHASE/01_sequence/01_task.md", "001_PHASE/01_sequence/02_task.md"
+}
+
+func readStatus(t *testing.T, path string) frontmatter.Status {
+	t.Helper()
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("ReadFile(%s): %v", path, err)
+	}
+	fm, _, err := frontmatter.Parse(content)
+	if err != nil || fm == nil {
+		t.Fatalf("Parse frontmatter(%s): %v", path, err)
+	}
+	return fm.Status
+}
+
+func TestPropagateCompletion_SequenceComplete(t *testing.T) {
+	ctx := context.Background()
+	festDir, task1, task2 := setupPropagationFestival(t)
+
+	mgr, err := NewManager(ctx, festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+
+	// Complete both tasks
+	if err := mgr.MarkComplete(ctx, task1); err != nil {
+		t.Fatalf("MarkComplete(%s): %v", task1, err)
+	}
+	if err := mgr.MarkComplete(ctx, task2); err != nil {
+		t.Fatalf("MarkComplete(%s): %v", task2, err)
+	}
+
+	// Verify sequence goal was updated
+	seqGoalPath := filepath.Join(festDir, "001_PHASE", "01_sequence", "SEQUENCE_GOAL.md")
+	got := readStatus(t, seqGoalPath)
+	if got != frontmatter.StatusCompleted {
+		t.Errorf("SEQUENCE_GOAL.md status = %q, want %q", got, frontmatter.StatusCompleted)
+	}
+}
+
+func TestPropagateCompletion_PhaseComplete(t *testing.T) {
+	ctx := context.Background()
+	festDir, task1, task2 := setupPropagationFestival(t)
+
+	mgr, err := NewManager(ctx, festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+
+	// Complete all tasks
+	if err := mgr.MarkComplete(ctx, task1); err != nil {
+		t.Fatalf("MarkComplete(%s): %v", task1, err)
+	}
+	if err := mgr.MarkComplete(ctx, task2); err != nil {
+		t.Fatalf("MarkComplete(%s): %v", task2, err)
+	}
+
+	// Verify phase goal was updated
+	phaseGoalPath := filepath.Join(festDir, "001_PHASE", "PHASE_GOAL.md")
+	got := readStatus(t, phaseGoalPath)
+	if got != frontmatter.StatusCompleted {
+		t.Errorf("PHASE_GOAL.md status = %q, want %q", got, frontmatter.StatusCompleted)
+	}
+}
+
+func TestPropagateCompletion_Partial(t *testing.T) {
+	ctx := context.Background()
+	festDir, task1, _ := setupPropagationFestival(t)
+
+	mgr, err := NewManager(ctx, festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+
+	// Complete only one of two tasks
+	if err := mgr.MarkComplete(ctx, task1); err != nil {
+		t.Fatalf("MarkComplete(%s): %v", task1, err)
+	}
+
+	// Sequence and phase should still be pending
+	seqGoalPath := filepath.Join(festDir, "001_PHASE", "01_sequence", "SEQUENCE_GOAL.md")
+	got := readStatus(t, seqGoalPath)
+	if got != frontmatter.StatusPending {
+		t.Errorf("SEQUENCE_GOAL.md status = %q, want %q (partial completion)", got, frontmatter.StatusPending)
+	}
+
+	phaseGoalPath := filepath.Join(festDir, "001_PHASE", "PHASE_GOAL.md")
+	got = readStatus(t, phaseGoalPath)
+	if got != frontmatter.StatusPending {
+		t.Errorf("PHASE_GOAL.md status = %q, want %q (partial completion)", got, frontmatter.StatusPending)
 	}
 }
