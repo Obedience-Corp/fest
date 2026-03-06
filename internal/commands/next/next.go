@@ -517,11 +517,11 @@ func findFirstIncompletePhase(ctx context.Context, festivalPath string) (string,
 			continue
 		}
 
-		if hasSequenceDirs(phasePath) && !isPhaseMarkedComplete(phasePath) {
+		if hasSequenceDirs(phasePath) && !arePhaseTasksComplete(storeLoaded, store, phasePath, phaseName) {
 			return phasePath, false, nil
 		}
 
-		// Sequences done / phase marked complete — check phase gate
+		// Sequences done / all tasks complete — check phase gate
 		if hasIncompletePhaseGate(storeLoaded, store, phasePath, phaseName) {
 			return phasePath, false, nil
 		}
@@ -696,24 +696,58 @@ func emitValidationBlock(festivalPath string, result *validator.Result) error {
 	return errors.ErrAlreadyPrinted
 }
 
-// isPhaseMarkedComplete checks PHASE_GOAL.md frontmatter for fest_status: completed.
-func isPhaseMarkedComplete(phasePath string) bool {
-	goalPath := filepath.Join(phasePath, "PHASE_GOAL.md")
-	data, err := os.ReadFile(goalPath)
+// arePhaseTasksComplete checks whether all tasks in a phase's sequences
+// are marked complete in the progress store.
+func arePhaseTasksComplete(storeLoaded bool, store *progress.Store, phasePath, phaseName string) bool {
+	if !storeLoaded {
+		return false
+	}
+
+	entries, err := os.ReadDir(phasePath)
 	if err != nil {
 		return false
 	}
-	content := string(data)
-	// Frontmatter is between --- delimiters at the start of the file
-	if !strings.HasPrefix(content, "---") {
-		return false
+
+	taskCount := 0
+	for _, seqEntry := range entries {
+		if !seqEntry.IsDir() || !isNumberedDir(seqEntry.Name()) {
+			continue
+		}
+		seqPath := filepath.Join(phasePath, seqEntry.Name())
+		taskFiles, err := os.ReadDir(seqPath)
+		if err != nil {
+			continue
+		}
+		for _, tf := range taskFiles {
+			if tf.IsDir() || !strings.HasSuffix(tf.Name(), ".md") {
+				continue
+			}
+			if !isNumberedTaskFile(tf.Name()) {
+				continue
+			}
+			taskCount++
+			taskID := filepath.Join(phaseName, seqEntry.Name(), tf.Name())
+			task, ok := store.GetTask(taskID)
+			if !ok || task.Status != "complete" {
+				return false
+			}
+		}
 	}
-	end := strings.Index(content[3:], "---")
-	if end < 0 {
-		return false
+	return taskCount > 0
+}
+
+// isNumberedTaskFile checks if a filename starts with digits followed by underscore.
+// e.g., "01_foo.md" → true, "SEQUENCE_GOAL.md" → false
+func isNumberedTaskFile(name string) bool {
+	for i, c := range name {
+		if c == '_' && i > 0 {
+			return true
+		}
+		if c < '0' || c > '9' {
+			return false
+		}
 	}
-	fm := content[3 : 3+end]
-	return strings.Contains(fm, "fest_status: completed")
+	return false
 }
 
 // loadFeedbackCriteria checks if feedback is configured for the festival and returns criteria names.
@@ -904,8 +938,8 @@ func isPhaseWorkAndWorkflowComplete(ctx context.Context, storeLoaded bool, store
 		}
 	}
 
-	// Check if sequences exist and phase is marked complete
-	if hasSequenceDirs(phasePath) && !isPhaseMarkedComplete(phasePath) {
+	// Check if all tasks in phase sequences are complete
+	if hasSequenceDirs(phasePath) && !arePhaseTasksComplete(storeLoaded, store, phasePath, phaseName) {
 		return false
 	}
 
