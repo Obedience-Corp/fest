@@ -693,8 +693,7 @@ func emitValidationBlock(festivalPath string, result *validator.Result) error {
 	sb.WriteString("\nRun 'fest validate' for full details, then fix the issues.\n")
 	sb.WriteString("Do not proceed with tasks until the festival passes validation.\n")
 	fmt.Print(sb.String())
-	return errors.Validation("festival has unfixed validation errors").
-		WithField("festival", filepath.Base(festivalPath))
+	return errors.ErrAlreadyPrinted
 }
 
 // isPhaseMarkedComplete checks PHASE_GOAL.md frontmatter for fest_status: completed.
@@ -776,8 +775,7 @@ func checkPreActiveStatus(ctx context.Context, festivalPath, phasePath string) e
 		sb.WriteString("  - Did the user approve implementation of this festival?\n\n")
 		sb.WriteString("If approved, promote to active: fest promote\n")
 		fmt.Print(sb.String())
-		return errors.Validation("festival is in ready status").
-			WithField("festival", festName)
+		return errors.ErrAlreadyPrinted
 	}
 
 	var sb strings.Builder
@@ -788,8 +786,7 @@ func checkPreActiveStatus(ctx context.Context, festivalPath, phasePath string) e
 	sb.WriteString("Implementation phases require active status.\n")
 	sb.WriteString("Promote to ready first: fest promote\n")
 	fmt.Print(sb.String())
-	return errors.Validation("festival is in planning status").
-		WithField("festival", festName)
+	return errors.ErrAlreadyPrinted
 }
 
 // printFeedbackReminder appends the full feedback reminder (criteria + recording instructions)
