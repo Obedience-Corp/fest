@@ -385,7 +385,7 @@ func resolvePhaseShortcut(shortcut, festivalsDir string) (string, error) {
 	if len(shortcut) < 3 {
 		// Convert "2" to "002", "02" to "002"
 		n := 0
-		fmt.Sscanf(shortcut, "%d", &n)
+		_, _ = fmt.Sscanf(shortcut, "%d", &n)
 		padded = fmt.Sprintf("%03d", n)
 	}
 
@@ -413,7 +413,7 @@ func resolvePhaseShortcut(shortcut, festivalsDir string) (string, error) {
 func resolveSequenceShortcut(shortcut, phaseDir string) (string, error) {
 	// Pad to 2 digits
 	n := 0
-	fmt.Sscanf(shortcut, "%d", &n)
+	_, _ = fmt.Sscanf(shortcut, "%d", &n)
 	padded := fmt.Sprintf("%02d", n)
 
 	entries, err := os.ReadDir(phaseDir)

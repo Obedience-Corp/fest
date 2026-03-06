@@ -302,15 +302,15 @@ func watchCmd(ctx context.Context) tea.Cmd {
 		}
 
 		go func() {
-			w.Watch(ctx)
+			_ = w.Watch(ctx)
 		}()
 
 		select {
 		case <-ctx.Done():
-			w.Close()
+			_ = w.Close()
 			return nil
 		case <-changed:
-			w.Close()
+			_ = w.Close()
 			return refreshMsg{}
 		}
 	}

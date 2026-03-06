@@ -139,7 +139,7 @@ func (r *Renumberer) displayChanges() {
 func (r *Renumberer) confirmChanges() bool {
 	fmt.Print("\nProceed with renumbering? [y/N]: ")
 	var response string
-	fmt.Scanln(&response)
+	_, _ = fmt.Scanln(&response)
 	response = strings.ToLower(strings.TrimSpace(response))
 	return response == "y" || response == "yes"
 }
@@ -148,7 +148,7 @@ func (r *Renumberer) confirmChanges() bool {
 func (r *Renumberer) confirmApplyAfterDryRun() bool {
 	fmt.Print("\nApply these changes? [y/N]: ")
 	var response string
-	fmt.Scanln(&response)
+	_, _ = fmt.Scanln(&response)
 	response = strings.ToLower(strings.TrimSpace(response))
 	return response == "y" || response == "yes"
 }

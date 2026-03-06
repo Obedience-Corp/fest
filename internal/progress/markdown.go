@@ -17,7 +17,6 @@ var (
 	emojiCompletedPattern  = regexp.MustCompile(`\[✅\]`)
 	emojiInProgressPattern = regexp.MustCompile(`\[🚧\]`)
 	emojiBlockedPattern    = regexp.MustCompile(`\[❌\]`)
-	emojiNotStartedPattern = regexp.MustCompile(`\[\s*\]`)
 
 	// Section headers to look for (in priority order)
 	statusSections = []string{
@@ -44,7 +43,7 @@ func ParseTaskStatus(taskPath string) string {
 	if err != nil {
 		return StatusPending
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// First pass: look for status sections
 	sectionCounts := extractSectionCheckboxes(file)
@@ -53,7 +52,7 @@ func ParseTaskStatus(taskPath string) string {
 	}
 
 	// Reset file for second pass
-	file.Seek(0, 0)
+	_, _ = file.Seek(0, 0)
 
 	// Second pass: count all checkboxes in the file
 	allCounts := extractAllCheckboxes(file)

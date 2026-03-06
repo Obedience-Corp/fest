@@ -45,7 +45,7 @@ Status: [REPLACE: Active|Inactive]
 	err := listAllMarkers(ctx, opts, files, tmpDir)
 
 	// Restore stdout
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	if err != nil {
@@ -54,7 +54,7 @@ Status: [REPLACE: Active|Inactive]
 
 	// Read captured output
 	var buf strings.Builder
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
 	// Parse JSON output
@@ -123,7 +123,7 @@ func TestListAllMarkers_NoMarkers(t *testing.T) {
 
 	err := listAllMarkers(ctx, opts, files, tmpDir)
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	if err != nil {
@@ -132,7 +132,7 @@ func TestListAllMarkers_NoMarkers(t *testing.T) {
 
 	// Read output
 	var buf strings.Builder
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	output := buf.String()
 
 	// Parse JSON
@@ -145,7 +145,7 @@ func TestListAllMarkers_NoMarkers(t *testing.T) {
 	}
 
 	// Should have null or empty files array
-	if result.Files != nil && len(result.Files) > 0 {
+	if len(result.Files) > 0 {
 		t.Errorf("Expected no files with markers, got %d", len(result.Files))
 	}
 }

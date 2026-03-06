@@ -241,13 +241,13 @@ func renderWorkflowContent(input *WorkflowInput, phaseID, position string) strin
 	workflowID := phaseID + "-WF"
 	sb.WriteString("---\n")
 	sb.WriteString("fest_type: workflow\n")
-	sb.WriteString(fmt.Sprintf("fest_id: %s\n", workflowID))
-	sb.WriteString(fmt.Sprintf("fest_parent: %s\n", phaseID))
-	sb.WriteString(fmt.Sprintf("fest_workflow_position: %s\n", position))
+	fmt.Fprintf(&sb, "fest_id: %s\n", workflowID)
+	fmt.Fprintf(&sb, "fest_parent: %s\n", phaseID)
+	fmt.Fprintf(&sb, "fest_workflow_position: %s\n", position)
 	sb.WriteString("---\n\n")
 
 	// Title
-	sb.WriteString(fmt.Sprintf("# %s\n", input.Title))
+	fmt.Fprintf(&sb, "# %s\n", input.Title)
 	sb.WriteString("\n")
 
 	// Description
@@ -264,31 +264,31 @@ func renderWorkflowContent(input *WorkflowInput, phaseID, position string) strin
 		sb.WriteString("\n---\n\n")
 
 		// Step header
-		sb.WriteString(fmt.Sprintf("## Step %d: %s — %s\n", stepNum, step.Name, step.Goal))
+		fmt.Fprintf(&sb, "## Step %d: %s — %s\n", stepNum, step.Name, step.Goal)
 		sb.WriteString("\n")
 
 		// Goal
-		sb.WriteString(fmt.Sprintf("**Goal:** %s\n", step.Goal))
+		fmt.Fprintf(&sb, "**Goal:** %s\n", step.Goal)
 		sb.WriteString("\n")
 
 		// Actions
 		if len(step.Actions) > 0 {
 			sb.WriteString("**Actions:**\n")
 			for j, action := range step.Actions {
-				sb.WriteString(fmt.Sprintf("%d. %s\n", j+1, action))
+				fmt.Fprintf(&sb, "%d. %s\n", j+1, action)
 			}
 			sb.WriteString("\n")
 		}
 
 		// Output
 		if strings.TrimSpace(step.Output) != "" {
-			sb.WriteString(fmt.Sprintf("**Output:** %s\n", step.Output))
+			fmt.Fprintf(&sb, "**Output:** %s\n", step.Output)
 			sb.WriteString("\n")
 		}
 
 		// Checkpoint
 		checkpointText := formatCheckpoint(step.Checkpoint, stepNum, totalSteps)
-		sb.WriteString(fmt.Sprintf("**Checkpoint:** %s\n", checkpointText))
+		fmt.Fprintf(&sb, "**Checkpoint:** %s\n", checkpointText)
 	}
 
 	return sb.String()

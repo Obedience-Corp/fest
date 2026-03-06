@@ -13,7 +13,7 @@ func setupTestFestival(t *testing.T, opts testFestivalOpts) string {
 	dir := t.TempDir()
 
 	// Create FESTIVAL_OVERVIEW.md
-	os.WriteFile(filepath.Join(dir, "FESTIVAL_OVERVIEW.md"), []byte("# Test Festival\nGoal: Test validation behavior.\n"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "FESTIVAL_OVERVIEW.md"), []byte("# Test Festival\nGoal: Test validation behavior.\n"), 0644)
 
 	if opts.phaseType != "" {
 		phaseName := "001_IMPLEMENTATION"
@@ -21,7 +21,7 @@ func setupTestFestival(t *testing.T, opts testFestivalOpts) string {
 			phaseName = opts.phaseDirName
 		}
 		phasePath := filepath.Join(dir, phaseName)
-		os.MkdirAll(phasePath, 0755)
+		_ = os.MkdirAll(phasePath, 0755)
 
 		phaseGoal := fmt.Sprintf(`---
 fest_type: phase
@@ -35,15 +35,15 @@ fest_status: pending
 		} else {
 			phaseGoal += "\nActual content here.\n"
 		}
-		os.WriteFile(filepath.Join(phasePath, "PHASE_GOAL.md"), []byte(phaseGoal), 0644)
+		_ = os.WriteFile(filepath.Join(phasePath, "PHASE_GOAL.md"), []byte(phaseGoal), 0644)
 
 		if opts.withSequence {
 			seqPath := filepath.Join(phasePath, "01_test_sequence")
-			os.MkdirAll(seqPath, 0755)
-			os.WriteFile(filepath.Join(seqPath, "SEQUENCE_GOAL.md"), []byte("# Sequence Goal\nDo the thing.\n"), 0644)
+			_ = os.MkdirAll(seqPath, 0755)
+			_ = os.WriteFile(filepath.Join(seqPath, "SEQUENCE_GOAL.md"), []byte("# Sequence Goal\nDo the thing.\n"), 0644)
 
 			if opts.withTask {
-				os.WriteFile(filepath.Join(seqPath, "01_test_task.md"), []byte("# Task: Test\n## Objective\nTest task.\n"), 0644)
+				_ = os.WriteFile(filepath.Join(seqPath, "01_test_task.md"), []byte("# Task: Test\n## Objective\nTest task.\n"), 0644)
 			}
 		}
 	}

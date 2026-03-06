@@ -41,7 +41,7 @@ func Integration(verbose bool) error {
 	// Clean up any orphaned test containers from previous runs
 	ui.Task("Cleaning", "orphaned test containers")
 	cleanCmd := exec.Command("docker", "container", "prune", "-f", "--filter", "label=org.testcontainers=true")
-	cleanCmd.Run() // Ignore errors - Docker might not be available
+	_ = cleanCmd.Run() // Ignore errors - Docker might not be available
 	ui.TaskPass()
 
 	// Set up Docker environment for Colima compatibility
@@ -50,11 +50,11 @@ func Integration(verbose bool) error {
 		// Try Colima's default socket path
 		colimaSocket := filepath.Join(os.Getenv("HOME"), ".colima", "default", "docker.sock")
 		if _, err := os.Stat(colimaSocket); err == nil {
-			os.Setenv("DOCKER_HOST", "unix://"+colimaSocket)
+			_ = os.Setenv("DOCKER_HOST", "unix://"+colimaSocket)
 		}
 	}
 	// Disable ryuk reaper for Colima compatibility
-	os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
+	_ = os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
 
 	// Build Linux binary for Docker-based integration tests
 	ui.Task("Building", "Linux binary for Docker tests")
@@ -233,7 +233,7 @@ func Integration(verbose bool) error {
 			}
 
 			close(done)
-			cmd.Wait()
+			_ = cmd.Wait()
 			pass = testsFailed == 0
 			ui.ClearProgressWithOutput()
 		}

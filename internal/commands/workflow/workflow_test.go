@@ -672,21 +672,21 @@ fest_parent: 001_INGEST
 func TestGetWorkflowNavigator_GateBlockedUntilPhaseWorkComplete(t *testing.T) {
 	dir := t.TempDir()
 	phaseDir := filepath.Join(dir, "001_IMPLEMENT")
-	os.MkdirAll(phaseDir, 0o755)
+	_ = os.MkdirAll(phaseDir, 0o755)
 
 	// Fest config
-	os.WriteFile(filepath.Join(dir, "fest.yaml"), []byte("name: test\nid: T\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(dir, "fest.yaml"), []byte("name: test\nid: T\n"), 0o644)
 
 	// Phase has GATES.md (no WORKFLOW.md — it's an implementation phase)
 	gatesMD := "---\nfest_type: phase_gate\n---\n\n# Gate\n\n## Step 1: CHECK — Verify\n\n**Question:** Is implementation done?\n\n**Checkpoint:** APPROVAL REQUIRED\n"
-	os.WriteFile(filepath.Join(phaseDir, "GATES.md"), []byte(gatesMD), 0o644)
+	_ = os.WriteFile(filepath.Join(phaseDir, "GATES.md"), []byte(gatesMD), 0o644)
 
 	// Phase has a numbered sequence directory (sequences in progress)
-	os.MkdirAll(filepath.Join(phaseDir, "01_build"), 0o755)
+	_ = os.MkdirAll(filepath.Join(phaseDir, "01_build"), 0o755)
 
 	// Phase is NOT marked complete in PHASE_GOAL.md
 	phaseGoal := "---\nfest_status: active\n---\n\n# Implementation\n"
-	os.WriteFile(filepath.Join(phaseDir, "PHASE_GOAL.md"), []byte(phaseGoal), 0o644)
+	_ = os.WriteFile(filepath.Join(phaseDir, "PHASE_GOAL.md"), []byte(phaseGoal), 0o644)
 
 	// Set up scope context pointing at the phase
 	ctx := context.Background()
@@ -704,7 +704,7 @@ func TestGetWorkflowNavigator_GateBlockedUntilPhaseWorkComplete(t *testing.T) {
 	}
 
 	// Now mark the tasks as complete — create a task file and write completion events
-	os.WriteFile(filepath.Join(phaseDir, "01_build", "01_task.md"), []byte("# Task\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(phaseDir, "01_build", "01_task.md"), []byte("# Task\n"), 0o644)
 	writeTaskCompleteEvent(t, dir, "001_IMPLEMENT/01_build/01_task.md")
 
 	// Attempt again — should succeed now
@@ -806,16 +806,16 @@ func TestResolveNavigationMode(t *testing.T) {
 
 			if tt.hasWorkflow {
 				wfContent := "---\nfest_type: workflow\n---\n\n# WF\n\n## Step 1: DO — Do it\n\n**Goal:** Do the thing.\n\n**Checkpoint:** None\n"
-				os.WriteFile(filepath.Join(phaseDir, "WORKFLOW.md"), []byte(wfContent), 0o644)
+				_ = os.WriteFile(filepath.Join(phaseDir, "WORKFLOW.md"), []byte(wfContent), 0o644)
 			}
 			if tt.hasGates {
 				gateContent := "---\nfest_type: phase_gate\n---\n\n# Gate\n\n## Step 1: CHECK — Check it\n\n**Question:** Is it done?\n\n**Checkpoint:** APPROVAL REQUIRED\n"
-				os.WriteFile(filepath.Join(phaseDir, "GATES.md"), []byte(gateContent), 0o644)
+				_ = os.WriteFile(filepath.Join(phaseDir, "GATES.md"), []byte(gateContent), 0o644)
 			}
 			if tt.hasSequences {
 				// Create a numbered subdirectory with a task file to simulate a sequence
-				os.MkdirAll(filepath.Join(phaseDir, "01_seq"), 0o755)
-				os.WriteFile(filepath.Join(phaseDir, "01_seq", "01_task.md"), []byte("# Task\n"), 0o644)
+				_ = os.MkdirAll(filepath.Join(phaseDir, "01_seq"), 0o755)
+				_ = os.WriteFile(filepath.Join(phaseDir, "01_seq", "01_task.md"), []byte("# Task\n"), 0o644)
 			}
 			if tt.tasksComplete {
 				writeTaskCompleteEvent(t, dir, "001_TEST/01_seq/01_task.md")
@@ -823,7 +823,7 @@ func TestResolveNavigationMode(t *testing.T) {
 
 			// If workflow should be complete, use a navigator to complete it
 			if tt.wfComplete && tt.hasWorkflow {
-				os.WriteFile(filepath.Join(dir, "fest.yaml"), []byte("name: test\nid: T\n"), 0o644)
+				_ = os.WriteFile(filepath.Join(dir, "fest.yaml"), []byte("name: test\nid: T\n"), 0o644)
 
 				gctx := &guidance.GuidanceContext{
 					FestivalPath: dir,
@@ -835,11 +835,11 @@ func TestResolveNavigationMode(t *testing.T) {
 					t.Fatalf("NewNavigator: %v", navErr)
 				}
 				store := progress.NewStore(dir)
-				store.Load(context.Background())
+				_ = store.Load(context.Background())
 				nav.SetStateStore(store)
-				nav.Initialize(context.Background())
+				_ = nav.Initialize(context.Background())
 				// Complete the single step
-				nav.Advance(context.Background())
+				_ = nav.Advance(context.Background())
 			}
 
 			doc, prefix, notReady := resolveNavigationMode(context.Background(), dir, phaseDir)
@@ -923,7 +923,7 @@ func writeTaskCompleteEvent(t *testing.T, festivalPath, taskID string) {
 	if err != nil {
 		t.Fatalf("open events file: %v", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if _, err := f.WriteString(line); err != nil {
 		t.Fatalf("write event: %v", err)
 	}

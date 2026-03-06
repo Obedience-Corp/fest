@@ -107,7 +107,7 @@ func checkPreActiveStatus(ctx context.Context, festivalPath, phasePath string) e
 		var sb strings.Builder
 		sb.WriteString("STOP — FESTIVAL NOT YET ACTIVE\n")
 		sb.WriteString("──────────────────────────────\n")
-		sb.WriteString(fmt.Sprintf("Festival %q is in ready status.\n", festName))
+		fmt.Fprintf(&sb, "Festival %q is in ready status.\n", festName)
 		sb.WriteString("Lifecycle: planning -> ready -> [active] -> completed\n\n")
 		sb.WriteString("Before executing, confirm:\n")
 		sb.WriteString("  - Is this the correct festival you should be working on?\n")
@@ -120,7 +120,7 @@ func checkPreActiveStatus(ctx context.Context, festivalPath, phasePath string) e
 	var sb strings.Builder
 	sb.WriteString("STOP — FESTIVAL NOT YET ACTIVE\n")
 	sb.WriteString("──────────────────────────────\n")
-	sb.WriteString(fmt.Sprintf("Festival %q is in planning status.\n", festName))
+	fmt.Fprintf(&sb, "Festival %q is in planning status.\n", festName)
 	sb.WriteString("Lifecycle: [planning] -> ready -> active -> completed\n\n")
 	sb.WriteString("Implementation phases require active status.\n")
 	sb.WriteString("Promote to ready first: fest promote\n")

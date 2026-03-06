@@ -88,8 +88,10 @@ func TestBuilder_Build_FestivalLevel(t *testing.T) {
 
 	// Save and restore working directory
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(festivalPath)
+	defer func() { _ = os.Chdir(origDir) }()
+	if err := os.Chdir(festivalPath); err != nil {
+		t.Fatalf("Failed to chdir to %s: %v", festivalPath, err)
+	}
 
 	builder := NewBuilder(festivalPath, DepthStandard)
 	output, err := builder.Build()
@@ -124,7 +126,7 @@ func TestBuilder_Build_PhaseLevel(t *testing.T) {
 
 	// Save and restore working directory
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
+	defer func() { _ = os.Chdir(origDir) }()
 	if err := os.Chdir(absPhase); err != nil {
 		t.Fatalf("Failed to chdir to %s: %v", absPhase, err)
 	}
@@ -162,7 +164,7 @@ func TestBuilder_Build_SequenceLevel(t *testing.T) {
 
 	// Save and restore working directory
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
+	defer func() { _ = os.Chdir(origDir) }()
 	if err := os.Chdir(absSeq); err != nil {
 		t.Fatalf("Failed to chdir to %s: %v", absSeq, err)
 	}
@@ -203,8 +205,10 @@ Write tests for all code.
 	}
 
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(festivalPath)
+	defer func() { _ = os.Chdir(origDir) }()
+	if err := os.Chdir(festivalPath); err != nil {
+		t.Fatalf("Failed to chdir to %s: %v", festivalPath, err)
+	}
 
 	builder := NewBuilder(festivalPath, DepthMinimal)
 	output, err := builder.Build()
@@ -246,8 +250,10 @@ We decided to use Go for implementation.
 	}
 
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(festivalPath)
+	defer func() { _ = os.Chdir(origDir) }()
+	if err := os.Chdir(festivalPath); err != nil {
+		t.Fatalf("Failed to chdir to %s: %v", festivalPath, err)
+	}
 
 	builder := NewBuilder(festivalPath, DepthFull)
 	output, err := builder.Build()
@@ -358,8 +364,8 @@ func TestContextOutput_FestivalIDField(t *testing.T) {
 	festivalPath := setupTestFestivalWithMetadata(t, "TF0001")
 
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(festivalPath)
+	defer func() { _ = os.Chdir(origDir) }()
+	_ = os.Chdir(festivalPath)
 
 	builder := NewBuilder(festivalPath, DepthStandard)
 	output, err := builder.Build()
@@ -385,7 +391,7 @@ func TestContextOutput_CurrentRefField(t *testing.T) {
 	absSeq, _ := filepath.EvalSymlinks(seqPath)
 
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
+	defer func() { _ = os.Chdir(origDir) }()
 	if err := os.Chdir(absSeq); err != nil {
 		t.Fatalf("Failed to chdir: %v", err)
 	}
@@ -414,8 +420,8 @@ func TestContextOutput_NullFieldsWhenNoMetadata(t *testing.T) {
 	festivalPath := setupTestFestival(t)
 
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(festivalPath)
+	defer func() { _ = os.Chdir(origDir) }()
+	_ = os.Chdir(festivalPath)
 
 	builder := NewBuilder(festivalPath, DepthStandard)
 	output, err := builder.Build()
@@ -463,8 +469,8 @@ func TestContextOutput_JSONSchemaStability(t *testing.T) {
 			}
 
 			origDir, _ := os.Getwd()
-			defer os.Chdir(origDir)
-			os.Chdir(festivalPath)
+			defer func() { _ = os.Chdir(origDir) }()
+			_ = os.Chdir(festivalPath)
 
 			builder := NewBuilder(festivalPath, DepthStandard)
 			output, err := builder.Build()
@@ -500,8 +506,8 @@ func TestContextOutput_TaskLevelNodeReference(t *testing.T) {
 	absSeq, _ := filepath.EvalSymlinks(seqPath)
 
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(absSeq)
+	defer func() { _ = os.Chdir(origDir) }()
+	_ = os.Chdir(absSeq)
 
 	builder := NewBuilder(absFestival, DepthStandard)
 

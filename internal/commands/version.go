@@ -34,7 +34,7 @@ Examples:
 		if jsonOut {
 			out, err := json.MarshalIndent(info, "", "  ")
 			if err != nil {
-				fmt.Fprintf(cmd.ErrOrStderr(), "Error: %v\n", err)
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Error: %v\n", err)
 				return
 			}
 			fmt.Println(string(out))

@@ -108,7 +108,7 @@ func runShow(ctx context.Context, stepNum int) error {
 		sb.WriteString(ui.Label("Actions:"))
 		sb.WriteString("\n")
 		for i, action := range step.Actions {
-			sb.WriteString(fmt.Sprintf("  %d. %s\n", i+1, action))
+			fmt.Fprintf(&sb, "  %d. %s\n", i+1, action)
 		}
 		sb.WriteString("\n")
 	}

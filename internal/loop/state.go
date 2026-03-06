@@ -45,7 +45,7 @@ func (s *StateStore) AppendEvent(event StateEvent) error {
 	if err != nil {
 		return fmt.Errorf("open state file: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if event.Timestamp.IsZero() {
 		event.Timestamp = time.Now()

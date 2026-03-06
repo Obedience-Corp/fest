@@ -58,6 +58,7 @@ func TestNewConfigCommand(t *testing.T) {
 	showFlag := cmd.Flags().Lookup("show")
 	if showFlag == nil {
 		t.Error("--show flag not found")
+		return
 	}
 
 	if showFlag.DefValue != "false" {
@@ -68,8 +69,8 @@ func TestNewConfigCommand(t *testing.T) {
 func TestShowCurrentConfig(t *testing.T) {
 	// Create temp config directory
 	tmpDir := t.TempDir()
-	os.Setenv("FEST_CONFIG_DIR", tmpDir)
-	defer os.Unsetenv("FEST_CONFIG_DIR")
+	_ = os.Setenv("FEST_CONFIG_DIR", tmpDir)
+	defer func() { _ = os.Unsetenv("FEST_CONFIG_DIR") }()
 
 	ctx := context.Background()
 
@@ -88,11 +89,11 @@ func TestShowCurrentConfig(t *testing.T) {
 
 	err := showCurrentConfig(ctx)
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	if err != nil {
@@ -178,8 +179,8 @@ func TestEditThemeSettingContextCancelled(t *testing.T) {
 func TestConfigCommandShowFlag(t *testing.T) {
 	// Create temp config directory
 	tmpDir := t.TempDir()
-	os.Setenv("FEST_CONFIG_DIR", tmpDir)
-	defer os.Unsetenv("FEST_CONFIG_DIR")
+	_ = os.Setenv("FEST_CONFIG_DIR", tmpDir)
+	defer func() { _ = os.Unsetenv("FEST_CONFIG_DIR") }()
 
 	// Create a config file
 	cfg := config.DefaultConfig()
@@ -197,11 +198,11 @@ func TestConfigCommandShowFlag(t *testing.T) {
 
 	err := cmd.Execute()
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = oldStdout
 
 	var buf bytes.Buffer
-	buf.ReadFrom(r)
+	_, _ = buf.ReadFrom(r)
 	output := buf.String()
 
 	if err != nil {
@@ -216,8 +217,8 @@ func TestConfigCommandShowFlag(t *testing.T) {
 func TestConfigDirUsed(t *testing.T) {
 	// Verify config is loaded from the right location
 	tmpDir := t.TempDir()
-	os.Setenv("FEST_CONFIG_DIR", tmpDir)
-	defer os.Unsetenv("FEST_CONFIG_DIR")
+	_ = os.Setenv("FEST_CONFIG_DIR", tmpDir)
+	defer func() { _ = os.Unsetenv("FEST_CONFIG_DIR") }()
 
 	ctx := context.Background()
 

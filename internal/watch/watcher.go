@@ -62,7 +62,7 @@ func New(cfg Config, onChange func()) (*Watcher, error) {
 		// Only watch paths that exist
 		if _, err := os.Stat(path); err == nil {
 			if err := fsw.Add(path); err != nil {
-				fsw.Close()
+				_ = fsw.Close()
 				return nil, err
 			}
 			watchedCount++
@@ -71,7 +71,7 @@ func New(cfg Config, onChange func()) (*Watcher, error) {
 
 	// If no paths could be watched, return error to trigger fallback
 	if watchedCount == 0 && len(cfg.Paths) > 0 {
-		fsw.Close()
+		_ = fsw.Close()
 		return nil, ErrNoWatchablePaths
 	}
 
@@ -161,7 +161,7 @@ func WatchWithFallback(ctx context.Context, cfg Config, onChange func()) error {
 		}
 		return err
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 
 	return w.Watch(ctx)
 }

@@ -40,7 +40,7 @@ func useMethodologyConfig(t *testing.T) string {
 
 func TestRunFestivalList(t *testing.T) {
 	originalDir := useMethodologyConfig(t)
-	defer os.Chdir(originalDir)
+	defer func() { _ = os.Chdir(originalDir) }()
 
 	tests := []struct {
 		name       string
@@ -118,11 +118,11 @@ func TestRunFestivalList(t *testing.T) {
 
 			err := runFestivalList(context.Background(), tt.jsonOutput)
 
-			w.Close()
+			_ = w.Close()
 			os.Stdout = oldStdout
 
 			var buf bytes.Buffer
-			buf.ReadFrom(r)
+			_, _ = buf.ReadFrom(r)
 			output := buf.String()
 
 			if (err != nil) != tt.wantErr {
@@ -139,7 +139,7 @@ func TestRunFestivalList(t *testing.T) {
 
 func TestRunFestivalShow(t *testing.T) {
 	originalDir := useMethodologyConfig(t)
-	defer os.Chdir(originalDir)
+	defer func() { _ = os.Chdir(originalDir) }()
 
 	tests := []struct {
 		name       string
@@ -270,11 +270,11 @@ func TestRunFestivalShow(t *testing.T) {
 
 			err := runFestivalShow(context.Background(), tt.typeName, tt.jsonOutput, tt.phasesOnly)
 
-			w.Close()
+			_ = w.Close()
 			os.Stdout = oldStdout
 
 			var buf bytes.Buffer
-			buf.ReadFrom(r)
+			_, _ = buf.ReadFrom(r)
 			output := buf.String()
 
 			if (err != nil) != tt.wantErr {
@@ -295,13 +295,13 @@ func TestRunFestivalList_NoConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	originalDir, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("failed to get cwd: %v", err)
 	}
-	defer os.Chdir(originalDir)
+	defer func() { _ = os.Chdir(originalDir) }()
 
 	if err := os.Chdir(tmpDir); err != nil {
 		t.Fatalf("failed to chdir: %v", err)
@@ -316,7 +316,7 @@ func TestRunFestivalList_NoConfig(t *testing.T) {
 
 func TestFestivalType_GetAutoPhases(t *testing.T) {
 	originalDir := useMethodologyConfig(t)
-	defer os.Chdir(originalDir)
+	defer func() { _ = os.Chdir(originalDir) }()
 
 	config, err := types.LoadFestivalTypesConfig(context.Background())
 	if err != nil {
@@ -343,7 +343,7 @@ func TestFestivalType_GetAutoPhases(t *testing.T) {
 
 func TestFestivalType_GetPendingPhases(t *testing.T) {
 	originalDir := useMethodologyConfig(t)
-	defer os.Chdir(originalDir)
+	defer func() { _ = os.Chdir(originalDir) }()
 
 	config, err := types.LoadFestivalTypesConfig(context.Background())
 	if err != nil {

@@ -148,7 +148,7 @@ func (d *Downloader) downloadFile(url, targetPath string) error {
 	if err != nil {
 		return errors.IO("downloading from URL", err).WithField("url", url)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check status code
 	if resp.StatusCode != http.StatusOK {
@@ -160,7 +160,7 @@ func (d *Downloader) downloadFile(url, targetPath string) error {
 	if err != nil {
 		return errors.IO("creating file", err).WithField("path", targetPath)
 	}
-	defer out.Close()
+	defer func() { _ = out.Close() }()
 
 	// Copy content
 	if _, err := io.Copy(out, resp.Body); err != nil {
@@ -201,7 +201,7 @@ func (d *Downloader) getFilesFromGitHub(owner, repo string) ([]string, error) {
 	if err != nil {
 		return nil, errors.IO("fetching file tree from GitHub API", err).WithField("url", apiURL)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check status code
 	if resp.StatusCode != http.StatusOK {
@@ -244,7 +244,7 @@ func (d *Downloader) getFilesWithSHA(owner, repo string) (map[string]string, err
 	if err != nil {
 		return nil, errors.IO("fetching file tree from GitHub API", err).WithField("url", apiURL)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Check status code
 	if resp.StatusCode != http.StatusOK {
@@ -342,34 +342,35 @@ func (d *Downloader) DeleteOrphaned(owner, repo, targetDir string) ([]string, er
 	}
 
 	// Clean up empty directories
-	cleanEmptyDirs(targetDir)
+	_ = cleanEmptyDirs(targetDir)
 
 	return deleted, nil
 }
 
 // cleanEmptyDirs removes empty directories recursively
-func cleanEmptyDirs(root string) {
-	filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+func cleanEmptyDirs(root string) error {
+	_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil || !info.IsDir() || path == root {
 			return nil
 		}
 
 		// Try to remove the directory (will only succeed if empty)
-		os.Remove(path)
+		_ = os.Remove(path)
 		return nil
 	})
 
 	// Walk again in reverse to clean nested empty dirs
 	// (simple approach: just run it a few times)
 	for i := 0; i < 5; i++ {
-		filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 			if err != nil || !info.IsDir() || path == root {
 				return nil
 			}
-			os.Remove(path)
+			_ = os.Remove(path)
 			return nil
 		})
 	}
+	return nil
 }
 
 // CheckForUpdates checks if remote repository has changes compared to local cache
@@ -633,7 +634,7 @@ func (d *Downloader) CheckForTemplateUpdates(targetDir string, remoteSHA string)
 	if err != nil {
 		return false, nil, errors.IO("creating temp directory", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	// Clone with depth=1
 	cmd := exec.Command("git", "clone",
@@ -683,7 +684,7 @@ func (d *Downloader) DownloadWithGit(targetDir string, progress ProgressFunc) er
 	if err != nil {
 		return errors.IO("creating temp directory", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	if progress != nil {
 		progress(1, 3, "Cloning repository...")
@@ -837,7 +838,7 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer sourceFile.Close()
+	defer func() { _ = sourceFile.Close() }()
 
 	// Get source file info for permissions
 	sourceInfo, err := sourceFile.Stat()
@@ -850,7 +851,7 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer destFile.Close()
+	defer func() { _ = destFile.Close() }()
 
 	_, err = io.Copy(destFile, sourceFile)
 	return err

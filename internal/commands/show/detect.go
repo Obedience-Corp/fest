@@ -275,10 +275,7 @@ func ListFestivalsByStatus(ctx context.Context, festivalsDir, status, campaignRo
 // Use this for UIs that only need name, status, path, and modtime — avoids the expensive
 // recursive walk that CalculateFestivalStats performs on every task file.
 // For dungeon statuses, also recurses into date subdirectories.
-func ListFestivalsByStatusLight(ctx context.Context, festivalsDir, status string) ([]*FestivalInfo, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+func ListFestivalsByStatusLight(_ context.Context, festivalsDir, status string) ([]*FestivalInfo, error) {
 	statusDir := filepath.Join(festivalsDir, status)
 	entries, err := os.ReadDir(statusDir)
 	if err != nil {

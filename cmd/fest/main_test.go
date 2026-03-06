@@ -50,7 +50,7 @@ func TestBuildBinary(t *testing.T) {
 	}
 
 	// Clean up
-	defer os.Remove("fest-test")
+	defer func() { _ = os.Remove("fest-test") }()
 
 	// Test that built binary runs
 	cmd = exec.Command("./fest-test", "--help")

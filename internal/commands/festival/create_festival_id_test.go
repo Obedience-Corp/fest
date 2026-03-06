@@ -67,7 +67,7 @@ func TestCreateFestival_DirectoryNaming(t *testing.T) {
 			if err := os.Chdir(festivalsRoot); err != nil {
 				t.Fatalf("Failed to chdir: %v", err)
 			}
-			defer os.Chdir(origDir)
+			defer func() { _ = os.Chdir(origDir) }()
 
 			// Run create festival
 			opts := &CreateFestivalOptions{
@@ -167,7 +167,7 @@ func TestCreateFestival_MetadataPopulation(t *testing.T) {
 	if err := os.Chdir(festivalsRoot); err != nil {
 		t.Fatalf("Failed to chdir: %v", err)
 	}
-	defer os.Chdir(origDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	// Run create festival
 	opts := &CreateFestivalOptions{
@@ -263,7 +263,7 @@ func TestCreateFestival_UniqueIDs(t *testing.T) {
 	if err := os.Chdir(festivalsRoot); err != nil {
 		t.Fatalf("Failed to chdir: %v", err)
 	}
-	defer os.Chdir(origDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	// Create first festival with "GU" prefix
 	opts1 := &CreateFestivalOptions{
@@ -374,7 +374,7 @@ func TestCreateFestival_BackwardsCompatibility(t *testing.T) {
 	if err := os.Chdir(festivalsRoot); err != nil {
 		t.Fatalf("Failed to chdir: %v", err)
 	}
-	defer os.Chdir(origDir)
+	defer func() { _ = os.Chdir(origDir) }()
 
 	// Create a new festival - should still work even with old festival present
 	opts := &CreateFestivalOptions{

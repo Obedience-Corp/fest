@@ -161,7 +161,7 @@ func (h *ContextualHelp) FormatContextualHelp() string {
 	if len(suggestions) > 0 {
 		sb.WriteString("SUGGESTED NEXT STEPS:\n")
 		for _, s := range suggestions {
-			sb.WriteString(fmt.Sprintf("  %-30s %s\n", s.Command, s.Description))
+			fmt.Fprintf(&sb, "  %-30s %s\n", s.Command, s.Description)
 		}
 		sb.WriteString("\n")
 	}

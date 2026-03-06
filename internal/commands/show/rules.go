@@ -46,11 +46,11 @@ func runRules(cmd *cobra.Command) error {
 
 	body := stripRulesFrontmatter(string(content))
 	if strings.TrimSpace(body) == "" {
-		fmt.Fprintln(cmd.OutOrStdout(), "FESTIVAL_RULES.md exists but has no content.")
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "FESTIVAL_RULES.md exists but has no content.")
 		return nil
 	}
 
-	fmt.Fprint(cmd.OutOrStdout(), body)
+	_, _ = fmt.Fprint(cmd.OutOrStdout(), body)
 	return nil
 }
 

@@ -16,10 +16,7 @@ func FindWorkspaceRoot(startDir string) (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "resolving absolute path").WithField("start_dir", startDir)
 	}
-	for {
-		if dir == "" || dir == "/" {
-			break
-		}
+	for dir != "" && dir != "/" {
 		if info, err := os.Stat(filepath.Join(dir, ".festival")); err == nil && info.IsDir() {
 			return dir, nil
 		}
@@ -42,10 +39,7 @@ func FindFestivalsRoot(startDir string) (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "resolving absolute path").WithField("start_dir", startDir)
 	}
-	for {
-		if dir == "" || dir == "/" {
-			break
-		}
+	for dir != "" && dir != "/" {
 		if filepath.Base(dir) == "festivals" {
 			if info, err := os.Stat(filepath.Join(dir, ".festival")); err == nil && info.IsDir() {
 				return dir, nil
@@ -81,10 +75,7 @@ func FindFestivalRoot(startDir string) (string, error) {
 	if err != nil {
 		return "", errors.Wrap(err, "resolving absolute path").WithField("start_dir", startDir)
 	}
-	for {
-		if dir == "" || dir == "/" {
-			break
-		}
+	for dir != "" && dir != "/" {
 		// Check for fest.yaml in this directory
 		if _, err := os.Stat(filepath.Join(dir, "fest.yaml")); err == nil {
 			return dir, nil

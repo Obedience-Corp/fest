@@ -91,7 +91,7 @@ func runResearchLink(ctx context.Context, cmd *cobra.Command, docPath string, ph
 		bidirectionalCount, err = createBidirectionalLinks(absDocPath, phases, sequences, tasks)
 		if err != nil {
 			// Log warning but don't fail
-			fmt.Fprintln(cmd.ErrOrStderr(), ui.Warning(fmt.Sprintf("Failed to create some bidirectional links: %v", err)))
+			_, _ = fmt.Fprintln(cmd.ErrOrStderr(), ui.Warning(fmt.Sprintf("Failed to create some bidirectional links: %v", err)))
 		}
 	}
 
@@ -123,14 +123,14 @@ func runResearchLink(ctx context.Context, cmd *cobra.Command, docPath string, ph
 	}
 
 	out := cmd.OutOrStdout()
-	fmt.Fprintln(out, ui.H1("Research Links Updated"))
-	fmt.Fprintf(out, "%s %s\n", ui.Label("Document"), ui.Value(docPath))
+	_, _ = fmt.Fprintln(out, ui.H1("Research Links Updated"))
+	_, _ = fmt.Fprintf(out, "%s %s\n", ui.Label("Document"), ui.Value(docPath))
 	if unlink {
-		fmt.Fprintf(out, "%s %s\n", ui.Label("Removed"), ui.Value(fmt.Sprintf("%d link(s)", linksRemoved)))
+		_, _ = fmt.Fprintf(out, "%s %s\n", ui.Label("Removed"), ui.Value(fmt.Sprintf("%d link(s)", linksRemoved)))
 	} else {
-		fmt.Fprintf(out, "%s %s\n", ui.Label("Added"), ui.Value(fmt.Sprintf("%d link(s)", linksAdded)))
+		_, _ = fmt.Fprintf(out, "%s %s\n", ui.Label("Added"), ui.Value(fmt.Sprintf("%d link(s)", linksAdded)))
 		if bidirectionalCount > 0 {
-			fmt.Fprintf(out, "%s %s\n", ui.Label("Bidirectional"), ui.Value(fmt.Sprintf("%d reference(s)", bidirectionalCount)))
+			_, _ = fmt.Fprintf(out, "%s %s\n", ui.Label("Bidirectional"), ui.Value(fmt.Sprintf("%d reference(s)", bidirectionalCount)))
 		}
 	}
 

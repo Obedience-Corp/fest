@@ -89,7 +89,7 @@ func copyAndDelete(sourcePath, destPath string) (string, error) {
 	})
 	if err != nil {
 		// Cleanup on failure - remove partial copy
-		os.RemoveAll(destPath)
+		_ = os.RemoveAll(destPath)
 		return "", errors.Wrap(err, "copying festival files")
 	}
 
@@ -107,13 +107,13 @@ func copyFile(src, dst string, mode os.FileMode) error {
 	if err != nil {
 		return err
 	}
-	defer srcFile.Close()
+	defer func() { _ = srcFile.Close() }()
 
 	dstFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, mode)
 	if err != nil {
 		return err
 	}
-	defer dstFile.Close()
+	defer func() { _ = dstFile.Close() }()
 
 	_, err = io.Copy(dstFile, srcFile)
 	return err

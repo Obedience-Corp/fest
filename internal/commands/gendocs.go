@@ -187,12 +187,7 @@ func fenceExamples(content string) string {
 					i++
 					continue
 				}
-				// Unindented ALL-CAPS label followed by colon (e.g. "NEXT STEPS:")
-				// is a section header within the synopsis - keep it outside the fence
-				if isAllCapsLabel(trimmed) {
-					break
-				}
-				// Other unindented text breaks the block
+				// Unindented ALL-CAPS label or other unindented text breaks the block.
 				break
 			}
 			// Trim trailing blank lines
@@ -238,21 +233,6 @@ func looksLikeShellBlock(line string) bool {
 	return false
 }
 
-// isAllCapsLabel checks if a line is an all-caps section label like
-// "EXAMPLES:", "NEXT STEPS:", "TEMPLATE VARIABLES:", etc.
-func isAllCapsLabel(s string) bool {
-	s = strings.TrimSuffix(s, ":")
-	s = strings.TrimSpace(s)
-	if len(s) == 0 {
-		return false
-	}
-	for _, r := range s {
-		if r != ' ' && (r < 'A' || r > 'Z') {
-			return false
-		}
-	}
-	return true
-}
 
 // stripSeeAlso removes the "### SEE ALSO" section from markdown content.
 // Used when combining individual command docs into a single reference page

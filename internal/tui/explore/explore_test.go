@@ -12,62 +12,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// setupTestFestivals creates a temporary festival hierarchy for testing.
-func setupTestFestivals(t *testing.T) string {
-	t.Helper()
-	root := t.TempDir()
-	festivalsDir := filepath.Join(root, "festivals")
-
-	// Create active festival with full hierarchy
-	activeFest := filepath.Join(festivalsDir, "active", "test-festival-TF0001")
-	createTestFestival(t, activeFest, "Test Festival Goal", 2, 2, 3)
-
-	// Create planning festival (minimal)
-	planningFest := filepath.Join(festivalsDir, "planning", "planning-fest-PF0001")
-	createTestFestival(t, planningFest, "Planning Festival Goal", 1, 1, 1)
-
-	// Create empty festival (no phases)
-	emptyFest := filepath.Join(festivalsDir, "active", "empty-fest-EF0001")
-	os.MkdirAll(emptyFest, 0755)
-	os.WriteFile(filepath.Join(emptyFest, "FESTIVAL_GOAL.md"), []byte("# Empty Festival\n"), 0644)
-
-	// Create completed festival
-	completedFest := filepath.Join(festivalsDir, "dungeon", "completed", "done-fest-DF0001")
-	createTestFestival(t, completedFest, "Completed Festival Goal", 1, 1, 2)
-
-	return festivalsDir
-}
-
-// createTestFestival creates a festival with phases, sequences, and tasks.
-func createTestFestival(t *testing.T, festivalDir, goal string, numPhases, numSequences, numTasks int) {
-	t.Helper()
-	os.MkdirAll(festivalDir, 0755)
-	os.WriteFile(filepath.Join(festivalDir, "FESTIVAL_GOAL.md"),
-		[]byte("# Festival Goal\n\n"+goal+"\n"), 0644)
-
-	for p := 1; p <= numPhases; p++ {
-		phaseName := padNum(p) + "_PHASE_" + strings.ToUpper(itoa(p))
-		phaseDir := filepath.Join(festivalDir, phaseName)
-		os.MkdirAll(phaseDir, 0755)
-		os.WriteFile(filepath.Join(phaseDir, "PHASE_GOAL.md"),
-			[]byte("# Phase Goal\n\nPhase "+itoa(p)+" goal\n"), 0644)
-
-		for s := 1; s <= numSequences; s++ {
-			seqName := padNum(s) + "_sequence_" + itoa(s)
-			seqDir := filepath.Join(phaseDir, seqName)
-			os.MkdirAll(seqDir, 0755)
-			os.WriteFile(filepath.Join(seqDir, "SEQUENCE_GOAL.md"),
-				[]byte("# Sequence Goal\n\nSequence "+itoa(s)+" goal\n"), 0644)
-
-			for tk := 1; tk <= numTasks; tk++ {
-				taskName := padNum(tk) + "_task_" + itoa(tk) + ".md"
-				os.WriteFile(filepath.Join(seqDir, taskName),
-					[]byte("---\nfest_type: task\nfest_status: pending\nfest_tracking: true\n---\n\n# Task "+itoa(tk)+"\n"), 0644)
-			}
-		}
-	}
-}
-
 func padNum(n int) string {
 	if n < 10 {
 		return "0" + itoa(n)
@@ -810,9 +754,13 @@ func TestGGTimeout(t *testing.T) {
 	// Second g after timeout
 	newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'g'}})
 	m = newModel.(Model)
-	// Should record new time, not jump to top
-	if m.cursor == 0 && !m.lastGTime.IsZero() {
-		// This is expected: the g after timeout sets a new time
+	// Should record new time, not jump to top.
+	// The g after timeout sets a new time without moving to top.
+	if m.cursor == 0 {
+		t.Error("second g after timeout should not jump to top")
+	}
+	if m.lastGTime.IsZero() {
+		t.Error("lastGTime should be set after second g (new pending gg)")
 	}
 }
 
@@ -828,9 +776,13 @@ func TestGoalFileForItem(t *testing.T) {
 
 	// Test festival goal file detection
 	festDir := filepath.Join(tmp, "festival")
-	os.MkdirAll(festDir, 0755)
+	if err := os.MkdirAll(festDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 	goalFile := filepath.Join(festDir, "FESTIVAL_GOAL.md")
-	os.WriteFile(goalFile, []byte("# Goal\n"), 0644)
+	if err := os.WriteFile(goalFile, []byte("# Goal\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	item := FestivalItem{Type: ItemFestival, Path: festDir}
 	result := goalFileForItem(item)
@@ -840,9 +792,13 @@ func TestGoalFileForItem(t *testing.T) {
 
 	// Test phase goal file
 	phaseDir := filepath.Join(tmp, "phase")
-	os.MkdirAll(phaseDir, 0755)
+	if err := os.MkdirAll(phaseDir, 0755); err != nil {
+		t.Fatal(err)
+	}
 	phaseGoal := filepath.Join(phaseDir, "PHASE_GOAL.md")
-	os.WriteFile(phaseGoal, []byte("# Phase\n"), 0644)
+	if err := os.WriteFile(phaseGoal, []byte("# Phase\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	item = FestivalItem{Type: ItemPhase, Path: phaseDir}
 	result = goalFileForItem(item)
@@ -852,7 +808,9 @@ func TestGoalFileForItem(t *testing.T) {
 
 	// Test task (returns item path)
 	taskPath := filepath.Join(tmp, "task.md")
-	os.WriteFile(taskPath, []byte("# Task\n"), 0644)
+	if err := os.WriteFile(taskPath, []byte("# Task\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 	item = FestivalItem{Type: ItemTask, Path: taskPath}
 	result = goalFileForItem(item)
 	if result != taskPath {
@@ -865,7 +823,9 @@ func TestLoadPreview(t *testing.T) {
 
 	// Test normal file
 	testFile := filepath.Join(tmp, "test.md")
-	os.WriteFile(testFile, []byte("# Title\n\nSome content\n"), 0644)
+	if err := os.WriteFile(testFile, []byte("# Title\n\nSome content\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	preview := loadPreview(testFile)
 	if !strings.Contains(preview, "Title") {
@@ -942,12 +902,24 @@ func TestPreviewKeyEscBackToTree(t *testing.T) {
 func TestLoadGenericChildren(t *testing.T) {
 	tmp := t.TempDir()
 
-	os.MkdirAll(filepath.Join(tmp, "input_specs"), 0755)
-	os.MkdirAll(filepath.Join(tmp, "decisions"), 0755)
-	os.MkdirAll(filepath.Join(tmp, ".hidden"), 0755)
-	os.WriteFile(filepath.Join(tmp, "README.md"), []byte("# README\n"), 0644)
-	os.WriteFile(filepath.Join(tmp, "PHASE_GOAL.md"), []byte("# Goal\n"), 0644)
-	os.WriteFile(filepath.Join(tmp, "notes.txt"), []byte("notes"), 0644)
+	if err := os.MkdirAll(filepath.Join(tmp, "input_specs"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(tmp, "decisions"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(tmp, ".hidden"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmp, "README.md"), []byte("# README\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmp, "PHASE_GOAL.md"), []byte("# Goal\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(tmp, "notes.txt"), []byte("notes"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	items, err := loadGenericChildren(tmp)
 	if err != nil {
@@ -1689,7 +1661,9 @@ func TestGoalFileForItemStatus(t *testing.T) {
 
 func TestGoalFileForItemFestivalFallback(t *testing.T) {
 	tmp := t.TempDir()
-	os.WriteFile(filepath.Join(tmp, "FESTIVAL_OVERVIEW.md"), []byte("# Overview\n"), 0644)
+	if err := os.WriteFile(filepath.Join(tmp, "FESTIVAL_OVERVIEW.md"), []byte("# Overview\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	item := FestivalItem{Type: ItemFestival, Path: tmp}
 	result := goalFileForItem(item)

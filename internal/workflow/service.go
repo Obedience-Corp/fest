@@ -537,9 +537,7 @@ func (s *Service) Move(ctx context.Context, item, to string, opts MoveOptions) (
 			To:     to,
 			Reason: opts.Reason,
 		}
-		if err := s.appendHistory(ctx, entry); err != nil {
-			// Log but don't fail the move
-		}
+		_ = s.appendHistory(ctx, entry) // non-fatal: history is best-effort
 	}
 
 	return result, nil
@@ -801,7 +799,7 @@ func (s *Service) Crawl(ctx context.Context, opts CrawlOptions) (*CrawlResult, e
 	}
 
 	// Determine which statuses to crawl
-	statuses := []string{}
+	var statuses []string
 	if opts.Status != "" {
 		statuses = []string{opts.Status}
 	} else {

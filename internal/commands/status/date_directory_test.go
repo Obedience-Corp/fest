@@ -270,7 +270,7 @@ func TestCopyFile(t *testing.T) {
 	t.Run("invalid destination returns error", func(t *testing.T) {
 		root := resolvePath(t, t.TempDir())
 		srcFile := filepath.Join(root, "source.txt")
-		os.WriteFile(srcFile, []byte("data"), 0644)
+		_ = os.WriteFile(srcFile, []byte("data"), 0644)
 
 		badDest := filepath.Join(root, "nonexistent", "subdir", "dest.txt")
 		err := copyFile(srcFile, badDest, 0644)

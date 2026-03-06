@@ -29,12 +29,12 @@ func NewExtensionLoader() *ExtensionLoader {
 func (el *ExtensionLoader) LoadAll(festivalRoot string) error {
 	// Load built-in extensions first (lowest priority)
 	builtInPath := filepath.Join(config.ConfigDir(), "festivals", ".festival", ExtensionsDirName)
-	el.loadFromDirectory(builtInPath, "built-in")
+	_ = el.loadFromDirectory(builtInPath, "built-in")
 
 	// Load user config repo extensions (medium priority)
 	if userFestPath := config.ActiveFestivalsPath(); userFestPath != "" {
 		userExtPath := filepath.Join(userFestPath, ExtensionsDirName)
-		el.loadFromDirectory(userExtPath, "user")
+		_ = el.loadFromDirectory(userExtPath, "user")
 	}
 
 	// Load project-local extensions (highest priority)
@@ -42,7 +42,7 @@ func (el *ExtensionLoader) LoadAll(festivalRoot string) error {
 		localRoot, err := tpl.LocalTemplateRoot(festivalRoot)
 		if err == nil {
 			localExtPath := filepath.Join(localRoot, ExtensionsDirName)
-			el.loadFromDirectory(localExtPath, "project")
+			_ = el.loadFromDirectory(localExtPath, "project")
 		}
 	}
 

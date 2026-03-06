@@ -92,7 +92,7 @@ func TestRunnerWriteError(t *testing.T) {
 	if err := os.Chmod(destDir, 0555); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.Chmod(destDir, 0755) })
+	t.Cleanup(func() { _ = os.Chmod(destDir, 0755) })
 
 	runner := NewRunner(RunnerOptions{FestivalDir: destDir})
 	_, err := runner.Run(ctx, plan)
@@ -121,8 +121,8 @@ func TestRunnerPhaseWriteError(t *testing.T) {
 
 	destDir := filepath.Join(t.TempDir(), "phase-err2")
 	// Create the festival dir but make the phase dir read-only
-	os.MkdirAll(filepath.Join(destDir, "001_BUILD"), 0555)
-	t.Cleanup(func() { os.Chmod(filepath.Join(destDir, "001_BUILD"), 0755) })
+	_ = os.MkdirAll(filepath.Join(destDir, "001_BUILD"), 0555)
+	t.Cleanup(func() { _ = os.Chmod(filepath.Join(destDir, "001_BUILD"), 0755) })
 
 	runner := NewRunner(RunnerOptions{FestivalDir: destDir})
 	_, err := runner.Run(ctx, plan)
@@ -156,8 +156,8 @@ func TestRunnerSequenceWriteError(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(seqParent, "PHASE_GOAL.md"), []byte("x"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	os.Chmod(seqParent, 0555)
-	t.Cleanup(func() { os.Chmod(seqParent, 0755) })
+	_ = os.Chmod(seqParent, 0555)
+	t.Cleanup(func() { _ = os.Chmod(seqParent, 0755) })
 
 	runner := NewRunner(RunnerOptions{FestivalDir: destDir})
 	_, err := runner.Run(ctx, plan)
@@ -191,8 +191,8 @@ func TestRunnerTaskWriteError(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(seqDir, "SEQUENCE_GOAL.md"), []byte("x"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	os.Chmod(seqDir, 0555)
-	t.Cleanup(func() { os.Chmod(seqDir, 0755) })
+	_ = os.Chmod(seqDir, 0555)
+	t.Cleanup(func() { _ = os.Chmod(seqDir, 0755) })
 
 	runner := NewRunner(RunnerOptions{FestivalDir: destDir})
 	_, err := runner.Run(ctx, plan)

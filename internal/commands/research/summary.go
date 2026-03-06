@@ -14,6 +14,8 @@ import (
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"gopkg.in/yaml.v3"
 )
 
@@ -176,9 +178,9 @@ func runResearchSummary(ctx context.Context, cmd *cobra.Command, phase string, f
 		if err := os.WriteFile(output, []byte(result), 0644); err != nil {
 			return errors.IO("writing output file", err).WithField("path", output)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", ui.Success("Summary written"), ui.Dim(output))
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", ui.Success("Summary written"), ui.Dim(output))
 	} else {
-		fmt.Fprintln(cmd.OutOrStdout(), result)
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), result)
 	}
 
 	return nil
@@ -289,8 +291,8 @@ func extractFrontmatter(content string) map[string]interface{} {
 func formatMarkdownSummary(summary ResearchSummary) string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("# Research Summary: %s\n\n", summary.ScopeID))
-	sb.WriteString(fmt.Sprintf("Generated: %s\n\n", summary.GeneratedAt.Format(time.RFC3339)))
+	fmt.Fprintf(&sb, "# Research Summary: %s\n\n", summary.ScopeID)
+	fmt.Fprintf(&sb, "Generated: %s\n\n", summary.GeneratedAt.Format(time.RFC3339))
 
 	sb.WriteString("## Overview\n\n")
 	sb.WriteString("| Type | Count |\n")
@@ -298,10 +300,10 @@ func formatMarkdownSummary(summary ResearchSummary) string {
 	for _, t := range validResearchTypes {
 		count := summary.ByType[t]
 		if count > 0 {
-			sb.WriteString(fmt.Sprintf("| %s | %d |\n", t, count))
+			fmt.Fprintf(&sb, "| %s | %d |\n", t, count)
 		}
 	}
-	sb.WriteString(fmt.Sprintf("| **Total** | **%d** |\n", summary.Total))
+	fmt.Fprintf(&sb, "| **Total** | **%d** |\n", summary.Total)
 	sb.WriteString("\n")
 
 	if len(summary.ByStatus) > 0 {
@@ -309,7 +311,7 @@ func formatMarkdownSummary(summary ResearchSummary) string {
 		sb.WriteString("| Status | Count |\n")
 		sb.WriteString("|--------|-------|\n")
 		for status, count := range summary.ByStatus {
-			sb.WriteString(fmt.Sprintf("| %s | %d |\n", status, count))
+			fmt.Fprintf(&sb, "| %s | %d |\n", status, count)
 		}
 		sb.WriteString("\n")
 	}
@@ -329,7 +331,7 @@ func formatMarkdownSummary(summary ResearchSummary) string {
 			continue
 		}
 
-		sb.WriteString(fmt.Sprintf("### %s\n\n", strings.Title(docType)))
+		fmt.Fprintf(&sb, "### %s\n\n", cases.Title(language.English).String(docType))
 		for _, doc := range typeDocs {
 			title := doc.Title
 			if title == "" {
@@ -339,10 +341,10 @@ func formatMarkdownSummary(summary ResearchSummary) string {
 			if status == "" {
 				status = "unknown"
 			}
-			sb.WriteString(fmt.Sprintf("- **[%s](%s)** (%s)\n", title, doc.Path, status))
+			fmt.Fprintf(&sb, "- **[%s](%s)** (%s)\n", title, doc.Path, status)
 
 			if len(doc.LinkedPhases) > 0 {
-				sb.WriteString(fmt.Sprintf("  - Linked to: %s\n", strings.Join(doc.LinkedPhases, ", ")))
+				fmt.Fprintf(&sb, "  - Linked to: %s\n", strings.Join(doc.LinkedPhases, ", "))
 			}
 		}
 		sb.WriteString("\n")

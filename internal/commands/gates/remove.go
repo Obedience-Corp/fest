@@ -259,22 +259,22 @@ func runGatesRemove(ctx context.Context, cmd *cobra.Command, opts *removeOptions
 		}
 	}
 
-	fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out)
 	for _, phaseName := range phaseOrder {
 		phase := phaseMap[phaseName]
 		seqWord := "sequence"
 		if len(phase.seqNames) != 1 {
 			seqWord = "sequences"
 		}
-		fmt.Fprintf(out, "%s (%d %s)\n", ui.Phase(phase.name), len(phase.seqNames), seqWord)
+		_, _ = fmt.Fprintf(out, "%s (%d %s)\n", ui.Phase(phase.name), len(phase.seqNames), seqWord)
 		for _, seqName := range phase.seqNames {
-			fmt.Fprintf(out, "  %s\n", ui.Sequence(seqName))
+			_, _ = fmt.Fprintf(out, "  %s\n", ui.Sequence(seqName))
 		}
-		fmt.Fprintf(out, "  Gates:\n")
+		_, _ = fmt.Fprintf(out, "  Gates:\n")
 		for _, g := range phase.gates {
-			fmt.Fprintf(out, "    %s\n", ui.Gate(g))
+			_, _ = fmt.Fprintf(out, "    %s\n", ui.Gate(g))
 		}
-		fmt.Fprintln(out)
+		_, _ = fmt.Fprintln(out)
 	}
 
 	// Show warnings

@@ -175,8 +175,8 @@ func BenchmarkFindCompletedFestivals(b *testing.B) {
 			for i := 0; i < 10; i++ {
 				festName := fmt.Sprintf("fest-%d-%02d-%d", year, month, i)
 				path := filepath.Join(completedDir, dateDir, festName)
-				os.MkdirAll(path, 0755)
-				os.WriteFile(filepath.Join(path, "FESTIVAL_OVERVIEW.md"), []byte("test"), 0644)
+				_ = os.MkdirAll(path, 0755)
+				_ = os.WriteFile(filepath.Join(path, "FESTIVAL_OVERVIEW.md"), []byte("test"), 0644)
 			}
 		}
 	}
@@ -275,13 +275,11 @@ func TestCompleteGoTarget_WithFestivals(t *testing.T) {
 	if err := os.Chdir(tmpDir); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.Chdir(origDir) })
+	t.Cleanup(func() { _ = os.Chdir(origDir) })
 
 	// Test with no partial input - should return all targets
 	results, directive := CompleteGoTarget(nil, nil, "")
-	if directive != 0 { // cobra.ShellCompDirectiveNoFileComp = 4, but the enum value is checked
-		// Just ensure we got results
-	}
+	_ = directive // cobra.ShellCompDirectiveNoFileComp = 4; value recorded but not asserted
 
 	// Should include status directories AND festival names
 	resultSet := make(map[string]bool)

@@ -19,16 +19,6 @@ func LooksLikeDateDir(name string) bool {
 	return dateDirPattern.MatchString(name)
 }
 
-// isKnownDungeonStatus checks if a name is a known dungeon substatus.
-func isKnownDungeonStatus(name string) bool {
-	switch name {
-	case "completed", "archived", "someday":
-		return true
-	default:
-		return false
-	}
-}
-
 // resolveFestivalFromPath resolves a festival name or path from anywhere in the workspace.
 // It searches: cwd (if path is relative), festivals/active/, festivals/planning/,
 // festivals/completed/, and festivals/dungeon/.
@@ -140,48 +130,6 @@ func detectEntityType(path string) EntityType {
 
 	// Default to unknown (could be a regular directory)
 	return ""
-}
-
-// resolveStatusPath resolves the target path for status commands.
-// If pathArg is empty, uses current working directory.
-// If pathArg is relative to a festivals/ root (e.g., "active/my-festival"),
-// it resolves from the festivals root.
-func resolveStatusPath(pathArg string) (string, error) {
-	if pathArg == "" {
-		cwd, err := os.Getwd()
-		if err != nil {
-			return "", errors.IO("getting current directory", err)
-		}
-		return cwd, nil
-	}
-
-	// Try as absolute or relative path first
-	absPath, err := filepath.Abs(pathArg)
-	if err != nil {
-		return "", errors.Wrap(err, "resolving path").WithField("path", pathArg)
-	}
-
-	// Check if path exists
-	if _, err := os.Stat(absPath); err == nil {
-		return absPath, nil
-	}
-
-	// Try resolving relative to festivals/ root
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", errors.IO("getting current directory", err)
-	}
-
-	// Find festivals root and try pathArg relative to it
-	festivalsRoot := findFestivalsRoot(cwd)
-	if festivalsRoot != "" {
-		candidatePath := filepath.Join(festivalsRoot, pathArg)
-		if _, err := os.Stat(candidatePath); err == nil {
-			return candidatePath, nil
-		}
-	}
-
-	return "", errors.NotFound("path").WithField("path", pathArg)
 }
 
 // findFestivalsRoot walks up from startPath looking for a festivals/ directory.

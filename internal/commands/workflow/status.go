@@ -89,7 +89,7 @@ func runStatus(ctx context.Context) error {
 	if state.IsComplete() {
 		sb.WriteString(ui.Success("Complete"))
 	} else {
-		sb.WriteString(fmt.Sprintf("%d of %d", state.CurrentStep, state.TotalSteps))
+		fmt.Fprintf(&sb, "%d of %d", state.CurrentStep, state.TotalSteps)
 	}
 	sb.WriteString("\n\n")
 
@@ -289,30 +289,6 @@ func isWorkflowPhase(phaseType string) bool {
 	}
 }
 
-// findAllWorkflowPhases returns all phase directories that have a WORKFLOW.md file.
-func findAllWorkflowPhases(festivalPath string) ([]string, error) {
-	entries, err := os.ReadDir(festivalPath)
-	if err != nil {
-		return nil, err
-	}
-
-	var phases []string
-	for _, entry := range entries {
-		if !entry.IsDir() || !shared.IsNumberedDir(entry.Name()) {
-			continue
-		}
-
-		phasePath := filepath.Join(festivalPath, entry.Name())
-		workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
-		if _, err := os.Stat(workflowPath); err == nil {
-			phases = append(phases, phasePath)
-		}
-	}
-
-	sort.Strings(phases)
-	return phases, nil
-}
-
 // findAllNavigablePhases returns all phase directories that have a WORKFLOW.md or GATES.md file.
 func findAllNavigablePhases(festivalPath string) ([]string, error) {
 	entries, err := os.ReadDir(festivalPath)
@@ -336,35 +312,6 @@ func findAllNavigablePhases(festivalPath string) ([]string, error) {
 
 	sort.Strings(phases)
 	return phases, nil
-}
-
-// findFirstIncompleteWorkflowPhase scans phases in numerical order for the first with incomplete workflow.
-// Returns the phase path if found, empty string if all workflow phases are complete.
-func findFirstIncompleteWorkflowPhase(ctx context.Context, festivalPath string) (string, error) {
-	phases, err := findAllWorkflowPhases(festivalPath)
-	if err != nil {
-		return "", err
-	}
-
-	// Load Store once for all phases
-	store := progress.NewStore(festivalPath)
-	if err := store.Load(ctx); err != nil {
-		// Fall back to checking by file existence
-		return checkPhasesIncomplete(phases)
-	}
-
-	for _, phasePath := range phases {
-		phaseName := filepath.Base(phasePath)
-		state, ok := store.WorkflowPhaseState(phaseName)
-		if !ok {
-			return phasePath, nil // No state, assume incomplete
-		}
-		if state.TotalSteps == 0 || !state.IsComplete() {
-			return phasePath, nil
-		}
-	}
-
-	return "", nil
 }
 
 // findFirstIncompleteNavigablePhase scans phases for the first with incomplete WORKFLOW.md or GATES.md.
@@ -410,14 +357,6 @@ func findFirstIncompleteNavigablePhase(ctx context.Context, festivalPath string)
 		}
 	}
 
-	return "", nil
-}
-
-// checkPhasesIncomplete returns the first phase path if any exist, as a fallback.
-func checkPhasesIncomplete(phases []string) (string, error) {
-	if len(phases) > 0 {
-		return phases[0], nil
-	}
 	return "", nil
 }
 

@@ -106,11 +106,6 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 		return emitApplyError(opts, errors.Wrap(err, "resolving paths").WithOp("runGatesApply"))
 	}
 
-	// Derive festivalsRoot from festivalPath if needed (for linked festivals)
-	if festivalsRoot == "" {
-		festivalsRoot = filepath.Dir(filepath.Dir(festivalPath))
-	}
-
 	// Load festival config for gate configuration
 	festCfg, err := config.LoadFestivalConfig(festivalPath, "")
 	if err != nil {
@@ -204,7 +199,7 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 		configGates := festCfg.GetGatesForPhaseType(seq.PhaseType)
 		if len(configGates) == 0 {
 			if shared.IsVerbose() {
-				fmt.Fprintf(cmd.OutOrStdout(), "  Skipping %s (no gates configured for %s phase)\n", seq.Name, seq.PhaseType)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  Skipping %s (no gates configured for %s phase)\n", seq.Name, seq.PhaseType)
 			}
 			continue
 		}
@@ -216,7 +211,7 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 		}
 
 		if shared.IsVerbose() {
-			fmt.Fprintf(cmd.OutOrStdout(), "  Phase %s: using %d %s gates from fest.yaml\n", seq.PhaseName, len(sequenceGates), seq.PhaseType)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  Phase %s: using %d %s gates from fest.yaml\n", seq.PhaseName, len(sequenceGates), seq.PhaseType)
 		}
 
 		results, seqWarnings, err := generator.GenerateForSequence(ctx, seq.Path, sequenceGates, genOpts, festivalPath)
@@ -230,9 +225,10 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 		}
 
 		for _, r := range results {
-			if r.Type == "create" {
+			switch r.Type {
+			case "create":
 				summary.FilesCreated++
-			} else if r.Type == "skip" {
+			case "skip":
 				summary.FilesSkipped++
 			}
 		}
@@ -296,14 +292,14 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 		}
 	}
 
-	fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out)
 	for _, phaseName := range phaseOrder {
 		info := phaseMap[phaseName]
 		seqWord := "sequence"
 		if len(info.seqNames) != 1 {
 			seqWord = "sequences"
 		}
-		fmt.Fprintf(out, "%s (%d %s)\n", ui.Phase(phaseName), len(info.seqNames), seqWord)
+		_, _ = fmt.Fprintf(out, "%s (%d %s)\n", ui.Phase(phaseName), len(info.seqNames), seqWord)
 
 		for _, seqName := range info.seqNames {
 			// Find results for this sequence
@@ -312,9 +308,10 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 			for seqPath, results := range seqResults {
 				if filepath.Base(seqPath) == seqName {
 					for _, r := range results {
-						if r.Type == "create" {
+						switch r.Type {
+						case "create":
 							createCount++
-						} else if r.Type == "skip" {
+						case "skip":
 							if r.Reason == "gate_exists" {
 								skipCount++
 							} else {
@@ -328,13 +325,13 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 
 			// Format sequence line with counts
 			if createCount > 0 && skipCount > 0 {
-				fmt.Fprintf(out, "  %s: %d created, %d skipped (exist)\n", ui.Sequence(seqName), createCount, skipCount)
+				_, _ = fmt.Fprintf(out, "  %s: %d created, %d skipped (exist)\n", ui.Sequence(seqName), createCount, skipCount)
 			} else if createCount > 0 {
-				fmt.Fprintf(out, "  %s: %d created\n", ui.Sequence(seqName), createCount)
+				_, _ = fmt.Fprintf(out, "  %s: %d created\n", ui.Sequence(seqName), createCount)
 			} else if skipCount > 0 {
-				fmt.Fprintf(out, "  %s: %d skipped (exist)\n", ui.Sequence(seqName), skipCount)
+				_, _ = fmt.Fprintf(out, "  %s: %d skipped (exist)\n", ui.Sequence(seqName), skipCount)
 			} else {
-				fmt.Fprintf(out, "  %s\n", ui.Sequence(seqName))
+				_, _ = fmt.Fprintf(out, "  %s\n", ui.Sequence(seqName))
 			}
 
 			// Show unexpected skips with detail
@@ -343,8 +340,8 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 			}
 		}
 
-		fmt.Fprintf(out, "  Gates: %s\n", strings.Join(info.gates, ", "))
-		fmt.Fprintln(out)
+		_, _ = fmt.Fprintf(out, "  Gates: %s\n", strings.Join(info.gates, ", "))
+		_, _ = fmt.Fprintln(out)
 	}
 
 	// Show warnings if any

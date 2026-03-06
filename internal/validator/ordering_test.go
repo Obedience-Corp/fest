@@ -19,9 +19,9 @@ func TestOrderingValidator_NoGaps(t *testing.T) {
 			name: "sequential phases",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.MkdirAll(filepath.Join(dir, "001_PLANNING"), 0755)
-				os.MkdirAll(filepath.Join(dir, "002_IMPLEMENTATION"), 0755)
-				os.MkdirAll(filepath.Join(dir, "003_TESTING"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "001_PLANNING"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "002_IMPLEMENTATION"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "003_TESTING"), 0755)
 				return dir
 			},
 			wantIssues: 0,
@@ -31,9 +31,9 @@ func TestOrderingValidator_NoGaps(t *testing.T) {
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
 				phase := filepath.Join(dir, "001_PLANNING")
-				os.MkdirAll(filepath.Join(phase, "01_requirements"), 0755)
-				os.MkdirAll(filepath.Join(phase, "02_design"), 0755)
-				os.MkdirAll(filepath.Join(phase, "03_review"), 0755)
+				_ = os.MkdirAll(filepath.Join(phase, "01_requirements"), 0755)
+				_ = os.MkdirAll(filepath.Join(phase, "02_design"), 0755)
+				_ = os.MkdirAll(filepath.Join(phase, "03_review"), 0755)
 				return dir
 			},
 			wantIssues: 0,
@@ -43,10 +43,10 @@ func TestOrderingValidator_NoGaps(t *testing.T) {
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
 				seq := filepath.Join(dir, "001_PLANNING", "01_requirements")
-				os.MkdirAll(seq, 0755)
-				os.WriteFile(filepath.Join(seq, "01_gather.md"), []byte("# Task"), 0644)
-				os.WriteFile(filepath.Join(seq, "02_analyze.md"), []byte("# Task"), 0644)
-				os.WriteFile(filepath.Join(seq, "03_document.md"), []byte("# Task"), 0644)
+				_ = os.MkdirAll(seq, 0755)
+				_ = os.WriteFile(filepath.Join(seq, "01_gather.md"), []byte("# Task"), 0644)
+				_ = os.WriteFile(filepath.Join(seq, "02_analyze.md"), []byte("# Task"), 0644)
+				_ = os.WriteFile(filepath.Join(seq, "03_document.md"), []byte("# Task"), 0644)
 				return dir
 			},
 			wantIssues: 0,
@@ -84,8 +84,8 @@ func TestOrderingValidator_MustStartFromOne(t *testing.T) {
 			name: "phase starts at 002",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.MkdirAll(filepath.Join(dir, "002_PLANNING"), 0755)
-				os.MkdirAll(filepath.Join(dir, "003_IMPLEMENTATION"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "002_PLANNING"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "003_IMPLEMENTATION"), 0755)
 				return dir
 			},
 			wantIssues: 1,
@@ -96,8 +96,8 @@ func TestOrderingValidator_MustStartFromOne(t *testing.T) {
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
 				phase := filepath.Join(dir, "001_PLANNING")
-				os.MkdirAll(filepath.Join(phase, "05_requirements"), 0755)
-				os.MkdirAll(filepath.Join(phase, "06_design"), 0755)
+				_ = os.MkdirAll(filepath.Join(phase, "05_requirements"), 0755)
+				_ = os.MkdirAll(filepath.Join(phase, "06_design"), 0755)
 				return dir
 			},
 			wantIssues: 1,
@@ -108,9 +108,9 @@ func TestOrderingValidator_MustStartFromOne(t *testing.T) {
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
 				seq := filepath.Join(dir, "001_PLANNING", "01_requirements")
-				os.MkdirAll(seq, 0755)
-				os.WriteFile(filepath.Join(seq, "03_gather.md"), []byte("# Task"), 0644)
-				os.WriteFile(filepath.Join(seq, "04_analyze.md"), []byte("# Task"), 0644)
+				_ = os.MkdirAll(seq, 0755)
+				_ = os.WriteFile(filepath.Join(seq, "03_gather.md"), []byte("# Task"), 0644)
+				_ = os.WriteFile(filepath.Join(seq, "04_analyze.md"), []byte("# Task"), 0644)
 				return dir
 			},
 			wantIssues: 1,
@@ -152,8 +152,8 @@ func TestOrderingValidator_DetectsGaps(t *testing.T) {
 			name: "phase gap 001 003",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.MkdirAll(filepath.Join(dir, "001_PLANNING"), 0755)
-				os.MkdirAll(filepath.Join(dir, "003_TESTING"), 0755) // Missing 002
+				_ = os.MkdirAll(filepath.Join(dir, "001_PLANNING"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "003_TESTING"), 0755) // Missing 002
 				return dir
 			},
 			wantIssues: 1,
@@ -164,8 +164,8 @@ func TestOrderingValidator_DetectsGaps(t *testing.T) {
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
 				phase := filepath.Join(dir, "001_PLANNING")
-				os.MkdirAll(filepath.Join(phase, "01_requirements"), 0755)
-				os.MkdirAll(filepath.Join(phase, "03_review"), 0755) // Missing 02
+				_ = os.MkdirAll(filepath.Join(phase, "01_requirements"), 0755)
+				_ = os.MkdirAll(filepath.Join(phase, "03_review"), 0755) // Missing 02
 				return dir
 			},
 			wantIssues: 1,
@@ -176,9 +176,9 @@ func TestOrderingValidator_DetectsGaps(t *testing.T) {
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
 				seq := filepath.Join(dir, "001_PLANNING", "01_requirements")
-				os.MkdirAll(seq, 0755)
-				os.WriteFile(filepath.Join(seq, "01_gather.md"), []byte("# Task"), 0644)
-				os.WriteFile(filepath.Join(seq, "04_document.md"), []byte("# Task"), 0644) // Missing 02, 03
+				_ = os.MkdirAll(seq, 0755)
+				_ = os.WriteFile(filepath.Join(seq, "01_gather.md"), []byte("# Task"), 0644)
+				_ = os.WriteFile(filepath.Join(seq, "04_document.md"), []byte("# Task"), 0644) // Missing 02, 03
 				return dir
 			},
 			wantIssues: 1,
@@ -188,12 +188,12 @@ func TestOrderingValidator_DetectsGaps(t *testing.T) {
 			name: "multiple gaps at different levels",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.MkdirAll(filepath.Join(dir, "001_PLANNING"), 0755)
-				os.MkdirAll(filepath.Join(dir, "003_TESTING"), 0755) // Gap in phases
+				_ = os.MkdirAll(filepath.Join(dir, "001_PLANNING"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "003_TESTING"), 0755) // Gap in phases
 
 				phase := filepath.Join(dir, "001_PLANNING")
-				os.MkdirAll(filepath.Join(phase, "01_req"), 0755)
-				os.MkdirAll(filepath.Join(phase, "05_review"), 0755) // Gap in sequences
+				_ = os.MkdirAll(filepath.Join(phase, "01_req"), 0755)
+				_ = os.MkdirAll(filepath.Join(phase, "05_review"), 0755) // Gap in sequences
 
 				return dir
 			},
@@ -236,10 +236,10 @@ func TestOrderingValidator_ParallelTasks(t *testing.T) {
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
 				seq := filepath.Join(dir, "001_PLANNING", "01_requirements")
-				os.MkdirAll(seq, 0755)
-				os.WriteFile(filepath.Join(seq, "01_task_a.md"), []byte("# Task A"), 0644)
-				os.WriteFile(filepath.Join(seq, "01_task_b.md"), []byte("# Task B"), 0644)
-				os.WriteFile(filepath.Join(seq, "02_next.md"), []byte("# Next"), 0644)
+				_ = os.MkdirAll(seq, 0755)
+				_ = os.WriteFile(filepath.Join(seq, "01_task_a.md"), []byte("# Task A"), 0644)
+				_ = os.WriteFile(filepath.Join(seq, "01_task_b.md"), []byte("# Task B"), 0644)
+				_ = os.WriteFile(filepath.Join(seq, "02_next.md"), []byte("# Next"), 0644)
 				return dir
 			},
 			wantIssues: 0,
@@ -249,10 +249,10 @@ func TestOrderingValidator_ParallelTasks(t *testing.T) {
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
 				seq := filepath.Join(dir, "001_PLANNING", "01_requirements")
-				os.MkdirAll(seq, 0755)
-				os.WriteFile(filepath.Join(seq, "01_a.md"), []byte("# A"), 0644)
-				os.WriteFile(filepath.Join(seq, "01_b.md"), []byte("# B"), 0644)
-				os.WriteFile(filepath.Join(seq, "01_c.md"), []byte("# C"), 0644)
+				_ = os.MkdirAll(seq, 0755)
+				_ = os.WriteFile(filepath.Join(seq, "01_a.md"), []byte("# A"), 0644)
+				_ = os.WriteFile(filepath.Join(seq, "01_b.md"), []byte("# B"), 0644)
+				_ = os.WriteFile(filepath.Join(seq, "01_c.md"), []byte("# C"), 0644)
 				return dir
 			},
 			wantIssues: 0,
@@ -268,10 +268,10 @@ func TestOrderingValidator_ParallelTasks(t *testing.T) {
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
 				seq := filepath.Join(dir, "001_PLANNING", "01_requirements")
-				os.MkdirAll(seq, 0755)
-				os.WriteFile(filepath.Join(seq, "01_task_a.md"), []byte("# Task A"), 0644)
-				os.WriteFile(filepath.Join(seq, "02_task_b.md"), []byte("# Task B"), 0644)
-				os.WriteFile(filepath.Join(seq, "01_task_c.md"), []byte("# Task C"), 0644)
+				_ = os.MkdirAll(seq, 0755)
+				_ = os.WriteFile(filepath.Join(seq, "01_task_a.md"), []byte("# Task A"), 0644)
+				_ = os.WriteFile(filepath.Join(seq, "02_task_b.md"), []byte("# Task B"), 0644)
+				_ = os.WriteFile(filepath.Join(seq, "01_task_c.md"), []byte("# Task C"), 0644)
 				return dir
 			},
 			wantIssues: 0, // After alphabetical sorting, these appear consecutive
@@ -315,7 +315,7 @@ func TestOrderingValidator_EdgeCases(t *testing.T) {
 			name: "single phase",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.MkdirAll(filepath.Join(dir, "001_ONLY"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "001_ONLY"), 0755)
 				return dir
 			},
 			wantIssues: 0,
@@ -325,8 +325,8 @@ func TestOrderingValidator_EdgeCases(t *testing.T) {
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
 				seq := filepath.Join(dir, "001_PLANNING", "01_req")
-				os.MkdirAll(seq, 0755)
-				os.WriteFile(filepath.Join(seq, "01_only.md"), []byte("# Only"), 0644)
+				_ = os.MkdirAll(seq, 0755)
+				_ = os.WriteFile(filepath.Join(seq, "01_only.md"), []byte("# Only"), 0644)
 				return dir
 			},
 			wantIssues: 0,
@@ -335,7 +335,7 @@ func TestOrderingValidator_EdgeCases(t *testing.T) {
 			name: "empty sequence no tasks",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.MkdirAll(filepath.Join(dir, "001_PLANNING", "01_empty"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "001_PLANNING", "01_empty"), 0755)
 				return dir
 			},
 			wantIssues: 0,
@@ -362,7 +362,7 @@ func TestOrderingValidator_ContextCancellation(t *testing.T) {
 	cancel() // Cancel immediately
 
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, "001_PLANNING"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, "001_PLANNING"), 0755)
 
 	v := NewOrderingValidator()
 	_, err := v.Validate(ctx, dir)
@@ -385,8 +385,8 @@ func TestCheckOrderingCorrect(t *testing.T) {
 			name: "correct ordering",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.MkdirAll(filepath.Join(dir, "001_A"), 0755)
-				os.MkdirAll(filepath.Join(dir, "002_B"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "001_A"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "002_B"), 0755)
 				return dir
 			},
 			wantOK: true,
@@ -395,8 +395,8 @@ func TestCheckOrderingCorrect(t *testing.T) {
 			name: "gap detected",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.MkdirAll(filepath.Join(dir, "001_A"), 0755)
-				os.MkdirAll(filepath.Join(dir, "003_C"), 0755) // Gap!
+				_ = os.MkdirAll(filepath.Join(dir, "001_A"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "003_C"), 0755) // Gap!
 				return dir
 			},
 			wantOK: false,
@@ -405,8 +405,8 @@ func TestCheckOrderingCorrect(t *testing.T) {
 			name: "does not start at 1",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.MkdirAll(filepath.Join(dir, "002_A"), 0755)
-				os.MkdirAll(filepath.Join(dir, "003_B"), 0755) // Starts at 002, not 001
+				_ = os.MkdirAll(filepath.Join(dir, "002_A"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "003_B"), 0755) // Starts at 002, not 001
 				return dir
 			},
 			wantOK: false,
@@ -429,8 +429,8 @@ func TestValidateElementOrdering_MessageFormat(t *testing.T) {
 
 	// Test that error messages include proper number formatting
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, "001_A"), 0755)
-	os.MkdirAll(filepath.Join(dir, "005_E"), 0755) // Gap: missing 002, 003, 004
+	_ = os.MkdirAll(filepath.Join(dir, "001_A"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, "005_E"), 0755) // Gap: missing 002, 003, 004
 
 	v := NewOrderingValidator()
 	issues, err := v.Validate(ctx, dir)

@@ -386,15 +386,6 @@ func isDir(path string) bool {
 	return info.IsDir()
 }
 
-// isFile checks if a path is a file
-func isFile(path string) bool {
-	info, err := os.Stat(path)
-	if err != nil {
-		return false
-	}
-	return !info.IsDir()
-}
-
 // NormalizeName removes number prefix from element name
 func NormalizeName(fullName string) string {
 	// Remove phase prefix (3 digits)

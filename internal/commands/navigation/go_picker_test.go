@@ -12,13 +12,13 @@ func createPickerTestWorkspace(t *testing.T) string {
 	festivalsDir := filepath.Join(root, "festivals")
 
 	for _, status := range []string{"active", "planning", "dungeon/completed"} {
-		os.MkdirAll(filepath.Join(festivalsDir, status), 0755)
+		_ = os.MkdirAll(filepath.Join(festivalsDir, status), 0755)
 	}
 
-	os.MkdirAll(filepath.Join(festivalsDir, "active", "deploy-DS0001"), 0755)
-	os.MkdirAll(filepath.Join(festivalsDir, "active", "auth-AI0001"), 0755)
-	os.MkdirAll(filepath.Join(festivalsDir, "planning", "search-SR0001"), 0755)
-	os.MkdirAll(filepath.Join(festivalsDir, "dungeon", "completed", "old-OL0001"), 0755)
+	_ = os.MkdirAll(filepath.Join(festivalsDir, "active", "deploy-DS0001"), 0755)
+	_ = os.MkdirAll(filepath.Join(festivalsDir, "active", "auth-AI0001"), 0755)
+	_ = os.MkdirAll(filepath.Join(festivalsDir, "planning", "search-SR0001"), 0755)
+	_ = os.MkdirAll(filepath.Join(festivalsDir, "dungeon", "completed", "old-OL0001"), 0755)
 
 	return festivalsDir
 }
@@ -78,8 +78,8 @@ func TestCollectPickerItems_EmptyWorkspace(t *testing.T) {
 	root := t.TempDir()
 	festivalsDir := filepath.Join(root, "festivals")
 
-	os.MkdirAll(filepath.Join(festivalsDir, "active"), 0755)
-	os.MkdirAll(filepath.Join(festivalsDir, "planning"), 0755)
+	_ = os.MkdirAll(filepath.Join(festivalsDir, "active"), 0755)
+	_ = os.MkdirAll(filepath.Join(festivalsDir, "planning"), 0755)
 
 	items := collectPickerItems(festivalsDir)
 
@@ -100,7 +100,7 @@ func TestCollectPickerItems_NonexistentDir(t *testing.T) {
 func TestCollectPickerItems_SingleFestival(t *testing.T) {
 	root := t.TempDir()
 	festivalsDir := filepath.Join(root, "festivals")
-	os.MkdirAll(filepath.Join(festivalsDir, "active", "only-fest-OF0001"), 0755)
+	_ = os.MkdirAll(filepath.Join(festivalsDir, "active", "only-fest-OF0001"), 0755)
 
 	items := collectPickerItems(festivalsDir)
 
@@ -118,11 +118,11 @@ func TestCollectPickerItems_SingleFestival(t *testing.T) {
 func TestCollectPickerItems_SkipsFiles(t *testing.T) {
 	root := t.TempDir()
 	festivalsDir := filepath.Join(root, "festivals")
-	os.MkdirAll(filepath.Join(festivalsDir, "active"), 0755)
+	_ = os.MkdirAll(filepath.Join(festivalsDir, "active"), 0755)
 	// Create a regular file (should be skipped)
-	os.WriteFile(filepath.Join(festivalsDir, "active", "README.md"), []byte("hi"), 0644)
+	_ = os.WriteFile(filepath.Join(festivalsDir, "active", "README.md"), []byte("hi"), 0644)
 	// Create a festival directory (should be included)
-	os.MkdirAll(filepath.Join(festivalsDir, "active", "real-fest-RF0001"), 0755)
+	_ = os.MkdirAll(filepath.Join(festivalsDir, "active", "real-fest-RF0001"), 0755)
 
 	items := collectPickerItems(festivalsDir)
 

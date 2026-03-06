@@ -19,8 +19,8 @@ func TestDetectFestivalPath(t *testing.T) {
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
 				festDir := filepath.Join(dir, "my-fest")
-				os.MkdirAll(festDir, 0755)
-				os.WriteFile(filepath.Join(festDir, "FESTIVAL_GOAL.md"), []byte("# Goal\n"), 0644)
+				_ = os.MkdirAll(festDir, 0755)
+				_ = os.WriteFile(filepath.Join(festDir, "FESTIVAL_GOAL.md"), []byte("# Goal\n"), 0644)
 				return festDir
 			},
 			wantHit: true,
@@ -30,8 +30,8 @@ func TestDetectFestivalPath(t *testing.T) {
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
 				festDir := filepath.Join(dir, "my-fest")
-				os.MkdirAll(festDir, 0755)
-				os.WriteFile(filepath.Join(festDir, "fest.yaml"), []byte("name: test\n"), 0644)
+				_ = os.MkdirAll(festDir, 0755)
+				_ = os.WriteFile(filepath.Join(festDir, "fest.yaml"), []byte("name: test\n"), 0644)
 				return festDir
 			},
 			wantHit: true,
@@ -42,8 +42,8 @@ func TestDetectFestivalPath(t *testing.T) {
 				dir := t.TempDir()
 				festDir := filepath.Join(dir, "my-fest")
 				phaseDir := filepath.Join(festDir, "001_PLANNING")
-				os.MkdirAll(phaseDir, 0755)
-				os.WriteFile(filepath.Join(festDir, "FESTIVAL_GOAL.md"), []byte("# Goal\n"), 0644)
+				_ = os.MkdirAll(phaseDir, 0755)
+				_ = os.WriteFile(filepath.Join(festDir, "FESTIVAL_GOAL.md"), []byte("# Goal\n"), 0644)
 				return phaseDir
 			},
 			wantHit: true,
@@ -54,8 +54,8 @@ func TestDetectFestivalPath(t *testing.T) {
 				dir := t.TempDir()
 				festDir := filepath.Join(dir, "my-fest")
 				seqDir := filepath.Join(festDir, "001_PLANNING", "01_requirements")
-				os.MkdirAll(seqDir, 0755)
-				os.WriteFile(filepath.Join(festDir, "FESTIVAL_GOAL.md"), []byte("# Goal\n"), 0644)
+				_ = os.MkdirAll(seqDir, 0755)
+				_ = os.WriteFile(filepath.Join(festDir, "FESTIVAL_GOAL.md"), []byte("# Goal\n"), 0644)
 				return seqDir
 			},
 			wantHit: true,
@@ -72,7 +72,7 @@ func TestDetectFestivalPath(t *testing.T) {
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
 				deep := filepath.Join(dir, "a", "b", "c", "d")
-				os.MkdirAll(deep, 0755)
+				_ = os.MkdirAll(deep, 0755)
 				return deep
 			},
 			wantHit: false,
@@ -96,8 +96,8 @@ func TestDetectFestivalPathReturnsRoot(t *testing.T) {
 	dir := t.TempDir()
 	festDir := filepath.Join(dir, "my-fest")
 	seqDir := filepath.Join(festDir, "001_PHASE", "01_seq")
-	os.MkdirAll(seqDir, 0755)
-	os.WriteFile(filepath.Join(festDir, "FESTIVAL_GOAL.md"), []byte("# Goal\n"), 0644)
+	_ = os.MkdirAll(seqDir, 0755)
+	_ = os.WriteFile(filepath.Join(festDir, "FESTIVAL_GOAL.md"), []byte("# Goal\n"), 0644)
 
 	got := detectFestivalPath(seqDir)
 	if got != festDir {

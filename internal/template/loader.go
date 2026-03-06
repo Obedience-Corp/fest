@@ -57,7 +57,7 @@ func (l *loaderImpl) Load(ctx context.Context, path string) (*Template, error) {
 		return nil, errors.IO("opening template file", err).
 			WithField("path", path)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Parse frontmatter and content. If YAML frontmatter parsing fails,
 	// fall back to treating the entire file as content without metadata.

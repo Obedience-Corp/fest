@@ -56,9 +56,7 @@ func Build(verbose bool) error {
 		result.VetPass = cmd.Run() == nil
 		result.VetTime = time.Since(start)
 
-		if !result.VetPass {
-			// Don't return immediately - continue to collect all results for dashboard
-		}
+		// Continue to collect all results for dashboard even if vet/build fails.
 
 		// Build
 		ui.Progress(i+1, total, fmt.Sprintf("Building %s", shortName))
@@ -71,10 +69,6 @@ func Build(verbose bool) error {
 		result.BuildPass = cmd.Run() == nil
 		result.BuildTime = time.Since(start)
 
-		if !result.BuildPass {
-			// Don't return immediately - continue to collect all results for dashboard
-		}
-
 		results = append(results, result)
 	}
 
@@ -83,7 +77,7 @@ func Build(verbose bool) error {
 	start := time.Now()
 
 	// Create bin directory
-	os.MkdirAll("bin", 0o755)
+	_ = os.MkdirAll("bin", 0o755)
 
 	cmd := exec.Command("go", "build", "-ldflags", versionLdflags(), "-o", "bin/fest", "./cmd/fest")
 	if verbose {
@@ -159,7 +153,7 @@ func Build(verbose bool) error {
 	}
 
 	// Choose appropriate title based on whether there are failures
-	title := "Build Summary"
+	var title string
 	if hasFailures {
 		title = "Build Failures"
 	} else {

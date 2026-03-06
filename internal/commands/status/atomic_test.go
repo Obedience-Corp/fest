@@ -171,9 +171,9 @@ func TestAtomicStatusChange_Comprehensive(t *testing.T) {
 				// To truly test missing source, remove after RecordStatusChange
 				// would run. Instead, we remove FESTIVAL_GOAL.md and .fest to
 				// make it an empty dir, then remove the dir itself AFTER setup.
-				os.RemoveAll(festPath)
+				_ = os.RemoveAll(festPath)
 				// Also remove any parent dir RecordStatusChange might create
-				os.RemoveAll(filepath.Join(root, "planning", "test-fest-TF0001"))
+				_ = os.RemoveAll(filepath.Join(root, "planning", "test-fest-TF0001"))
 			},
 			// Note: RecordStatusChange recreates the dir, so Rename succeeds.
 			// This is actually correct behavior - the function is resilient.
@@ -284,10 +284,10 @@ func TestCopyAndDelete(t *testing.T) {
 			name: "successful recursive copy",
 			setupSource: func(t *testing.T, srcDir string) {
 				t.Helper()
-				os.MkdirAll(filepath.Join(srcDir, "sub", "deep"), 0755)
-				os.WriteFile(filepath.Join(srcDir, "root.txt"), []byte("root"), 0644)
-				os.WriteFile(filepath.Join(srcDir, "sub", "mid.txt"), []byte("mid"), 0644)
-				os.WriteFile(filepath.Join(srcDir, "sub", "deep", "leaf.txt"), []byte("leaf"), 0644)
+				_ = os.MkdirAll(filepath.Join(srcDir, "sub", "deep"), 0755)
+				_ = os.WriteFile(filepath.Join(srcDir, "root.txt"), []byte("root"), 0644)
+				_ = os.WriteFile(filepath.Join(srcDir, "sub", "mid.txt"), []byte("mid"), 0644)
+				_ = os.WriteFile(filepath.Join(srcDir, "sub", "deep", "leaf.txt"), []byte("leaf"), 0644)
 			},
 			validate: func(t *testing.T, srcDir, resultPath string) {
 				t.Helper()
@@ -313,8 +313,8 @@ func TestCopyAndDelete(t *testing.T) {
 			name: "preserves file modes",
 			setupSource: func(t *testing.T, srcDir string) {
 				t.Helper()
-				os.WriteFile(filepath.Join(srcDir, "executable.sh"), []byte("#!/bin/sh"), 0755)
-				os.WriteFile(filepath.Join(srcDir, "readonly.txt"), []byte("data"), 0444)
+				_ = os.WriteFile(filepath.Join(srcDir, "executable.sh"), []byte("#!/bin/sh"), 0755)
+				_ = os.WriteFile(filepath.Join(srcDir, "readonly.txt"), []byte("data"), 0444)
 			},
 			validate: func(t *testing.T, srcDir, resultPath string) {
 				t.Helper()
@@ -338,7 +338,7 @@ func TestCopyAndDelete(t *testing.T) {
 			name: "source not found returns error",
 			setupSource: func(t *testing.T, srcDir string) {
 				t.Helper()
-				os.RemoveAll(srcDir)
+				_ = os.RemoveAll(srcDir)
 			},
 			wantErr: true,
 		},
@@ -381,19 +381,19 @@ func TestCopyAndDelete(t *testing.T) {
 func TestCopyAndDelete_CleanupOnFailure(t *testing.T) {
 	root := resolvePath(t, t.TempDir())
 	srcDir := filepath.Join(root, "source", "cleanup-test")
-	os.MkdirAll(srcDir, 0755)
-	os.WriteFile(filepath.Join(srcDir, "good.txt"), []byte("ok"), 0644)
+	_ = os.MkdirAll(srcDir, 0755)
+	_ = os.WriteFile(filepath.Join(srcDir, "good.txt"), []byte("ok"), 0644)
 
 	// Create an unreadable file to trigger copy failure
 	unreadable := filepath.Join(srcDir, "bad.txt")
-	os.WriteFile(unreadable, []byte("secret"), 0000)
+	_ = os.WriteFile(unreadable, []byte("secret"), 0000)
 
 	destPath := filepath.Join(root, "dest", "cleanup-test")
 
 	_, err := copyAndDelete(srcDir, destPath)
 	if err == nil {
 		// Restore permissions for cleanup
-		os.Chmod(unreadable, 0644)
+		_ = os.Chmod(unreadable, 0644)
 		t.Skip("test requires non-root user for permission checks")
 	}
 
@@ -408,7 +408,7 @@ func TestCopyAndDelete_CleanupOnFailure(t *testing.T) {
 	}
 
 	// Restore permissions for cleanup
-	os.Chmod(unreadable, 0644)
+	_ = os.Chmod(unreadable, 0644)
 }
 
 func TestAtomicStatusChange_RecordsHistory(t *testing.T) {
@@ -463,7 +463,7 @@ func TestAtomicStatusChange_ContextCancelled(t *testing.T) {
 func TestRecordStatusChange_ContextCancelled(t *testing.T) {
 	root := resolvePath(t, t.TempDir())
 	festPath := filepath.Join(root, "test-fest")
-	os.MkdirAll(filepath.Join(festPath, ".fest"), 0755)
+	_ = os.MkdirAll(filepath.Join(festPath, ".fest"), 0755)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -486,11 +486,11 @@ func TestRecordStatusChange_ContextCancelled(t *testing.T) {
 func TestLoadStatusHistory_ContextCancelled(t *testing.T) {
 	root := resolvePath(t, t.TempDir())
 	festPath := filepath.Join(root, "test-fest")
-	os.MkdirAll(filepath.Join(festPath, ".fest"), 0755)
+	_ = os.MkdirAll(filepath.Join(festPath, ".fest"), 0755)
 
 	// Write a valid history file first
 	historyPath := filepath.Join(festPath, ".fest", "status_history.json")
-	os.WriteFile(historyPath, []byte(`[{"timestamp":"2026-01-01T00:00:00Z","from_status":"planning","to_status":"ready"}]`), 0644)
+	_ = os.WriteFile(historyPath, []byte(`[{"timestamp":"2026-01-01T00:00:00Z","from_status":"planning","to_status":"ready"}]`), 0644)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()

@@ -11,7 +11,7 @@ func TestLoadExtensionManifest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	manifestContent := `name: test-extension
 version: "1.0.0"
@@ -54,7 +54,7 @@ func TestSaveExtensionManifest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	manifest := &ExtensionManifest{
 		Name:        "my-extension",
@@ -83,7 +83,7 @@ func TestLoadExtensionFromDir_WithManifest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create manifest
 	manifestContent := `name: with-manifest
@@ -92,7 +92,7 @@ description: Has a manifest
 type: agent
 `
 	manifestPath := filepath.Join(tmpDir, ExtensionManifestFileName)
-	os.WriteFile(manifestPath, []byte(manifestContent), 0644)
+	_ = os.WriteFile(manifestPath, []byte(manifestContent), 0644)
 
 	ext, err := LoadExtensionFromDir(tmpDir, "test")
 	if err != nil {
@@ -115,11 +115,11 @@ func TestLoadExtensionFromDir_WithoutManifest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create extension dir without manifest
 	extDir := filepath.Join(tmpDir, "my-extension")
-	os.MkdirAll(extDir, 0755)
+	_ = os.MkdirAll(extDir, 0755)
 
 	ext, err := LoadExtensionFromDir(extDir, "builtin")
 	if err != nil {
@@ -140,13 +140,13 @@ func TestExtensionListFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create some files
-	os.WriteFile(filepath.Join(tmpDir, "README.md"), []byte("# Test"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "template.md"), []byte("Template"), 0644)
-	os.MkdirAll(filepath.Join(tmpDir, "subdir"), 0755)
-	os.WriteFile(filepath.Join(tmpDir, "subdir", "nested.md"), []byte("Nested"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "README.md"), []byte("# Test"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "template.md"), []byte("Template"), 0644)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "subdir"), 0755)
+	_ = os.WriteFile(filepath.Join(tmpDir, "subdir", "nested.md"), []byte("Nested"), 0644)
 
 	ext := &Extension{Path: tmpDir}
 	files, err := ext.ListFiles()
@@ -164,9 +164,9 @@ func TestExtensionHasFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	os.WriteFile(filepath.Join(tmpDir, "exists.md"), []byte("exists"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "exists.md"), []byte("exists"), 0644)
 
 	ext := &Extension{Path: tmpDir}
 
@@ -183,24 +183,24 @@ func TestExtensionLoaderLoadAll(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create extensions directory structure
 	extDir := filepath.Join(tmpDir, ".festival", "extensions")
-	os.MkdirAll(extDir, 0755)
+	_ = os.MkdirAll(extDir, 0755)
 
 	// Create an extension
 	ext1Dir := filepath.Join(extDir, "ext1")
-	os.MkdirAll(ext1Dir, 0755)
-	os.WriteFile(filepath.Join(ext1Dir, ExtensionManifestFileName),
+	_ = os.MkdirAll(ext1Dir, 0755)
+	_ = os.WriteFile(filepath.Join(ext1Dir, ExtensionManifestFileName),
 		[]byte("name: ext1\nversion: '1.0'\ntype: workflow"), 0644)
 
 	ext2Dir := filepath.Join(extDir, "ext2")
-	os.MkdirAll(ext2Dir, 0755)
+	_ = os.MkdirAll(ext2Dir, 0755)
 	// No manifest - should use directory name
 
 	loader := NewExtensionLoader()
-	loader.loadFromDirectory(extDir, "test")
+	_ = loader.loadFromDirectory(extDir, "test")
 
 	if loader.Count() != 2 {
 		t.Errorf("Count = %d, want 2", loader.Count())

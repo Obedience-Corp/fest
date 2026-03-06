@@ -49,12 +49,12 @@ func TestResolveFestivalPath_LinkedProject(t *testing.T) {
 	// Override config dir for test isolation
 	origConfigDir := os.Getenv("XDG_CONFIG_HOME")
 	configDir := filepath.Join(tmpDir, "config")
-	os.Setenv("XDG_CONFIG_HOME", configDir)
+	_ = os.Setenv("XDG_CONFIG_HOME", configDir)
 	defer func() {
 		if origConfigDir == "" {
-			os.Unsetenv("XDG_CONFIG_HOME")
+			_ = os.Unsetenv("XDG_CONFIG_HOME")
 		} else {
-			os.Setenv("XDG_CONFIG_HOME", origConfigDir)
+			_ = os.Setenv("XDG_CONFIG_HOME", origConfigDir)
 		}
 	}()
 
@@ -154,12 +154,12 @@ func TestResolveFestivalPath_NoFestival(t *testing.T) {
 	// Override config to have no links
 	origConfigDir := os.Getenv("XDG_CONFIG_HOME")
 	configDir := filepath.Join(tmpDir, "config")
-	os.Setenv("XDG_CONFIG_HOME", configDir)
+	_ = os.Setenv("XDG_CONFIG_HOME", configDir)
 	defer func() {
 		if origConfigDir == "" {
-			os.Unsetenv("XDG_CONFIG_HOME")
+			_ = os.Unsetenv("XDG_CONFIG_HOME")
 		} else {
-			os.Setenv("XDG_CONFIG_HOME", origConfigDir)
+			_ = os.Setenv("XDG_CONFIG_HOME", origConfigDir)
 		}
 	}()
 
@@ -217,8 +217,8 @@ func TestIsValidFestival(t *testing.T) {
 
 	// Test with FESTIVAL_GOAL.md
 	festWithGoal := filepath.Join(tmpDir, "fest-goal")
-	os.MkdirAll(festWithGoal, 0755)
-	os.WriteFile(filepath.Join(festWithGoal, "FESTIVAL_GOAL.md"), []byte("# Goal\n"), 0644)
+	_ = os.MkdirAll(festWithGoal, 0755)
+	_ = os.WriteFile(filepath.Join(festWithGoal, "FESTIVAL_GOAL.md"), []byte("# Goal\n"), 0644)
 
 	if !isValidFestival(festWithGoal) {
 		t.Error("expected directory with FESTIVAL_GOAL.md to be valid")
@@ -226,8 +226,8 @@ func TestIsValidFestival(t *testing.T) {
 
 	// Test with FESTIVAL_OVERVIEW.md
 	festWithOverview := filepath.Join(tmpDir, "fest-overview")
-	os.MkdirAll(festWithOverview, 0755)
-	os.WriteFile(filepath.Join(festWithOverview, "FESTIVAL_OVERVIEW.md"), []byte("# Overview\n"), 0644)
+	_ = os.MkdirAll(festWithOverview, 0755)
+	_ = os.WriteFile(filepath.Join(festWithOverview, "FESTIVAL_OVERVIEW.md"), []byte("# Overview\n"), 0644)
 
 	if !isValidFestival(festWithOverview) {
 		t.Error("expected directory with FESTIVAL_OVERVIEW.md to be valid")
@@ -235,8 +235,8 @@ func TestIsValidFestival(t *testing.T) {
 
 	// Test with fest.yaml
 	festWithConfig := filepath.Join(tmpDir, "fest-config")
-	os.MkdirAll(festWithConfig, 0755)
-	os.WriteFile(filepath.Join(festWithConfig, "fest.yaml"), []byte("name: test\n"), 0644)
+	_ = os.MkdirAll(festWithConfig, 0755)
+	_ = os.WriteFile(filepath.Join(festWithConfig, "fest.yaml"), []byte("name: test\n"), 0644)
 
 	if !isValidFestival(festWithConfig) {
 		t.Error("expected directory with fest.yaml to be valid")
@@ -244,7 +244,7 @@ func TestIsValidFestival(t *testing.T) {
 
 	// Test empty directory
 	emptyDir := filepath.Join(tmpDir, "empty")
-	os.MkdirAll(emptyDir, 0755)
+	_ = os.MkdirAll(emptyDir, 0755)
 
 	if isValidFestival(emptyDir) {
 		t.Error("expected empty directory to be invalid")

@@ -17,6 +17,8 @@ import (
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 type moveOptions struct {
@@ -209,7 +211,7 @@ func runMove(ctx context.Context, source, destination string, opts *moveOptions)
 	} else {
 		display := ui.New(shared.IsNoColor(), opts.verbose)
 		if opts.verbose {
-			display.Success("%s: %s → %s", strings.Title(operation), displayPath(sourcePath), displayPath(destPath))
+			display.Success("%s: %s → %s", cases.Title(language.English).String(operation), displayPath(sourcePath), displayPath(destPath))
 		} else {
 			display.Success("%s → %s", filepath.Base(sourcePath), displayPath(destPath))
 		}
@@ -330,13 +332,13 @@ func copySingleFile(src, dst string) error {
 	if err != nil {
 		return errors.IO("opening source file", err).WithField("path", src)
 	}
-	defer sourceFile.Close()
+	defer func() { _ = sourceFile.Close() }()
 
 	destFile, err := os.Create(dst)
 	if err != nil {
 		return errors.IO("creating destination file", err).WithField("path", dst)
 	}
-	defer destFile.Close()
+	defer func() { _ = destFile.Close() }()
 
 	if _, err := io.Copy(destFile, sourceFile); err != nil {
 		return errors.IO("copying file", err).WithField("from", src).WithField("to", dst)

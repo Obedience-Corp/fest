@@ -47,7 +47,7 @@ func createPhaseInFestival(ctx context.Context, festivalPath string) error {
 
 	var name string
 	phaseTypes := []string{"planning", "implementation", "research", "review", "non_coding_action", "ingest"}
-	var phaseType string = phaseTypes[0]
+	var phaseType = phaseTypes[0]
 
 	// Phase name and type form
 	form := huh.NewForm(
@@ -155,7 +155,7 @@ func charmCreatePhaseManual(ctx context.Context) error {
 	}
 	var name, path, afterStr string
 	phaseTypes := []string{"planning", "implementation", "research", "review", "non_coding_action", "ingest"}
-	var phaseType string = phaseTypes[0]
+	var phaseType = phaseTypes[0]
 
 	// Two-step: first fields; then compute default 'after'
 	form := huh.NewForm(

@@ -98,7 +98,7 @@ func runCreate(cmd *cobra.Command, name, goal string) error {
 		}
 		return errors.IO("creating chain file", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := tmpl.Execute(f, data); err != nil {
 		return errors.Wrap(err, "rendering chain template").WithCode(errors.ErrCodeTemplate)

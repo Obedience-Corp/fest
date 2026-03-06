@@ -39,11 +39,11 @@ func captureRunID(t *testing.T, ctx context.Context) (string, error) {
 	cmd.SetContext(ctx)
 
 	err := runID(cmd, nil)
-	w.Close()
+	_ = w.Close()
 	os.Stdout = old
 
 	var out bytes.Buffer
-	out.ReadFrom(r)
+	_, _ = out.ReadFrom(r)
 	return out.String(), err
 }
 
@@ -196,5 +196,5 @@ func TestNewIDCommand_ReturnsCobraCommand(t *testing.T) {
 	if _, ok := cmd.Annotations["scope"]; !ok {
 		t.Error("expected scope annotation")
 	}
-	var _ *cobra.Command = cmd
+	_ = cmd
 }

@@ -60,7 +60,7 @@ func TestResolve_GlobalScope(t *testing.T) {
 		if err := os.Chdir(dir); err != nil {
 			t.Fatalf("failed to change directory: %v", err)
 		}
-		defer os.Chdir(oldCwd)
+		defer func() { _ = os.Chdir(oldCwd) }()
 
 		cmd := &cobra.Command{
 			Annotations: map[string]string{
@@ -90,7 +90,7 @@ func TestResolve_WorkspaceScope(t *testing.T) {
 		if err := os.Chdir(dir); err != nil {
 			t.Fatalf("failed to change directory: %v", err)
 		}
-		defer os.Chdir(oldCwd)
+		defer func() { _ = os.Chdir(oldCwd) }()
 
 		cmd := &cobra.Command{
 			Annotations: map[string]string{
@@ -134,7 +134,7 @@ func TestResolve_WorkspaceScope(t *testing.T) {
 		if err := os.Chdir(subDir); err != nil {
 			t.Fatalf("failed to change directory: %v", err)
 		}
-		defer os.Chdir(oldCwd)
+		defer func() { _ = os.Chdir(oldCwd) }()
 
 		cmd := &cobra.Command{
 			Annotations: map[string]string{
@@ -167,7 +167,7 @@ func TestResolve_WorkspaceScope(t *testing.T) {
 		if err := os.Chdir(dir); err != nil {
 			t.Fatalf("failed to change directory: %v", err)
 		}
-		defer os.Chdir(oldCwd)
+		defer func() { _ = os.Chdir(oldCwd) }()
 
 		cmd := &cobra.Command{
 			Annotations: map[string]string{
@@ -209,7 +209,7 @@ func TestResolve_FestivalScope(t *testing.T) {
 		if err := os.Chdir(festDir); err != nil {
 			t.Fatalf("failed to change directory: %v", err)
 		}
-		defer os.Chdir(oldCwd)
+		defer func() { _ = os.Chdir(oldCwd) }()
 
 		cmd := &cobra.Command{
 			Annotations: map[string]string{
@@ -257,7 +257,7 @@ func TestResolve_FestivalScope(t *testing.T) {
 		if err := os.Chdir(dir); err != nil {
 			t.Fatalf("failed to change directory: %v", err)
 		}
-		defer os.Chdir(oldCwd)
+		defer func() { _ = os.Chdir(oldCwd) }()
 
 		cmd := &cobra.Command{
 			Annotations: map[string]string{
@@ -288,7 +288,7 @@ func TestResolve_FestivalScope(t *testing.T) {
 		if err := os.Chdir(dir); err != nil {
 			t.Fatalf("failed to change directory: %v", err)
 		}
-		defer os.Chdir(oldCwd)
+		defer func() { _ = os.Chdir(oldCwd) }()
 
 		cmd := &cobra.Command{
 			Annotations: map[string]string{
@@ -336,7 +336,7 @@ func TestResolve_DefaultScope(t *testing.T) {
 		if err := os.Chdir(dir); err != nil {
 			t.Fatalf("failed to change directory: %v", err)
 		}
-		defer os.Chdir(oldCwd)
+		defer func() { _ = os.Chdir(oldCwd) }()
 
 		cmd := &cobra.Command{
 			// No annotations - should default to workspace

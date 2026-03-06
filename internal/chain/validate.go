@@ -76,10 +76,6 @@ func (r *ValidationResult) addError(code, message, ctx string) {
 	r.Errors = append(r.Errors, ValidationError{Code: code, Message: message, Context: ctx})
 }
 
-func (r *ValidationResult) addWarning(code, message, ctx string) {
-	r.Warnings = append(r.Warnings, ValidationWarning{Code: code, Message: message, Context: ctx})
-}
-
 // S1: Unique Refs
 func validateUniqueRefs(_ context.Context, c *Chain, r *ValidationResult) {
 	seen := make(map[string]int)

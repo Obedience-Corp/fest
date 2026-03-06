@@ -35,15 +35,15 @@ func setupFestivalTemplatesWithMarkers(t *testing.T, festivalsDir string) {
 
 	// GOAL.md with festival-level markers that should be auto-filled
 	goalContent := "# Festival Goal\n\n**Name:** {{.festival_name}}\n**Goal:** {{.festival_goal}}\n"
-	os.WriteFile(filepath.Join(festivalTemplatesDir, "GOAL.md"), []byte(goalContent), 0644)
+	_ = os.WriteFile(filepath.Join(festivalTemplatesDir, "GOAL.md"), []byte(goalContent), 0644)
 
 	// OVERVIEW.md with festival name marker
 	overviewContent := "# {{.festival_name}} Overview\n"
-	os.WriteFile(filepath.Join(festivalTemplatesDir, "OVERVIEW.md"), []byte(overviewContent), 0644)
+	_ = os.WriteFile(filepath.Join(festivalTemplatesDir, "OVERVIEW.md"), []byte(overviewContent), 0644)
 
 	// RULES.md and TODO.md as simple templates
-	os.WriteFile(filepath.Join(festivalTemplatesDir, "RULES.md"), []byte("# Rules\n"), 0644)
-	os.WriteFile(filepath.Join(festivalTemplatesDir, "TODO.md"), []byte("# TODO\n"), 0644)
+	_ = os.WriteFile(filepath.Join(festivalTemplatesDir, "RULES.md"), []byte("# Rules\n"), 0644)
+	_ = os.WriteFile(filepath.Join(festivalTemplatesDir, "TODO.md"), []byte("# TODO\n"), 0644)
 
 	// Phase templates with type-specific "Primary Goal" markers
 	phaseTemplates := map[string]string{
@@ -178,8 +178,8 @@ func TestCreateFestivalZeroMarkers(t *testing.T) {
 			setupFestivalTemplatesWithMarkers(t, festivalsDir)
 
 			origDir, _ := os.Getwd()
-			defer os.Chdir(origDir)
-			os.Chdir(festivalsDir)
+			defer func() { _ = os.Chdir(origDir) }()
+			_ = os.Chdir(festivalsDir)
 
 			opts := &CreateFestivalOptions{
 				Name:       tt.festName,

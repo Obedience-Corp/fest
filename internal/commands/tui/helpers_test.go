@@ -207,9 +207,9 @@ func TestListPhaseDirs(t *testing.T) {
 
 	t.Run("empty directory returns nil", func(t *testing.T) {
 		emptyDir := filepath.Join(tmpDir, "empty")
-		os.MkdirAll(emptyDir, 0755)
+		_ = os.MkdirAll(emptyDir, 0755)
 		got := listPhaseDirs(emptyDir)
-		if got != nil && len(got) != 0 {
+		if len(got) != 0 {
 			t.Errorf("listPhaseDirs on empty dir returned %v, want nil or empty", got)
 		}
 	})
@@ -255,9 +255,9 @@ func TestListSequenceDirs(t *testing.T) {
 
 	t.Run("empty directory returns nil or empty", func(t *testing.T) {
 		emptyDir := filepath.Join(tmpDir, "empty")
-		os.MkdirAll(emptyDir, 0755)
+		_ = os.MkdirAll(emptyDir, 0755)
 		got := listSequenceDirs(emptyDir)
-		if got != nil && len(got) != 0 {
+		if len(got) != 0 {
 			t.Errorf("listSequenceDirs on empty dir returned %v, want nil or empty", got)
 		}
 	})
@@ -306,21 +306,21 @@ func TestLooksLikeFestivalDir(t *testing.T) {
 
 	// Create a festival-like directory with FESTIVAL_OVERVIEW.md
 	festivalWithOverview := filepath.Join(tmpDir, "with_overview")
-	os.MkdirAll(festivalWithOverview, 0755)
-	os.WriteFile(filepath.Join(festivalWithOverview, "FESTIVAL_OVERVIEW.md"), []byte("test"), 0644)
+	_ = os.MkdirAll(festivalWithOverview, 0755)
+	_ = os.WriteFile(filepath.Join(festivalWithOverview, "FESTIVAL_OVERVIEW.md"), []byte("test"), 0644)
 
 	// Create a festival-like directory with FESTIVAL_GOAL.md
 	festivalWithGoal := filepath.Join(tmpDir, "with_goal")
-	os.MkdirAll(festivalWithGoal, 0755)
-	os.WriteFile(filepath.Join(festivalWithGoal, "FESTIVAL_GOAL.md"), []byte("test"), 0644)
+	_ = os.MkdirAll(festivalWithGoal, 0755)
+	_ = os.WriteFile(filepath.Join(festivalWithGoal, "FESTIVAL_GOAL.md"), []byte("test"), 0644)
 
 	// Create a directory with phase directories
 	festivalWithPhases := filepath.Join(tmpDir, "with_phases")
-	os.MkdirAll(filepath.Join(festivalWithPhases, "001_PLANNING"), 0755)
+	_ = os.MkdirAll(filepath.Join(festivalWithPhases, "001_PLANNING"), 0755)
 
 	// Create an empty directory
 	emptyDir := filepath.Join(tmpDir, "empty")
-	os.MkdirAll(emptyDir, 0755)
+	_ = os.MkdirAll(emptyDir, 0755)
 
 	tests := []struct {
 		name string
@@ -348,10 +348,10 @@ func TestResolvePhaseDirInput(t *testing.T) {
 
 	// Create festival structure
 	festivalDir := tmpDir
-	os.MkdirAll(filepath.Join(festivalDir, "001_PLANNING"), 0755)
-	os.MkdirAll(filepath.Join(festivalDir, "002_IMPLEMENT"), 0755)
-	os.MkdirAll(filepath.Join(festivalDir, "003_REVIEW"), 0755)
-	os.WriteFile(filepath.Join(festivalDir, "FESTIVAL_OVERVIEW.md"), []byte("test"), 0644)
+	_ = os.MkdirAll(filepath.Join(festivalDir, "001_PLANNING"), 0755)
+	_ = os.MkdirAll(filepath.Join(festivalDir, "002_IMPLEMENT"), 0755)
+	_ = os.MkdirAll(filepath.Join(festivalDir, "003_REVIEW"), 0755)
+	_ = os.WriteFile(filepath.Join(festivalDir, "FESTIVAL_OVERVIEW.md"), []byte("test"), 0644)
 
 	phaseDir := filepath.Join(festivalDir, "002_IMPLEMENT")
 
@@ -477,10 +477,10 @@ func TestResolveSequenceDirInput(t *testing.T) {
 	// Create festival structure
 	festivalDir := tmpDir
 	phaseDir := filepath.Join(festivalDir, "001_PLANNING")
-	os.MkdirAll(filepath.Join(phaseDir, "01_requirements"), 0755)
-	os.MkdirAll(filepath.Join(phaseDir, "02_design"), 0755)
-	os.MkdirAll(filepath.Join(phaseDir, "03_implementation"), 0755)
-	os.WriteFile(filepath.Join(festivalDir, "FESTIVAL_OVERVIEW.md"), []byte("test"), 0644)
+	_ = os.MkdirAll(filepath.Join(phaseDir, "01_requirements"), 0755)
+	_ = os.MkdirAll(filepath.Join(phaseDir, "02_design"), 0755)
+	_ = os.MkdirAll(filepath.Join(phaseDir, "03_implementation"), 0755)
+	_ = os.WriteFile(filepath.Join(festivalDir, "FESTIVAL_OVERVIEW.md"), []byte("test"), 0644)
 
 	sequenceDir := filepath.Join(phaseDir, "02_design")
 
@@ -597,7 +597,7 @@ func TestNextPhaseAfter(t *testing.T) {
 
 	t.Run("single phase returns its number", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
+		_ = os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
 		got := nextPhaseAfter(context.Background(), tmpDir)
 		if got != 1 {
 			t.Errorf("nextPhaseAfter with one phase = %d, want 1", got)
@@ -606,9 +606,9 @@ func TestNextPhaseAfter(t *testing.T) {
 
 	t.Run("multiple phases returns max", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
-		os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
-		os.MkdirAll(filepath.Join(tmpDir, "003_REVIEW"), 0755)
+		_ = os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
+		_ = os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
+		_ = os.MkdirAll(filepath.Join(tmpDir, "003_REVIEW"), 0755)
 		got := nextPhaseAfter(context.Background(), tmpDir)
 		if got != 3 {
 			t.Errorf("nextPhaseAfter with three phases = %d, want 3", got)
@@ -617,8 +617,8 @@ func TestNextPhaseAfter(t *testing.T) {
 
 	t.Run("gaps in numbering returns max", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
-		os.MkdirAll(filepath.Join(tmpDir, "005_DEPLOY"), 0755)
+		_ = os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
+		_ = os.MkdirAll(filepath.Join(tmpDir, "005_DEPLOY"), 0755)
 		got := nextPhaseAfter(context.Background(), tmpDir)
 		if got != 5 {
 			t.Errorf("nextPhaseAfter with gap = %d, want 5", got)
@@ -637,9 +637,9 @@ func TestNextSequenceAfter(t *testing.T) {
 
 	t.Run("multiple sequences returns max", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		os.MkdirAll(filepath.Join(tmpDir, "01_req"), 0755)
-		os.MkdirAll(filepath.Join(tmpDir, "02_design"), 0755)
-		os.MkdirAll(filepath.Join(tmpDir, "03_impl"), 0755)
+		_ = os.MkdirAll(filepath.Join(tmpDir, "01_req"), 0755)
+		_ = os.MkdirAll(filepath.Join(tmpDir, "02_design"), 0755)
+		_ = os.MkdirAll(filepath.Join(tmpDir, "03_impl"), 0755)
 		got := nextSequenceAfter(context.Background(), tmpDir)
 		if got != 3 {
 			t.Errorf("nextSequenceAfter = %d, want 3", got)
@@ -658,9 +658,9 @@ func TestNextTaskAfter(t *testing.T) {
 
 	t.Run("multiple tasks returns max", func(t *testing.T) {
 		tmpDir := t.TempDir()
-		os.WriteFile(filepath.Join(tmpDir, "01_task_a.md"), []byte("task"), 0644)
-		os.WriteFile(filepath.Join(tmpDir, "02_task_b.md"), []byte("task"), 0644)
-		os.WriteFile(filepath.Join(tmpDir, "03_task_c.md"), []byte("task"), 0644)
+		_ = os.WriteFile(filepath.Join(tmpDir, "01_task_a.md"), []byte("task"), 0644)
+		_ = os.WriteFile(filepath.Join(tmpDir, "02_task_b.md"), []byte("task"), 0644)
+		_ = os.WriteFile(filepath.Join(tmpDir, "03_task_c.md"), []byte("task"), 0644)
 		got := nextTaskAfter(context.Background(), tmpDir)
 		if got != 3 {
 			t.Errorf("nextTaskAfter = %d, want 3", got)
@@ -754,7 +754,7 @@ func TestWriteTempVarsFile(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		defer os.Remove(path)
+		defer func() { _ = os.Remove(path) }()
 
 		if path == "" {
 			t.Fatal("expected non-empty path")

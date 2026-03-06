@@ -22,8 +22,8 @@ func TestAtomicStatusChange(t *testing.T) {
 			name: "successful planning to active",
 			setupFn: func(baseDir string) string {
 				path := filepath.Join(baseDir, "planning", "test-festival")
-				os.MkdirAll(path, 0755)
-				os.WriteFile(filepath.Join(path, "FESTIVAL_OVERVIEW.md"), []byte("test"), 0644)
+				_ = os.MkdirAll(path, 0755)
+				_ = os.WriteFile(filepath.Join(path, "FESTIVAL_OVERVIEW.md"), []byte("test"), 0644)
 				return path
 			},
 			fromStatus: "planning",
@@ -34,8 +34,8 @@ func TestAtomicStatusChange(t *testing.T) {
 			name: "successful active to completed with date",
 			setupFn: func(baseDir string) string {
 				path := filepath.Join(baseDir, "active", "test-festival")
-				os.MkdirAll(path, 0755)
-				os.WriteFile(filepath.Join(path, "FESTIVAL_OVERVIEW.md"), []byte("test"), 0644)
+				_ = os.MkdirAll(path, 0755)
+				_ = os.WriteFile(filepath.Join(path, "FESTIVAL_OVERVIEW.md"), []byte("test"), 0644)
 				return path
 			},
 			fromStatus: "active",

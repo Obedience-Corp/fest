@@ -65,7 +65,7 @@ func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions
 		fmt.Fprintf(os.Stderr, "File watching unavailable (%v), using polling fallback\n", err)
 		return runPollingMode(ctx, festival, opts)
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 
 	return w.Watch(ctx)
 }

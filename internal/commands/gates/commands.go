@@ -165,32 +165,32 @@ func printGatesShowMergedTable(cmd *cobra.Command, merged *gatescore.MergedPolic
 	} else if phase != "" {
 		location = phase
 	}
-	fmt.Fprintln(out, ui.H1("Gate Policy"))
-	fmt.Fprintf(out, "%s %s\n", ui.Label("Scope"), ui.Value(location))
-	fmt.Fprintln(out, ui.Dim(strings.Repeat("─", 60)))
+	_, _ = fmt.Fprintln(out, ui.H1("Gate Policy"))
+	_, _ = fmt.Fprintf(out, "%s %s\n", ui.Label("Scope"), ui.Value(location))
+	_, _ = fmt.Fprintln(out, ui.Dim(strings.Repeat("─", 60)))
 
 	// Show configuration sources
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, ui.H2("Configuration Sources"))
+	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out, ui.H2("Configuration Sources"))
 	if len(merged.Sources) == 0 {
-		fmt.Fprintln(out, ui.Dim("No configuration sources found."))
+		_, _ = fmt.Fprintln(out, ui.Dim("No configuration sources found."))
 	} else {
 		for _, src := range merged.Sources {
 			target := src.Path
 			if target == "" {
 				target = src.Name
 			}
-			fmt.Fprintf(out, "  %s\n", ui.Dim(target))
+			_, _ = fmt.Fprintf(out, "  %s\n", ui.Dim(target))
 		}
 	}
 
 	// Active gates organized by phase type
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, ui.H2("Active Gates"))
+	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out, ui.H2("Active Gates"))
 
 	activeGates := merged.GetActiveGates()
 	if len(activeGates) == 0 {
-		fmt.Fprintln(out, ui.Dim("No active gates."))
+		_, _ = fmt.Fprintln(out, ui.Dim("No active gates."))
 	} else {
 		// Group gates by phase type from template path (e.g., gates/implementation/...)
 		phaseGates := make(map[string][]gatescore.GateTask)
@@ -207,9 +207,9 @@ func printGatesShowMergedTable(cmd *cobra.Command, merged *gatescore.MergedPolic
 			if len(gates) == 0 {
 				continue
 			}
-			fmt.Fprintf(out, "\n%s\n", ui.Value(phaseType))
+			_, _ = fmt.Fprintf(out, "\n%s\n", ui.Value(phaseType))
 			for _, gate := range gates {
-				fmt.Fprintf(out, "  %s\n", ui.Value(gate.ID, ui.GateColor))
+				_, _ = fmt.Fprintf(out, "  %s\n", ui.Value(gate.ID, ui.GateColor))
 			}
 		}
 	}
@@ -219,15 +219,15 @@ func printGatesShowMergedTable(cmd *cobra.Command, merged *gatescore.MergedPolic
 	for _, gate := range merged.Gates {
 		if gate.Removed {
 			if !hasRemoved {
-				fmt.Fprintln(out)
-				fmt.Fprintln(out, ui.H2("Removed Gates"))
+				_, _ = fmt.Fprintln(out)
+				_, _ = fmt.Fprintln(out, ui.H2("Removed Gates"))
 				hasRemoved = true
 			}
 			source := "unknown"
 			if gate.Source != nil {
 				source = string(gate.Source.Level)
 			}
-			fmt.Fprintf(out, "%s %s\n",
+			_, _ = fmt.Fprintf(out, "%s %s\n",
 				ui.Warning(gate.ID),
 				ui.Dim(fmt.Sprintf("removed at %s level", source)))
 		}
@@ -235,14 +235,14 @@ func printGatesShowMergedTable(cmd *cobra.Command, merged *gatescore.MergedPolic
 
 	// Show exclude patterns if any
 	if len(merged.ExcludePatterns) > 0 {
-		fmt.Fprintln(out)
-		fmt.Fprintln(out, ui.H2("Exclude Patterns"))
+		_, _ = fmt.Fprintln(out)
+		_, _ = fmt.Fprintln(out, ui.H2("Exclude Patterns"))
 		for _, pattern := range merged.ExcludePatterns {
-			fmt.Fprintf(out, "%s %s\n", ui.Dim("•"), ui.Dim(pattern))
+			_, _ = fmt.Fprintf(out, "%s %s\n", ui.Dim("•"), ui.Dim(pattern))
 		}
 	}
 
-	fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out)
 	return nil
 }
 

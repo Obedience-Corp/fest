@@ -11,19 +11,19 @@ func setupTemplateTestFestival(t *testing.T, phaseType string, content string) s
 	dir := t.TempDir()
 
 	// Create FESTIVAL_OVERVIEW.md
-	os.WriteFile(filepath.Join(dir, "FESTIVAL_OVERVIEW.md"), []byte("# Test Festival\n"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "FESTIVAL_OVERVIEW.md"), []byte("# Test Festival\n"), 0644)
 
 	phasePath := filepath.Join(dir, "001_PHASE")
-	os.MkdirAll(phasePath, 0755)
+	_ = os.MkdirAll(phasePath, 0755)
 
 	// Write PHASE_GOAL.md with frontmatter
 	goalContent := "---\nfest_type: phase\nfest_phase_type: " + phaseType + "\nfest_status: pending\nfest_id: P001\nfest_parent: F001\nfest_order: 1\nfest_created: 2026-01-01T00:00:00Z\n---\n# Phase Goal\n"
-	os.WriteFile(filepath.Join(phasePath, "PHASE_GOAL.md"), []byte(goalContent), 0644)
+	_ = os.WriteFile(filepath.Join(phasePath, "PHASE_GOAL.md"), []byte(goalContent), 0644)
 
 	// Write a task file with the given content
 	seqPath := filepath.Join(phasePath, "01_seq")
-	os.MkdirAll(seqPath, 0755)
-	os.WriteFile(filepath.Join(seqPath, "01_task.md"), []byte(content), 0644)
+	_ = os.MkdirAll(seqPath, 0755)
+	_ = os.WriteFile(filepath.Join(seqPath, "01_task.md"), []byte(content), 0644)
 
 	return dir
 }
@@ -176,11 +176,11 @@ func TestValidateTemplateMarkers_SkipsInlineCode(t *testing.T) {
 
 func TestValidateTemplateMarkers_SkipsGatesDirectory(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "FESTIVAL_OVERVIEW.md"), []byte("# Test\n"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "FESTIVAL_OVERVIEW.md"), []byte("# Test\n"), 0644)
 
 	gatesPath := filepath.Join(dir, "gates")
-	os.MkdirAll(gatesPath, 0755)
-	os.WriteFile(filepath.Join(gatesPath, "gate.md"), []byte("[FILL: intentional template]\n"), 0644)
+	_ = os.MkdirAll(gatesPath, 0755)
+	_ = os.WriteFile(filepath.Join(gatesPath, "gate.md"), []byte("[FILL: intentional template]\n"), 0644)
 
 	issues, err := ValidateTemplateMarkers(dir)
 	if err != nil {
@@ -197,16 +197,16 @@ func TestValidateTemplateMarkers_SkipsGatesDirectory(t *testing.T) {
 func TestValidateTemplateMarkers_DefaultsToImplementation(t *testing.T) {
 	// Phase with no frontmatter → defaults to implementation → error level
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "FESTIVAL_OVERVIEW.md"), []byte("# Test\n"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "FESTIVAL_OVERVIEW.md"), []byte("# Test\n"), 0644)
 
 	phasePath := filepath.Join(dir, "001_PHASE")
-	os.MkdirAll(phasePath, 0755)
+	_ = os.MkdirAll(phasePath, 0755)
 	// PHASE_GOAL.md without frontmatter
-	os.WriteFile(filepath.Join(phasePath, "PHASE_GOAL.md"), []byte("# Phase Goal\nNo frontmatter here.\n"), 0644)
+	_ = os.WriteFile(filepath.Join(phasePath, "PHASE_GOAL.md"), []byte("# Phase Goal\nNo frontmatter here.\n"), 0644)
 
 	seqPath := filepath.Join(phasePath, "01_seq")
-	os.MkdirAll(seqPath, 0755)
-	os.WriteFile(filepath.Join(seqPath, "01_task.md"), []byte("[FILL: missing]\n"), 0644)
+	_ = os.MkdirAll(seqPath, 0755)
+	_ = os.WriteFile(filepath.Join(seqPath, "01_task.md"), []byte("[FILL: missing]\n"), 0644)
 
 	issues, err := ValidateTemplateMarkers(dir)
 	if err != nil {

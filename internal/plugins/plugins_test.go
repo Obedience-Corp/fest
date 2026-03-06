@@ -75,7 +75,7 @@ func TestLoadSaveManifest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	manifest := &PluginManifest{
 		Version: 1,

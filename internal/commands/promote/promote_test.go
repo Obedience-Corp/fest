@@ -40,7 +40,7 @@ func TestValidTransitions(t *testing.T) {
 func TestValidatePlannedToReady(t *testing.T) {
 	t.Run("with goal file", func(t *testing.T) {
 		dir := t.TempDir()
-		os.WriteFile(filepath.Join(dir, "FESTIVAL_GOAL.md"), []byte("# Goal\nTest"), 0644)
+		_ = os.WriteFile(filepath.Join(dir, "FESTIVAL_GOAL.md"), []byte("# Goal\nTest"), 0644)
 
 		festival := &show.FestivalInfo{
 			Name:   "test-festival",

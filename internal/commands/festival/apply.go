@@ -58,7 +58,7 @@ func NewApplyCommand() *cobra.Command {
 	cmd.Flags().StringVar(&opts.VarsFile, "vars-file", "", "JSON file providing variables for rendering")
 	cmd.Flags().BoolVar(&opts.JSONOutput, "json", false, "Emit JSON output")
 
-	cmd.MarkFlagRequired("to")
+	_ = cmd.MarkFlagRequired("to")
 
 	return cmd
 }

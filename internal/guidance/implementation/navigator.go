@@ -296,7 +296,7 @@ func (n *Navigator) MarkComplete(ctx context.Context, stepID string) error {
 		}
 	}
 
-	return n.BaseNavigator.MarkTaskStatus(ctx, stepID, StatusCompleted)
+	return n.MarkTaskStatus(ctx, stepID, StatusCompleted)
 }
 
 // MarkSkipped marks the specified step/task as skipped.
@@ -313,7 +313,7 @@ func (n *Navigator) MarkSkipped(ctx context.Context, stepID string) error {
 		}
 	}
 
-	return n.BaseNavigator.MarkTaskStatus(ctx, stepID, StatusSkipped)
+	return n.MarkTaskStatus(ctx, stepID, StatusSkipped)
 }
 
 // MarkFailed marks the specified step/task as failed.
@@ -330,7 +330,7 @@ func (n *Navigator) MarkFailed(ctx context.Context, stepID string) error {
 		}
 	}
 
-	return n.BaseNavigator.MarkTaskStatus(ctx, stepID, StatusFailed)
+	return n.MarkTaskStatus(ctx, stepID, StatusFailed)
 }
 
 // Advance moves to the next position (phase, sequence, step).

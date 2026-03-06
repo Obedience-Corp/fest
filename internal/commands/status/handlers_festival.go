@@ -485,7 +485,7 @@ func AutoCommitStatusChange(ctx context.Context, festivalName, festivalID, oldSt
 	}
 
 	// Build commit message.
-	message := fmt.Sprintf("chore(fest): status change: %s", festivalName)
+	var message string
 	if festivalID != "" {
 		message = fmt.Sprintf("chore(fest): status change: %s (%s) %s -> %s", festivalName, festivalID, oldStatus, newStatus)
 	} else {

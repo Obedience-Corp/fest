@@ -111,7 +111,7 @@ func (c *Copier) copyFile(ctx context.Context, src, dst string, mode os.FileMode
 	if err != nil {
 		return errors.IO("opening source file", err).WithField("path", src)
 	}
-	defer srcFile.Close()
+	defer func() { _ = srcFile.Close() }()
 
 	// Create destination directory if needed
 	dstDir := filepath.Dir(dst)
@@ -124,7 +124,7 @@ func (c *Copier) copyFile(ctx context.Context, src, dst string, mode os.FileMode
 	if err != nil {
 		return errors.IO("creating destination file", err).WithField("path", dst)
 	}
-	defer dstFile.Close()
+	defer func() { _ = dstFile.Close() }()
 
 	// Copy content
 	if _, err := io.Copy(dstFile, srcFile); err != nil {
