@@ -41,12 +41,41 @@ default:
 build:
     @{{BUILDTOOL}} build
 
+# Build fest binary in stable profile (default command surface)
+build-stable:
+    BUILD_TAGS='' just build
+
+# Build fest binary in dev profile (includes dev-only commands)
+build-dev:
+    BUILD_TAGS=dev just build
+
 # Build fest binary only (fast, no vet)
 build-only:
-    @echo "Building fest..."
-    @mkdir -p {{bin_dir}}
-    go build -ldflags '{{ldflags}}' -o {{bin_dir}}/{{binary_name}} ./cmd/fest
-    @echo "Built {{bin_dir}}/{{binary_name}}"
+    @{{BUILDTOOL}} build-only
+
+# Build fest binary only in stable profile
+build-only-stable:
+    BUILD_TAGS='' just build-only
+
+# Build fest binary only in dev profile
+build-only-dev:
+    BUILD_TAGS=dev just build-only
+
+# Cross-platform builds in stable profile
+xbuild-stable:
+    BUILD_TAGS='' just xbuild all
+
+# Cross-platform builds in dev profile
+xbuild-dev:
+    BUILD_TAGS=dev just xbuild all
+
+# Release packages in stable profile
+release-packages-stable:
+    BUILD_TAGS='' just release release
+
+# Release packages in dev profile
+release-packages-dev:
+    BUILD_TAGS=dev just release release
 
 # Format Go code
 fmt:
@@ -103,5 +132,3 @@ uninstall:
     else
         echo "fest not found in {{gobin}}"
     fi
-
-

@@ -42,7 +42,8 @@ STATUS can be: active, planning, completed, dungeon`,
   fest explore completed    # Explore completed festivals
   fest explore dungeon      # Explore dungeon festivals`,
 		Annotations: map[string]string{
-			"scope": string(scope.Workspace),
+			"scope":           string(scope.Workspace),
+			"release_channel": "dev_only",
 		},
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -72,7 +73,8 @@ func newStatusSubcommand(status, short string) *cobra.Command {
 		Use:   status,
 		Short: short,
 		Annotations: map[string]string{
-			"scope": string(scope.Workspace),
+			"scope":           string(scope.Workspace),
+			"release_channel": "dev_only",
 		},
 		RunE: func(c *cobra.Command, args []string) error {
 			return runExplore(c.Context(), opts, status)
