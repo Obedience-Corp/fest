@@ -159,17 +159,20 @@ func runCommit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Build fest-tagged commit message.
+	// Resolve workspace for campaign integration (nil-safe: ok if absent).
+	ws, _ := scope.WorkspaceFrom(ctx)
+
+	// Build commit message with consolidated tag.
+	// When both campaign and fest refs exist, consolidate into one tag:
+	//   [OBEY-CAMPAIGN-{cid}-FE-{fid}] msg
+	// instead of two separate tags.
 	festMessage := message
 	if ref != "" {
 		festMessage = fmt.Sprintf("[%s] %s", ref, message)
 	}
 
-	// Resolve workspace for campaign integration (nil-safe: ok if absent).
-	ws, _ := scope.WorkspaceFrom(ctx)
-
 	// Execute commit with optional campaign tag prepend and submodule sync.
-	if err := commitWithCampaignSupport(ctx, ws, festMessage, result); err != nil {
+	if err := commitWithCampaignSupport(ctx, ws, ref, festMessage, result); err != nil {
 		result.Success = false
 		result.Error = err.Error()
 		return outputResult(result)
@@ -340,10 +343,10 @@ func loadFestivalID(festivalPath, campaignRoot string) (string, error) {
 }
 
 // commitWithCampaignSupport executes the git commit with optional campaign
-// integration. If the workspace is a campaign, it prepends [OBEY-CAMPAIGN-{id}]
-// to the message and syncs the submodule ref after committing. Campaign
-// detection or sync failures degrade gracefully — the commit still proceeds.
-func commitWithCampaignSupport(ctx context.Context, ws *scope.WorkspaceInfo, festMessage string, result *CommitResult) error {
+// integration. If the workspace is a campaign, it consolidates campaign and
+// festival refs into a single tag: [OBEY-CAMPAIGN-{cid}-FE-{fid}].
+// Campaign detection or sync failures degrade gracefully — the commit still proceeds.
+func commitWithCampaignSupport(ctx context.Context, ws *scope.WorkspaceInfo, festRef, festMessage string, result *CommitResult) error {
 	commitMessage := festMessage
 
 	var campaignID string
@@ -351,9 +354,24 @@ func commitWithCampaignSupport(ctx context.Context, ws *scope.WorkspaceInfo, fes
 		cid, err := commitkit.DetectCampaign(ctx)
 		if err == nil && cid != "" {
 			campaignID = cid
-			tag := commitkit.FormatCampaignTag(campaignID)
-			commitMessage = tag + " " + festMessage
-			result.CampaignTag = tag
+			if festRef != "" {
+				// Consolidate: [OBEY-CAMPAIGN-{cid}-FE-{fid}] msg
+				// instead of [OBEY-CAMPAIGN-{cid}] [OBEY-FE-{fid}] msg
+				shortID := campaignID
+				if len(shortID) > 8 {
+					shortID = shortID[:8]
+				}
+				// festRef is "OBEY-FE-{id}" — strip the "OBEY-" prefix to avoid
+				// redundancy in the consolidated tag.
+				componentRef := strings.TrimPrefix(festRef, "OBEY-")
+				tag := fmt.Sprintf("[OBEY-CAMPAIGN-%s-%s]", shortID, componentRef)
+				commitMessage = tag + " " + message
+				result.CampaignTag = tag
+			} else {
+				tag := commitkit.FormatCampaignTag(campaignID)
+				commitMessage = tag + " " + festMessage
+				result.CampaignTag = tag
+			}
 		}
 	}
 
