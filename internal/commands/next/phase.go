@@ -308,4 +308,3 @@ func findFirstIncompletePhaseGate(ctx context.Context, festivalPath string) (str
 func isPhaseWorkAndWorkflowComplete(ctx context.Context, storeLoaded bool, store *progress.Store, phasePath, phaseName string) bool {
 	return shared.ArePhaseTasksAndWorkflowComplete(ctx, storeLoaded, store, phasePath, phaseName)
 }
-

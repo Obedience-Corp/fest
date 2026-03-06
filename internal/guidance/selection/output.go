@@ -237,12 +237,12 @@ func formatTextPlanning(result *NextTaskResult) string {
 	}
 
 	data := struct {
-		InstructionHeader    string
-		Header               string
-		PhaseInfoSection     string
-		ObjectivesSection    string
-		NoObjectivesSection  string
-		NextStepsSection     string
+		InstructionHeader   string
+		Header              string
+		PhaseInfoSection    string
+		ObjectivesSection   string
+		NoObjectivesSection string
+		NextStepsSection    string
 	}{
 		InstructionHeader:   guidance.InstructionHeader,
 		Header:              ui.H1("Planning Phase"),

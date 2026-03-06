@@ -234,4 +234,3 @@ func runPhaseGateMode(ctx context.Context, festivalPath, phasePath string) error
 	printFeedbackReminder(ctx, festivalPath)
 	return nil
 }
-
