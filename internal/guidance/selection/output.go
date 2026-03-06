@@ -30,8 +30,38 @@ func FormatText(result *NextTaskResult, showInlineContext bool) string {
 	}
 }
 
-// FormatJSON formats the result as JSON
+// FormatJSON formats the result as JSON, enriching with layered goals and task content
+// to achieve parity with text output.
 func FormatJSON(result *NextTaskResult) (string, error) {
+	// Enrich with layered goals
+	if result.Task != nil && result.Location != nil {
+		goals := extractLayeredGoals(result.Location, result.Task)
+		if goals.FestivalGoal != "" || goals.PhaseGoal != "" || goals.SequenceGoal != "" {
+			result.LayeredGoals = &JSONLayeredGoals{
+				FestivalGoal: goals.FestivalGoal,
+				PhaseGoal:    goals.PhaseGoal,
+				SequenceGoal: goals.SequenceGoal,
+			}
+		}
+
+		// Enrich with task content and gate content from a single read
+		if fileData, err := os.ReadFile(result.Task.Path); err == nil {
+			body := stripFrontmatter(string(fileData))
+			if strings.TrimSpace(body) != "" {
+				result.TaskContent = body
+			}
+
+			// Check if this is a gate task
+			fm, fmBody, fmErr := frontmatter.Parse(fileData)
+			if fmErr == nil && fm != nil && fm.GateType != "" {
+				gateBody := strings.TrimSpace(string(fmBody))
+				if gateBody != "" {
+					result.GateContent = gateBody
+				}
+			}
+		}
+	}
+
 	data, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		return "", err
@@ -113,37 +143,30 @@ func formatTextNoTask(result *NextTaskResult) string {
 
 func formatTextPlanning(result *NextTaskResult) string {
 	p := result.Planning
-	var sb strings.Builder
 
-	// Header
-	sb.WriteString(ui.H1("Planning Phase"))
-	sb.WriteString("\n")
-
-	// Phase info
-	ui.WriteLabelValue(&sb, "Phase", ui.Value(p.PhaseName, ui.PhaseColor))
-	ui.WriteLabelValue(&sb, "Type", ui.Value(p.PhaseType))
-
-	// Progress
+	// Build phase info section
+	var phaseInfo strings.Builder
+	ui.WriteLabelValue(&phaseInfo, "Phase", ui.Value(p.PhaseName, ui.PhaseColor))
+	ui.WriteLabelValue(&phaseInfo, "Type", ui.Value(p.PhaseType))
 	if p.Progress != nil {
 		progressStr := fmt.Sprintf("%.0f%% (%d/%d objectives)",
 			p.Progress.Percentage,
 			p.Progress.ResolvedObjectives,
 			p.Progress.TotalObjectives)
 		if p.GraduationReady {
-			ui.WriteLabelValue(&sb, "Progress", ui.Success(progressStr+" - Ready to promote!"))
+			ui.WriteLabelValue(&phaseInfo, "Progress", ui.Success(progressStr+" - Ready to promote!"))
 		} else {
-			ui.WriteLabelValue(&sb, "Progress", ui.Info(progressStr))
+			ui.WriteLabelValue(&phaseInfo, "Progress", ui.Info(progressStr))
 		}
 	}
 
-	sb.WriteString("\n")
-
-	// Objectives by category
+	// Build objectives section
+	var objectivesSection string
 	if len(p.Objectives) > 0 {
+		var sb strings.Builder
 		sb.WriteString(ui.H2("Objectives from PHASE_GOAL.md"))
 		sb.WriteString("\n")
 
-		// Group by category
 		categories := map[string][]*PlanningObjective{
 			"question":  {},
 			"decision":  {},
@@ -154,7 +177,6 @@ func formatTextPlanning(result *NextTaskResult) string {
 			categories[obj.Category] = append(categories[obj.Category], obj)
 		}
 
-		// Display each category with objectives
 		categoryTitles := map[string]string{
 			"question":  "Questions to Answer",
 			"decision":  "Decisions to Make",
@@ -175,36 +197,62 @@ func formatTextPlanning(result *NextTaskResult) string {
 				if obj.Resolved {
 					icon = ui.StateIcon("completed")
 				}
-				sb.WriteString(fmt.Sprintf("  %s %s\n", icon, obj.Text))
+				fmt.Fprintf(&sb, "  %s %s\n", icon, obj.Text)
 			}
 			sb.WriteString("\n")
 		}
-	} else {
+		objectivesSection = sb.String()
+	}
+
+	// Build no-objectives fallback
+	var noObjectivesSection string
+	if len(p.Objectives) == 0 {
+		var sb strings.Builder
 		sb.WriteString(ui.Dim("No planning objectives found in PHASE_GOAL.md"))
 		sb.WriteString("\n")
 		sb.WriteString(ui.Info("Add objectives as checkboxes under 'Planning Objectives' section"))
-		sb.WriteString("\n\n")
+		sb.WriteString("\n")
+		noObjectivesSection = sb.String()
 	}
 
-	// Graduation hint or next steps
+	// Build next steps section
+	var nextSteps strings.Builder
 	if p.GraduationReady {
-		sb.WriteString(ui.H2("Next Step"))
-		sb.WriteString("\n")
-		sb.WriteString(ui.Success("All objectives resolved! Ready to promote."))
-		sb.WriteString("\n\n")
-		sb.WriteString(fmt.Sprintf("  Run: %s\n\n", ui.Value("fest promote")))
-		sb.WriteString(ui.Info("This will promote the festival to the next lifecycle status."))
-		sb.WriteString("\n")
+		nextSteps.WriteString(ui.H2("Next Step"))
+		nextSteps.WriteString("\n")
+		nextSteps.WriteString(ui.Success("All objectives resolved! Ready to promote."))
+		nextSteps.WriteString("\n\n")
+		fmt.Fprintf(&nextSteps, "  Run: %s\n\n", ui.Value("fest promote"))
+		nextSteps.WriteString(ui.Info("This will promote the festival to the next lifecycle status."))
+		nextSteps.WriteString("\n")
 	} else {
-		sb.WriteString(ui.H2("Suggested Actions"))
-		sb.WriteString("\n")
-		sb.WriteString("  - Explore the problem space and document findings\n")
-		sb.WriteString("  - Update PHASE_GOAL.md checkboxes as objectives are resolved\n")
-		sb.WriteString("  - Create topic directories for deep exploration\n")
-		sb.WriteString("  - Run 'fest promote' when all objectives are complete\n")
+		nextSteps.WriteString(ui.H2("Suggested Actions"))
+		nextSteps.WriteString("\n")
+		nextSteps.WriteString("  - Explore the problem space and document findings\n")
+		nextSteps.WriteString("  - Update PHASE_GOAL.md checkboxes as objectives are resolved\n")
+		nextSteps.WriteString("  - Create topic directories for deep exploration\n")
+		nextSteps.WriteString("  - Run 'fest promote' when all objectives are complete\n")
 	}
 
-	return sb.String()
+	data := struct {
+		InstructionHeader   string
+		Header              string
+		PhaseInfoSection    string
+		ObjectivesSection   string
+		NoObjectivesSection string
+		NextStepsSection    string
+	}{
+		InstructionHeader:   guidance.InstructionHeader,
+		Header:              ui.H1("Planning Phase"),
+		PhaseInfoSection:    phaseInfo.String(),
+		ObjectivesSection:   objectivesSection,
+		NoObjectivesSection: noObjectivesSection,
+		NextStepsSection:    nextSteps.String(),
+	}
+
+	var buf bytes.Buffer
+	agent.MustGet("next/planning").Execute(&buf, data)
+	return buf.String()
 }
 
 func formatTextTask(result *NextTaskResult, showInlineContext bool) string {
@@ -275,6 +323,7 @@ func formatTextTask(result *NextTaskResult, showInlineContext bool) string {
 	}
 
 	data := struct {
+		InstructionHeader    string
 		Header               string
 		TaskLine             string
 		PathLine             string
@@ -290,6 +339,7 @@ func formatTextTask(result *NextTaskResult, showInlineContext bool) string {
 		FestivalRulesSection string
 		ShowInlineContext    bool
 	}{
+		InstructionHeader:    guidance.InstructionHeader,
 		Header:               ui.H1("Next Task"),
 		TaskLine:             labelValue("Task", ui.Value(result.Task.Name, ui.TaskColor)),
 		PathLine:             labelValue("Path", ui.Dim(taskRelPath)),
@@ -554,32 +604,37 @@ func labelValue(label, value string) string {
 }
 
 func formatVerboseComplete(result *NextTaskResult) string {
-	var sb strings.Builder
-
-	sb.WriteString(ui.H2("Festival Complete"))
-	sb.WriteString("\n")
-	sb.WriteString(ui.Success("All tasks in the festival have been completed."))
-	sb.WriteString("\n")
-	sb.WriteString(ui.Info("Congratulations on finishing the festival!"))
+	var reasonLine string
 	if result.Reason != "" {
-		sb.WriteString("\n")
-		ui.WriteLabelValue(&sb, "Reason", ui.Info(result.Reason))
+		reasonLine = labelValue("Reason", ui.Info(result.Reason))
 	}
 
-	return sb.String()
+	data := struct {
+		Header     string
+		Message    string
+		Congrats   string
+		ReasonLine string
+	}{
+		Header:     ui.H2("Festival Complete"),
+		Message:    ui.Success("All tasks in the festival have been completed."),
+		Congrats:   ui.Info("Congratulations on finishing the festival!"),
+		ReasonLine: reasonLine,
+	}
+
+	var buf bytes.Buffer
+	agent.MustGet("next/verbose_complete").Execute(&buf, data)
+	return buf.String()
 }
 
 func formatVerboseNoTask(result *NextTaskResult) string {
-	var sb strings.Builder
-
-	sb.WriteString(ui.H2("No Tasks Available"))
-	sb.WriteString("\n")
+	var reasonLine string
 	if result.Reason != "" {
-		ui.WriteLabelValue(&sb, "Reason", ui.Info(result.Reason))
+		reasonLine = labelValue("Reason", ui.Info(result.Reason))
 	}
 
+	var locationSection string
 	if result.Location != nil {
-		sb.WriteString("\n")
+		var sb strings.Builder
 		sb.WriteString(ui.H3("Location"))
 		sb.WriteString("\n")
 		ui.WriteLabelValue(&sb, "Festival", ui.Dim(result.Location.FestivalPath))
@@ -589,9 +644,22 @@ func formatVerboseNoTask(result *NextTaskResult) string {
 		if result.Location.SequencePath != "" {
 			ui.WriteLabelValue(&sb, "Sequence", ui.Dim(filepath.Base(result.Location.SequencePath)))
 		}
+		locationSection = sb.String()
 	}
 
-	return sb.String()
+	data := struct {
+		Header          string
+		ReasonLine      string
+		LocationSection string
+	}{
+		Header:          ui.H2("No Tasks Available"),
+		ReasonLine:      reasonLine,
+		LocationSection: locationSection,
+	}
+
+	var buf bytes.Buffer
+	agent.MustGet("next/verbose_no_task").Execute(&buf, data)
+	return buf.String()
 }
 
 func formatVerbosePlanning(result *NextTaskResult) string {
@@ -601,28 +669,60 @@ func formatVerbosePlanning(result *NextTaskResult) string {
 }
 
 func formatVerboseTask(result *NextTaskResult, showInlineContext bool) string {
-	var sb strings.Builder
+	// Build each section
+	var taskDetails strings.Builder
+	writeTaskDetails(&taskDetails, result.Task)
 
-	sb.WriteString(ui.H1("Next Task"))
-	sb.WriteString("\n")
-	writeTaskDetails(&sb, result.Task)
-	writeTaskLocation(&sb, result.Task)
-	writeTaskProperties(&sb, result.Task)
-	writeTaskDependencies(&sb, result.Task.Dependencies)
-	writeRecommendation(&sb, result.Reason)
-	writeParallelTasks(&sb, result.ParallelTasks)
-	writeCurrentLocation(&sb, result.Location)
+	var locationSec strings.Builder
+	writeTaskLocation(&locationSec, result.Task)
 
-	// Add task content section if inline context is enabled
+	var propertiesSec strings.Builder
+	writeTaskProperties(&propertiesSec, result.Task)
+
+	var depsSec strings.Builder
+	writeTaskDependencies(&depsSec, result.Task.Dependencies)
+
+	var recommendSec strings.Builder
+	writeRecommendation(&recommendSec, result.Reason)
+
+	var parallelSec strings.Builder
+	writeParallelTasks(&parallelSec, result.ParallelTasks)
+
+	var curLocSec strings.Builder
+	writeCurrentLocation(&curLocSec, result.Location)
+
+	var taskContentSec string
 	if showInlineContext {
-		taskContent := buildTaskContentSection(result.Task.Path)
-		if taskContent != "" {
-			sb.WriteString("\n")
-			sb.WriteString(taskContent)
-		}
+		taskContentSec = buildTaskContentSection(result.Task.Path)
 	}
 
-	return sb.String()
+	data := struct {
+		InstructionHeader      string
+		Header                 string
+		TaskDetailsSection     string
+		LocationSection        string
+		PropertiesSection      string
+		DependenciesSection    string
+		RecommendationSection  string
+		ParallelTasksSection   string
+		CurrentLocationSection string
+		TaskContentSection     string
+	}{
+		InstructionHeader:      guidance.InstructionHeader,
+		Header:                 ui.H1("Next Task"),
+		TaskDetailsSection:     taskDetails.String(),
+		LocationSection:        locationSec.String(),
+		PropertiesSection:      propertiesSec.String(),
+		DependenciesSection:    depsSec.String(),
+		RecommendationSection:  recommendSec.String(),
+		ParallelTasksSection:   parallelSec.String(),
+		CurrentLocationSection: curLocSec.String(),
+		TaskContentSection:     taskContentSec,
+	}
+
+	var buf bytes.Buffer
+	agent.MustGet("next/verbose_task").Execute(&buf, data)
+	return buf.String()
 }
 
 func writeTaskDetails(sb *strings.Builder, task *TaskInfo) {
@@ -743,12 +843,12 @@ func buildGateSection(task *TaskInfo) string {
 	}
 
 	// Read and parse frontmatter to detect gate type
-	data, err := os.ReadFile(task.Path)
+	fileData, err := os.ReadFile(task.Path)
 	if err != nil {
 		return ""
 	}
 
-	fm, body, err := frontmatter.Parse(data)
+	fm, body, err := frontmatter.Parse(fileData)
 	if err != nil || fm == nil {
 		return ""
 	}
@@ -758,39 +858,44 @@ func buildGateSection(task *TaskInfo) string {
 		return ""
 	}
 
-	var sb strings.Builder
-
-	// Header
 	gateTitle := strings.ToUpper(string(fm.GateType[:1])) + string(fm.GateType[1:])
-	sb.WriteString(ui.H1(fmt.Sprintf("Quality Gate: %s", gateTitle)))
-	sb.WriteString("\n")
-
-	// Task location
 	taskRelPath := filepath.Join(task.PhaseName, task.SequenceName, task.Name+".md")
-	sb.WriteString(labelValue("Task", ui.Value(task.Name, ui.TaskColor)))
-	sb.WriteString("\n")
-	sb.WriteString(labelValue("Path", ui.Dim(taskRelPath)))
-	sb.WriteString("\n")
-	sb.WriteString(labelValue("Type", ui.Value(fmt.Sprintf("gate (%s)", fm.GateType))))
-	sb.WriteString("\n")
-
-	// Gate content (strip frontmatter, show body)
 	content := strings.TrimSpace(string(body))
-	if content != "" {
-		sb.WriteString(content)
-		sb.WriteString("\n\n")
-	} else {
-		sb.WriteString(ui.Dim("Gate file could not be read. Run `fest gates` to evaluate gate criteria."))
-		sb.WriteString("\n\n")
+
+	// Build completion hint
+	var hint strings.Builder
+	hint.WriteString(ui.Dim("When complete, run: "))
+	hint.WriteString(ui.Value("fest task completed"))
+	hint.WriteString("\n")
+	hint.WriteString(ui.Dim("When ready for the next task, run: "))
+	hint.WriteString(ui.Value("fest next"))
+	hint.WriteString("\n")
+
+	data := struct {
+		InstructionHeader string
+		Header            string
+		TaskLine          string
+		PathLine          string
+		TypeLine          string
+		GateContent       string
+		FallbackMessage   string
+		CompletionHint    string
+	}{
+		InstructionHeader: guidance.InstructionHeader,
+		Header:            ui.H1(fmt.Sprintf("Quality Gate: %s", gateTitle)),
+		TaskLine:          labelValue("Task", ui.Value(task.Name, ui.TaskColor)),
+		PathLine:          labelValue("Path", ui.Dim(taskRelPath)),
+		TypeLine:          labelValue("Type", ui.Value(fmt.Sprintf("gate (%s)", fm.GateType))),
+		CompletionHint:    hint.String(),
 	}
 
-	// Action hint
-	sb.WriteString(ui.Dim("When complete, run: "))
-	sb.WriteString(ui.Value("fest task completed"))
-	sb.WriteString("\n")
-	sb.WriteString(ui.Dim("When ready for the next task, run: "))
-	sb.WriteString(ui.Value("fest next"))
-	sb.WriteString("\n\n")
+	if content != "" {
+		data.GateContent = content
+	} else {
+		data.FallbackMessage = ui.Dim("Gate file could not be read. Run `fest gates` to evaluate gate criteria.")
+	}
 
-	return sb.String()
+	var buf bytes.Buffer
+	agent.MustGet("next/gate").Execute(&buf, data)
+	return buf.String()
 }

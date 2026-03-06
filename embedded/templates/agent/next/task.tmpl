@@ -9,6 +9,9 @@ With inline context (default):
 Without inline context (--no-context):
   Shows metadata and paths to context files for manual reading.
 */}}
+{{- if .InstructionHeader}}
+{{.InstructionHeader}}
+{{- end}}
 {{.Header}}
 {{.TaskLine}}
 {{.PathLine}}

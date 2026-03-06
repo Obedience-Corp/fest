@@ -1,0 +1,29 @@
+{{/*
+TEMPLATE: next/verbose_task.tmpl
+PURPOSE: Detailed task output for --verbose flag
+
+Shows complete task details, location, properties, dependencies,
+recommendation, parallel tasks, current location, and optional task content.
+*/}}
+{{- if .InstructionHeader}}
+{{.InstructionHeader}}
+{{- end}}
+{{.Header}}
+
+{{.TaskDetailsSection}}
+{{.LocationSection}}
+{{- if .PropertiesSection}}
+{{.PropertiesSection}}
+{{- end}}
+{{- if .DependenciesSection}}
+{{.DependenciesSection}}
+{{- end}}
+{{.RecommendationSection}}
+{{- if .ParallelTasksSection}}
+{{.ParallelTasksSection}}
+{{- end}}
+{{.CurrentLocationSection}}
+{{- if .TaskContentSection}}
+
+{{.TaskContentSection}}
+{{- end}}

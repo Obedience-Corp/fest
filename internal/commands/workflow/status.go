@@ -230,14 +230,17 @@ func resolveNavigationMode(ctx context.Context, festivalPath, phasePath string) 
 	hasWorkflow := false
 	workflowComplete := false
 
+	// Load store once for both workflow and gate checks
+	store := progress.NewStore(festivalPath)
+	storeLoaded := store.Load(ctx) == nil
+
 	// Check WORKFLOW.md
 	workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
 	if _, err := os.Stat(workflowPath); err == nil {
 		hasWorkflow = true
 
 		// Check if workflow is complete
-		store := progress.NewStore(festivalPath)
-		if store.Load(ctx) == nil {
+		if storeLoaded {
 			state, ok := store.WorkflowPhaseState(phaseName)
 			if ok && state.TotalSteps > 0 && state.IsComplete() {
 				workflowComplete = true
@@ -259,8 +262,10 @@ func resolveNavigationMode(ctx context.Context, festivalPath, phasePath string) 
 
 	// Route: gate mode when workflow is done (or absent) and gates exist
 	if hasGates {
-		// Phase gate runs AFTER all other phase work. Check sequence readiness.
-		if shared.HasSequenceDirs(phasePath) && !shared.IsPhaseMarkedComplete(phasePath) {
+		// Phase gate runs AFTER all other phase work. Check actual task/workflow completion
+		// rather than PHASE_GOAL.md frontmatter (which creates a circular dependency since
+		// gate steps are counted in progress totals).
+		if shared.HasSequenceDirs(phasePath) && !shared.ArePhaseTasksAndWorkflowComplete(ctx, storeLoaded, store, phasePath, phaseName) {
 			return "", "", "phase gate exists but is not yet eligible\n\nComplete all phase sequences/tasks first, then the gate will become accessible.\nUse 'fest next' to continue working on phase tasks."
 		}
 		return "GATES.md", "gate:", ""
@@ -293,7 +298,7 @@ func findAllWorkflowPhases(festivalPath string) ([]string, error) {
 
 	var phases []string
 	for _, entry := range entries {
-		if !entry.IsDir() || !isNumberedDir(entry.Name()) {
+		if !entry.IsDir() || !shared.IsNumberedDir(entry.Name()) {
 			continue
 		}
 
@@ -317,7 +322,7 @@ func findAllNavigablePhases(festivalPath string) ([]string, error) {
 
 	var phases []string
 	for _, entry := range entries {
-		if !entry.IsDir() || !isNumberedDir(entry.Name()) {
+		if !entry.IsDir() || !shared.IsNumberedDir(entry.Name()) {
 			continue
 		}
 
@@ -389,8 +394,10 @@ func findFirstIncompleteNavigablePhase(ctx context.Context, festivalPath string)
 
 		// Check GATES.md (only if workflow is complete or absent AND phase work is done)
 		if fileExists(filepath.Join(phasePath, "GATES.md")) {
-			// Phase gate requires all other phase work to be complete first
-			if shared.HasSequenceDirs(phasePath) && !shared.IsPhaseMarkedComplete(phasePath) {
+			// Phase gate requires all other phase work to be complete first.
+			// Use actual task/workflow completion check, not PHASE_GOAL.md frontmatter,
+			// to avoid circular dependency with gate steps in progress totals.
+			if shared.HasSequenceDirs(phasePath) && !shared.ArePhaseTasksAndWorkflowComplete(ctx, storeLoaded, store, phasePath, phaseName) {
 				continue // Gate not yet eligible, skip to next phase
 			}
 			if !storeLoaded {
@@ -418,12 +425,4 @@ func checkPhasesIncomplete(phases []string) (string, error) {
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
-}
-
-// isNumberedDir checks if directory name starts with a number.
-func isNumberedDir(name string) bool {
-	if len(name) < 1 {
-		return false
-	}
-	return name[0] >= '0' && name[0] <= '9'
 }

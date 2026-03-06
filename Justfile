@@ -56,9 +56,13 @@ fmt:
 vet:
     go vet ./...
 
-# Run formatting and vetting
-lint: fmt vet
-    @echo "✅ Linting complete"
+# Run golangci-lint (includes vet, staticcheck, errcheck, and more)
+lint:
+    golangci-lint run ./...
+
+# Install required development tools
+install-tools:
+    go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
 # Clean build artifacts with visual dashboard
 clean:

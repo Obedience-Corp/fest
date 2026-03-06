@@ -222,8 +222,51 @@ func ingestData(common map[string]any) map[string]any {
 }
 
 func nextData(name string, common map[string]any) map[string]any {
-	switch {
-	case strings.HasSuffix(name, "task"):
+	switch name {
+	case "next/verbose_task":
+		return map[string]any{
+			"Header":                 common["Header"],
+			"TaskDetailsSection":     "## Task Details\nTask: test_task\nNumber: 1\nPath: /test/task.md",
+			"LocationSection":        "## Location\nPhase: 001_PLANNING\nSequence: 01_setup",
+			"PropertiesSection":      "",
+			"DependenciesSection":    "",
+			"RecommendationSection":  "## Recommendation\nNext task in sequence",
+			"ParallelTasksSection":   "",
+			"CurrentLocationSection": "## Current Location\nFestival: test-fest",
+			"TaskContentSection":     "",
+		}
+	case "next/verbose_complete":
+		return map[string]any{
+			"Header":     common["Header"],
+			"Message":    "All tasks completed.",
+			"Congrats":   "Congratulations!",
+			"ReasonLine": "Reason: All tasks done",
+		}
+	case "next/verbose_no_task":
+		return map[string]any{
+			"Header":          common["Header"],
+			"ReasonLine":      "Reason: No tasks available",
+			"LocationSection": "Location:\n  Festival: test\n  Phase: 001",
+		}
+	case "next/planning":
+		return map[string]any{
+			"Header":              common["Header"],
+			"PhaseInfoSection":    "Phase: 001_PLAN\nType: planning",
+			"ObjectivesSection":   "## Objectives\n  - Define scope",
+			"NoObjectivesSection": "",
+			"NextStepsSection":    "## Suggested Actions\n  - Explore the problem space",
+		}
+	case "next/gate":
+		return map[string]any{
+			"Header":          common["Header"],
+			"TaskLine":        "Task: 05_testing",
+			"PathLine":        "Path: 001_IMPL/01_core/05_testing.md",
+			"TypeLine":        "Type: gate (testing)",
+			"GateContent":     "- [ ] All tests pass\n- [ ] Coverage meets 90%",
+			"FallbackMessage": "",
+			"CompletionHint":  "When complete, run: fest task completed",
+		}
+	case "next/task":
 		return map[string]any{
 			"Header":             common["Header"],
 			"ProgressLine":       common["ProgressLine"],
@@ -234,11 +277,11 @@ func nextData(name string, common map[string]any) map[string]any {
 			"ActionInstruction":  common["ActionInstruction"],
 			"PathLine":           "Path: /test/task.md",
 			"RecommendationLine": "Recommendation: Next task",
-			"ParallelSection":    "", // Optional
+			"ParallelSection":    "",
 			"ProgressCmd":        common["ProgressCmd"],
 			"ContextSection":     common["ContextSection"],
 		}
-	case strings.HasSuffix(name, "blocked"):
+	case "next/blocked":
 		return map[string]any{
 			"Header":          common["Header"],
 			"PhaseLine":       "Phase: 001_PLANNING",
@@ -246,13 +289,13 @@ func nextData(name string, common map[string]any) map[string]any {
 			"DescriptionLine": "Description: Quality gate required",
 			"CriteriaSection": "Criteria:\n  - Tests pass\n  - Code reviewed",
 		}
-	case strings.HasSuffix(name, "complete"):
+	case "next/complete":
 		return map[string]any{
 			"Header":     common["Header"],
 			"Message":    "Festival complete!",
 			"ReasonLine": "Reason: All tasks done",
 		}
-	case strings.HasSuffix(name, "no_task"):
+	case "next/no_task":
 		return map[string]any{
 			"Header":          common["Header"],
 			"ReasonLine":      "Reason: No tasks available",

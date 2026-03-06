@@ -26,6 +26,9 @@ EXAMPLE OUTPUT:
   When complete, run: fest workflow advance
   ═══════════════════════════════════════════════════════════════════════════════
 */}}
+{{- if .InstructionHeader}}
+{{.InstructionHeader}}
+{{- end}}
 ═══════════════════════════════════════════════════════════════════════════════
 {{- if .IsGate}}
                     {{.PhaseType}} - Step {{.StepNumber}} of {{.TotalSteps}}

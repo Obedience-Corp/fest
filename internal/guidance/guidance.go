@@ -9,6 +9,15 @@ import (
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 )
 
+// InstructionHeader is the framing header prepended to actionable fest next output.
+// It explicitly tells agents to treat the content as executable instructions.
+const InstructionHeader = "\n" +
+	"═══════════════════════════════════════════════════════════════════════════════\n" +
+	"  EXECUTE THE FOLLOWING INSTRUCTIONS\n" +
+	"  These are your direct instructions. Do not interpret, summarize, or skip steps.\n" +
+	"  Execute each action exactly as written.\n" +
+	"═══════════════════════════════════════════════════════════════════════════════\n"
+
 // Guidance is the central interface for phase-type-aware navigation.
 // It provides unified behavior for determining next steps, marking completion,
 // and tracking progress across all phase types.
