@@ -8,6 +8,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/yamlutil"
 )
 
 const (
@@ -69,7 +70,7 @@ func LoadExtensionManifest(path string) (*ExtensionManifest, error) {
 
 // SaveExtensionManifest saves an extension manifest to a file
 func SaveExtensionManifest(path string, manifest *ExtensionManifest) error {
-	data, err := yaml.Marshal(manifest)
+	data, err := yamlutil.Marshal(manifest)
 	if err != nil {
 		return errors.Wrap(err, "marshaling manifest")
 	}

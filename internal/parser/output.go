@@ -3,7 +3,7 @@ package parser
 import (
 	"encoding/json"
 
-	"gopkg.in/yaml.v3"
+	"github.com/Obedience-Corp/fest/internal/yamlutil"
 )
 
 // FormatJSON formats the entity as JSON
@@ -16,7 +16,7 @@ func FormatJSON(entity interface{}, compact bool) ([]byte, error) {
 
 // FormatYAML formats the entity as YAML
 func FormatYAML(entity interface{}) ([]byte, error) {
-	return yaml.Marshal(entity)
+	return yamlutil.Marshal(entity)
 }
 
 // Format outputs in the specified format

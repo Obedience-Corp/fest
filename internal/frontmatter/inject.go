@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"gopkg.in/yaml.v3"
+	"github.com/Obedience-Corp/fest/internal/yamlutil"
 )
 
 // Inject adds frontmatter to content
@@ -26,7 +26,7 @@ func Inject(content []byte, fm *Frontmatter) ([]byte, error) {
 
 // Marshal converts frontmatter to YAML bytes
 func Marshal(fm *Frontmatter) ([]byte, error) {
-	return yaml.Marshal(fm)
+	return yamlutil.Marshal(fm)
 }
 
 // Format returns formatted frontmatter as a string

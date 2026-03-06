@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gopkg.in/yaml.v3"
+	"github.com/Obedience-Corp/fest/internal/yamlutil"
 )
 
 // Service provides all workflow operations.
@@ -257,7 +257,7 @@ func (s *Service) Init(ctx context.Context, opts InitOptions) (*InitResult, erro
 	}
 
 	// Write schema file
-	data, err := yaml.Marshal(schema)
+	data, err := yamlutil.Marshal(schema)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal schema: %w", err)
 	}
@@ -606,7 +606,7 @@ func (s *Service) Migrate(ctx context.Context, opts MigrateOptions) (*MigrateRes
 	if !opts.DryRun {
 		// Create schema and remaining directories
 		schema := DefaultSchema()
-		data, err := yaml.Marshal(schema)
+		data, err := yamlutil.Marshal(schema)
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal schema: %w", err)
 		}
@@ -766,7 +766,7 @@ func (s *Service) MigrateV1ToV2(ctx context.Context, dryRun bool) (*MigrateV1ToV
 	// Update schema to v2
 	if !dryRun {
 		newSchema := DefaultSchemaV2()
-		data, err := yaml.Marshal(newSchema)
+		data, err := yamlutil.Marshal(newSchema)
 		if err != nil {
 			return nil, fmt.Errorf("marshaling v2 schema: %w", err)
 		}

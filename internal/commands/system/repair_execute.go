@@ -9,7 +9,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workflow"
-	"gopkg.in/yaml.v3"
+	"github.com/Obedience-Corp/fest/internal/yamlutil"
 )
 
 // executeRepair performs the actual repair operations.
@@ -101,7 +101,7 @@ func executeCreateSchema(ctx context.Context, festivalsRoot string, plan *repair
 	}
 
 	schema := workflow.FestivalSchema()
-	data, err := yaml.Marshal(schema)
+	data, err := yamlutil.Marshal(schema)
 	if err != nil {
 		return fmt.Errorf("marshaling schema: %w", err)
 	}

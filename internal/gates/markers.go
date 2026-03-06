@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/internal/yamlutil"
 	"gopkg.in/yaml.v3"
 )
 
@@ -88,7 +89,7 @@ func AddMarkers(content string, gateID string) string {
 		FestVersion: "1.0",
 	}
 
-	markerYAML, err := yaml.Marshal(markers)
+	markerYAML, err := yamlutil.Marshal(markers)
 	if err != nil {
 		return content
 	}
@@ -136,7 +137,7 @@ func insertMarkersIntoFrontmatter(content string, markers FileMarkers) string {
 	existing["fest_version"] = markers.FestVersion
 
 	// Serialize
-	newYAML, err := yaml.Marshal(existing)
+	newYAML, err := yamlutil.Marshal(existing)
 	if err != nil {
 		return content
 	}
@@ -195,7 +196,7 @@ func StripMarkers(content string) string {
 	}
 
 	// Serialize remaining frontmatter
-	newYAML, err := yaml.Marshal(existing)
+	newYAML, err := yamlutil.Marshal(existing)
 	if err != nil {
 		return content
 	}
