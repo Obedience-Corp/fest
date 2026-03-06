@@ -26,7 +26,7 @@ func findSequencePath(cwd, festivalPath string) string {
 		grandparent := filepath.Dir(parent)
 		if grandparent == festivalPath {
 			// Parent is a phase, current might be a sequence
-			if isNumberedDir(filepath.Base(parent)) && isNumberedDir(filepath.Base(current)) {
+			if shared.IsNumberedDir(filepath.Base(parent)) && shared.IsNumberedDir(filepath.Base(current)) {
 				return current
 			}
 		}
@@ -36,14 +36,6 @@ func findSequencePath(cwd, festivalPath string) string {
 		current = parent
 	}
 	return ""
-}
-
-// isNumberedDir checks if directory name starts with a number
-func isNumberedDir(name string) bool {
-	if len(name) < 2 {
-		return false
-	}
-	return name[0] >= '0' && name[0] <= '9'
 }
 
 // findFirstIncompletePhase scans ALL phases in numerical order and returns the first incomplete phase.
@@ -57,7 +49,7 @@ func findFirstIncompletePhase(ctx context.Context, festivalPath string) (string,
 
 	var phases []string
 	for _, entry := range entries {
-		if entry.IsDir() && isNumberedDir(entry.Name()) {
+		if entry.IsDir() && shared.IsNumberedDir(entry.Name()) {
 			phases = append(phases, filepath.Join(festivalPath, entry.Name()))
 		}
 	}
@@ -111,7 +103,7 @@ func findFirstIncompleteWorkflowPhase(ctx context.Context, festivalPath string) 
 
 	var phases []string
 	for _, entry := range entries {
-		if entry.IsDir() && isNumberedDir(entry.Name()) {
+		if entry.IsDir() && shared.IsNumberedDir(entry.Name()) {
 			phases = append(phases, filepath.Join(festivalPath, entry.Name()))
 		}
 	}
@@ -151,7 +143,7 @@ func findEarlierIncompleteAfterWorkflow(ctx context.Context, festivalPath, curre
 
 	var phases []string
 	for _, entry := range entries {
-		if entry.IsDir() && isNumberedDir(entry.Name()) {
+		if entry.IsDir() && shared.IsNumberedDir(entry.Name()) {
 			phases = append(phases, entry.Name())
 		}
 	}
@@ -199,7 +191,7 @@ func hasSequenceDirs(phasePath string) bool {
 		return false
 	}
 	for _, entry := range entries {
-		if entry.IsDir() && isNumberedDir(entry.Name()) {
+		if entry.IsDir() && shared.IsNumberedDir(entry.Name()) {
 			return true
 		}
 	}
@@ -239,7 +231,7 @@ func findEarlierIncompletePhaseGate(ctx context.Context, festivalPath, currentPh
 
 	var phases []string
 	for _, entry := range entries {
-		if entry.IsDir() && isNumberedDir(entry.Name()) {
+		if entry.IsDir() && shared.IsNumberedDir(entry.Name()) {
 			phases = append(phases, entry.Name())
 		}
 	}
@@ -280,7 +272,7 @@ func findFirstIncompletePhaseGate(ctx context.Context, festivalPath string) (str
 
 	var phases []string
 	for _, entry := range entries {
-		if entry.IsDir() && isNumberedDir(entry.Name()) {
+		if entry.IsDir() && shared.IsNumberedDir(entry.Name()) {
 			phases = append(phases, filepath.Join(festivalPath, entry.Name()))
 		}
 	}

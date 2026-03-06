@@ -298,7 +298,7 @@ func findAllWorkflowPhases(festivalPath string) ([]string, error) {
 
 	var phases []string
 	for _, entry := range entries {
-		if !entry.IsDir() || !isNumberedDir(entry.Name()) {
+		if !entry.IsDir() || !shared.IsNumberedDir(entry.Name()) {
 			continue
 		}
 
@@ -322,7 +322,7 @@ func findAllNavigablePhases(festivalPath string) ([]string, error) {
 
 	var phases []string
 	for _, entry := range entries {
-		if !entry.IsDir() || !isNumberedDir(entry.Name()) {
+		if !entry.IsDir() || !shared.IsNumberedDir(entry.Name()) {
 			continue
 		}
 
@@ -425,12 +425,4 @@ func checkPhasesIncomplete(phases []string) (string, error) {
 func fileExists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
-}
-
-// isNumberedDir checks if directory name starts with a number.
-func isNumberedDir(name string) bool {
-	if len(name) < 1 {
-		return false
-	}
-	return name[0] >= '0' && name[0] <= '9'
 }
