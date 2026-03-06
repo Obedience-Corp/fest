@@ -50,11 +50,11 @@ func Integration(verbose bool) error {
 		// Try Colima's default socket path
 		colimaSocket := filepath.Join(os.Getenv("HOME"), ".colima", "default", "docker.sock")
 		if _, err := os.Stat(colimaSocket); err == nil {
-			os.Setenv("DOCKER_HOST", "unix://"+colimaSocket)
+			_ = os.Setenv("DOCKER_HOST", "unix://"+colimaSocket)
 		}
 	}
 	// Disable ryuk reaper for Colima compatibility
-	os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
+	_ = os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true")
 
 	// Build Linux binary for Docker-based integration tests
 	ui.Task("Building", "Linux binary for Docker tests")

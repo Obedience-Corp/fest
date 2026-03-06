@@ -163,10 +163,10 @@ func TestService_Sync(t *testing.T) {
 			setup: func(dir string) {
 				// Create schema but only one directory
 				svc := NewService(dir)
-				svc.Init(context.Background(), InitOptions{})
+				_, _ = svc.Init(context.Background(), InitOptions{})
 				// Delete some directories to simulate missing
-				os.RemoveAll(filepath.Join(dir, "ready"))
-				os.RemoveAll(filepath.Join(dir, "dungeon/archived"))
+				_ = os.RemoveAll(filepath.Join(dir, "ready"))
+				_ = os.RemoveAll(filepath.Join(dir, "dungeon/archived"))
 			},
 			checkFunc: func(t *testing.T, dir string, result *SyncResult) {
 				if len(result.Created) == 0 {
@@ -184,8 +184,8 @@ func TestService_Sync(t *testing.T) {
 			name: "dry run doesn't create directories",
 			setup: func(dir string) {
 				svc := NewService(dir)
-				svc.Init(context.Background(), InitOptions{})
-				os.RemoveAll(filepath.Join(dir, "ready"))
+				_, _ = svc.Init(context.Background(), InitOptions{})
+				_ = os.RemoveAll(filepath.Join(dir, "ready"))
 			},
 			opts: SyncOptions{DryRun: true},
 			checkFunc: func(t *testing.T, dir string, result *SyncResult) {
@@ -256,10 +256,10 @@ func TestService_List(t *testing.T) {
 			status: "active",
 			setup: func(dir string) {
 				svc := NewService(dir)
-				svc.Init(context.Background(), InitOptions{})
+				_, _ = svc.Init(context.Background(), InitOptions{})
 				// Create some items
-				os.MkdirAll(filepath.Join(dir, "active", "project-1"), 0755)
-				os.MkdirAll(filepath.Join(dir, "active", "project-2"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "active", "project-1"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "active", "project-2"), 0755)
 			},
 			checkFunc: func(t *testing.T, result *ListResult) {
 				if len(result.Items) != 2 {
@@ -275,7 +275,7 @@ func TestService_List(t *testing.T) {
 			status: "ready",
 			setup: func(dir string) {
 				svc := NewService(dir)
-				svc.Init(context.Background(), InitOptions{})
+				_, _ = svc.Init(context.Background(), InitOptions{})
 			},
 			checkFunc: func(t *testing.T, result *ListResult) {
 				if len(result.Items) != 0 {
@@ -288,8 +288,8 @@ func TestService_List(t *testing.T) {
 			status: "dungeon/completed",
 			setup: func(dir string) {
 				svc := NewService(dir)
-				svc.Init(context.Background(), InitOptions{})
-				os.MkdirAll(filepath.Join(dir, "dungeon/completed", "old-project"), 0755)
+				_, _ = svc.Init(context.Background(), InitOptions{})
+				_ = os.MkdirAll(filepath.Join(dir, "dungeon/completed", "old-project"), 0755)
 			},
 			checkFunc: func(t *testing.T, result *ListResult) {
 				if len(result.Items) != 1 {
@@ -354,8 +354,8 @@ func TestService_Move(t *testing.T) {
 			to:   "ready",
 			setup: func(dir string) {
 				svc := NewService(dir)
-				svc.Init(context.Background(), InitOptions{})
-				os.MkdirAll(filepath.Join(dir, "active", "project-1"), 0755)
+				_, _ = svc.Init(context.Background(), InitOptions{})
+				_ = os.MkdirAll(filepath.Join(dir, "active", "project-1"), 0755)
 			},
 			checkFunc: func(t *testing.T, dir string, result *MoveResult) {
 				// Old location should not exist

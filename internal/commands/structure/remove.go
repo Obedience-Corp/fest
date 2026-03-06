@@ -104,7 +104,7 @@ Warning: This will permanently delete the phase and all its contents!`,
 				fmt.Println(ui.Warning(fmt.Sprintf("This will permanently delete %s and all its contents.", filepath.Base(absPath))))
 				fmt.Print(ui.Info("Are you sure? [y/N]: "))
 				var response string
-				fmt.Scanln(&response)
+				_, _ = fmt.Scanln(&response)
 				if !strings.HasPrefix(strings.ToLower(response), "y") {
 					fmt.Println(ui.Info("Operation cancelled."))
 					return nil
@@ -202,7 +202,7 @@ If --phase is omitted and you're inside a phase directory, it will use the curre
 				fmt.Println(ui.Warning(fmt.Sprintf("This will permanently delete %s and all its contents.", filepath.Base(targetPath))))
 				fmt.Print(ui.Info("Are you sure? [y/N]: "))
 				var response string
-				fmt.Scanln(&response)
+				_, _ = fmt.Scanln(&response)
 				if !strings.HasPrefix(strings.ToLower(response), "y") {
 					fmt.Println(ui.Info("Operation cancelled."))
 					return nil
@@ -313,7 +313,7 @@ If --sequence is omitted and you're inside a sequence directory, it will use the
 					}
 					fmt.Print(ui.Info("Select task to remove (number): "))
 					var choice int
-					fmt.Scanln(&choice)
+					_, _ = fmt.Scanln(&choice)
 					if choice < 1 || choice > len(matches) {
 						return errors.Validation("invalid selection")
 					}
@@ -334,7 +334,7 @@ If --sequence is omitted and you're inside a sequence directory, it will use the
 				fmt.Println(ui.Warning(fmt.Sprintf("This will permanently delete %s.", filepath.Base(targetPath))))
 				fmt.Print(ui.Info("Are you sure? [y/N]: "))
 				var response string
-				fmt.Scanln(&response)
+				_, _ = fmt.Scanln(&response)
 				if !strings.HasPrefix(strings.ToLower(response), "y") {
 					fmt.Println(ui.Info("Operation cancelled."))
 					return nil

@@ -799,7 +799,7 @@ func (s *Service) Crawl(ctx context.Context, opts CrawlOptions) (*CrawlResult, e
 	}
 
 	// Determine which statuses to crawl
-	statuses := []string{}
+	var statuses []string
 	if opts.Status != "" {
 		statuses = []string{opts.Status}
 	} else {

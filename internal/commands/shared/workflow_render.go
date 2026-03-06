@@ -70,20 +70,20 @@ func RenderWorkflowStepLine(step WorkflowStepView, compact bool) string {
 		checkpoint = ui.Warning(" [checkpoint]")
 	}
 
-	sb.WriteString(fmt.Sprintf("%s%s Step %d: %s%s\n",
-		marker, icon, step.Number, stepName, checkpoint))
+	fmt.Fprintf(&sb, "%s%s Step %d: %s%s\n",
+		marker, icon, step.Number, stepName, checkpoint)
 
 	// Show goal if current step (and not compact)
 	if !compact && step.IsCurrent && step.Goal != "" {
-		sb.WriteString(fmt.Sprintf("     %s: %s\n", ui.Dim("Goal"), step.Goal))
+		fmt.Fprintf(&sb, "     %s: %s\n", ui.Dim("Goal"), step.Goal)
 	}
 
 	if !compact && step.Feedback != "" {
 		switch step.Status {
 		case wf.StepStatusBlocked:
-			sb.WriteString(fmt.Sprintf("     %s: %s\n", ui.Error("Feedback"), step.Feedback))
+			fmt.Fprintf(&sb, "     %s: %s\n", ui.Error("Feedback"), step.Feedback)
 		case wf.StepStatusSkipped, wf.StepStatusCompleted:
-			sb.WriteString(fmt.Sprintf("     %s: %s\n", ui.Warning("Note"), step.Feedback))
+			fmt.Fprintf(&sb, "     %s: %s\n", ui.Warning("Note"), step.Feedback)
 		}
 	}
 

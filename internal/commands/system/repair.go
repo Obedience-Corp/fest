@@ -103,7 +103,7 @@ func runRepair(ctx context.Context, opts *repairOptions) error {
 func confirmRepair() bool {
 	fmt.Printf("\nProceed with repair? [y/N] ")
 	var response string
-	fmt.Scanln(&response)
+	_, _ = fmt.Scanln(&response)
 	if response != "y" && response != "Y" {
 		fmt.Println(ui.Dim("Repair cancelled"))
 		return false

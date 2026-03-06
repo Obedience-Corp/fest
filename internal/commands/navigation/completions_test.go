@@ -279,9 +279,7 @@ func TestCompleteGoTarget_WithFestivals(t *testing.T) {
 
 	// Test with no partial input - should return all targets
 	results, directive := CompleteGoTarget(nil, nil, "")
-	if directive != 0 { // cobra.ShellCompDirectiveNoFileComp = 4, but the enum value is checked
-		// Just ensure we got results
-	}
+	_ = directive // cobra.ShellCompDirectiveNoFileComp = 4; value recorded but not asserted
 
 	// Should include status directories AND festival names
 	resultSet := make(map[string]bool)

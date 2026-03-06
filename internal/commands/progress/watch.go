@@ -63,7 +63,7 @@ func runWatchMode(ctx context.Context, mgr *progress.Manager, loc *show.Location
 		fmt.Fprintf(os.Stderr, "File watching unavailable (%v), using polling fallback\n", err)
 		return runPollingMode(ctx, mgr, loc, opts)
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 
 	return w.Watch(ctx)
 }

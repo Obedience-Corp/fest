@@ -249,10 +249,10 @@ func (r *Runner) createFestivalOverview(ctx context.Context, plan *ParsedPlan, f
 func buildOverviewContent(plan *ParsedPlan) string {
 	var b strings.Builder
 
-	b.WriteString(fmt.Sprintf("# Festival Overview: %s\n\n", plan.FestivalName))
+	fmt.Fprintf(&b, "# Festival Overview: %s\n\n", plan.FestivalName)
 	b.WriteString("## Problem Statement\n\n")
 	if plan.Goal != "" {
-		b.WriteString(fmt.Sprintf("**Desired State:** %s\n\n", plan.Goal))
+		fmt.Fprintf(&b, "**Desired State:** %s\n\n", plan.Goal)
 	} else {
 		b.WriteString("**Desired State:** [REPLACE: What we want to achieve]\n\n")
 	}
@@ -260,7 +260,7 @@ func buildOverviewContent(plan *ParsedPlan) string {
 	b.WriteString("## Scope\n\n### In Scope\n\n")
 	if len(plan.Phases) > 0 {
 		for _, p := range plan.Phases {
-			b.WriteString(fmt.Sprintf("- %s (%s)\n", p.Name, p.Type))
+			fmt.Fprintf(&b, "- %s (%s)\n", p.Name, p.Type)
 		}
 	} else {
 		b.WriteString("- [REPLACE: What's included in this festival]\n")
@@ -268,18 +268,18 @@ func buildOverviewContent(plan *ParsedPlan) string {
 
 	b.WriteString("\n## Planned Phases\n\n")
 	for _, p := range plan.Phases {
-		b.WriteString(fmt.Sprintf("### %s (%s)\n\n", p.Name, p.Type))
+		fmt.Fprintf(&b, "### %s (%s)\n\n", p.Name, p.Type)
 		if p.Description != "" {
 			b.WriteString(p.Description + "\n\n")
 		}
 		if len(p.Sequences) > 0 {
-			b.WriteString(fmt.Sprintf("Sequences: %d", len(p.Sequences)))
+			fmt.Fprintf(&b, "Sequences: %d", len(p.Sequences))
 			taskCount := 0
 			for _, s := range p.Sequences {
 				taskCount += len(s.Tasks)
 			}
 			if taskCount > 0 {
-				b.WriteString(fmt.Sprintf(", Tasks: %d", taskCount))
+				fmt.Fprintf(&b, ", Tasks: %d", taskCount)
 			}
 			b.WriteString("\n\n")
 		}

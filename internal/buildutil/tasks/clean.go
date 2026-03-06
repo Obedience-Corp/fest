@@ -63,7 +63,7 @@ func Clean(verbose bool) error {
 	ui.ClearProgress()
 
 	// Also clean up any .test binaries in subdirectories
-	filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -75,7 +75,7 @@ func Clean(verbose bool) error {
 
 		// Remove .test files
 		if strings.HasSuffix(info.Name(), ".test") {
-			os.Remove(path)
+			_ = os.Remove(path)
 			removed++
 		}
 

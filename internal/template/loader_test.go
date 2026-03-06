@@ -200,7 +200,7 @@ No frontmatter`,
 
 			file, err := os.Open(tmpFile)
 			require.NoError(t, err)
-			defer file.Close()
+			defer func() { _ = file.Close() }()
 
 			metadata, content, err := parseFrontmatter(file)
 

@@ -28,16 +28,16 @@ func FormatFestivalDetails(festival *FestivalInfo, verbose bool, campaignRoot st
 	// Header
 	sb.WriteString(ui.H1("Festival"))
 	sb.WriteString("\n")
-	sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Name"), ui.Value(festival.Name, ui.FestivalColor)))
+	fmt.Fprintf(&sb, "%s %s\n", ui.Label("Name"), ui.Value(festival.Name, ui.FestivalColor))
 
 	// Display festival ID prominently
 	if festival.MetadataID != "" {
-		sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("ID"), ui.Value(festival.MetadataID)))
+		fmt.Fprintf(&sb, "%s %s\n", ui.Label("ID"), ui.Value(festival.MetadataID))
 	} else {
-		sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("ID"), ui.Dim("No ID (run fest migrate to add)")))
+		fmt.Fprintf(&sb, "%s %s\n", ui.Label("ID"), ui.Dim("No ID (run fest migrate to add)"))
 	}
 
-	sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Status"), ui.GetStatusStyle(festival.Status).Render(festival.Status)))
+	fmt.Fprintf(&sb, "%s %s\n", ui.Label("Status"), ui.GetStatusStyle(festival.Status).Render(festival.Status))
 
 	// Display campaign-relative paths
 	displayFestPath := festival.Path
@@ -47,21 +47,21 @@ func FormatFestivalDetails(festival *FestivalInfo, verbose bool, campaignRoot st
 		displayProjectPath = pathutil.DisplayPath(festival.ProjectPath, campaignRoot)
 	}
 
-	sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Path"), ui.Dim(displayFestPath)))
+	fmt.Fprintf(&sb, "%s %s\n", ui.Label("Path"), ui.Dim(displayFestPath))
 
 	if festival.ProjectPath != "" {
-		sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Project"), ui.Value(displayProjectPath, ui.SequenceColor)))
+		fmt.Fprintf(&sb, "%s %s\n", ui.Label("Project"), ui.Value(displayProjectPath, ui.SequenceColor))
 	}
 
 	if festival.Priority != "" {
-		sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Priority"), ui.Value(festival.Priority)))
+		fmt.Fprintf(&sb, "%s %s\n", ui.Label("Priority"), ui.Value(festival.Priority))
 	}
 
 	if !festival.CreatedAt.IsZero() {
-		sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Created"), ui.Dim(formatTimestamp(festival.CreatedAt))))
+		fmt.Fprintf(&sb, "%s %s\n", ui.Label("Created"), ui.Dim(formatTimestamp(festival.CreatedAt)))
 	}
 	if !festival.UpdatedAt.IsZero() {
-		sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Updated"), ui.Dim(formatTimestamp(festival.UpdatedAt))))
+		fmt.Fprintf(&sb, "%s %s\n", ui.Label("Updated"), ui.Dim(formatTimestamp(festival.UpdatedAt)))
 	}
 
 	// Statistics
@@ -69,10 +69,10 @@ func FormatFestivalDetails(festival *FestivalInfo, verbose bool, campaignRoot st
 		sb.WriteString("\n")
 		sb.WriteString(ui.H2("Progress"))
 		sb.WriteString("\n")
-		sb.WriteString(fmt.Sprintf("%s %s %s\n",
+		fmt.Fprintf(&sb, "%s %s %s\n",
 			ui.Label("Overall"),
 			renderPercentBar(festival.Stats.Progress),
-			ui.Value(fmt.Sprintf("%.1f%%", festival.Stats.Progress))))
+			ui.Value(fmt.Sprintf("%.1f%%", festival.Stats.Progress)))
 
 		sb.WriteString("\n")
 		sb.WriteString(ui.H3("Phases"))
@@ -93,9 +93,9 @@ func FormatFestivalDetails(festival *FestivalInfo, verbose bool, campaignRoot st
 			sb.WriteString("\n")
 			sb.WriteString(ui.H3("Gates"))
 			sb.WriteString("\n")
-			sb.WriteString(fmt.Sprintf("  %s %s\n", ui.Label("Total"), ui.Value(fmt.Sprintf("%d", festival.Stats.Gates.Total))))
-			sb.WriteString(fmt.Sprintf("  %s %s\n", ui.Label("Passed"), ui.GetStateStyle("completed").Render(fmt.Sprintf("%d", festival.Stats.Gates.Passed))))
-			sb.WriteString(fmt.Sprintf("  %s %s\n", ui.Label("Failed"), ui.GetStateStyle("blocked").Render(fmt.Sprintf("%d", festival.Stats.Gates.Failed))))
+			fmt.Fprintf(&sb, "  %s %s\n", ui.Label("Total"), ui.Value(fmt.Sprintf("%d", festival.Stats.Gates.Total)))
+			fmt.Fprintf(&sb, "  %s %s\n", ui.Label("Passed"), ui.GetStateStyle("completed").Render(fmt.Sprintf("%d", festival.Stats.Gates.Passed)))
+			fmt.Fprintf(&sb, "  %s %s\n", ui.Label("Failed"), ui.GetStateStyle("blocked").Render(fmt.Sprintf("%d", festival.Stats.Gates.Failed)))
 		}
 	}
 
@@ -104,12 +104,12 @@ func FormatFestivalDetails(festival *FestivalInfo, verbose bool, campaignRoot st
 
 func formatStatusCounts(prefix string, counts StatusCounts) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("%s%s %s\n", prefix, ui.Label("Total"), ui.Value(fmt.Sprintf("%d", counts.Total))))
-	sb.WriteString(fmt.Sprintf("%s%s %s\n", prefix, ui.Label("Completed"), ui.GetStateStyle("completed").Render(fmt.Sprintf("%d", counts.Completed))))
-	sb.WriteString(fmt.Sprintf("%s%s %s\n", prefix, ui.Label("In progress"), ui.GetStateStyle("in_progress").Render(fmt.Sprintf("%d", counts.InProgress))))
-	sb.WriteString(fmt.Sprintf("%s%s %s\n", prefix, ui.Label("Pending"), ui.GetStateStyle("pending").Render(fmt.Sprintf("%d", counts.Pending))))
+	fmt.Fprintf(&sb, "%s%s %s\n", prefix, ui.Label("Total"), ui.Value(fmt.Sprintf("%d", counts.Total)))
+	fmt.Fprintf(&sb, "%s%s %s\n", prefix, ui.Label("Completed"), ui.GetStateStyle("completed").Render(fmt.Sprintf("%d", counts.Completed)))
+	fmt.Fprintf(&sb, "%s%s %s\n", prefix, ui.Label("In progress"), ui.GetStateStyle("in_progress").Render(fmt.Sprintf("%d", counts.InProgress)))
+	fmt.Fprintf(&sb, "%s%s %s\n", prefix, ui.Label("Pending"), ui.GetStateStyle("pending").Render(fmt.Sprintf("%d", counts.Pending)))
 	if counts.Blocked > 0 {
-		sb.WriteString(fmt.Sprintf("%s%s %s\n", prefix, ui.Label("Blocked"), ui.GetStateStyle("blocked").Render(fmt.Sprintf("%d", counts.Blocked))))
+		fmt.Fprintf(&sb, "%s%s %s\n", prefix, ui.Label("Blocked"), ui.GetStateStyle("blocked").Render(fmt.Sprintf("%d", counts.Blocked)))
 	}
 	return sb.String()
 }
@@ -135,7 +135,7 @@ func FormatFestivalList(status string, festivals []*FestivalInfo) string {
 			progress = ui.Dim(fmt.Sprintf(" [%.0f%%]", f.Stats.Progress))
 		}
 		styledName := ui.GetStatusStyle(status).Render(f.Name)
-		sb.WriteString(fmt.Sprintf("  %s%s\n", styledName, progress))
+		fmt.Fprintf(&sb, "  %s%s\n", styledName, progress)
 	}
 
 	return sb.String()
@@ -158,14 +158,14 @@ func FormatFestivalListWithProgress(status string, festivals []*FestivalInfo, pr
 
 	for _, f := range festivals {
 		styledName := ui.GetStatusStyle(status).Render(f.Name)
-		sb.WriteString(fmt.Sprintf("  %s\n", styledName))
+		fmt.Fprintf(&sb, "  %s\n", styledName)
 
 		// Show timestamps
 		if !f.CreatedAt.IsZero() {
-			sb.WriteString(fmt.Sprintf("    %s %s\n", ui.Label("Created"), ui.Dim(formatTimestamp(f.CreatedAt))))
+			fmt.Fprintf(&sb, "    %s %s\n", ui.Label("Created"), ui.Dim(formatTimestamp(f.CreatedAt)))
 		}
 		if !f.UpdatedAt.IsZero() {
-			sb.WriteString(fmt.Sprintf("    %s %s\n", ui.Label("Updated"), ui.Dim(formatTimestamp(f.UpdatedAt))))
+			fmt.Fprintf(&sb, "    %s %s\n", ui.Label("Updated"), ui.Dim(formatTimestamp(f.UpdatedAt)))
 		}
 
 		// Show detailed progress if available
@@ -173,17 +173,17 @@ func FormatFestivalListWithProgress(status string, festivals []*FestivalInfo, pr
 			overall := prog.Overall
 			// Progress bar with percentage and task counts
 			bar := renderPercentBar(float64(overall.Percentage))
-			sb.WriteString(fmt.Sprintf("    %s %s %s %s\n",
+			fmt.Fprintf(&sb, "    %s %s %s %s\n",
 				ui.Label("Overall"),
 				bar,
 				ui.Value(fmt.Sprintf("%d%%", overall.Percentage)),
-				ui.Dim(fmt.Sprintf("(%d/%d tasks)", overall.Completed, overall.Total))))
+				ui.Dim(fmt.Sprintf("(%d/%d tasks)", overall.Completed, overall.Total)))
 
 			// Total time if available
 			if overall.TimeSpentMin > 0 {
-				sb.WriteString(fmt.Sprintf("    %s %s\n",
+				fmt.Fprintf(&sb, "    %s %s\n",
 					ui.Label("Total time"),
-					ui.Value(ui.FormatDuration(overall.TimeSpentMin))))
+					ui.Value(ui.FormatDuration(overall.TimeSpentMin)))
 			}
 			sb.WriteString("\n")
 		}
@@ -203,7 +203,7 @@ func FormatAllFestivalsWithProgress(allFestivals map[string][]*FestivalInfo, sta
 
 	sb.WriteString(ui.H1("All Festivals"))
 	sb.WriteString("\n")
-	sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Total"), ui.Value(fmt.Sprintf("%d", total))))
+	fmt.Fprintf(&sb, "%s %s\n", ui.Label("Total"), ui.Value(fmt.Sprintf("%d", total)))
 	sb.WriteString(ui.Dim(strings.Repeat("─", 40)))
 	sb.WriteString("\n\n")
 
@@ -227,7 +227,7 @@ func FormatAllFestivals(allFestivals map[string][]*FestivalInfo, statusOrder []s
 
 	sb.WriteString(ui.H1("All Festivals"))
 	sb.WriteString("\n")
-	sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Total"), ui.Value(fmt.Sprintf("%d", total))))
+	fmt.Fprintf(&sb, "%s %s\n", ui.Label("Total"), ui.Value(fmt.Sprintf("%d", total)))
 	sb.WriteString(ui.Dim(strings.Repeat("─", 40)))
 	sb.WriteString("\n\n")
 
@@ -250,17 +250,17 @@ func FormatLocation(loc *LocationInfo) string {
 
 	sb.WriteString(ui.H1("Location"))
 	sb.WriteString("\n")
-	sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Festival"), ui.Value(loc.Festival.Name, ui.FestivalColor)))
-	sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Location"), ui.Value(loc.Type)))
+	fmt.Fprintf(&sb, "%s %s\n", ui.Label("Festival"), ui.Value(loc.Festival.Name, ui.FestivalColor))
+	fmt.Fprintf(&sb, "%s %s\n", ui.Label("Location"), ui.Value(loc.Type))
 
 	if loc.Phase != "" {
-		sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Phase"), ui.Value(loc.Phase, ui.PhaseColor)))
+		fmt.Fprintf(&sb, "%s %s\n", ui.Label("Phase"), ui.Value(loc.Phase, ui.PhaseColor))
 	}
 	if loc.Sequence != "" {
-		sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Sequence"), ui.Value(loc.Sequence, ui.SequenceColor)))
+		fmt.Fprintf(&sb, "%s %s\n", ui.Label("Sequence"), ui.Value(loc.Sequence, ui.SequenceColor))
 	}
 	if loc.Task != "" {
-		sb.WriteString(fmt.Sprintf("%s %s\n", ui.Label("Task"), ui.Value(loc.Task, ui.TaskColor)))
+		fmt.Fprintf(&sb, "%s %s\n", ui.Label("Task"), ui.Value(loc.Task, ui.TaskColor))
 	}
 
 	return sb.String()

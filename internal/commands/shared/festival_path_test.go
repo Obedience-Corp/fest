@@ -49,12 +49,12 @@ func TestResolveFestivalPath_LinkedProject(t *testing.T) {
 	// Override config dir for test isolation
 	origConfigDir := os.Getenv("XDG_CONFIG_HOME")
 	configDir := filepath.Join(tmpDir, "config")
-	os.Setenv("XDG_CONFIG_HOME", configDir)
+	_ = os.Setenv("XDG_CONFIG_HOME", configDir)
 	defer func() {
 		if origConfigDir == "" {
-			os.Unsetenv("XDG_CONFIG_HOME")
+			_ = os.Unsetenv("XDG_CONFIG_HOME")
 		} else {
-			os.Setenv("XDG_CONFIG_HOME", origConfigDir)
+			_ = os.Setenv("XDG_CONFIG_HOME", origConfigDir)
 		}
 	}()
 
@@ -154,12 +154,12 @@ func TestResolveFestivalPath_NoFestival(t *testing.T) {
 	// Override config to have no links
 	origConfigDir := os.Getenv("XDG_CONFIG_HOME")
 	configDir := filepath.Join(tmpDir, "config")
-	os.Setenv("XDG_CONFIG_HOME", configDir)
+	_ = os.Setenv("XDG_CONFIG_HOME", configDir)
 	defer func() {
 		if origConfigDir == "" {
-			os.Unsetenv("XDG_CONFIG_HOME")
+			_ = os.Unsetenv("XDG_CONFIG_HOME")
 		} else {
-			os.Setenv("XDG_CONFIG_HOME", origConfigDir)
+			_ = os.Setenv("XDG_CONFIG_HOME", origConfigDir)
 		}
 	}()
 

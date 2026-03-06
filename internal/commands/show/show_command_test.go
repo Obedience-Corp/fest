@@ -44,7 +44,7 @@ func TestRunShowBySelector_FromProjectDirInCampaign(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(origCWD)
+	defer func() { _ = os.Chdir(origCWD) }()
 
 	if err := os.Chdir(projectDir); err != nil {
 		t.Fatal(err)
@@ -61,7 +61,7 @@ func TestRunShowBySelector_RequiresCampaignWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Chdir(origCWD)
+	defer func() { _ = os.Chdir(origCWD) }()
 
 	tmpDir := t.TempDir()
 	if err := os.Chdir(tmpDir); err != nil {

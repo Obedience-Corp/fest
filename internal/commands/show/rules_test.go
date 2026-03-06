@@ -20,8 +20,8 @@ func TestRunRulesDisplaysContent(t *testing.T) {
 
 	// Run from inside the festival
 	origDir, _ := os.Getwd()
-	t.Cleanup(func() { os.Chdir(origDir) })
-	os.Chdir(festDir)
+	t.Cleanup(func() { _ = os.Chdir(origDir) })
+	_ = os.Chdir(festDir)
 
 	var buf bytes.Buffer
 	cmd := &cobra.Command{}
@@ -49,8 +49,8 @@ func TestRunRulesErrorsWhenNoFile(t *testing.T) {
 	festDir := setupTempFestival(t)
 
 	origDir, _ := os.Getwd()
-	t.Cleanup(func() { os.Chdir(origDir) })
-	os.Chdir(festDir)
+	t.Cleanup(func() { _ = os.Chdir(origDir) })
+	_ = os.Chdir(festDir)
 
 	cmd := &cobra.Command{}
 	cmd.SetOut(&bytes.Buffer{})

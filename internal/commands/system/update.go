@@ -284,12 +284,12 @@ func runUpdate(ctx context.Context, targetPath string, opts *updateOptions) erro
 func cleanEmptyDirs(root string) {
 	// Walk multiple times to handle nested empty directories
 	for i := 0; i < 5; i++ {
-		filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
+		_ = filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 			if err != nil || !info.IsDir() || path == root {
 				return nil
 			}
 			// Try to remove the directory (will only succeed if empty)
-			os.Remove(path)
+			_ = os.Remove(path)
 			return nil
 		})
 	}
@@ -366,7 +366,7 @@ func promptForFile(display *ui.UI, file string) string {
 	fmt.Print(ui.Info("Update this file? [Y/s/a] (Y=yes, s=skip, a=accept all): "))
 
 	var response string
-	fmt.Scanln(&response)
+	_, _ = fmt.Scanln(&response)
 	response = strings.ToLower(strings.TrimSpace(response))
 
 	switch response {

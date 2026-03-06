@@ -12,6 +12,8 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	uitheme "github.com/Obedience-Corp/fest/internal/ui/theme"
 	"github.com/charmbracelet/huh"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // HierarchyLevel represents a level in the selection hierarchy.
@@ -340,7 +342,7 @@ func formatPhaseLabel(phase string) string {
 	parts := strings.SplitN(phase, "_", 2)
 	if len(parts) == 2 {
 		name := strings.ReplaceAll(parts[1], "_", " ")
-		name = strings.Title(strings.ToLower(name))
+		name = cases.Title(language.English).String(strings.ToLower(name))
 		return parts[0] + " " + name
 	}
 	return phase
@@ -352,7 +354,7 @@ func formatSequenceLabel(sequence string) string {
 	parts := strings.SplitN(sequence, "_", 2)
 	if len(parts) == 2 {
 		name := strings.ReplaceAll(parts[1], "_", " ")
-		name = strings.Title(strings.ToLower(name))
+		name = cases.Title(language.English).String(strings.ToLower(name))
 		return parts[0] + " " + name
 	}
 	return sequence
@@ -365,7 +367,7 @@ func formatTaskLabel(task string) string {
 	parts := strings.SplitN(task, "_", 2)
 	if len(parts) == 2 {
 		name := strings.ReplaceAll(parts[1], "_", " ")
-		name = strings.Title(strings.ToLower(name))
+		name = cases.Title(language.English).String(strings.ToLower(name))
 		return parts[0] + " " + name
 	}
 	return task

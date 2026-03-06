@@ -101,7 +101,7 @@ func formatTextComplete(result *NextTaskResult) string {
 	}
 
 	var buf bytes.Buffer
-	agent.MustGet("next/complete").Execute(&buf, data)
+	_ = agent.MustGet("next/complete").Execute(&buf, data)
 	return buf.String()
 }
 
@@ -137,7 +137,7 @@ func formatTextNoTask(result *NextTaskResult) string {
 	}
 
 	var buf bytes.Buffer
-	agent.MustGet("next/no_task").Execute(&buf, data)
+	_ = agent.MustGet("next/no_task").Execute(&buf, data)
 	return buf.String()
 }
 
@@ -251,7 +251,7 @@ func formatTextPlanning(result *NextTaskResult) string {
 	}
 
 	var buf bytes.Buffer
-	agent.MustGet("next/planning").Execute(&buf, data)
+	_ = agent.MustGet("next/planning").Execute(&buf, data)
 	return buf.String()
 }
 
@@ -268,7 +268,7 @@ func formatTextTask(result *NextTaskResult, showInlineContext bool) string {
 		sb.WriteString(ui.H3("Parallel Tasks"))
 		sb.WriteString("\n")
 		for _, task := range result.ParallelTasks {
-			sb.WriteString(fmt.Sprintf("  - %s %s\n", ui.Value(task.Name, ui.TaskColor), ui.Dim(task.SequenceName)))
+			fmt.Fprintf(&sb, "  - %s %s\n", ui.Value(task.Name, ui.TaskColor), ui.Dim(task.SequenceName))
 		}
 		parallelSection = sb.String()
 	}
@@ -357,7 +357,7 @@ func formatTextTask(result *NextTaskResult, showInlineContext bool) string {
 	}
 
 	var buf bytes.Buffer
-	agent.MustGet("next/task").Execute(&buf, data)
+	_ = agent.MustGet("next/task").Execute(&buf, data)
 	return buf.String()
 }
 
@@ -371,10 +371,10 @@ func buildContextSection(loc *LocationInfo, task *TaskInfo, showSummaries bool) 
 	// Festival goal
 	if loc != nil && loc.FestivalPath != "" {
 		festivalGoal := filepath.Join(loc.FestivalPath, "FESTIVAL_GOAL.md")
-		sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(festivalGoal)))
+		fmt.Fprintf(&sb, "  - %s\n", ui.Dim(festivalGoal))
 		if showSummaries {
 			if summary := extractFirstParagraph(festivalGoal); summary != "" {
-				sb.WriteString(fmt.Sprintf("    %s\n", ui.Dim(summary)))
+				fmt.Fprintf(&sb, "    %s\n", ui.Dim(summary))
 			}
 		}
 	}
@@ -382,10 +382,10 @@ func buildContextSection(loc *LocationInfo, task *TaskInfo, showSummaries bool) 
 	// Phase goal
 	if task.PhasePath != "" {
 		phaseGoal := filepath.Join(task.PhasePath, "PHASE_GOAL.md")
-		sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(phaseGoal)))
+		fmt.Fprintf(&sb, "  - %s\n", ui.Dim(phaseGoal))
 		if showSummaries {
 			if summary := extractFirstParagraph(phaseGoal); summary != "" {
-				sb.WriteString(fmt.Sprintf("    %s\n", ui.Dim(summary)))
+				fmt.Fprintf(&sb, "    %s\n", ui.Dim(summary))
 			}
 		}
 	}
@@ -393,10 +393,10 @@ func buildContextSection(loc *LocationInfo, task *TaskInfo, showSummaries bool) 
 	// Sequence goal
 	if task.SequencePath != "" {
 		sequenceGoal := filepath.Join(task.SequencePath, "SEQUENCE_GOAL.md")
-		sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(sequenceGoal)))
+		fmt.Fprintf(&sb, "  - %s\n", ui.Dim(sequenceGoal))
 		if showSummaries {
 			if summary := extractFirstParagraph(sequenceGoal); summary != "" {
-				sb.WriteString(fmt.Sprintf("    %s\n", ui.Dim(summary)))
+				fmt.Fprintf(&sb, "    %s\n", ui.Dim(summary))
 			}
 		}
 	}
@@ -564,13 +564,13 @@ func buildLayeredGoalsSection(goals *LayeredGoals) string {
 	var sb strings.Builder
 	sb.WriteString("Context about the task you will be doing:\n")
 	if goals.FestivalGoal != "" {
-		sb.WriteString(fmt.Sprintf("Festival Goal: %s\n", goals.FestivalGoal))
+		fmt.Fprintf(&sb, "Festival Goal: %s\n", goals.FestivalGoal)
 	}
 	if goals.PhaseGoal != "" {
-		sb.WriteString(fmt.Sprintf("Phase Goal: %s\n", goals.PhaseGoal))
+		fmt.Fprintf(&sb, "Phase Goal: %s\n", goals.PhaseGoal)
 	}
 	if goals.SequenceGoal != "" {
-		sb.WriteString(fmt.Sprintf("Sequence Goal: %s\n", goals.SequenceGoal))
+		fmt.Fprintf(&sb, "Sequence Goal: %s\n", goals.SequenceGoal)
 	}
 	return sb.String()
 }
@@ -622,7 +622,7 @@ func formatVerboseComplete(result *NextTaskResult) string {
 	}
 
 	var buf bytes.Buffer
-	agent.MustGet("next/verbose_complete").Execute(&buf, data)
+	_ = agent.MustGet("next/verbose_complete").Execute(&buf, data)
 	return buf.String()
 }
 
@@ -658,7 +658,7 @@ func formatVerboseNoTask(result *NextTaskResult) string {
 	}
 
 	var buf bytes.Buffer
-	agent.MustGet("next/verbose_no_task").Execute(&buf, data)
+	_ = agent.MustGet("next/verbose_no_task").Execute(&buf, data)
 	return buf.String()
 }
 
@@ -721,7 +721,7 @@ func formatVerboseTask(result *NextTaskResult, showInlineContext bool) string {
 	}
 
 	var buf bytes.Buffer
-	agent.MustGet("next/verbose_task").Execute(&buf, data)
+	_ = agent.MustGet("next/verbose_task").Execute(&buf, data)
 	return buf.String()
 }
 
@@ -766,7 +766,7 @@ func writeTaskDependencies(sb *strings.Builder, deps []string) {
 	sb.WriteString(ui.H2("Dependencies"))
 	sb.WriteString("\n")
 	for _, dep := range deps {
-		sb.WriteString(fmt.Sprintf("  %s %s\n", ui.StateIcon("completed"), ui.Info(dep)))
+		fmt.Fprintf(sb, "  %s %s\n", ui.StateIcon("completed"), ui.Info(dep))
 	}
 	sb.WriteString("\n")
 }
@@ -790,10 +790,10 @@ func writeParallelTasks(sb *strings.Builder, tasks []*TaskInfo) {
 	sb.WriteString(ui.H2("Parallel Tasks"))
 	sb.WriteString("\n")
 	for _, task := range tasks {
-		sb.WriteString(fmt.Sprintf("  - %s\n", ui.Value(task.Name, ui.TaskColor)))
-		sb.WriteString(fmt.Sprintf("    %s %s\n", ui.Label("Path"), ui.Dim(task.Path)))
+		fmt.Fprintf(sb, "  - %s\n", ui.Value(task.Name, ui.TaskColor))
+		fmt.Fprintf(sb, "    %s %s\n", ui.Label("Path"), ui.Dim(task.Path))
 		if task.AutonomyLevel != "" {
-			sb.WriteString(fmt.Sprintf("    %s %s\n", ui.Label("Autonomy"), ui.Value(task.AutonomyLevel)))
+			fmt.Fprintf(sb, "    %s %s\n", ui.Label("Autonomy"), ui.Value(task.AutonomyLevel))
 		}
 		sb.WriteString("\n")
 	}
@@ -896,6 +896,6 @@ func buildGateSection(task *TaskInfo) string {
 	}
 
 	var buf bytes.Buffer
-	agent.MustGet("next/gate").Execute(&buf, data)
+	_ = agent.MustGet("next/gate").Execute(&buf, data)
 	return buf.String()
 }

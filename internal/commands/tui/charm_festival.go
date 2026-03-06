@@ -25,7 +25,7 @@ func charmCreateFestival(ctx context.Context) error {
 
 	var name, goal, tags string
 	festivalTypes := []string{"standard", "implementation", "research", "quick", "ritual"}
-	var festType string = festivalTypes[0]
+	var festType = festivalTypes[0]
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().Title("Festival name").Placeholder("e.g., ecommerce-platform").Value(&name).Validate(notEmpty),
@@ -95,7 +95,7 @@ func charmPlanFestivalWizard(ctx context.Context) error {
 	}
 	var name, goal, tags string
 	festivalTypes := []string{"standard", "implementation", "research", "quick", "ritual"}
-	var festType string = festivalTypes[0]
+	var festType = festivalTypes[0]
 	base := huh.NewForm(
 		huh.NewGroup(
 			huh.NewInput().Title("Festival name").Placeholder("e.g., ecommerce-platform").Value(&name).Validate(notEmpty),

@@ -89,7 +89,7 @@ func runStatus(ctx context.Context) error {
 	if state.IsComplete() {
 		sb.WriteString(ui.Success("Complete"))
 	} else {
-		sb.WriteString(fmt.Sprintf("%d of %d", state.CurrentStep, state.TotalSteps))
+		fmt.Fprintf(&sb, "%d of %d", state.CurrentStep, state.TotalSteps)
 	}
 	sb.WriteString("\n\n")
 

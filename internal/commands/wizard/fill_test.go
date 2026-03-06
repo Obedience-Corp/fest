@@ -38,12 +38,12 @@ func TestGetEditor(t *testing.T) {
 			// This ensures config.Load returns default config (empty editor)
 			tmpDir := t.TempDir()
 			origConfigDir := os.Getenv("FEST_CONFIG_DIR")
-			os.Setenv("FEST_CONFIG_DIR", tmpDir)
+			_ = os.Setenv("FEST_CONFIG_DIR", tmpDir)
 			defer func() {
 				if origConfigDir == "" {
-					os.Unsetenv("FEST_CONFIG_DIR")
+					_ = os.Unsetenv("FEST_CONFIG_DIR")
 				} else {
-					os.Setenv("FEST_CONFIG_DIR", origConfigDir)
+					_ = os.Setenv("FEST_CONFIG_DIR", origConfigDir)
 				}
 			}()
 
@@ -51,16 +51,16 @@ func TestGetEditor(t *testing.T) {
 			origEditor := os.Getenv("EDITOR")
 			defer func() {
 				if origEditor == "" {
-					os.Unsetenv("EDITOR")
+					_ = os.Unsetenv("EDITOR")
 				} else {
-					os.Setenv("EDITOR", origEditor)
+					_ = os.Setenv("EDITOR", origEditor)
 				}
 			}()
 
 			if tt.envValue == "" {
-				os.Unsetenv("EDITOR")
+				_ = os.Unsetenv("EDITOR")
 			} else {
-				os.Setenv("EDITOR", tt.envValue)
+				_ = os.Setenv("EDITOR", tt.envValue)
 			}
 
 			got := getEditor(ctx)

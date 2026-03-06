@@ -94,7 +94,7 @@ func TestStateManager_GetTaskStatus_Default(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
 	sm := NewStateManager(tmpDir)
-	sm.Load(ctx)
+	_, _ = sm.Load(ctx)
 
 	status := sm.GetTaskStatus("nonexistent")
 	if status != StatusPending {
@@ -106,9 +106,9 @@ func TestStateManager_Clear(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
 	sm := NewStateManager(tmpDir)
-	sm.Load(ctx)
+	_, _ = sm.Load(ctx)
 	sm.SetTaskStatus("task-1", StatusCompleted)
-	sm.Save(ctx)
+	_ = sm.Save(ctx)
 
 	if !sm.Exists() {
 		t.Error("Expected state to exist after save")

@@ -18,11 +18,11 @@ func captureOutput(f func()) string {
 
 	f()
 
-	w.Close()
+	_ = w.Close()
 	os.Stdout = old
 
 	var buf bytes.Buffer
-	io.Copy(&buf, r)
+	_, _ = io.Copy(&buf, r)
 	return buf.String()
 }
 
@@ -30,8 +30,8 @@ func TestRenumberer_QuietMode(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create initial phases
-	os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "003_REVIEW"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "003_REVIEW"), 0755)
 
 	t.Run("quiet suppresses all output", func(t *testing.T) {
 		r := NewRenumberer(RenumberOptions{
@@ -53,8 +53,8 @@ func TestRenumberer_AutoApproveMode(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create initial phases
-	os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "003_REVIEW"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "003_REVIEW"), 0755)
 
 	t.Run("auto-approve skips confirmation", func(t *testing.T) {
 		r := NewRenumberer(RenumberOptions{
@@ -81,8 +81,8 @@ func TestRenumberer_QuietAutoApproveCombined(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create phases with gap
-	os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "005_DEPLOY"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "005_DEPLOY"), 0755)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -114,8 +114,8 @@ func TestRenumberer_NoChangesNeeded(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create properly numbered phases
-	os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
 
 	t.Run("no changes prints message when not quiet", func(t *testing.T) {
 		r := NewRenumberer(RenumberOptions{
@@ -151,7 +151,7 @@ func TestRenumberer_ChangeCreate_Directory(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create existing phase
-	os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -184,7 +184,7 @@ func TestRenumberer_ChangeCreate_Sequence(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create existing sequence
-	os.MkdirAll(filepath.Join(tmpDir, "01_requirements"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "01_requirements"), 0755)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -217,7 +217,7 @@ func TestRenumberer_ChangeCreate_TaskFile(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create existing task
-	os.WriteFile(filepath.Join(tmpDir, "01_existing.md"), []byte("task content"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "01_existing.md"), []byte("task content"), 0644)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -254,9 +254,9 @@ func TestRenumberer_ExecuteOrder_RenameHighestFirst(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create phases in order - renumbering should rename highest first
-	os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "003_REVIEW"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "004_DEPLOY"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "003_REVIEW"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "004_DEPLOY"), 0755)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -292,8 +292,8 @@ func TestRenumberer_InsertPhase_AtEnd(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create existing phases
-	os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -324,8 +324,8 @@ func TestRenumberer_InsertSequence_InMiddle(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create existing sequences
-	os.MkdirAll(filepath.Join(tmpDir, "01_requirements"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "02_implementation"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "01_requirements"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "02_implementation"), 0755)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -354,9 +354,9 @@ func TestRenumberer_RenumberSequences(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create sequences with gap
-	os.MkdirAll(filepath.Join(tmpDir, "01_first"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "05_fifth"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "10_tenth"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "01_first"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "05_fifth"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "10_tenth"), 0755)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -381,10 +381,10 @@ func TestRenumberer_RenumberTasks_PreservesParallel(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create tasks including parallel tasks (same number)
-	os.WriteFile(filepath.Join(tmpDir, "01_setup.md"), []byte("setup"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "02_task_a.md"), []byte("a"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "02_task_b.md"), []byte("b"), 0644) // parallel with 02_task_a
-	os.WriteFile(filepath.Join(tmpDir, "03_finish.md"), []byte("finish"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "01_setup.md"), []byte("setup"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "02_task_a.md"), []byte("a"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "02_task_b.md"), []byte("b"), 0644) // parallel with 02_task_a
+	_ = os.WriteFile(filepath.Join(tmpDir, "03_finish.md"), []byte("finish"), 0644)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -420,9 +420,9 @@ func TestRenumberer_RemoveElement_Phase(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create phases
-	os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "003_REVIEW"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "003_REVIEW"), 0755)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -453,9 +453,9 @@ func TestRenumberer_RemoveElement_Task(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create tasks
-	os.WriteFile(filepath.Join(tmpDir, "01_first.md"), []byte("1"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "02_second.md"), []byte("2"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "03_third.md"), []byte("3"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "01_first.md"), []byte("1"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "02_second.md"), []byte("2"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "03_third.md"), []byte("3"), 0644)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -540,7 +540,7 @@ func TestRenumberer_VerboseMode(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create phases to renumber
-	os.MkdirAll(filepath.Join(tmpDir, "005_DEPLOY"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "005_DEPLOY"), 0755)
 
 	r := NewRenumberer(RenumberOptions{
 		Verbose:     true,
@@ -561,7 +561,7 @@ func TestRenumberer_DryRunMode(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create phases
-	os.MkdirAll(filepath.Join(tmpDir, "005_DEPLOY"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "005_DEPLOY"), 0755)
 
 	r := NewRenumberer(RenumberOptions{
 		DryRun:      true,

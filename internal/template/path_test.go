@@ -153,7 +153,7 @@ func TestFindFestivalsRoot(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get cwd: %v", err)
 		}
-		t.Cleanup(func() { os.Chdir(origDir) })
+		t.Cleanup(func() { _ = os.Chdir(origDir) })
 
 		if err := os.Chdir(nestedDir); err != nil {
 			t.Fatalf("failed to chdir: %v", err)
@@ -270,7 +270,7 @@ func TestFindFestivalRoot(t *testing.T) {
 		if err != nil {
 			t.Fatalf("failed to get cwd: %v", err)
 		}
-		t.Cleanup(func() { os.Chdir(origDir) })
+		t.Cleanup(func() { _ = os.Chdir(origDir) })
 
 		if err := os.Chdir(nestedDir); err != nil {
 			t.Fatalf("failed to chdir: %v", err)

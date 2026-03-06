@@ -294,7 +294,7 @@ func (s *Store) GetReminderText(ctx context.Context) (string, error) {
 	sb.WriteString("\n## Feedback Collection\n\n")
 	sb.WriteString("As you work, watch for observations matching these criteria:\n\n")
 	for i, c := range config.Criteria {
-		sb.WriteString(fmt.Sprintf("  %d. %s\n", i+1, c.Name))
+		fmt.Fprintf(&sb, "  %d. %s\n", i+1, c.Name)
 	}
 	sb.WriteString("\nTo record feedback:\n")
 	sb.WriteString("  fest feedback add --criteria \"<criteria text>\" --observation \"<what you observed>\"\n")
@@ -345,7 +345,7 @@ func (s *Store) exportMarkdown(observations []*Observation) string {
 	var sb strings.Builder
 
 	sb.WriteString("# Feedback Report\n\n")
-	sb.WriteString(fmt.Sprintf("Generated: %s\n\n", time.Now().Format(time.RFC3339)))
+	fmt.Fprintf(&sb, "Generated: %s\n\n", time.Now().Format(time.RFC3339))
 
 	// Group by criteria
 	byCategory := make(map[string][]*Observation)
@@ -354,18 +354,18 @@ func (s *Store) exportMarkdown(observations []*Observation) string {
 	}
 
 	for criteria, obs := range byCategory {
-		sb.WriteString(fmt.Sprintf("## %s\n\n", criteria))
+		fmt.Fprintf(&sb, "## %s\n\n", criteria)
 		for _, o := range obs {
-			sb.WriteString(fmt.Sprintf("### %s\n\n", o.ID))
-			sb.WriteString(fmt.Sprintf("**Observation:** %s\n\n", o.Observation))
+			fmt.Fprintf(&sb, "### %s\n\n", o.ID)
+			fmt.Fprintf(&sb, "**Observation:** %s\n\n", o.Observation)
 			if o.Task != "" {
-				sb.WriteString(fmt.Sprintf("**Task:** %s\n\n", o.Task))
+				fmt.Fprintf(&sb, "**Task:** %s\n\n", o.Task)
 			}
 			if o.Severity != "" {
-				sb.WriteString(fmt.Sprintf("**Severity:** %s\n\n", o.Severity))
+				fmt.Fprintf(&sb, "**Severity:** %s\n\n", o.Severity)
 			}
 			if o.Suggestion != "" {
-				sb.WriteString(fmt.Sprintf("**Suggestion:** %s\n\n", o.Suggestion))
+				fmt.Fprintf(&sb, "**Suggestion:** %s\n\n", o.Suggestion)
 			}
 			sb.WriteString("---\n\n")
 		}

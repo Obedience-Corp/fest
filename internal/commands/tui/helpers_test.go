@@ -209,7 +209,7 @@ func TestListPhaseDirs(t *testing.T) {
 		emptyDir := filepath.Join(tmpDir, "empty")
 		os.MkdirAll(emptyDir, 0755)
 		got := listPhaseDirs(emptyDir)
-		if got != nil && len(got) != 0 {
+		if len(got) != 0 {
 			t.Errorf("listPhaseDirs on empty dir returned %v, want nil or empty", got)
 		}
 	})
@@ -257,7 +257,7 @@ func TestListSequenceDirs(t *testing.T) {
 		emptyDir := filepath.Join(tmpDir, "empty")
 		os.MkdirAll(emptyDir, 0755)
 		got := listSequenceDirs(emptyDir)
-		if got != nil && len(got) != 0 {
+		if len(got) != 0 {
 			t.Errorf("listSequenceDirs on empty dir returned %v, want nil or empty", got)
 		}
 	})
@@ -754,7 +754,7 @@ func TestWriteTempVarsFile(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		defer os.Remove(path)
+		defer func() { _ = os.Remove(path) }()
 
 		if path == "" {
 			t.Fatal("expected non-empty path")

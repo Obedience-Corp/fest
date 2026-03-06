@@ -171,9 +171,9 @@ func TestAtomicStatusChange_Comprehensive(t *testing.T) {
 				// To truly test missing source, remove after RecordStatusChange
 				// would run. Instead, we remove FESTIVAL_GOAL.md and .fest to
 				// make it an empty dir, then remove the dir itself AFTER setup.
-				os.RemoveAll(festPath)
+				_ = os.RemoveAll(festPath)
 				// Also remove any parent dir RecordStatusChange might create
-				os.RemoveAll(filepath.Join(root, "planning", "test-fest-TF0001"))
+				_ = os.RemoveAll(filepath.Join(root, "planning", "test-fest-TF0001"))
 			},
 			// Note: RecordStatusChange recreates the dir, so Rename succeeds.
 			// This is actually correct behavior - the function is resilient.
@@ -338,7 +338,7 @@ func TestCopyAndDelete(t *testing.T) {
 			name: "source not found returns error",
 			setupSource: func(t *testing.T, srcDir string) {
 				t.Helper()
-				os.RemoveAll(srcDir)
+				_ = os.RemoveAll(srcDir)
 			},
 			wantErr: true,
 		},
@@ -393,7 +393,7 @@ func TestCopyAndDelete_CleanupOnFailure(t *testing.T) {
 	_, err := copyAndDelete(srcDir, destPath)
 	if err == nil {
 		// Restore permissions for cleanup
-		os.Chmod(unreadable, 0644)
+		_ = os.Chmod(unreadable, 0644)
 		t.Skip("test requires non-root user for permission checks")
 	}
 
@@ -408,7 +408,7 @@ func TestCopyAndDelete_CleanupOnFailure(t *testing.T) {
 	}
 
 	// Restore permissions for cleanup
-	os.Chmod(unreadable, 0644)
+	_ = os.Chmod(unreadable, 0644)
 }
 
 func TestAtomicStatusChange_RecordsHistory(t *testing.T) {

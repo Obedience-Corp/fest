@@ -101,21 +101,21 @@ func runConfigTUI(ctx context.Context) error {
 		case "exit", "":
 			return nil
 		case "repo_url":
-			editStringSetting(ctx, cfg, "Repository URL", "GitHub repository for festival methodology templates", &cfg.Repository.URL)
+			_ = editStringSetting(ctx, cfg, "Repository URL", "GitHub repository for festival methodology templates", &cfg.Repository.URL)
 		case "repo_branch":
-			editStringSetting(ctx, cfg, "Repository Branch", "Git branch to sync from", &cfg.Repository.Branch)
+			_ = editStringSetting(ctx, cfg, "Repository Branch", "Git branch to sync from", &cfg.Repository.Branch)
 		case "repo_path":
-			editStringSetting(ctx, cfg, "Repository Path", "Path within repository to methodology files", &cfg.Repository.Path)
+			_ = editStringSetting(ctx, cfg, "Repository Path", "Path within repository to methodology files", &cfg.Repository.Path)
 		case "editor":
-			editStringSetting(ctx, cfg, "Editor", "Preferred editor for wizard fill (empty = $EDITOR or vim)", &cfg.Behavior.Editor)
+			_ = editStringSetting(ctx, cfg, "Editor", "Preferred editor for wizard fill (empty = $EDITOR or vim)", &cfg.Behavior.Editor)
 		case "vim_mode":
-			editBoolSetting(ctx, cfg, "Vim Mode", "Enable vim-style keybindings (j/k navigation)", &cfg.TUI.VimMode)
+			_ = editBoolSetting(ctx, cfg, "Vim Mode", "Enable vim-style keybindings (j/k navigation)", &cfg.TUI.VimMode)
 		case "expand_inputs":
-			editBoolSetting(ctx, cfg, "Expand Inputs", "Auto-expand text areas as content grows", &cfg.TUI.ExpandInputs)
+			_ = editBoolSetting(ctx, cfg, "Expand Inputs", "Auto-expand text areas as content grows", &cfg.TUI.ExpandInputs)
 		case "max_height":
-			editIntSetting(ctx, cfg, "Max Input Height", "Maximum lines for expandable text areas", &cfg.TUI.MaxInputHeight)
+			_ = editIntSetting(ctx, cfg, "Max Input Height", "Maximum lines for expandable text areas", &cfg.TUI.MaxInputHeight)
 		case "theme":
-			editThemeSetting(ctx, cfg)
+			_ = editThemeSetting(ctx, cfg)
 		}
 	}
 }

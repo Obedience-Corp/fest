@@ -39,10 +39,7 @@ Checks (auto-verified where possible):
 	return cmd
 }
 
-func runValidateChecklist(ctx context.Context, opts *validateOptions) error {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+func runValidateChecklist(_ context.Context, opts *validateOptions) error {
 	festivalPath, err := resolveFestivalPath(opts.path)
 	if err != nil {
 		return emitValidateError(opts, err)

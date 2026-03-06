@@ -143,7 +143,7 @@ func Test(verbose bool) error {
 
 	success := pkgFailures == 0
 	// Choose appropriate title based on whether there are failures
-	title := "Test Summary"
+	var title string
 	if hasFailures {
 		title = "Test Failures"
 	} else {

@@ -72,7 +72,7 @@ func renderRoadmapText(festivalName string, plan *orchestration.ExecutionPlan) s
 	}
 
 	for i, phase := range plan.Phases {
-		b.WriteString(fmt.Sprintf("\nPhase %s (%s)\n", phase.Name, phase.Status))
+		fmt.Fprintf(&b, "\nPhase %s (%s)\n", phase.Name, phase.Status)
 
 		lastPhase := i == len(plan.Phases)-1
 		for j, seq := range phase.Sequences {
@@ -84,7 +84,7 @@ func renderRoadmapText(festivalName string, plan *orchestration.ExecutionPlan) s
 				seqCont = "  "
 			}
 
-			b.WriteString(fmt.Sprintf("  %s %s (%d tasks)\n", seqPrefix, seq.Name, seq.TotalTasks))
+			fmt.Fprintf(&b, "  %s %s (%d tasks)\n", seqPrefix, seq.Name, seq.TotalTasks)
 
 			for k, step := range seq.Steps {
 				lastStep := k == len(seq.Steps)-1
@@ -93,19 +93,19 @@ func renderRoadmapText(festivalName string, plan *orchestration.ExecutionPlan) s
 				_ = lastPhase
 
 				if step.Parallel && len(step.Tasks) > 1 {
-					b.WriteString(fmt.Sprintf("  %s Step %d: [parallel]\n", stepPrefix, step.Number))
+					fmt.Fprintf(&b, "  %s Step %d: [parallel]\n", stepPrefix, step.Number)
 					for t, task := range step.Tasks {
 						taskPrefix := "├─"
 						if t == len(step.Tasks)-1 {
 							taskPrefix = "└─"
 						}
 						marker := statusMarker(task.IsGate)
-						b.WriteString(fmt.Sprintf("  %s   %s %s%s %s\n", stepPrefix, taskPrefix, marker, task.Name, dotPad(task.Name, task.Status, marker)))
+						fmt.Fprintf(&b, "  %s   %s %s%s %s\n", stepPrefix, taskPrefix, marker, task.Name, dotPad(task.Name, task.Status, marker))
 					}
 				} else if len(step.Tasks) == 1 {
 					task := step.Tasks[0]
 					marker := statusMarker(task.IsGate)
-					b.WriteString(fmt.Sprintf("  %s Step %d: %s%s %s\n", stepPrefix, step.Number, marker, task.Name, dotPad(task.Name, task.Status, marker)))
+					fmt.Fprintf(&b, "  %s Step %d: %s%s %s\n", stepPrefix, step.Number, marker, task.Name, dotPad(task.Name, task.Status, marker))
 				}
 			}
 		}
@@ -114,13 +114,13 @@ func renderRoadmapText(festivalName string, plan *orchestration.ExecutionPlan) s
 	// Summary line
 	if plan.Summary != nil {
 		s := plan.Summary
-		b.WriteString(fmt.Sprintf("\nSummary: %d phases, %d sequences, %d tasks",
-			s.TotalPhases, s.TotalSequences, s.TotalTasks))
+		fmt.Fprintf(&b, "\nSummary: %d phases, %d sequences, %d tasks",
+			s.TotalPhases, s.TotalSequences, s.TotalTasks)
 		if s.ParallelGroups > 0 {
-			b.WriteString(fmt.Sprintf(", %d parallel groups", s.ParallelGroups))
+			fmt.Fprintf(&b, ", %d parallel groups", s.ParallelGroups)
 		}
 		if s.QualityGates > 0 {
-			b.WriteString(fmt.Sprintf(", %d quality gates", s.QualityGates))
+			fmt.Fprintf(&b, ", %d quality gates", s.QualityGates)
 		}
 		b.WriteString("\n")
 	}

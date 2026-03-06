@@ -76,7 +76,7 @@ func runValidateOrdering(ctx context.Context, opts *validateOptions) error {
 
 	if opts.jsonOutput {
 		if !result.Valid {
-			emitValidateJSON(result)
+			_ = emitValidateJSON(result)
 			return errors.Validation("ordering validation failed").WithField("issue_count", len(result.Issues))
 		}
 		return emitValidateJSON(result)

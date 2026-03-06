@@ -187,7 +187,7 @@ func isNumericShortcut(s string, maxDigits int) bool {
 func resolveNumericPhase(shortcut string, festivalDir string) (string, error) {
 	// Pad to 3 digits
 	n := 0
-	fmt.Sscanf(shortcut, "%d", &n)
+	_, _ = fmt.Sscanf(shortcut, "%d", &n)
 	padded := fmt.Sprintf("%03d", n)
 
 	// Search for matching directory
@@ -216,7 +216,7 @@ func resolveNumericPhase(shortcut string, festivalDir string) (string, error) {
 func resolveNumericSequence(shortcut string, phaseDir string) (string, error) {
 	// Pad to 2 digits
 	n := 0
-	fmt.Sscanf(shortcut, "%d", &n)
+	_, _ = fmt.Sscanf(shortcut, "%d", &n)
 	padded := fmt.Sprintf("%02d", n)
 
 	// Search for matching directory

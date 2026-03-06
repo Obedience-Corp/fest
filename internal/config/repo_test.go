@@ -149,8 +149,8 @@ func TestLoadSaveRepoManifest(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 
 	// Override config dir
-	os.Setenv("FEST_CONFIG_DIR", tmpDir)
-	defer os.Unsetenv("FEST_CONFIG_DIR")
+	_ = os.Setenv("FEST_CONFIG_DIR", tmpDir)
+	defer func() { _ = os.Unsetenv("FEST_CONFIG_DIR") }()
 
 	// Test loading non-existent (should return empty manifest)
 	manifest, err := LoadRepoManifest(ctx)

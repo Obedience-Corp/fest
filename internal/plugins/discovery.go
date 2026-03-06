@@ -38,9 +38,7 @@ func (pd *PluginDiscovery) DiscoverAll() error {
 	// 1. Load from user config repo manifest
 	if userPath := config.ActiveUserPath(); userPath != "" {
 		manifestPath := filepath.Join(userPath, "plugins", ManifestFileName)
-		if err := pd.loadManifest(manifestPath, "user"); err == nil {
-			// Manifest loaded successfully
-		}
+		_ = pd.loadManifest(manifestPath, "user")
 	}
 
 	// 2. Scan user config repo bin directory

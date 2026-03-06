@@ -156,7 +156,7 @@ func TestFindNextCounter(t *testing.T) {
 				statusDir := filepath.Join(tmpDir, status)
 				entries, _ := os.ReadDir(statusDir)
 				for _, e := range entries {
-					os.RemoveAll(filepath.Join(statusDir, e.Name()))
+					_ = os.RemoveAll(filepath.Join(statusDir, e.Name()))
 				}
 			}
 
@@ -229,20 +229,20 @@ func TestGenerateID(t *testing.T) {
 				statusDir := filepath.Join(tmpDir, status)
 				entries, _ := os.ReadDir(statusDir)
 				for _, e := range entries {
-					os.RemoveAll(filepath.Join(statusDir, e.Name()))
+					_ = os.RemoveAll(filepath.Join(statusDir, e.Name()))
 				}
 			}
 			// Clean dungeon/completed subdirectory
 			completedDir := filepath.Join(tmpDir, "dungeon", "completed")
 			entries, _ := os.ReadDir(completedDir)
 			for _, e := range entries {
-				os.RemoveAll(filepath.Join(completedDir, e.Name()))
+				_ = os.RemoveAll(filepath.Join(completedDir, e.Name()))
 			}
 
 			// Create existing directories
 			for status, dirs := range tt.existingDirs {
 				for _, dir := range dirs {
-					os.MkdirAll(filepath.Join(tmpDir, status, dir), 0755)
+					_ = os.MkdirAll(filepath.Join(tmpDir, status, dir), 0755)
 				}
 			}
 

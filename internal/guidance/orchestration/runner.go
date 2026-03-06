@@ -170,7 +170,7 @@ func (r *Runner) FormatDryRun() string {
 	}
 
 	var buf bytes.Buffer
-	agent.MustGet("implementation/dry_run").Execute(&buf, data)
+	_ = agent.MustGet("implementation/dry_run").Execute(&buf, data)
 	return buf.String()
 }
 
@@ -222,7 +222,7 @@ func (r *Runner) FormatAgentInstructions() (string, error) {
 	}
 
 	var buf bytes.Buffer
-	agent.MustGet("implementation/instructions").Execute(&buf, data)
+	_ = agent.MustGet("implementation/instructions").Execute(&buf, data)
 	return buf.String(), nil
 }
 
@@ -257,13 +257,13 @@ func buildDryRunPhases(r *Runner) string {
 					stepType = "parallel"
 				}
 
-				sb.WriteString(fmt.Sprintf("\n%s %s\n", ui.Label(fmt.Sprintf("Step %d", stepNum)), ui.Dim(fmt.Sprintf("(%s)", stepType))))
+				fmt.Fprintf(&sb, "\n%s %s\n", ui.Label(fmt.Sprintf("Step %d", stepNum)), ui.Dim(fmt.Sprintf("(%s)", stepType)))
 				for _, task := range step.Tasks {
 					autonomy := ""
 					if task.AutonomyLevel != "" {
 						autonomy = fmt.Sprintf(" %s", ui.Dim(fmt.Sprintf("[%s]", task.AutonomyLevel)))
 					}
-					sb.WriteString(fmt.Sprintf("  - %s%s\n", ui.Value(task.Name, ui.TaskColor), autonomy))
+					fmt.Fprintf(&sb, "  - %s%s\n", ui.Value(task.Name, ui.TaskColor), autonomy)
 				}
 			}
 			sb.WriteString("\n\n")
@@ -287,7 +287,7 @@ func formatExecutionComplete() string {
 	}
 
 	var buf bytes.Buffer
-	agent.MustGet("implementation/complete").Execute(&buf, data)
+	_ = agent.MustGet("implementation/complete").Execute(&buf, data)
 	return buf.String()
 }
 
@@ -316,10 +316,10 @@ func buildAgentTasksSection(r *Runner, step *StepGroup, inlineContext bool) stri
 	for _, task := range step.Tasks {
 		status := r.stateManager.GetTaskStatus(task.ID)
 		statusIcon := ui.StateIcon(status)
-		sb.WriteString(fmt.Sprintf("  %s %s\n", statusIcon, ui.Value(task.Name, ui.TaskColor)))
-		sb.WriteString(fmt.Sprintf("    %s %s\n", ui.Label("Path"), ui.Dim(task.Path)))
+		fmt.Fprintf(&sb, "  %s %s\n", statusIcon, ui.Value(task.Name, ui.TaskColor))
+		fmt.Fprintf(&sb, "    %s %s\n", ui.Label("Path"), ui.Dim(task.Path))
 		if task.AutonomyLevel != "" {
-			sb.WriteString(fmt.Sprintf("    %s %s\n", ui.Label("Autonomy"), ui.Value(task.AutonomyLevel)))
+			fmt.Fprintf(&sb, "    %s %s\n", ui.Label("Autonomy"), ui.Value(task.AutonomyLevel))
 		}
 
 		// Render task content inline when requested
@@ -339,9 +339,9 @@ func buildAgentContextSection(festivalPath, phasePath, seqPath string) string {
 
 	sb.WriteString(ui.H2("Context Files"))
 	sb.WriteString("\n")
-	sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(festivalGoal)))
-	sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(phaseGoal)))
-	sb.WriteString(fmt.Sprintf("  - %s\n", ui.Dim(sequenceGoal)))
+	fmt.Fprintf(&sb, "  - %s\n", ui.Dim(festivalGoal))
+	fmt.Fprintf(&sb, "  - %s\n", ui.Dim(phaseGoal))
+	fmt.Fprintf(&sb, "  - %s\n", ui.Dim(sequenceGoal))
 
 	return sb.String()
 }
@@ -354,9 +354,9 @@ func writeInlineTaskContent(sb *strings.Builder, taskPath string) {
 	content, err := os.ReadFile(taskPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			sb.WriteString(fmt.Sprintf("    (File not found: %s)\n", taskPath))
+			fmt.Fprintf(sb, "    (File not found: %s)\n", taskPath)
 		} else {
-			sb.WriteString(fmt.Sprintf("    (Error reading file: %s)\n", err.Error()))
+			fmt.Fprintf(sb, "    (Error reading file: %s)\n", err.Error())
 		}
 		sb.WriteString("    --------------------\n\n")
 		return

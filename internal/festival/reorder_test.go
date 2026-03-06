@@ -204,9 +204,9 @@ func TestReorderTask_MoveUp(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create tasks
-	os.WriteFile(filepath.Join(tmpDir, "01_setup.md"), []byte("setup"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "02_implement.md"), []byte("implement"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "03_test.md"), []byte("test"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "01_setup.md"), []byte("setup"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "02_implement.md"), []byte("implement"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "03_test.md"), []byte("test"), 0644)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -234,9 +234,9 @@ func TestReorderTask_MoveUp(t *testing.T) {
 func TestReorderTask_MoveDown(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	os.WriteFile(filepath.Join(tmpDir, "01_test.md"), []byte("test"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "02_setup.md"), []byte("setup"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "03_implement.md"), []byte("implement"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "01_test.md"), []byte("test"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "02_setup.md"), []byte("setup"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "03_implement.md"), []byte("implement"), 0644)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -265,10 +265,10 @@ func TestReorderTask_ParallelTasks(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create tasks including parallel tasks (same number)
-	os.WriteFile(filepath.Join(tmpDir, "01_setup.md"), []byte("setup"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "02_task_a.md"), []byte("a"), 0644)
-	os.WriteFile(filepath.Join(tmpDir, "02_task_b.md"), []byte("b"), 0644) // parallel
-	os.WriteFile(filepath.Join(tmpDir, "03_finish.md"), []byte("finish"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "01_setup.md"), []byte("setup"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "02_task_a.md"), []byte("a"), 0644)
+	_ = os.WriteFile(filepath.Join(tmpDir, "02_task_b.md"), []byte("b"), 0644) // parallel
+	_ = os.WriteFile(filepath.Join(tmpDir, "03_finish.md"), []byte("finish"), 0644)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -440,8 +440,8 @@ func TestReorderSequence_PreservesContents(t *testing.T) {
 	os.MkdirAll(seq2, 0755)
 
 	// Add tasks inside sequences
-	os.WriteFile(filepath.Join(seq1, "01_task.md"), []byte("first task"), 0644)
-	os.WriteFile(filepath.Join(seq2, "01_task.md"), []byte("second task"), 0644)
+	_ = os.WriteFile(filepath.Join(seq1, "01_task.md"), []byte("first task"), 0644)
+	_ = os.WriteFile(filepath.Join(seq2, "01_task.md"), []byte("second task"), 0644)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,

@@ -183,14 +183,14 @@ func runResearchCreate(ctx context.Context, cmd *cobra.Command, docType, title, 
 	}
 
 	out := cmd.OutOrStdout()
-	fmt.Fprintln(out, ui.H1("Research Document Created"))
-	fmt.Fprintf(out, "%s %s\n", ui.Label("File"), ui.Value(outputFile))
-	fmt.Fprintf(out, "%s %s\n", ui.Label("Type"), ui.Value(docType))
-	fmt.Fprintf(out, "%s %s\n", ui.Label("Path"), ui.Dim(outputPath))
-	fmt.Fprintln(out)
-	fmt.Fprintln(out, ui.H2("Next Steps"))
-	fmt.Fprintf(out, "  %s\n", ui.Info("1. Open the document and fill in the [REPLACE: ...] markers"))
-	fmt.Fprintf(out, "  %s\n", ui.Info("2. Link to implementation phases with 'fest research link'"))
+	_, _ = fmt.Fprintln(out, ui.H1("Research Document Created"))
+	_, _ = fmt.Fprintf(out, "%s %s\n", ui.Label("File"), ui.Value(outputFile))
+	_, _ = fmt.Fprintf(out, "%s %s\n", ui.Label("Type"), ui.Value(docType))
+	_, _ = fmt.Fprintf(out, "%s %s\n", ui.Label("Path"), ui.Dim(outputPath))
+	_, _ = fmt.Fprintln(out)
+	_, _ = fmt.Fprintln(out, ui.H2("Next Steps"))
+	_, _ = fmt.Fprintf(out, "  %s\n", ui.Info("1. Open the document and fill in the [REPLACE: ...] markers"))
+	_, _ = fmt.Fprintf(out, "  %s\n", ui.Info("2. Link to implementation phases with 'fest research link'"))
 
 	return nil
 }

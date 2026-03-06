@@ -97,7 +97,7 @@ The new phase will be created with the proper 3-digit numbering format.`,
 
 	cmd.Flags().IntVar(&opts.after, "after", 0, "insert after this phase number (0 for beginning)")
 	cmd.Flags().StringVar(&opts.name, "name", "", "name of the new phase")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("name")
 
 	return cmd
 }
@@ -148,8 +148,8 @@ The new sequence will be created with the proper 2-digit numbering format.`,
 	cmd.Flags().StringVar(&phaseDir, "phase", "", "phase directory to insert sequence in")
 	cmd.Flags().IntVar(&opts.after, "after", 0, "insert after this sequence number (0 for beginning)")
 	cmd.Flags().StringVar(&opts.name, "name", "", "name of the new sequence")
-	cmd.MarkFlagRequired("phase")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("phase")
+	_ = cmd.MarkFlagRequired("name")
 
 	return cmd
 }
@@ -224,8 +224,8 @@ Note: Tasks are markdown files, so .md extension will be added automatically.`,
 	cmd.Flags().StringVar(&sequenceDir, "sequence", "", "sequence directory to insert task in")
 	cmd.Flags().IntVar(&opts.after, "after", 0, "insert after this task number (0 for beginning)")
 	cmd.Flags().StringVar(&opts.name, "name", "", "name of the new task (without .md extension)")
-	cmd.MarkFlagRequired("sequence")
-	cmd.MarkFlagRequired("name")
+	_ = cmd.MarkFlagRequired("sequence")
+	_ = cmd.MarkFlagRequired("name")
 
 	return cmd
 }

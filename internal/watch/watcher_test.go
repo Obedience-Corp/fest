@@ -26,7 +26,7 @@ func TestNew(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 
 	if w.watcher == nil {
 		t.Error("watcher should not be nil")
@@ -53,7 +53,7 @@ func TestWatcher_Watch_DetectsChanges(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -111,7 +111,7 @@ func TestWatcher_Debouncing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -157,7 +157,7 @@ func TestWatcher_WatchDirectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New() error = %v", err)
 	}
-	defer w.Close()
+	defer func() { _ = w.Close() }()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

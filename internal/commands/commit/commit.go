@@ -89,7 +89,7 @@ Examples:
 	cmd.Flags().BoolVar(&autoStage, "stage", true, "auto-stage all changes before commit")
 	cmd.Flags().BoolVar(&syncSubmoduleRef, "sync-submodule-ref", false, "sync submodule ref at campaign root after commit")
 
-	cmd.MarkFlagRequired("message")
+	_ = cmd.MarkFlagRequired("message")
 
 	return cmd
 }

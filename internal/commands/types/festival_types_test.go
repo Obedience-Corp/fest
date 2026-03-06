@@ -118,11 +118,11 @@ func TestRunFestivalList(t *testing.T) {
 
 			err := runFestivalList(context.Background(), tt.jsonOutput)
 
-			w.Close()
+			_ = w.Close()
 			os.Stdout = oldStdout
 
 			var buf bytes.Buffer
-			buf.ReadFrom(r)
+			_, _ = buf.ReadFrom(r)
 			output := buf.String()
 
 			if (err != nil) != tt.wantErr {
@@ -270,11 +270,11 @@ func TestRunFestivalShow(t *testing.T) {
 
 			err := runFestivalShow(context.Background(), tt.typeName, tt.jsonOutput, tt.phasesOnly)
 
-			w.Close()
+			_ = w.Close()
 			os.Stdout = oldStdout
 
 			var buf bytes.Buffer
-			buf.ReadFrom(r)
+			_, _ = buf.ReadFrom(r)
 			output := buf.String()
 
 			if (err != nil) != tt.wantErr {

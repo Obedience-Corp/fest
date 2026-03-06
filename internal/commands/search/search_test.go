@@ -18,7 +18,7 @@ func createTestWorkspace(t *testing.T) string {
 	festivalsDir := filepath.Join(root, "festivals")
 
 	for _, status := range []string{"active", "planning", "dungeon/completed"} {
-		os.MkdirAll(filepath.Join(festivalsDir, status), 0755)
+		_ = os.MkdirAll(filepath.Join(festivalsDir, status), 0755)
 	}
 
 	createTestFestival(t, festivalsDir, "active", "deploy-service-DS0001", "DS0001", "Deploy the new microservice to production")
@@ -32,7 +32,7 @@ func createTestWorkspace(t *testing.T) string {
 func createTestFestival(t *testing.T, festivalsDir, status, name, festID, goal string) {
 	t.Helper()
 	festPath := filepath.Join(festivalsDir, status, name)
-	os.MkdirAll(festPath, 0755)
+	_ = os.MkdirAll(festPath, 0755)
 
 	overview := fmt.Sprintf(`---
 fest_type: festival
@@ -47,7 +47,7 @@ fest_name: %s
 %s
 `, festID, name, goal)
 
-	os.WriteFile(filepath.Join(festPath, "FESTIVAL_OVERVIEW.md"), []byte(overview), 0644)
+	_ = os.WriteFile(filepath.Join(festPath, "FESTIVAL_OVERVIEW.md"), []byte(overview), 0644)
 }
 
 func TestCollectSearchTargets(t *testing.T) {
@@ -118,7 +118,7 @@ func TestExtractFestivalID(t *testing.T) {
 		{
 			name: "valid frontmatter in overview",
 			setup: func(dir string) {
-				os.WriteFile(filepath.Join(dir, "FESTIVAL_OVERVIEW.md"),
+				_ = os.WriteFile(filepath.Join(dir, "FESTIVAL_OVERVIEW.md"),
 					[]byte("---\nfest_id: GU0001\n---\n# Overview"), 0644)
 			},
 			wantID: "GU0001",
@@ -126,7 +126,7 @@ func TestExtractFestivalID(t *testing.T) {
 		{
 			name: "valid frontmatter in goal",
 			setup: func(dir string) {
-				os.WriteFile(filepath.Join(dir, "FESTIVAL_GOAL.md"),
+				_ = os.WriteFile(filepath.Join(dir, "FESTIVAL_GOAL.md"),
 					[]byte("---\nfest_id: GL0001\n---\n# Goal"), 0644)
 			},
 			wantID: "GL0001",
@@ -139,7 +139,7 @@ func TestExtractFestivalID(t *testing.T) {
 		{
 			name: "no fest_id in frontmatter",
 			setup: func(dir string) {
-				os.WriteFile(filepath.Join(dir, "FESTIVAL_OVERVIEW.md"),
+				_ = os.WriteFile(filepath.Join(dir, "FESTIVAL_OVERVIEW.md"),
 					[]byte("---\nfest_type: festival\n---\n"), 0644)
 			},
 			wantID: "",
@@ -184,7 +184,7 @@ func TestExtractGoalText(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			os.WriteFile(filepath.Join(dir, "FESTIVAL_OVERVIEW.md"), []byte(tt.content), 0644)
+			_ = os.WriteFile(filepath.Join(dir, "FESTIVAL_OVERVIEW.md"), []byte(tt.content), 0644)
 			got := extractGoalText(dir)
 			if got != tt.wantGoal {
 				t.Errorf("extractGoalText() = %q, want %q", got, tt.wantGoal)

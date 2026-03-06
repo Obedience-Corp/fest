@@ -166,13 +166,13 @@ func TestCollectFestivalsInStatus(t *testing.T) {
 
 	// Create active/ with two valid festivals and one non-festival dir
 	activeDir := filepath.Join(festivalsDir, "active")
-	os.MkdirAll(filepath.Join(activeDir, "my-feature-MF0001"), 0755)
-	os.MkdirAll(filepath.Join(activeDir, "bug-fix-BF0002"), 0755)
-	os.MkdirAll(filepath.Join(activeDir, "random-dir"), 0755) // no valid ID suffix
+	_ = os.MkdirAll(filepath.Join(activeDir, "my-feature-MF0001"), 0755)
+	_ = os.MkdirAll(filepath.Join(activeDir, "bug-fix-BF0002"), 0755)
+	_ = os.MkdirAll(filepath.Join(activeDir, "random-dir"), 0755) // no valid ID suffix
 
 	// Create planning/ with one festival
 	planningDir := filepath.Join(festivalsDir, "planning")
-	os.MkdirAll(filepath.Join(planningDir, "next-task-NT0003"), 0755)
+	_ = os.MkdirAll(filepath.Join(planningDir, "next-task-NT0003"), 0755)
 
 	t.Run("active returns valid festivals only", func(t *testing.T) {
 		targets := CollectFestivalsInStatus(festivalsDir, "active")

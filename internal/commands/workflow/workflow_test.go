@@ -672,7 +672,7 @@ fest_parent: 001_INGEST
 func TestGetWorkflowNavigator_GateBlockedUntilPhaseWorkComplete(t *testing.T) {
 	dir := t.TempDir()
 	phaseDir := filepath.Join(dir, "001_IMPLEMENT")
-	os.MkdirAll(phaseDir, 0o755)
+	_ = os.MkdirAll(phaseDir, 0o755)
 
 	// Fest config
 	os.WriteFile(filepath.Join(dir, "fest.yaml"), []byte("name: test\nid: T\n"), 0o644)
@@ -835,11 +835,11 @@ func TestResolveNavigationMode(t *testing.T) {
 					t.Fatalf("NewNavigator: %v", navErr)
 				}
 				store := progress.NewStore(dir)
-				store.Load(context.Background())
+				_ = store.Load(context.Background())
 				nav.SetStateStore(store)
-				nav.Initialize(context.Background())
+				_ = nav.Initialize(context.Background())
 				// Complete the single step
-				nav.Advance(context.Background())
+				_ = nav.Advance(context.Background())
 			}
 
 			doc, prefix, notReady := resolveNavigationMode(context.Background(), dir, phaseDir)
@@ -923,7 +923,7 @@ func writeTaskCompleteEvent(t *testing.T, festivalPath, taskID string) {
 	if err != nil {
 		t.Fatalf("open events file: %v", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	if _, err := f.WriteString(line); err != nil {
 		t.Fatalf("write event: %v", err)
 	}
