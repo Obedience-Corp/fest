@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/yamlutil"
 	"gopkg.in/yaml.v3"
 )
 
@@ -73,7 +74,7 @@ func SaveWorkspaceConfig(festivalsRoot string, cfg *WorkspaceConfig) error {
 	configPath := filepath.Join(dotFestivalPath, WorkspaceConfigFileName)
 
 	// Marshal to YAML
-	data, err := yaml.Marshal(cfg)
+	data, err := yamlutil.Marshal(cfg)
 	if err != nil {
 		return errors.Wrap(err, "marshaling workspace config")
 	}

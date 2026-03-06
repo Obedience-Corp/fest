@@ -11,6 +11,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/pathutil"
 	"github.com/Obedience-Corp/fest/internal/workspace"
+	"github.com/Obedience-Corp/fest/internal/yamlutil"
 	"gopkg.in/yaml.v3"
 )
 
@@ -142,7 +143,7 @@ func (n *Navigation) Save() error {
 		}
 	}
 
-	data, err := yaml.Marshal(saveCopy)
+	data, err := yamlutil.Marshal(saveCopy)
 	if err != nil {
 		return errors.Wrap(err, "marshaling navigation state")
 	}

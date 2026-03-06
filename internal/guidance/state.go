@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/Obedience-Corp/fest/internal/yamlutil"
 	"gopkg.in/yaml.v3"
 )
 
@@ -138,7 +139,7 @@ func (sm *DefaultStateManager) Save(ctx context.Context) error {
 
 	sm.state.LastUpdated = time.Now()
 
-	data, err := yaml.Marshal(sm.state)
+	data, err := yamlutil.Marshal(sm.state)
 	if err != nil {
 		return err
 	}

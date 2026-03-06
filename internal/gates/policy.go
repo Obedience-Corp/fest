@@ -8,6 +8,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/yamlutil"
 	"gopkg.in/yaml.v3"
 )
 
@@ -218,7 +219,7 @@ func LoadPolicy(path string) (*GatePolicy, error) {
 
 // SavePolicy saves a gate policy to a file
 func SavePolicy(path string, policy *GatePolicy) error {
-	data, err := yaml.Marshal(policy)
+	data, err := yamlutil.Marshal(policy)
 	if err != nil {
 		return errors.Wrap(err, "marshaling policy").
 			WithOp("SavePolicy").

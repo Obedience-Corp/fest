@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/yamlutil"
 	"gopkg.in/yaml.v3"
 )
 
@@ -105,7 +106,7 @@ func (s *Store) Init(ctx context.Context, criteria []string) (*Config, error) {
 
 	// Save config
 	configPath := filepath.Join(s.feedbackDir, ConfigFile)
-	data, err := yaml.Marshal(config)
+	data, err := yamlutil.Marshal(config)
 	if err != nil {
 		return nil, errors.Wrap(err, "marshaling config")
 	}
@@ -192,7 +193,7 @@ func (s *Store) AddObservation(ctx context.Context, obs *Observation) error {
 
 	// Save observation
 	obsPath := filepath.Join(s.observationsDir, obs.ID+".yaml")
-	data, err := yaml.Marshal(obs)
+	data, err := yamlutil.Marshal(obs)
 	if err != nil {
 		return errors.Wrap(err, "marshaling observation")
 	}
@@ -263,7 +264,7 @@ func (s *Store) Export(ctx context.Context, format string) (string, error) {
 		return string(data), nil
 
 	case "yaml":
-		data, err := yaml.Marshal(observations)
+		data, err := yamlutil.Marshal(observations)
 		if err != nil {
 			return "", errors.Wrap(err, "marshaling YAML")
 		}

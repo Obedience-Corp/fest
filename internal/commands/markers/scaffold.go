@@ -13,7 +13,7 @@ import (
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
-	"gopkg.in/yaml.v3"
+	"github.com/Obedience-Corp/fest/internal/yamlutil"
 )
 
 // ScaffoldMeta contains metadata about the scaffold output
@@ -159,7 +159,7 @@ func runScaffold(scaffoldOpts *scaffoldOptions, opts *markersOptions) error {
 	// Generate output
 	var outputBytes []byte
 	if format == "yaml" {
-		outputBytes, err = yaml.Marshal(output)
+		outputBytes, err = yamlutil.Marshal(output)
 	} else {
 		outputBytes, err = json.MarshalIndent(output, "", "  ")
 	}

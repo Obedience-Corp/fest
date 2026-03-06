@@ -7,6 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/yamlutil"
 )
 
 const (
@@ -53,7 +54,7 @@ func LoadManifest(path string) (*PluginManifest, error) {
 
 // SaveManifest saves a plugin manifest to a file
 func SaveManifest(path string, manifest *PluginManifest) error {
-	data, err := yaml.Marshal(manifest)
+	data, err := yamlutil.Marshal(manifest)
 	if err != nil {
 		return errors.Wrap(err, "marshaling manifest")
 	}

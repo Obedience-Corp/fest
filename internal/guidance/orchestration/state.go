@@ -8,6 +8,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/registry"
+	"github.com/Obedience-Corp/fest/internal/yamlutil"
 	"gopkg.in/yaml.v3"
 )
 
@@ -106,7 +107,7 @@ func (m *StateManager) Save(ctx context.Context) error {
 			WithField("path", festDir)
 	}
 
-	data, err := yaml.Marshal(m.state)
+	data, err := yamlutil.Marshal(m.state)
 	if err != nil {
 		return errors.Parse("marshaling execution state", err)
 	}

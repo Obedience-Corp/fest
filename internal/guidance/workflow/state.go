@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Obedience-Corp/fest/internal/yamlutil"
 	"gopkg.in/yaml.v3"
 )
 
@@ -175,7 +176,7 @@ func saveFestivalState(ctx context.Context, festivalPath string, state *Festival
 		return err
 	}
 
-	data, err := yaml.Marshal(state)
+	data, err := yamlutil.Marshal(state)
 	if err != nil {
 		return err
 	}

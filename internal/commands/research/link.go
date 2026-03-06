@@ -11,6 +11,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
+	"github.com/Obedience-Corp/fest/internal/yamlutil"
 	"gopkg.in/yaml.v3"
 )
 
@@ -211,7 +212,7 @@ func updateDocumentLinks(content string, phases, sequences, tasks []string, unli
 	}
 
 	// Serialize frontmatter
-	newFrontmatter, err := yaml.Marshal(frontmatter)
+	newFrontmatter, err := yamlutil.Marshal(frontmatter)
 	if err != nil {
 		return "", 0, 0, errors.Wrap(err, "serializing frontmatter")
 	}
