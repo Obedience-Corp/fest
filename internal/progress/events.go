@@ -56,51 +56,6 @@ type ProgressEvent struct {
 	Feedback   string `json:"feedback,omitempty"`
 }
 
-// appendEvent appends a single event to the JSONL file.
-// Uses atomic append to prevent partial writes.
-func (s *Store) appendEvent(ctx context.Context, event *ProgressEvent) error {
-	if err := ctx.Err(); err != nil {
-		return errors.Wrap(err, "context cancelled")
-	}
-
-	eventsPath := s.eventsFilePath()
-
-	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(eventsPath), 0755); err != nil {
-		return errors.IO("creating progress directory", err).
-			WithField("path", filepath.Dir(eventsPath))
-	}
-
-	// Open for append (create if not exists)
-	f, err := os.OpenFile(eventsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return errors.IO("opening events file for append", err).
-			WithField("path", eventsPath)
-	}
-
-	// Marshal and write with newline
-	data, err := json.Marshal(event)
-	if err != nil {
-		_ = f.Close()
-		return errors.Wrap(err, "marshaling progress event")
-	}
-	data = append(data, '\n')
-
-	if _, err := f.Write(data); err != nil {
-		_ = f.Close()
-		return errors.IO("appending progress event", err).
-			WithField("path", eventsPath)
-	}
-
-	// Close and check for errors (some filesystems report write errors on close)
-	if err := f.Close(); err != nil {
-		return errors.IO("closing events file", err).
-			WithField("path", eventsPath)
-	}
-
-	return nil
-}
-
 // loadFromEvents reads the JSONL file and materializes current state.
 func (s *Store) loadFromEvents(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {

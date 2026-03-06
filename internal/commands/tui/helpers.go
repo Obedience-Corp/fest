@@ -12,7 +12,6 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/festival"
-	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 )
@@ -379,112 +378,6 @@ func nextTaskAfter(ctx context.Context, seqDir string) int {
 	return max
 }
 
-// FestivalInfo holds information about a discovered festival.
-type FestivalInfo struct {
-	Name   string // Directory name
-	Path   string // Full path
-	Status string // active, planning, completed, dungeon
-	Goal   string // Extracted from FESTIVAL_GOAL.md if available
-}
-
-// listFestivalsInDir lists all festivals in a status directory.
-func listFestivalsInDir(statusDir string) ([]FestivalInfo, error) {
-	entries, err := os.ReadDir(statusDir)
-	if err != nil {
-		return nil, err
-	}
-
-	var festivals []FestivalInfo
-	status := filepath.Base(statusDir)
-
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-
-		festPath := filepath.Join(statusDir, e.Name())
-
-		// Verify it's a festival (has FESTIVAL_GOAL.md or similar)
-		if !isFestivalDir(festPath) {
-			continue
-		}
-
-		info := FestivalInfo{
-			Name:   e.Name(),
-			Path:   festPath,
-			Status: status,
-			Goal:   extractFestivalGoal(festPath),
-		}
-		festivals = append(festivals, info)
-	}
-
-	return festivals, nil
-}
-
-// isFestivalDir checks if a directory is a festival.
-func isFestivalDir(dir string) bool {
-	markers := []string{
-		"FESTIVAL_GOAL.md",
-		"FESTIVAL_OVERVIEW.md",
-		"FESTIVAL_RULES.md",
-		"fest.yaml",
-	}
-	for _, m := range markers {
-		if exists(filepath.Join(dir, m)) {
-			return true
-		}
-	}
-	// Also check for phase directories
-	return len(listPhaseDirs(dir)) > 0
-}
-
-// extractFestivalGoal extracts the goal from FESTIVAL_GOAL.md.
-func extractFestivalGoal(festDir string) string {
-	goalPath := filepath.Join(festDir, "FESTIVAL_GOAL.md")
-	data, err := os.ReadFile(goalPath)
-	if err != nil {
-		return ""
-	}
-
-	// Extract first non-empty, non-header line as goal summary
-	lines := strings.Split(string(data), "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-		// Truncate long goals
-		if len(line) > 60 {
-			return line[:57] + "..."
-		}
-		return line
-	}
-	return ""
-}
-
-// listAllFestivals lists festivals across all status directories.
-func listAllFestivals(festivalsRoot string) (map[string][]FestivalInfo, error) {
-	result := make(map[string][]FestivalInfo)
-
-	statuses := id.StatusDirectories
-	for _, status := range statuses {
-		statusDir := filepath.Join(festivalsRoot, status)
-		if !exists(statusDir) {
-			continue
-		}
-
-		festivals, err := listFestivalsInDir(statusDir)
-		if err != nil {
-			continue // Skip dirs we can't read
-		}
-
-		if len(festivals) > 0 {
-			result[status] = festivals
-		}
-	}
-
-	return result, nil
-}
 
 // PhaseInfo holds information about a discovered phase.
 type PhaseInfo struct {

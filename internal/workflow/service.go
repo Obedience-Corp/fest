@@ -537,9 +537,7 @@ func (s *Service) Move(ctx context.Context, item, to string, opts MoveOptions) (
 			To:     to,
 			Reason: opts.Reason,
 		}
-		if err := s.appendHistory(ctx, entry); err != nil {
-			// Log but don't fail the move
-		}
+		_ = s.appendHistory(ctx, entry) // non-fatal: history is best-effort
 	}
 
 	return result, nil

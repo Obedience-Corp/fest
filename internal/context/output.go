@@ -260,18 +260,18 @@ func (f *Formatter) FormatVerbose(ctx *ContextOutput) string {
 
 	if ctx.Festival != nil && ctx.Festival.Goal != nil {
 		sb.WriteString("### Festival Goal\n")
-		sb.WriteString(fmt.Sprintf("%s\n\n", ctx.Festival.Goal.Objective))
+		fmt.Fprintf(&sb, "%s\n\n", ctx.Festival.Goal.Objective)
 	}
 
 	if ctx.Phase != nil && ctx.Phase.Goal != nil {
 		sb.WriteString("### Phase Goal\n")
-		sb.WriteString(fmt.Sprintf("Phase type: %s\n", ctx.Phase.PhaseType))
-		sb.WriteString(fmt.Sprintf("%s\n\n", ctx.Phase.Goal.Objective))
+		fmt.Fprintf(&sb, "Phase type: %s\n", ctx.Phase.PhaseType)
+		fmt.Fprintf(&sb, "%s\n\n", ctx.Phase.Goal.Objective)
 	}
 
 	if ctx.Sequence != nil && ctx.Sequence.Goal != nil {
 		sb.WriteString("### Sequence Goal\n")
-		sb.WriteString(fmt.Sprintf("%s\n\n", ctx.Sequence.Goal.Objective))
+		fmt.Fprintf(&sb, "%s\n\n", ctx.Sequence.Goal.Objective)
 	}
 
 	// Task details
@@ -285,10 +285,11 @@ func (f *Formatter) FormatVerbose(ctx *ContextOutput) string {
 		}
 
 		sb.WriteString("### Task Properties\n")
-		sb.WriteString(fmt.Sprintf("- **Autonomy level**: %s\n", ctx.Task.AutonomyLevel))
-		if ctx.Task.AutonomyLevel == "high" {
+		fmt.Fprintf(&sb, "- **Autonomy level**: %s\n", ctx.Task.AutonomyLevel)
+		switch ctx.Task.AutonomyLevel {
+		case "high":
 			sb.WriteString("  (You can proceed with minimal human intervention)\n")
-		} else if ctx.Task.AutonomyLevel == "low" {
+		case "low":
 			sb.WriteString("  (Seek human approval before major decisions)\n")
 		}
 		sb.WriteString(fmt.Sprintf("- **Parallel execution**: %v\n", ctx.Task.ParallelAllowed))

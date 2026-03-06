@@ -144,7 +144,7 @@ func TestLoadSavePolicy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	policy := &GatePolicy{
 		Version: 1,
@@ -184,7 +184,7 @@ func TestLoadPhaseOverride(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Test no override file
 	override, err := LoadPhaseOverride(tmpDir)
@@ -260,7 +260,7 @@ func TestIsManaged(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Test unmanaged file
 	unmanagedContent := "# Just content"

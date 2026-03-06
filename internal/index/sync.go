@@ -9,6 +9,8 @@ import (
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/gates"
 	"github.com/Obedience-Corp/fest/internal/id"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // TreeSyncer builds a TreeIndex from the workspace filesystem
@@ -266,7 +268,7 @@ func toDisplayName(name string) string {
 	name = strings.ReplaceAll(name, "_", " ")
 
 	// Title case
-	return strings.Title(strings.ToLower(name))
+	return cases.Title(language.English).String(strings.ToLower(name))
 }
 
 // determineStatus determines the status of a phase/sequence based on its tasks

@@ -41,7 +41,7 @@ func Integration(verbose bool) error {
 	// Clean up any orphaned test containers from previous runs
 	ui.Task("Cleaning", "orphaned test containers")
 	cleanCmd := exec.Command("docker", "container", "prune", "-f", "--filter", "label=org.testcontainers=true")
-	cleanCmd.Run() // Ignore errors - Docker might not be available
+	_ = cleanCmd.Run() // Ignore errors - Docker might not be available
 	ui.TaskPass()
 
 	// Set up Docker environment for Colima compatibility
@@ -233,7 +233,7 @@ func Integration(verbose bool) error {
 			}
 
 			close(done)
-			cmd.Wait()
+			_ = cmd.Wait()
 			pass = testsFailed == 0
 			ui.ClearProgressWithOutput()
 		}

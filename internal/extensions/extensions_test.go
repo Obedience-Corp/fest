@@ -200,7 +200,7 @@ func TestExtensionLoaderLoadAll(t *testing.T) {
 	// No manifest - should use directory name
 
 	loader := NewExtensionLoader()
-	loader.loadFromDirectory(extDir, "test")
+	_ = loader.loadFromDirectory(extDir, "test")
 
 	if loader.Count() != 2 {
 		t.Errorf("Count = %d, want 2", loader.Count())

@@ -17,7 +17,6 @@ var (
 	emojiCompletedPattern  = regexp.MustCompile(`\[✅\]`)
 	emojiInProgressPattern = regexp.MustCompile(`\[🚧\]`)
 	emojiBlockedPattern    = regexp.MustCompile(`\[❌\]`)
-	emojiNotStartedPattern = regexp.MustCompile(`\[\s*\]`)
 
 	// Section headers to look for (in priority order)
 	statusSections = []string{

@@ -19,11 +19,10 @@ const ggTimeout = 500 * time.Millisecond
 
 // navEntry stores the state of a navigation level for the drilldown stack.
 type navEntry struct {
-	roots      []*TreeNode
-	title      string
-	cursor     int
-	scroll     int
-	breadcrumb string
+	roots  []*TreeNode
+	title  string
+	cursor int
+	scroll int
 }
 
 // festivalsLoadedMsg is sent when festival data is loaded from the filesystem.

@@ -28,7 +28,6 @@ type Scorer func(query, target string) (score int, indices []int)
 // Fest theme colors using adaptive colors (auto-detect light/dark terminal)
 var (
 	colorText        = lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"}
-	colorTitle       = lipgloss.AdaptiveColor{Light: "#005FAF", Dark: "#00D7FF"}
 	colorPlaceholder = lipgloss.AdaptiveColor{Light: "#808080", Dark: "#949494"}
 	colorFocus       = lipgloss.AdaptiveColor{Light: "#FF8700", Dark: "#FFD700"}
 	colorSelected    = lipgloss.AdaptiveColor{Light: "#00AF00", Dark: "#00FF5F"}

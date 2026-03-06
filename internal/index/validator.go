@@ -119,7 +119,7 @@ func (v *IndexValidator) Validate() *ValidationResult {
 
 // findExtraFiles finds files on disk that are not in the index
 func (v *IndexValidator) findExtraFiles(indexed map[string]bool, result *ValidationResult) {
-	filepath.Walk(v.festivalRoot, func(path string, info os.FileInfo, err error) error {
+	_ = filepath.Walk(v.festivalRoot, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}

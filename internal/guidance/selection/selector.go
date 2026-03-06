@@ -398,11 +398,12 @@ func (s *Selector) GetProgress() (*ProgressStats, error) {
 	stats := &ProgressStats{}
 	for _, task := range graph.Tasks {
 		stats.TotalTasks++
-		if task.Status == "complete" {
+		switch task.Status {
+		case "complete":
 			stats.CompletedTasks++
-		} else if task.Status == "in_progress" {
+		case "in_progress":
 			stats.InProgressTasks++
-		} else {
+		default:
 			stats.PendingTasks++
 		}
 	}

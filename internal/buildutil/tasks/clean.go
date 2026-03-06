@@ -48,7 +48,7 @@ func Clean(verbose bool) error {
 				cmd.Stdout = os.Stdout
 				cmd.Stderr = os.Stderr
 			}
-			cmd.Run()
+			_ = cmd.Run()
 			removed++
 		} else {
 			// Direct removal for specific files/directories

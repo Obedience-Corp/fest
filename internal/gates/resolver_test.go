@@ -146,7 +146,7 @@ func TestTemplateResolver_HierarchyPrecedence(t *testing.T) {
 	resolver.ClearCache()
 
 	// Remove sequence template, should find phase
-	os.Remove(filepath.Join(seqTemplateDir, "TEST.md"))
+	_ = os.Remove(filepath.Join(seqTemplateDir, "TEST.md"))
 	result, _ = resolver.Resolve("TEST", festivalPath, phasePath, sequencePath)
 	if result.Level != PolicyLevelPhase {
 		t.Errorf("Expected phase level, got %q", result.Level)
@@ -226,7 +226,7 @@ func TestTemplateResolver_GatesPrefixResolution(t *testing.T) {
 
 	t.Run("gates/ prefix falls back to global when not in festival gates/", func(t *testing.T) {
 		// Remove the festival-level template
-		os.Remove(gatesTemplatePath)
+		_ = os.Remove(gatesTemplatePath)
 		resolver.ClearCache()
 
 		result, err := resolver.Resolve("gates/QUALITY_GATE_TESTING", festivalPath, phasePath, sequencePath)

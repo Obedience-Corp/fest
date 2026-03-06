@@ -53,8 +53,10 @@ func TestLoadNonExisting(t *testing.T) {
 func TestSaveAndLoad(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
-	os.Setenv("FEST_CONFIG_DIR", tmpDir)
-	defer os.Unsetenv("FEST_CONFIG_DIR")
+	if err := os.Setenv("FEST_CONFIG_DIR", tmpDir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Unsetenv("FEST_CONFIG_DIR") }()
 
 	// Create config
 	original := &Config{
@@ -154,8 +156,10 @@ func TestApplyDefaults(t *testing.T) {
 func TestConfigDir(t *testing.T) {
 	// Test with environment variable
 	testDir := "/custom/dir"
-	os.Setenv("FEST_CONFIG_DIR", testDir)
-	defer os.Unsetenv("FEST_CONFIG_DIR")
+	if err := os.Setenv("FEST_CONFIG_DIR", testDir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Unsetenv("FEST_CONFIG_DIR") }()
 
 	dir := ConfigDir()
 	if dir != testDir {
@@ -163,7 +167,7 @@ func TestConfigDir(t *testing.T) {
 	}
 
 	// Test without environment variable — should resolve to ~/.obey/fest
-	os.Unsetenv("FEST_CONFIG_DIR")
+	_ = os.Unsetenv("FEST_CONFIG_DIR")
 	dir = ConfigDir()
 	expected := filepath.Join(".obey", "fest")
 	if !filepath.IsAbs(dir) || !strings.HasSuffix(dir, expected) {
@@ -241,8 +245,10 @@ func TestTUIConfigApplyDefaults(t *testing.T) {
 func TestTUIConfigSaveAndLoad(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
-	os.Setenv("FEST_CONFIG_DIR", tmpDir)
-	defer os.Unsetenv("FEST_CONFIG_DIR")
+	if err := os.Setenv("FEST_CONFIG_DIR", tmpDir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Unsetenv("FEST_CONFIG_DIR") }()
 
 	// Create config with TUI settings
 	original := DefaultConfig()

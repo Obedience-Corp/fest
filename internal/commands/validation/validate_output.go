@@ -1,7 +1,6 @@
 package validation
 
 import (
-	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -282,26 +281,4 @@ func filterIssuesByCode(issues []ValidationIssue, codes ...string) []ValidationI
 		}
 	}
 	return filtered
-}
-
-// countFileMarkers counts unfilled template markers in a file
-func countFileMarkers(path string) int {
-	markers := []string{"[FILL:", "[GUIDANCE:", "{{ "}
-	count := 0
-
-	file, err := os.Open(path)
-	if err != nil {
-		return 0
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := scanner.Text()
-		for _, marker := range markers {
-			count += strings.Count(line, marker)
-		}
-	}
-
-	return count
 }
