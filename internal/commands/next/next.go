@@ -697,57 +697,9 @@ func emitValidationBlock(festivalPath string, result *validator.Result) error {
 }
 
 // arePhaseTasksComplete checks whether all tasks in a phase's sequences
-// are marked complete in the progress store.
+// are marked complete in the progress store. Delegates to shared package.
 func arePhaseTasksComplete(storeLoaded bool, store *progress.Store, phasePath, phaseName string) bool {
-	if !storeLoaded {
-		return false
-	}
-
-	entries, err := os.ReadDir(phasePath)
-	if err != nil {
-		return false
-	}
-
-	taskCount := 0
-	for _, seqEntry := range entries {
-		if !seqEntry.IsDir() || !isNumberedDir(seqEntry.Name()) {
-			continue
-		}
-		seqPath := filepath.Join(phasePath, seqEntry.Name())
-		taskFiles, err := os.ReadDir(seqPath)
-		if err != nil {
-			continue
-		}
-		for _, tf := range taskFiles {
-			if tf.IsDir() || !strings.HasSuffix(tf.Name(), ".md") {
-				continue
-			}
-			if !isNumberedTaskFile(tf.Name()) {
-				continue
-			}
-			taskCount++
-			taskID := filepath.Join(phaseName, seqEntry.Name(), tf.Name())
-			task, ok := store.GetTask(taskID)
-			if !ok || task.Status != "complete" {
-				return false
-			}
-		}
-	}
-	return taskCount > 0
-}
-
-// isNumberedTaskFile checks if a filename starts with digits followed by underscore.
-// e.g., "01_foo.md" → true, "SEQUENCE_GOAL.md" → false
-func isNumberedTaskFile(name string) bool {
-	for i, c := range name {
-		if c == '_' && i > 0 {
-			return true
-		}
-		if c < '0' || c > '9' {
-			return false
-		}
-	}
-	return false
+	return shared.ArePhaseTasksComplete(storeLoaded, store, phasePath, phaseName)
 }
 
 // loadFeedbackCriteria checks if feedback is configured for the festival and returns criteria names.
@@ -913,6 +865,10 @@ func findFirstIncompletePhaseGate(ctx context.Context, festivalPath string) (str
 
 	for _, phasePath := range phases {
 		phaseName := filepath.Base(phasePath)
+		// Only surface gates for phases where all other work is complete
+		if !isPhaseWorkAndWorkflowComplete(ctx, storeLoaded, store, phasePath, phaseName) {
+			continue
+		}
 		if hasIncompletePhaseGate(storeLoaded, store, phasePath, phaseName) {
 			return phasePath, nil
 		}
@@ -924,26 +880,7 @@ func findFirstIncompletePhaseGate(ctx context.Context, festivalPath string) (str
 // isPhaseWorkAndWorkflowComplete checks if all non-gate work in a phase is done
 // (sequences, tasks, and any WORKFLOW.md steps).
 func isPhaseWorkAndWorkflowComplete(ctx context.Context, storeLoaded bool, store *progress.Store, phasePath, phaseName string) bool {
-	_ = ctx // reserved for future use
-
-	// Check WORKFLOW.md completion
-	workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
-	if _, err := os.Stat(workflowPath); err == nil {
-		if !storeLoaded {
-			return false
-		}
-		state, ok := store.WorkflowPhaseState(phaseName)
-		if !ok || state.TotalSteps == 0 || !state.IsComplete() {
-			return false
-		}
-	}
-
-	// Check if all tasks in phase sequences are complete
-	if hasSequenceDirs(phasePath) && !arePhaseTasksComplete(storeLoaded, store, phasePath, phaseName) {
-		return false
-	}
-
-	return true
+	return shared.ArePhaseTasksAndWorkflowComplete(ctx, storeLoaded, store, phasePath, phaseName)
 }
 
 // printChainContext shows chain-awareness context when a festival is complete.

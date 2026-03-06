@@ -703,9 +703,9 @@ func TestGetWorkflowNavigator_GateBlockedUntilPhaseWorkComplete(t *testing.T) {
 		t.Errorf("error should mention 'not yet eligible', got: %s", err.Error())
 	}
 
-	// Now mark the phase as complete
-	phaseGoalDone := "---\nfest_status: completed\n---\n\n# Implementation\n"
-	os.WriteFile(filepath.Join(phaseDir, "PHASE_GOAL.md"), []byte(phaseGoalDone), 0o644)
+	// Now mark the tasks as complete — create a task file and write completion events
+	os.WriteFile(filepath.Join(phaseDir, "01_build", "01_task.md"), []byte("# Task\n"), 0o644)
+	writeTaskCompleteEvent(t, dir, "001_IMPLEMENT/01_build/01_task.md")
 
 	// Attempt again — should succeed now
 	nav, err := getWorkflowNavigator(ctx)
@@ -722,15 +722,15 @@ func TestGetWorkflowNavigator_GateBlockedUntilPhaseWorkComplete(t *testing.T) {
 // TestResolveNavigationMode verifies the routing logic directly.
 func TestResolveNavigationMode(t *testing.T) {
 	tests := []struct {
-		name         string
-		hasWorkflow  bool
-		hasGates     bool
-		wfComplete   bool
-		hasSequences bool // add numbered subdirectories to simulate sequences
-		phaseMarked  bool // mark phase as completed in PHASE_GOAL.md
-		wantDoc      string
-		wantPrefix   string
-		wantNotReady bool // expect not-ready message instead of routing
+		name          string
+		hasWorkflow   bool
+		hasGates      bool
+		wfComplete    bool
+		hasSequences  bool // add numbered subdirectories to simulate sequences
+		tasksComplete bool // mark tasks as complete in progress store
+		wantDoc       string
+		wantPrefix    string
+		wantNotReady  bool // expect not-ready message instead of routing
 	}{
 		{
 			name:        "workflow only, incomplete",
@@ -766,16 +766,15 @@ func TestResolveNavigationMode(t *testing.T) {
 			name:         "gates only, sequences incomplete — gate not eligible",
 			hasGates:     true,
 			hasSequences: true,
-			phaseMarked:  false,
 			wantNotReady: true,
 		},
 		{
-			name:         "gates only, sequences complete — gate eligible",
-			hasGates:     true,
-			hasSequences: true,
-			phaseMarked:  true,
-			wantDoc:      "GATES.md",
-			wantPrefix:   "gate:",
+			name:          "gates only, sequences complete — gate eligible",
+			hasGates:      true,
+			hasSequences:  true,
+			tasksComplete: true,
+			wantDoc:       "GATES.md",
+			wantPrefix:    "gate:",
 		},
 		{
 			name:         "workflow complete + gates + sequences incomplete — gate not eligible",
@@ -783,18 +782,17 @@ func TestResolveNavigationMode(t *testing.T) {
 			hasGates:     true,
 			wfComplete:   true,
 			hasSequences: true,
-			phaseMarked:  false,
 			wantNotReady: true,
 		},
 		{
-			name:         "workflow complete + gates + sequences complete — gate eligible",
-			hasWorkflow:  true,
-			hasGates:     true,
-			wfComplete:   true,
-			hasSequences: true,
-			phaseMarked:  true,
-			wantDoc:      "GATES.md",
-			wantPrefix:   "gate:",
+			name:          "workflow complete + gates + sequences complete — gate eligible",
+			hasWorkflow:   true,
+			hasGates:      true,
+			wfComplete:    true,
+			hasSequences:  true,
+			tasksComplete: true,
+			wantDoc:       "GATES.md",
+			wantPrefix:    "gate:",
 		},
 	}
 
@@ -815,12 +813,12 @@ func TestResolveNavigationMode(t *testing.T) {
 				os.WriteFile(filepath.Join(phaseDir, "GATES.md"), []byte(gateContent), 0o644)
 			}
 			if tt.hasSequences {
-				// Create a numbered subdirectory to simulate a sequence
+				// Create a numbered subdirectory with a task file to simulate a sequence
 				os.MkdirAll(filepath.Join(phaseDir, "01_seq"), 0o755)
+				os.WriteFile(filepath.Join(phaseDir, "01_seq", "01_task.md"), []byte("# Task\n"), 0o644)
 			}
-			if tt.phaseMarked {
-				phaseGoal := "---\nfest_status: completed\n---\n\n# Phase Goal\n"
-				os.WriteFile(filepath.Join(phaseDir, "PHASE_GOAL.md"), []byte(phaseGoal), 0o644)
+			if tt.tasksComplete {
+				writeTaskCompleteEvent(t, dir, "001_TEST/01_seq/01_task.md")
 			}
 
 			// If workflow should be complete, use a navigator to complete it
@@ -909,5 +907,24 @@ func TestShowNextStep_WarnsWhenProgressManagerInitFails(t *testing.T) {
 
 	if !strings.Contains(output, "Warning: could not initialize progress manager:") {
 		t.Fatalf("expected manager-init warning in output, got:\n%s", output)
+	}
+}
+
+// writeTaskCompleteEvent writes a task completion event to the progress JSONL file.
+func writeTaskCompleteEvent(t *testing.T, festivalPath, taskID string) {
+	t.Helper()
+	festDir := filepath.Join(festivalPath, progress.ProgressDir)
+	if err := os.MkdirAll(festDir, 0o755); err != nil {
+		t.Fatalf("create .fest dir: %v", err)
+	}
+	eventsFile := filepath.Join(festDir, progress.ProgressEventsFile)
+	line := `{"ts":"2025-01-01T00:00:00Z","event":"completed","task":"` + taskID + `"}` + "\n"
+	f, err := os.OpenFile(eventsFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		t.Fatalf("open events file: %v", err)
+	}
+	defer f.Close()
+	if _, err := f.WriteString(line); err != nil {
+		t.Fatalf("write event: %v", err)
 	}
 }

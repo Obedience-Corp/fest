@@ -259,8 +259,12 @@ func resolveNavigationMode(ctx context.Context, festivalPath, phasePath string) 
 
 	// Route: gate mode when workflow is done (or absent) and gates exist
 	if hasGates {
-		// Phase gate runs AFTER all other phase work. Check sequence readiness.
-		if shared.HasSequenceDirs(phasePath) && !shared.IsPhaseMarkedComplete(phasePath) {
+		// Phase gate runs AFTER all other phase work. Check actual task/workflow completion
+		// rather than PHASE_GOAL.md frontmatter (which creates a circular dependency since
+		// gate steps are counted in progress totals).
+		gateStore := progress.NewStore(festivalPath)
+		gateStoreLoaded := gateStore.Load(ctx) == nil
+		if shared.HasSequenceDirs(phasePath) && !shared.ArePhaseTasksAndWorkflowComplete(ctx, gateStoreLoaded, gateStore, phasePath, phaseName) {
 			return "", "", "phase gate exists but is not yet eligible\n\nComplete all phase sequences/tasks first, then the gate will become accessible.\nUse 'fest next' to continue working on phase tasks."
 		}
 		return "GATES.md", "gate:", ""
@@ -389,8 +393,10 @@ func findFirstIncompleteNavigablePhase(ctx context.Context, festivalPath string)
 
 		// Check GATES.md (only if workflow is complete or absent AND phase work is done)
 		if fileExists(filepath.Join(phasePath, "GATES.md")) {
-			// Phase gate requires all other phase work to be complete first
-			if shared.HasSequenceDirs(phasePath) && !shared.IsPhaseMarkedComplete(phasePath) {
+			// Phase gate requires all other phase work to be complete first.
+			// Use actual task/workflow completion check, not PHASE_GOAL.md frontmatter,
+			// to avoid circular dependency with gate steps in progress totals.
+			if shared.HasSequenceDirs(phasePath) && !shared.ArePhaseTasksAndWorkflowComplete(ctx, storeLoaded, store, phasePath, phaseName) {
 				continue // Gate not yet eligible, skip to next phase
 			}
 			if !storeLoaded {
