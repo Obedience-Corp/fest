@@ -61,8 +61,12 @@ type GateCounts struct {
 func CalculateFestivalStats(ctx context.Context, festivalDir string) (*FestivalStats, error) {
 	stats := &FestivalStats{}
 	festivalRoot := resolveFestivalRoot(festivalDir)
+
+	// Manager is the single source of truth for progress numbers.
+	// Keep a reference to delegate task totals after the structural walk.
+	mgr, mgrErr := progress.NewManager(ctx, festivalRoot)
 	var store *progress.Store
-	if mgr, err := progress.NewManager(ctx, festivalRoot); err == nil {
+	if mgrErr == nil {
 		store = mgr.Store()
 	}
 
@@ -118,7 +122,23 @@ func CalculateFestivalStats(ctx context.Context, festivalDir string) (*FestivalS
 		}
 	}
 
-	// Calculate progress percentage
+	// Delegate task totals and progress to the Manager (single source of truth).
+	// The filesystem walk above provides structural breakdown (phase/sequence counts)
+	// but the Manager includes gate steps and all tracked items.
+	if mgrErr == nil {
+		festProgress, err := mgr.GetFestivalProgress(ctx, festivalDir)
+		if err == nil && festProgress.Overall != nil {
+			stats.Tasks.Total = festProgress.Overall.Total
+			stats.Tasks.Completed = festProgress.Overall.Completed
+			stats.Tasks.InProgress = festProgress.Overall.InProgress
+			stats.Tasks.Pending = festProgress.Overall.Pending
+			stats.Tasks.Blocked = festProgress.Overall.Blocked
+			stats.Progress = float64(festProgress.Overall.Percentage)
+			return stats, nil
+		}
+	}
+
+	// Fallback: compute from filesystem walk if Manager unavailable
 	if stats.Tasks.Total > 0 {
 		stats.Progress = float64(stats.Tasks.Completed) / float64(stats.Tasks.Total) * 100
 	}
