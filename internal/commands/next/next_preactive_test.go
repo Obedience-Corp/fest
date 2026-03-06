@@ -2,10 +2,13 @@ package next
 
 import (
 	"context"
+	stderrors "errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 func TestCheckPreActiveStatus(t *testing.T) {
@@ -117,8 +120,8 @@ func TestCheckPreActiveStatus(t *testing.T) {
 			if tt.expectBlocked {
 				if err == nil {
 					t.Error("expected blocked error, got nil")
-				} else if tt.expectContains != "" && !strings.Contains(err.Error(), tt.expectContains) {
-					t.Errorf("expected error containing %q, got: %v", tt.expectContains, err)
+				} else if !stderrors.Is(err, errors.ErrAlreadyPrinted) {
+					t.Errorf("expected ErrAlreadyPrinted, got: %v", err)
 				}
 			} else if err != nil {
 				t.Errorf("expected no error, got: %v", err)
@@ -187,8 +190,8 @@ func TestCheckPreActiveStatus_ReadyMessage(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected blocked error for ready+implementation, got nil")
 	}
-	if !strings.Contains(err.Error(), "festival is in ready status") {
-		t.Errorf("expected short error about ready status, got: %v", err)
+	if !stderrors.Is(err, errors.ErrAlreadyPrinted) {
+		t.Errorf("expected ErrAlreadyPrinted, got: %v", err)
 	}
 	if !strings.Contains(output, "STOP") {
 		t.Errorf("expected prompt block header, got: %s", output)

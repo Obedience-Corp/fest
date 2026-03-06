@@ -6,6 +6,10 @@ import (
 	"fmt"
 )
 
+// ErrAlreadyPrinted is a sentinel error indicating the message was already
+// printed to the user. main.go should skip re-printing but still exit non-zero.
+var ErrAlreadyPrinted = fmt.Errorf("already printed")
+
 // Error codes for categorization.
 const (
 	ErrCodeNotFound   = "NOT_FOUND"
