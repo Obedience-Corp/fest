@@ -230,14 +230,17 @@ func resolveNavigationMode(ctx context.Context, festivalPath, phasePath string) 
 	hasWorkflow := false
 	workflowComplete := false
 
+	// Load store once for both workflow and gate checks
+	store := progress.NewStore(festivalPath)
+	storeLoaded := store.Load(ctx) == nil
+
 	// Check WORKFLOW.md
 	workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
 	if _, err := os.Stat(workflowPath); err == nil {
 		hasWorkflow = true
 
 		// Check if workflow is complete
-		store := progress.NewStore(festivalPath)
-		if store.Load(ctx) == nil {
+		if storeLoaded {
 			state, ok := store.WorkflowPhaseState(phaseName)
 			if ok && state.TotalSteps > 0 && state.IsComplete() {
 				workflowComplete = true
@@ -262,9 +265,7 @@ func resolveNavigationMode(ctx context.Context, festivalPath, phasePath string) 
 		// Phase gate runs AFTER all other phase work. Check actual task/workflow completion
 		// rather than PHASE_GOAL.md frontmatter (which creates a circular dependency since
 		// gate steps are counted in progress totals).
-		gateStore := progress.NewStore(festivalPath)
-		gateStoreLoaded := gateStore.Load(ctx) == nil
-		if shared.HasSequenceDirs(phasePath) && !shared.ArePhaseTasksAndWorkflowComplete(ctx, gateStoreLoaded, gateStore, phasePath, phaseName) {
+		if shared.HasSequenceDirs(phasePath) && !shared.ArePhaseTasksAndWorkflowComplete(ctx, storeLoaded, store, phasePath, phaseName) {
 			return "", "", "phase gate exists but is not yet eligible\n\nComplete all phase sequences/tasks first, then the gate will become accessible.\nUse 'fest next' to continue working on phase tasks."
 		}
 		return "GATES.md", "gate:", ""

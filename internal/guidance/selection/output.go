@@ -44,19 +44,17 @@ func FormatJSON(result *NextTaskResult) (string, error) {
 			}
 		}
 
-		// Enrich with task content
-		if content, err := os.ReadFile(result.Task.Path); err == nil {
-			body := stripFrontmatter(string(content))
+		// Enrich with task content and gate content from a single read
+		if fileData, err := os.ReadFile(result.Task.Path); err == nil {
+			body := stripFrontmatter(string(fileData))
 			if strings.TrimSpace(body) != "" {
 				result.TaskContent = body
 			}
-		}
 
-		// Enrich with gate content if applicable
-		if data, err := os.ReadFile(result.Task.Path); err == nil {
-			fm, body, fmErr := frontmatter.Parse(data)
+			// Check if this is a gate task
+			fm, fmBody, fmErr := frontmatter.Parse(fileData)
 			if fmErr == nil && fm != nil && fm.GateType != "" {
-				gateBody := strings.TrimSpace(string(body))
+				gateBody := strings.TrimSpace(string(fmBody))
 				if gateBody != "" {
 					result.GateContent = gateBody
 				}
