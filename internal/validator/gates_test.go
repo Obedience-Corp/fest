@@ -25,7 +25,7 @@ func TestValidateQualityGates_ImplementationOnly(t *testing.T) {
 				dir := t.TempDir()
 				phasePath := filepath.Join(dir, "003_APPROVAL")
 				seqPath := filepath.Join(phasePath, "01_merge_preparation")
-				os.MkdirAll(seqPath, 0755)
+				_ = os.MkdirAll(seqPath, 0755)
 
 				goalContent := `---
 fest_phase_type: review
@@ -33,8 +33,8 @@ fest_phase_type: review
 # Phase Goal
 Review and approve changes.
 `
-				os.WriteFile(filepath.Join(phasePath, "PHASE_GOAL.md"), []byte(goalContent), 0644)
-				os.WriteFile(filepath.Join(seqPath, "01_review_changes.md"), []byte("# Review Changes"), 0644)
+				_ = os.WriteFile(filepath.Join(phasePath, "PHASE_GOAL.md"), []byte(goalContent), 0644)
+				_ = os.WriteFile(filepath.Join(seqPath, "01_review_changes.md"), []byte("# Review Changes"), 0644)
 
 				return dir
 			},
@@ -46,12 +46,12 @@ Review and approve changes.
 				dir := t.TempDir()
 				phasePath := filepath.Join(dir, "002_IMPLEMENTATION")
 				seqPath := filepath.Join(phasePath, "01_core_feature")
-				os.MkdirAll(seqPath, 0755)
+				_ = os.MkdirAll(seqPath, 0755)
 
-				os.WriteFile(filepath.Join(seqPath, "01_implement.md"), []byte("# Implement"), 0644)
-				os.WriteFile(filepath.Join(seqPath, "02_testing.md"), []byte("# Testing"), 0644)
-				os.WriteFile(filepath.Join(seqPath, "03_review.md"), []byte("# Code Review"), 0644)
-				os.WriteFile(filepath.Join(seqPath, "04_commit.md"), []byte("# Commit"), 0644)
+				_ = os.WriteFile(filepath.Join(seqPath, "01_implement.md"), []byte("# Implement"), 0644)
+				_ = os.WriteFile(filepath.Join(seqPath, "02_testing.md"), []byte("# Testing"), 0644)
+				_ = os.WriteFile(filepath.Join(seqPath, "03_review.md"), []byte("# Code Review"), 0644)
+				_ = os.WriteFile(filepath.Join(seqPath, "04_commit.md"), []byte("# Commit"), 0644)
 
 				return dir
 			},
@@ -63,10 +63,10 @@ Review and approve changes.
 				dir := t.TempDir()
 				phasePath := filepath.Join(dir, "002_IMPLEMENTATION")
 				seqPath := filepath.Join(phasePath, "01_core_feature")
-				os.MkdirAll(seqPath, 0755)
+				_ = os.MkdirAll(seqPath, 0755)
 
-				os.WriteFile(filepath.Join(seqPath, "01_implement.md"), []byte("# Implement"), 0644)
-				os.WriteFile(filepath.Join(seqPath, "02_more_work.md"), []byte("# More Work"), 0644)
+				_ = os.WriteFile(filepath.Join(seqPath, "01_implement.md"), []byte("# Implement"), 0644)
+				_ = os.WriteFile(filepath.Join(seqPath, "02_more_work.md"), []byte("# More Work"), 0644)
 
 				return dir
 			},
@@ -80,15 +80,15 @@ Review and approve changes.
 				dir := t.TempDir()
 				phasePath := filepath.Join(dir, "001_PLANNING")
 				seqPath := filepath.Join(phasePath, "01_requirements")
-				os.MkdirAll(seqPath, 0755)
+				_ = os.MkdirAll(seqPath, 0755)
 
 				goalContent := `---
 fest_phase_type: planning
 ---
 # Phase Goal
 `
-				os.WriteFile(filepath.Join(phasePath, "PHASE_GOAL.md"), []byte(goalContent), 0644)
-				os.WriteFile(filepath.Join(seqPath, "01_gather_requirements.md"), []byte("# Gather"), 0644)
+				_ = os.WriteFile(filepath.Join(phasePath, "PHASE_GOAL.md"), []byte(goalContent), 0644)
+				_ = os.WriteFile(filepath.Join(seqPath, "01_gather_requirements.md"), []byte("# Gather"), 0644)
 
 				return dir
 			},
@@ -101,15 +101,15 @@ fest_phase_type: planning
 				dir := t.TempDir()
 				phasePath := filepath.Join(dir, "001_RESEARCH")
 				seqPath := filepath.Join(phasePath, "01_investigation")
-				os.MkdirAll(seqPath, 0755)
+				_ = os.MkdirAll(seqPath, 0755)
 
 				goalContent := `---
 fest_phase_type: research
 ---
 # Phase Goal
 `
-				os.WriteFile(filepath.Join(phasePath, "PHASE_GOAL.md"), []byte(goalContent), 0644)
-				os.WriteFile(filepath.Join(seqPath, "01_investigate.md"), []byte("# Investigate"), 0644)
+				_ = os.WriteFile(filepath.Join(phasePath, "PHASE_GOAL.md"), []byte(goalContent), 0644)
+				_ = os.WriteFile(filepath.Join(seqPath, "01_investigate.md"), []byte("# Investigate"), 0644)
 
 				return dir
 			},
@@ -122,15 +122,15 @@ fest_phase_type: research
 				dir := t.TempDir()
 				phasePath := filepath.Join(dir, "004_DEPLOYMENT")
 				seqPath := filepath.Join(phasePath, "01_deploy_production")
-				os.MkdirAll(seqPath, 0755)
+				_ = os.MkdirAll(seqPath, 0755)
 
 				goalContent := `---
 fest_phase_type: non_coding_action
 ---
 # Phase Goal
 `
-				os.WriteFile(filepath.Join(phasePath, "PHASE_GOAL.md"), []byte(goalContent), 0644)
-				os.WriteFile(filepath.Join(seqPath, "01_prepare_deploy.md"), []byte("# Prepare"), 0644)
+				_ = os.WriteFile(filepath.Join(phasePath, "PHASE_GOAL.md"), []byte(goalContent), 0644)
+				_ = os.WriteFile(filepath.Join(seqPath, "01_prepare_deploy.md"), []byte("# Prepare"), 0644)
 
 				return dir
 			},
@@ -143,9 +143,9 @@ fest_phase_type: non_coding_action
 				dir := t.TempDir()
 				phasePath := filepath.Join(dir, "002_IMPLEMENTATION")
 				seqPath := filepath.Join(phasePath, "01_core_planning") // ends with _planning
-				os.MkdirAll(seqPath, 0755)
+				_ = os.MkdirAll(seqPath, 0755)
 
-				os.WriteFile(filepath.Join(seqPath, "01_plan.md"), []byte("# Plan"), 0644)
+				_ = os.WriteFile(filepath.Join(seqPath, "01_plan.md"), []byte("# Plan"), 0644)
 
 				return dir
 			},
@@ -158,7 +158,7 @@ fest_phase_type: non_coding_action
 				dir := t.TempDir()
 				phasePath := filepath.Join(dir, "002_IMPLEMENTATION")
 				seqPath := filepath.Join(phasePath, "01_core_feature")
-				os.MkdirAll(seqPath, 0755)
+				_ = os.MkdirAll(seqPath, 0755)
 				return dir
 			},
 			wantIssues: 0, // Empty sequences are OK
@@ -208,13 +208,13 @@ func TestValidateQualityGates_ErrorMessage(t *testing.T) {
 	dir := t.TempDir()
 	phasePath := filepath.Join(dir, "002_IMPLEMENTATION")
 	seqPath := filepath.Join(phasePath, "01_work")
-	os.MkdirAll(seqPath, 0755)
+	_ = os.MkdirAll(seqPath, 0755)
 
 	goalContent := "---\nfest_phase_type: implementation\n---\n# Goal\n"
-	os.WriteFile(filepath.Join(phasePath, "PHASE_GOAL.md"), []byte(goalContent), 0644)
+	_ = os.WriteFile(filepath.Join(phasePath, "PHASE_GOAL.md"), []byte(goalContent), 0644)
 
-	os.WriteFile(filepath.Join(seqPath, "01_task.md"), []byte("# Task"), 0644)
-	os.WriteFile(filepath.Join(seqPath, "02_another.md"), []byte("# Another"), 0644)
+	_ = os.WriteFile(filepath.Join(seqPath, "01_task.md"), []byte("# Task"), 0644)
+	_ = os.WriteFile(filepath.Join(seqPath, "02_another.md"), []byte("# Another"), 0644)
 
 	issues, err := ValidateQualityGates(ctx, dir)
 	if err != nil {

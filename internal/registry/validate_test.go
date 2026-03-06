@@ -14,14 +14,14 @@ func TestRegistry_Validate(t *testing.T) {
 
 	// Create festival directory structure
 	activePath := filepath.Join(festivalsRoot, "active")
-	os.MkdirAll(activePath, 0755)
+	_ = os.MkdirAll(activePath, 0755)
 
 	// Create a festival with ID in directory name
 	festivalPath := filepath.Join(activePath, "guild-usable_GU0001")
-	os.MkdirAll(festivalPath, 0755)
+	_ = os.MkdirAll(festivalPath, 0755)
 
 	regPath := filepath.Join(festivalsRoot, ".festival", "id_registry.yaml")
-	os.MkdirAll(filepath.Dir(regPath), 0755)
+	_ = os.MkdirAll(filepath.Dir(regPath), 0755)
 
 	reg := New(regPath)
 	entry := RegistryEntry{
@@ -67,19 +67,19 @@ func TestRebuild(t *testing.T) {
 	// Create status directories
 	activePath := filepath.Join(festivalsRoot, "active")
 	completedPath := filepath.Join(festivalsRoot, "dungeon", "completed", "2025-01")
-	os.MkdirAll(activePath, 0755)
-	os.MkdirAll(completedPath, 0755)
+	_ = os.MkdirAll(activePath, 0755)
+	_ = os.MkdirAll(completedPath, 0755)
 
 	// Create festivals with IDs
 	festival1 := filepath.Join(activePath, "first-GU0001")
 	festival2 := filepath.Join(activePath, "second-FN0002")
 	festival3 := filepath.Join(completedPath, "done-DO0003")
-	os.MkdirAll(festival1, 0755)
-	os.MkdirAll(festival2, 0755)
-	os.MkdirAll(festival3, 0755)
+	_ = os.MkdirAll(festival1, 0755)
+	_ = os.MkdirAll(festival2, 0755)
+	_ = os.MkdirAll(festival3, 0755)
 
 	regPath := filepath.Join(festivalsRoot, ".festival", "id_registry.yaml")
-	os.MkdirAll(filepath.Dir(regPath), 0755)
+	_ = os.MkdirAll(filepath.Dir(regPath), 0755)
 
 	reg, err := Rebuild(ctx, festivalsRoot, regPath)
 	if err != nil {
@@ -125,15 +125,15 @@ func TestRebuild_SkipsLegacyFestivals(t *testing.T) {
 	festivalsRoot := tmpDir
 
 	activePath := filepath.Join(festivalsRoot, "active")
-	os.MkdirAll(activePath, 0755)
+	_ = os.MkdirAll(activePath, 0755)
 
 	// Create festival without ID (legacy)
 	legacy := filepath.Join(activePath, "legacy-festival")
-	os.MkdirAll(legacy, 0755)
+	_ = os.MkdirAll(legacy, 0755)
 
 	// Create festival with ID
 	withID := filepath.Join(activePath, "modern-MO0001")
-	os.MkdirAll(withID, 0755)
+	_ = os.MkdirAll(withID, 0755)
 
 	regPath := filepath.Join(festivalsRoot, ".festival", "id_registry.yaml")
 
@@ -156,14 +156,14 @@ func TestRegistry_Sync(t *testing.T) {
 	festivalsRoot := tmpDir
 
 	activePath := filepath.Join(festivalsRoot, "active")
-	os.MkdirAll(activePath, 0755)
+	_ = os.MkdirAll(activePath, 0755)
 
 	// Create festival on filesystem
 	festival := filepath.Join(activePath, "test-TE0001")
-	os.MkdirAll(festival, 0755)
+	_ = os.MkdirAll(festival, 0755)
 
 	regPath := filepath.Join(festivalsRoot, ".festival", "id_registry.yaml")
-	os.MkdirAll(filepath.Dir(regPath), 0755)
+	_ = os.MkdirAll(filepath.Dir(regPath), 0755)
 
 	reg := New(regPath)
 

@@ -265,7 +265,7 @@ func TestIsManaged(t *testing.T) {
 	// Test unmanaged file
 	unmanagedContent := "# Just content"
 	unmanagedPath := filepath.Join(tmpDir, "unmanaged.md")
-	os.WriteFile(unmanagedPath, []byte(unmanagedContent), 0644)
+	_ = os.WriteFile(unmanagedPath, []byte(unmanagedContent), 0644)
 
 	if IsManaged(unmanagedPath) {
 		t.Error("IsManaged returned true for unmanaged file")
@@ -280,7 +280,7 @@ fest_gate_id: test
 # Content
 `
 	managedPath := filepath.Join(tmpDir, "managed.md")
-	os.WriteFile(managedPath, []byte(managedContent), 0644)
+	_ = os.WriteFile(managedPath, []byte(managedContent), 0644)
 
 	if !IsManaged(managedPath) {
 		t.Error("IsManaged returned false for managed file")
@@ -292,7 +292,7 @@ func TestGetGateID(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	content := `---
 fest_managed: true
@@ -302,7 +302,7 @@ fest_gate_id: my_gate_id
 # Content
 `
 	filePath := filepath.Join(tmpDir, "test.md")
-	os.WriteFile(filePath, []byte(content), 0644)
+	_ = os.WriteFile(filePath, []byte(content), 0644)
 
 	gateID := GetGateID(filePath)
 	if gateID != "my_gate_id" {

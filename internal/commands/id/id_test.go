@@ -39,7 +39,7 @@ func captureRunID(t *testing.T, ctx context.Context) (string, error) {
 	cmd.SetContext(ctx)
 
 	err := runID(cmd, nil)
-	w.Close()
+	_ = w.Close()
 	os.Stdout = old
 
 	var out bytes.Buffer

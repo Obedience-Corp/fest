@@ -11,10 +11,10 @@ func TestComputeDirectorySize(t *testing.T) {
 	dir := t.TempDir()
 
 	// Create some .md files
-	os.WriteFile(filepath.Join(dir, "a.md"), []byte("hello"), 0644)
-	os.WriteFile(filepath.Join(dir, "b.md"), []byte("world!"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "a.md"), []byte("hello"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "b.md"), []byte("world!"), 0644)
 	// Non-.md files should be ignored
-	os.WriteFile(filepath.Join(dir, "c.txt"), []byte("ignored"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "c.txt"), []byte("ignored"), 0644)
 
 	size, err := ComputeDirectorySize(context.Background(), dir)
 	if err != nil {
@@ -30,9 +30,9 @@ func TestComputeDirectorySizeNested(t *testing.T) {
 	dir := t.TempDir()
 
 	subDir := filepath.Join(dir, "sub")
-	os.MkdirAll(subDir, 0755)
-	os.WriteFile(filepath.Join(dir, "root.md"), []byte("abc"), 0644)
-	os.WriteFile(filepath.Join(subDir, "nested.md"), []byte("defgh"), 0644)
+	_ = os.MkdirAll(subDir, 0755)
+	_ = os.WriteFile(filepath.Join(dir, "root.md"), []byte("abc"), 0644)
+	_ = os.WriteFile(filepath.Join(subDir, "nested.md"), []byte("defgh"), 0644)
 
 	size, err := ComputeDirectorySize(context.Background(), dir)
 	if err != nil {
@@ -48,9 +48,9 @@ func TestComputeDirectorySizeSkipsHidden(t *testing.T) {
 	dir := t.TempDir()
 
 	hiddenDir := filepath.Join(dir, ".fest")
-	os.MkdirAll(hiddenDir, 0755)
-	os.WriteFile(filepath.Join(dir, "visible.md"), []byte("abc"), 0644)
-	os.WriteFile(filepath.Join(hiddenDir, "hidden.md"), []byte("should-be-ignored"), 0644)
+	_ = os.MkdirAll(hiddenDir, 0755)
+	_ = os.WriteFile(filepath.Join(dir, "visible.md"), []byte("abc"), 0644)
+	_ = os.WriteFile(filepath.Join(hiddenDir, "hidden.md"), []byte("should-be-ignored"), 0644)
 
 	size, err := ComputeDirectorySize(context.Background(), dir)
 	if err != nil {
@@ -78,7 +78,7 @@ func TestComputeDirectorySizeCancelledContext(t *testing.T) {
 	cancel()
 
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "a.md"), []byte("hello"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "a.md"), []byte("hello"), 0644)
 
 	_, err := ComputeDirectorySize(ctx, dir)
 	if err == nil {
@@ -88,7 +88,7 @@ func TestComputeDirectorySizeCancelledContext(t *testing.T) {
 
 func TestComputeContentDelta(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "a.md"), []byte("hello world!"), 0644) // 12 bytes
+	_ = os.WriteFile(filepath.Join(dir, "a.md"), []byte("hello world!"), 0644) // 12 bytes
 
 	delta, err := ComputeContentDelta(context.Background(), dir, 8)
 	if err != nil {
@@ -111,7 +111,7 @@ func TestComputeContentDelta(t *testing.T) {
 
 func TestComputeContentDeltaNegative(t *testing.T) {
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "a.md"), []byte("hi"), 0644) // 2 bytes
+	_ = os.WriteFile(filepath.Join(dir, "a.md"), []byte("hi"), 0644) // 2 bytes
 
 	delta, err := ComputeContentDelta(context.Background(), dir, 100)
 	if err != nil {

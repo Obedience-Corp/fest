@@ -12,9 +12,9 @@ func TestReorderPhase_MoveUp(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create phases: 001, 002, 003
-	os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "003_REVIEW"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "003_REVIEW"), 0755)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -43,9 +43,9 @@ func TestReorderPhase_MoveDown(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create phases: 001, 002, 003
-	os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "003_REVIEW"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "003_REVIEW"), 0755)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -73,8 +73,8 @@ func TestReorderPhase_MoveDown(t *testing.T) {
 func TestReorderPhase_SamePosition(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -99,7 +99,7 @@ func TestReorderPhase_SamePosition(t *testing.T) {
 func TestReorderPhase_InvalidFrom(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -118,8 +118,8 @@ func TestReorderPhase_InvalidFrom(t *testing.T) {
 func TestReorderPhase_InvalidTo(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -139,10 +139,10 @@ func TestReorderSequence_MoveUp(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create sequences: 01, 02, 03, 04
-	os.MkdirAll(filepath.Join(tmpDir, "01_requirements"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "02_design"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "03_implementation"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "04_tests"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "01_requirements"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "02_design"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "03_implementation"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "04_tests"), 0755)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -173,9 +173,9 @@ func TestReorderSequence_MoveUp(t *testing.T) {
 func TestReorderSequence_MoveDown(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	os.MkdirAll(filepath.Join(tmpDir, "01_tests"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "02_requirements"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "03_implementation"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "01_tests"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "02_requirements"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "03_implementation"), 0755)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -302,8 +302,8 @@ func TestReorderTask_ParallelTasks(t *testing.T) {
 func TestReorderPhase_DryRunMode(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
 
 	r := NewRenumberer(RenumberOptions{
 		DryRun: true,
@@ -333,8 +333,8 @@ func TestReorderPhase_DryRunMode(t *testing.T) {
 func TestReorderPhase_VerboseMode(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "001_PLANNING"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "002_IMPLEMENT"), 0755)
 
 	r := NewRenumberer(RenumberOptions{
 		Verbose:     true,
@@ -397,11 +397,11 @@ func TestReorderPhase_MoveMiddle(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create phases: 001, 002, 003, 004, 005
-	os.MkdirAll(filepath.Join(tmpDir, "001_A"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "002_B"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "003_C"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "004_D"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "005_E"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "001_A"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "002_B"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "003_C"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "004_D"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "005_E"), 0755)
 
 	r := NewRenumberer(RenumberOptions{
 		Quiet:       true,
@@ -436,8 +436,8 @@ func TestReorderSequence_PreservesContents(t *testing.T) {
 	// Create sequences with content
 	seq1 := filepath.Join(tmpDir, "01_first")
 	seq2 := filepath.Join(tmpDir, "02_second")
-	os.MkdirAll(seq1, 0755)
-	os.MkdirAll(seq2, 0755)
+	_ = os.MkdirAll(seq1, 0755)
+	_ = os.MkdirAll(seq2, 0755)
 
 	// Add tasks inside sequences
 	_ = os.WriteFile(filepath.Join(seq1, "01_task.md"), []byte("first task"), 0644)

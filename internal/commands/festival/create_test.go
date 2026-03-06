@@ -270,8 +270,8 @@ func TestCreateOptions_InsertInMiddle(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create initial phases
-	os.MkdirAll(filepath.Join(tmpDir, "001_FIRST"), 0755)
-	os.MkdirAll(filepath.Join(tmpDir, "002_THIRD"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "001_FIRST"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "002_THIRD"), 0755)
 
 	ren := festival.NewRenumberer(festival.RenumberOptions{
 		AutoApprove: true,
@@ -341,8 +341,8 @@ func TestCreateFestival_GatesDirectory(t *testing.T) {
 
 	// Change working directory temporarily
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(festivalsDir)
+	defer func() { _ = os.Chdir(origDir) }()
+	_ = os.Chdir(festivalsDir)
 
 	// Run create festival
 	opts := &CreateFestivalOptions{
@@ -429,8 +429,8 @@ func TestCreateFestival_FestYAMLGenerated(t *testing.T) {
 
 	// Change working directory temporarily
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(festivalsDir)
+	defer func() { _ = os.Chdir(origDir) }()
+	_ = os.Chdir(festivalsDir)
 
 	// Run create festival
 	opts := &CreateFestivalOptions{
@@ -535,8 +535,8 @@ func TestCreateFestival_WithTypeStandard(t *testing.T) {
 
 	// Change working directory
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(festivalsDir)
+	defer func() { _ = os.Chdir(origDir) }()
+	_ = os.Chdir(festivalsDir)
 
 	// Run create festival with --type standard
 	opts := &CreateFestivalOptions{
@@ -593,8 +593,8 @@ func TestCreateFestival_WithoutType(t *testing.T) {
 
 	// Change working directory
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(festivalsDir)
+	defer func() { _ = os.Chdir(origDir) }()
+	_ = os.Chdir(festivalsDir)
 
 	// Run create festival WITHOUT --type
 	opts := &CreateFestivalOptions{
@@ -660,8 +660,8 @@ func TestCreateFestival_WithUnknownType(t *testing.T) {
 
 	// Change working directory
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(festivalsDir)
+	defer func() { _ = os.Chdir(origDir) }()
+	_ = os.Chdir(festivalsDir)
 
 	// Run create festival with unknown type
 	opts := &CreateFestivalOptions{
@@ -690,8 +690,8 @@ func TestCreateFestival_RejectsActiveDest(t *testing.T) {
 
 	// Change working directory
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(festivalsDir)
+	defer func() { _ = os.Chdir(origDir) }()
+	_ = os.Chdir(festivalsDir)
 
 	opts := &CreateFestivalOptions{
 		Name:        "should-fail",

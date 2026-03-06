@@ -86,7 +86,7 @@ func TestNewHierarchicalLoader(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Test with valid path
 	loader, err := NewHierarchicalLoader(tmpDir)
@@ -115,11 +115,11 @@ func TestHierarchicalLoader_LoadForFestival(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Create festival directory
 	festivalPath := filepath.Join(tmpDir, "test-festival")
-	os.MkdirAll(festivalPath, 0755)
+	_ = os.MkdirAll(festivalPath, 0755)
 
 	loader, err := NewHierarchicalLoader(tmpDir)
 	if err != nil {
@@ -146,7 +146,7 @@ func TestHierarchicalLoader_ContextCancellation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	loader, err := NewHierarchicalLoader(tmpDir)
 	if err != nil {

@@ -178,9 +178,9 @@ func runResearchSummary(ctx context.Context, cmd *cobra.Command, phase string, f
 		if err := os.WriteFile(output, []byte(result), 0644); err != nil {
 			return errors.IO("writing output file", err).WithField("path", output)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", ui.Success("Summary written"), ui.Dim(output))
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s %s\n", ui.Success("Summary written"), ui.Dim(output))
 	} else {
-		fmt.Fprintln(cmd.OutOrStdout(), result)
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), result)
 	}
 
 	return nil

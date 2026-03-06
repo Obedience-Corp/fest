@@ -102,21 +102,21 @@ func TestRunnerWithTemplateRoot(t *testing.T) {
 
 	// Set up a temp directory with minimal templates
 	tmplRoot := filepath.Join(t.TempDir(), "templates")
-	os.MkdirAll(filepath.Join(tmplRoot, "festival"), 0755)
-	os.MkdirAll(filepath.Join(tmplRoot, "phases", "implementation"), 0755)
-	os.MkdirAll(filepath.Join(tmplRoot, "sequences"), 0755)
-	os.MkdirAll(filepath.Join(tmplRoot, "tasks"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmplRoot, "festival"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmplRoot, "phases", "implementation"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmplRoot, "sequences"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmplRoot, "tasks"), 0755)
 
 	// Write minimal templates (no YAML frontmatter, just content)
-	os.WriteFile(filepath.Join(tmplRoot, "festival", "GOAL.md"),
+	_ = os.WriteFile(filepath.Join(tmplRoot, "festival", "GOAL.md"),
 		[]byte("# Goal: {{ .festival_name }}\n\nTemplate-rendered goal.\n"), 0644)
-	os.WriteFile(filepath.Join(tmplRoot, "festival", "OVERVIEW.md"),
+	_ = os.WriteFile(filepath.Join(tmplRoot, "festival", "OVERVIEW.md"),
 		[]byte("# Overview: {{ .festival_name }}\n\nTemplate-rendered overview.\n"), 0644)
-	os.WriteFile(filepath.Join(tmplRoot, "phases", "implementation", "GOAL.md"),
+	_ = os.WriteFile(filepath.Join(tmplRoot, "phases", "implementation", "GOAL.md"),
 		[]byte("# Phase: {{ .phase_name }}\n\nPhase type: {{ .phase_type }}\n"), 0644)
-	os.WriteFile(filepath.Join(tmplRoot, "sequences", "GOAL.md"),
+	_ = os.WriteFile(filepath.Join(tmplRoot, "sequences", "GOAL.md"),
 		[]byte("# Sequence: {{ .sequence_name }}\n\nTemplate-rendered sequence.\n"), 0644)
-	os.WriteFile(filepath.Join(tmplRoot, "tasks", "TASK.md"),
+	_ = os.WriteFile(filepath.Join(tmplRoot, "tasks", "TASK.md"),
 		[]byte("# Task: {{ .task_name }}\n\nTemplate-rendered task.\n"), 0644)
 
 	plan := &ParsedPlan{
@@ -204,9 +204,9 @@ func TestRunnerTemplateFallback(t *testing.T) {
 
 	// Provide a TemplateRoot with only partial templates
 	tmplRoot := filepath.Join(t.TempDir(), "partial-templates")
-	os.MkdirAll(filepath.Join(tmplRoot, "festival"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmplRoot, "festival"), 0755)
 	// Only write GOAL.md, NOT OVERVIEW.md
-	os.WriteFile(filepath.Join(tmplRoot, "festival", "GOAL.md"),
+	_ = os.WriteFile(filepath.Join(tmplRoot, "festival", "GOAL.md"),
 		[]byte("# Custom Goal\n\nFrom template.\n"), 0644)
 
 	plan := &ParsedPlan{

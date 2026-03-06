@@ -325,13 +325,13 @@ func runGatesApply(ctx context.Context, cmd *cobra.Command, opts *applyOptions) 
 
 			// Format sequence line with counts
 			if createCount > 0 && skipCount > 0 {
-				fmt.Fprintf(out, "  %s: %d created, %d skipped (exist)\n", ui.Sequence(seqName), createCount, skipCount)
+				_, _ = fmt.Fprintf(out, "  %s: %d created, %d skipped (exist)\n", ui.Sequence(seqName), createCount, skipCount)
 			} else if createCount > 0 {
-				fmt.Fprintf(out, "  %s: %d created\n", ui.Sequence(seqName), createCount)
+				_, _ = fmt.Fprintf(out, "  %s: %d created\n", ui.Sequence(seqName), createCount)
 			} else if skipCount > 0 {
-				fmt.Fprintf(out, "  %s: %d skipped (exist)\n", ui.Sequence(seqName), skipCount)
+				_, _ = fmt.Fprintf(out, "  %s: %d skipped (exist)\n", ui.Sequence(seqName), skipCount)
 			} else {
-				fmt.Fprintf(out, "  %s\n", ui.Sequence(seqName))
+				_, _ = fmt.Fprintf(out, "  %s\n", ui.Sequence(seqName))
 			}
 
 			// Show unexpected skips with detail

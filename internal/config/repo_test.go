@@ -146,7 +146,7 @@ func TestLoadSaveRepoManifest(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	// Override config dir
 	_ = os.Setenv("FEST_CONFIG_DIR", tmpDir)

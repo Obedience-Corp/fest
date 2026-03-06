@@ -116,13 +116,13 @@ func TestFestivalMoveDirectoryStructure(t *testing.T) {
 	root := t.TempDir()
 	planningDir := filepath.Join(root, "planning")
 	activeDir := filepath.Join(root, "active")
-	os.MkdirAll(planningDir, 0755)
-	os.MkdirAll(activeDir, 0755)
+	_ = os.MkdirAll(planningDir, 0755)
+	_ = os.MkdirAll(activeDir, 0755)
 
 	// Create a festival in planning
 	festPath := filepath.Join(planningDir, "test-fest")
-	os.MkdirAll(filepath.Join(festPath, "001_IMPL"), 0755)
-	os.WriteFile(filepath.Join(festPath, "FESTIVAL_OVERVIEW.md"), []byte("# Test"), 0644)
+	_ = os.MkdirAll(filepath.Join(festPath, "001_IMPL"), 0755)
+	_ = os.WriteFile(filepath.Join(festPath, "FESTIVAL_OVERVIEW.md"), []byte("# Test"), 0644)
 
 	// Verify the festival directory exists before move
 	if _, err := os.Stat(festPath); err != nil {

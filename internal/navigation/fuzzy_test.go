@@ -198,7 +198,7 @@ func TestCollectFestivalsInStatus(t *testing.T) {
 	})
 
 	t.Run("empty status dir returns nil", func(t *testing.T) {
-		os.MkdirAll(filepath.Join(festivalsDir, "dungeon"), 0755)
+		_ = os.MkdirAll(filepath.Join(festivalsDir, "dungeon"), 0755)
 		targets := CollectFestivalsInStatus(festivalsDir, "dungeon")
 		assert.Nil(t, targets)
 	})

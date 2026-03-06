@@ -24,7 +24,7 @@ func TestParseFestival(t *testing.T) {
 	phaseDir := filepath.Join(festDir, "001_Planning")
 	seqDir := filepath.Join(phaseDir, "01_setup")
 
-	os.MkdirAll(seqDir, 0755)
+	_ = os.MkdirAll(seqDir, 0755)
 
 	// Create PHASE_GOAL.md
 	phaseGoal := `# Phase Goal
@@ -36,18 +36,18 @@ Complete the planning phase.
 - [ ] Define requirements
 - [ ] Create timeline
 `
-	os.WriteFile(filepath.Join(phaseDir, "PHASE_GOAL.md"), []byte(phaseGoal), 0644)
+	_ = os.WriteFile(filepath.Join(phaseDir, "PHASE_GOAL.md"), []byte(phaseGoal), 0644)
 
 	// Create SEQUENCE_GOAL.md
 	seqGoal := "# Sequence Goal\n\n## Objective\nSetup tasks"
-	os.WriteFile(filepath.Join(seqDir, "SEQUENCE_GOAL.md"), []byte(seqGoal), 0644)
+	_ = os.WriteFile(filepath.Join(seqDir, "SEQUENCE_GOAL.md"), []byte(seqGoal), 0644)
 
 	// Create task file
 	task := `# First Task
 
 Task description here.
 `
-	os.WriteFile(filepath.Join(seqDir, "01_first_task.md"), []byte(task), 0644)
+	_ = os.WriteFile(filepath.Join(seqDir, "01_first_task.md"), []byte(task), 0644)
 
 	// Parse
 	p := NewParser(ParseOptions{InferMissing: true})

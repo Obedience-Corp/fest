@@ -26,7 +26,7 @@ func TestFestivalIndexSaveLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	idx := NewFestivalIndex("save-test")
 	idx.AddPhase(PhaseIndex{
@@ -165,24 +165,24 @@ func TestIndexWriter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	festivalDir := filepath.Join(tmpDir, "my-festival")
-	os.MkdirAll(festivalDir, 0755)
+	_ = os.MkdirAll(festivalDir, 0755)
 
 	// Create phase
 	phaseDir := filepath.Join(festivalDir, "001_DESIGN")
-	os.MkdirAll(phaseDir, 0755)
-	os.WriteFile(filepath.Join(phaseDir, "PHASE_GOAL.md"), []byte("# Phase Goal"), 0644)
+	_ = os.MkdirAll(phaseDir, 0755)
+	_ = os.WriteFile(filepath.Join(phaseDir, "PHASE_GOAL.md"), []byte("# Phase Goal"), 0644)
 
 	// Create sequence
 	seqDir := filepath.Join(phaseDir, "01_requirements")
-	os.MkdirAll(seqDir, 0755)
-	os.WriteFile(filepath.Join(seqDir, "SEQUENCE_GOAL.md"), []byte("# Sequence Goal"), 0644)
+	_ = os.MkdirAll(seqDir, 0755)
+	_ = os.WriteFile(filepath.Join(seqDir, "SEQUENCE_GOAL.md"), []byte("# Sequence Goal"), 0644)
 
 	// Create tasks
-	os.WriteFile(filepath.Join(seqDir, "01_gather.md"), []byte("# Task 1"), 0644)
-	os.WriteFile(filepath.Join(seqDir, "02_analyze.md"), []byte("# Task 2"), 0644)
+	_ = os.WriteFile(filepath.Join(seqDir, "01_gather.md"), []byte("# Task 1"), 0644)
+	_ = os.WriteFile(filepath.Join(seqDir, "02_analyze.md"), []byte("# Task 2"), 0644)
 
 	// Generate index
 	writer := NewIndexWriter(festivalDir)
@@ -235,18 +235,18 @@ func TestIndexWriterWriteIndex(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	festivalDir := filepath.Join(tmpDir, "test-festival")
-	os.MkdirAll(festivalDir, 0755)
+	_ = os.MkdirAll(festivalDir, 0755)
 
 	// Create minimal structure
 	phaseDir := filepath.Join(festivalDir, "001_PLAN")
-	os.MkdirAll(phaseDir, 0755)
+	_ = os.MkdirAll(phaseDir, 0755)
 
 	seqDir := filepath.Join(phaseDir, "01_init")
-	os.MkdirAll(seqDir, 0755)
-	os.WriteFile(filepath.Join(seqDir, "01_start.md"), []byte("# Start"), 0644)
+	_ = os.MkdirAll(seqDir, 0755)
+	_ = os.WriteFile(filepath.Join(seqDir, "01_start.md"), []byte("# Start"), 0644)
 
 	// Write index
 	writer := NewIndexWriter(festivalDir)
@@ -276,18 +276,18 @@ func TestIndexValidator(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	festivalDir := filepath.Join(tmpDir, "valid-festival")
-	os.MkdirAll(festivalDir, 0755)
+	_ = os.MkdirAll(festivalDir, 0755)
 
 	// Create structure
 	phaseDir := filepath.Join(festivalDir, "001_PLAN")
-	os.MkdirAll(phaseDir, 0755)
+	_ = os.MkdirAll(phaseDir, 0755)
 
 	seqDir := filepath.Join(phaseDir, "01_init")
-	os.MkdirAll(seqDir, 0755)
-	os.WriteFile(filepath.Join(seqDir, "01_task.md"), []byte("# Task"), 0644)
+	_ = os.MkdirAll(seqDir, 0755)
+	_ = os.WriteFile(filepath.Join(seqDir, "01_task.md"), []byte("# Task"), 0644)
 
 	// Create matching index
 	idx := NewFestivalIndex("valid-festival")
@@ -321,17 +321,17 @@ func TestIndexValidatorMissingFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	festivalDir := filepath.Join(tmpDir, "missing-files-festival")
-	os.MkdirAll(festivalDir, 0755)
+	_ = os.MkdirAll(festivalDir, 0755)
 
 	// Create partial structure (missing task file)
 	phaseDir := filepath.Join(festivalDir, "001_PLAN")
-	os.MkdirAll(phaseDir, 0755)
+	_ = os.MkdirAll(phaseDir, 0755)
 
 	seqDir := filepath.Join(phaseDir, "01_init")
-	os.MkdirAll(seqDir, 0755)
+	_ = os.MkdirAll(seqDir, 0755)
 	// Note: NOT creating the task file
 
 	// Create index that references the missing file
@@ -369,19 +369,19 @@ func TestIndexValidatorExtraFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	festivalDir := filepath.Join(tmpDir, "extra-files-festival")
-	os.MkdirAll(festivalDir, 0755)
+	_ = os.MkdirAll(festivalDir, 0755)
 
 	// Create structure with extra file
 	phaseDir := filepath.Join(festivalDir, "001_PLAN")
-	os.MkdirAll(phaseDir, 0755)
+	_ = os.MkdirAll(phaseDir, 0755)
 
 	seqDir := filepath.Join(phaseDir, "01_init")
-	os.MkdirAll(seqDir, 0755)
-	os.WriteFile(filepath.Join(seqDir, "01_task.md"), []byte("# Task"), 0644)
-	os.WriteFile(filepath.Join(seqDir, "02_extra.md"), []byte("# Extra"), 0644) // Not in index
+	_ = os.MkdirAll(seqDir, 0755)
+	_ = os.WriteFile(filepath.Join(seqDir, "01_task.md"), []byte("# Task"), 0644)
+	_ = os.WriteFile(filepath.Join(seqDir, "02_extra.md"), []byte("# Extra"), 0644) // Not in index
 
 	// Create index without the extra file
 	idx := NewFestivalIndex("extra-files-festival")
@@ -416,18 +416,18 @@ func TestValidateFromFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	festivalDir := filepath.Join(tmpDir, "file-validation-festival")
-	os.MkdirAll(festivalDir, 0755)
+	_ = os.MkdirAll(festivalDir, 0755)
 
 	// Create structure
 	phaseDir := filepath.Join(festivalDir, "001_PLAN")
-	os.MkdirAll(phaseDir, 0755)
+	_ = os.MkdirAll(phaseDir, 0755)
 
 	seqDir := filepath.Join(phaseDir, "01_init")
-	os.MkdirAll(seqDir, 0755)
-	os.WriteFile(filepath.Join(seqDir, "01_task.md"), []byte("# Task"), 0644)
+	_ = os.MkdirAll(seqDir, 0755)
+	_ = os.WriteFile(filepath.Join(seqDir, "01_task.md"), []byte("# Task"), 0644)
 
 	// Generate and save index
 	writer := NewIndexWriter(festivalDir)
@@ -452,10 +452,10 @@ func TestLoadIndexInvalidJSON(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	indexPath := filepath.Join(tmpDir, IndexFileName)
-	os.WriteFile(indexPath, []byte("invalid json"), 0644)
+	_ = os.WriteFile(indexPath, []byte("invalid json"), 0644)
 
 	_, err = LoadIndex(indexPath)
 	if err == nil {

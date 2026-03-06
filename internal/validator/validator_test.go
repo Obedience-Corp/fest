@@ -19,9 +19,9 @@ func TestStructureValidator(t *testing.T) {
 			name: "valid structure",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.MkdirAll(filepath.Join(dir, "001_PLANNING"), 0755)
-				os.MkdirAll(filepath.Join(dir, "001_PLANNING", "01_requirements"), 0755)
-				os.WriteFile(filepath.Join(dir, "001_PLANNING", "01_requirements", "01_gather.md"), []byte("# Task"), 0644)
+				_ = os.MkdirAll(filepath.Join(dir, "001_PLANNING"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "001_PLANNING", "01_requirements"), 0755)
+				_ = os.WriteFile(filepath.Join(dir, "001_PLANNING", "01_requirements", "01_gather.md"), []byte("# Task"), 0644)
 				return dir
 			},
 			wantIssues: 0,
@@ -30,7 +30,7 @@ func TestStructureValidator(t *testing.T) {
 			name: "lowercase phase",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.MkdirAll(filepath.Join(dir, "001_planning"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "001_planning"), 0755)
 				return dir
 			},
 			wantIssues: 1,
@@ -40,8 +40,8 @@ func TestStructureValidator(t *testing.T) {
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
 				// Use IMPLEMENTATION phase since PLANNING is now freeform
-				os.MkdirAll(filepath.Join(dir, "001_IMPLEMENTATION"), 0755)
-				os.MkdirAll(filepath.Join(dir, "001_IMPLEMENTATION", "01_REQUIREMENTS"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "001_IMPLEMENTATION"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "001_IMPLEMENTATION", "01_REQUIREMENTS"), 0755)
 				return dir
 			},
 			wantIssues: 1,
@@ -79,10 +79,10 @@ func TestCompletenessValidator(t *testing.T) {
 			name: "complete festival",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.WriteFile(filepath.Join(dir, "FESTIVAL_OVERVIEW.md"), []byte("# Overview"), 0644)
-				os.WriteFile(filepath.Join(dir, "FESTIVAL_RULES.md"), []byte("# Rules"), 0644)
-				os.MkdirAll(filepath.Join(dir, "001_PLANNING"), 0755)
-				os.WriteFile(filepath.Join(dir, "001_PLANNING", "PHASE_GOAL.md"), []byte("# Goal"), 0644)
+				_ = os.WriteFile(filepath.Join(dir, "FESTIVAL_OVERVIEW.md"), []byte("# Overview"), 0644)
+				_ = os.WriteFile(filepath.Join(dir, "FESTIVAL_RULES.md"), []byte("# Rules"), 0644)
+				_ = os.MkdirAll(filepath.Join(dir, "001_PLANNING"), 0755)
+				_ = os.WriteFile(filepath.Join(dir, "001_PLANNING", "PHASE_GOAL.md"), []byte("# Goal"), 0644)
 				return dir
 			},
 			wantMin: 0,
@@ -91,8 +91,8 @@ func TestCompletenessValidator(t *testing.T) {
 			name: "missing overview",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.MkdirAll(filepath.Join(dir, "001_PLANNING"), 0755)
-				os.WriteFile(filepath.Join(dir, "001_PLANNING", "PHASE_GOAL.md"), []byte("# Goal"), 0644)
+				_ = os.MkdirAll(filepath.Join(dir, "001_PLANNING"), 0755)
+				_ = os.WriteFile(filepath.Join(dir, "001_PLANNING", "PHASE_GOAL.md"), []byte("# Goal"), 0644)
 				return dir
 			},
 			wantMin: 1,
@@ -102,9 +102,9 @@ func TestCompletenessValidator(t *testing.T) {
 			name: "missing phase goal",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.WriteFile(filepath.Join(dir, "FESTIVAL_OVERVIEW.md"), []byte("# Overview"), 0644)
-				os.WriteFile(filepath.Join(dir, "FESTIVAL_RULES.md"), []byte("# Rules"), 0644)
-				os.MkdirAll(filepath.Join(dir, "001_PLANNING"), 0755)
+				_ = os.WriteFile(filepath.Join(dir, "FESTIVAL_OVERVIEW.md"), []byte("# Overview"), 0644)
+				_ = os.WriteFile(filepath.Join(dir, "FESTIVAL_RULES.md"), []byte("# Rules"), 0644)
+				_ = os.MkdirAll(filepath.Join(dir, "001_PLANNING"), 0755)
 				return dir
 			},
 			wantMin: 1,
@@ -154,7 +154,7 @@ func TestTemplateValidator(t *testing.T) {
 			name: "no unfilled markers",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.WriteFile(filepath.Join(dir, "task.md"), []byte("# Real Content\nThis is filled in."), 0644)
+				_ = os.WriteFile(filepath.Join(dir, "task.md"), []byte("# Real Content\nThis is filled in."), 0644)
 				return dir
 			},
 			wantIssues: 0,
@@ -163,7 +163,7 @@ func TestTemplateValidator(t *testing.T) {
 			name: "unfilled FILL marker",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.WriteFile(filepath.Join(dir, "task.md"), []byte("# Task\n[FILL: description]"), 0644)
+				_ = os.WriteFile(filepath.Join(dir, "task.md"), []byte("# Task\n[FILL: description]"), 0644)
 				return dir
 			},
 			wantIssues: 1,
@@ -172,7 +172,7 @@ func TestTemplateValidator(t *testing.T) {
 			name: "unfilled template variable",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.WriteFile(filepath.Join(dir, "task.md"), []byte("# Task\nPhase: {{ phase_name }}"), 0644)
+				_ = os.WriteFile(filepath.Join(dir, "task.md"), []byte("# Task\nPhase: {{ phase_name }}"), 0644)
 				return dir
 			},
 			wantIssues: 1,
@@ -202,7 +202,7 @@ func TestContextCancellation(t *testing.T) {
 	cancel() // Cancel immediately
 
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, "001_PLANNING"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, "001_PLANNING"), 0755)
 
 	v := NewStructureValidator()
 	_, err := v.Validate(ctx, dir)

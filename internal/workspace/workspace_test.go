@@ -461,8 +461,8 @@ func TestFindWorkspace(t *testing.T) {
 			name: "campaign from root",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
-				os.MkdirAll(filepath.Join(dir, "festivals", ".festival"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "festivals", ".festival"), 0755)
 				return dir
 			},
 			wantType: WorkspaceTypeCampaign,
@@ -471,10 +471,10 @@ func TestFindWorkspace(t *testing.T) {
 			name: "campaign from nested project",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
-				os.MkdirAll(filepath.Join(dir, "festivals", ".festival"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "festivals", ".festival"), 0755)
 				projectDir := filepath.Join(dir, "projects", "myproject")
-				os.MkdirAll(projectDir, 0755)
+				_ = os.MkdirAll(projectDir, 0755)
 				return projectDir
 			},
 			wantType: WorkspaceTypeCampaign,
@@ -483,9 +483,9 @@ func TestFindWorkspace(t *testing.T) {
 			name: "fallback to marker",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.MkdirAll(filepath.Join(dir, "festivals", ".festival"), 0755)
-				os.MkdirAll(filepath.Join(dir, "festivals", ".festival", ".state"), 0755)
-				os.WriteFile(filepath.Join(dir, "festivals", ".festival", ".state", ".workspace"), []byte(`{"workspace":"test"}`), 0644)
+				_ = os.MkdirAll(filepath.Join(dir, "festivals", ".festival"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "festivals", ".festival", ".state"), 0755)
+				_ = os.WriteFile(filepath.Join(dir, "festivals", ".festival", ".state", ".workspace"), []byte(`{"workspace":"test"}`), 0644)
 				return dir
 			},
 			wantType: WorkspaceTypeStandalone,
@@ -494,7 +494,7 @@ func TestFindWorkspace(t *testing.T) {
 			name: "fallback to nearest festivals",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.MkdirAll(filepath.Join(dir, "festivals", ".festival"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, "festivals", ".festival"), 0755)
 				return dir
 			},
 			wantType: WorkspaceTypeStandalone,
@@ -533,10 +533,10 @@ func TestFindWorkspace_CampaignPriority(t *testing.T) {
 	// Create a directory with BOTH campaign marker AND workspace marker
 	// Campaign should take priority
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
-	os.MkdirAll(filepath.Join(dir, "festivals", ".festival"), 0755)
-	os.MkdirAll(filepath.Join(dir, "festivals", ".festival", ".state"), 0755)
-	os.WriteFile(filepath.Join(dir, "festivals", ".festival", ".state", ".workspace"), []byte(`{"workspace":"test"}`), 0644)
+	_ = os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, "festivals", ".festival"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, "festivals", ".festival", ".state"), 0755)
+	_ = os.WriteFile(filepath.Join(dir, "festivals", ".festival", ".state", ".workspace"), []byte(`{"workspace":"test"}`), 0644)
 
 	ws, err := FindWorkspace(context.Background(), dir)
 	if err != nil {
@@ -549,8 +549,8 @@ func TestFindWorkspace_CampaignPriority(t *testing.T) {
 
 func TestFindWorkspace_CAMP_ROOT(t *testing.T) {
 	campRoot := t.TempDir()
-	os.MkdirAll(filepath.Join(campRoot, ".campaign"), 0755)
-	os.MkdirAll(filepath.Join(campRoot, "festivals", ".festival"), 0755)
+	_ = os.MkdirAll(filepath.Join(campRoot, ".campaign"), 0755)
+	_ = os.MkdirAll(filepath.Join(campRoot, "festivals", ".festival"), 0755)
 
 	t.Setenv("CAMP_ROOT", campRoot)
 
@@ -577,7 +577,7 @@ func TestFindWorkspace_CAMP_ROOT_Invalid(t *testing.T) {
 
 	// Create a valid standalone workspace to fall back to
 	testDir := t.TempDir()
-	os.MkdirAll(filepath.Join(testDir, "festivals", ".festival"), 0755)
+	_ = os.MkdirAll(filepath.Join(testDir, "festivals", ".festival"), 0755)
 
 	ws, err := FindWorkspace(context.Background(), testDir)
 	if err != nil {
@@ -603,12 +603,12 @@ func TestFindWorkspace_EmptyStartDir(t *testing.T) {
 	// When startDir is empty, should use current working directory
 	// Create a campaign structure in a temp dir and cd to it
 	dir := t.TempDir()
-	os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
-	os.MkdirAll(filepath.Join(dir, "festivals", ".festival"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, "festivals", ".festival"), 0755)
 
 	oldCwd, _ := os.Getwd()
-	os.Chdir(dir)
-	defer os.Chdir(oldCwd)
+	_ = os.Chdir(dir)
+	defer func() { _ = os.Chdir(oldCwd) }()
 
 	ws, err := FindWorkspace(context.Background(), "")
 	if err != nil {
@@ -629,7 +629,7 @@ func TestDetectCampaign(t *testing.T) {
 			name: "finds campaign from root",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
 				return dir
 			},
 			wantErr: nil,
@@ -638,9 +638,9 @@ func TestDetectCampaign(t *testing.T) {
 			name: "finds campaign from nested directory",
 			setup: func(t *testing.T) string {
 				dir := t.TempDir()
-				os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
+				_ = os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
 				nested := filepath.Join(dir, "projects", "myproject", "src")
-				os.MkdirAll(nested, 0755)
+				_ = os.MkdirAll(nested, 0755)
 				return nested
 			},
 			wantErr: nil,
@@ -704,7 +704,7 @@ func TestWorkspaceType_String(t *testing.T) {
 func TestIsCampaignRoot(t *testing.T) {
 	t.Run("true when .campaign exists", func(t *testing.T) {
 		dir := t.TempDir()
-		os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
+		_ = os.MkdirAll(filepath.Join(dir, ".campaign"), 0755)
 		if !IsCampaignRoot(dir) {
 			t.Error("IsCampaignRoot should return true when .campaign exists")
 		}
@@ -719,7 +719,7 @@ func TestIsCampaignRoot(t *testing.T) {
 
 	t.Run("false when .campaign is a file", func(t *testing.T) {
 		dir := t.TempDir()
-		os.WriteFile(filepath.Join(dir, ".campaign"), []byte("not a dir"), 0644)
+		_ = os.WriteFile(filepath.Join(dir, ".campaign"), []byte("not a dir"), 0644)
 		if IsCampaignRoot(dir) {
 			t.Error("IsCampaignRoot should return false when .campaign is a file")
 		}

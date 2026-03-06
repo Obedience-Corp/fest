@@ -89,7 +89,7 @@ func copyAndDelete(sourcePath, destPath string) (string, error) {
 	})
 	if err != nil {
 		// Cleanup on failure - remove partial copy
-		os.RemoveAll(destPath)
+		_ = os.RemoveAll(destPath)
 		return "", errors.Wrap(err, "copying festival files")
 	}
 

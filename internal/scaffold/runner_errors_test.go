@@ -121,7 +121,7 @@ func TestRunnerPhaseWriteError(t *testing.T) {
 
 	destDir := filepath.Join(t.TempDir(), "phase-err2")
 	// Create the festival dir but make the phase dir read-only
-	os.MkdirAll(filepath.Join(destDir, "001_BUILD"), 0555)
+	_ = os.MkdirAll(filepath.Join(destDir, "001_BUILD"), 0555)
 	t.Cleanup(func() { _ = os.Chmod(filepath.Join(destDir, "001_BUILD"), 0755) })
 
 	runner := NewRunner(RunnerOptions{FestivalDir: destDir})

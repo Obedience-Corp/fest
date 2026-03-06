@@ -205,7 +205,7 @@ Write tests for all code.
 	}
 
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
+	defer func() { _ = os.Chdir(origDir) }()
 	if err := os.Chdir(festivalPath); err != nil {
 		t.Fatalf("Failed to chdir to %s: %v", festivalPath, err)
 	}
@@ -250,7 +250,7 @@ We decided to use Go for implementation.
 	}
 
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
+	defer func() { _ = os.Chdir(origDir) }()
 	if err := os.Chdir(festivalPath); err != nil {
 		t.Fatalf("Failed to chdir to %s: %v", festivalPath, err)
 	}
@@ -364,8 +364,8 @@ func TestContextOutput_FestivalIDField(t *testing.T) {
 	festivalPath := setupTestFestivalWithMetadata(t, "TF0001")
 
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(festivalPath)
+	defer func() { _ = os.Chdir(origDir) }()
+	_ = os.Chdir(festivalPath)
 
 	builder := NewBuilder(festivalPath, DepthStandard)
 	output, err := builder.Build()
@@ -391,7 +391,7 @@ func TestContextOutput_CurrentRefField(t *testing.T) {
 	absSeq, _ := filepath.EvalSymlinks(seqPath)
 
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
+	defer func() { _ = os.Chdir(origDir) }()
 	if err := os.Chdir(absSeq); err != nil {
 		t.Fatalf("Failed to chdir: %v", err)
 	}
@@ -420,8 +420,8 @@ func TestContextOutput_NullFieldsWhenNoMetadata(t *testing.T) {
 	festivalPath := setupTestFestival(t)
 
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(festivalPath)
+	defer func() { _ = os.Chdir(origDir) }()
+	_ = os.Chdir(festivalPath)
 
 	builder := NewBuilder(festivalPath, DepthStandard)
 	output, err := builder.Build()
@@ -469,8 +469,8 @@ func TestContextOutput_JSONSchemaStability(t *testing.T) {
 			}
 
 			origDir, _ := os.Getwd()
-			defer os.Chdir(origDir)
-			os.Chdir(festivalPath)
+			defer func() { _ = os.Chdir(origDir) }()
+			_ = os.Chdir(festivalPath)
 
 			builder := NewBuilder(festivalPath, DepthStandard)
 			output, err := builder.Build()
@@ -506,8 +506,8 @@ func TestContextOutput_TaskLevelNodeReference(t *testing.T) {
 	absSeq, _ := filepath.EvalSymlinks(seqPath)
 
 	origDir, _ := os.Getwd()
-	defer os.Chdir(origDir)
-	os.Chdir(absSeq)
+	defer func() { _ = os.Chdir(origDir) }()
+	_ = os.Chdir(absSeq)
 
 	builder := NewBuilder(absFestival, DepthStandard)
 

@@ -88,7 +88,7 @@ func TestService_Init(t *testing.T) {
 		{
 			name: "fails if schema exists",
 			setup: func(dir string) {
-				os.WriteFile(filepath.Join(dir, SchemaFileName), []byte("version: 1"), 0644)
+				_ = os.WriteFile(filepath.Join(dir, SchemaFileName), []byte("version: 1"), 0644)
 			},
 			wantErr: true,
 			errIs:   ErrSchemaExists,
@@ -96,7 +96,7 @@ func TestService_Init(t *testing.T) {
 		{
 			name: "force overwrites existing schema",
 			setup: func(dir string) {
-				os.WriteFile(filepath.Join(dir, SchemaFileName), []byte("version: 1"), 0644)
+				_ = os.WriteFile(filepath.Join(dir, SchemaFileName), []byte("version: 1"), 0644)
 			},
 			opts:    InitOptions{Force: true},
 			wantErr: false,
@@ -380,8 +380,8 @@ func TestService_Move(t *testing.T) {
 			to:   "dungeon/completed",
 			setup: func(dir string) {
 				svc := NewService(dir)
-				svc.Init(context.Background(), InitOptions{})
-				os.MkdirAll(filepath.Join(dir, "active", "old-project"), 0755)
+				_, _ = svc.Init(context.Background(), InitOptions{})
+				_ = os.MkdirAll(filepath.Join(dir, "active", "old-project"), 0755)
 			},
 			checkFunc: func(t *testing.T, dir string, result *MoveResult) {
 				if _, err := os.Stat(filepath.Join(dir, "dungeon/completed", "old-project")); err != nil {
@@ -395,7 +395,7 @@ func TestService_Move(t *testing.T) {
 			to:   "ready",
 			setup: func(dir string) {
 				svc := NewService(dir)
-				svc.Init(context.Background(), InitOptions{})
+				_, _ = svc.Init(context.Background(), InitOptions{})
 			},
 			wantErr: true,
 			errIs:   ErrItemNotFound,
@@ -406,8 +406,8 @@ func TestService_Move(t *testing.T) {
 			to:   "nonexistent",
 			setup: func(dir string) {
 				svc := NewService(dir)
-				svc.Init(context.Background(), InitOptions{})
-				os.MkdirAll(filepath.Join(dir, "active", "project-1"), 0755)
+				_, _ = svc.Init(context.Background(), InitOptions{})
+				_ = os.MkdirAll(filepath.Join(dir, "active", "project-1"), 0755)
 			},
 			wantErr: true,
 			errIs:   ErrInvalidStatus,
@@ -419,8 +419,8 @@ func TestService_Move(t *testing.T) {
 			opts: MoveOptions{Force: true},
 			setup: func(dir string) {
 				svc := NewService(dir)
-				svc.Init(context.Background(), InitOptions{})
-				os.MkdirAll(filepath.Join(dir, "ready", "project-1"), 0755)
+				_, _ = svc.Init(context.Background(), InitOptions{})
+				_ = os.MkdirAll(filepath.Join(dir, "ready", "project-1"), 0755)
 			},
 			wantErr: false,
 		},
@@ -460,8 +460,8 @@ func TestService_Move(t *testing.T) {
 func TestService_Move_ContextCancellation(t *testing.T) {
 	dir, svc := testWorkflow(t)
 
-	svc.Init(context.Background(), InitOptions{})
-	os.MkdirAll(filepath.Join(dir, "active", "project-1"), 0755)
+	_, _ = svc.Init(context.Background(), InitOptions{})
+	_ = os.MkdirAll(filepath.Join(dir, "active", "project-1"), 0755)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -482,7 +482,7 @@ func TestService_HasSchema(t *testing.T) {
 
 	t.Run("returns true when schema exists", func(t *testing.T) {
 		dir, svc := testWorkflow(t)
-		svc.Init(context.Background(), InitOptions{})
+		_, _ = svc.Init(context.Background(), InitOptions{})
 		// Create new service to test file-based detection
 		svc2 := NewService(dir)
 		if !svc2.HasSchema() {
@@ -502,7 +502,7 @@ func TestService_HasSchema(t *testing.T) {
 func TestService_LoadSchema(t *testing.T) {
 	t.Run("loads valid schema", func(t *testing.T) {
 		dir, svc := testWorkflow(t)
-		svc.Init(context.Background(), InitOptions{})
+		_, _ = svc.Init(context.Background(), InitOptions{})
 		svc2 := NewService(dir)
 
 		err := svc2.LoadSchema(context.Background())
@@ -526,7 +526,7 @@ func TestService_LoadSchema(t *testing.T) {
 
 func TestService_List_ContextCancellation(t *testing.T) {
 	dir, svc := testWorkflow(t)
-	svc.Init(context.Background(), InitOptions{})
+	_, _ = svc.Init(context.Background(), InitOptions{})
 	_ = dir
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -540,7 +540,7 @@ func TestService_List_ContextCancellation(t *testing.T) {
 
 func TestService_Sync_ContextCancellation(t *testing.T) {
 	dir, svc := testWorkflow(t)
-	svc.Init(context.Background(), InitOptions{})
+	_, _ = svc.Init(context.Background(), InitOptions{})
 	_ = dir
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -554,11 +554,11 @@ func TestService_Sync_ContextCancellation(t *testing.T) {
 
 func TestService_Move_AlreadyExists(t *testing.T) {
 	dir, svc := testWorkflow(t)
-	svc.Init(context.Background(), InitOptions{})
+	_, _ = svc.Init(context.Background(), InitOptions{})
 
 	// Create an item in active and another with same name in ready
-	os.MkdirAll(filepath.Join(dir, "active", "project-1"), 0755)
-	os.MkdirAll(filepath.Join(dir, "ready", "project-1"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, "active", "project-1"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, "ready", "project-1"), 0755)
 
 	_, err := svc.Move(context.Background(), "project-1", "ready", MoveOptions{})
 	if err == nil {
@@ -571,8 +571,8 @@ func TestService_Move_AlreadyExists(t *testing.T) {
 
 func TestService_Move_WithReason(t *testing.T) {
 	dir, svc := testWorkflow(t)
-	svc.Init(context.Background(), InitOptions{})
-	os.MkdirAll(filepath.Join(dir, "active", "project-1"), 0755)
+	_, _ = svc.Init(context.Background(), InitOptions{})
+	_ = os.MkdirAll(filepath.Join(dir, "active", "project-1"), 0755)
 
 	result, err := svc.Move(context.Background(), "project-1", "ready", MoveOptions{
 		Reason: "Ready for review",
@@ -587,10 +587,10 @@ func TestService_Move_WithReason(t *testing.T) {
 
 func TestService_findItem(t *testing.T) {
 	dir, svc := testWorkflow(t)
-	svc.Init(context.Background(), InitOptions{})
+	_, _ = svc.Init(context.Background(), InitOptions{})
 
 	// Create item in nested directory
-	os.MkdirAll(filepath.Join(dir, "dungeon/completed", "old-project"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, "dungeon/completed", "old-project"), 0755)
 
 	status, path, err := svc.findItem(context.Background(), "old-project")
 	if err != nil {
@@ -606,7 +606,7 @@ func TestService_findItem(t *testing.T) {
 
 func TestService_findItem_NotFound(t *testing.T) {
 	dir, svc := testWorkflow(t)
-	svc.Init(context.Background(), InitOptions{})
+	_, _ = svc.Init(context.Background(), InitOptions{})
 	_ = dir
 
 	_, _, err := svc.findItem(context.Background(), "nonexistent")
@@ -646,8 +646,8 @@ func TestService_Migrate_WithDungeon(t *testing.T) {
 	dir, svc := testWorkflow(t)
 
 	// Create a pre-existing dungeon structure
-	os.MkdirAll(filepath.Join(dir, "dungeon", "completed"), 0755)
-	os.MkdirAll(filepath.Join(dir, "dungeon", "custom-status"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, "dungeon", "completed"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, "dungeon", "custom-status"), 0755)
 
 	result, err := svc.Migrate(context.Background(), MigrateOptions{})
 	if err != nil {
@@ -682,7 +682,7 @@ func TestService_Migrate_DryRun(t *testing.T) {
 	dir, svc := testWorkflow(t)
 
 	// Create pre-existing dungeon
-	os.MkdirAll(filepath.Join(dir, "dungeon", "completed"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, "dungeon", "completed"), 0755)
 
 	result, err := svc.Migrate(context.Background(), MigrateOptions{DryRun: true})
 	if err != nil {
@@ -716,11 +716,11 @@ func TestService_MigrateV1ToV2(t *testing.T) {
 	dir, svc := testWorkflow(t)
 
 	// Initialize a v1 workflow
-	svc.Init(context.Background(), InitOptions{})
+	_, _ = svc.Init(context.Background(), InitOptions{})
 
 	// Create items in active and ready
-	os.MkdirAll(filepath.Join(dir, "active", "project-1"), 0755)
-	os.MkdirAll(filepath.Join(dir, "ready", "project-2"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, "active", "project-1"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, "ready", "project-2"), 0755)
 
 	result, err := svc.MigrateV1ToV2(context.Background(), false)
 	if err != nil {
@@ -762,10 +762,10 @@ func TestService_MigrateV1ToV2_DryRun(t *testing.T) {
 	dir, svc := testWorkflow(t)
 
 	// Initialize a v1 workflow
-	svc.Init(context.Background(), InitOptions{})
+	_, _ = svc.Init(context.Background(), InitOptions{})
 
 	// Create an item in active
-	os.MkdirAll(filepath.Join(dir, "active", "project-1"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, "active", "project-1"), 0755)
 
 	result, err := svc.MigrateV1ToV2(context.Background(), true)
 	if err != nil {
@@ -793,7 +793,7 @@ func TestService_MigrateV1ToV2_AlreadyV2(t *testing.T) {
 	_ = dir
 
 	// Initialize a v2 workflow
-	svc.Init(context.Background(), InitOptions{SchemaVersion: 2})
+	_, _ = svc.Init(context.Background(), InitOptions{SchemaVersion: 2})
 
 	_, err := svc.MigrateV1ToV2(context.Background(), false)
 	if err == nil {
@@ -803,7 +803,7 @@ func TestService_MigrateV1ToV2_AlreadyV2(t *testing.T) {
 
 func TestService_MigrateV1ToV2_ContextCancellation(t *testing.T) {
 	_, svc := testWorkflow(t)
-	svc.Init(context.Background(), InitOptions{})
+	_, _ = svc.Init(context.Background(), InitOptions{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -818,10 +818,10 @@ func TestService_Crawl(t *testing.T) {
 	dir, svc := testWorkflow(t)
 
 	// Initialize workflow with items
-	svc.Init(context.Background(), InitOptions{})
-	os.MkdirAll(filepath.Join(dir, "active", "project-1"), 0755)
-	os.MkdirAll(filepath.Join(dir, "active", "project-2"), 0755)
-	os.MkdirAll(filepath.Join(dir, "ready", "project-3"), 0755)
+	_, _ = svc.Init(context.Background(), InitOptions{})
+	_ = os.MkdirAll(filepath.Join(dir, "active", "project-1"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, "active", "project-2"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, "ready", "project-3"), 0755)
 
 	result, err := svc.Crawl(context.Background(), CrawlOptions{})
 	if err != nil {
@@ -840,9 +840,9 @@ func TestService_Crawl(t *testing.T) {
 func TestService_Crawl_SpecificStatus(t *testing.T) {
 	dir, svc := testWorkflow(t)
 
-	svc.Init(context.Background(), InitOptions{})
-	os.MkdirAll(filepath.Join(dir, "active", "project-1"), 0755)
-	os.MkdirAll(filepath.Join(dir, "ready", "project-2"), 0755)
+	_, _ = svc.Init(context.Background(), InitOptions{})
+	_ = os.MkdirAll(filepath.Join(dir, "active", "project-1"), 0755)
+	_ = os.MkdirAll(filepath.Join(dir, "ready", "project-2"), 0755)
 
 	result, err := svc.Crawl(context.Background(), CrawlOptions{Status: "active"})
 	if err != nil {
@@ -857,7 +857,7 @@ func TestService_Crawl_SpecificStatus(t *testing.T) {
 
 func TestService_Crawl_ContextCancellation(t *testing.T) {
 	_, svc := testWorkflow(t)
-	svc.Init(context.Background(), InitOptions{})
+	_, _ = svc.Init(context.Background(), InitOptions{})
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -893,10 +893,10 @@ func TestService_Init_V2(t *testing.T) {
 
 func TestService_List_StatusNotFound(t *testing.T) {
 	dir, svc := testWorkflow(t)
-	svc.Init(context.Background(), InitOptions{})
+	_, _ = svc.Init(context.Background(), InitOptions{})
 
 	// Remove a directory after init
-	os.RemoveAll(filepath.Join(dir, "ready"))
+	_ = os.RemoveAll(filepath.Join(dir, "ready"))
 
 	_, err := svc.List(context.Background(), "ready", ListOptions{})
 	if err == nil {

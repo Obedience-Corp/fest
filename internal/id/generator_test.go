@@ -187,10 +187,10 @@ func TestGenerateID(t *testing.T) {
 
 	// Create status directories
 	for _, status := range []string{"planning", "active", "dungeon"} {
-		os.MkdirAll(filepath.Join(tmpDir, status), 0755)
+		_ = os.MkdirAll(filepath.Join(tmpDir, status), 0755)
 	}
 	// Create dungeon/completed subdirectory
-	os.MkdirAll(filepath.Join(tmpDir, "dungeon", "completed"), 0755)
+	_ = os.MkdirAll(filepath.Join(tmpDir, "dungeon", "completed"), 0755)
 
 	tests := []struct {
 		name         string

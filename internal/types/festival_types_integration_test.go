@@ -17,7 +17,7 @@ func TestLoadFestivalTypesConfig_Integration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer os.Chdir(originalDir)
+		defer func() { _ = os.Chdir(originalDir) }()
 
 		// Change to methodology/festivals directory
 		festRoot := filepath.Join(originalDir, "..", "..", "methodology", "festivals")
@@ -72,7 +72,7 @@ func TestLoadFestivalTypesConfig_Integration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer os.Chdir(originalDir)
+		defer func() { _ = os.Chdir(originalDir) }()
 
 		// Try to load from methodology
 		festRoot := filepath.Join(originalDir, "..", "..", "methodology", "festivals")
@@ -115,7 +115,7 @@ func TestLoadFestivalTypesConfig_Integration(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		defer os.Chdir(originalDir)
+		defer func() { _ = os.Chdir(originalDir) }()
 
 		// Try to load from methodology
 		festRoot := filepath.Join(originalDir, "..", "..", "methodology", "festivals")

@@ -77,7 +77,7 @@ func Build(verbose bool) error {
 	start := time.Now()
 
 	// Create bin directory
-	os.MkdirAll("bin", 0o755)
+	_ = os.MkdirAll("bin", 0o755)
 
 	cmd := exec.Command("go", "build", "-ldflags", versionLdflags(), "-o", "bin/fest", "./cmd/fest")
 	if verbose {

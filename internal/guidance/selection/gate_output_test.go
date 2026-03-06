@@ -13,7 +13,7 @@ func TestBuildGateSection_NonGateTask(t *testing.T) {
 	// Create a regular task file (no gate_type)
 	taskPath := filepath.Join(tmp, "01_task.md")
 	content := "---\nfest_type: task\nfest_id: 01_task.md\nfest_name: test\nfest_status: pending\n---\n# Regular Task\n"
-	os.WriteFile(taskPath, []byte(content), 0644)
+	_ = os.WriteFile(taskPath, []byte(content), 0644)
 
 	task := &TaskInfo{
 		Name:         "01_task",
@@ -33,7 +33,7 @@ func TestBuildGateSection_GateTask(t *testing.T) {
 
 	taskPath := filepath.Join(tmp, "06_testing.md")
 	content := "---\nfest_type: gate\nfest_id: 06_testing.md\nfest_name: Testing\nfest_gate_type: testing\nfest_status: pending\n---\n# Testing Gate\n\n- [ ] All tests pass\n- [ ] Coverage meets 90%\n"
-	os.WriteFile(taskPath, []byte(content), 0644)
+	_ = os.WriteFile(taskPath, []byte(content), 0644)
 
 	task := &TaskInfo{
 		Name:         "06_testing",
@@ -67,7 +67,7 @@ func TestBuildGateSection_EmptyBody(t *testing.T) {
 
 	taskPath := filepath.Join(tmp, "07_review.md")
 	content := "---\nfest_type: gate\nfest_id: 07_review.md\nfest_name: Review\nfest_gate_type: review\nfest_status: pending\n---\n"
-	os.WriteFile(taskPath, []byte(content), 0644)
+	_ = os.WriteFile(taskPath, []byte(content), 0644)
 
 	task := &TaskInfo{
 		Name:         "07_review",
