@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/progress"
+	"github.com/Obedience-Corp/fest/internal/taskfilter"
 )
 
 // HasSequenceDirs returns true if the phase directory contains numbered subdirectories (sequences).
@@ -103,7 +104,7 @@ func ArePhaseTasksComplete(storeLoaded bool, store *progress.Store, phasePath, p
 			if tf.IsDir() || !strings.HasSuffix(tf.Name(), ".md") {
 				continue
 			}
-			if !isNumberedTaskFile(tf.Name()) {
+			if !taskfilter.IsTask(tf.Name()) {
 				continue
 			}
 			taskCount++
@@ -115,17 +116,4 @@ func ArePhaseTasksComplete(storeLoaded bool, store *progress.Store, phasePath, p
 		}
 	}
 	return taskCount > 0
-}
-
-// isNumberedTaskFile checks if a filename starts with digits followed by underscore.
-func isNumberedTaskFile(name string) bool {
-	for i, c := range name {
-		if c == '_' && i > 0 {
-			return true
-		}
-		if c < '0' || c > '9' {
-			return false
-		}
-	}
-	return false
 }
