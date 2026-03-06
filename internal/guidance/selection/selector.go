@@ -40,6 +40,25 @@ type NextTaskResult struct {
 
 	// FeedbackCriteria lists active feedback criteria for this festival (if configured).
 	FeedbackCriteria []string `json:"feedback_criteria,omitempty"`
+
+	// LayeredGoals contains extracted goal summaries from festival/phase/sequence hierarchy.
+	// Populated for JSON output to provide the same context as text output.
+	LayeredGoals *JSONLayeredGoals `json:"layered_goals,omitempty"`
+
+	// TaskContent contains the full task document body (frontmatter stripped).
+	// Populated for JSON output to provide the same context as text output.
+	TaskContent string `json:"task_content,omitempty"`
+
+	// GateContent contains the gate document body when the task is a quality gate.
+	// Populated for JSON output.
+	GateContent string `json:"gate_content,omitempty"`
+}
+
+// JSONLayeredGoals holds extracted primary goals for JSON output parity.
+type JSONLayeredGoals struct {
+	FestivalGoal string `json:"festival_goal,omitempty"`
+	PhaseGoal    string `json:"phase_goal,omitempty"`
+	SequenceGoal string `json:"sequence_goal,omitempty"`
 }
 
 // PlanningPhaseResult contains information for planning/research phases

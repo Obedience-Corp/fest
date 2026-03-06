@@ -496,8 +496,9 @@ func (n *Navigator) formatComplete() string {
 // formatCheckpoint renders the checkpoint template for blocking steps.
 func (n *Navigator) formatCheckpoint(step WorkflowStep) (string, error) {
 	data := map[string]any{
-		"StepNumber": step.Number,
-		"StepName":   step.Name,
+		"InstructionHeader": guidance.InstructionHeader,
+		"StepNumber":        step.Number,
+		"StepName":          step.Name,
 	}
 
 	return agent.Render("workflow/checkpoint", data)
@@ -516,19 +517,20 @@ func (n *Navigator) formatStep(step WorkflowStep, stepState *StepState) (string,
 	}
 
 	data := map[string]any{
-		"PhaseType":   phaseType,
-		"PhaseName":   n.Ctx.PhaseName,
-		"StepNumber":  step.Number,
-		"TotalSteps":  n.workflowState.TotalSteps,
-		"StepName":    step.Name,
-		"Goal":        step.Goal,
-		"Actions":     step.Actions,
-		"Output":      step.Output,
-		"IsBlocking":  step.Checkpoint.IsBlocking(),
-		"Status":      status,
-		"Feedback":    feedback,
-		"CurrentStep": n.workflowState.CurrentStep,
-		"IsGate":      isGate,
+		"InstructionHeader": guidance.InstructionHeader,
+		"PhaseType":         phaseType,
+		"PhaseName":         n.Ctx.PhaseName,
+		"StepNumber":        step.Number,
+		"TotalSteps":        n.workflowState.TotalSteps,
+		"StepName":          step.Name,
+		"Goal":              step.Goal,
+		"Actions":           step.Actions,
+		"Output":            step.Output,
+		"IsBlocking":        step.Checkpoint.IsBlocking(),
+		"Status":            status,
+		"Feedback":          feedback,
+		"CurrentStep":       n.workflowState.CurrentStep,
+		"IsGate":            isGate,
 	}
 
 	return agent.Render("workflow/step", data)

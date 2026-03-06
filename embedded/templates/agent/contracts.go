@@ -196,6 +196,57 @@ var Contracts = map[string]TemplateContract{
 		ForbiddenTokens:  DefaultForbiddenTokens,
 		MinimumLength:    10,
 	},
+	"next/verbose_task": {
+		Name: "next/verbose_task",
+		RequiredFields: []string{
+			"Header",
+			"TaskDetailsSection",
+			"LocationSection",
+			"RecommendationSection",
+			"CurrentLocationSection",
+		},
+		ExpectedSections: []string{},
+		ForbiddenTokens:  DefaultForbiddenTokens,
+		MinimumLength:    50,
+	},
+	"next/verbose_complete": {
+		Name:             "next/verbose_complete",
+		RequiredFields:   []string{"Header", "Message", "Congrats"},
+		ExpectedSections: []string{},
+		ForbiddenTokens:  DefaultForbiddenTokens,
+		MinimumLength:    20,
+	},
+	"next/verbose_no_task": {
+		Name:             "next/verbose_no_task",
+		RequiredFields:   []string{"Header"},
+		ExpectedSections: []string{},
+		ForbiddenTokens:  DefaultForbiddenTokens,
+		MinimumLength:    10,
+	},
+	"next/planning": {
+		Name: "next/planning",
+		RequiredFields: []string{
+			"Header",
+			"PhaseInfoSection",
+			"NextStepsSection",
+		},
+		ExpectedSections: []string{},
+		ForbiddenTokens:  DefaultForbiddenTokens,
+		MinimumLength:    30,
+	},
+	"next/gate": {
+		Name: "next/gate",
+		RequiredFields: []string{
+			"Header",
+			"TaskLine",
+			"PathLine",
+			"TypeLine",
+			"CompletionHint",
+		},
+		ExpectedSections: []string{},
+		ForbiddenTokens:  DefaultForbiddenTokens,
+		MinimumLength:    30,
+	},
 
 	// Validation templates
 	"validate/markers": {

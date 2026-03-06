@@ -1,0 +1,10 @@
+{{/*
+TEMPLATE: next/verbose_complete.tmpl
+PURPOSE: Detailed completion message for --verbose flag
+*/}}
+{{.Header}}
+{{.Message}}
+{{.Congrats}}
+{{- if .ReasonLine}}
+{{.ReasonLine}}
+{{- end}}

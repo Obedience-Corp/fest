@@ -1,0 +1,12 @@
+{{/*
+TEMPLATE: next/verbose_no_task.tmpl
+PURPOSE: Detailed no-task message for --verbose flag
+*/}}
+{{.Header}}
+{{- if .ReasonLine}}
+{{.ReasonLine}}
+{{- end}}
+{{- if .LocationSection}}
+
+{{.LocationSection}}
+{{- end}}

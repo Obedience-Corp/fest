@@ -32,6 +32,9 @@ EXAMPLE OUTPUT:
   When complete, mark it done with:
     fest task completed
 */}}
+{{- if .InstructionHeader}}
+{{.InstructionHeader}}
+{{- end}}
 {{.Header}}
 
 ## !! ACTION REQUIRED !!

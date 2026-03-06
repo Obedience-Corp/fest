@@ -354,6 +354,7 @@ func (n *Navigator) formatComplete() string {
 func (n *Navigator) formatInstructions(step *guidance.NextStep, progress *guidance.Progress) string {
 	var sb strings.Builder
 
+	sb.WriteString(guidance.InstructionHeader)
 	// Header
 	sb.WriteString("# Action Phase Guidance\n")
 	sb.WriteString("────────────────────────────────\n\n")

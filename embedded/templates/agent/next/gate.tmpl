@@ -1,0 +1,22 @@
+{{/*
+TEMPLATE: next/gate.tmpl
+PURPOSE: Quality gate task output with inline gate content
+
+Shows gate type, task location, and full gate body content.
+*/}}
+{{- if .InstructionHeader}}
+{{.InstructionHeader}}
+{{- end}}
+{{.Header}}
+{{.TaskLine}}
+{{.PathLine}}
+{{.TypeLine}}
+{{- if .GateContent}}
+
+{{.GateContent}}
+{{- else}}
+
+{{.FallbackMessage}}
+{{- end}}
+
+{{.CompletionHint}}

@@ -202,6 +202,7 @@ func (r *Runner) FormatAgentInstructions() (string, error) {
 	}
 
 	data := struct {
+		InstructionHeader string
 		Header            string
 		ActionInstruction string
 		ProgressLine      string
@@ -210,6 +211,7 @@ func (r *Runner) FormatAgentInstructions() (string, error) {
 		ProgressCmd       string
 		ContextSection    string
 	}{
+		InstructionHeader: guidance.InstructionHeader,
 		Header:            ui.H1("Agent Execution Instructions"),
 		ActionInstruction: r.config.ActionInstruction,
 		ProgressLine:      buildAgentProgressLine(r),

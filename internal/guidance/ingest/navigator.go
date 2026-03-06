@@ -597,6 +597,7 @@ func (n *Navigator) formatComplete() string {
 func (n *Navigator) formatInstructions(step IngestStep, progress *guidance.Progress) string {
 	var sb strings.Builder
 
+	sb.WriteString(guidance.InstructionHeader)
 	// Header
 	sb.WriteString("# Festival Ingest Guidance\n")
 	sb.WriteString("────────────────────────────────\n\n")

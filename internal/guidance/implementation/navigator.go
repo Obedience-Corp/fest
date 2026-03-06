@@ -556,6 +556,7 @@ func (n *Navigator) formatInstructions(ctx context.Context, nextStep *guidance.N
 
 	// Build template data
 	data := map[string]string{
+		"InstructionHeader": guidance.InstructionHeader,
 		"Header":            "# Agent Execution Instructions\n────────────────────────────────",
 		"ActionInstruction": n.formatActionInstruction(nextStep),
 		"TasksSection":      n.formatTasksSection(nextStep),

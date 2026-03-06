@@ -1,0 +1,20 @@
+{{/*
+TEMPLATE: next/planning.tmpl
+PURPOSE: Planning phase output showing objectives and progress
+
+Shows phase info, planning objectives grouped by category,
+and suggested next actions or promotion hint.
+*/}}
+{{- if .InstructionHeader}}
+{{.InstructionHeader}}
+{{- end}}
+{{.Header}}
+
+{{.PhaseInfoSection}}
+
+{{- if .ObjectivesSection}}
+{{.ObjectivesSection}}
+{{- else}}
+{{.NoObjectivesSection}}
+{{- end}}
+{{.NextStepsSection}}
