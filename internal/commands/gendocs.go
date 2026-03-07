@@ -39,6 +39,16 @@ func runGendocs(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("create output dir: %w", err)
 	}
 
+	// Clean previously generated command docs before regenerating.
+	// This removes stale docs for commands no longer in the binary
+	// (e.g. dev-only commands excluded from stable builds).
+	stalePattern := filepath.Join(gendocsOutput, "fest_*.md")
+	if staleFiles, _ := filepath.Glob(stalePattern); len(staleFiles) > 0 {
+		for _, f := range staleFiles {
+			os.Remove(f)
+		}
+	}
+
 	stripANSIFromTree(rootCmd)
 	disableAutoGenTag(rootCmd)
 
