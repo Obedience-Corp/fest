@@ -2,6 +2,7 @@
 binary_name := "fest"
 main_path := "cmd/fest/main.go"
 bin_dir := "bin"
+build_tags := env_var_or_default("BUILD_TAGS", "")
 
 # Show available release commands (default)
 [private]
@@ -11,22 +12,46 @@ default:
 # Build for macOS Intel
 [private, no-cd]
 build-darwin:
-    GOOS=darwin GOARCH=amd64 go build -ldflags '-s -w' -o {{bin_dir}}/{{binary_name}}-darwin-amd64 {{main_path}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -n "{{build_tags}}" ]; then
+        GOOS=darwin GOARCH=amd64 go build -tags '{{build_tags}}' -ldflags '-s -w' -o {{bin_dir}}/{{binary_name}}-darwin-amd64 {{main_path}}
+    else
+        GOOS=darwin GOARCH=amd64 go build -ldflags '-s -w' -o {{bin_dir}}/{{binary_name}}-darwin-amd64 {{main_path}}
+    fi
 
 # Build for macOS Apple Silicon
 [private, no-cd]
 build-darwin-arm64:
-    GOOS=darwin GOARCH=arm64 go build -ldflags '-s -w' -o {{bin_dir}}/{{binary_name}}-darwin-arm64 {{main_path}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -n "{{build_tags}}" ]; then
+        GOOS=darwin GOARCH=arm64 go build -tags '{{build_tags}}' -ldflags '-s -w' -o {{bin_dir}}/{{binary_name}}-darwin-arm64 {{main_path}}
+    else
+        GOOS=darwin GOARCH=arm64 go build -ldflags '-s -w' -o {{bin_dir}}/{{binary_name}}-darwin-arm64 {{main_path}}
+    fi
 
 # Build for Linux AMD64
 [private, no-cd]
 build-linux:
-    GOOS=linux GOARCH=amd64 go build -ldflags '-s -w' -o {{bin_dir}}/{{binary_name}}-linux-amd64 {{main_path}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -n "{{build_tags}}" ]; then
+        GOOS=linux GOARCH=amd64 go build -tags '{{build_tags}}' -ldflags '-s -w' -o {{bin_dir}}/{{binary_name}}-linux-amd64 {{main_path}}
+    else
+        GOOS=linux GOARCH=amd64 go build -ldflags '-s -w' -o {{bin_dir}}/{{binary_name}}-linux-amd64 {{main_path}}
+    fi
 
 # Build for Windows AMD64
 [private, no-cd]
 build-windows:
-    GOOS=windows GOARCH=amd64 go build -ldflags '-s -w' -o {{bin_dir}}/{{binary_name}}-windows-amd64.exe {{main_path}}
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -n "{{build_tags}}" ]; then
+        GOOS=windows GOARCH=amd64 go build -tags '{{build_tags}}' -ldflags '-s -w' -o {{bin_dir}}/{{binary_name}}-windows-amd64.exe {{main_path}}
+    else
+        GOOS=windows GOARCH=amd64 go build -ldflags '-s -w' -o {{bin_dir}}/{{binary_name}}-windows-amd64.exe {{main_path}}
+    fi
 
 # Sign macOS release binaries
 [no-cd]
