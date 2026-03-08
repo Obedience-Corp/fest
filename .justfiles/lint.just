@@ -26,7 +26,7 @@ gopls pkg:
         exit 1
     fi
     echo "=== gopls check: {{pkg}} ==="
-    echo $files | xargs gopls check
+    echo "$files" | xargs gopls check
 
 # Run gopls diagnostics on a specific package including test files
 [no-cd]
@@ -39,7 +39,7 @@ gopls-tests pkg:
         exit 1
     fi
     echo "=== gopls check (with tests): {{pkg}} ==="
-    echo $files | xargs gopls check
+    echo "$files" | xargs gopls check
 
 # Run gopls diagnostics on ALL packages (full scan)
 [no-cd]
@@ -48,11 +48,11 @@ gopls-all:
     set -euo pipefail
     failed=0
     for pkg_dir in $(go list -f '{{ '{{' }}.Dir{{ '}}' }}' ./...); do
-        rel=$(python3 -c "import os.path; print(os.path.relpath('$pkg_dir'))" 2>/dev/null || echo "$pkg_dir")
+        rel="${pkg_dir#$PWD/}"
         files=$(find "$pkg_dir" -maxdepth 1 -name '*.go' 2>/dev/null)
         [ -z "$files" ] && continue
         echo "=== gopls check: $rel ==="
-        if ! echo $files | xargs gopls check; then
+        if ! echo "$files" | xargs gopls check; then
             failed=$((failed + 1))
         fi
     done
@@ -75,11 +75,11 @@ grep-gopls pattern:
     set -euo pipefail
     failed=0
     for pkg_dir in $(go list -f '{{ '{{' }}.Dir{{ '}}' }}' ./... | grep "{{pattern}}"); do
-        rel=$(python3 -c "import os.path; print(os.path.relpath('$pkg_dir'))" 2>/dev/null || echo "$pkg_dir")
+        rel="${pkg_dir#$PWD/}"
         files=$(find "$pkg_dir" -maxdepth 1 -name '*.go' 2>/dev/null)
         [ -z "$files" ] && continue
         echo "=== gopls check: $rel ==="
-        if ! echo $files | xargs gopls check; then
+        if ! echo "$files" | xargs gopls check; then
             failed=$((failed + 1))
         fi
     done
