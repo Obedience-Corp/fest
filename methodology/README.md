@@ -251,15 +251,17 @@ When creating a festival, choose a type to get auto-scaffolded phases:
 
 | Festival Type | Auto-Scaffolded Phases | When to Use |
 |--------------|------------------------|-------------|
-| **standard** | INGEST (ingest) + PLAN (planning) | Most projects - need to gather requirements then plan |
-| **implementation** | IMPLEMENT (implementation) | Requirements defined enough to break down into phases, sequences, and task documents |
+| **standard** | INGEST (ingest) + PLAN (planning) | Most projects, including the beginner path - gather requirements, then plan |
+| **implementation** | IMPLEMENT (implementation) | Requirements are already defined enough to break down into phases, sequences, and task documents |
 | **research** | INGEST (ingest) + RESEARCH (research) + SYNTHESIZE (planning) | Investigation, audit, or exploration work |
 | **ritual** | Custom (no defaults) | Recurring or repeatable processes |
 
+For a first festival, use `--type standard` explicitly. Use `implementation` only when requirements already exist and you do not need the ingest/plan scaffolding.
+
 ```bash
-fest create festival --type standard "my-project"
-fest create festival --type implementation "my-feature"
-fest create festival --type research "my-investigation"
+fest create festival --name "my-project" --type standard
+fest create festival --name "my-feature" --type implementation
+fest create festival --name "my-investigation" --type research
 ```
 
 ## How It Works: From Goal to Execution
@@ -452,8 +454,8 @@ camp init my-project && cd my-project
 ### 2. Create Your First Festival
 
 ```bash
-# Create a standard festival (ingest + plan phases auto-scaffolded)
-fest create festival --type standard "my-first-feature"
+# Create a standard festival for the beginner path
+fest create festival --name "my-first-feature" --type standard
 
 # See what was created
 fest status

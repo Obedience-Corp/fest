@@ -34,14 +34,16 @@ Core Concepts
 Festival Types
 --------------
 
-  standard (default)    Full planning + implementation
-  implementation        Execution-only (requirements already exist)
+  standard              Full planning + implementation (use explicitly for
+                        the beginner path)
+  implementation        Execution-only (requirements already exist; not the
+                        first-run default)
   research              Investigation and exploration
   ritual                Recurring/repeatable processes
 
   Discover types:  fest types festival
   Type details:    fest types festival show <type>
-  Create:          fest create festival --type <type> <name>
+  Create:          fest create festival --name "<name>" --type <type>
 
 
 Phase Types
@@ -136,7 +138,7 @@ Token-Efficient Workflow
 
 Use the fest CLI instead of manual file creation:
 
-  fest create festival --type standard "my-project"
+  fest create festival --name "my-project" --type standard
   fest create phase --name "IMPLEMENT" --type implementation
   fest create sequence --name "api"
   fest gates apply --approve                 # Add quality gates

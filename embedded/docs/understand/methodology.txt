@@ -57,11 +57,13 @@ Create a phase with a type:
 
 Festivals come in 4 types:
 
-  standard (default)  Full planning + implementation. Auto-scaffolds
-                      INGEST and PLAN phases.
+  standard           Full planning + implementation. Auto-scaffolds
+                     INGEST and PLAN phases. Use this explicitly for
+                     the beginner path.
 
   implementation      Execution-only. Auto-scaffolds IMPLEMENT phase.
-                      Use when requirements are already defined.
+                      Use when requirements are already defined, not as
+                      the first-run default.
 
   research            Investigation-focused. Auto-scaffolds INGEST,
                       RESEARCH, and SYNTHESIZE phases.
@@ -70,8 +72,8 @@ Festivals come in 4 types:
                       ritual template. Stored in ritual/ directory.
 
 Create a festival with a type:
-  fest create festival --type standard my-project
-  fest create festival --type implementation my-feature
+  fest create festival --name "my-project" --type standard
+  fest create festival --name "my-feature" --type implementation
 
 Use 'fest types festival' to discover types.
 
