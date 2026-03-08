@@ -8,6 +8,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/config"
 	contextcmd "github.com/Obedience-Corp/fest/internal/commands/context"
 	depscmd "github.com/Obedience-Corp/fest/internal/commands/deps"
+	"github.com/Obedience-Corp/fest/internal/commands/release"
 	"github.com/Obedience-Corp/fest/internal/commands/extensions"
 	feedbackcmd "github.com/Obedience-Corp/fest/internal/commands/feedback"
 	"github.com/Obedience-Corp/fest/internal/commands/festival"
@@ -278,7 +279,7 @@ func init() {
 	idCmd.GroupID = "query"
 	rootCmd.AddCommand(idCmd)
 
-	registerReleaseProfileCommands()
+	release.Register(rootCmd)
 
 	indexCmd := navigation.NewIndexCommand()
 	indexCmd.GroupID = "system"
