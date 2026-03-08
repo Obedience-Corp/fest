@@ -23,6 +23,7 @@ import (
 	parsecmd "github.com/Obedience-Corp/fest/internal/commands/parse"
 	progresscmd "github.com/Obedience-Corp/fest/internal/commands/progress"
 	promotecmd "github.com/Obedience-Corp/fest/internal/commands/promote"
+	"github.com/Obedience-Corp/fest/internal/commands/release"
 	"github.com/Obedience-Corp/fest/internal/commands/research"
 	ritualcmd "github.com/Obedience-Corp/fest/internal/commands/ritual"
 	scaffoldcmd "github.com/Obedience-Corp/fest/internal/commands/scaffold"
@@ -278,7 +279,7 @@ func init() {
 	idCmd.GroupID = "query"
 	rootCmd.AddCommand(idCmd)
 
-	registerReleaseProfileCommands()
+	release.Register(rootCmd)
 
 	indexCmd := navigation.NewIndexCommand()
 	indexCmd.GroupID = "system"
