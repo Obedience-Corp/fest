@@ -45,7 +45,7 @@ func runGendocs(cmd *cobra.Command, args []string) error {
 	stalePattern := filepath.Join(gendocsOutput, "fest_*.md")
 	if staleFiles, _ := filepath.Glob(stalePattern); len(staleFiles) > 0 {
 		for _, f := range staleFiles {
-			os.Remove(f)
+			_ = os.Remove(f)
 		}
 	}
 
