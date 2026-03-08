@@ -29,6 +29,9 @@ mod release '.justfiles/release.just'
 [doc('Git tag management')]
 mod tags '.justfiles/tags.just'
 
+[doc('Linting (golangci-lint, gopls, vet)')]
+mod lint '.justfiles/lint.just'
+
 
 [private]
 default:
@@ -80,18 +83,6 @@ release-packages-dev:
 # Format Go code
 fmt:
     go fmt ./...
-
-# Run go vet
-vet:
-    go vet ./...
-
-# Run golangci-lint (includes vet, staticcheck, errcheck, and more)
-lint:
-    golangci-lint run ./...
-
-# Install required development tools
-install-tools:
-    go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 
 # Clean build artifacts with visual dashboard
 clean:
