@@ -35,7 +35,7 @@ FESTIVAL TYPES
   research              Investigation and exploration
   ritual                Recurring/repeatable processes
 
-  Create: fest create festival --type <type> <name>
+  Create: fest create festival --name "<name>" --type <type>
 
 PHASE TYPES
 ───────────

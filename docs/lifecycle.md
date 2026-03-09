@@ -115,7 +115,7 @@ The date directory uses `YYYY-MM-DD` format based on the timestamp. This is hand
 
 Ritual festivals are repeatable templates that live in `ritual/` permanently:
 
-1. **Create**: `fest create festival --type ritual` places the festival in `ritual/`
+1. **Create**: `fest create festival --name "my-ritual" --type ritual` places the festival in `ritual/`
 2. **Run**: `fest ritual run <name>` copies the template to `active/` with a hex counter suffix
 3. **Complete**: Each run follows the normal lifecycle (active -> completed)
 
