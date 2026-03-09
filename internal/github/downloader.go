@@ -43,19 +43,22 @@ type FileInfo struct {
 // Downloader handles downloading from GitHub
 type Downloader struct {
 	repoURL  string
-	branch   string
+	ref      string // branch name or tag name
+	refType  string // "branch" or "tag"
 	repoPath string // Path within the repository to the festivals directory
 	client   *http.Client
 	timeout  int
 	retry    int
 }
 
-// NewDownloader creates a new GitHub downloader
+// NewDownloaderWithRef creates a new GitHub downloader with explicit ref type.
+// refType should be "branch" or "tag".
 // repoPath is the path within the repository to the festivals directory (e.g., "methodology/festivals")
-func NewDownloader(repoURL, branch, repoPath string) *Downloader {
+func NewDownloaderWithRef(repoURL, refType, ref, repoPath string) *Downloader {
 	return &Downloader{
 		repoURL:  repoURL,
-		branch:   branch,
+		ref:      ref,
+		refType:  refType,
 		repoPath: repoPath,
 		client: &http.Client{
 			Timeout: 30 * time.Second,
@@ -63,6 +66,12 @@ func NewDownloader(repoURL, branch, repoPath string) *Downloader {
 		timeout: 30,
 		retry:   3,
 	}
+}
+
+// NewDownloader creates a new GitHub downloader targeting a branch.
+// repoPath is the path within the repository to the festivals directory (e.g., "methodology/festivals")
+func NewDownloader(repoURL, branch, repoPath string) *Downloader {
+	return NewDownloaderWithRef(repoURL, "branch", branch, repoPath)
 }
 
 // SetTimeout sets the download timeout in seconds
@@ -85,7 +94,7 @@ func (d *Downloader) Download(targetDir string, progress ProgressFunc) error {
 	}
 
 	// Build raw content base URL
-	baseURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s", owner, repo, d.branch)
+	baseURL := fmt.Sprintf("https://raw.githubusercontent.com/%s/%s/%s", owner, repo, d.ref)
 
 	// Create target directory
 	if err := os.MkdirAll(targetDir, registry.DirPermissions); err != nil {
@@ -194,7 +203,7 @@ func parseRepoURL(url string) (owner, repo string, err error) {
 // getFilesFromGitHub fetches the file list from GitHub API
 func (d *Downloader) getFilesFromGitHub(owner, repo string) ([]string, error) {
 	// Build API URL
-	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/git/trees/%s?recursive=1", owner, repo, d.branch)
+	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/git/trees/%s?recursive=1", owner, repo, d.ref)
 
 	// Make API request
 	resp, err := d.client.Get(apiURL)
@@ -237,7 +246,7 @@ func (d *Downloader) getFilesFromGitHub(owner, repo string) ([]string, error) {
 // getFilesWithSHA fetches the file list with SHA hashes from GitHub API
 func (d *Downloader) getFilesWithSHA(owner, repo string) (map[string]string, error) {
 	// Build API URL
-	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/git/trees/%s?recursive=1", owner, repo, d.branch)
+	apiURL := fmt.Sprintf("https://api.github.com/repos/%s/%s/git/trees/%s?recursive=1", owner, repo, d.ref)
 
 	// Make API request
 	resp, err := d.client.Get(apiURL)
@@ -458,29 +467,40 @@ func IsGitAvailable() bool {
 // SHAMarkerFile is the name of the file that stores sync state
 const SHAMarkerFile = ".last-sync-sha"
 
-// SyncState stores both commit SHA and content hash for accurate update detection
+// SyncState stores both commit SHA and content hash for accurate update detection.
+// RefType and RefName are optional fields added when syncing via a named ref.
 type SyncState struct {
 	CommitSHA   string `json:"commit_sha"`
 	ContentHash string `json:"content_hash"`
+	RefType     string `json:"ref_type,omitempty"`
+	RefName     string `json:"ref_name,omitempty"`
 }
 
-// GetRemoteSHA gets the current HEAD SHA of the branch using git ls-remote
-// This works with private repos using SSH keys
+// GetRemoteSHA gets the current HEAD SHA of the ref using git ls-remote.
+// For branches it queries refs/heads/<ref>; for tags it queries refs/tags/<ref>.
+// This works with private repos using SSH keys.
 func (d *Downloader) GetRemoteSHA() (string, error) {
 	if !IsGitAvailable() {
 		return "", errors.Validation("git command not found")
 	}
 
-	cmd := exec.Command("git", "ls-remote", d.repoURL, "refs/heads/"+d.branch)
+	var refSpec string
+	if d.refType == "tag" {
+		refSpec = "refs/tags/" + d.ref
+	} else {
+		refSpec = "refs/heads/" + d.ref
+	}
+
+	cmd := exec.Command("git", "ls-remote", d.repoURL, refSpec)
 	output, err := cmd.Output()
 	if err != nil {
 		return "", errors.IO("getting remote SHA", err).WithField("url", d.repoURL)
 	}
 
-	// Output format: "<sha>\trefs/heads/<branch>"
+	// Output format: "<sha>\t<refspec>"
 	parts := strings.Fields(string(output))
 	if len(parts) < 1 {
-		return "", errors.NotFound("branch " + d.branch)
+		return "", errors.NotFound(d.refType + " " + d.ref)
 	}
 
 	return parts[0], nil
@@ -640,7 +660,7 @@ func (d *Downloader) CheckForTemplateUpdates(targetDir string, remoteSHA string)
 	cmd := exec.Command("git", "clone",
 		"--depth=1",
 		"--single-branch",
-		"-b", d.branch,
+		"-b", d.ref,
 		d.repoURL,
 		tempDir,
 	)
@@ -694,7 +714,7 @@ func (d *Downloader) DownloadWithGit(targetDir string, progress ProgressFunc) er
 	cmd := exec.Command("git", "clone",
 		"--depth=1",
 		"--single-branch",
-		"-b", d.branch,
+		"-b", d.ref,
 		d.repoURL,
 		tempDir,
 	)

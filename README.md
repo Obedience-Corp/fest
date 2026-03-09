@@ -329,10 +329,11 @@ just docs         # Generate CLI reference docs
 Subcommand modules:
 
 ```bash
+just build        # Build variants (local, cross-platform, profiles)
+just install      # Install fest (stable, dev, current)
 just test         # Testing commands
-just xbuild       # Cross-platform builds
-just release      # Release packaging
-just tags         # Git tag management
+just release      # Release packaging and versioning
+just lint         # Linting (golangci-lint, gopls, vet)
 ```
 
 ## Part of Festival

@@ -242,6 +242,97 @@ func TestTUIConfigApplyDefaults(t *testing.T) {
 	// ExpandInputs=false is intentional opt-out
 }
 
+func TestDefaultConfigSyncMode(t *testing.T) {
+	cfg := DefaultConfig()
+
+	if cfg.Repository.SyncMode != "channel" {
+		t.Errorf("DefaultConfig SyncMode = %q, want %q", cfg.Repository.SyncMode, "channel")
+	}
+
+	// Branch should still be set for legacy fallback
+	if cfg.Repository.Branch != DefaultBranch {
+		t.Errorf("DefaultConfig Branch = %q, want %q", cfg.Repository.Branch, DefaultBranch)
+	}
+}
+
+func TestApplyDefaultsSyncMode(t *testing.T) {
+	// SyncMode should NOT be defaulted — empty signals a legacy config
+	// so that ResolveRefIntent can detect backward-compat branch overrides.
+	cfg := &Config{
+		Version: "test",
+		Repository: Repository{
+			URL:    "https://example.com",
+			Branch: "develop",
+			// SyncMode intentionally empty — legacy config
+		},
+	}
+
+	applyDefaults(cfg)
+
+	if cfg.Repository.SyncMode != "" {
+		t.Errorf("applyDefaults should not default SyncMode for legacy configs, got %q", cfg.Repository.SyncMode)
+	}
+}
+
+func TestApplyDefaultsPreservesSyncMode(t *testing.T) {
+	// Explicitly set SyncMode should be preserved
+	cfg := &Config{
+		Version: "test",
+		Repository: Repository{
+			URL:      "https://example.com",
+			SyncMode: "branch",
+			Ref:      "develop",
+		},
+	}
+
+	applyDefaults(cfg)
+
+	if cfg.Repository.SyncMode != "branch" {
+		t.Errorf("applyDefaults overwrote SyncMode: got %q, want %q", cfg.Repository.SyncMode, "branch")
+	}
+
+	if cfg.Repository.Ref != "develop" {
+		t.Errorf("applyDefaults overwrote Ref: got %q, want %q", cfg.Repository.Ref, "develop")
+	}
+}
+
+func TestLegacyConfigBranchPreservedThroughLoad(t *testing.T) {
+	ctx := context.Background()
+	tmpDir := t.TempDir()
+	if err := os.Setenv("FEST_CONFIG_DIR", tmpDir); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.Unsetenv("FEST_CONFIG_DIR") }()
+
+	// Simulate a legacy config file: has branch but no sync_mode
+	legacyJSON := `{"version":"1.0.0","repository":{"url":"https://github.com/Obedience-Corp/fest","branch":"develop","path":"methodology/festivals"}}`
+	configPath := filepath.Join(tmpDir, ConfigFileName)
+	if err := os.WriteFile(configPath, []byte(legacyJSON), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := Load(ctx, "")
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+
+	// SyncMode must remain empty so ResolveRefIntent sees it as legacy
+	if cfg.Repository.SyncMode != "" {
+		t.Errorf("legacy config SyncMode = %q, want empty", cfg.Repository.SyncMode)
+	}
+
+	// Branch must be preserved
+	if cfg.Repository.Branch != "develop" {
+		t.Errorf("legacy config Branch = %q, want develop", cfg.Repository.Branch)
+	}
+
+	// ResolveRefIntent should detect the legacy branch override
+	intent := ResolveRefIntent("", "", "", cfg.Repository)
+	if intent.Mode != SyncModeBranch || intent.Value != "develop" {
+		t.Errorf("ResolveRefIntent = %+v, want {SyncModeBranch, develop}", intent)
+	}
+}
+
 func TestTUIConfigSaveAndLoad(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
