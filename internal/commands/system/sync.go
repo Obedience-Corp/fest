@@ -12,12 +12,15 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/github"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/version"
 	"github.com/spf13/cobra"
 )
 
 type syncOptions struct {
 	source  string
 	branch  string
+	tag     string
+	channel string
 	force   bool
 	timeout int
 	retry   int
@@ -42,9 +45,12 @@ It fetches the complete .festival/ template structure from the configured
 repository and stores it locally for use with 'fest init' and 'fest system update'.
 
 Run this periodically to get the latest methodology templates and documentation.`,
-		Example: `  fest system sync                          # Use defaults from config
+		Example: `  fest system sync                              # Use defaults (channel-based)
+  fest system sync --channel stable               # Sync latest stable tag
+  fest system sync --tag v0.2.0                   # Sync exact tag
+  fest system sync --branch main                  # Sync from branch
   fest system sync --source github.com/user/repo  # Sync from specific repo
-  fest system sync --force                       # Overwrite existing cache`,
+  fest system sync --force                        # Overwrite existing cache`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runSync(cmd.Context(), cmd, opts)
 		},
@@ -52,6 +58,8 @@ Run this periodically to get the latest methodology templates and documentation.
 
 	cmd.Flags().StringVar(&opts.source, "source", "", "GitHub repository URL")
 	cmd.Flags().StringVar(&opts.branch, "branch", "", "Git branch to sync from (default: from config or 'main')")
+	cmd.Flags().StringVar(&opts.tag, "tag", "", "Exact git tag to sync from (e.g., v0.2.0)")
+	cmd.Flags().StringVar(&opts.channel, "channel", "", "Release channel: stable or dev")
 	cmd.Flags().BoolVar(&opts.force, "force", false, "overwrite existing files without checking")
 	cmd.Flags().IntVar(&opts.timeout, "timeout", 30, "timeout in seconds")
 	cmd.Flags().IntVar(&opts.retry, "retry", 3, "number of retry attempts")
@@ -86,15 +94,12 @@ func runSync(ctx context.Context, _ *cobra.Command, opts *syncOptions) error {
 		repoURL = config.DefaultRepositoryURL
 	}
 
-	// Determine branch: flag > config > default
-	branch := opts.branch
-	if branch == "" && cfg != nil && cfg.Repository.Branch != "" {
-		branch = cfg.Repository.Branch
+	// Resolve ref intent: CLI flags → config → release-profile default
+	var repoConfig config.Repository
+	if cfg != nil {
+		repoConfig = cfg.Repository
 	}
-	if branch == "" {
-		branch = "main"
-	}
-	opts.branch = branch
+	intent := config.ResolveRefIntent(opts.branch, opts.tag, opts.channel, repoConfig)
 
 	// Parse repository to get owner and repo
 	owner, repo, err := parseRepoURLForSync(repoURL)
@@ -108,8 +113,31 @@ func runSync(ctx context.Context, _ *cobra.Command, opts *syncOptions) error {
 		repoPath = cfg.Repository.Path
 	}
 
-	// Create downloader
-	downloader := github.NewDownloader(repoURL, opts.branch, repoPath)
+	// Resolve channel intent to a concrete tag before creating downloader
+	var resolvedRefType, resolvedRefName string
+	var downloader *github.Downloader
+	if intent.Mode == config.SyncModeChannel {
+		channel := intent.Value
+		if channel == "" {
+			channel = version.DefaultChannel()
+		}
+		tag, tagErr := github.ResolveLatestTag(repoURL, channel)
+		if tagErr != nil {
+			return errors.Wrapf(tagErr, "resolving latest %s tag", channel)
+		}
+		display.Info("Resolved %s channel to tag %s", channel, tag)
+		resolvedRefType = "tag"
+		resolvedRefName = tag
+		downloader = github.NewDownloaderWithRef(repoURL, "tag", tag, repoPath)
+	} else if intent.Mode == config.SyncModeTag {
+		resolvedRefType = "tag"
+		resolvedRefName = intent.Value
+		downloader = github.NewDownloaderWithRef(repoURL, "tag", intent.Value, repoPath)
+	} else {
+		resolvedRefType = "branch"
+		resolvedRefName = intent.Value
+		downloader = github.NewDownloaderWithRef(repoURL, "branch", intent.Value, repoPath)
+	}
 	downloader.SetTimeout(opts.timeout)
 	downloader.SetRetry(opts.retry)
 
@@ -185,11 +213,11 @@ func runSync(ctx context.Context, _ *cobra.Command, opts *syncOptions) error {
 	}
 
 	if opts.dryRun {
-		display.Info("DRY RUN: Would sync from %s (branch: %s)", repoURL, opts.branch)
+		display.Info("DRY RUN: Would sync from %s (%s: %s)", repoURL, resolvedRefType, resolvedRefName)
 		return nil
 	}
 
-	display.Info("Syncing from %s (branch: %s)...", repoURL, opts.branch)
+	display.Info("Syncing from %s (%s: %s)...", repoURL, resolvedRefType, resolvedRefName)
 
 	// Try git-based download first (works with SSH keys for private repos)
 	// Fall back to HTTP API if git is not available
@@ -218,7 +246,9 @@ func runSync(ctx context.Context, _ *cobra.Command, opts *syncOptions) error {
 		} else {
 			// Store the sync state for future update checks
 			if newSyncState != nil {
-				// We already computed the content hash during update check
+				// We already computed the content hash during update check; attach ref info
+				newSyncState.RefType = resolvedRefType
+				newSyncState.RefName = resolvedRefName
 				if err := github.WriteSyncState(targetDir, newSyncState); err != nil {
 					display.Warning("Failed to save sync state: %v", err)
 				}
@@ -227,14 +257,21 @@ func runSync(ctx context.Context, _ *cobra.Command, opts *syncOptions) error {
 				contentHash, hashErr := github.ComputeContentHash(targetDir)
 				if hashErr != nil {
 					display.Warning("Failed to compute content hash: %v", hashErr)
-					// Fall back to just commit SHA
-					if err := github.WriteLastSyncSHA(targetDir, remoteSHA); err != nil {
+					// Fall back to just commit SHA, preserving ref info
+					fallbackState := &github.SyncState{
+						CommitSHA: remoteSHA,
+						RefType:   resolvedRefType,
+						RefName:   resolvedRefName,
+					}
+					if err := github.WriteSyncState(targetDir, fallbackState); err != nil {
 						display.Warning("Failed to save sync marker: %v", err)
 					}
 				} else {
 					state := &github.SyncState{
 						CommitSHA:   remoteSHA,
 						ContentHash: contentHash,
+						RefType:     resolvedRefType,
+						RefName:     resolvedRefName,
 					}
 					if err := github.WriteSyncState(targetDir, state); err != nil {
 						display.Warning("Failed to save sync state: %v", err)
