@@ -25,6 +25,9 @@ mod test '.justfiles/test.just'
 [doc('Release packaging and versioning')]
 mod release '.justfiles/release.just'
 
+[doc('Install fest to $GOBIN (stable, dev, current)')]
+mod install '.justfiles/install.just'
+
 [doc('Linting (golangci-lint, gopls, vet)')]
 mod lint '.justfiles/lint.just'
 
@@ -49,20 +52,6 @@ deps:
     go get -u ./...
     go mod tidy
 
-# Install fest to $GOBIN
-install:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    just build quick
-    echo "Installing fest..."
-    mkdir -p {{gobin}}
-    cp bin/{{binary_name}} {{gobin}}/{{binary_name}}
-    if [[ "$(uname)" == "Darwin" ]]; then
-        echo "Signing fest binary for macOS..."
-        codesign --force --sign - {{gobin}}/{{binary_name}} 2>/dev/null || \
-        echo "Warning: Could not sign binary (non-fatal)"
-    fi
-    echo "fest installed to {{gobin}}/{{binary_name}}"
 
 # Generate CLI reference docs
 docs:

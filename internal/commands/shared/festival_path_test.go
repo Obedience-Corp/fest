@@ -45,24 +45,21 @@ func TestResolveFestivalPath_LinkedProject(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Set up navigation with link
-	// Override config dir for test isolation
-	origConfigDir := os.Getenv("XDG_CONFIG_HOME")
-	configDir := filepath.Join(tmpDir, "config")
-	_ = os.Setenv("XDG_CONFIG_HOME", configDir)
-	defer func() {
-		if origConfigDir == "" {
-			_ = os.Unsetenv("XDG_CONFIG_HOME")
-		} else {
-			_ = os.Setenv("XDG_CONFIG_HOME", origConfigDir)
-		}
-	}()
-
-	// Ensure config directory exists
-	festConfigDir := filepath.Join(configDir, "fest")
-	if err := os.MkdirAll(festConfigDir, 0755); err != nil {
+	// Isolate campaign detection to temp dir so navigation.yaml
+	// is written here instead of the real campaign root.
+	campaignDir := filepath.Join(tmpDir, ".campaign", "fest")
+	if err := os.MkdirAll(campaignDir, 0755); err != nil {
 		t.Fatal(err)
 	}
+	origCampRoot := os.Getenv("CAMP_ROOT")
+	t.Setenv("CAMP_ROOT", tmpDir)
+	defer func() {
+		if origCampRoot == "" {
+			_ = os.Unsetenv("CAMP_ROOT")
+		} else {
+			_ = os.Setenv("CAMP_ROOT", origCampRoot)
+		}
+	}()
 
 	// Create navigation link
 	nav, err := navigation.LoadNavigation()
@@ -151,15 +148,18 @@ func TestResolveFestivalPath_NoFestival(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Override config to have no links
-	origConfigDir := os.Getenv("XDG_CONFIG_HOME")
-	configDir := filepath.Join(tmpDir, "config")
-	_ = os.Setenv("XDG_CONFIG_HOME", configDir)
+	// Isolate campaign detection to temp dir so we don't touch real navigation.yaml
+	campaignDir := filepath.Join(tmpDir, ".campaign", "fest")
+	if err := os.MkdirAll(campaignDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	origCampRoot := os.Getenv("CAMP_ROOT")
+	t.Setenv("CAMP_ROOT", tmpDir)
 	defer func() {
-		if origConfigDir == "" {
-			_ = os.Unsetenv("XDG_CONFIG_HOME")
+		if origCampRoot == "" {
+			_ = os.Unsetenv("CAMP_ROOT")
 		} else {
-			_ = os.Setenv("XDG_CONFIG_HOME", origConfigDir)
+			_ = os.Setenv("CAMP_ROOT", origCampRoot)
 		}
 	}()
 
