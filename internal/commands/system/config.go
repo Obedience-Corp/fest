@@ -68,7 +68,8 @@ func runConfigTUI(ctx context.Context) error {
 		// Build menu options showing current values
 		options := []huh.Option[string]{
 			huh.NewOption(fmt.Sprintf("Repository URL      %s", truncateStr(cfg.Repository.URL, 30)), "repo_url"),
-			huh.NewOption(fmt.Sprintf("Repository Branch   %s", displayStr(cfg.Repository.Branch, "main")), "repo_branch"),
+			huh.NewOption(fmt.Sprintf("Sync Mode           %s", displayStr(cfg.Repository.SyncMode, "channel")), "sync_mode"),
+			huh.NewOption(fmt.Sprintf("Sync Ref            %s", syncRefDisplay(cfg)), "sync_ref"),
 			huh.NewOption(fmt.Sprintf("Repository Path     %s", displayStr(cfg.Repository.Path, ".festival")), "repo_path"),
 			huh.NewOption("─────────────────────", ""),
 			huh.NewOption(fmt.Sprintf("Editor              %s", displayStr(cfg.Behavior.Editor, "$EDITOR")), "editor"),
@@ -102,8 +103,10 @@ func runConfigTUI(ctx context.Context) error {
 			return nil
 		case "repo_url":
 			_ = editStringSetting(ctx, cfg, "Repository URL", "GitHub repository for festival methodology templates", &cfg.Repository.URL)
-		case "repo_branch":
-			_ = editStringSetting(ctx, cfg, "Repository Branch", "Git branch to sync from", &cfg.Repository.Branch)
+		case "sync_mode":
+			_ = editSyncModeSetting(ctx, cfg)
+		case "sync_ref":
+			_ = editSyncRefSetting(ctx, cfg)
 		case "repo_path":
 			_ = editStringSetting(ctx, cfg, "Repository Path", "Path within repository to methodology files", &cfg.Repository.Path)
 		case "editor":
@@ -244,6 +247,119 @@ func showCurrentConfig(ctx context.Context) error {
 	fmt.Println()
 
 	return nil
+}
+
+// editSyncModeSetting prompts to select a sync mode
+func editSyncModeSetting(ctx context.Context, cfg *config.Config) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled")
+	}
+
+	form := huh.NewForm(huh.NewGroup(
+		huh.NewSelect[string]().
+			Title("Sync Mode").
+			Description("How fest resolves which ref to sync from").
+			Options(
+				huh.NewOption("channel - Auto-resolve latest stable/dev tag (recommended)", "channel"),
+				huh.NewOption("tag - Sync from an exact git tag", "tag"),
+				huh.NewOption("branch - Sync from a git branch", "branch"),
+			).
+			Value(&cfg.Repository.SyncMode),
+	))
+
+	if err := uitheme.RunForm(ctx, form); err != nil {
+		if uitheme.IsCancelled(err) {
+			return nil
+		}
+		return err
+	}
+
+	return config.Save(ctx, cfg)
+}
+
+// editSyncRefSetting prompts to edit the sync ref value based on current sync mode
+func editSyncRefSetting(ctx context.Context, cfg *config.Config) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled")
+	}
+
+	mode := cfg.Repository.SyncMode
+	if mode == "" {
+		mode = "channel"
+	}
+
+	switch mode {
+	case "channel":
+		form := huh.NewForm(huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Release Channel").
+				Description("Empty uses your build's default channel").
+				Options(
+					huh.NewOption("(auto-detect from build)", ""),
+					huh.NewOption("stable - Latest stable release tag", "stable"),
+					huh.NewOption("dev - Latest dev pre-release tag", "dev"),
+				).
+				Value(&cfg.Repository.Channel),
+		))
+		if err := uitheme.RunForm(ctx, form); err != nil {
+			if uitheme.IsCancelled(err) {
+				return nil
+			}
+			return err
+		}
+	case "tag":
+		form := huh.NewForm(huh.NewGroup(
+			huh.NewInput().
+				Title("Tag").
+				Description("Exact git tag to sync from (e.g., v0.2.0)").
+				Value(&cfg.Repository.Ref),
+		))
+		if err := uitheme.RunForm(ctx, form); err != nil {
+			if uitheme.IsCancelled(err) {
+				return nil
+			}
+			return err
+		}
+	case "branch":
+		form := huh.NewForm(huh.NewGroup(
+			huh.NewInput().
+				Title("Branch").
+				Description("Git branch to sync from").
+				Value(&cfg.Repository.Ref),
+		))
+		if err := uitheme.RunForm(ctx, form); err != nil {
+			if uitheme.IsCancelled(err) {
+				return nil
+			}
+			return err
+		}
+	}
+
+	return config.Save(ctx, cfg)
+}
+
+// syncRefDisplay returns the display string for the sync ref based on current mode
+func syncRefDisplay(cfg *config.Config) string {
+	mode := cfg.Repository.SyncMode
+	if mode == "" {
+		mode = "channel"
+	}
+	switch mode {
+	case "channel":
+		if cfg.Repository.Channel == "" {
+			return "(auto-detect)"
+		}
+		return cfg.Repository.Channel
+	case "tag":
+		return displayStr(cfg.Repository.Ref, "(not set)")
+	case "branch":
+		ref := cfg.Repository.Ref
+		if ref == "" {
+			ref = cfg.Repository.Branch
+		}
+		return displayStr(ref, "main")
+	}
+	return "(unknown)"
 }
 
 // Helper functions

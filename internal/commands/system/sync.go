@@ -175,6 +175,8 @@ func runSync(ctx context.Context, _ *cobra.Command, opts *syncOptions) error {
 				// Templates haven't changed - just update the commit SHA
 				display.Success("Fest templates are up to date (no template changes)!")
 				if newState != nil {
+					newState.RefType = resolvedRefType
+					newState.RefName = resolvedRefName
 					if err := github.WriteSyncState(targetDir, newState); err != nil {
 						display.Warning("Failed to save sync state: %v", err)
 					}
