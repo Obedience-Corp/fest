@@ -57,13 +57,15 @@ Choose the right type for your work:
 
 | Type | When to Use | Creates |
 |------|------------|---------|
-| **standard** | Most projects (planning + implementation) | INGEST, PLAN phases |
-| **implementation** | Requirements already defined | IMPLEMENT phase |
+| **standard** | Most projects, including the beginner path | INGEST, PLAN phases |
+| **implementation** | Requirements already defined; not the first-run default | IMPLEMENT phase |
 | **research** | Investigation or exploration | INGEST, RESEARCH, SYNTHESIZE phases |
 | **ritual** | Recurring processes | Custom structure |
 
+For a first festival, use `--type standard` explicitly. Choose `implementation` only when the requirements are already defined and you only need execution scaffolding.
+
 ```bash
-fest create festival --type standard "my-project"
+fest create festival --name "my-project" --type standard
 ```
 
 ## Phase Types
@@ -91,7 +93,7 @@ fest create phase --name "002_IMPLEMENT" --type implementation
 ### Creating a Festival
 
 ```bash
-fest create festival --type standard "my-project"
+fest create festival --name "my-project" --type standard
 ```
 
 ### Executing a Festival
@@ -114,7 +116,7 @@ fest create task --name "01_setup_database"
 ## Creating Your Festival - Step by Step
 
 1. **Choose festival type** based on your work (`fest types festival`)
-2. **Create the festival** (`fest create festival --type <type> <name>`)
+2. **Create the festival** (`fest create festival --name "<name>" --type <type>`)
 3. **Review scaffolded documents** (FESTIVAL_OVERVIEW.md, FESTIVAL_RULES.md, FESTIVAL_GOAL.md are auto-created)
 4. **Add phases as needed** with appropriate types
 5. **Create sequences and tasks** within implementation phases
