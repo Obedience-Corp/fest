@@ -57,6 +57,9 @@ func ResolveRefIntent(cliBranch, cliTag, cliChannel string, repo Repository) Ref
 		if repo.Ref != "" {
 			return RefIntent{Mode: SyncModeTag, Value: repo.Ref}
 		}
+		// sync_mode="tag" with empty ref is a misconfiguration.
+		// Fall through to release-profile default (channel mode) so the
+		// user still gets a working sync rather than a hard failure.
 	case SyncModeBranch:
 		ref := repo.Ref
 		if ref == "" {

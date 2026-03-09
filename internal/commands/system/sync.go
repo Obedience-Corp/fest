@@ -60,6 +60,7 @@ Run this periodically to get the latest methodology templates and documentation.
 	cmd.Flags().StringVar(&opts.branch, "branch", "", "Git branch to sync from (default: from config or 'main')")
 	cmd.Flags().StringVar(&opts.tag, "tag", "", "Exact git tag to sync from (e.g., v0.2.0)")
 	cmd.Flags().StringVar(&opts.channel, "channel", "", "Release channel: stable or dev")
+	cmd.MarkFlagsMutuallyExclusive("tag", "branch", "channel")
 	cmd.Flags().BoolVar(&opts.force, "force", false, "overwrite existing files without checking")
 	cmd.Flags().IntVar(&opts.timeout, "timeout", 30, "timeout in seconds")
 	cmd.Flags().IntVar(&opts.retry, "retry", 3, "number of retry attempts")
