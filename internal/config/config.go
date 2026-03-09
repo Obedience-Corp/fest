@@ -230,9 +230,10 @@ func applyDefaults(cfg *Config) {
 		cfg.Repository.Path = defaults.Repository.Path
 	}
 
-	if cfg.Repository.SyncMode == "" {
-		cfg.Repository.SyncMode = defaults.Repository.SyncMode
-	}
+	// NOTE: SyncMode is intentionally NOT defaulted here.
+	// An empty SyncMode signals a legacy config, which ResolveRefIntent
+	// uses to detect backward-compat branch overrides (e.g., Branch="develop").
+	// Defaulting it to "channel" would clobber that signal.
 
 	if cfg.Local.CacheDir == "" {
 		cfg.Local.CacheDir = defaults.Local.CacheDir
