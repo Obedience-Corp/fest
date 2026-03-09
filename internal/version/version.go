@@ -2,7 +2,10 @@
 // Variables are populated via ldflags during build.
 package version
 
-import "runtime"
+import (
+	"runtime"
+	"strings"
+)
 
 var (
 	// Version is the semantic version (set via ldflags)
@@ -22,6 +25,21 @@ type Info struct {
 	BuildDate string `json:"buildDate"`
 	GoVersion string `json:"goVersion"`
 	Platform  string `json:"platform"`
+}
+
+// IsDevBuild reports whether this is a development build.
+// A dev build has Version equal to "dev" or contains "-dev." (e.g. v0.2.0-dev.3).
+func IsDevBuild() bool {
+	return Version == "dev" || strings.Contains(Version, "-dev.")
+}
+
+// DefaultChannel returns the default release channel for this build.
+// Dev builds default to "dev"; stable builds default to "stable".
+func DefaultChannel() string {
+	if IsDevBuild() {
+		return "dev"
+	}
+	return "stable"
 }
 
 // Get returns the full version information

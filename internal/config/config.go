@@ -48,9 +48,12 @@ type Execute struct {
 
 // Repository contains repository information
 type Repository struct {
-	URL    string `json:"url"`
-	Branch string `json:"branch"`
-	Path   string `json:"path"`
+	URL      string `json:"url"`
+	Branch   string `json:"branch"`               // Legacy, still honored
+	Path     string `json:"path"`
+	SyncMode string `json:"sync_mode,omitempty"` // "channel" | "branch" | "tag"
+	Channel  string `json:"channel,omitempty"`   // "stable" | "dev" | ""
+	Ref      string `json:"ref,omitempty"`        // Exact ref for tag/branch mode
 }
 
 // Local contains local path configuration
@@ -169,9 +172,10 @@ func DefaultConfig() *Config {
 	return &Config{
 		Version: "1.0.0",
 		Repository: Repository{
-			URL:    DefaultRepositoryURL,
-			Branch: DefaultBranch,
-			Path:   DefaultRepoPath,
+			URL:      DefaultRepositoryURL,
+			Branch:   DefaultBranch,
+			Path:     DefaultRepoPath,
+			SyncMode: "channel",
 		},
 		Local: Local{
 			CacheDir:     filepath.Join(ConfigDir(), "cache"),
@@ -223,6 +227,10 @@ func applyDefaults(cfg *Config) {
 
 	if cfg.Repository.Path == "" {
 		cfg.Repository.Path = defaults.Repository.Path
+	}
+
+	if cfg.Repository.SyncMode == "" {
+		cfg.Repository.SyncMode = defaults.Repository.SyncMode
 	}
 
 	if cfg.Local.CacheDir == "" {

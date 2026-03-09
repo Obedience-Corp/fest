@@ -242,6 +242,59 @@ func TestTUIConfigApplyDefaults(t *testing.T) {
 	// ExpandInputs=false is intentional opt-out
 }
 
+func TestDefaultConfigSyncMode(t *testing.T) {
+	cfg := DefaultConfig()
+
+	if cfg.Repository.SyncMode != "channel" {
+		t.Errorf("DefaultConfig SyncMode = %q, want %q", cfg.Repository.SyncMode, "channel")
+	}
+
+	// Branch should still be set for legacy fallback
+	if cfg.Repository.Branch != DefaultBranch {
+		t.Errorf("DefaultConfig Branch = %q, want %q", cfg.Repository.Branch, DefaultBranch)
+	}
+}
+
+func TestApplyDefaultsSyncMode(t *testing.T) {
+	// SyncMode should be set when empty
+	cfg := &Config{
+		Version: "test",
+		Repository: Repository{
+			URL:    "https://example.com",
+			Branch: "main",
+			// SyncMode intentionally empty
+		},
+	}
+
+	applyDefaults(cfg)
+
+	if cfg.Repository.SyncMode != "channel" {
+		t.Errorf("applyDefaults SyncMode = %q, want %q", cfg.Repository.SyncMode, "channel")
+	}
+}
+
+func TestApplyDefaultsPreservesSyncMode(t *testing.T) {
+	// Explicitly set SyncMode should be preserved
+	cfg := &Config{
+		Version: "test",
+		Repository: Repository{
+			URL:      "https://example.com",
+			SyncMode: "branch",
+			Ref:      "develop",
+		},
+	}
+
+	applyDefaults(cfg)
+
+	if cfg.Repository.SyncMode != "branch" {
+		t.Errorf("applyDefaults overwrote SyncMode: got %q, want %q", cfg.Repository.SyncMode, "branch")
+	}
+
+	if cfg.Repository.Ref != "develop" {
+		t.Errorf("applyDefaults overwrote Ref: got %q, want %q", cfg.Repository.Ref, "develop")
+	}
+}
+
 func TestTUIConfigSaveAndLoad(t *testing.T) {
 	ctx := context.Background()
 	tmpDir := t.TempDir()
