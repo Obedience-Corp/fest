@@ -7,7 +7,6 @@ set dotenv-load := true
 binary_name := "fest"
 bin_dir := "bin"
 gobin := env_var_or_default("GOBIN", `go env GOPATH` + "/bin")
-BUILDTOOL := "go run ./internal/buildutil"
 
 # Version injection
 version_pkg := "github.com/Obedience-Corp/fest/internal/version"
@@ -17,8 +16,8 @@ build_date := `date -u +"%Y-%m-%dT%H:%M:%SZ"`
 ldflags := "-X " + version_pkg + ".Version=" + version + " -X " + version_pkg + ".Commit=" + commit + " -X " + version_pkg + ".BuildDate=" + build_date
 
 # Modules
-[doc('Cross-platform builds')]
-mod xbuild '.justfiles/build.just'
+[doc('Build variants (local, cross-platform, profiles)')]
+mod build '.justfiles/build.just'
 
 [doc('Testing (unit, integration, coverage)')]
 mod test '.justfiles/test.just'
@@ -37,45 +36,13 @@ default:
     echo ""
     just --list --unsorted
 
-# Build fest binary with visual dashboard
-build:
-    @{{BUILDTOOL}} build
-
-# Build fest binary in stable profile (default command surface)
-build-stable:
-    BUILD_TAGS='' just build
-
-# Build fest binary in dev profile (includes dev-only commands)
-build-dev:
-    BUILD_TAGS=dev just build
-
-# Build fest binary only (fast, no vet)
-build-only:
-    @{{BUILDTOOL}} build-only
-
-# Build fest binary only in stable profile
-build-only-stable:
-    BUILD_TAGS='' just build-only
-
-# Build fest binary only in dev profile
-build-only-dev:
-    BUILD_TAGS=dev just build-only
-
-# Cross-platform builds in stable profile
-xbuild-stable:
-    BUILD_TAGS='' just xbuild all
-
-# Cross-platform builds in dev profile
-xbuild-dev:
-    BUILD_TAGS=dev just xbuild all
-
 # Format Go code
 fmt:
     go fmt ./...
 
 # Clean build artifacts with visual dashboard
 clean:
-    @{{BUILDTOOL}} clean
+    @go run ./internal/buildutil clean
 
 # Update and tidy dependencies
 deps:
@@ -86,7 +53,7 @@ deps:
 install:
     #!/usr/bin/env bash
     set -euo pipefail
-    just build-only
+    just build quick
     echo "Installing fest..."
     mkdir -p {{gobin}}
     cp bin/{{binary_name}} {{gobin}}/{{binary_name}}
@@ -95,10 +62,13 @@ install:
         codesign --force --sign - {{gobin}}/{{binary_name}} 2>/dev/null || \
         echo "Warning: Could not sign binary (non-fatal)"
     fi
-    echo "✅ fest installed to {{gobin}}/{{binary_name}}"
+    echo "fest installed to {{gobin}}/{{binary_name}}"
 
 # Generate CLI reference docs
-docs: build-only
+docs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    just build quick
     ./{{bin_dir}}/{{binary_name}} gendocs --output docs/cli-reference --format markdown --single
 
 # Uninstall fest from $GOBIN
