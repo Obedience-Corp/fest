@@ -1,6 +1,7 @@
 package github
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -79,34 +80,35 @@ func TestSemverGreater(t *testing.T) {
 	}
 }
 
-// mockLsRemote builds a fake git ls-remote output string from a list of tags.
+// buildLsRemoteOutput builds a fake git ls-remote output string from a list of tags.
 func buildLsRemoteOutput(tags []string) string {
-	var sb string
+	var sb strings.Builder
 	for _, tag := range tags {
-		sb += "aabbccddee\trefs/tags/" + tag + "\n"
+		sb.WriteString("aabbccddee\trefs/tags/")
+		sb.WriteString(tag)
+		sb.WriteByte('\n')
 	}
-	return sb
+	return sb.String()
 }
 
-// parseTagsFromOutput mirrors the filtering/parsing logic in ResolveLatestTag so
+// resolveFromOutput mirrors the filtering/parsing logic in ResolveLatestTag so
 // we can test it without executing real git commands.
 func resolveFromOutput(output, channel string) (string, error) {
-	// Inline the filtering logic identical to ResolveLatestTag
-	lines := splitLines(output)
+	lines := strings.Split(output, "\n")
 	var candidates []semver
 	for _, line := range lines {
 		if line == "" {
 			continue
 		}
-		parts := splitFields(line)
+		parts := strings.Fields(line)
 		if len(parts) < 2 {
 			continue
 		}
 		ref := parts[1]
-		if hasSuffix(ref, "^{}") {
+		if strings.HasSuffix(ref, "^{}") {
 			continue
 		}
-		tagName := trimPrefix(ref, "refs/tags/")
+		tagName := strings.TrimPrefix(ref, "refs/tags/")
 
 		switch channel {
 		case "stable":
@@ -139,59 +141,6 @@ func resolveFromOutput(output, channel string) (string, error) {
 		}
 	}
 	return best.raw, nil
-}
-
-// Small helpers to keep resolveFromOutput free of imports.
-
-func splitLines(s string) []string {
-	return splitOn(s, '\n')
-}
-
-func splitOn(s string, sep byte) []string {
-	var out []string
-	start := 0
-	for i := 0; i < len(s); i++ {
-		if s[i] == sep {
-			out = append(out, s[start:i])
-			start = i + 1
-		}
-	}
-	if start < len(s) {
-		out = append(out, s[start:])
-	}
-	return out
-}
-
-func splitFields(s string) []string {
-	var out []string
-	start := -1
-	for i := 0; i < len(s); i++ {
-		if s[i] == ' ' || s[i] == '\t' {
-			if start >= 0 {
-				out = append(out, s[start:i])
-				start = -1
-			}
-		} else {
-			if start < 0 {
-				start = i
-			}
-		}
-	}
-	if start >= 0 {
-		out = append(out, s[start:])
-	}
-	return out
-}
-
-func hasSuffix(s, suffix string) bool {
-	return len(s) >= len(suffix) && s[len(s)-len(suffix):] == suffix
-}
-
-func trimPrefix(s, prefix string) string {
-	if len(s) >= len(prefix) && s[:len(prefix)] == prefix {
-		return s[len(prefix):]
-	}
-	return s
 }
 
 type parseError struct{ msg string }

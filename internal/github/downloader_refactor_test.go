@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -118,10 +119,10 @@ func TestSyncStateRoundTrip(t *testing.T) {
 		}
 
 		// ref_type and ref_name should NOT appear in the JSON.
-		if contains(string(data), "ref_type") {
+		if strings.Contains(string(data), "ref_type") {
 			t.Errorf("expected ref_type to be omitted, got: %s", data)
 		}
-		if contains(string(data), "ref_name") {
+		if strings.Contains(string(data), "ref_name") {
 			t.Errorf("expected ref_name to be omitted, got: %s", data)
 		}
 	})
@@ -185,16 +186,4 @@ func TestReadSyncStateOldFormat(t *testing.T) {
 	if got.RefType != "" {
 		t.Errorf("RefType = %q, want empty for old format", got.RefType)
 	}
-}
-
-// contains is a simple substring check helper.
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && func() bool {
-		for i := 0; i <= len(s)-len(substr); i++ {
-			if s[i:i+len(substr)] == substr {
-				return true
-			}
-		}
-		return false
-	}()
 }
