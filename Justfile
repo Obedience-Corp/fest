@@ -23,11 +23,8 @@ mod xbuild '.justfiles/build.just'
 [doc('Testing (unit, integration, coverage)')]
 mod test '.justfiles/test.just'
 
-[doc('Release packaging')]
+[doc('Release packaging and versioning')]
 mod release '.justfiles/release.just'
-
-[doc('Git tag management')]
-mod tags '.justfiles/tags.just'
 
 [doc('Linting (golangci-lint, gopls, vet)')]
 mod lint '.justfiles/lint.just'
@@ -71,14 +68,6 @@ xbuild-stable:
 # Cross-platform builds in dev profile
 xbuild-dev:
     BUILD_TAGS=dev just xbuild all
-
-# Release packages in stable profile
-release-packages-stable:
-    BUILD_TAGS='' just release release
-
-# Release packages in dev profile
-release-packages-dev:
-    BUILD_TAGS=dev just release release
 
 # Format Go code
 fmt:
