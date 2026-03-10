@@ -123,6 +123,49 @@ func TestBreadcrumbsFromNode(t *testing.T) {
 	}
 }
 
+func TestFilterTreeKeepsMatchingDescendants(t *testing.T) {
+	root := &TreeNode{
+		Item:     FestivalItem{Name: "001_DESIGN", Path: "/root", Type: ItemPhase},
+		Depth:    0,
+		Expanded: true,
+		Loaded:   true,
+	}
+	sequence := &TreeNode{
+		Item:     FestivalItem{Name: "02_api_work", Path: "/root/seq", Type: ItemSequence},
+		Depth:    1,
+		Expanded: true,
+		Loaded:   true,
+		Parent:   root,
+	}
+	task := &TreeNode{
+		Item:   FestivalItem{Name: "sync_search_index", Path: "/root/seq/task", Type: ItemTask},
+		Depth:  2,
+		Parent: sequence,
+	}
+	sequence.Children = []*TreeNode{task}
+	root.Children = []*TreeNode{sequence}
+
+	filtered := filterTree([]*TreeNode{root}, "search")
+	if len(filtered) != 1 {
+		t.Fatalf("expected one matching root, got %d", len(filtered))
+	}
+	if !filtered[0].Expanded {
+		t.Fatal("expected matching ancestor to be expanded")
+	}
+	if len(filtered[0].Children) != 1 {
+		t.Fatalf("expected matching branch to keep one child, got %d", len(filtered[0].Children))
+	}
+	if filtered[0].Children[0].Item.Name != "02_api_work" {
+		t.Fatalf("expected matching ancestor chain to include sequence, got %s", filtered[0].Children[0].Item.Name)
+	}
+	if len(filtered[0].Children[0].Children) != 1 {
+		t.Fatalf("expected matching task to remain visible, got %d children", len(filtered[0].Children[0].Children))
+	}
+	if filtered[0].Children[0].Children[0].Item.Name != "sync_search_index" {
+		t.Fatalf("expected matching task to be preserved, got %s", filtered[0].Children[0].Children[0].Item.Name)
+	}
+}
+
 func TestTreeNodeIsLeaf(t *testing.T) {
 	task := &TreeNode{Item: FestivalItem{Type: ItemTask}}
 	if !task.IsLeaf() {
@@ -593,12 +636,20 @@ func TestCtrlCQuit(t *testing.T) {
 	if cmd == nil {
 		t.Error("expected tea.Quit command")
 	}
+	if item := m.SelectedItem(); item != nil {
+		t.Fatalf("expected ctrl+c to cancel without selection, got %s", item.Name)
+	}
 }
 
-func TestSelectedItem(t *testing.T) {
+func TestSelectKeyReturnsSelectedItem(t *testing.T) {
 	m := modelWithItems(3)
 	m.cursor = 1
-	m.quitting = true
+
+	newModel, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	m = newModel.(Model)
+	if cmd == nil {
+		t.Fatal("expected tea.Quit command")
+	}
 
 	item := m.SelectedItem()
 	if item == nil {
@@ -609,14 +660,15 @@ func TestSelectedItem(t *testing.T) {
 	}
 }
 
-func TestSelectedItemNotQuitting(t *testing.T) {
+func TestSelectedItemRequiresExplicitSelection(t *testing.T) {
 	m := modelWithItems(3)
 	m.cursor = 1
-	m.quitting = false
+	m.quitting = true
+	m.selected = false
 
 	item := m.SelectedItem()
 	if item != nil {
-		t.Error("expected nil when not quitting")
+		t.Error("expected nil without explicit selection")
 	}
 }
 
@@ -1531,6 +1583,28 @@ func TestPreviewKeyCtrlCQuits(t *testing.T) {
 	if cmd == nil {
 		t.Error("expected tea.Quit command")
 	}
+	if item := m.SelectedItem(); item != nil {
+		t.Fatalf("expected preview ctrl+c to cancel without selection, got %s", item.Name)
+	}
+}
+
+func TestPreviewKeyEnterSelectsCurrentItem(t *testing.T) {
+	m := modelWithItems(3)
+	m.focusPreview = true
+	m.cursor = 2
+
+	newModel, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = newModel.(Model)
+	if cmd == nil {
+		t.Fatal("expected tea.Quit command")
+	}
+	item := m.SelectedItem()
+	if item == nil {
+		t.Fatal("expected preview Enter to select the current item")
+	}
+	if item.Name != "fest-3" {
+		t.Fatalf("expected fest-3, got %s", item.Name)
+	}
 }
 
 func TestFilterTypingFiltersItems(t *testing.T) {
@@ -1568,6 +1642,48 @@ func TestFilterTypingNoMatch(t *testing.T) {
 
 	if len(m.visible) != 0 {
 		t.Errorf("expected 0 items for non-matching filter, got %d", len(m.visible))
+	}
+}
+
+func TestFilterTypingMatchesNestedItems(t *testing.T) {
+	m := modelWithPhaseItems(1)
+	m.navStack = []navEntry{{title: "fest-1"}}
+
+	phase := m.roots[0]
+	phase.Loaded = true
+	phase.Expanded = true
+	sequence := &TreeNode{
+		Item:     FestivalItem{Name: "01_sequence", Path: filepath.Join(os.TempDir(), "phase", "seq"), Type: ItemSequence},
+		Depth:    1,
+		Expanded: true,
+		Loaded:   true,
+		Parent:   phase,
+	}
+	task := &TreeNode{
+		Item:   FestivalItem{Name: "semantic_search_notes", Path: filepath.Join(os.TempDir(), "phase", "seq", "task"), Type: ItemTask},
+		Depth:  2,
+		Parent: sequence,
+	}
+	sequence.Children = []*TreeNode{task}
+	phase.Children = []*TreeNode{sequence}
+	m.rebuildVisible()
+
+	newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'/'}})
+	m = newModel.(Model)
+
+	for _, r := range "search" {
+		newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		m = newModel.(Model)
+	}
+
+	if len(m.visible) != 3 {
+		t.Fatalf("expected filtered tree to keep ancestor chain, got %d visible items", len(m.visible))
+	}
+	if m.visible[0].Item.Name != phase.Item.Name {
+		t.Fatalf("expected phase ancestor first, got %s", m.visible[0].Item.Name)
+	}
+	if m.visible[2].Item.Name != "semantic_search_notes" {
+		t.Fatalf("expected matching task to remain visible, got %s", m.visible[2].Item.Name)
 	}
 }
 

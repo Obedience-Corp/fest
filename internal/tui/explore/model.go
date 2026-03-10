@@ -78,6 +78,7 @@ type Model struct {
 	loading      bool
 	err          error
 	quitting     bool
+	selected     bool
 	festivalPath string // Auto-navigate into this festival on load
 
 	// Drilldown stack (status → festival list → festival hierarchy)
@@ -397,6 +398,20 @@ func (m Model) navigateUp() Model {
 	return m
 }
 
+func (m Model) cancel() (tea.Model, tea.Cmd) {
+	m.quitting = true
+	m.selected = false
+	return m, tea.Quit
+}
+
+func (m Model) selectCurrent() (tea.Model, tea.Cmd) {
+	m.quitting = true
+	if m.cursor >= 0 && m.cursor < len(m.visible) {
+		m.selected = true
+	}
+	return m, tea.Quit
+}
+
 // toggleExpand expands or collapses a tree node (used for phase/sequence inside a festival).
 func (m Model) toggleExpand() (tea.Model, tea.Cmd) {
 	if m.cursor < 0 || m.cursor >= len(m.visible) {
@@ -541,7 +556,7 @@ func (m Model) inTreeMode() bool {
 
 // SelectedItem returns the currently selected festival item, or nil.
 func (m Model) SelectedItem() *FestivalItem {
-	if m.quitting && m.cursor >= 0 && m.cursor < len(m.visible) {
+	if m.quitting && m.selected && m.cursor >= 0 && m.cursor < len(m.visible) {
 		return &m.visible[m.cursor].Item
 	}
 	return nil
