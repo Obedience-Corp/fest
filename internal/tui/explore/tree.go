@@ -1,5 +1,7 @@
 package explore
 
+import "strings"
+
 // TreeNode represents a node in the expandable tree view.
 type TreeNode struct {
 	Item     FestivalItem
@@ -91,4 +93,41 @@ func breadcrumbsFromNode(node *TreeNode) []string {
 		parts[i], parts[j] = parts[j], parts[i]
 	}
 	return parts
+}
+
+// filterTree returns a pruned clone of the current tree that keeps matching
+// nodes and the ancestor chain needed to reach them.
+func filterTree(roots []*TreeNode, query string) []*TreeNode {
+	var filtered []*TreeNode
+	for _, root := range roots {
+		if clone := filterTreeNode(root, query, nil); clone != nil {
+			filtered = append(filtered, clone)
+		}
+	}
+	return filtered
+}
+
+func filterTreeNode(node *TreeNode, query string, parent *TreeNode) *TreeNode {
+	matches := strings.Contains(strings.ToLower(node.Item.Name), query)
+
+	clone := &TreeNode{
+		Item:    node.Item,
+		Depth:   node.Depth,
+		Loading: node.Loading,
+		Loaded:  node.Loaded,
+		Parent:  parent,
+	}
+
+	for _, child := range node.Children {
+		if childClone := filterTreeNode(child, query, clone); childClone != nil {
+			clone.Children = append(clone.Children, childClone)
+		}
+	}
+
+	if !matches && len(clone.Children) == 0 {
+		return nil
+	}
+
+	clone.Expanded = len(clone.Children) > 0
+	return clone
 }

@@ -11,8 +11,10 @@ import (
 func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "ctrl+c":
-		m.quitting = true
-		return m, tea.Quit
+		return m.cancel()
+
+	case "s":
+		return m.selectCurrent()
 
 	case "esc":
 		// In tree mode, collapse current node or move to parent
@@ -33,8 +35,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m = m.navigateUp()
 			return m, m.loadPreviewCmd()
 		}
-		m.quitting = true
-		return m, tea.Quit
+		return m.cancel()
 
 	case "backspace", "h":
 		// In tree mode, try collapse or parent first
@@ -57,8 +58,7 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		// h at root level is no-op; backspace quits
 		if msg.String() != "h" {
-			m.quitting = true
-			return m, tea.Quit
+			return m.cancel()
 		}
 
 	case "up", "k":
@@ -113,8 +113,10 @@ func (m Model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) handlePreviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "ctrl+c":
-		m.quitting = true
-		return m, tea.Quit
+		return m.cancel()
+
+	case "enter", "s":
+		return m.selectCurrent()
 
 	case "tab", "esc", "h":
 		m.focusPreview = false
@@ -129,6 +131,9 @@ func (m Model) handlePreviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
+	case "ctrl+c":
+		return m.cancel()
+
 	case "enter":
 		m.filtering = false
 		m.filterInput.Blur()
@@ -149,18 +154,12 @@ func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.filterInput, cmd = m.filterInput.Update(msg)
 
-	// Apply filter to visible (top-level) nodes
+	// Apply filter to the current loaded tree, keeping ancestor context.
 	query := strings.ToLower(strings.TrimSpace(m.filterInput.Value()))
 	if query == "" {
 		m.roots = m.allRoots
 	} else {
-		var filtered []*TreeNode
-		for _, node := range m.allRoots {
-			if strings.Contains(strings.ToLower(node.Item.Name), query) {
-				filtered = append(filtered, node)
-			}
-		}
-		m.roots = filtered
+		m.roots = filterTree(m.allRoots, query)
 	}
 	m.rebuildVisible()
 	m.cursor = 0
