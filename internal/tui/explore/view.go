@@ -59,7 +59,11 @@ func (m Model) renderNarrowView() string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(helpStyle.Render("j/k nav • Enter open • s select • h back • q quit"))
+	help := "j/k nav • Enter open • h back • q quit"
+	if m.canSelectCurrent() {
+		help = "j/k nav • Enter open • s select • h back • q quit"
+	}
+	b.WriteString(helpStyle.Render(help))
 	return b.String()
 }
 
@@ -100,7 +104,10 @@ func (m Model) renderTree(width int) string {
 		b.WriteString(cursorStyle.Render("/ "))
 		b.WriteString(m.filterInput.View())
 	} else {
-		help := "j/k nav • Enter open • s select • h back • /search"
+		help := "j/k nav • Enter open • h back • /search"
+		if m.canSelectCurrent() {
+			help = "j/k nav • Enter open • s select • h back • /search"
+		}
 		b.WriteString(helpStyle.Render(help))
 	}
 
@@ -145,10 +152,17 @@ func (m Model) renderContent(width int) string {
 	// Help
 	if m.focusPreview {
 		pct := m.viewport.ScrollPercent() * 100
-		help := fmt.Sprintf("j/k scroll • Enter/s select • Tab/h: tree  %.0f%%", pct)
+		help := fmt.Sprintf("j/k scroll • Tab/h: tree  %.0f%%", pct)
+		if m.canSelectCurrent() {
+			help = fmt.Sprintf("j/k scroll • Enter/s select • Tab/h: tree  %.0f%%", pct)
+		}
 		b.WriteString(helpStyle.Render(help))
 	} else {
-		b.WriteString(helpStyle.Render("Tab: focus preview • s: select"))
+		help := "Tab: focus preview"
+		if m.canSelectCurrent() {
+			help = "Tab: focus preview • s: select"
+		}
+		b.WriteString(helpStyle.Render(help))
 	}
 
 	innerW := max(width-4, 20)

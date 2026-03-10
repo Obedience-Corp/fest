@@ -660,6 +660,23 @@ func TestSelectKeyReturnsSelectedItem(t *testing.T) {
 	}
 }
 
+func TestStatusItemCannotBeSelected(t *testing.T) {
+	m := modelWithStatusItems()
+	m.cursor = 0
+
+	newModel, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'s'}})
+	m = newModel.(Model)
+	if cmd != nil {
+		t.Fatal("expected no quit command when selecting a status row")
+	}
+	if m.quitting {
+		t.Fatal("expected status selection to be ignored, not quit")
+	}
+	if item := m.SelectedItem(); item != nil {
+		t.Fatalf("expected no selected item for status rows, got %s", item.Name)
+	}
+}
+
 func TestSelectedItemRequiresExplicitSelection(t *testing.T) {
 	m := modelWithItems(3)
 	m.cursor = 1
@@ -1604,6 +1621,24 @@ func TestPreviewKeyEnterSelectsCurrentItem(t *testing.T) {
 	}
 	if item.Name != "fest-3" {
 		t.Fatalf("expected fest-3, got %s", item.Name)
+	}
+}
+
+func TestPreviewStatusEnterDoesNotSelect(t *testing.T) {
+	m := modelWithStatusItems()
+	m.focusPreview = true
+	m.cursor = 0
+
+	newModel, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	m = newModel.(Model)
+	if cmd != nil {
+		t.Fatal("expected no quit command when pressing Enter on a status preview")
+	}
+	if m.quitting {
+		t.Fatal("expected status preview Enter to be ignored, not quit")
+	}
+	if item := m.SelectedItem(); item != nil {
+		t.Fatalf("expected no selected item for status preview, got %s", item.Name)
 	}
 }
 

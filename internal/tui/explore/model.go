@@ -404,11 +404,22 @@ func (m Model) cancel() (tea.Model, tea.Cmd) {
 	return m, tea.Quit
 }
 
-func (m Model) selectCurrent() (tea.Model, tea.Cmd) {
-	m.quitting = true
-	if m.cursor >= 0 && m.cursor < len(m.visible) {
-		m.selected = true
+func (m Model) canSelectCurrent() bool {
+	if m.cursor < 0 || m.cursor >= len(m.visible) {
+		return false
 	}
+
+	item := m.visible[m.cursor].Item
+	return item.Type != ItemStatus && item.Path != ""
+}
+
+func (m Model) selectCurrent() (tea.Model, tea.Cmd) {
+	if !m.canSelectCurrent() {
+		return m, nil
+	}
+
+	m.quitting = true
+	m.selected = true
 	return m, tea.Quit
 }
 
@@ -556,7 +567,7 @@ func (m Model) inTreeMode() bool {
 
 // SelectedItem returns the currently selected festival item, or nil.
 func (m Model) SelectedItem() *FestivalItem {
-	if m.quitting && m.selected && m.cursor >= 0 && m.cursor < len(m.visible) {
+	if m.quitting && m.selected && m.canSelectCurrent() {
 		return &m.visible[m.cursor].Item
 	}
 	return nil
