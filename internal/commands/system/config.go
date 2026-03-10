@@ -311,7 +311,7 @@ func editSyncRefSetting(ctx context.Context, cfg *config.Config) error {
 		form := huh.NewForm(huh.NewGroup(
 			huh.NewInput().
 				Title("Tag").
-				Description("Exact git tag to sync from (e.g., v0.2.0)").
+				Description("Exact git tag to sync from (e.g., v0.1.0)").
 				Value(&cfg.Repository.Ref),
 		))
 		if err := uitheme.RunForm(ctx, form); err != nil {

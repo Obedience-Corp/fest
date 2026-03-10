@@ -47,7 +47,7 @@ repository and stores it locally for use with 'fest init' and 'fest system updat
 Run this periodically to get the latest methodology templates and documentation.`,
 		Example: `  fest system sync                              # Use defaults (channel-based)
   fest system sync --channel stable               # Sync latest stable tag
-  fest system sync --tag v0.2.0                   # Sync exact tag
+  fest system sync --tag v0.1.0                   # Sync exact tag
   fest system sync --branch main                  # Sync from branch
   fest system sync --source github.com/user/repo  # Sync from specific repo
   fest system sync --force                        # Overwrite existing cache`,
@@ -58,7 +58,7 @@ Run this periodically to get the latest methodology templates and documentation.
 
 	cmd.Flags().StringVar(&opts.source, "source", "", "GitHub repository URL")
 	cmd.Flags().StringVar(&opts.branch, "branch", "", "Git branch to sync from (default: from config or 'main')")
-	cmd.Flags().StringVar(&opts.tag, "tag", "", "Exact git tag to sync from (e.g., v0.2.0)")
+	cmd.Flags().StringVar(&opts.tag, "tag", "", "Exact git tag to sync from (e.g., v0.1.0)")
 	cmd.Flags().StringVar(&opts.channel, "channel", "", "Release channel: stable or dev")
 	cmd.MarkFlagsMutuallyExclusive("tag", "branch", "channel")
 	cmd.Flags().BoolVar(&opts.force, "force", false, "overwrite existing files without checking")
