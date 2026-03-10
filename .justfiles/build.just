@@ -4,6 +4,11 @@ main_path := "cmd/fest/main.go"
 bin_dir := "bin"
 build_tags := env_var_or_default("BUILD_TAGS", "")
 BUILDTOOL := "go run ./internal/buildutil"
+version_pkg := "github.com/Obedience-Corp/fest/internal/version"
+version := env_var_or_default("VERSION", `git describe --tags --exact-match HEAD 2>/dev/null || echo "dev"`)
+commit := `git rev-parse --short HEAD 2>/dev/null || echo "unknown"`
+build_date := `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+ldflags := "-s -w -X " + version_pkg + ".Version=" + version + " -X " + version_pkg + ".Commit=" + commit + " -X " + version_pkg + ".BuildDate=" + build_date
 
 # Show available build commands
 [private]
@@ -28,9 +33,9 @@ dev:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ -n "{{build_tags}}" ]; then
-        go build -tags '{{build_tags}}' -o {{bin_dir}}/{{binary_name}} {{main_path}}
+        go build -tags '{{build_tags}}' -ldflags '{{ldflags}}' -o {{bin_dir}}/{{binary_name}} {{main_path}}
     else
-        go build -o {{bin_dir}}/{{binary_name}} {{main_path}}
+        go build -ldflags '{{ldflags}}' -o {{bin_dir}}/{{binary_name}} {{main_path}}
     fi
 
 # --- Profile variants ---
@@ -63,9 +68,9 @@ linux:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ -n "{{build_tags}}" ]; then
-        GOOS=linux GOARCH=amd64 go build -tags '{{build_tags}}' -ldflags '-s -w' -o {{bin_dir}}/{{binary_name}}-linux-amd64 {{main_path}}
+        GOOS=linux GOARCH=amd64 go build -tags '{{build_tags}}' -ldflags '{{ldflags}}' -o {{bin_dir}}/{{binary_name}}-linux-amd64 {{main_path}}
     else
-        GOOS=linux GOARCH=amd64 go build -ldflags '-s -w' -o {{bin_dir}}/{{binary_name}}-linux-amd64 {{main_path}}
+        GOOS=linux GOARCH=amd64 go build -ldflags '{{ldflags}}' -o {{bin_dir}}/{{binary_name}}-linux-amd64 {{main_path}}
     fi
 
 # Build for macOS Intel
@@ -74,9 +79,9 @@ darwin:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ -n "{{build_tags}}" ]; then
-        GOOS=darwin GOARCH=amd64 go build -tags '{{build_tags}}' -ldflags '-s -w' -o {{bin_dir}}/{{binary_name}}-darwin-amd64 {{main_path}}
+        GOOS=darwin GOARCH=amd64 go build -tags '{{build_tags}}' -ldflags '{{ldflags}}' -o {{bin_dir}}/{{binary_name}}-darwin-amd64 {{main_path}}
     else
-        GOOS=darwin GOARCH=amd64 go build -ldflags '-s -w' -o {{bin_dir}}/{{binary_name}}-darwin-amd64 {{main_path}}
+        GOOS=darwin GOARCH=amd64 go build -ldflags '{{ldflags}}' -o {{bin_dir}}/{{binary_name}}-darwin-amd64 {{main_path}}
     fi
 
 # Build for macOS Apple Silicon
@@ -85,9 +90,9 @@ darwin-arm64:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ -n "{{build_tags}}" ]; then
-        GOOS=darwin GOARCH=arm64 go build -tags '{{build_tags}}' -ldflags '-s -w' -o {{bin_dir}}/{{binary_name}}-darwin-arm64 {{main_path}}
+        GOOS=darwin GOARCH=arm64 go build -tags '{{build_tags}}' -ldflags '{{ldflags}}' -o {{bin_dir}}/{{binary_name}}-darwin-arm64 {{main_path}}
     else
-        GOOS=darwin GOARCH=arm64 go build -ldflags '-s -w' -o {{bin_dir}}/{{binary_name}}-darwin-arm64 {{main_path}}
+        GOOS=darwin GOARCH=arm64 go build -ldflags '{{ldflags}}' -o {{bin_dir}}/{{binary_name}}-darwin-arm64 {{main_path}}
     fi
 
 # Build for Windows AMD64
@@ -96,9 +101,9 @@ windows:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ -n "{{build_tags}}" ]; then
-        GOOS=windows GOARCH=amd64 go build -tags '{{build_tags}}' -ldflags '-s -w' -o {{bin_dir}}/{{binary_name}}-windows-amd64.exe {{main_path}}
+        GOOS=windows GOARCH=amd64 go build -tags '{{build_tags}}' -ldflags '{{ldflags}}' -o {{bin_dir}}/{{binary_name}}-windows-amd64.exe {{main_path}}
     else
-        GOOS=windows GOARCH=amd64 go build -ldflags '-s -w' -o {{bin_dir}}/{{binary_name}}-windows-amd64.exe {{main_path}}
+        GOOS=windows GOARCH=amd64 go build -ldflags '{{ldflags}}' -o {{bin_dir}}/{{binary_name}}-windows-amd64.exe {{main_path}}
     fi
 
 # Build for all platforms
@@ -121,7 +126,7 @@ test-binary:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ -n "{{build_tags}}" ]; then
-        GOOS=linux GOARCH=amd64 go build -tags '{{build_tags}}' -ldflags '-s -w' -o {{bin_dir}}/linux/{{binary_name}} {{main_path}}
+        GOOS=linux GOARCH=amd64 go build -tags '{{build_tags}}' -ldflags '{{ldflags}}' -o {{bin_dir}}/linux/{{binary_name}} {{main_path}}
     else
-        GOOS=linux GOARCH=amd64 go build -ldflags '-s -w' -o {{bin_dir}}/linux/{{binary_name}} {{main_path}}
+        GOOS=linux GOARCH=amd64 go build -ldflags '{{ldflags}}' -o {{bin_dir}}/linux/{{binary_name}} {{main_path}}
     fi

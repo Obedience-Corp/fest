@@ -1,5 +1,10 @@
 # Test recipes
 BUILDTOOL := "go run ./internal/buildutil"
+version_pkg := "github.com/Obedience-Corp/fest/internal/version"
+version := env_var_or_default("VERSION", `git describe --tags --exact-match HEAD 2>/dev/null || echo "dev"`)
+commit := `git rev-parse --short HEAD 2>/dev/null || echo "unknown"`
+build_date := `date -u +"%Y-%m-%dT%H:%M:%SZ"`
+ldflags := "-s -w -X " + version_pkg + ".Version=" + version + " -X " + version_pkg + ".Commit=" + commit + " -X " + version_pkg + ".BuildDate=" + build_date
 
 # Show available test commands
 [private]
@@ -61,7 +66,7 @@ integration-raw:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "Building Linux binary..."
-    GOOS=linux GOARCH=$(go env GOARCH) go build -ldflags '-s -w' -o bin/linux/fest ./cmd/fest
+    GOOS=linux GOARCH=$(go env GOARCH) go build -ldflags '{{ldflags}}' -o bin/linux/fest ./cmd/fest
     echo "Running integration tests..."
     DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock" TESTCONTAINERS_RYUK_DISABLED=true go test -v -tags=integration -timeout 5m ./tests/integration/...
 

@@ -254,13 +254,24 @@ func versionLdflags() string {
 
 	buildDate := time.Now().UTC().Format("2006-01-02T15:04:05Z")
 
-	ver := os.Getenv("VERSION")
-	if ver == "" {
-		ver = "dev"
-	}
+	ver := resolvedVersion()
 
 	return fmt.Sprintf("-X %s.Version=%s -X %s.Commit=%s -X %s.BuildDate=%s",
 		pkg, ver, pkg, commit, pkg, buildDate)
+}
+
+func resolvedVersion() string {
+	if ver := strings.TrimSpace(os.Getenv("VERSION")); ver != "" {
+		return ver
+	}
+
+	if out, err := exec.Command("git", "describe", "--tags", "--exact-match", "HEAD").Output(); err == nil {
+		if tag := strings.TrimSpace(string(out)); tag != "" {
+			return tag
+		}
+	}
+
+	return "dev"
 }
 
 // getModuleName reads the module name from go.mod
