@@ -1,5 +1,5 @@
 # Release packaging and versioning recipes
-# Two channels: dev (pre-release) and stable (public)
+# Three channels: dev (pre-release), rc (release candidate), and stable (public)
 binary_name := "fest"
 main_path := "cmd/fest/main.go"
 bin_dir := "bin"
@@ -156,6 +156,29 @@ dev level="":
     gh release create "$new" --title "$new" --generate-notes --prerelease
     echo "Released $new"
 
+# Create an RC release tag from the current branch
+[no-cd]
+rc version n="1":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    tag="v{{version}}-rc.{{n}}"
+
+    if git tag -l "$tag" | grep -q .; then
+        echo "RC tag $tag already exists locally"
+        exit 1
+    fi
+    if [ -n "$(git ls-remote --tags origin "refs/tags/${tag}")" ]; then
+        echo "RC tag $tag already exists on origin"
+        exit 1
+    fi
+
+    echo "Creating rc release: $tag"
+    git tag -a "$tag" -m "$tag"
+    git push origin "$tag"
+    gh release create "$tag" --title "$tag" --generate-notes --prerelease
+    echo "Released $tag"
+
 # Create a stable release tag (patch|minor|major)
 [no-cd]
 stable level="patch":
@@ -195,6 +218,36 @@ stable level="patch":
     gh release create "$new" --title "$new" --generate-notes --latest
     echo "Released $new"
 
+# Promote the latest RC for a version to stable by stripping the -rc.N suffix
+[no-cd]
+promote-rc version="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [ -n "{{version}}" ]; then
+        latest_rc=$(git tag -l "v{{version}}-rc.*" --sort=-version:refname | head -1)
+    else
+        latest_rc=$(git tag -l "v*-rc.*" --sort=-version:refname | head -1)
+    fi
+
+    if [ -z "$latest_rc" ]; then
+        echo "No rc tags found. Create one first with: just release rc <version> <n>"
+        exit 1
+    fi
+
+    stable_tag="${latest_rc%-rc.*}"
+
+    if git tag -l "$stable_tag" | grep -q .; then
+        echo "Stable tag $stable_tag already exists"
+        exit 1
+    fi
+
+    echo "Promoting $latest_rc -> $stable_tag"
+    git tag -a "$stable_tag" -m "Promote $latest_rc to stable $stable_tag"
+    git push origin "$stable_tag"
+    gh release create "$stable_tag" --title "$stable_tag" --generate-notes --latest
+    echo "Released $stable_tag"
+
 # Promote latest dev version to stable (strips -dev.N suffix)
 [no-cd]
 promote:
@@ -227,8 +280,10 @@ promote:
 current:
     #!/usr/bin/env bash
     dev=$(git tag -l "v*-dev.*" --sort=-version:refname | head -1)
+    rc=$(git tag -l "v*-rc.*" --sort=-version:refname | head -1)
     stable=$(git tag -l --sort=-version:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
     echo "dev:    ${dev:-none}"
+    echo "rc:     ${rc:-none}"
     echo "stable: ${stable:-none}"
 
 # --- Tag utilities ---
