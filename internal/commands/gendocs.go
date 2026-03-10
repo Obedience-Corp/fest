@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/internal/commands/release"
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
 )
@@ -15,6 +16,7 @@ var (
 	gendocsOutput string
 	gendocsFormat string
 	gendocsSingle bool
+	gendocsStable bool
 )
 
 func init() {
@@ -31,6 +33,7 @@ func init() {
 	gendocsCmd.Flags().StringVar(&gendocsOutput, "output", "docs", "output directory")
 	gendocsCmd.Flags().StringVar(&gendocsFormat, "format", "markdown", "output format: markdown or yaml")
 	gendocsCmd.Flags().BoolVar(&gendocsSingle, "single", false, "generate a single combined reference file")
+	gendocsCmd.Flags().BoolVar(&gendocsStable, "stable", false, "exclude dev-only commands from generated docs")
 	rootCmd.AddCommand(gendocsCmd)
 }
 
@@ -51,6 +54,10 @@ func runGendocs(cmd *cobra.Command, args []string) error {
 
 	stripANSIFromTree(rootCmd)
 	disableAutoGenTag(rootCmd)
+
+	if gendocsStable {
+		hideDevOnlyCommands(rootCmd)
+	}
 
 	switch gendocsFormat {
 	case "markdown":
@@ -103,6 +110,19 @@ func disableAutoGenTag(cmd *cobra.Command) {
 	cmd.DisableAutoGenTag = true
 	for _, child := range cmd.Commands() {
 		disableAutoGenTag(child)
+	}
+}
+
+// hideDevOnlyCommands removes commands annotated as dev-only from the tree.
+// Cobra's doc generators only skip Hidden commands, not annotated ones,
+// so we remove dev-only commands entirely before generating stable docs.
+func hideDevOnlyCommands(parent *cobra.Command) {
+	for _, child := range parent.Commands() {
+		if child.Annotations[release.AnnotationReleaseChannel] == release.ReleaseChannelDevOnly {
+			parent.RemoveCommand(child)
+		} else {
+			hideDevOnlyCommands(child)
+		}
 	}
 }
 
