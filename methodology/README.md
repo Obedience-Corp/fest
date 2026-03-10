@@ -441,7 +441,7 @@ Modify these to match your team's standards. Individual festivals can also overr
 
 ```bash
 # Install festival (includes fest + camp CLIs)
-brew install Obedience-Corp/tap/festival
+brew install --cask Obedience-Corp/tap/festival
 
 # Shell integration (add to ~/.zshrc)
 eval "$(camp shell-init zsh)"
