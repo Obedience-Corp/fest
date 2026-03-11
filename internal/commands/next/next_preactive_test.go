@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/validator"
 )
 
 func TestCheckPreActiveStatus(t *testing.T) {
@@ -207,6 +208,28 @@ func TestCheckPreActiveStatus_ReadyMessage(t *testing.T) {
 	}
 }
 
+// TestValidationGateAllowsIngestPhaseWithMarkers verifies the full integration:
+// a planning-status festival with unfilled markers in FESTIVAL_GOAL.md and an
+// ingest-type current phase should NOT be blocked by the validation gate.
+// Uses a synthetic result with only marker errors to isolate the fix.
+func TestValidationGateAllowsIngestPhaseWithMarkers(t *testing.T) {
+	result := &validator.Result{
+		Issues: []validator.Issue{
+			{
+				Level:   validator.LevelError,
+				Code:    validator.CodeUnfilledTemplate,
+				Path:    "FESTIVAL_GOAL.md",
+				Message: "File contains 1 unfilled template markers ([FILL:)",
+			},
+		},
+	}
+
+	// With ingest phase, validation gate should NOT block (root markers are in scope)
+	if hasBlockingIssues(result, "ingest", "001_INGEST") {
+		t.Error("validation gate should not block ingest phase despite festival-root marker errors")
+	}
+}
+
 // TestCheckPreActiveStatus_MultiPhase_PlanningPhaseNotBlocked verifies the
 // regression scenario: a planning-status festival with a completed implementation
 // phase (001_IMPL) and an incomplete planning phase (002_PLAN). When run from the
@@ -248,5 +271,52 @@ func TestCheckPreActiveStatus_MultiPhase_PlanningPhaseNotBlocked(t *testing.T) {
 	err := checkPreActiveStatus(context.Background(), festDir, "")
 	if err != nil {
 		t.Errorf("expected no block for planning phase in planning-status festival, got: %v", err)
+	}
+}
+
+// TestCheckPreActiveStatus_CwdInsideLaterImplPhase verifies the cwd regression:
+// a planning-status festival with an incomplete ingest phase (001_INGEST) and a
+// later scaffolded implementation phase (002_IMPL). If the user runs fest next
+// from inside 002_IMPL, passing that phase path would incorrectly block.
+// The fix in runNext() passes findFirstIncompletePhase result instead of cwd.
+// This test validates both paths to document the expected behavior.
+func TestCheckPreActiveStatus_CwdInsideLaterImplPhase(t *testing.T) {
+	festDir := t.TempDir()
+
+	// Incomplete ingest phase (the real next phase)
+	ingestPhase := filepath.Join(festDir, "001_INGEST")
+	if err := os.MkdirAll(filepath.Join(ingestPhase, "01_seq"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	goalIngest := "---\nfest_phase_type: ingest\n---\n# Ingest Phase\n"
+	if err := os.WriteFile(filepath.Join(ingestPhase, "PHASE_GOAL.md"), []byte(goalIngest), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Later scaffolded implementation phase (where cwd might be)
+	implPhase := filepath.Join(festDir, "002_IMPL")
+	if err := os.MkdirAll(filepath.Join(implPhase, "01_seq"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	goalImpl := "---\nfest_phase_type: implementation\n---\n# Implementation Phase\n"
+	if err := os.WriteFile(filepath.Join(implPhase, "PHASE_GOAL.md"), []byte(goalImpl), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	festYAML := "version: \"1.0\"\nmetadata:\n  id: CW0001\n  status_history:\n    - status: planning\n      timestamp: 2026-02-10T00:00:00Z\n"
+	if err := os.WriteFile(filepath.Join(festDir, "fest.yaml"), []byte(festYAML), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Passing the impl phase path (simulating old cwd behavior) WOULD block
+	err := checkPreActiveStatus(context.Background(), festDir, implPhase)
+	if err == nil {
+		t.Error("expected block when passing implementation phase path directly")
+	}
+
+	// Passing the ingest phase path (what findFirstIncompletePhase returns) should NOT block
+	err = checkPreActiveStatus(context.Background(), festDir, ingestPhase)
+	if err != nil {
+		t.Errorf("expected no block when passing ingest phase path, got: %v", err)
 	}
 }

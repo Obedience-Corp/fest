@@ -177,7 +177,7 @@ func resolveMarkerLevel(festivalPath, relPath string) string {
 // Defaults to implementation if frontmatter is missing or unreadable.
 func resolvePhaseType(festivalPath, relPath string) frontmatter.PhaseType {
 	parts := strings.Split(relPath, string(filepath.Separator))
-	if len(parts) < 1 {
+	if len(parts) < 2 {
 		return frontmatter.PhaseTypeImplementation
 	}
 	goalPath := filepath.Join(festivalPath, parts[0], "PHASE_GOAL.md")
