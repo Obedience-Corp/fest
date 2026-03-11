@@ -15,18 +15,42 @@ import (
 
 // hasBlockingIssues returns true if the result contains error-level issues.
 // Warnings and info-level issues pass through without blocking.
+//
 // When the current phase is a preparatory type (ingest, planning, research),
-// unfilled template markers are skipped — those phases exist to fill them.
-func hasBlockingIssues(result *validator.Result, currentPhaseType string) bool {
+// unfilled template marker errors are skipped ONLY for festival-root files
+// (path has no separator) or files inside the preparatory phase directory.
+// Marker errors from other phases (e.g. implementation) still block.
+func hasBlockingIssues(result *validator.Result, currentPhaseType, currentPhaseName string) bool {
+	preparatory := isPreparatoryPhase(currentPhaseType)
 	for _, issue := range result.Issues {
 		if issue.Level != validator.LevelError {
 			continue
 		}
-		// Ingest/planning/research phases are allowed to proceed despite
-		// unfilled markers — filling them is part of those phases' work.
-		if issue.Code == validator.CodeUnfilledTemplate && isPreparatoryPhase(currentPhaseType) {
-			continue
+		if issue.Code == validator.CodeUnfilledTemplate && preparatory {
+			if isMarkerInPreparatoryScope(issue.Path, currentPhaseName) {
+				continue
+			}
 		}
+		return true
+	}
+	return false
+}
+
+// isMarkerInPreparatoryScope returns true if the marker issue belongs to a
+// festival-root file or to the current preparatory phase directory.
+// Festival-root files have no path separator (e.g. "FESTIVAL_GOAL.md").
+// Phase files start with the phase directory name (e.g. "001_INGEST/...").
+func isMarkerInPreparatoryScope(issuePath, currentPhaseName string) bool {
+	// Festival-root files (no separator) — always in scope for preparatory phases
+	if !strings.Contains(issuePath, string(filepath.Separator)) && !strings.Contains(issuePath, "/") {
+		return true
+	}
+	// Files inside the current preparatory phase directory
+	if currentPhaseName != "" && strings.HasPrefix(issuePath, currentPhaseName+string(filepath.Separator)) {
+		return true
+	}
+	// Also check with forward slash for cross-platform safety
+	if currentPhaseName != "" && strings.HasPrefix(issuePath, currentPhaseName+"/") {
 		return true
 	}
 	return false

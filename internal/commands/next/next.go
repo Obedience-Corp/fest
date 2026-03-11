@@ -119,21 +119,19 @@ func runNext(cmd *cobra.Command, args []string) error {
 		return errors.Wrap(err, "not inside a festival")
 	}
 
-	// Resolve current phase type for phase-aware validation
-	currentPhaseType := ""
-	if pp := shared.ResolvePhasePath(cwd, festivalPath); pp != "" {
-		currentPhaseType = guidance.DetectPhaseType(pp)
-	} else {
-		// At festival root — detect from first incomplete phase
-		found, _, findErr := findFirstIncompletePhase(ctx, festivalPath)
-		if findErr == nil && found != "" {
-			currentPhaseType = guidance.DetectPhaseType(found)
-		}
+	// Resolve the next incomplete phase for phase-aware validation.
+	// Always use findFirstIncompletePhase rather than cwd — cwd may be inside
+	// a later scaffolded phase that isn't the actual next actionable one.
+	nextPhaseType := ""
+	nextPhaseName := ""
+	if found, _, findErr := findFirstIncompletePhase(ctx, festivalPath); findErr == nil && found != "" {
+		nextPhaseType = guidance.DetectPhaseType(found)
+		nextPhaseName = filepath.Base(found)
 	}
 
 	// Validation gate: block if festival has errors (phase-aware for markers)
 	vResult, vErr := validator.FullValidate(ctx, festivalPath)
-	if vErr == nil && hasBlockingIssues(vResult, currentPhaseType) {
+	if vErr == nil && hasBlockingIssues(vResult, nextPhaseType, nextPhaseName) {
 		return emitValidationBlock(festivalPath, vResult)
 	}
 

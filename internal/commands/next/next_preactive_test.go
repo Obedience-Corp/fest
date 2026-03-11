@@ -224,8 +224,8 @@ func TestValidationGateAllowsIngestPhaseWithMarkers(t *testing.T) {
 		},
 	}
 
-	// With ingest phase, validation gate should NOT block
-	if hasBlockingIssues(result, "ingest") {
+	// With ingest phase, validation gate should NOT block (root markers are in scope)
+	if hasBlockingIssues(result, "ingest", "001_INGEST") {
 		t.Error("validation gate should not block ingest phase despite festival-root marker errors")
 	}
 }
