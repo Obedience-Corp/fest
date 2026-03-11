@@ -12,55 +12,102 @@ import (
 
 func TestHasBlockingIssues(t *testing.T) {
 	tests := []struct {
-		name   string
-		issues []validator.Issue
-		want   bool
+		name      string
+		issues    []validator.Issue
+		phaseType string
+		want      bool
 	}{
 		{
-			name:   "no issues",
-			issues: nil,
-			want:   false,
+			name:      "no issues",
+			issues:    nil,
+			phaseType: "",
+			want:      false,
 		},
 		{
 			name: "naming warning does not block",
 			issues: []validator.Issue{
 				{Level: validator.LevelWarning, Code: validator.CodeNamingConvention},
 			},
-			want: false,
+			phaseType: "",
+			want:      false,
 		},
 		{
 			name: "info only does not block",
 			issues: []validator.Issue{
 				{Level: validator.LevelInfo, Code: validator.CodeNamingConvention},
 			},
-			want: false,
+			phaseType: "",
+			want:      false,
 		},
 		{
 			name: "error level issue",
 			issues: []validator.Issue{
 				{Level: validator.LevelError, Code: validator.CodeMissingFile},
 			},
-			want: true,
+			phaseType: "",
+			want:      true,
 		},
 		{
 			name: "unfilled template warning does not block",
 			issues: []validator.Issue{
 				{Level: validator.LevelWarning, Code: validator.CodeUnfilledTemplate},
 			},
-			want: false,
+			phaseType: "",
+			want:      false,
 		},
 		{
-			name: "unfilled template error blocks",
+			name: "unfilled template error blocks with no phase",
 			issues: []validator.Issue{
 				{Level: validator.LevelError, Code: validator.CodeUnfilledTemplate},
 			},
-			want: true,
+			phaseType: "",
+			want:      true,
+		},
+		{
+			name: "unfilled template error blocks in implementation phase",
+			issues: []validator.Issue{
+				{Level: validator.LevelError, Code: validator.CodeUnfilledTemplate},
+			},
+			phaseType: "implementation",
+			want:      true,
+		},
+		{
+			name: "unfilled template error skipped in ingest phase",
+			issues: []validator.Issue{
+				{Level: validator.LevelError, Code: validator.CodeUnfilledTemplate},
+			},
+			phaseType: "ingest",
+			want:      false,
+		},
+		{
+			name: "unfilled template error skipped in planning phase",
+			issues: []validator.Issue{
+				{Level: validator.LevelError, Code: validator.CodeUnfilledTemplate},
+			},
+			phaseType: "planning",
+			want:      false,
+		},
+		{
+			name: "unfilled template error skipped in research phase",
+			issues: []validator.Issue{
+				{Level: validator.LevelError, Code: validator.CodeUnfilledTemplate},
+			},
+			phaseType: "research",
+			want:      false,
+		},
+		{
+			name: "non-marker error still blocks in ingest phase",
+			issues: []validator.Issue{
+				{Level: validator.LevelError, Code: validator.CodeMissingFile},
+			},
+			phaseType: "ingest",
+			want:      true,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			result := &validator.Result{Issues: tc.issues}
-			got := hasBlockingIssues(result)
+			got := hasBlockingIssues(result, tc.phaseType)
 			if got != tc.want {
 				t.Errorf("hasBlockingIssues() = %v, want %v", got, tc.want)
 			}
@@ -138,8 +185,9 @@ func TestNextBlocksOnUnfilledMarkers(t *testing.T) {
 		t.Fatalf("FullValidate error: %v", err)
 	}
 
-	if !hasBlockingIssues(result) {
-		t.Fatal("expected blocking issues for festival with unfilled markers")
+	// With no phase type (empty string = safe default), marker errors should block
+	if !hasBlockingIssues(result, "") {
+		t.Fatal("expected blocking issues for festival with unfilled markers (no phase context)")
 	}
 
 	hasTemplateIssue := false
@@ -198,7 +246,7 @@ func TestNextBlocksOnReplaceMarkerInImplementation(t *testing.T) {
 		t.Error("expected error-level unfilled_template issue for [REPLACE:] in implementation phase")
 	}
 
-	if !hasBlockingIssues(result) {
+	if !hasBlockingIssues(result, "implementation") {
 		t.Error("expected hasBlockingIssues to return true for [REPLACE:] in implementation phase")
 	}
 }
@@ -242,7 +290,53 @@ func TestNextDoesNotBlockOnPlanningWarnings(t *testing.T) {
 		}
 	}
 
-	if hasBlockingIssues(result) {
+	if hasBlockingIssues(result, "planning") {
 		t.Error("expected hasBlockingIssues to return false for planning-phase warnings")
+	}
+}
+
+// TestNextIngestPhaseSkipsMarkerErrors verifies the core fix:
+// when the current phase is ingest type, unfilled template marker errors
+// (from festival-root files) do NOT block fest next.
+// Uses a synthetic Result to isolate the phase-aware filtering logic.
+func TestNextIngestPhaseSkipsMarkerErrors(t *testing.T) {
+	// Simulate what FullValidate produces for a festival with unfilled markers
+	// in festival-root files (FESTIVAL_GOAL.md, TODO.md) — these resolve to
+	// implementation type → error level.
+	result := &validator.Result{
+		Issues: []validator.Issue{
+			{
+				Level:   validator.LevelError,
+				Code:    validator.CodeUnfilledTemplate,
+				Path:    "FESTIVAL_GOAL.md",
+				Message: "File contains 1 unfilled template markers ([FILL:)",
+			},
+			{
+				Level:   validator.LevelError,
+				Code:    validator.CodeUnfilledTemplate,
+				Path:    "TODO.md",
+				Message: "File contains 1 unfilled template markers ([FILL:)",
+			},
+		},
+	}
+
+	// With ingest phase type, marker errors should NOT block
+	if hasBlockingIssues(result, "ingest") {
+		t.Error("expected hasBlockingIssues to return false for ingest phase despite marker errors")
+	}
+
+	// With planning phase type, marker errors should NOT block
+	if hasBlockingIssues(result, "planning") {
+		t.Error("expected hasBlockingIssues to return false for planning phase despite marker errors")
+	}
+
+	// With implementation phase type, same errors SHOULD block
+	if !hasBlockingIssues(result, "implementation") {
+		t.Error("expected hasBlockingIssues to return true for implementation phase with marker errors")
+	}
+
+	// With no phase detected (empty string), should block (safe default)
+	if !hasBlockingIssues(result, "") {
+		t.Error("expected hasBlockingIssues to return true when no phase detected")
 	}
 }

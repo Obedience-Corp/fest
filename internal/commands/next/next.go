@@ -14,6 +14,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/feedback"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
+	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/guidance/selection"
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/scope"
@@ -118,9 +119,21 @@ func runNext(cmd *cobra.Command, args []string) error {
 		return errors.Wrap(err, "not inside a festival")
 	}
 
-	// Validation gate: block if festival has errors or warnings
+	// Resolve current phase type for phase-aware validation
+	currentPhaseType := ""
+	if pp := shared.ResolvePhasePath(cwd, festivalPath); pp != "" {
+		currentPhaseType = guidance.DetectPhaseType(pp)
+	} else {
+		// At festival root — detect from first incomplete phase
+		found, _, findErr := findFirstIncompletePhase(ctx, festivalPath)
+		if findErr == nil && found != "" {
+			currentPhaseType = guidance.DetectPhaseType(found)
+		}
+	}
+
+	// Validation gate: block if festival has errors (phase-aware for markers)
 	vResult, vErr := validator.FullValidate(ctx, festivalPath)
-	if vErr == nil && hasBlockingIssues(vResult) {
+	if vErr == nil && hasBlockingIssues(vResult, currentPhaseType) {
 		return emitValidationBlock(festivalPath, vResult)
 	}
 

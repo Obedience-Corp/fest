@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/validator"
 )
 
 func TestCheckPreActiveStatus(t *testing.T) {
@@ -204,6 +205,28 @@ func TestCheckPreActiveStatus_ReadyMessage(t *testing.T) {
 	}
 	if !strings.Contains(output, "planning -> ready -> [active] -> completed") {
 		t.Errorf("expected lifecycle in prompt block, got: %s", output)
+	}
+}
+
+// TestValidationGateAllowsIngestPhaseWithMarkers verifies the full integration:
+// a planning-status festival with unfilled markers in FESTIVAL_GOAL.md and an
+// ingest-type current phase should NOT be blocked by the validation gate.
+// Uses a synthetic result with only marker errors to isolate the fix.
+func TestValidationGateAllowsIngestPhaseWithMarkers(t *testing.T) {
+	result := &validator.Result{
+		Issues: []validator.Issue{
+			{
+				Level:   validator.LevelError,
+				Code:    validator.CodeUnfilledTemplate,
+				Path:    "FESTIVAL_GOAL.md",
+				Message: "File contains 1 unfilled template markers ([FILL:)",
+			},
+		},
+	}
+
+	// With ingest phase, validation gate should NOT block
+	if hasBlockingIssues(result, "ingest") {
+		t.Error("validation gate should not block ingest phase despite festival-root marker errors")
 	}
 }
 

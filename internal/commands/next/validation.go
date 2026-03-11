@@ -15,12 +15,29 @@ import (
 
 // hasBlockingIssues returns true if the result contains error-level issues.
 // Warnings and info-level issues pass through without blocking.
-// This matches fest validate's definition: result.Valid = !result.HasErrors().
-func hasBlockingIssues(result *validator.Result) bool {
+// When the current phase is a preparatory type (ingest, planning, research),
+// unfilled template markers are skipped — those phases exist to fill them.
+func hasBlockingIssues(result *validator.Result, currentPhaseType string) bool {
 	for _, issue := range result.Issues {
-		if issue.Level == validator.LevelError {
-			return true
+		if issue.Level != validator.LevelError {
+			continue
 		}
+		// Ingest/planning/research phases are allowed to proceed despite
+		// unfilled markers — filling them is part of those phases' work.
+		if issue.Code == validator.CodeUnfilledTemplate && isPreparatoryPhase(currentPhaseType) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+// isPreparatoryPhase returns true for phase types where unfilled template
+// markers are expected and should not block fest next.
+func isPreparatoryPhase(phaseType string) bool {
+	switch phaseType {
+	case "ingest", "planning", "research":
+		return true
 	}
 	return false
 }

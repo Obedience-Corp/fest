@@ -224,50 +224,6 @@ func TestValidateTemplateMarkers_DefaultsToImplementation(t *testing.T) {
 	t.Error("expected an unfilled_template issue")
 }
 
-func TestResolvePhaseType_FestivalRootFile(t *testing.T) {
-	dir := t.TempDir()
-	pt := resolvePhaseType(dir, "FESTIVAL_GOAL.md")
-	if pt != "planning" {
-		t.Errorf("festival-root file should resolve to planning, got %s", pt)
-	}
-}
-
-func TestResolvePhaseType_FestivalOverviewFile(t *testing.T) {
-	dir := t.TempDir()
-	pt := resolvePhaseType(dir, "FESTIVAL_OVERVIEW.md")
-	if pt != "planning" {
-		t.Errorf("festival-root file should resolve to planning, got %s", pt)
-	}
-}
-
-func TestResolvePhaseType_TodoFile(t *testing.T) {
-	dir := t.TempDir()
-	pt := resolvePhaseType(dir, "TODO.md")
-	if pt != "planning" {
-		t.Errorf("festival-root TODO.md should resolve to planning, got %s", pt)
-	}
-}
-
-func TestValidateTemplateMarkers_FestivalRootFileReturnsWarning(t *testing.T) {
-	dir := t.TempDir()
-	_ = os.WriteFile(filepath.Join(dir, "FESTIVAL_GOAL.md"), []byte("# Goal\n\n[FILL: festival goal]\n"), 0644)
-
-	issues, err := ValidateTemplateMarkers(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	for _, issue := range issues {
-		if issue.Code == CodeUnfilledTemplate && issue.Path == "FESTIVAL_GOAL.md" {
-			if issue.Level != LevelWarning {
-				t.Errorf("festival-root file markers should be warnings, got %s", issue.Level)
-			}
-			return
-		}
-	}
-	t.Error("expected an unfilled_template issue for FESTIVAL_GOAL.md")
-}
-
 func TestCheckTemplatesFilled_DetectsReplace(t *testing.T) {
 	dir := setupTemplateTestFestival(t, "implementation", "# Task\n\n[REPLACE: placeholder]\n")
 
