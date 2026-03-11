@@ -180,6 +180,11 @@ func resolvePhaseType(festivalPath, relPath string) frontmatter.PhaseType {
 	if len(parts) < 1 {
 		return frontmatter.PhaseTypeImplementation
 	}
+	// Festival-root files (not inside a phase directory) are organizational,
+	// not implementation artifacts. Treat their markers as warnings.
+	if len(parts) == 1 {
+		return frontmatter.PhaseTypePlanning
+	}
 	goalPath := filepath.Join(festivalPath, parts[0], "PHASE_GOAL.md")
 	content, err := os.ReadFile(goalPath)
 	if err != nil {
