@@ -145,7 +145,9 @@ func FullValidate(ctx context.Context, festivalPath string) (*Result, error) {
 	}
 	result.Issues = append(result.Issues, orderIssues...)
 
-	// Run auto-link validation
+	// Run auto-link validation (canonical path — used by FullValidate for programmatic/API callers).
+	// The CLI `fest validate` command calls validateAutoLinkChecks in commands.go independently
+	// because it builds its own ValidationResult with a different issue type.
 	festCfg, cfgErr := config.LoadFestivalConfig(festivalPath, "")
 	if cfgErr == nil {
 		autoLinkIssues, err := ValidateAutoLink(ctx, festivalPath, festCfg)

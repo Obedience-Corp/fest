@@ -31,7 +31,7 @@ func ValidateAutoLink(ctx context.Context, festivalPath string, cfg *config.Fest
 		requiredPhases[pt] = true
 	}
 
-	campaignRoot := resolveCampaignRoot(festivalPath)
+	campaignRoot := resolveCampaignRoot(ctx, festivalPath)
 
 	parser := festival.NewParser()
 	phases, err := parser.ParsePhases(ctx, festivalPath)
@@ -132,25 +132,25 @@ func ValidateAutoLink(ctx context.Context, festivalPath string, cfg *config.Fest
 }
 
 // detectPhaseType reads the phase type from PHASE_GOAL.md frontmatter.
-// Falls back to "implementation" if the frontmatter cannot be read.
+// Returns empty string if the GOAL is missing or has no phase type set,
+// which avoids false-positive auto-link errors during early scaffolding
+// (an empty type will not match any entry in requiredPhases).
 func detectPhaseType(phasePath string) string {
 	goalPath := filepath.Join(phasePath, "PHASE_GOAL.md")
 	content, err := os.ReadFile(goalPath)
 	if err != nil {
-		return string(frontmatter.PhaseTypeImplementation)
+		return ""
 	}
 	fm, _, err := frontmatter.Parse(content)
 	if err != nil || fm == nil || fm.PhaseType == "" {
-		return string(frontmatter.PhaseTypeImplementation)
+		return ""
 	}
 	return string(fm.PhaseType)
 }
 
 // resolveCampaignRoot finds the campaign root directory by walking up from festivalPath.
 // Returns empty string if no campaign root is found (validation degrades gracefully).
-func resolveCampaignRoot(festivalPath string) string {
-	ctx := context.Background()
-
+func resolveCampaignRoot(ctx context.Context, festivalPath string) string {
 	// Try campaign detection first (handles CAMP_ROOT env var)
 	root, err := workspace.DetectCampaign(ctx, festivalPath)
 	if err == nil {

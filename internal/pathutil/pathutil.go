@@ -66,7 +66,7 @@ func NormalizeWorkingDir(raw string) (string, error) {
 
 	s = filepath.Clean(s)
 
-	if s == ".." || strings.HasPrefix(s, "../") || strings.Contains(s, "/../") || strings.HasSuffix(s, "/..") {
+	if s == ".." || strings.HasPrefix(s, ".."+string(filepath.Separator)) {
 		return "", fmt.Errorf("fest_working_dir contains \"..\" — paths must stay within campaign root")
 	}
 

@@ -130,7 +130,7 @@ func TestValidateAutoLink(t *testing.T) {
 			cfg: enabledWithPathCheck,
 			setupExtra: func(t *testing.T, festivalPath string) {
 				// Create a file (not dir) at the target path in campaign root
-				campaignRoot := resolveCampaignRoot(festivalPath)
+				campaignRoot := resolveCampaignRoot(context.Background(), festivalPath)
 				filePath := filepath.Join(campaignRoot, "projects", "afile")
 				if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
 					t.Fatal(err)
@@ -151,7 +151,7 @@ func TestValidateAutoLink(t *testing.T) {
 			},
 			cfg: enabledWithPathCheck,
 			setupExtra: func(t *testing.T, festivalPath string) {
-				campaignRoot := resolveCampaignRoot(festivalPath)
+				campaignRoot := resolveCampaignRoot(context.Background(), festivalPath)
 				if err := os.MkdirAll(filepath.Join(campaignRoot, "projects", "fest"), 0755); err != nil {
 					t.Fatal(err)
 				}

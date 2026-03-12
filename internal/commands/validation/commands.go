@@ -346,6 +346,10 @@ func validateTemplateChecks(festivalPath string, result *ValidationResult) {
 	}
 }
 
+// validateAutoLinkChecks runs auto-link validation for the CLI `fest validate` command.
+// This is separate from validator.FullValidate (api.go) which runs the same check for
+// programmatic/API consumers. Both call validator.ValidateAutoLink but produce different
+// result types (ValidationIssue here vs validator.Issue in the API path).
 func validateAutoLinkChecks(ctx context.Context, festivalPath string, result *ValidationResult) {
 	festCfg, err := config.LoadFestivalConfig(festivalPath, "")
 	if err != nil {

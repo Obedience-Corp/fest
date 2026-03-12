@@ -17,6 +17,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/guidance/selection"
 	"github.com/Obedience-Corp/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/pathutil"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/validator"
@@ -275,10 +276,16 @@ func runNext(cmd *cobra.Command, args []string) error {
 		}
 
 		if workingDir != "" {
-			result.WorkingDir = workingDir
-			campaignRoot, _ := workspace.DetectCampaign(ctx, festivalPath)
-			if campaignRoot != "" {
-				result.WorkingDirAbsolute = filepath.Join(campaignRoot, workingDir)
+			normalized, normErr := pathutil.NormalizeWorkingDir(workingDir)
+			if normErr != nil {
+				return fmt.Errorf("invalid fest_working_dir: %w", normErr)
+			}
+			if normalized != "" {
+				result.WorkingDir = normalized
+				campaignRoot, _ := workspace.DetectCampaign(ctx, festivalPath)
+				if campaignRoot != "" {
+					result.WorkingDirAbsolute = filepath.Join(campaignRoot, normalized)
+				}
 			}
 		}
 	}
