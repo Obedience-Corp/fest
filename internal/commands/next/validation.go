@@ -109,6 +109,24 @@ func emitValidationBlock(festivalPath string, result *validator.Result) error {
 		}
 	}
 
+	// Check for auto-link specific issues and provide targeted guidance
+	hasAutoLinkErrors := false
+	for _, issue := range errs {
+		if strings.HasPrefix(issue.Code, "autolink_") {
+			hasAutoLinkErrors = true
+			break
+		}
+	}
+
+	if hasAutoLinkErrors {
+		sb.WriteString("\nAuto-link fix:\n")
+		sb.WriteString("  Add fest_working_dir to SEQUENCE_GOAL.md frontmatter:\n")
+		sb.WriteString("    fest_working_dir: \"projects/your-project\"\n\n")
+		sb.WriteString("  To disable auto-link validation, set in fest.yaml:\n")
+		sb.WriteString("    auto_link:\n")
+		sb.WriteString("      enabled: false\n")
+	}
+
 	sb.WriteString("\nRun 'fest validate' for full details, then fix the issues.\n")
 	sb.WriteString("Do not proceed with tasks until the festival passes validation.\n")
 	fmt.Print(sb.String())

@@ -322,6 +322,12 @@ func formatTextTask(result *NextTaskResult, showInlineContext bool) string {
 		contextSection = buildContextSection(result.Location, result.Task, false)
 	}
 
+	// Build working directory line if available
+	var workingDirLine string
+	if result.WorkingDir != "" {
+		workingDirLine = labelValue("Working Directory", ui.Value(result.WorkingDir))
+	}
+
 	data := struct {
 		InstructionHeader    string
 		Header               string
@@ -329,6 +335,7 @@ func formatTextTask(result *NextTaskResult, showInlineContext bool) string {
 		PathLine             string
 		SequenceLine         string
 		PhaseLine            string
+		WorkingDirLine       string
 		AutonomyLine         string
 		ProgressLine         string
 		ParallelSection      string
@@ -345,6 +352,7 @@ func formatTextTask(result *NextTaskResult, showInlineContext bool) string {
 		PathLine:             labelValue("Path", ui.Dim(taskRelPath)),
 		SequenceLine:         labelValue("Sequence", ui.Value(result.Task.SequenceName, ui.SequenceColor)),
 		PhaseLine:            labelValue("Phase", ui.Value(result.Task.PhaseName, ui.PhaseColor)),
+		WorkingDirLine:       workingDirLine,
 		AutonomyLine:         autonomyLine,
 		ProgressLine:         progressLine,
 		ParallelSection:      parallelSection,
@@ -674,7 +682,7 @@ func formatVerboseTask(result *NextTaskResult, showInlineContext bool) string {
 	writeTaskDetails(&taskDetails, result.Task)
 
 	var locationSec strings.Builder
-	writeTaskLocation(&locationSec, result.Task)
+	writeTaskLocation(&locationSec, result.Task, result.WorkingDir)
 
 	var propertiesSec strings.Builder
 	writeTaskProperties(&propertiesSec, result.Task)
@@ -734,11 +742,14 @@ func writeTaskDetails(sb *strings.Builder, task *TaskInfo) {
 	sb.WriteString("\n")
 }
 
-func writeTaskLocation(sb *strings.Builder, task *TaskInfo) {
+func writeTaskLocation(sb *strings.Builder, task *TaskInfo, workingDir string) {
 	sb.WriteString(ui.H2("Location"))
 	sb.WriteString("\n")
 	ui.WriteLabelValue(sb, "Phase", ui.Value(task.PhaseName, ui.PhaseColor))
 	ui.WriteLabelValue(sb, "Sequence", ui.Value(task.SequenceName, ui.SequenceColor))
+	if workingDir != "" {
+		ui.WriteLabelValue(sb, "Working Directory", ui.Value(workingDir))
+	}
 	sb.WriteString("\n")
 }
 
@@ -822,6 +833,9 @@ func FormatShort(result *NextTaskResult) string {
 	}
 	if result.Task == nil {
 		return "No tasks available"
+	}
+	if result.WorkingDir != "" {
+		return fmt.Sprintf("%s [%s] → %s", result.Task.Path, result.Task.Status, result.WorkingDir)
 	}
 	return result.Task.Path
 }
