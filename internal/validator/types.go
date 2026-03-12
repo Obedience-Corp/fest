@@ -17,6 +17,14 @@ const (
 	CodeUnfilledTemplate   = "unfilled_template"
 	CodeMissingGoal        = "missing_goal"
 	CodeNumberingGap       = "numbering_gap"
+
+	// Auto-link issue codes
+	CodeAutoLinkMissingWorkingDir = "autolink_missing_working_dir"
+	CodeAutoLinkAbsolutePath      = "autolink_absolute_path"
+	CodeAutoLinkPathTraversal     = "autolink_path_traversal"
+	CodeAutoLinkPathNotFound      = "autolink_path_not_found"
+	CodeAutoLinkPathNotDir        = "autolink_path_not_dir"
+	CodeAutoLinkUnrequiredSet     = "autolink_unrequired_set"
 )
 
 // Issue represents a single validation problem

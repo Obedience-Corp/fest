@@ -1,6 +1,10 @@
 package validator
 
-import "context"
+import (
+	"context"
+
+	"github.com/Obedience-Corp/fest/internal/config"
+)
 
 // StructureValidator validates directory structure
 type StructureValidator struct{}
@@ -140,6 +144,16 @@ func FullValidate(ctx context.Context, festivalPath string) (*Result, error) {
 		return nil, err
 	}
 	result.Issues = append(result.Issues, orderIssues...)
+
+	// Run auto-link validation
+	festCfg, cfgErr := config.LoadFestivalConfig(festivalPath, "")
+	if cfgErr == nil {
+		autoLinkIssues, err := ValidateAutoLink(ctx, festivalPath, festCfg)
+		if err != nil {
+			return nil, err
+		}
+		result.Issues = append(result.Issues, autoLinkIssues...)
+	}
 
 	// Calculate score based on issues
 	result.Score = CalculateScore(result)
