@@ -197,6 +197,9 @@ type Frontmatter struct {
 	Tracking     *bool        `yaml:"fest_tracking,omitempty" json:"fest_tracking,omitempty"` // Pointer to distinguish unset from false
 	Version      string       `yaml:"fest_version,omitempty" json:"fest_version,omitempty"`
 
+	// Auto-link: working directory relative to campaign root
+	WorkingDir string `yaml:"fest_working_dir,omitempty" json:"fest_working_dir,omitempty"`
+
 	// Task-specific fields
 	Dependencies  []string `yaml:"fest_dependencies,omitempty" json:"fest_dependencies,omitempty"`
 	ParallelGroup string   `yaml:"fest_parallel_group,omitempty" json:"fest_parallel_group,omitempty"`

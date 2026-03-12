@@ -7,6 +7,7 @@
 package pathutil
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 )
@@ -38,4 +39,36 @@ func ToAbsolutePath(path, campaignRoot string) string {
 // Alias for ToRelativePath, signaling display intent.
 func DisplayPath(absPath, campaignRoot string) string {
 	return ToRelativePath(absPath, campaignRoot)
+}
+
+// NormalizeWorkingDir sanitizes a fest_working_dir value.
+// It strips whitespace and trailing slashes, cleans the path, and rejects
+// absolute paths, home-relative paths (~), and parent traversal (..).
+// Returns empty string without error for empty input.
+func NormalizeWorkingDir(raw string) (string, error) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return "", nil
+	}
+
+	if strings.HasPrefix(s, "/") {
+		return "", fmt.Errorf("fest_working_dir must be relative to campaign root, got absolute path %q", raw)
+	}
+
+	if strings.HasPrefix(s, "~") {
+		return "", fmt.Errorf("fest_working_dir must be relative to campaign root, got home-relative path %q", raw)
+	}
+
+	s = strings.TrimRight(s, "/")
+	if s == "" {
+		return "", nil
+	}
+
+	s = filepath.Clean(s)
+
+	if s == ".." || strings.HasPrefix(s, "../") || strings.Contains(s, "/../") || strings.HasSuffix(s, "/..") {
+		return "", fmt.Errorf("fest_working_dir contains \"..\" — paths must stay within campaign root")
+	}
+
+	return s, nil
 }

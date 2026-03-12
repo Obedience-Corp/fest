@@ -26,6 +26,7 @@ type FestivalConfig struct {
 	Templates        TemplatePrefs       `yaml:"templates"`
 	Tracking         TrackingConfig      `yaml:"tracking"`
 	Agent            AgentConfig         `yaml:"agent,omitempty"`
+	AutoLink         AutoLinkConfig      `yaml:"auto_link,omitempty"`
 	RitualConfig     *RitualConfig       `yaml:"ritual_config,omitempty"`
 }
 
@@ -80,6 +81,24 @@ type TemplatePrefs struct {
 type TrackingConfig struct {
 	Enabled      bool   `yaml:"enabled"`
 	ChecksumFile string `yaml:"checksum_file"`
+}
+
+// AutoLinkConfig controls auto-link validation behavior.
+// When enabled, implementation sequences must declare a fest_working_dir.
+type AutoLinkConfig struct {
+	Enabled            bool     `yaml:"enabled"`
+	RequireOnPhases    []string `yaml:"require_on_phases"`
+	ValidatePathExists bool     `yaml:"validate_path_exists"`
+}
+
+// DefaultAutoLinkConfig returns the default auto-link configuration.
+// Auto-link is enabled by default, requiring fest_working_dir on implementation phases.
+func DefaultAutoLinkConfig() AutoLinkConfig {
+	return AutoLinkConfig{
+		Enabled:            true,
+		RequireOnPhases:    []string{"implementation"},
+		ValidatePathExists: true,
+	}
 }
 
 // LoadFestivalConfig loads festival configuration from fest.yaml.
@@ -223,6 +242,12 @@ func applyFestivalDefaults(cfg *FestivalConfig) {
 
 	if cfg.Tracking.ChecksumFile == "" {
 		cfg.Tracking.ChecksumFile = defaults.Tracking.ChecksumFile
+	}
+
+	// Apply auto-link defaults when the section is absent from fest.yaml.
+	// A nil RequireOnPhases indicates the section was never parsed.
+	if cfg.AutoLink.RequireOnPhases == nil {
+		cfg.AutoLink = DefaultAutoLinkConfig()
 	}
 }
 

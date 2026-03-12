@@ -152,6 +152,55 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
+func TestNormalizeWorkingDir(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr bool
+	}{
+		// Valid cases
+		{name: "simple relative path", input: "projects/fest", want: "projects/fest"},
+		{name: "nested path", input: "projects/obey-platform-monorepo/obey", want: "projects/obey-platform-monorepo/obey"},
+		{name: "single dir", input: "projects", want: "projects"},
+		{name: "empty string", input: "", want: ""},
+		{name: "whitespace only", input: "   ", want: ""},
+		{name: "trailing slash stripped", input: "projects/fest/", want: "projects/fest"},
+		{name: "leading whitespace stripped", input: "  projects/fest", want: "projects/fest"},
+		{name: "trailing whitespace stripped", input: "projects/fest  ", want: "projects/fest"},
+		{name: "dot component cleaned", input: "projects/./fest", want: "projects/fest"},
+		{name: "double slash cleaned", input: "projects//fest", want: "projects/fest"},
+
+		// Invalid cases
+		{name: "absolute path", input: "/Users/lance/projects/fest", wantErr: true},
+		{name: "home relative", input: "~/projects/fest", wantErr: true},
+		{name: "parent traversal start", input: "../other-repo", wantErr: true},
+		{name: "parent traversal middle", input: "projects/../../../etc", wantErr: true},
+		{name: "just dotdot", input: "..", wantErr: true},
+		{name: "tilde alone", input: "~", wantErr: true},
+		{name: "slash alone", input: "/", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := NormalizeWorkingDir(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("NormalizeWorkingDir(%q) expected error, got %q", tt.input, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("NormalizeWorkingDir(%q) unexpected error: %v", tt.input, err)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("NormalizeWorkingDir(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestToRelativePath_RealTempDir(t *testing.T) {
 	tmpDir := resolvePath(t, t.TempDir())
 
