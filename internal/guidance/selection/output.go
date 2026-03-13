@@ -834,9 +834,6 @@ func FormatShort(result *NextTaskResult) string {
 	if result.Task == nil {
 		return "No tasks available"
 	}
-	if result.WorkingDir != "" {
-		return fmt.Sprintf("%s [%s] → %s", result.Task.Path, result.Task.Status, result.WorkingDir)
-	}
 	return result.Task.Path
 }
 
