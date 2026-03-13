@@ -201,6 +201,75 @@ func TestNormalizeWorkingDir(t *testing.T) {
 	}
 }
 
+func TestResolveProjectPathValue(t *testing.T) {
+	campaignRoot := "/home/user/campaigns/my-campaign"
+
+	tests := []struct {
+		name         string
+		input        string
+		campaignRoot string
+		wantRel      string
+		wantAbs      string
+		wantErr      bool
+	}{
+		{
+			name:         "relative path resolves under campaign root",
+			input:        "projects/fest",
+			campaignRoot: campaignRoot,
+			wantRel:      "projects/fest",
+			wantAbs:      "/home/user/campaigns/my-campaign/projects/fest",
+		},
+		{
+			name:         "absolute path inside campaign becomes relative too",
+			input:        "/home/user/campaigns/my-campaign/projects/fest",
+			campaignRoot: campaignRoot,
+			wantRel:      "projects/fest",
+			wantAbs:      "/home/user/campaigns/my-campaign/projects/fest",
+		},
+		{
+			name:         "absolute path outside campaign keeps absolute only",
+			input:        "/opt/shared/fest",
+			campaignRoot: campaignRoot,
+			wantRel:      "",
+			wantAbs:      "/opt/shared/fest",
+		},
+		{
+			name:         "relative path without campaign root stays relative only",
+			input:        "projects/fest",
+			campaignRoot: "",
+			wantRel:      "projects/fest",
+			wantAbs:      "",
+		},
+		{
+			name:         "invalid traversal fails",
+			input:        "../escape",
+			campaignRoot: campaignRoot,
+			wantErr:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotRel, gotAbs, err := ResolveProjectPathValue(tt.input, tt.campaignRoot)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("ResolveProjectPathValue(%q, %q) expected error", tt.input, tt.campaignRoot)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ResolveProjectPathValue(%q, %q) unexpected error: %v", tt.input, tt.campaignRoot, err)
+			}
+			if gotRel != tt.wantRel {
+				t.Errorf("relative = %q, want %q", gotRel, tt.wantRel)
+			}
+			if gotAbs != tt.wantAbs {
+				t.Errorf("absolute = %q, want %q", gotAbs, tt.wantAbs)
+			}
+		})
+	}
+}
+
 func TestToRelativePath_RealTempDir(t *testing.T) {
 	tmpDir := resolvePath(t, t.TempDir())
 

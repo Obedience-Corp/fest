@@ -71,8 +71,8 @@ func TestValidateAutoLink(t *testing.T) {
 		{
 			name: "disabled auto-link returns no issues",
 			structure: map[string]string{
-				"001_IMPLEMENT/PHASE_GOAL.md":                       implPhaseGoal,
-				"001_IMPLEMENT/01_seq/SEQUENCE_GOAL.md":             "---\nfest_type: sequence\n---\n# Goal\n",
+				"001_IMPLEMENT/PHASE_GOAL.md":           implPhaseGoal,
+				"001_IMPLEMENT/01_seq/SEQUENCE_GOAL.md": "---\nfest_type: sequence\n---\n# Goal\n",
 			},
 			cfg:       disabledCfg,
 			wantCount: 0,
@@ -226,5 +226,67 @@ func TestValidateAutoLink_ContextCancellation(t *testing.T) {
 	_, err := ValidateAutoLink(ctx, "/nonexistent", cfg)
 	if err == nil {
 		t.Error("expected context cancellation error")
+	}
+}
+
+func TestValidateAutoLink_ProjectPathFallbackRelative(t *testing.T) {
+	implPhaseGoal := "---\nfest_type: phase\nfest_phase_type: implementation\n---\n# Phase Goal\n"
+	festivalPath := setupAutoLinkFestival(t, map[string]string{
+		"001_IMPLEMENT/PHASE_GOAL.md":           implPhaseGoal,
+		"001_IMPLEMENT/01_seq/SEQUENCE_GOAL.md": "---\nfest_type: sequence\n---\n# Goal\n",
+	})
+
+	campaignRoot := resolveCampaignRoot(context.Background(), festivalPath)
+	targetPath := filepath.Join(campaignRoot, "projects", "fest")
+	if err := os.MkdirAll(targetPath, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.FestivalConfig{
+		ProjectPath: "projects/fest",
+		AutoLink: config.AutoLinkConfig{
+			Enabled:            true,
+			RequireOnPhases:    []string{"implementation"},
+			ValidatePathExists: true,
+		},
+	}
+
+	issues, err := ValidateAutoLink(context.Background(), festivalPath, cfg)
+	if err != nil {
+		t.Fatalf("ValidateAutoLink() unexpected error: %v", err)
+	}
+	if len(issues) != 0 {
+		t.Fatalf("expected no issues, got %+v", issues)
+	}
+}
+
+func TestValidateAutoLink_ProjectPathFallbackAbsolute(t *testing.T) {
+	implPhaseGoal := "---\nfest_type: phase\nfest_phase_type: implementation\n---\n# Phase Goal\n"
+	festivalPath := setupAutoLinkFestival(t, map[string]string{
+		"001_IMPLEMENT/PHASE_GOAL.md":           implPhaseGoal,
+		"001_IMPLEMENT/01_seq/SEQUENCE_GOAL.md": "---\nfest_type: sequence\n---\n# Goal\n",
+	})
+
+	campaignRoot := resolveCampaignRoot(context.Background(), festivalPath)
+	targetPath := filepath.Join(campaignRoot, "projects", "fest")
+	if err := os.MkdirAll(targetPath, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.FestivalConfig{
+		ProjectPath: targetPath,
+		AutoLink: config.AutoLinkConfig{
+			Enabled:            true,
+			RequireOnPhases:    []string{"implementation"},
+			ValidatePathExists: true,
+		},
+	}
+
+	issues, err := ValidateAutoLink(context.Background(), festivalPath, cfg)
+	if err != nil {
+		t.Fatalf("ValidateAutoLink() unexpected error: %v", err)
+	}
+	if len(issues) != 0 {
+		t.Fatalf("expected no issues, got %+v", issues)
 	}
 }

@@ -8,6 +8,7 @@ package pathutil
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -71,4 +72,49 @@ func NormalizeWorkingDir(raw string) (string, error) {
 	}
 
 	return s, nil
+}
+
+// ResolveProjectPathValue resolves a legacy fest.yaml project_path for use as a
+// working-directory fallback. Relative paths are normalized relative to the
+// campaign root; absolute paths are preserved for compatibility with existing
+// festivals and converted back to campaign-relative when possible.
+func ResolveProjectPathValue(raw, campaignRoot string) (relative string, absolute string, err error) {
+	s := strings.TrimSpace(raw)
+	if s == "" {
+		return "", "", nil
+	}
+
+	if strings.HasPrefix(s, "~/") || s == "~" {
+		home, homeErr := os.UserHomeDir()
+		if homeErr != nil {
+			return "", "", homeErr
+		}
+		if s == "~" {
+			s = home
+		} else {
+			s = filepath.Join(home, s[2:])
+		}
+	}
+
+	if filepath.IsAbs(s) {
+		absolute = filepath.Clean(s)
+		if campaignRoot != "" {
+			if rel := ToRelativePath(absolute, campaignRoot); rel != absolute {
+				relative = rel
+			}
+		}
+		return relative, absolute, nil
+	}
+
+	relative, err = NormalizeWorkingDir(s)
+	if err != nil {
+		return "", "", err
+	}
+	if relative == "" {
+		return "", "", nil
+	}
+	if campaignRoot != "" {
+		absolute = filepath.Join(campaignRoot, relative)
+	}
+	return relative, absolute, nil
 }

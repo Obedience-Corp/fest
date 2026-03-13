@@ -89,6 +89,10 @@ type AutoLinkConfig struct {
 	Enabled            bool     `yaml:"enabled"`
 	RequireOnPhases    []string `yaml:"require_on_phases"`
 	ValidatePathExists bool     `yaml:"validate_path_exists"`
+
+	present               bool `yaml:"-"`
+	enabledSet            bool `yaml:"-"`
+	validatePathExistsSet bool `yaml:"-"`
 }
 
 // DefaultAutoLinkConfig returns the default auto-link configuration.
@@ -99,6 +103,35 @@ func DefaultAutoLinkConfig() AutoLinkConfig {
 		RequireOnPhases:    []string{"implementation"},
 		ValidatePathExists: true,
 	}
+}
+
+// UnmarshalYAML preserves whether the auto_link section was present and which
+// individual fields were explicitly set, so defaults do not overwrite an
+// intentional `enabled: false`.
+func (c *AutoLinkConfig) UnmarshalYAML(value *yaml.Node) error {
+	type rawAutoLink struct {
+		Enabled            *bool    `yaml:"enabled"`
+		RequireOnPhases    []string `yaml:"require_on_phases"`
+		ValidatePathExists *bool    `yaml:"validate_path_exists"`
+	}
+
+	var raw rawAutoLink
+	if err := value.Decode(&raw); err != nil {
+		return err
+	}
+
+	c.present = true
+	if raw.Enabled != nil {
+		c.Enabled = *raw.Enabled
+		c.enabledSet = true
+	}
+	c.RequireOnPhases = raw.RequireOnPhases
+	if raw.ValidatePathExists != nil {
+		c.ValidatePathExists = *raw.ValidatePathExists
+		c.validatePathExistsSet = true
+	}
+
+	return nil
 }
 
 // LoadFestivalConfig loads festival configuration from fest.yaml.
@@ -217,6 +250,7 @@ func DefaultFestivalConfig() *FestivalConfig {
 // applyFestivalDefaults applies default values to missing configuration fields
 func applyFestivalDefaults(cfg *FestivalConfig) {
 	defaults := DefaultFestivalConfig()
+	autoLinkDefaults := DefaultAutoLinkConfig()
 
 	if cfg.Version == "" {
 		cfg.Version = defaults.Version
@@ -245,9 +279,19 @@ func applyFestivalDefaults(cfg *FestivalConfig) {
 	}
 
 	// Apply auto-link defaults when the section is absent from fest.yaml.
-	// A nil RequireOnPhases indicates the section was never parsed.
-	if cfg.AutoLink.RequireOnPhases == nil {
-		cfg.AutoLink = DefaultAutoLinkConfig()
+	if !cfg.AutoLink.present {
+		cfg.AutoLink = autoLinkDefaults
+		return
+	}
+
+	if !cfg.AutoLink.enabledSet {
+		cfg.AutoLink.Enabled = autoLinkDefaults.Enabled
+	}
+	if cfg.AutoLink.RequireOnPhases == nil && cfg.AutoLink.Enabled {
+		cfg.AutoLink.RequireOnPhases = autoLinkDefaults.RequireOnPhases
+	}
+	if !cfg.AutoLink.validatePathExistsSet && cfg.AutoLink.Enabled {
+		cfg.AutoLink.ValidatePathExists = autoLinkDefaults.ValidatePathExists
 	}
 }
 

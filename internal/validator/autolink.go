@@ -67,21 +67,28 @@ func ValidateAutoLink(ctx context.Context, festivalPath string, cfg *config.Fest
 			}
 
 			workingDir := strings.TrimSpace(fm.WorkingDir)
+			usingProjectPathFallback := false
 
 			if workingDir == "" {
 				if isRequired {
-					issues = append(issues, Issue{
-						Level:   LevelError,
-						Code:    CodeAutoLinkMissingWorkingDir,
-						Path:    seqGoalPath,
-						Message: fmt.Sprintf("sequence %q: missing fest_working_dir in GOAL — set the target project directory (relative to campaign root)", seq.FullName),
-						Fix:     "Add fest_working_dir: \"projects/your-project\" to the SEQUENCE_GOAL.md frontmatter",
-					})
+					if strings.TrimSpace(cfg.ProjectPath) == "" {
+						issues = append(issues, Issue{
+							Level:   LevelError,
+							Code:    CodeAutoLinkMissingWorkingDir,
+							Path:    seqGoalPath,
+							Message: fmt.Sprintf("sequence %q: missing fest_working_dir in GOAL — set the target project directory (relative to campaign root)", seq.FullName),
+							Fix:     "Add fest_working_dir: \"projects/your-project\" to the SEQUENCE_GOAL.md frontmatter",
+						})
+						continue
+					}
+					workingDir = strings.TrimSpace(cfg.ProjectPath)
+					usingProjectPathFallback = true
+				} else {
+					continue
 				}
-				continue
 			}
 
-			if !isRequired {
+			if !isRequired && !usingProjectPathFallback {
 				issues = append(issues, Issue{
 					Level:   LevelInfo,
 					Code:    CodeAutoLinkUnrequiredSet,
@@ -90,38 +97,68 @@ func ValidateAutoLink(ctx context.Context, festivalPath string, cfg *config.Fest
 				})
 			}
 
-			normalized, normErr := pathutil.NormalizeWorkingDir(workingDir)
-			if normErr != nil {
-				code := CodeAutoLinkAbsolutePath
-				if strings.Contains(workingDir, "..") {
-					code = CodeAutoLinkPathTraversal
+			normalized := ""
+			absPath := ""
+			if usingProjectPathFallback {
+				var resolveErr error
+				normalized, absPath, resolveErr = pathutil.ResolveProjectPathValue(workingDir, campaignRoot)
+				if resolveErr != nil {
+					issues = append(issues, Issue{
+						Level:   LevelError,
+						Code:    CodeAutoLinkProjectPathInvalid,
+						Path:    seqGoalPath,
+						Message: fmt.Sprintf("sequence %q: project_path fallback is invalid: %s", seq.FullName, resolveErr.Error()),
+					})
+					continue
 				}
-				issues = append(issues, Issue{
-					Level:   LevelError,
-					Code:    code,
-					Path:    seqGoalPath,
-					Message: fmt.Sprintf("sequence %q: %s", seq.FullName, normErr.Error()),
-				})
-				continue
+			} else {
+				normalized, err = pathutil.NormalizeWorkingDir(workingDir)
+				if err != nil {
+					code := CodeAutoLinkAbsolutePath
+					if strings.Contains(workingDir, "..") {
+						code = CodeAutoLinkPathTraversal
+					}
+					issues = append(issues, Issue{
+						Level:   LevelError,
+						Code:    code,
+						Path:    seqGoalPath,
+						Message: fmt.Sprintf("sequence %q: %s", seq.FullName, err.Error()),
+					})
+					continue
+				}
 			}
 
-			if cfg.AutoLink.ValidatePathExists && campaignRoot != "" {
-				absPath := filepath.Join(campaignRoot, normalized)
+			if cfg.AutoLink.ValidatePathExists {
+				if absPath == "" && normalized != "" && campaignRoot != "" {
+					absPath = filepath.Join(campaignRoot, normalized)
+				}
+				if absPath == "" {
+					continue
+				}
 				info, statErr := os.Stat(absPath)
 				if statErr != nil {
+					message := fmt.Sprintf("sequence %q: fest_working_dir %q not found relative to campaign root %q", seq.FullName, normalized, campaignRoot)
+					if usingProjectPathFallback {
+						message = fmt.Sprintf("sequence %q: project_path fallback %q not found", seq.FullName, workingDir)
+					}
+					fix := fmt.Sprintf("Verify the path exists: %s", absPath)
 					issues = append(issues, Issue{
 						Level:   LevelError,
 						Code:    CodeAutoLinkPathNotFound,
 						Path:    seqGoalPath,
-						Message: fmt.Sprintf("sequence %q: fest_working_dir %q not found relative to campaign root %q", seq.FullName, normalized, campaignRoot),
-						Fix:     fmt.Sprintf("Verify the path exists: %s", absPath),
+						Message: message,
+						Fix:     fix,
 					})
 				} else if !info.IsDir() {
+					message := fmt.Sprintf("sequence %q: fest_working_dir %q is a file, expected a directory", seq.FullName, normalized)
+					if usingProjectPathFallback {
+						message = fmt.Sprintf("sequence %q: project_path fallback %q is a file, expected a directory", seq.FullName, workingDir)
+					}
 					issues = append(issues, Issue{
 						Level:   LevelError,
 						Code:    CodeAutoLinkPathNotDir,
 						Path:    seqGoalPath,
-						Message: fmt.Sprintf("sequence %q: fest_working_dir %q is a file, expected a directory", seq.FullName, normalized),
+						Message: message,
 					})
 				}
 			}

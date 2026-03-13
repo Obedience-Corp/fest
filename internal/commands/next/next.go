@@ -265,24 +265,29 @@ func runNext(cmd *cobra.Command, args []string) error {
 
 	// Resolve working directory for the selected task's sequence
 	if result.Task != nil && result.Task.SequencePath != "" {
+		campaignRoot, _ := workspace.DetectCampaign(ctx, festivalPath)
 		workingDir := selection.ExtractWorkingDir(result.Task.SequencePath)
 
 		// Fall back to fest.yaml project_path
 		if workingDir == "" {
 			festCfg, cfgErr := config.LoadFestivalConfig(festivalPath, "")
 			if cfgErr == nil && festCfg.ProjectPath != "" {
-				workingDir = festCfg.ProjectPath
+				relative, absolute, resolveErr := pathutil.ResolveProjectPathValue(festCfg.ProjectPath, campaignRoot)
+				if resolveErr != nil {
+					return fmt.Errorf("invalid project_path fallback: %w", resolveErr)
+				}
+				result.WorkingDir = relative
+				result.WorkingDirAbsolute = absolute
 			}
 		}
 
-		if workingDir != "" {
+		if workingDir != "" && result.WorkingDir == "" && result.WorkingDirAbsolute == "" {
 			normalized, normErr := pathutil.NormalizeWorkingDir(workingDir)
 			if normErr != nil {
 				return fmt.Errorf("invalid fest_working_dir: %w", normErr)
 			}
 			if normalized != "" {
 				result.WorkingDir = normalized
-				campaignRoot, _ := workspace.DetectCampaign(ctx, festivalPath)
 				if campaignRoot != "" {
 					result.WorkingDirAbsolute = filepath.Join(campaignRoot, normalized)
 				}
