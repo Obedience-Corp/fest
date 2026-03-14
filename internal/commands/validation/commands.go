@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -271,6 +272,7 @@ func runValidateAll(ctx context.Context, opts *validateOptions) error {
 	validateQualityGatesChecks(ctx, festivalPath, result, opts.fix)
 	validateTemplateChecks(festivalPath, result)
 	validateOrderingChecks(ctx, festivalPath, result)
+	validateAutoLinkChecks(ctx, festivalPath, result)
 
 	// Calculate score
 	result.Score = calculateScore(result)
@@ -342,6 +344,28 @@ func validateTemplateChecks(festivalPath string, result *ValidationResult) {
 		}
 		result.MarkerInfo = markerInfo
 	}
+}
+
+// validateAutoLinkChecks runs auto-link validation for the CLI `fest validate` command.
+// This is separate from validator.FullValidate (api.go) which runs the same check for
+// programmatic/API consumers. Both call validator.ValidateAutoLink but produce different
+// result types (ValidationIssue here vs validator.Issue in the API path).
+func validateAutoLinkChecks(ctx context.Context, festivalPath string, result *ValidationResult) {
+	festCfg, err := config.LoadFestivalConfig(festivalPath, "")
+	if err != nil {
+		return // No fest.yaml — skip auto-link validation gracefully
+	}
+	issues, err := validator.ValidateAutoLink(ctx, festivalPath, festCfg)
+	if err != nil {
+		result.Issues = append(result.Issues, ValidationIssue{
+			Level:   LevelError,
+			Code:    "autolink_error",
+			Path:    festivalPath,
+			Message: fmt.Sprintf("Failed to validate auto-link: %v", err),
+		})
+		return
+	}
+	result.Issues = append(result.Issues, convertIssues(issues)...)
 }
 
 // Score calculation

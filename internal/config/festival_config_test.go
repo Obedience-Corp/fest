@@ -666,3 +666,49 @@ func TestConfigPathRoundTrip_NoCampaign(t *testing.T) {
 		t.Errorf("ProjectPath should remain absolute without campaign root: got %q", loaded.ProjectPath)
 	}
 }
+
+func TestLoadFestivalConfig_AutoLinkExplicitDisabledPreserved(t *testing.T) {
+	tmpDir := t.TempDir()
+	data := []byte("version: \"1.0\"\nauto_link:\n  enabled: false\n")
+	if err := os.WriteFile(filepath.Join(tmpDir, FestivalConfigFileName), data, 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := LoadFestivalConfig(tmpDir, "")
+	if err != nil {
+		t.Fatalf("LoadFestivalConfig() error = %v", err)
+	}
+
+	if cfg.AutoLink.Enabled {
+		t.Fatal("AutoLink.Enabled = true, want false")
+	}
+	if cfg.AutoLink.RequireOnPhases != nil {
+		t.Fatalf("AutoLink.RequireOnPhases = %v, want nil when disabled explicitly", cfg.AutoLink.RequireOnPhases)
+	}
+	if cfg.AutoLink.ValidatePathExists {
+		t.Fatal("AutoLink.ValidatePathExists = true, want false when disabled explicitly")
+	}
+}
+
+func TestLoadFestivalConfig_AutoLinkSectionDefaultsWhenPresent(t *testing.T) {
+	tmpDir := t.TempDir()
+	data := []byte("version: \"1.0\"\nauto_link:\n  validate_path_exists: false\n")
+	if err := os.WriteFile(filepath.Join(tmpDir, FestivalConfigFileName), data, 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := LoadFestivalConfig(tmpDir, "")
+	if err != nil {
+		t.Fatalf("LoadFestivalConfig() error = %v", err)
+	}
+
+	if !cfg.AutoLink.Enabled {
+		t.Fatal("AutoLink.Enabled = false, want true")
+	}
+	if got, want := cfg.AutoLink.RequireOnPhases, []string{"implementation"}; len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("AutoLink.RequireOnPhases = %v, want %v", got, want)
+	}
+	if cfg.AutoLink.ValidatePathExists {
+		t.Fatal("AutoLink.ValidatePathExists = true, want false")
+	}
+}

@@ -152,6 +152,124 @@ func TestRoundTrip(t *testing.T) {
 	}
 }
 
+func TestNormalizeWorkingDir(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		want    string
+		wantErr bool
+	}{
+		// Valid cases
+		{name: "simple relative path", input: "projects/fest", want: "projects/fest"},
+		{name: "nested path", input: "projects/obey-platform-monorepo/obey", want: "projects/obey-platform-monorepo/obey"},
+		{name: "single dir", input: "projects", want: "projects"},
+		{name: "empty string", input: "", want: ""},
+		{name: "whitespace only", input: "   ", want: ""},
+		{name: "trailing slash stripped", input: "projects/fest/", want: "projects/fest"},
+		{name: "leading whitespace stripped", input: "  projects/fest", want: "projects/fest"},
+		{name: "trailing whitespace stripped", input: "projects/fest  ", want: "projects/fest"},
+		{name: "dot component cleaned", input: "projects/./fest", want: "projects/fest"},
+		{name: "double slash cleaned", input: "projects//fest", want: "projects/fest"},
+
+		// Invalid cases
+		{name: "absolute path", input: "/Users/lance/projects/fest", wantErr: true},
+		{name: "home relative", input: "~/projects/fest", wantErr: true},
+		{name: "parent traversal start", input: "../other-repo", wantErr: true},
+		{name: "parent traversal middle", input: "projects/../../../etc", wantErr: true},
+		{name: "just dotdot", input: "..", wantErr: true},
+		{name: "tilde alone", input: "~", wantErr: true},
+		{name: "slash alone", input: "/", wantErr: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := NormalizeWorkingDir(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Errorf("NormalizeWorkingDir(%q) expected error, got %q", tt.input, got)
+				}
+				return
+			}
+			if err != nil {
+				t.Errorf("NormalizeWorkingDir(%q) unexpected error: %v", tt.input, err)
+				return
+			}
+			if got != tt.want {
+				t.Errorf("NormalizeWorkingDir(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResolveProjectPathValue(t *testing.T) {
+	campaignRoot := "/home/user/campaigns/my-campaign"
+
+	tests := []struct {
+		name         string
+		input        string
+		campaignRoot string
+		wantRel      string
+		wantAbs      string
+		wantErr      bool
+	}{
+		{
+			name:         "relative path resolves under campaign root",
+			input:        "projects/fest",
+			campaignRoot: campaignRoot,
+			wantRel:      "projects/fest",
+			wantAbs:      "/home/user/campaigns/my-campaign/projects/fest",
+		},
+		{
+			name:         "absolute path inside campaign becomes relative too",
+			input:        "/home/user/campaigns/my-campaign/projects/fest",
+			campaignRoot: campaignRoot,
+			wantRel:      "projects/fest",
+			wantAbs:      "/home/user/campaigns/my-campaign/projects/fest",
+		},
+		{
+			name:         "absolute path outside campaign keeps absolute only",
+			input:        "/opt/shared/fest",
+			campaignRoot: campaignRoot,
+			wantRel:      "",
+			wantAbs:      "/opt/shared/fest",
+		},
+		{
+			name:         "relative path without campaign root stays relative only",
+			input:        "projects/fest",
+			campaignRoot: "",
+			wantRel:      "projects/fest",
+			wantAbs:      "",
+		},
+		{
+			name:         "invalid traversal fails",
+			input:        "../escape",
+			campaignRoot: campaignRoot,
+			wantErr:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotRel, gotAbs, err := ResolveProjectPathValue(tt.input, tt.campaignRoot)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("ResolveProjectPathValue(%q, %q) expected error", tt.input, tt.campaignRoot)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ResolveProjectPathValue(%q, %q) unexpected error: %v", tt.input, tt.campaignRoot, err)
+			}
+			if gotRel != tt.wantRel {
+				t.Errorf("relative = %q, want %q", gotRel, tt.wantRel)
+			}
+			if gotAbs != tt.wantAbs {
+				t.Errorf("absolute = %q, want %q", gotAbs, tt.wantAbs)
+			}
+		})
+	}
+}
+
 func TestToRelativePath_RealTempDir(t *testing.T) {
 	tmpDir := resolvePath(t, t.TempDir())
 

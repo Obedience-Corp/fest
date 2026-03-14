@@ -113,6 +113,9 @@ func printValidationResult(display *ui.UI, festivalPath string, result *Validati
 	printMarkerValidationSection(display, templateIssues, result.MarkerInfo)
 	printValidationSection(display, "ORDERING", orderingIssues)
 
+	autoLinkIssues := filterIssuesByPrefix(result.Issues, "autolink_")
+	printValidationSection(display, "AUTO-LINK", autoLinkIssues)
+
 	// Score and summary
 	fmt.Println()
 	fmt.Printf("%s %s\n", ui.Label("Score"), ui.Value(fmt.Sprintf("%d/100", result.Score)))
@@ -266,6 +269,16 @@ func printValidationIssue(display *ui.UI, issue ValidationIssue) {
 	if issue.Fix != "" {
 		fmt.Printf("  %s %s\n", ui.Label("Fix"), ui.Dim(issue.Fix))
 	}
+}
+
+func filterIssuesByPrefix(issues []ValidationIssue, prefix string) []ValidationIssue {
+	var filtered []ValidationIssue
+	for _, issue := range issues {
+		if strings.HasPrefix(issue.Code, prefix) {
+			filtered = append(filtered, issue)
+		}
+	}
+	return filtered
 }
 
 func filterIssuesByCode(issues []ValidationIssue, codes ...string) []ValidationIssue {

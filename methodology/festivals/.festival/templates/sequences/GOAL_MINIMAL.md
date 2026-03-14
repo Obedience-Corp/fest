@@ -14,6 +14,7 @@ fest_parent: [REPLACE: PHASE_ID]
 fest_order: [REPLACE: N]
 fest_status: pending
 fest_tracking: true
+fest_working_dir: "[REPLACE: relative/path/to/project]"
 fest_created: {{ .created_date }}
 ---
 

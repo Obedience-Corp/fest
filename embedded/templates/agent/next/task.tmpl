@@ -17,6 +17,9 @@ Without inline context (--no-context):
 {{.PathLine}}
 {{.PhaseLine}}
 {{.SequenceLine}}
+{{- if .WorkingDirLine}}
+{{.WorkingDirLine}}
+{{- end}}
 {{- if .AutonomyLine}}
 {{.AutonomyLine}}
 {{- end}}

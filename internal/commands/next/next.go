@@ -17,9 +17,11 @@ import (
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/guidance/selection"
 	"github.com/Obedience-Corp/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/pathutil"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/validator"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 
 	// Import all navigator packages to trigger their registration.
@@ -38,6 +40,7 @@ var (
 	shortOutput     bool
 	cdOutput        bool
 	pathFlag        bool
+	projectDirFlag  bool
 	sequenceOnly    bool
 	modeFlag        string
 	useNavigator    bool
@@ -91,6 +94,7 @@ Examples:
 	cmd.Flags().BoolVar(&shortOutput, "short", false, "output only the task path")
 	cmd.Flags().BoolVar(&cdOutput, "cd", false, "output directory path for cd command")
 	cmd.Flags().BoolVar(&pathFlag, "path", false, "output only the relative task file path")
+	cmd.Flags().BoolVar(&projectDirFlag, "project-dir", false, "output absolute project directory for shell cd")
 	cmd.Flags().BoolVar(&sequenceOnly, "sequence", false, "only consider current sequence")
 	cmd.Flags().StringVarP(&modeFlag, "mode", "m", "", "override phase type detection (implementation|plan|research|review|action|ingest)")
 	cmd.Flags().BoolVar(&useNavigator, "navigator", false, "use guidance navigator for output formatting")
@@ -259,7 +263,47 @@ func runNext(cmd *cobra.Command, args []string) error {
 		result.FeedbackCriteria = feedbackCriteria
 	}
 
+	// Resolve working directory for the selected task's sequence
+	if result.Task != nil && result.Task.SequencePath != "" {
+		campaignRoot, _ := workspace.DetectCampaign(ctx, festivalPath)
+		workingDir := selection.ExtractWorkingDir(result.Task.SequencePath)
+
+		// Fall back to fest.yaml project_path
+		if workingDir == "" {
+			festCfg, cfgErr := config.LoadFestivalConfig(festivalPath, "")
+			if cfgErr == nil && festCfg.ProjectPath != "" {
+				relative, absolute, resolveErr := pathutil.ResolveProjectPathValue(festCfg.ProjectPath, campaignRoot)
+				if resolveErr != nil {
+					return fmt.Errorf("invalid project_path fallback: %w", resolveErr)
+				}
+				result.WorkingDir = relative
+				result.WorkingDirAbsolute = absolute
+			}
+		}
+
+		if workingDir != "" && result.WorkingDir == "" && result.WorkingDirAbsolute == "" {
+			normalized, normErr := pathutil.NormalizeWorkingDir(workingDir)
+			if normErr != nil {
+				return fmt.Errorf("invalid fest_working_dir: %w", normErr)
+			}
+			if normalized != "" {
+				result.WorkingDir = normalized
+				if campaignRoot != "" {
+					result.WorkingDirAbsolute = filepath.Join(campaignRoot, normalized)
+				}
+			}
+		}
+	}
+
 	// Output formatting
+	if projectDirFlag {
+		if result.WorkingDirAbsolute == "" {
+			return errors.NotFound("no fest_working_dir set for current sequence")
+		}
+		fmt.Println(result.WorkingDirAbsolute)
+		return nil
+	}
+
 	if pathFlag {
 		if result.Task == nil {
 			return errors.NotFound("no task available")

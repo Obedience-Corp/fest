@@ -52,6 +52,12 @@ type NextTaskResult struct {
 	// GateContent contains the gate document body when the task is a quality gate.
 	// Populated for JSON output.
 	GateContent string `json:"gate_content,omitempty"`
+
+	// WorkingDir is the fest_working_dir from the sequence GOAL (relative to campaign root).
+	WorkingDir string `json:"working_dir,omitempty"`
+
+	// WorkingDirAbsolute is the resolved absolute path of WorkingDir.
+	WorkingDirAbsolute string `json:"working_dir_absolute,omitempty"`
 }
 
 // JSONLayeredGoals holds extracted primary goals for JSON output parity.
