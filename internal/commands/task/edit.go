@@ -10,6 +10,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/obey-shared/procutil"
 	"github.com/spf13/cobra"
 )
 
@@ -51,8 +52,9 @@ func runEdit(cmd *cobra.Command, args []string) error {
 	editorCmd.Stdin = os.Stdin
 	editorCmd.Stdout = os.Stdout
 	editorCmd.Stderr = os.Stderr
+	procutil.SetProcessGroup(editorCmd)
 
-	if err := editorCmd.Run(); err != nil {
+	if err := procutil.RunWithCleanup(ctx, editorCmd); err != nil {
 		return errors.Wrap(err, "running editor")
 	}
 

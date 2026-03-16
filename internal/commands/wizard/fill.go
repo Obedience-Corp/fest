@@ -17,6 +17,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/markers"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/ui/theme"
+	"github.com/Obedience-Corp/obey-shared/procutil"
 	"github.com/charmbracelet/huh"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
@@ -254,10 +255,11 @@ func runVimFill(ctx context.Context, opts *FillOptions, files []string, rootPath
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	procutil.SetProcessGroup(cmd)
 
 	// Run editor - don't treat exit codes as errors since editors like vim
 	// return non-zero for normal operations like :q without saving
-	_ = cmd.Run()
+	_ = procutil.RunWithCleanup(ctx, cmd)
 
 	return nil
 }
