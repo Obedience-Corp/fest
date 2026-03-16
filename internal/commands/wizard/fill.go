@@ -17,6 +17,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/markers"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/ui/theme"
+	"github.com/Obedience-Corp/obey-shared/procutil"
 	"github.com/charmbracelet/huh"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
@@ -250,14 +251,16 @@ func runVimFill(ctx context.Context, opts *FillOptions, files []string, rootPath
 
 	// Get editor arguments based on mode configuration
 	args := getEditorArgs(ctx, filesWithMarkers, opts)
-	cmd := exec.CommandContext(ctx, editor, args...)
+	cmd := exec.Command(editor, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-
 	// Run editor - don't treat exit codes as errors since editors like vim
-	// return non-zero for normal operations like :q without saving
-	_ = cmd.Run()
+	// return non-zero for normal operations like :q without saving.
+	// However, propagate context cancellation so callers can detect interruption.
+	if err := procutil.RunWithCleanup(ctx, cmd); err != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
 
 	return nil
 }

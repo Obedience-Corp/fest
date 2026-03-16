@@ -10,6 +10,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/obey-shared/procutil"
 	"github.com/spf13/cobra"
 )
 
@@ -47,13 +48,15 @@ func runEdit(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("%s %s\n", ui.Label("Opening"), ui.Value(taskID, ui.TaskColor))
 
-	editorCmd := exec.CommandContext(ctx, editor, taskFilePath)
+	editorCmd := exec.Command(editor, taskFilePath)
 	editorCmd.Stdin = os.Stdin
 	editorCmd.Stdout = os.Stdout
 	editorCmd.Stderr = os.Stderr
 
-	if err := editorCmd.Run(); err != nil {
-		return errors.Wrap(err, "running editor")
+	// Don't treat editor exit codes as errors (e.g. :q without saving in vim).
+	// Propagate context cancellation so callers can detect interruption.
+	if err := procutil.RunWithCleanup(ctx, editorCmd); err != nil && ctx.Err() != nil {
+		return ctx.Err()
 	}
 
 	return nil
