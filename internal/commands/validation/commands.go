@@ -85,6 +85,57 @@ type ValidationResult struct {
 	MarkerInfo   *MarkerInfo       `json:"marker_info,omitempty"`
 }
 
+func finalizeValidationResult(result *ValidationResult) {
+	result.Score = calculateScore(result)
+	result.Valid = validationResultIsClean(result)
+}
+
+func validationResultIsClean(result *ValidationResult) bool {
+	for _, issue := range result.Issues {
+		if issue.Level == LevelError || issue.Level == LevelWarning {
+			return false
+		}
+	}
+
+	if len(result.Warnings) > 0 {
+		return false
+	}
+
+	return !checklistHasFailures(result.Checklist)
+}
+
+func validationHasBlockingFailures(result *ValidationResult) bool {
+	for _, issue := range result.Issues {
+		if issue.Level == LevelError {
+			return true
+		}
+	}
+
+	return checklistHasFailures(result.Checklist)
+}
+
+func checklistHasFailures(checklist *Checklist) bool {
+	if checklist == nil {
+		return false
+	}
+
+	// NOTE: update this slice when adding new Checklist fields.
+	checks := []*bool{
+		checklist.TemplatesFilled,
+		checklist.GoalsAchievable,
+		checklist.TaskFilesExist,
+		checklist.OrderCorrect,
+		checklist.ParallelCorrect,
+	}
+	for _, check := range checks {
+		if check != nil && !*check {
+			return true
+		}
+	}
+
+	return false
+}
+
 // convertIssues converts validator.Issue slice to the command-layer ValidationIssue slice.
 // This bridges between the validator package's canonical types and the CLI output types.
 func convertIssues(issues []validator.Issue) []ValidationIssue {
@@ -274,25 +325,15 @@ func runValidateAll(ctx context.Context, opts *validateOptions) error {
 	validateOrderingChecks(ctx, festivalPath, result)
 	validateAutoLinkChecks(ctx, festivalPath, result)
 
-	// Calculate score
-	result.Score = calculateScore(result)
-
 	// Add suggestions based on issues
 	addSuggestions(result)
-
-	// Determine overall validity
-	for _, issue := range result.Issues {
-		if issue.Level == LevelError {
-			result.Valid = false
-			break
-		}
-	}
+	finalizeValidationResult(result)
 
 	if opts.jsonOutput {
 		if err := emitValidateJSON(result); err != nil {
 			return err
 		}
-		if !result.Valid {
+		if validationHasBlockingFailures(result) {
 			os.Exit(1)
 		}
 		return nil
@@ -301,7 +342,7 @@ func runValidateAll(ctx context.Context, opts *validateOptions) error {
 	// Human-readable output
 	printValidationResult(display, festivalPath, result)
 
-	if !result.Valid {
+	if validationHasBlockingFailures(result) {
 		os.Exit(1)
 	}
 	return nil

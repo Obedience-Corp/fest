@@ -69,6 +69,7 @@ func runValidateChecklist(_ context.Context, opts *validateOptions) error {
 
 	parallelCorrect := validator.CheckParallelCorrect(festivalPath)
 	result.Checklist.ParallelCorrect = &parallelCorrect
+	finalizeValidationResult(result)
 
 	if opts.jsonOutput {
 		return emitValidateJSON(result)
