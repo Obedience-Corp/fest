@@ -91,7 +91,13 @@ func finalizeValidationResult(result *ValidationResult) {
 }
 
 func validationResultIsClean(result *ValidationResult) bool {
-	if len(result.Issues) > 0 || len(result.Warnings) > 0 {
+	for _, issue := range result.Issues {
+		if issue.Level == LevelError || issue.Level == LevelWarning {
+			return false
+		}
+	}
+
+	if len(result.Warnings) > 0 {
 		return false
 	}
 
@@ -113,6 +119,7 @@ func checklistHasFailures(checklist *Checklist) bool {
 		return false
 	}
 
+	// NOTE: update this slice when adding new Checklist fields.
 	checks := []*bool{
 		checklist.TemplatesFilled,
 		checklist.GoalsAchievable,

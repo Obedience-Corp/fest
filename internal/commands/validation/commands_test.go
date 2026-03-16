@@ -230,6 +230,18 @@ func TestFinalizeValidationResult(t *testing.T) {
 			wantBlocking: false,
 		},
 		{
+			name: "info issue stays valid and non-blocking",
+			result: &ValidationResult{
+				Issues: []ValidationIssue{{
+					Level:   LevelInfo,
+					Code:    "info_only",
+					Message: "informational note",
+				}},
+			},
+			wantValid:    true,
+			wantBlocking: false,
+		},
+		{
 			name: "error issue is invalid and blocking",
 			result: &ValidationResult{
 				Issues: []ValidationIssue{{
