@@ -251,7 +251,7 @@ func runVimFill(ctx context.Context, opts *FillOptions, files []string, rootPath
 
 	// Get editor arguments based on mode configuration
 	args := getEditorArgs(ctx, filesWithMarkers, opts)
-	cmd := exec.CommandContext(ctx, editor, args...)
+	cmd := exec.Command(editor, args...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
