@@ -255,11 +255,12 @@ func runVimFill(ctx context.Context, opts *FillOptions, files []string, rootPath
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	procutil.SetProcessGroup(cmd)
-
 	// Run editor - don't treat exit codes as errors since editors like vim
-	// return non-zero for normal operations like :q without saving
-	_ = procutil.RunWithCleanup(ctx, cmd)
+	// return non-zero for normal operations like :q without saving.
+	// However, propagate context cancellation so callers can detect interruption.
+	if err := procutil.RunWithCleanup(ctx, cmd); err != nil && ctx.Err() != nil {
+		return ctx.Err()
+	}
 
 	return nil
 }

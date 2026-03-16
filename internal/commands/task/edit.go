@@ -52,7 +52,6 @@ func runEdit(cmd *cobra.Command, args []string) error {
 	editorCmd.Stdin = os.Stdin
 	editorCmd.Stdout = os.Stdout
 	editorCmd.Stderr = os.Stderr
-	procutil.SetProcessGroup(editorCmd)
 
 	if err := procutil.RunWithCleanup(ctx, editorCmd); err != nil {
 		return errors.Wrap(err, "running editor")
