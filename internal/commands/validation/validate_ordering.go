@@ -65,17 +65,10 @@ func runValidateOrdering(ctx context.Context, opts *validateOptions) error {
 	}
 
 	validateOrderingChecks(ctx, festivalPath, result)
-
-	result.Score = calculateScore(result)
-	for _, issue := range result.Issues {
-		if issue.Level == LevelError {
-			result.Valid = false
-			break
-		}
-	}
+	finalizeValidationResult(result)
 
 	if opts.jsonOutput {
-		if !result.Valid {
+		if validationHasBlockingFailures(result) {
 			_ = emitValidateJSON(result)
 			return errors.Validation("ordering validation failed").WithField("issue_count", len(result.Issues))
 		}
@@ -84,7 +77,7 @@ func runValidateOrdering(ctx context.Context, opts *validateOptions) error {
 
 	printValidationSection(display, "ORDERING (Gap Detection)", result.Issues)
 
-	if !result.Valid {
+	if validationHasBlockingFailures(result) {
 		return errors.Validation("ordering validation failed").WithField("issue_count", len(result.Issues))
 	}
 	return nil

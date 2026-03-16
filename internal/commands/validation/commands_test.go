@@ -190,3 +190,79 @@ func TestValidateTaskFiles_SequenceWithoutTasksFails(t *testing.T) {
 		t.Error("expected error for implementation sequence without task files")
 	}
 }
+
+func TestFinalizeValidationResult(t *testing.T) {
+	falseValue := false
+
+	tests := []struct {
+		name         string
+		result       *ValidationResult
+		wantValid    bool
+		wantBlocking bool
+	}{
+		{
+			name: "clean result is valid",
+			result: &ValidationResult{
+				Issues:   []ValidationIssue{},
+				Warnings: []string{},
+			},
+			wantValid:    true,
+			wantBlocking: false,
+		},
+		{
+			name: "warning issue is invalid but not blocking",
+			result: &ValidationResult{
+				Issues: []ValidationIssue{{
+					Level:   LevelWarning,
+					Code:    CodeNamingConvention,
+					Message: "warning only",
+				}},
+			},
+			wantValid:    false,
+			wantBlocking: false,
+		},
+		{
+			name: "warning string is invalid but not blocking",
+			result: &ValidationResult{
+				Warnings: []string{"warning only"},
+			},
+			wantValid:    false,
+			wantBlocking: false,
+		},
+		{
+			name: "error issue is invalid and blocking",
+			result: &ValidationResult{
+				Issues: []ValidationIssue{{
+					Level:   LevelError,
+					Code:    CodeMissingTaskFiles,
+					Message: "blocking issue",
+				}},
+			},
+			wantValid:    false,
+			wantBlocking: true,
+		},
+		{
+			name: "failed checklist is invalid and blocking",
+			result: &ValidationResult{
+				Checklist: &Checklist{
+					TaskFilesExist: &falseValue,
+				},
+			},
+			wantValid:    false,
+			wantBlocking: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			finalizeValidationResult(tt.result)
+
+			if tt.result.Valid != tt.wantValid {
+				t.Fatalf("Valid = %v, want %v", tt.result.Valid, tt.wantValid)
+			}
+			if got := validationHasBlockingFailures(tt.result); got != tt.wantBlocking {
+				t.Fatalf("validationHasBlockingFailures() = %v, want %v", got, tt.wantBlocking)
+			}
+		})
+	}
+}

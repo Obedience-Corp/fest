@@ -71,7 +71,7 @@ func TestValidateStructureNamingViolations(t *testing.T) {
 	var result validateStructureOutput
 	err = json.Unmarshal([]byte(strings.TrimSpace(output)), &result)
 	require.NoError(t, err, "validate structure output should be valid JSON")
-	require.True(t, result.Valid, "structure validation should be valid when only warning-level issues are present")
+	require.False(t, result.Valid, "structure validation should be invalid when warning-level issues are present")
 
 	var hasPhase, hasSequence, hasTask bool
 	for _, issue := range result.Issues {
@@ -92,4 +92,62 @@ func TestValidateStructureNamingViolations(t *testing.T) {
 	require.True(t, hasPhase, "phase naming violation should be reported")
 	require.True(t, hasSequence, "sequence naming violation should be reported")
 	require.True(t, hasTask, "task naming violation should be reported")
+}
+
+func TestValidateJSONWarningsSetValidFalseWithoutFailingCommand(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	container := GetSharedContainer(t)
+
+	exitCode, _, err := container.container.Exec(container.ctx, []string{
+		"sh", "-c",
+		"mkdir -p /festivals/.festival/.state /festivals/active /festivals/planning",
+	})
+	require.NoError(t, err)
+	require.Equal(t, 0, exitCode)
+
+	err = writeFileInContainer(container, "/festivals/.festival/.state/.workspace",
+		`{"workspace": "root", "registered": "2024-01-01T00:00:00Z"}`)
+	require.NoError(t, err, "should create workspace marker")
+
+	festivalPath := "/festivals/full-validate-warning-only"
+	phasePath := filepath.Join(festivalPath, "001_planning")
+	sequencePath := filepath.Join(phasePath, "01_Design")
+
+	exitCode, _, err = container.container.Exec(container.ctx, []string{"mkdir", "-p", sequencePath})
+	require.NoError(t, err)
+	require.Equal(t, 0, exitCode)
+
+	writeFile := func(path, content string) {
+		exitCode, _, err := container.container.Exec(container.ctx, []string{
+			"sh", "-c",
+			"printf '%s' '" + content + "' > " + path,
+		})
+		require.NoError(t, err)
+		require.Equal(t, 0, exitCode)
+	}
+
+	writeFile(filepath.Join(festivalPath, "FESTIVAL_OVERVIEW.md"), "# Warning Only\n")
+	writeFile(filepath.Join(festivalPath, "FESTIVAL_RULES.md"), "# Rules\n")
+	writeFile(filepath.Join(phasePath, "PHASE_GOAL.md"), `---
+fest_type: phase
+fest_phase_type: planning
+fest_status: pending
+---
+# Phase Goal
+Actual content here.
+`)
+	writeFile(filepath.Join(sequencePath, "SEQUENCE_GOAL.md"), "# Sequence Goal\nActual content here.\n")
+	writeFile(filepath.Join(sequencePath, "01_Task.md"), "# Task\nActual content here.\n")
+
+	output, err := container.RunFest("validate", festivalPath, "--json")
+	require.NoError(t, err, "full validate should not fail for warning-only findings")
+
+	var result validateStructureOutput
+	err = json.Unmarshal([]byte(strings.TrimSpace(output)), &result)
+	require.NoError(t, err, "full validate output should be valid JSON")
+	require.False(t, result.Valid, "full validate should report valid=false when warnings are present")
+	require.NotEmpty(t, result.Issues, "warning-only validate result should include issues")
 }

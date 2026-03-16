@@ -56,14 +56,7 @@ func runValidateStructure(ctx context.Context, opts *validateOptions) error {
 	}
 
 	validateStructureChecks(ctx, festivalPath, result)
-
-	result.Score = calculateScore(result)
-	for _, issue := range result.Issues {
-		if issue.Level == LevelError {
-			result.Valid = false
-			break
-		}
-	}
+	finalizeValidationResult(result)
 
 	if opts.jsonOutput {
 		return emitValidateJSON(result)

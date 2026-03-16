@@ -64,14 +64,7 @@ func runValidateQualityGates(ctx context.Context, opts *validateOptions) error {
 	}
 
 	validateQualityGatesChecks(ctx, festivalPath, result, opts.fix)
-
-	result.Score = calculateScore(result)
-	for _, issue := range result.Issues {
-		if issue.Level == LevelError {
-			result.Valid = false
-			break
-		}
-	}
+	finalizeValidationResult(result)
 
 	if opts.jsonOutput {
 		return emitValidateJSON(result)

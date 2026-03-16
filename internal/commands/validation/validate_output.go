@@ -90,6 +90,8 @@ func printContextHeader(festivalPath string) {
 }
 
 func printValidationResult(display *ui.UI, festivalPath string, result *ValidationResult) {
+	hasFailures := validationHasBlockingFailures(result)
+
 	// Print context header with node reference
 	printContextHeader(festivalPath)
 
@@ -119,10 +121,13 @@ func printValidationResult(display *ui.UI, festivalPath string, result *Validati
 	// Score and summary
 	fmt.Println()
 	fmt.Printf("%s %s\n", ui.Label("Score"), ui.Value(fmt.Sprintf("%d/100", result.Score)))
-	if result.Valid {
+	switch {
+	case result.Valid:
 		fmt.Println(ui.Success("Festival structure is valid"))
-	} else {
+	case hasFailures:
 		fmt.Println(ui.Warning("Festival structure needs attention"))
+	default:
+		fmt.Println(ui.Warning("Festival structure has warnings"))
 	}
 
 	// Suggestions
@@ -140,10 +145,13 @@ func printValidationResult(display *ui.UI, festivalPath string, result *Validati
 	// Final PASS/FAIL banner
 	fmt.Println()
 	fmt.Println(strings.Repeat("═", 60))
-	if result.Valid {
+	switch {
+	case result.Valid:
 		fmt.Println(ui.Success("  VALIDATION PASSED"))
-	} else {
+	case hasFailures:
 		fmt.Println(ui.Error("  VALIDATION FAILED"))
+	default:
+		fmt.Println(ui.Warning("  VALIDATION PASSED WITH WARNINGS"))
 	}
 	fmt.Println(strings.Repeat("═", 60))
 }
