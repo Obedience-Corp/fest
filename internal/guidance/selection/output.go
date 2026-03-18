@@ -13,6 +13,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/obey-shared/mdrender"
 )
 
 // FormatText formats the result as human-readable text
@@ -502,7 +503,7 @@ func buildTaskContentSection(taskPath string) string {
 	sb.WriteString("\n")
 	sb.WriteString(ui.Dim(strings.Repeat("─", 60)))
 	sb.WriteString("\n")
-	sb.WriteString(body)
+	sb.WriteString(mdrender.Render(body))
 	sb.WriteString("\n")
 	sb.WriteString(ui.Dim(strings.Repeat("─", 60)))
 	sb.WriteString("\n")
@@ -597,7 +598,7 @@ func buildFullTaskContentSection(taskPath string) string {
 
 	var sb strings.Builder
 	sb.WriteString("\n## Task Document\n\n")
-	sb.WriteString(body)
+	sb.WriteString(mdrender.Render(body))
 	sb.WriteString("\n")
 	return sb.String()
 }
@@ -901,7 +902,7 @@ func buildGateSection(task *TaskInfo) string {
 	}
 
 	if content != "" {
-		data.GateContent = content
+		data.GateContent = mdrender.Render(content)
 	} else {
 		data.FallbackMessage = ui.Dim("Gate file could not be read. Run `fest gates` to evaluate gate criteria.")
 	}
