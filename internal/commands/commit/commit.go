@@ -161,15 +161,15 @@ func runCommit(cmd *cobra.Command, args []string) error {
 			}
 		} else if ws != nil && ws.Type == scope.WorkspaceTypeCampaign && hasFestival {
 			// At campaign root: stage only festival-scoped paths
-			paths, err := festivalScopedPaths(ws.Root, festivalPath, "")
+			paths, err := festivalScopedPaths(ctx, ws.Root, festivalPath, "")
 			if err != nil {
 				result.Success = false
 				result.Error = err.Error()
 				return outputResult(result)
 			}
-			if err := commitkit.StageFiles(ctx, ws.Root, paths...); err != nil {
+			if stageErr := commitkit.StageFiles(ctx, ws.Root, paths...); stageErr != nil {
 				result.Success = false
-				result.Error = errors.Wrap(err, "staging festival files").Error()
+				result.Error = fmt.Sprintf("staging festival files: %v", stageErr)
 				return outputResult(result)
 			}
 		} else {
@@ -457,7 +457,11 @@ func isInSubmodule(campaignRoot string) (bool, string) {
 //   - .campaign/fest/ (navigation state)
 //   - festivals/.festival/.state/ (global festival event log)
 //   - The submodule pointer path (if submoduleRelPath is non-empty)
-func festivalScopedPaths(campaignRoot, festivalPath, submoduleRelPath string) ([]string, error) {
+func festivalScopedPaths(ctx context.Context, campaignRoot, festivalPath, submoduleRelPath string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, errors.Wrap(err, "context cancelled")
+	}
+
 	festivalRel, err := filepath.Rel(campaignRoot, festivalPath)
 	if err != nil {
 		return nil, errors.Wrap(err, "computing festival relative path")
@@ -515,7 +519,7 @@ func commitCampaignRoot(ctx context.Context, campaignRoot string, paths []string
 // files. It computes the scoped paths, builds a tagged message with "fest:" prefix,
 // and delegates to commitCampaignRoot.
 func commitFestivalAtRoot(ctx context.Context, ws *scope.WorkspaceInfo, festivalPath, submoduleRelPath, campaignTag, festRef, rawMsg string) (string, error) {
-	paths, err := festivalScopedPaths(ws.Root, festivalPath, submoduleRelPath)
+	paths, err := festivalScopedPaths(ctx, ws.Root, festivalPath, submoduleRelPath)
 	if err != nil {
 		return "", err
 	}

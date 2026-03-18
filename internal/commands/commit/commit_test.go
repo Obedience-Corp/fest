@@ -1,6 +1,7 @@
 package commit
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
 )
@@ -57,7 +58,7 @@ func TestFestivalScopedPaths_WithSubmodule(t *testing.T) {
 	festival := filepath.Join(root, "festivals", "active", "my-fest-FA0001")
 	submodule := "projects/fest"
 
-	paths, err := festivalScopedPaths(root, festival, submodule)
+	paths, err := festivalScopedPaths(context.Background(), root, festival, submodule)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -84,7 +85,7 @@ func TestFestivalScopedPaths_NoSubmodule(t *testing.T) {
 	root := "/campaign"
 	festival := filepath.Join(root, "festivals", "active", "my-fest-FA0001")
 
-	paths, err := festivalScopedPaths(root, festival, "")
+	paths, err := festivalScopedPaths(context.Background(), root, festival, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -105,7 +106,7 @@ func TestFestivalScopedPaths_ExpectedContents(t *testing.T) {
 	root := "/home/user/campaign"
 	festival := filepath.Join(root, "festivals", "ready", "deploy-v2-DP0003")
 
-	paths, err := festivalScopedPaths(root, festival, "")
+	paths, err := festivalScopedPaths(context.Background(), root, festival, "")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
