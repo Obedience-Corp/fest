@@ -190,39 +190,17 @@ func findExistingGate(entries []os.DirEntry, sequencePath, gateType string) stri
 
 // hasGateType checks if a file is a gate document with the specified gate type.
 func hasGateType(filePath, gateType string) bool {
-	content, err := os.ReadFile(filePath)
-	if err != nil {
+	expectedType := CanonicalGateType(gateType)
+	if expectedType == "" {
 		return false
 	}
 
-	lines := strings.Split(string(content), "\n")
-	inFrontmatter := false
-	isGate := false
-	matchesType := false
-
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "---" {
-			if inFrontmatter {
-				break // End of frontmatter
-			}
-			inFrontmatter = true
-			continue
-		}
-		if !inFrontmatter {
-			continue
-		}
-		if strings.HasPrefix(trimmed, "fest_type:") && strings.Contains(trimmed, "gate") {
-			isGate = true
-		}
-		if strings.HasPrefix(trimmed, "fest_gate_type:") {
-			parts := strings.SplitN(trimmed, ":", 2)
-			if len(parts) == 2 && strings.TrimSpace(parts[1]) == gateType {
-				matchesType = true
-			}
-		}
+	actualType, ok := DetectGateType(filePath)
+	if !ok {
+		return false
 	}
-	return isGate && matchesType
+
+	return actualType == expectedType
 }
 
 // renderGateContent renders the content for a gate task file.
@@ -563,21 +541,9 @@ func gateTypeAutonomy(gt frontmatter.GateType) frontmatter.Autonomy {
 
 // inferGateType infers the gate type from the gate ID.
 func inferGateType(gateID string) frontmatter.GateType {
-	lower := strings.ToLower(gateID)
-	switch {
-	case strings.Contains(lower, "testing") || strings.Contains(lower, "test") || strings.Contains(lower, "verify"):
-		return frontmatter.GateTesting
-	case strings.Contains(lower, "review"):
-		return frontmatter.GateReview
-	case strings.Contains(lower, "iterate") || strings.Contains(lower, "iteration"):
-		return frontmatter.GateIterate
-	case strings.Contains(lower, "commit"):
-		return frontmatter.GateCommit
-	case strings.Contains(lower, "security"):
-		return frontmatter.GateSecurity
-	case strings.Contains(lower, "performance") || strings.Contains(lower, "perf"):
-		return frontmatter.GatePerformance
-	default:
+	gateType := CanonicalGateType(gateID)
+	if gateType == "" {
 		return frontmatter.GateTesting
 	}
+	return gateType
 }

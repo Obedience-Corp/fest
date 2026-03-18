@@ -51,7 +51,8 @@ Review and approve changes.
 				_ = os.WriteFile(filepath.Join(seqPath, "01_implement.md"), []byte("# Implement"), 0644)
 				_ = os.WriteFile(filepath.Join(seqPath, "02_testing.md"), []byte("# Testing"), 0644)
 				_ = os.WriteFile(filepath.Join(seqPath, "03_review.md"), []byte("# Code Review"), 0644)
-				_ = os.WriteFile(filepath.Join(seqPath, "04_commit.md"), []byte("# Commit"), 0644)
+				_ = os.WriteFile(filepath.Join(seqPath, "04_iterate.md"), []byte("# Review Results and Iterate"), 0644)
+				_ = os.WriteFile(filepath.Join(seqPath, "05_commit.md"), []byte("# Commit"), 0644)
 
 				return dir
 			},
@@ -227,6 +228,100 @@ func TestValidateQualityGates_ErrorMessage(t *testing.T) {
 
 	if !contains(issues[0].Message, "Implementation") {
 		t.Errorf("Error message %q should contain %q", issues[0].Message, "Implementation")
+	}
+}
+
+func TestValidateQualityGates_CustomGateFilesPass(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	dir := t.TempDir()
+	phasePath := filepath.Join(dir, "002_IMPLEMENTATION")
+	seqPath := filepath.Join(phasePath, "01_core_feature")
+	if err := os.MkdirAll(seqPath, 0755); err != nil {
+		t.Fatalf("mkdir sequence: %v", err)
+	}
+
+	files := map[string]string{
+		filepath.Join(phasePath, "PHASE_GOAL.md"):     "---\nfest_phase_type: implementation\n---\n# Goal\n",
+		filepath.Join(seqPath, "01_build_feature.md"): "# Build Feature\n",
+		filepath.Join(seqPath, "02_quality_gate_testing.md"): `---
+fest_type: gate
+fest_status: pending
+---
+# Gate: Testing and Verification
+`,
+		filepath.Join(seqPath, "03_quality_gate_review.md"): `---
+fest_type: gate
+fest_status: pending
+---
+# Gate: Code Review
+`,
+		filepath.Join(seqPath, "04_quality_gate_iterate.md"): `---
+fest_type: gate
+fest_status: pending
+---
+# Gate: Review Results and Iterate
+`,
+		filepath.Join(seqPath, "05_quality_gate_commit.md"): `---
+fest_type: gate
+fest_status: pending
+---
+# Gate: Commit Sequence Changes
+`,
+	}
+
+	for path, content := range files {
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("write %s: %v", path, err)
+		}
+	}
+
+	issues, err := ValidateQualityGates(ctx, dir)
+	if err != nil {
+		t.Fatalf("ValidateQualityGates() error = %v", err)
+	}
+	if len(issues) != 0 {
+		t.Fatalf("ValidateQualityGates() got issues = %+v, want none", issues)
+	}
+}
+
+func TestValidateQualityGates_RequiresEachExpectedGate(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	dir := t.TempDir()
+	phasePath := filepath.Join(dir, "002_IMPLEMENTATION")
+	seqPath := filepath.Join(phasePath, "01_core_feature")
+	if err := os.MkdirAll(seqPath, 0755); err != nil {
+		t.Fatalf("mkdir sequence: %v", err)
+	}
+
+	files := map[string]string{
+		filepath.Join(phasePath, "PHASE_GOAL.md"):     "---\nfest_phase_type: implementation\n---\n# Goal\n",
+		filepath.Join(seqPath, "01_build_feature.md"): "# Build Feature\n",
+		filepath.Join(seqPath, "02_testing.md"):       "# Testing\n",
+	}
+
+	for path, content := range files {
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatalf("write %s: %v", path, err)
+		}
+	}
+
+	issues, err := ValidateQualityGates(ctx, dir)
+	if err != nil {
+		t.Fatalf("ValidateQualityGates() error = %v", err)
+	}
+	if len(issues) != 1 {
+		t.Fatalf("ValidateQualityGates() got %d issues, want 1", len(issues))
+	}
+
+	message := issues[0].Message
+	for _, want := range []string{"review", "iterate", "fest-commit"} {
+		if !contains(message, want) {
+			t.Fatalf("ValidateQualityGates() message = %q, want to contain %q", message, want)
+		}
 	}
 }
 

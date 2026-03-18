@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/festival"
 	"github.com/Obedience-Corp/fest/internal/gates"
@@ -23,6 +24,11 @@ func ValidateQualityGates(ctx context.Context, festivalPath string) ([]Issue, er
 		return issues, errors.Wrap(err, "parsing phases").WithField("path", festivalPath)
 	}
 
+	festCfg, err := config.LoadFestivalConfig(festivalPath, "")
+	if err != nil {
+		return issues, errors.Wrap(err, "loading festival config").WithField("path", festivalPath)
+	}
+
 	defaultPolicy := gates.DefaultPolicy()
 
 	for _, phase := range phases {
@@ -34,12 +40,26 @@ func ValidateQualityGates(ctx context.Context, festivalPath string) ([]Issue, er
 			continue
 		}
 
-		// Get the expected gates for this phase type
-		expectedGates := gates.GetGatesForPhaseType(phaseType)
-		gateIDs := make(map[string]bool)
+		// Get the expected gates for this phase type from fest.yaml, with a policy fallback.
+		expectedGates := festCfg.GetGatesForPhaseType(phaseType)
+		if len(expectedGates) == 0 {
+			for _, gate := range gates.GetGatesForPhaseType(phaseType) {
+				expectedGates = append(expectedGates, config.QualityGateTask{
+					ID:       gate.ID,
+					Template: gate.Template,
+					Name:     gate.Name,
+					Enabled:  gate.Enabled,
+				})
+			}
+		}
+
+		expectedGateIDs := make(map[string]string)
 		for _, gate := range expectedGates {
-			if gate.Enabled {
-				gateIDs[gate.ID] = true
+			if !gate.Enabled {
+				continue
+			}
+			if canonical := gates.CanonicalGateType(gate.ID); canonical != "" {
+				expectedGateIDs[string(canonical)] = gate.ID
 			}
 		}
 
@@ -59,21 +79,21 @@ func ValidateQualityGates(ctx context.Context, festivalPath string) ([]Issue, er
 				return issues, errors.Wrap(err, "parsing tasks").WithField("sequence", seq.Name)
 			}
 
-			hasGates := false
+			foundGateTypes := make(map[string]bool)
 			for _, task := range tasks {
-				for gateID := range gateIDs {
-					if strings.Contains(strings.ToLower(task.Name), strings.ReplaceAll(gateID, "_", "")) ||
-						strings.Contains(task.Name, gateID) {
-						hasGates = true
-						break
-					}
-				}
-				if hasGates {
-					break
+				if gateType, ok := gates.DetectGateType(task.Path); ok {
+					foundGateTypes[string(gateType)] = true
 				}
 			}
 
-			if !hasGates && len(tasks) > 0 {
+			var missing []string
+			for gateType, gateID := range expectedGateIDs {
+				if !foundGateTypes[gateType] {
+					missing = append(missing, gateID)
+				}
+			}
+
+			if len(missing) > 0 && len(tasks) > 0 {
 				rel, _ := filepath.Rel(festivalPath, seq.Path)
 				// Phase-type-aware error message
 				phaseTypeTitle := titleCase(phaseType)
@@ -81,7 +101,7 @@ func ValidateQualityGates(ctx context.Context, festivalPath string) ([]Issue, er
 					Level:       LevelError,
 					Code:        CodeMissingQualityGate,
 					Path:        rel,
-					Message:     fmt.Sprintf("%s sequence missing quality gates", phaseTypeTitle),
+					Message:     fmt.Sprintf("%s sequence missing quality gates: %s", phaseTypeTitle, strings.Join(missing, ", ")),
 					Fix:         fmt.Sprintf("fest gates apply --sequence %s --approve", rel),
 					AutoFixable: true,
 				})

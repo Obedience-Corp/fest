@@ -191,6 +191,78 @@ func TestValidateTaskFiles_SequenceWithoutTasksFails(t *testing.T) {
 	}
 }
 
+func TestValidateQualityGatesChecks_AutoFixAddsMissingGates(t *testing.T) {
+	dir := setupTestFestival(t, testFestivalOpts{
+		phaseType:    "implementation",
+		withSequence: true,
+		withTask:     true,
+	})
+
+	gateDir := filepath.Join(dir, "gates", "implementation")
+	if err := os.MkdirAll(gateDir, 0755); err != nil {
+		t.Fatalf("mkdir gate dir: %v", err)
+	}
+
+	templates := map[string]string{
+		"QUALITY_GATE_TESTING.md": `---
+fest_type: gate
+fest_gate_type: testing
+fest_status: pending
+---
+# Gate: Testing and Verification
+`,
+		"QUALITY_GATE_REVIEW.md": `---
+fest_type: gate
+fest_gate_type: review
+fest_status: pending
+---
+# Gate: Code Review
+`,
+		"QUALITY_GATE_ITERATE.md": `---
+fest_type: gate
+fest_gate_type: iterate
+fest_status: pending
+---
+# Gate: Review Results and Iterate
+`,
+		"QUALITY_GATE_FEST_COMMIT.md": `---
+fest_type: gate
+fest_gate_type: commit
+fest_status: pending
+---
+# Gate: Commit Sequence Changes
+`,
+	}
+
+	for name, content := range templates {
+		if err := os.WriteFile(filepath.Join(gateDir, name), []byte(content), 0644); err != nil {
+			t.Fatalf("write template %s: %v", name, err)
+		}
+	}
+
+	result := &ValidationResult{
+		OK:     true,
+		Valid:  true,
+		Issues: []ValidationIssue{},
+	}
+
+	validateQualityGatesChecks(context.Background(), dir, result, true)
+
+	if len(result.Issues) != 0 {
+		t.Fatalf("validateQualityGatesChecks() issues = %+v, want none after autofix", result.Issues)
+	}
+	if len(result.FixesApplied) != 4 {
+		t.Fatalf("validateQualityGatesChecks() applied %d fixes, want 4", len(result.FixesApplied))
+	}
+
+	seqPath := filepath.Join(dir, "001_IMPLEMENTATION", "01_test_sequence")
+	for _, name := range []string{"02_testing.md", "03_review.md", "04_iterate.md", "05_fest_commit.md"} {
+		if _, err := os.Stat(filepath.Join(seqPath, name)); err != nil {
+			t.Fatalf("expected autofixed gate %s: %v", name, err)
+		}
+	}
+}
+
 func TestFinalizeValidationResult(t *testing.T) {
 	falseValue := false
 

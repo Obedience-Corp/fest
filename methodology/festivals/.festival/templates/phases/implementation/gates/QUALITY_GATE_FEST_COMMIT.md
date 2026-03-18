@@ -12,7 +12,7 @@ fest_id: {{ .GateID }}
 fest_name: Fest Commit Sequence Changes
 fest_parent: {{ .SequenceID }}
 fest_order: {{ .TaskNumber }}
-fest_gate_type: iterate
+fest_gate_type: commit
 fest_autonomy: high
 fest_status: pending
 fest_tracking: true
