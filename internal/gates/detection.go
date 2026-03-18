@@ -26,11 +26,12 @@ func detectGateTypeFromContent(filename string, content []byte) (frontmatter.Gat
 		explicit := CanonicalGateType(string(fm.GateType))
 		inferred := inferGateTypeWithSignals(filename, body)
 
-		// Prefer the inferred value when the document is clearly a gate and the
-		// frontmatter disagrees. This keeps existing generated commit gates with
-		// stale frontmatter from duplicating on later runs.
+		// Only override explicit frontmatter for the known legacy mismatch where
+		// commit gates were stamped as iterate. Broad override based on full body
+		// text creates false positives for review gates with "security" checklist
+		// items.
 		if explicit != "" {
-			if fm.Type == frontmatter.TypeGate && inferred != "" && inferred != explicit {
+			if fm.Type == frontmatter.TypeGate && shouldOverrideExplicitGateType(explicit, inferred) {
 				return inferred, true
 			}
 			return explicit, true
@@ -83,7 +84,12 @@ func inferGateTypeWithSignals(filename string, content []byte) frontmatter.GateT
 		return ""
 	}
 
-	return CanonicalGateType(filename + "\n" + string(content))
+	signalText := filename
+	if headings := extractHeadingSignals(content); headings != "" {
+		signalText += "\n" + headings
+	}
+
+	return CanonicalGateType(signalText)
 }
 
 func hasGateSignal(filename string, content []byte) bool {
@@ -149,6 +155,23 @@ func normalizeGateText(value string) string {
 		"\r", " ",
 	)
 	return strings.Join(strings.Fields(strings.ToLower(replacer.Replace(value))), " ")
+}
+
+func extractHeadingSignals(content []byte) string {
+	var headings []string
+	for _, line := range strings.Split(string(content), "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || !strings.HasPrefix(trimmed, "#") {
+			continue
+		}
+		headings = append(headings, strings.TrimSpace(strings.TrimLeft(trimmed, "#")))
+	}
+
+	return strings.Join(headings, "\n")
+}
+
+func shouldOverrideExplicitGateType(explicit, inferred frontmatter.GateType) bool {
+	return explicit == frontmatter.GateIterate && inferred == frontmatter.GateCommit
 }
 
 func isDigit(b byte) bool {
