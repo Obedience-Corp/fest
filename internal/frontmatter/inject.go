@@ -88,6 +88,9 @@ func MergeInto(existing, new *Frontmatter) *Frontmatter {
 	if new.Autonomy != "" {
 		result.Autonomy = new.Autonomy
 	}
+	if new.GateID != "" {
+		result.GateID = new.GateID
+	}
 	if new.GateType != "" {
 		result.GateType = new.GateType
 	}
@@ -102,6 +105,42 @@ func MergeInto(existing, new *Frontmatter) *Frontmatter {
 	}
 	if !new.Updated.IsZero() {
 		result.Updated = new.Updated
+	}
+	if new.Tracking != nil {
+		result.Tracking = new.Tracking
+	}
+	if new.Version != "" {
+		result.Version = new.Version
+	}
+	if new.WorkingDir != "" {
+		result.WorkingDir = new.WorkingDir
+	}
+	if len(new.Dependencies) > 0 {
+		result.Dependencies = new.Dependencies
+	}
+	if new.ParallelGroup != "" {
+		result.ParallelGroup = new.ParallelGroup
+	}
+	if new.WorkType != "" {
+		result.WorkType = new.WorkType
+	}
+	if new.WorkflowPosition != "" {
+		result.WorkflowPosition = new.WorkflowPosition
+	}
+	if new.Agent != "" {
+		result.Agent = new.Agent
+	}
+	if new.Complexity != "" {
+		result.Complexity = new.Complexity
+	}
+	if new.EstimatedTokens != 0 {
+		result.EstimatedTokens = new.EstimatedTokens
+	}
+	if new.RequiresHuman {
+		result.RequiresHuman = new.RequiresHuman
+	}
+	if new.RequiresContext {
+		result.RequiresContext = new.RequiresContext
 	}
 
 	return &result
@@ -173,6 +212,12 @@ func (b *Builder) Autonomy(autonomy Autonomy) *Builder {
 // GateType sets the gate type (gates only)
 func (b *Builder) GateType(gateType GateType) *Builder {
 	b.fm.GateType = gateType
+	return b
+}
+
+// GateID sets the configured gate ID (gates only)
+func (b *Builder) GateID(gateID string) *Builder {
+	b.fm.GateID = gateID
 	return b
 }
 

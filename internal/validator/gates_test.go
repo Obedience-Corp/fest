@@ -7,6 +7,16 @@ import (
 	"testing"
 )
 
+func gateDoc(gateID, title string) string {
+	return `---
+fest_type: gate
+fest_gate_id: ` + gateID + `
+fest_status: pending
+---
+# ` + title + `
+`
+}
+
 // TestValidateQualityGates_ImplementationOnly tests that validation only checks
 // implementation phases for quality gates. Non-implementation phases are skipped.
 func TestValidateQualityGates_ImplementationOnly(t *testing.T) {
@@ -49,10 +59,10 @@ Review and approve changes.
 				_ = os.MkdirAll(seqPath, 0755)
 
 				_ = os.WriteFile(filepath.Join(seqPath, "01_implement.md"), []byte("# Implement"), 0644)
-				_ = os.WriteFile(filepath.Join(seqPath, "02_testing.md"), []byte("# Testing"), 0644)
-				_ = os.WriteFile(filepath.Join(seqPath, "03_review.md"), []byte("# Code Review"), 0644)
-				_ = os.WriteFile(filepath.Join(seqPath, "04_iterate.md"), []byte("# Review Results and Iterate"), 0644)
-				_ = os.WriteFile(filepath.Join(seqPath, "05_commit.md"), []byte("# Commit"), 0644)
+				_ = os.WriteFile(filepath.Join(seqPath, "02_testing.md"), []byte(gateDoc("testing", "Testing")), 0644)
+				_ = os.WriteFile(filepath.Join(seqPath, "03_review.md"), []byte(gateDoc("review", "Code Review")), 0644)
+				_ = os.WriteFile(filepath.Join(seqPath, "04_iterate.md"), []byte(gateDoc("iterate", "Review Results and Iterate")), 0644)
+				_ = os.WriteFile(filepath.Join(seqPath, "05_fest_commit.md"), []byte(gateDoc("fest-commit", "Commit")), 0644)
 
 				return dir
 			},
@@ -243,32 +253,12 @@ func TestValidateQualityGates_CustomGateFilesPass(t *testing.T) {
 	}
 
 	files := map[string]string{
-		filepath.Join(phasePath, "PHASE_GOAL.md"):     "---\nfest_phase_type: implementation\n---\n# Goal\n",
-		filepath.Join(seqPath, "01_build_feature.md"): "# Build Feature\n",
-		filepath.Join(seqPath, "02_quality_gate_testing.md"): `---
-fest_type: gate
-fest_status: pending
----
-# Gate: Testing and Verification
-`,
-		filepath.Join(seqPath, "03_quality_gate_review.md"): `---
-fest_type: gate
-fest_status: pending
----
-# Gate: Code Review
-`,
-		filepath.Join(seqPath, "04_quality_gate_iterate.md"): `---
-fest_type: gate
-fest_status: pending
----
-# Gate: Review Results and Iterate
-`,
-		filepath.Join(seqPath, "05_quality_gate_commit.md"): `---
-fest_type: gate
-fest_status: pending
----
-# Gate: Commit Sequence Changes
-`,
+		filepath.Join(phasePath, "PHASE_GOAL.md"):            "---\nfest_phase_type: implementation\n---\n# Goal\n",
+		filepath.Join(seqPath, "01_build_feature.md"):        "# Build Feature\n",
+		filepath.Join(seqPath, "02_quality_gate_testing.md"): gateDoc("testing", "Gate: Testing and Verification"),
+		filepath.Join(seqPath, "03_quality_gate_review.md"):  gateDoc("review", "Gate: Code Review"),
+		filepath.Join(seqPath, "04_quality_gate_iterate.md"): gateDoc("iterate", "Gate: Review Results and Iterate"),
+		filepath.Join(seqPath, "05_quality_gate_commit.md"):  gateDoc("fest-commit", "Gate: Commit Sequence Changes"),
 	}
 
 	for path, content := range files {
@@ -300,7 +290,7 @@ func TestValidateQualityGates_RequiresEachExpectedGate(t *testing.T) {
 	files := map[string]string{
 		filepath.Join(phasePath, "PHASE_GOAL.md"):     "---\nfest_phase_type: implementation\n---\n# Goal\n",
 		filepath.Join(seqPath, "01_build_feature.md"): "# Build Feature\n",
-		filepath.Join(seqPath, "02_testing.md"):       "# Testing\n",
+		filepath.Join(seqPath, "02_testing.md"):       gateDoc("testing", "Testing"),
 	}
 
 	for path, content := range files {

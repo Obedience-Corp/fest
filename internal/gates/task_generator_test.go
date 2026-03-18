@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -16,24 +17,28 @@ func TestGenerateForSequence_SkipsExistingCustomGates(t *testing.T) {
 		"01_build_feature.md": "# Build feature\n",
 		"02_quality_gate_testing.md": `---
 fest_type: gate
+fest_gate_id: testing
 fest_status: pending
 ---
 # Gate: Testing and Verification
 `,
 		"03_quality_gate_review.md": `---
 fest_type: gate
+fest_gate_id: review
 fest_status: pending
 ---
 # Gate: Code Review
 `,
 		"04_quality_gate_iterate.md": `---
 fest_type: gate
+fest_gate_id: iterate
 fest_status: pending
 ---
 # Gate: Review Results and Iterate
 `,
 		"05_quality_gate_commit.md": `---
 fest_type: gate
+fest_gate_id: fest-commit
 fest_status: pending
 ---
 # Gate: Commit Sequence Changes
@@ -81,7 +86,7 @@ fest_status: pending
 	}
 }
 
-func TestGenerateForSequence_SkipsExistingFestCommitWithMismatchedFrontmatter(t *testing.T) {
+func TestGenerateForSequence_BackfillsLegacyGateIDFromFilename(t *testing.T) {
 	t.Parallel()
 
 	sequencePath := t.TempDir()
@@ -90,10 +95,9 @@ func TestGenerateForSequence_SkipsExistingFestCommitWithMismatchedFrontmatter(t 
 		t.Fatalf("write task: %v", err)
 	}
 
-	// Reproduce the stale frontmatter that previously caused duplicate commit gates.
+	// Reproduce an older generated gate file that predates fest_gate_id stamping.
 	existingCommitGate := `---
 fest_type: gate
-fest_gate_type: iterate
 fest_status: pending
 ---
 # Gate: Commit Sequence Changes
@@ -108,13 +112,13 @@ fest_status: pending
 		context.Background(),
 		sequencePath,
 		[]GateTask{{ID: "fest-commit", Enabled: true}},
-		GenerateOptions{DryRun: true},
+		GenerateOptions{DryRun: false},
 	)
 	if err != nil {
 		t.Fatalf("GenerateForSequence() error = %v", err)
 	}
-	if len(warnings) != 0 {
-		t.Fatalf("GenerateForSequence() warnings = %v, want none", warnings)
+	if len(warnings) != 1 {
+		t.Fatalf("GenerateForSequence() warnings = %v, want 1 restamp warning", warnings)
 	}
 	if len(results) != 1 {
 		t.Fatalf("GenerateForSequence() returned %d results, want 1", len(results))
@@ -124,5 +128,81 @@ fest_status: pending
 	}
 	if results[0].Path != commitPath {
 		t.Fatalf("GenerateForSequence() existing path = %q, want %q", results[0].Path, commitPath)
+	}
+
+	content, err := os.ReadFile(commitPath)
+	if err != nil {
+		t.Fatalf("read restamped gate: %v", err)
+	}
+	if !strings.Contains(string(content), "fest_gate_id: fest-commit") {
+		t.Fatalf("GenerateForSequence() did not backfill fest_gate_id in %s", commitPath)
+	}
+	if !strings.Contains(string(content), "fest_managed: true") {
+		t.Fatalf("GenerateForSequence() did not stamp fest_managed in %s", commitPath)
+	}
+}
+
+func TestGenerateForSequence_StampsGateIDIntoTemplateFrontmatter(t *testing.T) {
+	t.Parallel()
+
+	festivalPath := t.TempDir()
+	sequencePath := filepath.Join(festivalPath, "001_IMPLEMENTATION", "01_core")
+	templateDir := filepath.Join(festivalPath, "gates", "implementation")
+	if err := os.MkdirAll(sequencePath, 0755); err != nil {
+		t.Fatalf("mkdir sequence: %v", err)
+	}
+	if err := os.MkdirAll(templateDir, 0755); err != nil {
+		t.Fatalf("mkdir template dir: %v", err)
+	}
+
+	templatePath := filepath.Join(templateDir, "QUALITY_GATE_REVIEW.md")
+	templateContent := `---
+fest_type: gate
+fest_status: pending
+custom_field: keep-me
+---
+# Gate: Review
+`
+	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+
+	generator, err := NewTaskGenerator(context.Background(), festivalPath)
+	if err != nil {
+		t.Fatalf("NewTaskGenerator() error = %v", err)
+	}
+
+	results, warnings, err := generator.GenerateForSequence(
+		context.Background(),
+		sequencePath,
+		[]GateTask{{
+			ID:       "review",
+			Name:     "Review",
+			Template: "gates/implementation/QUALITY_GATE_REVIEW",
+			Enabled:  true,
+		}},
+		GenerateOptions{DryRun: false},
+		festivalPath,
+	)
+	if err != nil {
+		t.Fatalf("GenerateForSequence() error = %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("GenerateForSequence() warnings = %v, want none", warnings)
+	}
+	if len(results) != 1 || results[0].Type != "create" {
+		t.Fatalf("GenerateForSequence() results = %+v, want 1 create", results)
+	}
+
+	generatedPath := filepath.Join(sequencePath, "01_review.md")
+	content, err := os.ReadFile(generatedPath)
+	if err != nil {
+		t.Fatalf("read generated gate: %v", err)
+	}
+	if !strings.Contains(string(content), "fest_gate_id: review") {
+		t.Fatalf("generated gate missing fest_gate_id: %s", generatedPath)
+	}
+	if !strings.Contains(string(content), "fest_managed: true") {
+		t.Fatalf("generated gate missing fest_managed: %s", generatedPath)
 	}
 }

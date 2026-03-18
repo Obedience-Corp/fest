@@ -53,14 +53,12 @@ func ValidateQualityGates(ctx context.Context, festivalPath string) ([]Issue, er
 			}
 		}
 
-		expectedGateIDs := make(map[string]string)
+		expectedGateIDs := make(map[string]bool)
 		for _, gate := range expectedGates {
 			if !gate.Enabled {
 				continue
 			}
-			if canonical := gates.CanonicalGateType(gate.ID); canonical != "" {
-				expectedGateIDs[string(canonical)] = gate.ID
-			}
+			expectedGateIDs[gate.ID] = true
 		}
 
 		sequences, err := parser.ParseSequences(ctx, phase.Path)
@@ -79,16 +77,16 @@ func ValidateQualityGates(ctx context.Context, festivalPath string) ([]Issue, er
 				return issues, errors.Wrap(err, "parsing tasks").WithField("sequence", seq.Name)
 			}
 
-			foundGateTypes := make(map[string]bool)
+			foundGateIDs := make(map[string]bool)
 			for _, task := range tasks {
-				if gateType, ok := gates.DetectGateType(task.Path); ok {
-					foundGateTypes[string(gateType)] = true
+				if gateID := gates.GetGateID(task.Path); gateID != "" {
+					foundGateIDs[gateID] = true
 				}
 			}
 
 			var missing []string
-			for gateType, gateID := range expectedGateIDs {
-				if !foundGateTypes[gateType] {
+			for gateID := range expectedGateIDs {
+				if !foundGateIDs[gateID] {
 					missing = append(missing, gateID)
 				}
 			}

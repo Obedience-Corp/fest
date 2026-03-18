@@ -183,6 +183,7 @@ type Frontmatter struct {
 	Status   Status    `yaml:"fest_status" json:"fest_status"`
 	Priority Priority  `yaml:"fest_priority,omitempty" json:"fest_priority,omitempty"`
 	Autonomy Autonomy  `yaml:"fest_autonomy,omitempty" json:"fest_autonomy,omitempty"`
+	GateID   string    `yaml:"fest_gate_id,omitempty" json:"fest_gate_id,omitempty"`
 	GateType GateType  `yaml:"fest_gate_type,omitempty" json:"fest_gate_type,omitempty"`
 	Managed  bool      `yaml:"fest_managed,omitempty" json:"fest_managed,omitempty"` // Deprecated: use Tracking
 	Tags     []string  `yaml:"fest_tags,omitempty" json:"fest_tags,omitempty"`
@@ -353,7 +354,7 @@ func NewTaskFrontmatter(id, name, parent string, order int, autonomy Autonomy) *
 }
 
 // NewGateFrontmatter creates frontmatter for a quality gate document
-func NewGateFrontmatter(id, name, parent string, order int, gateType GateType, autonomy Autonomy) *Frontmatter {
+func NewGateFrontmatter(id, name, parent string, order int, gateID string, gateType GateType, autonomy Autonomy) *Frontmatter {
 	tracking := true
 	return &Frontmatter{
 		Type:     TypeGate,
@@ -361,9 +362,11 @@ func NewGateFrontmatter(id, name, parent string, order int, gateType GateType, a
 		Name:     name,
 		Parent:   parent,
 		Order:    order,
+		GateID:   gateID,
 		GateType: gateType,
 		Autonomy: autonomy,
 		Status:   StatusPending,
+		Managed:  true,
 		Tracking: &tracking,
 		Created:  time.Now(),
 	}
