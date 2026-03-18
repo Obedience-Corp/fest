@@ -31,7 +31,8 @@ var (
 	noTag            bool
 	jsonOut          bool
 	autoStage        bool
-	syncSubmoduleRef bool
+	noRoot           bool
+	syncSubmoduleRef bool // deprecated: kept for backward compat
 )
 
 // NewCommitCommand creates the fest commit command
@@ -48,8 +49,18 @@ Requires festival context: either run from inside a festival directory,
 a linked project directory (see 'fest link'), or use --festival to specify one.
 
 The fest commit command wraps git commit and automatically:
-  1. Stages all changes (git add -A) unless --stage=false
-  2. Prepends the festival reference to the commit message
+  1. Stages changes and prepends the festival reference to the commit message
+  2. Creates a campaign root commit for festival-scoped files (task docs, progress, state)
+
+When run from a linked project directory, two commits are created:
+  - Project commit: stages all project changes
+  - Campaign root commit: stages only festival directory, .campaign/fest/,
+    festivals/.festival/.state/, and the submodule pointer
+
+When run from a festival directory, one commit is created at the campaign root
+with only festival-scoped files staged (not git add -A).
+
+Use --no-root to skip the campaign root commit.
 
 Reference format: [OBEY-FE-{id}]
   - OBEY: Obey workflow tool prefix
@@ -87,7 +98,9 @@ Examples:
 	cmd.Flags().BoolVar(&noTag, "no-tag", false, "don't prepend task reference")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "output result as JSON")
 	cmd.Flags().BoolVar(&autoStage, "stage", true, "auto-stage all changes before commit")
-	cmd.Flags().BoolVar(&syncSubmoduleRef, "sync-submodule-ref", false, "sync submodule ref at campaign root after commit")
+	cmd.Flags().BoolVar(&noRoot, "no-root", false, "skip campaign root commit (project commit only)")
+	cmd.Flags().BoolVar(&syncSubmoduleRef, "sync-submodule-ref", false, "deprecated: campaign root commit is now automatic")
+	_ = cmd.Flags().MarkDeprecated("sync-submodule-ref", "campaign root commit is now automatic; use --no-root to skip")
 
 	_ = cmd.MarkFlagRequired("message")
 
@@ -96,19 +109,32 @@ Examples:
 
 // CommitResult represents the result of a commit operation
 type CommitResult struct {
-	Success     bool   `json:"success"`
-	Hash        string `json:"hash,omitempty"`
-	Message     string `json:"message"`
-	TaskRef     string `json:"task_ref,omitempty"`
-	CampaignTag string `json:"campaign_tag,omitempty"`
-	Synced      bool   `json:"synced,omitempty"`
-	Error       string `json:"error,omitempty"`
+	Success      bool   `json:"success"`
+	Hash         string `json:"hash,omitempty"`
+	Message      string `json:"message"`
+	TaskRef      string `json:"task_ref,omitempty"`
+	CampaignTag  string `json:"campaign_tag,omitempty"`
+	CampaignHash string `json:"campaign_hash,omitempty"`
+	Synced       bool   `json:"synced,omitempty"` // deprecated: kept for JSON compat
+	Error        string `json:"error,omitempty"`
 }
 
 func runCommit(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 
 	result := &CommitResult{}
+
+	// Resolve workspace for campaign integration (nil-safe: ok if absent).
+	ws, _ := scope.WorkspaceFrom(ctx)
+
+	// Determine if we're in a project submodule vs campaign root.
+	var inSubmodule bool
+	var submoduleRelPath string
+	if ws != nil && ws.Type == scope.WorkspaceTypeCampaign {
+		inSubmodule, submoduleRelPath = isInSubmodule(ws.Root)
+	}
+
+	festivalPath, hasFestival := scope.FestivalFrom(ctx)
 
 	// Check if we're in a git repository
 	inRepo, err := isGitRepo(ctx)
@@ -123,12 +149,36 @@ func runCommit(cmd *cobra.Command, args []string) error {
 		return outputResult(result)
 	}
 
-	// Auto-stage changes if enabled (default: true)
+	// Auto-stage changes if enabled (default: true).
+	// When at campaign root (not in submodule), stage only festival-scoped paths.
 	if autoStage {
-		if err := stageAllChanges(ctx); err != nil {
-			result.Success = false
-			result.Error = err.Error()
-			return outputResult(result)
+		if inSubmodule {
+			// In submodule: stage all changes in the project repo
+			if err := stageAllChanges(ctx); err != nil {
+				result.Success = false
+				result.Error = err.Error()
+				return outputResult(result)
+			}
+		} else if ws != nil && ws.Type == scope.WorkspaceTypeCampaign && hasFestival {
+			// At campaign root: stage only festival-scoped paths
+			paths, err := festivalScopedPaths(ws.Root, festivalPath, "")
+			if err != nil {
+				result.Success = false
+				result.Error = err.Error()
+				return outputResult(result)
+			}
+			if err := commitkit.StageFiles(ctx, ws.Root, paths...); err != nil {
+				result.Success = false
+				result.Error = errors.Wrap(err, "staging festival files").Error()
+				return outputResult(result)
+			}
+		} else {
+			// Fallback: stage all (non-campaign workspace)
+			if err := stageAllChanges(ctx); err != nil {
+				result.Success = false
+				result.Error = err.Error()
+				return outputResult(result)
+			}
 		}
 	}
 
@@ -159,19 +209,13 @@ func runCommit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Resolve workspace for campaign integration (nil-safe: ok if absent).
-	ws, _ := scope.WorkspaceFrom(ctx)
-
 	// Build commit message with consolidated tag.
-	// When both campaign and fest refs exist, consolidate into one tag:
-	//   [OBEY-CAMPAIGN-{cid}-FE-{fid}] msg
-	// instead of two separate tags.
 	festMessage := message
 	if ref != "" {
 		festMessage = fmt.Sprintf("[%s] %s", ref, message)
 	}
 
-	// Execute commit with optional campaign tag prepend and submodule sync.
+	// Execute commit with campaign tag support.
 	if err := commitWithCampaignSupport(ctx, ws, ref, message, festMessage, result); err != nil {
 		result.Success = false
 		result.Error = err.Error()
@@ -180,6 +224,18 @@ func runCommit(cmd *cobra.Command, args []string) error {
 
 	result.Success = true
 	result.TaskRef = ref
+
+	// Campaign root commit: stage festival-scoped files and commit separately.
+	// Only when we're in a submodule (the campaign root commit is a second commit).
+	// When at the campaign root, the primary commit above already handled festival files.
+	if !noRoot && inSubmodule && ws != nil && ws.Type == scope.WorkspaceTypeCampaign && hasFestival {
+		rootHash, rootErr := commitFestivalAtRoot(ctx, ws, festivalPath, submoduleRelPath, result.CampaignTag, ref, message)
+		if rootErr != nil {
+			fmt.Fprintf(os.Stderr, "%s %s\n", ui.Warning("campaign root commit skipped:"), rootErr.Error())
+		} else if rootHash != "" {
+			result.CampaignHash = rootHash
+		}
+	}
 
 	return outputResult(result)
 }
@@ -200,8 +256,8 @@ func outputResult(result *CommitResult) error {
 			if result.CampaignTag != "" {
 				fmt.Printf("%s %s\n", ui.Label("Campaign"), ui.Value(result.CampaignTag))
 			}
-			if result.Synced {
-				fmt.Printf("%s %s\n", ui.Label("Synced"), ui.Value("campaign root updated"))
+			if result.CampaignHash != "" {
+				fmt.Printf("%s %s\n", ui.Label("Root Commit"), ui.Value(result.CampaignHash))
 			}
 		} else {
 			return errors.New(result.Error)
@@ -382,17 +438,99 @@ func commitWithCampaignSupport(ctx context.Context, ws *scope.WorkspaceInfo, fes
 	result.Hash = hash
 	result.Message = commitMessage
 
-	if syncSubmoduleRef && campaignID != "" && ws != nil {
-		relPath, relErr := resolveProjectRelPath(ws.Root)
-		if relErr == nil {
-			syncErr := commitkit.SyncSubmoduleRef(ctx, ws.Root, relPath, campaignID)
-			if syncErr == nil {
-				result.Synced = true
-			}
-		}
+	return nil
+}
+
+// isInSubmodule returns true and the submodule-relative path if the current
+// working directory is inside a git submodule of the campaign root.
+func isInSubmodule(campaignRoot string) (bool, string) {
+	relPath, err := resolveProjectRelPath(campaignRoot)
+	if err != nil {
+		return false, ""
+	}
+	return true, relPath
+}
+
+// festivalScopedPaths returns the campaign-root-relative paths that should be
+// staged for a festival commit at the campaign root:
+//   - The festival directory itself (task docs, .fest/progress_events.jsonl)
+//   - .campaign/fest/ (navigation state)
+//   - festivals/.festival/.state/ (global festival event log)
+//   - The submodule pointer path (if submoduleRelPath is non-empty)
+func festivalScopedPaths(campaignRoot, festivalPath, submoduleRelPath string) ([]string, error) {
+	festivalRel, err := filepath.Rel(campaignRoot, festivalPath)
+	if err != nil {
+		return nil, errors.Wrap(err, "computing festival relative path")
 	}
 
-	return nil
+	paths := []string{
+		festivalRel,
+		filepath.Join(".campaign", "fest"),
+		filepath.Join("festivals", ".festival", ".state"),
+	}
+
+	if submoduleRelPath != "" {
+		paths = append(paths, submoduleRelPath)
+	}
+
+	return paths, nil
+}
+
+// commitCampaignRoot stages festival-scoped paths at the campaign root and
+// commits them. Returns the short hash of the campaign commit, or empty string
+// if there were no changes to commit. Errors from staging/committing are
+// returned; "no changes" is a silent skip.
+func commitCampaignRoot(ctx context.Context, campaignRoot string, paths []string, commitMessage string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", errors.Wrap(err, "context cancelled")
+	}
+
+	if err := commitkit.StageFiles(ctx, campaignRoot, paths...); err != nil {
+		return "", errors.Wrap(err, "staging festival files at campaign root")
+	}
+
+	hasChanges, err := commitkit.HasStagedChanges(ctx, campaignRoot)
+	if err != nil {
+		return "", errors.Wrap(err, "checking staged changes at campaign root")
+	}
+	if !hasChanges {
+		return "", nil
+	}
+
+	if err := commitkit.Commit(ctx, campaignRoot, commitkit.CommitOptions{
+		Message: commitMessage,
+	}); err != nil {
+		return "", errors.Wrap(err, "committing festival files at campaign root")
+	}
+
+	hash, err := commitkit.ShortHash(ctx, campaignRoot)
+	if err != nil {
+		return "", errors.Wrap(err, "getting campaign root commit hash")
+	}
+
+	return hash, nil
+}
+
+// commitFestivalAtRoot orchestrates the campaign root commit for festival-scoped
+// files. It computes the scoped paths, builds a tagged message with "fest:" prefix,
+// and delegates to commitCampaignRoot.
+func commitFestivalAtRoot(ctx context.Context, ws *scope.WorkspaceInfo, festivalPath, submoduleRelPath, campaignTag, festRef, rawMsg string) (string, error) {
+	paths, err := festivalScopedPaths(ws.Root, festivalPath, submoduleRelPath)
+	if err != nil {
+		return "", err
+	}
+
+	// Build the campaign root commit message with "fest:" prefix.
+	rootMsg := "fest: " + rawMsg
+
+	// Apply the same campaign tag used for the project commit.
+	if campaignTag != "" {
+		rootMsg = campaignTag + " " + rootMsg
+	} else if festRef != "" {
+		rootMsg = fmt.Sprintf("[%s] %s", festRef, rootMsg)
+	}
+
+	return commitCampaignRoot(ctx, ws.Root, paths, rootMsg)
 }
 
 // resolveProjectRelPath returns the current git repository's path relative to
