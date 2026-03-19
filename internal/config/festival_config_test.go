@@ -690,6 +690,37 @@ func TestLoadFestivalConfig_AutoLinkExplicitDisabledPreserved(t *testing.T) {
 	}
 }
 
+func TestAutoLinkConfig_RoundTripPreservesDisabled(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Write config with auto_link disabled
+	data := []byte("version: \"1.0\"\nauto_link:\n  enabled: false\n")
+	if err := os.WriteFile(filepath.Join(tmpDir, FestivalConfigFileName), data, 0644); err != nil {
+		t.Fatalf("write initial config: %v", err)
+	}
+
+	// Load → save → load round-trip (simulates fest status set active)
+	cfg, err := LoadFestivalConfig(tmpDir, "")
+	if err != nil {
+		t.Fatalf("first load: %v", err)
+	}
+	if cfg.AutoLink.Enabled {
+		t.Fatal("after first load: AutoLink.Enabled = true, want false")
+	}
+
+	if err := SaveFestivalConfig(tmpDir, "", cfg); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+
+	cfg2, err := LoadFestivalConfig(tmpDir, "")
+	if err != nil {
+		t.Fatalf("second load: %v", err)
+	}
+	if cfg2.AutoLink.Enabled {
+		t.Fatal("after round-trip: AutoLink.Enabled = true, want false — auto_link section was lost on save")
+	}
+}
+
 func TestLoadFestivalConfig_AutoLinkSectionDefaultsWhenPresent(t *testing.T) {
 	tmpDir := t.TempDir()
 	data := []byte("version: \"1.0\"\nauto_link:\n  validate_path_exists: false\n")

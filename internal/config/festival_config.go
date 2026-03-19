@@ -95,6 +95,14 @@ type AutoLinkConfig struct {
 	validatePathExistsSet bool `yaml:"-"`
 }
 
+// IsZero implements the yaml.IsZeroer interface so that omitempty only drops
+// the auto_link section when it was never explicitly present in the source YAML.
+// Without this, setting enabled: false (a zero value) causes the entire section
+// to be silently dropped on re-save, reverting to defaults on next load.
+func (c AutoLinkConfig) IsZero() bool {
+	return !c.present
+}
+
 // DefaultAutoLinkConfig returns the default auto-link configuration.
 // Auto-link is enabled by default, requiring fest_working_dir on implementation phases.
 func DefaultAutoLinkConfig() AutoLinkConfig {

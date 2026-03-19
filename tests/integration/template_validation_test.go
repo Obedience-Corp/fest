@@ -38,6 +38,8 @@ func setupTemplateFestival(t *testing.T, tc *TestContainer, festName string) str
 
 	// Write fest.yaml with quality gates enabled
 	festYaml := `version: "1.0"
+auto_link:
+  enabled: false
 quality_gates:
   enabled: true
   auto_append: true
@@ -142,16 +144,18 @@ func TestNextTemplateOutputIsValid(t *testing.T) {
 
 	// Add quality gate task stubs (required by validator for fest next)
 	// Files must match taskParsePattern: ^(\d{2})_(.+)\.md$
+	// Frontmatter must include fest_managed + fest_gate_id (used by gates.GetGateID)
 	for _, gate := range []struct {
-		num                int
-		name, gType, title string
+		num      int
+		name, id string
+		title    string
 	}{
 		{2, "testing", "testing", "Testing"},
 		{3, "review", "review", "Code Review"},
 		{4, "iterate", "iterate", "Iterate"},
 		{5, "fest_commit", "fest-commit", "Fest Commit"},
 	} {
-		gateContent := fmt.Sprintf("---\nfest_type: gate\nfest_gate_type: %s\nfest_status: pending\n---\n# Quality Gate: %s\n- [ ] Gate passed\n", gate.gType, gate.title)
+		gateContent := fmt.Sprintf("---\nfest_managed: true\nfest_gate_id: %s\nfest_type: gate\nfest_status: pending\n---\n# Quality Gate: %s\n- [ ] Gate passed\n", gate.id, gate.title)
 		err = writeFileInContainer(tc, fmt.Sprintf("%s/%02d_%s.md", seqPath, gate.num, gate.name), gateContent)
 		require.NoError(t, err)
 	}
@@ -228,16 +232,18 @@ func TestAllCommandsProduceValidOutput(t *testing.T) {
 
 	// Add quality gate task stubs (required by validator for fest next)
 	// Files must match taskParsePattern: ^(\d{2})_(.+)\.md$
+	// Frontmatter must include fest_managed + fest_gate_id (used by gates.GetGateID)
 	for _, gate := range []struct {
-		num                int
-		name, gType, title string
+		num      int
+		name, id string
+		title    string
 	}{
 		{2, "testing", "testing", "Testing"},
 		{3, "review", "review", "Code Review"},
 		{4, "iterate", "iterate", "Iterate"},
 		{5, "fest_commit", "fest-commit", "Fest Commit"},
 	} {
-		gateContent := fmt.Sprintf("---\nfest_type: gate\nfest_gate_type: %s\nfest_status: pending\n---\n# Quality Gate: %s\n- [ ] Gate passed\n", gate.gType, gate.title)
+		gateContent := fmt.Sprintf("---\nfest_managed: true\nfest_gate_id: %s\nfest_type: gate\nfest_status: pending\n---\n# Quality Gate: %s\n- [ ] Gate passed\n", gate.id, gate.title)
 		err = writeFileInContainer(tc, fmt.Sprintf("%s/%02d_%s.md", seqPath, gate.num, gate.name), gateContent)
 		require.NoError(t, err)
 	}
