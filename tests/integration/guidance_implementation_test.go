@@ -93,8 +93,10 @@ func TestImplementationMode_PhaseBoundaries(t *testing.T) {
 
 	festPath := findFestivalPath(t, container, festivalsPath+"/planning", "test-impl-phases")
 
-	// Write fest.yaml with quality gates enabled
+	// Write fest.yaml with quality gates enabled and auto-link disabled (no real project dirs in container)
 	festYaml := `version: "1.0"
+auto_link:
+  enabled: false
 quality_gates:
   enabled: true
   auto_append: true
@@ -196,8 +198,8 @@ func TestImplementationMode_Completion(t *testing.T) {
 
 	festPath := findFestivalPath(t, container, festivalsPath+"/planning", "test-impl-done")
 
-	// Write fest.yaml with quality gates enabled
-	festYaml := "version: \"1.0\"\nquality_gates:\n  enabled: true\n  auto_append: true\n  implementation:\n    - id: testing\n      template: gates/implementation/QUALITY_GATE_TESTING\n      enabled: true\n    - id: review\n      template: gates/implementation/QUALITY_GATE_REVIEW\n      enabled: true\n    - id: iterate\n      template: gates/implementation/QUALITY_GATE_ITERATE\n      enabled: true\n    - id: fest-commit\n      template: gates/implementation/QUALITY_GATE_FEST_COMMIT\n      enabled: true\n"
+	// Write fest.yaml with quality gates enabled and auto-link disabled (no real project dirs in container)
+	festYaml := "version: \"1.0\"\nauto_link:\n  enabled: false\nquality_gates:\n  enabled: true\n  auto_append: true\n  implementation:\n    - id: testing\n      template: gates/implementation/QUALITY_GATE_TESTING\n      enabled: true\n    - id: review\n      template: gates/implementation/QUALITY_GATE_REVIEW\n      enabled: true\n    - id: iterate\n      template: gates/implementation/QUALITY_GATE_ITERATE\n      enabled: true\n    - id: fest-commit\n      template: gates/implementation/QUALITY_GATE_FEST_COMMIT\n      enabled: true\n"
 	err = writeFileInContainer(container, festPath+"/fest.yaml", festYaml)
 	require.NoError(t, err)
 

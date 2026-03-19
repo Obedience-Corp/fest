@@ -549,10 +549,35 @@ func ensureQualityGatesInFestivalConfig(tc *TestContainer, festPath string) erro
 	if err != nil {
 		return err
 	}
-	if strings.Contains(content, "quality_gates:") {
-		return nil
+	if !strings.Contains(content, "quality_gates:") {
+		if err := appendFileInContainer(tc, festYAMLPath, implementationQualityGatesYAML); err != nil {
+			return err
+		}
 	}
-	return appendFileInContainer(tc, festYAMLPath, implementationQualityGatesYAML)
+	return disableAutoLinkInFestivalConfig(tc, festPath)
+}
+
+// disableAutoLinkInFestivalConfig sets auto_link.enabled to false in fest.yaml.
+// Integration tests run in Docker containers without real campaign project directories,
+// so auto-link validation (which requires fest_working_dir) must be disabled.
+func disableAutoLinkInFestivalConfig(tc *TestContainer, festPath string) error {
+	festYAMLPath := festPath + "/fest.yaml"
+	content, err := tc.ReadFile(festYAMLPath)
+	if err != nil {
+		return err
+	}
+
+	// Parse existing YAML, set auto_link.enabled = false, write back
+	var cfg map[string]interface{}
+	if err := yaml.Unmarshal([]byte(content), &cfg); err != nil {
+		return err
+	}
+	cfg["auto_link"] = map[string]interface{}{"enabled": false}
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+	return writeFileInContainer(tc, festYAMLPath, string(data))
 }
 
 // ensureGateTemplates creates quality gate template files in the festival's gates/ directory.
