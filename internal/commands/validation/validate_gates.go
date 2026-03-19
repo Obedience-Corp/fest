@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	"github.com/Obedience-Corp/fest/internal/config"
+	gatescore "github.com/Obedience-Corp/fest/internal/gates"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/validator"
 	"github.com/spf13/cobra"
@@ -86,18 +88,100 @@ func validateQualityGatesChecks(ctx context.Context, festivalPath string, result
 		return
 	}
 
-	converted := convertIssues(issues)
-	result.Issues = append(result.Issues, converted...)
-
 	if autoFix {
-		for _, issue := range converted {
-			if issue.AutoFixable {
-				result.FixesApplied = append(result.FixesApplied, FixApplied{
-					Code:   issue.Code,
-					Path:   issue.Path,
-					Action: "Quality gates would be added (--fix not yet implemented)",
-				})
-			}
+		fixes, warnings, fixErr := applyMissingQualityGates(ctx, festivalPath, issues)
+		if fixErr != nil {
+			result.Issues = append(result.Issues, ValidationIssue{
+				Level:   LevelError,
+				Code:    CodeMissingQualityGate,
+				Path:    festivalPath,
+				Message: fmt.Sprintf("Failed to apply quality gate fixes: %v", fixErr),
+			})
+			return
+		}
+		result.FixesApplied = append(result.FixesApplied, fixes...)
+		result.Warnings = append(result.Warnings, warnings...)
+
+		issues, err = validator.ValidateQualityGates(ctx, festivalPath)
+		if err != nil {
+			result.Issues = append(result.Issues, ValidationIssue{
+				Level:   LevelError,
+				Code:    CodeMissingQualityGate,
+				Path:    festivalPath,
+				Message: fmt.Sprintf("Failed to re-validate quality gates after fixes: %v", err),
+			})
+			return
 		}
 	}
+
+	result.Issues = append(result.Issues, convertIssues(issues)...)
+}
+
+func applyMissingQualityGates(ctx context.Context, festivalPath string, issues []validator.Issue) ([]FixApplied, []string, error) {
+	festCfg, err := config.LoadFestivalConfig(festivalPath, "")
+	if err != nil {
+		return nil, nil, err
+	}
+
+	generator, err := gatescore.NewTaskGenerator(ctx, festivalPath)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	seenSequences := make(map[string]bool)
+	var fixes []FixApplied
+	var warnings []string
+
+	for _, issue := range issues {
+		if issue.Code != validator.CodeMissingQualityGate || !issue.AutoFixable || issue.Path == "" {
+			continue
+		}
+
+		sequencePath := filepath.Join(festivalPath, issue.Path)
+		if seenSequences[sequencePath] {
+			continue
+		}
+		seenSequences[sequencePath] = true
+
+		phasePath := filepath.Dir(sequencePath)
+		phaseType := gatescore.DetectPhaseType(phasePath)
+		configGates := festCfg.GetGatesForPhaseType(phaseType)
+		if len(configGates) == 0 {
+			continue
+		}
+
+		sequenceGates := make([]gatescore.GateTask, len(configGates))
+		for i, gate := range configGates {
+			sequenceGates[i] = gatescore.GateTaskFromQualityGateTask(gate)
+		}
+
+		results, seqWarnings, err := generator.GenerateForSequence(
+			ctx,
+			sequencePath,
+			sequenceGates,
+			gatescore.GenerateOptions{
+				DryRun:  false,
+				Force:   false,
+				Verbose: shared.IsVerbose(),
+			},
+			festivalPath,
+		)
+		if err != nil {
+			return nil, warnings, err
+		}
+		warnings = append(warnings, seqWarnings...)
+
+		for _, change := range results {
+			if change.Type != "create" {
+				continue
+			}
+			fixes = append(fixes, FixApplied{
+				Code:   CodeMissingQualityGate,
+				Path:   change.Path,
+				Action: "Added missing quality gate",
+			})
+		}
+	}
+
+	return fixes, warnings, nil
 }

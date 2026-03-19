@@ -110,8 +110,17 @@ func (g *TaskGenerator) GenerateForSequence(
 		taskFileName := tpl.FormatTaskID(taskNum, gate.ID)
 		taskPath := filepath.Join(sequencePath, taskFileName)
 
-		// Check if a gate of this type already exists (any task number)
-		if existingPath := findExistingGate(entries, sequencePath, gate.ID); existingPath != "" {
+		// Check if this configured gate ID already exists in the sequence.
+		existingPath, restamped, err := findExistingGate(entries, sequencePath, gate.ID, !opts.DryRun)
+		if err != nil {
+			return nil, nil, errors.Wrap(err, "finding existing gate").
+				WithField("gate_id", gate.ID).
+				WithField("sequence_path", sequencePath)
+		}
+		if existingPath != "" {
+			if restamped {
+				warnings = append(warnings, fmt.Sprintf("Backfilled fest_gate_id for %s", existingPath))
+			}
 			if !opts.Force {
 				results = append(results, GenerateResult{
 					Type:   "skip",
@@ -143,7 +152,7 @@ func (g *TaskGenerator) GenerateForSequence(
 			if !strings.HasPrefix(strings.TrimSpace(content), "---") {
 				parentSequenceID := filepath.Base(sequencePath)
 				gateType := inferGateType(gate.ID)
-				fm := frontmatter.NewGateFrontmatter(taskFileName, gate.Name, parentSequenceID, taskNum, gateType, gateTypeAutonomy(gateType))
+				fm := frontmatter.NewGateFrontmatter(taskFileName, gate.Name, parentSequenceID, taskNum, gate.ID, gateType, gateTypeAutonomy(gateType))
 				contentWithFM, fmErr := frontmatter.InjectString(content, fm)
 				if fmErr != nil {
 					warnings = append(warnings, fmt.Sprintf("Failed to inject frontmatter for %s: %v", taskPath, fmErr))
@@ -151,6 +160,8 @@ func (g *TaskGenerator) GenerateForSequence(
 					content = contentWithFM
 				}
 			}
+
+			content = AddMarkers(content, gate.ID)
 
 			if err := os.WriteFile(taskPath, []byte(content), 0644); err != nil {
 				warnings = append(warnings, fmt.Sprintf("Failed to write %s: %v", taskPath, err))
@@ -169,9 +180,10 @@ func (g *TaskGenerator) GenerateForSequence(
 	return results, warnings, nil
 }
 
-// findExistingGate checks if a gate with the given type already exists in the sequence.
-// Returns the path of the existing file, or empty string if not found.
-func findExistingGate(entries []os.DirEntry, sequencePath, gateType string) string {
+// findExistingGate checks if a configured gate already exists in the sequence.
+// It prefers explicit fest_gate_id matching and uses an exact filename-based restamp
+// only for legacy gate files that predate fest_gate_id markers.
+func findExistingGate(entries []os.DirEntry, sequencePath, gateID string, persistLegacyID bool) (string, bool, error) {
 	for _, entry := range entries {
 		if entry.IsDir() {
 			continue
@@ -181,48 +193,63 @@ func findExistingGate(entries []os.DirEntry, sequencePath, gateType string) stri
 			continue
 		}
 		filePath := filepath.Join(sequencePath, name)
-		if hasGateType(filePath, gateType) {
-			return filePath
+		if GetGateID(filePath) == gateID {
+			return filePath, false, nil
+		}
+		if matchesLegacyGateID(filePath, gateID) {
+			if persistLegacyID {
+				if err := stampGateID(filePath, gateID); err != nil {
+					return "", false, err
+				}
+			}
+			return filePath, persistLegacyID, nil
 		}
 	}
-	return ""
+	return "", false, nil
 }
 
-// hasGateType checks if a file is a gate document with the specified gate type.
-func hasGateType(filePath, gateType string) bool {
+func matchesLegacyGateID(filePath, gateID string) bool {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return false
 	}
 
-	lines := strings.Split(string(content), "\n")
-	inFrontmatter := false
-	isGate := false
-	matchesType := false
+	fm, _, err := frontmatter.Parse(content)
+	if err != nil || fm == nil || fm.Type != frontmatter.TypeGate || fm.GateID != "" {
+		return false
+	}
 
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed == "---" {
-			if inFrontmatter {
-				break // End of frontmatter
-			}
-			inFrontmatter = true
-			continue
-		}
-		if !inFrontmatter {
-			continue
-		}
-		if strings.HasPrefix(trimmed, "fest_type:") && strings.Contains(trimmed, "gate") {
-			isGate = true
-		}
-		if strings.HasPrefix(trimmed, "fest_gate_type:") {
-			parts := strings.SplitN(trimmed, ":", 2)
-			if len(parts) == 2 && strings.TrimSpace(parts[1]) == gateType {
-				matchesType = true
-			}
+	return extractTaskStem(filepath.Base(filePath)) == configuredGateStem(gateID)
+}
+
+func stampGateID(filePath, gateID string) error {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return err
+	}
+
+	updated := AddMarkers(string(content), gateID)
+	return os.WriteFile(filePath, []byte(updated), 0644)
+}
+
+func configuredGateStem(gateID string) string {
+	return extractTaskStem(tpl.FormatTaskID(1, gateID))
+}
+
+func extractTaskStem(filename string) string {
+	name := strings.TrimSuffix(strings.ToLower(filepath.Base(filename)), ".md")
+	if len(name) >= 3 && isDigit(name[0]) && isDigit(name[1]) {
+		switch name[2] {
+		case '_', '-', '.', ' ':
+			return name[3:]
 		}
 	}
-	return isGate && matchesType
+
+	return name
+}
+
+func isDigit(b byte) bool {
+	return b >= '0' && b <= '9'
 }
 
 // renderGateContent renders the content for a gate task file.
@@ -563,21 +590,6 @@ func gateTypeAutonomy(gt frontmatter.GateType) frontmatter.Autonomy {
 
 // inferGateType infers the gate type from the gate ID.
 func inferGateType(gateID string) frontmatter.GateType {
-	lower := strings.ToLower(gateID)
-	switch {
-	case strings.Contains(lower, "testing") || strings.Contains(lower, "test") || strings.Contains(lower, "verify"):
-		return frontmatter.GateTesting
-	case strings.Contains(lower, "review"):
-		return frontmatter.GateReview
-	case strings.Contains(lower, "iterate") || strings.Contains(lower, "iteration"):
-		return frontmatter.GateIterate
-	case strings.Contains(lower, "commit"):
-		return frontmatter.GateCommit
-	case strings.Contains(lower, "security"):
-		return frontmatter.GateSecurity
-	case strings.Contains(lower, "performance") || strings.Contains(lower, "perf"):
-		return frontmatter.GatePerformance
-	default:
-		return frontmatter.GateTesting
-	}
+	gateType := CanonicalGateType(gateID)
+	return gateType
 }

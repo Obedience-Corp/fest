@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -188,6 +189,190 @@ func TestValidateTaskFiles_SequenceWithoutTasksFails(t *testing.T) {
 	}
 	if !hasError {
 		t.Error("expected error for implementation sequence without task files")
+	}
+}
+
+func TestValidateQualityGatesChecks_AutoFixAddsMissingGates(t *testing.T) {
+	dir := setupTestFestival(t, testFestivalOpts{
+		phaseType:    "implementation",
+		withSequence: true,
+		withTask:     true,
+	})
+
+	gateDir := filepath.Join(dir, "gates", "implementation")
+	if err := os.MkdirAll(gateDir, 0755); err != nil {
+		t.Fatalf("mkdir gate dir: %v", err)
+	}
+
+	templates := map[string]string{
+		"QUALITY_GATE_TESTING.md": `---
+fest_type: gate
+fest_gate_type: testing
+fest_status: pending
+---
+# Gate: Testing and Verification
+`,
+		"QUALITY_GATE_REVIEW.md": `---
+fest_type: gate
+fest_gate_type: review
+fest_status: pending
+---
+# Gate: Code Review
+`,
+		"QUALITY_GATE_ITERATE.md": `---
+fest_type: gate
+fest_gate_type: iterate
+fest_status: pending
+---
+# Gate: Review Results and Iterate
+`,
+		"QUALITY_GATE_FEST_COMMIT.md": `---
+fest_type: gate
+fest_gate_type: commit
+fest_status: pending
+---
+# Gate: Commit Sequence Changes
+`,
+	}
+
+	for name, content := range templates {
+		if err := os.WriteFile(filepath.Join(gateDir, name), []byte(content), 0644); err != nil {
+			t.Fatalf("write template %s: %v", name, err)
+		}
+	}
+
+	result := &ValidationResult{
+		OK:     true,
+		Valid:  true,
+		Issues: []ValidationIssue{},
+	}
+
+	validateQualityGatesChecks(context.Background(), dir, result, true)
+
+	if len(result.Issues) != 0 {
+		t.Fatalf("validateQualityGatesChecks() issues = %+v, want none after autofix", result.Issues)
+	}
+	if len(result.FixesApplied) != 4 {
+		t.Fatalf("validateQualityGatesChecks() applied %d fixes, want 4", len(result.FixesApplied))
+	}
+
+	seqPath := filepath.Join(dir, "001_IMPLEMENTATION", "01_test_sequence")
+	for _, gate := range []struct {
+		name   string
+		gateID string
+	}{
+		{name: "02_testing.md", gateID: "testing"},
+		{name: "03_review.md", gateID: "review"},
+		{name: "04_iterate.md", gateID: "iterate"},
+		{name: "05_fest_commit.md", gateID: "fest-commit"},
+	} {
+		path := filepath.Join(seqPath, gate.name)
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected autofixed gate %s: %v", gate.name, err)
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read autofixed gate %s: %v", gate.name, err)
+		}
+		if !strings.Contains(string(content), "fest_gate_id: "+gate.gateID) {
+			t.Fatalf("autofixed gate %s missing fest_gate_id %q", gate.name, gate.gateID)
+		}
+		if !strings.Contains(string(content), "fest_managed: true") {
+			t.Fatalf("autofixed gate %s missing fest_managed marker", gate.name)
+		}
+	}
+}
+
+func TestValidateQualityGatesChecks_AutoFixBackfillsLegacyGateID(t *testing.T) {
+	dir := setupTestFestival(t, testFestivalOpts{
+		phaseType:    "implementation",
+		withSequence: true,
+		withTask:     true,
+	})
+
+	gateDir := filepath.Join(dir, "gates", "implementation")
+	if err := os.MkdirAll(gateDir, 0755); err != nil {
+		t.Fatalf("mkdir gate dir: %v", err)
+	}
+
+	templates := map[string]string{
+		"QUALITY_GATE_TESTING.md": `---
+fest_type: gate
+fest_status: pending
+---
+# Gate: Testing and Verification
+`,
+		"QUALITY_GATE_REVIEW.md": `---
+fest_type: gate
+fest_status: pending
+---
+# Gate: Code Review
+`,
+		"QUALITY_GATE_ITERATE.md": `---
+fest_type: gate
+fest_status: pending
+---
+# Gate: Review Results and Iterate
+`,
+		"QUALITY_GATE_FEST_COMMIT.md": `---
+fest_type: gate
+fest_status: pending
+---
+# Gate: Commit Sequence Changes
+`,
+	}
+
+	for name, content := range templates {
+		if err := os.WriteFile(filepath.Join(gateDir, name), []byte(content), 0644); err != nil {
+			t.Fatalf("write template %s: %v", name, err)
+		}
+	}
+
+	seqPath := filepath.Join(dir, "001_IMPLEMENTATION", "01_test_sequence")
+	legacyCommitPath := filepath.Join(seqPath, "02_fest_commit.md")
+	legacyCommitContent := `---
+fest_type: gate
+fest_status: pending
+---
+# Gate: Commit Sequence Changes
+`
+	if err := os.WriteFile(legacyCommitPath, []byte(legacyCommitContent), 0644); err != nil {
+		t.Fatalf("write legacy commit gate: %v", err)
+	}
+
+	result := &ValidationResult{
+		OK:     true,
+		Valid:  true,
+		Issues: []ValidationIssue{},
+	}
+
+	validateQualityGatesChecks(context.Background(), dir, result, true)
+
+	if len(result.Issues) != 0 {
+		t.Fatalf("validateQualityGatesChecks() issues = %+v, want none after autofix", result.Issues)
+	}
+
+	content, err := os.ReadFile(legacyCommitPath)
+	if err != nil {
+		t.Fatalf("read legacy commit gate: %v", err)
+	}
+	if !strings.Contains(string(content), "fest_gate_id: fest-commit") {
+		t.Fatalf("legacy commit gate missing backfilled fest_gate_id")
+	}
+
+	entries, err := os.ReadDir(seqPath)
+	if err != nil {
+		t.Fatalf("read sequence dir: %v", err)
+	}
+
+	commitCount := 0
+	for _, entry := range entries {
+		if strings.Contains(entry.Name(), "fest_commit") {
+			commitCount++
+		}
+	}
+	if commitCount != 1 {
+		t.Fatalf("expected exactly 1 fest_commit gate after autofix, found %d", commitCount)
 	}
 }
 
