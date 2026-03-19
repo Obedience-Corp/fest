@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/config"
@@ -91,7 +92,8 @@ func ValidateQualityGates(ctx context.Context, festivalPath string) ([]Issue, er
 				}
 			}
 
-			if len(missing) > 0 && len(tasks) > 0 {
+			sort.Strings(missing)
+		if len(missing) > 0 && len(tasks) > 0 {
 				rel, _ := filepath.Rel(festivalPath, seq.Path)
 				// Phase-type-aware error message
 				phaseTypeTitle := titleCase(phaseType)
