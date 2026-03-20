@@ -11,8 +11,10 @@ import (
 func newUnderstandWorkflowCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "workflow",
-		Short: "Just-in-time reading and execution patterns",
-		Long:  `Learn the just-in-time approach to reading templates and documentation, preserving context for actual work.`,
+		Short: "Just-in-time reading plus workflow/gate execution",
+		Long: `Learn the just-in-time approach to reading templates and documentation,
+preserving context for actual work, and how to use 'fest workflow' for
+WORKFLOW.md phases and GATES.md phase gates.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			printWorkflow(findDotFestivalDir())
 		},

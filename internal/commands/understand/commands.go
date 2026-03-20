@@ -27,7 +27,7 @@ START HERE if you're new to Festival Methodology:
 QUICK REFERENCE:
   fest understand checklist      Validation checklist before starting
   fest understand rules          Naming conventions for automation
-  fest understand workflow       Just-in-time reading pattern
+  fest understand workflow       Just-in-time reading + workflow/gates
 
 The understand command helps you grasp WHEN and WHY to use specific
 approaches. For command syntax, use --help on any command.
