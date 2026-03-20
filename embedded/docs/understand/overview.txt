@@ -138,6 +138,9 @@ Token-Efficient Workflow
 
 Use the fest CLI instead of manual file creation:
 
+  Do not hand-create festival directories or goal files when a
+  'fest create' command exists.
+
   fest create festival --name "my-project" --type standard
   fest create phase --name "IMPLEMENT" --type implementation
   fest create sequence --name "api"

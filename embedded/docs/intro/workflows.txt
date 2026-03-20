@@ -8,17 +8,20 @@ This guide covers the most common workflows you'll use with fest.
 WORKFLOW 1: CREATING A NEW FESTIVAL
 ═══════════════════════════════════════════════════════════════════════════════
 
-  # 1. Navigate to festivals directory
-  fest go active
+  # 1. Navigate to the festivals workspace
+  fest go planning
 
   # 2. Create the festival
-  fest create festival --name "my-feature" --id "MF0001"
+  fest create festival --name "my-feature" --type standard
 
-  # 3. Add phases as needed
-  fest create phase --name "001_PLANNING" --type planning
-  fest create phase --name "002_IMPLEMENTATION" --type implementation
+  # 3. Go to the new festival
+  fest list
+  fest go my-feature
 
-  # 4. Validate the created structure
+  # 4. Add pending phases as needed
+  fest create phase --name "IMPLEMENT" --type implementation
+
+  # 5. Validate the created structure
   fest validate
 
 ═══════════════════════════════════════════════════════════════════════════════
@@ -35,7 +38,7 @@ WORKFLOW 2: EXECUTING AN EXISTING FESTIVAL
   # (fest next shows you exactly what to do)
 
   # 4. Mark task complete when done
-  fest progress --complete
+  fest task completed
 
   # 5. Repeat steps 2-4 until festival complete
 
@@ -152,8 +155,8 @@ TIPS FOR AI AGENTS
      - SEQUENCE_GOAL.md for task group purpose
 
   4. Mark progress consistently
-     - fest progress --complete after each task
-     - fest progress --skip "reason" if blocked
+     - fest task completed after each task
+     - fest task blocked --reason "..." if blocked
 
   5. Use JSON output for programmatic access
      - fest next --json | jq '.task_path'
