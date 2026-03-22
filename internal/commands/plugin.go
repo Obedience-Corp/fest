@@ -79,9 +79,13 @@ func findFirstPositionalArg(args []string) (string, int) {
 		}
 
 		flagName := strings.TrimPrefix(strings.TrimPrefix(arg, "--"), "-")
-		if f := pflags.Lookup(flagName); f != nil && f.NoOptDefVal == "" {
+		f := pflags.Lookup(flagName)
+		if f == nil {
+			// Unknown flag — bail out and let Cobra report the error.
+			return "", 0
+		}
+		if f.NoOptDefVal == "" {
 			i++
-			continue
 		}
 	}
 	return "", 0

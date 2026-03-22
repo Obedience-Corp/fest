@@ -100,10 +100,10 @@ func TestFindFirstPositionalArg(t *testing.T) {
 			wantIdx:  0,
 		},
 		{
-			name:     "unknown flag treated as flag not subcommand",
+			name:     "unknown flag aborts plugin dispatch",
 			args:     []string{"fest", "--unknown", "graph"},
-			wantName: "graph",
-			wantIdx:  2,
+			wantName: "",
+			wantIdx:  0,
 		},
 	}
 
