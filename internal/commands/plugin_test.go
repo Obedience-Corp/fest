@@ -105,6 +105,12 @@ func TestFindFirstPositionalArg(t *testing.T) {
 			wantName: "",
 			wantIdx:  0,
 		},
+		{
+			name:     "unknown flag with equals aborts plugin dispatch",
+			args:     []string{"fest", "--unknown=value", "graph"},
+			wantName: "",
+			wantIdx:  0,
+		},
 	}
 
 	for _, tt := range tests {

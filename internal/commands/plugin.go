@@ -75,6 +75,10 @@ func findFirstPositionalArg(args []string) (string, int) {
 		}
 
 		if strings.Contains(arg, "=") {
+			eqName := strings.TrimPrefix(strings.TrimPrefix(strings.SplitN(arg, "=", 2)[0], "--"), "-")
+			if pflags.Lookup(eqName) == nil {
+				return "", 0
+			}
 			continue
 		}
 
