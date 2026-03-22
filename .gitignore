@@ -13,3 +13,6 @@ go.work
 go.work.sum
 
 CLAUDE.md
+
+# Worktrees
+.worktrees/
