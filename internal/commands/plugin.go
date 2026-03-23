@@ -6,6 +6,7 @@ import (
 	"slices"
 	"strings"
 
+	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/plugins"
 )
 
@@ -36,11 +37,10 @@ func dispatchPlugin() error {
 		pluginArgs = os.Args[argIdx:]
 	}
 
-	if !dispatcher.CanHandle(pluginArgs) {
-		return nil
-	}
-
 	if err := dispatcher.Dispatch(pluginArgs); err != nil {
+		if festerrors.Is(err, festerrors.ErrCodeNotFound) {
+			return nil
+		}
 		return err
 	}
 	return errPluginHandled
