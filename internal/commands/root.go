@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"errors"
 	"fmt"
 
 	chaincmd "github.com/Obedience-Corp/fest/internal/commands/chain"
@@ -72,6 +73,15 @@ var rootCmd = &cobra.Command{
 
 // Execute runs the root command
 func Execute() error {
+	// Try git-style plugin dispatch for unknown subcommands.
+	// A fest-<name> binary on PATH becomes "fest <name> [args...]".
+	if err := dispatchPlugin(); err != nil {
+		if errors.Is(err, errPluginHandled) {
+			return nil
+		}
+		return err
+	}
+
 	return rootCmd.Execute()
 }
 
