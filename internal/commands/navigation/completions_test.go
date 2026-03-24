@@ -7,6 +7,30 @@ import (
 	"testing"
 )
 
+func TestStatusANSI(t *testing.T) {
+	tests := []struct {
+		name   string
+		status string
+		want   string
+	}{
+		{name: "active", status: "active", want: ansiActive},
+		{name: "ready", status: "ready", want: ansiReady},
+		{name: "planning", status: "planning", want: ansiPlanned},
+		{name: "completed", status: "completed", want: ansiCompleted},
+		{name: "dungeon completed", status: "dungeon/completed", want: ansiDungeon},
+		{name: "unknown", status: "unknown", want: ansiDim},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := statusANSI(tt.status)
+			if got != tt.want {
+				t.Fatalf("statusANSI(%q) = %q, want %q", tt.status, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFindCompletedFestivals(t *testing.T) {
 	tmpDir := t.TempDir()
 	completedDir := filepath.Join(tmpDir, "festivals", "dungeon", "completed")

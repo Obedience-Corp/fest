@@ -43,6 +43,7 @@ const (
 	ansiReset     = "\033[0m"
 	ansiDim       = "\033[2m"
 	ansiActive    = "\033[38;5;42m"  // bright green
+	ansiReady     = "\033[38;5;220m" // yellow
 	ansiPlanned   = "\033[38;5;33m"  // blue
 	ansiCompleted = "\033[38;5;205m" // magenta
 	ansiDungeon   = "\033[38;5;248m" // light grey
@@ -55,7 +56,7 @@ func statusANSI(status string) string {
 	case "active":
 		return ansiActive
 	case "ready":
-		return ansiActive
+		return ansiReady
 	case "planning":
 		return ansiPlanned
 	case "completed":
