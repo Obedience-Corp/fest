@@ -4,7 +4,7 @@
 
 ![Festival Methodology Banner](docs/images/banner.jpg)
 
-[![Watch the demo](https://img.youtube.com/vi/30m3VNl2G6k/hqdefault.jpg)](https://youtu.be/30m3VNl2G6k?si=4taH1m1q4MRkbOhd&t=21)
+[![Watch the demo](docs/images/demo_video_thumb.jpg)](https://youtu.be/30m3VNl2G6k?si=4taH1m1q4MRkbOhd&t=21)
 
 Festival Methodology transforms high-level objectives into structured, executable work that AI agents complete autonomously. **Fest** is the CLI that makes it happen - scaffolding festivals, guiding agents through execution, and tracking progress from goal to completion.
 
