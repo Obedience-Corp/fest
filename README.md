@@ -4,6 +4,8 @@
 
 ![Festival Methodology Banner](docs/images/banner.jpg)
 
+[![Watch the demo](https://img.youtube.com/vi/30m3VNl2G6k/maxresdefault.jpg)](https://youtu.be/30m3VNl2G6k?si=4taH1m1q4MRkbOhd&t=21)
+
 Festival Methodology transforms high-level objectives into structured, executable work that AI agents complete autonomously. **Fest** is the CLI that makes it happen - scaffolding festivals, guiding agents through execution, and tracking progress from goal to completion.
 
 Festivals live within **campaigns** - isolated workspaces managed by [camp](https://github.com/Obedience-Corp/camp). A campaign organizes your projects, plans, and context in one place. See the [methodology README](methodology/README.md) for the complete guide.
