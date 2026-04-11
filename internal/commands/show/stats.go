@@ -21,10 +21,15 @@ type FestivalInfo struct {
 	Name         string    `json:"name"`                    // Directory name (used for linking)
 	MetadataName string    `json:"metadata_name,omitempty"` // Name from fest.yaml metadata (clean name without ID)
 	Status       string    `json:"status"`
-	Priority     string    `json:"priority,omitempty"`
-	Path         string    `json:"path"`
-	ProjectPath  string    `json:"project_path,omitempty"` // Linked project directory from fest.yaml
-	ModTime      time.Time `json:"mod_time"`               // Directory modification time
+	// StatusDate is the dated bucket a festival lives under when it is in a
+	// dungeon substatus. Format is the raw on-disk directory name
+	// (YYYY-MM-DD for new entries, or YYYY-MM for legacy entries).
+	// Empty for festivals that are not stored inside a dated bucket.
+	StatusDate  string    `json:"status_date,omitempty"`
+	Priority    string    `json:"priority,omitempty"`
+	Path        string    `json:"path"`
+	ProjectPath string    `json:"project_path,omitempty"` // Linked project directory from fest.yaml
+	ModTime     time.Time `json:"mod_time"`               // Directory modification time
 	// CreatedAt is when the festival was first created (from fest_created frontmatter or directory mod time).
 	CreatedAt time.Time `json:"created_at,omitempty"`
 	// UpdatedAt is the last modification time (from fest_updated frontmatter or directory mod time).

@@ -387,3 +387,96 @@ func TestFestivalsToMapWithProgress_IncludesTimestamps(t *testing.T) {
 		t.Error("missing updated_at in progress JSON map")
 	}
 }
+
+func TestFestivalsToMap_IncludesStatusDate(t *testing.T) {
+	festivals := []*show.FestivalInfo{
+		{
+			Name:       "dungeoned-fest",
+			Path:       "/tmp/dungeon/completed/2026-02-10/dungeoned-fest",
+			Status:     "dungeon/completed",
+			StatusDate: "2026-02-10",
+		},
+	}
+	result := festivalsToMap(festivals)
+	got, ok := result[0]["status_date"]
+	if !ok {
+		t.Fatal("missing status_date in JSON map")
+	}
+	if got != "2026-02-10" {
+		t.Errorf("status_date = %v, want %q", got, "2026-02-10")
+	}
+}
+
+func TestFestivalsToMap_OmitsEmptyStatusDate(t *testing.T) {
+	festivals := []*show.FestivalInfo{
+		{Name: "active-fest", Path: "/tmp/active/fest", Status: "active"},
+	}
+	result := festivalsToMap(festivals)
+	if _, ok := result[0]["status_date"]; ok {
+		t.Error("empty StatusDate should be omitted from JSON map")
+	}
+}
+
+func TestFestivalsToMapWithProgress_IncludesStatusDate(t *testing.T) {
+	festivals := []*show.FestivalInfo{
+		{
+			Name:       "dungeoned-fest",
+			Path:       "/tmp/dungeon/completed/2026-02-10/dungeoned-fest",
+			Status:     "dungeon/completed",
+			StatusDate: "2026-02-10",
+		},
+	}
+	result := festivalsToMapWithProgress(festivals, nil)
+	got, ok := result[0]["status_date"]
+	if !ok {
+		t.Fatal("missing status_date in progress JSON map")
+	}
+	if got != "2026-02-10" {
+		t.Errorf("status_date = %v, want %q", got, "2026-02-10")
+	}
+}
+
+func TestSortByStatusDate_NewestBucketFirst(t *testing.T) {
+	now := time.Now()
+	festivals := []*show.FestivalInfo{
+		{Name: "older", StatusDate: "2026-01-19", ModTime: now},
+		{Name: "newest", StatusDate: "2026-02-10", ModTime: now.Add(-time.Hour)},
+		{Name: "middle", StatusDate: "2026-01-26", ModTime: now},
+		{Name: "no-bucket", StatusDate: "", ModTime: now},
+	}
+	sortByStatusDate(festivals)
+	want := []string{"newest", "middle", "older", "no-bucket"}
+	for i, name := range want {
+		if festivals[i].Name != name {
+			t.Errorf("position %d: got %q, want %q", i, festivals[i].Name, name)
+		}
+	}
+}
+
+func TestSortByStatusDate_EqualBucketsFallBackToModTime(t *testing.T) {
+	base := time.Now()
+	festivals := []*show.FestivalInfo{
+		{Name: "older-mod", StatusDate: "2026-02-10", ModTime: base.Add(-time.Hour)},
+		{Name: "newer-mod", StatusDate: "2026-02-10", ModTime: base},
+	}
+	sortByStatusDate(festivals)
+	if festivals[0].Name != "newer-mod" {
+		t.Errorf("tie-break by ModTime: position 0 = %q, want %q", festivals[0].Name, "newer-mod")
+	}
+}
+
+func TestSortByStatusDate_EmptyStatusDateSinksToEnd(t *testing.T) {
+	festivals := []*show.FestivalInfo{
+		{Name: "empty-first", StatusDate: ""},
+		{Name: "dated", StatusDate: "2026-01-01"},
+		{Name: "empty-last", StatusDate: ""},
+	}
+	sortByStatusDate(festivals)
+	if festivals[0].Name != "dated" {
+		t.Errorf("position 0: got %q, want %q", festivals[0].Name, "dated")
+	}
+	if festivals[1].StatusDate != "" || festivals[2].StatusDate != "" {
+		t.Errorf("empty StatusDate entries should be at positions 1-2, got %q, %q",
+			festivals[1].StatusDate, festivals[2].StatusDate)
+	}
+}

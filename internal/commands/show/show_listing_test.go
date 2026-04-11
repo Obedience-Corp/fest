@@ -130,4 +130,125 @@ func TestFindFestivalByName_DateDirectories(t *testing.T) {
 	if info.Status != "dungeon/completed" {
 		t.Errorf("Status = %q, want %q", info.Status, "dungeon/completed")
 	}
+	if info.StatusDate != "2026-02-28" {
+		t.Errorf("StatusDate = %q, want %q", info.StatusDate, "2026-02-28")
+	}
+}
+
+// TestListFestivalsByStatus_PopulatesStatusDate verifies that ListFestivalsByStatus
+// records the dated bucket name on each FestivalInfo returned from a dungeon
+// status, and leaves StatusDate empty for non-bucketed entries.
+func TestListFestivalsByStatus_PopulatesStatusDate(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	dateDirFest := filepath.Join(tmpDir, "dungeon", "completed", "2026-02-28", "fest-in-date-dir")
+	directFest := filepath.Join(tmpDir, "dungeon", "completed", "fest-direct")
+
+	for _, d := range []string{dateDirFest, directFest} {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(d, FestivalGoalFile), []byte("# Test"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	festivals, err := ListFestivalsByStatus(context.Background(), tmpDir, "dungeon/completed", "")
+	if err != nil {
+		t.Fatalf("ListFestivalsByStatus() error = %v", err)
+	}
+
+	byName := map[string]*FestivalInfo{}
+	for _, f := range festivals {
+		byName[f.Name] = f
+	}
+
+	bucketed, ok := byName["fest-in-date-dir"]
+	if !ok {
+		t.Fatalf("bucketed festival not found; got %v", byName)
+	}
+	if bucketed.StatusDate != "2026-02-28" {
+		t.Errorf("StatusDate for bucketed festival = %q, want %q", bucketed.StatusDate, "2026-02-28")
+	}
+
+	direct, ok := byName["fest-direct"]
+	if !ok {
+		t.Fatalf("direct festival not found; got %v", byName)
+	}
+	if direct.StatusDate != "" {
+		t.Errorf("StatusDate for non-bucketed festival = %q, want empty", direct.StatusDate)
+	}
+}
+
+// TestListFestivalsByStatusLight_PopulatesStatusDate is the same assertion
+// against the light (no-stats) discovery path.
+func TestListFestivalsByStatusLight_PopulatesStatusDate(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	festDir := filepath.Join(tmpDir, "dungeon", "someday", "2026-04-01", "maybe-later-ML0001")
+	if err := os.MkdirAll(festDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(festDir, FestivalGoalFile), []byte("# Test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	festivals, err := ListFestivalsByStatusLight(context.Background(), tmpDir, "dungeon/someday")
+	if err != nil {
+		t.Fatalf("ListFestivalsByStatusLight() error = %v", err)
+	}
+	if len(festivals) != 1 {
+		t.Fatalf("expected 1 festival, got %d", len(festivals))
+	}
+	if got := festivals[0].StatusDate; got != "2026-04-01" {
+		t.Errorf("StatusDate = %q, want %q", got, "2026-04-01")
+	}
+}
+
+// TestParseFestivalInfo_StatusDateFromBucket verifies that the single-festival
+// parse path records StatusDate when walked directly into a dated bucket.
+func TestParseFestivalInfo_StatusDateFromBucket(t *testing.T) {
+	tmpDir := t.TempDir()
+	festDir := filepath.Join(tmpDir, "dungeon", "completed", "2026-02-28", "lone-fest-LF0001")
+	if err := os.MkdirAll(festDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(festDir, FestivalGoalFile), []byte("# Test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := parseFestivalInfo(context.Background(), festDir, "")
+	if err != nil {
+		t.Fatalf("parseFestivalInfo() error = %v", err)
+	}
+	if info.Status != "dungeon/completed" {
+		t.Errorf("Status = %q, want %q", info.Status, "dungeon/completed")
+	}
+	if info.StatusDate != "2026-02-28" {
+		t.Errorf("StatusDate = %q, want %q", info.StatusDate, "2026-02-28")
+	}
+}
+
+// TestParseFestivalInfo_NoStatusDateForActive verifies that non-dungeon
+// festivals do not get a StatusDate.
+func TestParseFestivalInfo_NoStatusDateForActive(t *testing.T) {
+	tmpDir := t.TempDir()
+	festDir := filepath.Join(tmpDir, "active", "active-fest-AF0001")
+	if err := os.MkdirAll(festDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(festDir, FestivalGoalFile), []byte("# Test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := parseFestivalInfo(context.Background(), festDir, "")
+	if err != nil {
+		t.Fatalf("parseFestivalInfo() error = %v", err)
+	}
+	if info.Status != "active" {
+		t.Errorf("Status = %q, want %q", info.Status, "active")
+	}
+	if info.StatusDate != "" {
+		t.Errorf("StatusDate = %q, want empty", info.StatusDate)
+	}
 }

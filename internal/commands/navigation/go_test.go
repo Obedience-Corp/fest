@@ -327,6 +327,74 @@ func TestResolveGoTargetDungeonAliases(t *testing.T) {
 	}
 }
 
+func TestResolveFestivalByName_FindsDungeonDateBucket(t *testing.T) {
+	tmpDir := t.TempDir()
+	festivalsDir := filepath.Join(tmpDir, "festivals")
+
+	// Mirror the real on-disk layout: dungeon/<substatus>/YYYY-MM-DD/<name>
+	target := filepath.Join(festivalsDir, "dungeon", "completed", "2026-02-10",
+		"feb-9th-gathered-improvements-FG0001")
+	if err := os.MkdirAll(target, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	got := resolveFestivalByName("feb-9th-gathered-improvements-FG0001", festivalsDir)
+	if got != target {
+		t.Errorf("resolveFestivalByName() = %q, want %q", got, target)
+	}
+}
+
+func TestResolveFestivalByName_FindsDungeonDateBucket_Someday(t *testing.T) {
+	tmpDir := t.TempDir()
+	festivalsDir := filepath.Join(tmpDir, "festivals")
+
+	target := filepath.Join(festivalsDir, "dungeon", "someday", "2026-04-01",
+		"maybe-later-ML0001")
+	if err := os.MkdirAll(target, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	got := resolveFestivalByName("maybe-later-ML0001", festivalsDir)
+	if got != target {
+		t.Errorf("resolveFestivalByName() = %q, want %q", got, target)
+	}
+}
+
+func TestResolveFestivalByName_PrefersActiveOverDungeon(t *testing.T) {
+	tmpDir := t.TempDir()
+	festivalsDir := filepath.Join(tmpDir, "festivals")
+	name := "shared-name-SH0001"
+
+	activePath := filepath.Join(festivalsDir, "active", name)
+	dungeonPath := filepath.Join(festivalsDir, "dungeon", "completed", "2026-02-01", name)
+	for _, d := range []string{activePath, dungeonPath} {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got := resolveFestivalByName(name, festivalsDir)
+	if got != activePath {
+		t.Errorf("resolveFestivalByName() = %q, want %q (active should win over dungeon)", got, activePath)
+	}
+}
+
+func TestResolveFestivalByName_IgnoresNonDateDirsInDungeon(t *testing.T) {
+	tmpDir := t.TempDir()
+	festivalsDir := filepath.Join(tmpDir, "festivals")
+
+	// A non-date directory (e.g., a README-shaped folder) should not be
+	// descended as if it were a bucket.
+	notes := filepath.Join(festivalsDir, "dungeon", "completed", "notes", "my-fest")
+	if err := os.MkdirAll(notes, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	if got := resolveFestivalByName("my-fest", festivalsDir); got != "" {
+		t.Errorf("resolveFestivalByName() = %q, want empty (non-date-dir subdirs should not be descended)", got)
+	}
+}
+
 func TestResolveGoTargetWithFestivalName(t *testing.T) {
 	tmpDir := t.TempDir()
 	festivalsDir := filepath.Join(tmpDir, "festivals")

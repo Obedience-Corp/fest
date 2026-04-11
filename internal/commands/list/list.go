@@ -188,6 +188,26 @@ func sortByDate(festivals []*show.FestivalInfo) {
 	})
 }
 
+// sortByStatusDate orders festivals by their dungeon bucket date, newest
+// first. ISO YYYY-MM-DD values compare lexicographically. Festivals with an
+// empty StatusDate fall to the bottom and are further ordered by ModTime
+// desc so non-bucketed dungeon entries still have a deterministic position.
+func sortByStatusDate(festivals []*show.FestivalInfo) {
+	sort.Slice(festivals, func(i, j int) bool {
+		a, b := festivals[i].StatusDate, festivals[j].StatusDate
+		if a == b {
+			return festivals[i].ModTime.After(festivals[j].ModTime)
+		}
+		if a == "" {
+			return false
+		}
+		if b == "" {
+			return true
+		}
+		return a > b
+	})
+}
+
 // applySorting applies the requested sort order to a festival list.
 func applySorting(festivals []*show.FestivalInfo, sortBy string, alpha bool) {
 	switch sortBy {
@@ -303,7 +323,13 @@ func listDungeon(ctx context.Context, festivalsDir string, opts *listOptions, ca
 			return err
 		}
 		if len(festivals) > 0 {
-			applySorting(festivals, opts.sortBy, opts.alpha)
+			// Default dungeon listings order by bucket date (newest first);
+			// explicit --sort or --alpha still wins.
+			if opts.sortBy == "" && !opts.alpha {
+				sortByStatusDate(festivals)
+			} else {
+				applySorting(festivals, opts.sortBy, opts.alpha)
+			}
 			allFestivals[status] = festivals
 			order = append(order, status)
 			totalCount += len(festivals)
@@ -348,7 +374,13 @@ func listByStatus(ctx context.Context, festivalsDir, status string, opts *listOp
 		return err
 	}
 
-	applySorting(festivals, opts.sortBy, opts.alpha)
+	// Dungeon listings default to newest bucket date first; explicit sort
+	// flags still take precedence.
+	if opts.sortBy == "" && !opts.alpha && strings.HasPrefix(status, "dungeon/") {
+		sortByStatusDate(festivals)
+	} else {
+		applySorting(festivals, opts.sortBy, opts.alpha)
+	}
 
 	// Fetch detailed progress if requested
 	var progressMap map[string]*progress.FestivalProgress
@@ -441,6 +473,9 @@ func festivalsToMap(festivals []*show.FestivalInfo) []map[string]interface{} {
 			"path":   f.Path,
 			"status": f.Status,
 		}
+		if f.StatusDate != "" {
+			m["status_date"] = f.StatusDate
+		}
 		if f.Stats != nil {
 			m["progress"] = f.Stats.Progress
 		}
@@ -488,6 +523,9 @@ func festivalsToMapWithProgress(festivals []*show.FestivalInfo, progressMap map[
 			"name":   f.Name,
 			"path":   f.Path,
 			"status": f.Status,
+		}
+		if f.StatusDate != "" {
+			m["status_date"] = f.StatusDate
 		}
 		if f.Stats != nil {
 			m["progress"] = f.Stats.Progress
