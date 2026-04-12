@@ -360,6 +360,27 @@ func TestResolveFestivalByName_FindsDungeonDateBucket_Someday(t *testing.T) {
 	}
 }
 
+func TestResolveFestivalByName_PicksNewestBucketOnCollision(t *testing.T) {
+	tmpDir := t.TempDir()
+	festivalsDir := filepath.Join(tmpDir, "festivals")
+	name := "cloned-fest-CF0001"
+
+	// Same festival name exists in two date buckets — the resolver should
+	// return the newest one to match sortByStatusDate's newest-first order.
+	olderPath := filepath.Join(festivalsDir, "dungeon", "completed", "2026-01-10", name)
+	newerPath := filepath.Join(festivalsDir, "dungeon", "completed", "2026-03-15", name)
+	for _, d := range []string{olderPath, newerPath} {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	got := resolveFestivalByName(name, festivalsDir)
+	if got != newerPath {
+		t.Errorf("resolveFestivalByName() = %q, want %q (newest bucket should win)", got, newerPath)
+	}
+}
+
 func TestResolveFestivalByName_PrefersActiveOverDungeon(t *testing.T) {
 	tmpDir := t.TempDir()
 	festivalsDir := filepath.Join(tmpDir, "festivals")

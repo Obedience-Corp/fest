@@ -193,9 +193,12 @@ func sortByDate(festivals []*show.FestivalInfo) {
 // empty StatusDate fall to the bottom and are further ordered by ModTime
 // desc so non-bucketed dungeon entries still have a deterministic position.
 func sortByStatusDate(festivals []*show.FestivalInfo) {
-	sort.Slice(festivals, func(i, j int) bool {
+	sort.SliceStable(festivals, func(i, j int) bool {
 		a, b := festivals[i].StatusDate, festivals[j].StatusDate
 		if a == b {
+			if festivals[i].ModTime.Equal(festivals[j].ModTime) {
+				return festivals[i].Name < festivals[j].Name
+			}
 			return festivals[i].ModTime.After(festivals[j].ModTime)
 		}
 		if a == "" {

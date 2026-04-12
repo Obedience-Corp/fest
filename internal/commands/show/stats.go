@@ -25,6 +25,11 @@ type FestivalInfo struct {
 	// dungeon substatus. Format is the raw on-disk directory name
 	// (YYYY-MM-DD for new entries, or YYYY-MM for legacy entries).
 	// Empty for festivals that are not stored inside a dated bucket.
+	//
+	// Canonical population: parseFestivalInfo detects the date-dir parent
+	// via LooksLikeDateDir and sets StatusDate automatically.
+	// ListFestivalsByStatusLight uses lightFestivalInfo (no parseFestivalInfo),
+	// so it sets StatusDate manually in its date-dir recursion block.
 	StatusDate  string    `json:"status_date,omitempty"`
 	Priority    string    `json:"priority,omitempty"`
 	Path        string    `json:"path"`

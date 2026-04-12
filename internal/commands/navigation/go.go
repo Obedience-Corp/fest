@@ -359,6 +359,8 @@ func resolveFestivalByName(name, festivalsDir string) string {
 		}
 
 		// Dungeon substatuses: descend one level into date buckets.
+		// Pick the newest bucket when the same name exists in multiple
+		// buckets, matching the "newest first" semantics in sortByStatusDate.
 		if !strings.HasPrefix(status, "dungeon/") {
 			continue
 		}
@@ -366,14 +368,20 @@ func resolveFestivalByName(name, festivalsDir string) string {
 		if err != nil {
 			continue
 		}
+		var best, bestBucket string
 		for _, entry := range entries {
 			if !entry.IsDir() || !show.LooksLikeDateDir(entry.Name()) {
 				continue
 			}
 			datedPath := filepath.Join(statusDir, entry.Name(), name)
 			if info, err := os.Stat(datedPath); err == nil && info.IsDir() {
-				return datedPath
+				if entry.Name() > bestBucket {
+					best, bestBucket = datedPath, entry.Name()
+				}
 			}
+		}
+		if best != "" {
+			return best
 		}
 	}
 	return ""
