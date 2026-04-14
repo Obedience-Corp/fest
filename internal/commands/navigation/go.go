@@ -342,12 +342,46 @@ func resolveFuzzy(pattern, festivalsDir string) (string, error) {
 	return result, err
 }
 
-// resolveFestivalByName searches for a festival by name in status directories
+// resolveFestivalByName searches for a festival by name in status directories.
+// For dungeon substatuses it also descends one level into YYYY-MM-DD date
+// buckets, matching the on-disk layout used when festivals are moved to the
+// dungeon. Fuzzy search intentionally excludes the dungeon (see
+// internal/navigation/fuzzy.go); exact-name lookup does not.
 func resolveFestivalByName(name, festivalsDir string) string {
 	for _, status := range id.StatusDirectories {
-		festPath := filepath.Join(festivalsDir, status, name)
+		statusDir := filepath.Join(festivalsDir, status)
+
+		// Direct child: active/ready/planning/ritual, or any flat dungeon
+		// entry that was moved without a date bucket.
+		festPath := filepath.Join(statusDir, name)
 		if info, err := os.Stat(festPath); err == nil && info.IsDir() {
 			return festPath
+		}
+
+		// Dungeon substatuses: descend one level into date buckets.
+		// Pick the newest bucket when the same name exists in multiple
+		// buckets, matching the "newest first" semantics in sortByStatusDate.
+		if !strings.HasPrefix(status, "dungeon/") {
+			continue
+		}
+		entries, err := os.ReadDir(statusDir)
+		if err != nil {
+			continue
+		}
+		var best, bestBucket string
+		for _, entry := range entries {
+			if !entry.IsDir() || !show.LooksLikeDateDir(entry.Name()) {
+				continue
+			}
+			datedPath := filepath.Join(statusDir, entry.Name(), name)
+			if info, err := os.Stat(datedPath); err == nil && info.IsDir() {
+				if entry.Name() > bestBucket {
+					best, bestBucket = datedPath, entry.Name()
+				}
+			}
+		}
+		if best != "" {
+			return best
 		}
 	}
 	return ""

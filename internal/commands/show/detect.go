@@ -18,8 +18,9 @@ import (
 // dateDirPattern matches YYYY-MM-DD or YYYY-MM formatted date directory names.
 var dateDirPattern = regexp.MustCompile(`^\d{4}-\d{2}(-\d{2})?$`)
 
-// looksLikeDateDir checks if a directory name matches a date directory pattern.
-func looksLikeDateDir(name string) bool {
+// LooksLikeDateDir reports whether a directory name matches the dungeon
+// date-bucket shape (YYYY-MM-DD, or legacy YYYY-MM).
+func LooksLikeDateDir(name string) bool {
 	return dateDirPattern.MatchString(name)
 }
 
@@ -108,7 +109,7 @@ func findLinkedFestivalPath(festivalsRoot, name string) string {
 				continue
 			}
 			for _, entry := range entries {
-				if entry.IsDir() && looksLikeDateDir(entry.Name()) {
+				if entry.IsDir() && LooksLikeDateDir(entry.Name()) {
 					datePath := filepath.Join(statusDir, entry.Name(), name)
 					if info, err := os.Stat(datePath); err == nil && info.IsDir() {
 						if isValidFestival(datePath) {
@@ -176,8 +177,9 @@ func FindFestivalByName(ctx context.Context, festivalsDir, name, campaignRoot st
 			}
 
 			// If this is a date directory, search inside it
-			if looksLikeDateDir(entry.Name()) {
-				subEntries, subErr := os.ReadDir(filepath.Join(statusDir, entry.Name()))
+			if LooksLikeDateDir(entry.Name()) {
+				bucket := entry.Name()
+				subEntries, subErr := os.ReadDir(filepath.Join(statusDir, bucket))
 				if subErr != nil {
 					continue
 				}
@@ -186,13 +188,14 @@ func FindFestivalByName(ctx context.Context, festivalsDir, name, campaignRoot st
 						continue
 					}
 					if sub.Name() == name || strings.HasPrefix(sub.Name(), name+"_") || strings.Contains(sub.Name(), name) {
-						festivalDir := filepath.Join(statusDir, entry.Name(), sub.Name())
+						festivalDir := filepath.Join(statusDir, bucket, sub.Name())
 						if isValidFestival(festivalDir) {
 							info, err := parseFestivalInfo(ctx, festivalDir, campaignRoot)
 							if err != nil {
 								continue
 							}
 							info.Status = status
+							info.StatusDate = bucket
 							return info, nil
 						}
 					}
@@ -239,8 +242,9 @@ func ListFestivalsByStatus(ctx context.Context, festivalsDir, status, campaignRo
 			}
 			info.Status = status
 			festivals = append(festivals, info)
-		} else if looksLikeDateDir(entry.Name()) {
+		} else if LooksLikeDateDir(entry.Name()) {
 			// Recurse into date subdirectory
+			bucket := entry.Name()
 			subEntries, subErr := os.ReadDir(festivalDir)
 			if subErr != nil {
 				continue
@@ -263,6 +267,7 @@ func ListFestivalsByStatus(ctx context.Context, festivalsDir, status, campaignRo
 					}
 				}
 				info.Status = status
+				info.StatusDate = bucket
 				festivals = append(festivals, info)
 			}
 		}
@@ -295,8 +300,9 @@ func ListFestivalsByStatusLight(_ context.Context, festivalsDir, status string) 
 		if isValidFestival(festivalDir) {
 			info := lightFestivalInfo(festivalDir, entry.Name(), status)
 			festivals = append(festivals, info)
-		} else if looksLikeDateDir(entry.Name()) {
+		} else if LooksLikeDateDir(entry.Name()) {
 			// Recurse into date subdirectory
+			bucket := entry.Name()
 			subEntries, subErr := os.ReadDir(festivalDir)
 			if subErr != nil {
 				continue
@@ -310,6 +316,7 @@ func ListFestivalsByStatusLight(_ context.Context, festivalsDir, status string) 
 					continue
 				}
 				info := lightFestivalInfo(subDir, sub.Name(), status)
+				info.StatusDate = bucket
 				festivals = append(festivals, info)
 			}
 		}
@@ -384,12 +391,13 @@ func parseFestivalInfo(ctx context.Context, festivalDir, campaignRoot string) (*
 		info.Status = "dungeon"
 	default:
 		// Check if parent is a date directory (YYYY-MM-DD or YYYY-MM)
-		if looksLikeDateDir(parentName) {
+		if LooksLikeDateDir(parentName) {
 			// Walk up one more level to find the status name
 			statusName := filepath.Base(filepath.Dir(parentDir))                // e.g., "completed"
 			grandparent := filepath.Base(filepath.Dir(filepath.Dir(parentDir))) // e.g., "dungeon"
 			if grandparent == "dungeon" && isKnownDungeonStatus(statusName) {
 				info.Status = "dungeon/" + statusName
+				info.StatusDate = parentName
 			} else {
 				info.Status = "unknown"
 			}

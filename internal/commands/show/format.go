@@ -129,13 +129,18 @@ func FormatFestivalList(status string, festivals []*FestivalInfo) string {
 		return sb.String()
 	}
 
+	isDungeon := strings.HasPrefix(status, "dungeon/")
 	for _, f := range festivals {
 		progress := ""
 		if f.Stats != nil {
 			progress = ui.Dim(fmt.Sprintf(" [%.0f%%]", f.Stats.Progress))
 		}
+		moved := ""
+		if isDungeon && f.StatusDate != "" {
+			moved = ui.Dim(fmt.Sprintf("  moved %s", f.StatusDate))
+		}
 		styledName := ui.GetStatusStyle(status).Render(f.Name)
-		fmt.Fprintf(&sb, "  %s%s\n", styledName, progress)
+		fmt.Fprintf(&sb, "  %s%s%s\n", styledName, moved, progress)
 	}
 
 	return sb.String()
@@ -156,10 +161,15 @@ func FormatFestivalListWithProgress(status string, festivals []*FestivalInfo, pr
 		return sb.String()
 	}
 
+	isDungeon := strings.HasPrefix(status, "dungeon/")
 	for _, f := range festivals {
 		styledName := ui.GetStatusStyle(status).Render(f.Name)
 		fmt.Fprintf(&sb, "  %s\n", styledName)
 
+		// Show moved-to-status date for dungeon festivals.
+		if isDungeon && f.StatusDate != "" {
+			fmt.Fprintf(&sb, "    %s %s\n", ui.Label("Moved"), ui.Dim(f.StatusDate))
+		}
 		// Show timestamps
 		if !f.CreatedAt.IsZero() {
 			fmt.Fprintf(&sb, "    %s %s\n", ui.Label("Created"), ui.Dim(formatTimestamp(f.CreatedAt)))
