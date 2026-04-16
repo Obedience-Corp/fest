@@ -377,7 +377,7 @@ func parseFestivalInfo(ctx context.Context, festivalDir, campaignRoot string) (*
 	parentDir := filepath.Dir(festivalDir)
 	parentName := filepath.Base(parentDir)
 	switch parentName {
-	case "active", "ready", "planning":
+	case "active", "ready", "planning", "ritual":
 		info.Status = parentName
 	case "completed", "archived", "someday":
 		// Could be dungeon/completed, dungeon/archived, dungeon/someday

@@ -160,6 +160,52 @@ func TestFormatMatchList(t *testing.T) {
 	assert.Len(t, got, 5)
 }
 
+func TestCollectNavigationTargets_IncludesRitual(t *testing.T) {
+	tmpDir := t.TempDir()
+	festivalsDir := tmpDir
+
+	// Active festival (baseline — must still be found)
+	_ = os.MkdirAll(filepath.Join(festivalsDir, "active", "my-feature-MF0001"), 0755)
+
+	// Ritual festival definition — follows the documented on-disk format
+	// (see docs/ritual.md): festivals/ritual/{name}-RI-{XX}{NNNN}
+	ritualName := "weekly-review-RI-WR0001"
+	_ = os.MkdirAll(filepath.Join(festivalsDir, "ritual", ritualName), 0755)
+
+	// Non-festival dir in ritual/ — must be filtered out by ID suffix check.
+	_ = os.MkdirAll(filepath.Join(festivalsDir, "ritual", "not-a-festival"), 0755)
+
+	targets := CollectNavigationTargets(festivalsDir)
+
+	names := make(map[string]string) // name -> path
+	for _, tgt := range targets {
+		names[tgt.Name] = tgt.Path
+	}
+
+	// Regression guard: active festivals still collected.
+	assert.Contains(t, names, "my-feature-MF0001",
+		"active festival must remain in navigation targets")
+
+	// The actual fix under test: ritual festivals appear in fuzzy targets.
+	assert.Contains(t, names, ritualName,
+		"ritual festival must be included so fgo fuzzy navigation can reach it")
+
+	// ritual/ status directory itself should also be navigable by name
+	// (parity with active/ready/planning appearing as status targets).
+	assert.Contains(t, names, "ritual",
+		"ritual status directory must be a navigable target")
+
+	// Non-festival dirs in ritual/ must be filtered out.
+	assert.NotContains(t, names, "not-a-festival",
+		"directories without a valid ID suffix must not appear")
+
+	// Path correctness: ritual festival path points inside festivals/ritual/.
+	assert.Equal(t,
+		filepath.Join(festivalsDir, "ritual", ritualName),
+		names[ritualName],
+		"ritual festival path should point to festivals/ritual/{name}")
+}
+
 func TestCollectFestivalsInStatus(t *testing.T) {
 	tmpDir := t.TempDir()
 	festivalsDir := tmpDir

@@ -52,11 +52,11 @@ func NewListCommand() *cobra.Command {
 
 Works from anywhere - finds the festivals workspace automatically.
 
-STATUS can be: active, planning, completed, dungeon, dungeon/completed, dungeon/archived, dungeon/someday
+STATUS can be: active, ready, planning, ritual, completed, dungeon, dungeon/completed, dungeon/archived, dungeon/someday
 
-By default, shows only active and planning festivals.
+By default, shows active, ready, planning, and ritual festivals.
 Use --all to include completed and dungeon festivals.`,
-		Example: `  fest list                                       # List active and planning festivals
+		Example: `  fest list                                       # List active, ready, planning, and ritual festivals
   fest list --all                                  # List all festivals
   fest list --filter-project camp                  # Festivals linked to "camp" project
   fest list --since 2026-01-01                     # Festivals created since Jan 1

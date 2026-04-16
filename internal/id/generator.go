@@ -29,8 +29,11 @@ var idPattern = regexp.MustCompile(`-([A-Z]{2})(\d{4,})$`)
 // StatusDirectories are ALL directories that can contain festivals (full lifecycle)
 var StatusDirectories = []string{"planning", "ready", "active", "ritual", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 
-// PrimaryStatusDirs are directories for active work (used in navigation, fuzzy search)
-var PrimaryStatusDirs = []string{"active", "ready", "planning"}
+// PrimaryStatusDirs are non-terminal directories surfaced in navigation,
+// fuzzy search, `fest list` defaults, and shell completion. Kept in sync
+// with WorkingStatusDirectories so fgo fuzzy matching can reach ritual
+// festivals alongside active/ready/planning.
+var PrimaryStatusDirs = []string{"active", "ready", "planning", "ritual"}
 
 // WorkingStatusDirectories are non-terminal directories (excludes dungeon/*).
 var WorkingStatusDirectories = []string{"planning", "ready", "active", "ritual"}
