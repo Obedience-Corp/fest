@@ -453,3 +453,30 @@ func TestResolveGoTargetWithFestivalName(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveGoTarget_PrefersActiveRitualRunForPartialMatch(t *testing.T) {
+	tmpDir := t.TempDir()
+	festivalsDir := filepath.Join(tmpDir, "festivals")
+
+	ritualPath := filepath.Join(festivalsDir, "ritual", "daily-job-search-RI-DJ0001")
+	activeRunPath := filepath.Join(festivalsDir, "active", "daily-job-search-RI-DJ0001-0001")
+	for _, dir := range []string{ritualPath, activeRunPath} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(ritualPath, "FESTIVAL_OVERVIEW.md"), []byte("test"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(activeRunPath, "fest.yaml"), []byte("metadata:\n  name: daily-job-search\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	result, err := resolveGoTarget("daily-job", festivalsDir)
+	if err != nil {
+		t.Fatalf("resolveGoTarget(%q) unexpected error: %v", "daily-job", err)
+	}
+	if result != activeRunPath {
+		t.Fatalf("resolveGoTarget(%q) = %q, want %q", "daily-job", result, activeRunPath)
+	}
+}

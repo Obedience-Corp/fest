@@ -272,7 +272,7 @@ func TestCompleteGoTarget_WithFestivals(t *testing.T) {
 	}
 
 	// Create status directories
-	for _, status := range []string{"active", "planning", "dungeon"} {
+	for _, status := range []string{"active", "planning", "ritual", "dungeon"} {
 		if err := os.MkdirAll(filepath.Join(festivalsDir, status), 0755); err != nil {
 			t.Fatal(err)
 		}
@@ -284,11 +284,19 @@ func TestCompleteGoTarget_WithFestivals(t *testing.T) {
 
 	// Create festivals with valid ID suffixes (required by CollectNavigationTargets)
 	activeFest := filepath.Join(festivalsDir, "active", "my-feature-MF0001")
+	activeRitualRun := filepath.Join(festivalsDir, "active", "daily-job-search-RI-DJ0001-0001")
 	planningFest := filepath.Join(festivalsDir, "planning", "next-task-NT0002")
-	for _, dir := range []string{activeFest, planningFest} {
+	ritualFest := filepath.Join(festivalsDir, "ritual", "daily-job-search-RI-DJ0001")
+	for _, dir := range []string{activeFest, planningFest, ritualFest} {
 		if err := os.MkdirAll(dir, 0755); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if err := os.MkdirAll(activeRitualRun, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(activeRitualRun, "fest.yaml"), []byte("metadata:\n  name: daily-job-search\n"), 0644); err != nil {
+		t.Fatal(err)
 	}
 
 	// Change to tmpDir so FindFestivals can discover the festivals directory
@@ -312,7 +320,7 @@ func TestCompleteGoTarget_WithFestivals(t *testing.T) {
 	}
 
 	// Primary status directories should be present (completed/dungeon excluded from default)
-	for _, status := range []string{"active", "planning"} {
+	for _, status := range []string{"active", "planning", "ritual"} {
 		if !resultSet[status] {
 			t.Errorf("expected status directory %q in completions, got: %v", status, results)
 		}
@@ -328,6 +336,12 @@ func TestCompleteGoTarget_WithFestivals(t *testing.T) {
 	// Festival names should be present
 	if !resultSet["my-feature-MF0001"] {
 		t.Errorf("expected active festival 'my-feature-MF0001' in completions, got: %v", results)
+	}
+	if !resultSet["daily-job-search-RI-DJ0001-0001"] {
+		t.Errorf("expected active ritual run in completions, got: %v", results)
+	}
+	if !resultSet["daily-job-search-RI-DJ0001"] {
+		t.Errorf("expected ritual template in completions, got: %v", results)
 	}
 	if !resultSet["next-task-NT0002"] {
 		t.Errorf("expected planning festival 'next-task-NT0002' in completions, got: %v", results)
@@ -346,6 +360,14 @@ func TestCompleteGoTarget_WithFestivals(t *testing.T) {
 	}
 	if !foundMyFeature {
 		t.Errorf("expected 'my-feature-MF0001' in fuzzy results for 'my-feat', got: %v", filtered)
+	}
+
+	ritualFiltered, _ := CompleteGoTarget(nil, nil, "daily-job")
+	if len(ritualFiltered) == 0 {
+		t.Fatal("expected fuzzy match for 'daily-job' but got no results")
+	}
+	if ritualFiltered[0] != "daily-job-search-RI-DJ0001-0001" {
+		t.Fatalf("expected active ritual run to be the top fuzzy completion, got %v", ritualFiltered)
 	}
 }
 

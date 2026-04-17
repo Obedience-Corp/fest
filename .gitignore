@@ -1,5 +1,6 @@
 # Binaries (all should go in bin/)
 bin/*
+dist/
 
 # Test coverage files
 coverage.out

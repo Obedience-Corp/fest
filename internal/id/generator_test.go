@@ -345,3 +345,32 @@ func TestExtractIDFromDirName(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractLogicalIDFromDirName(t *testing.T) {
+	tests := []struct {
+		dirName    string
+		expectedID string
+		expectErr  bool
+	}{
+		{"guild-usable-GU0001", "GU0001", false},
+		{"weekly-review-RI-WR0001", "RI-WR0001", false},
+		{"weekly-review-RI-WR0001-0001", "RI-WR0001", false},
+		{"weekly-review-RI-WR0001-00FF", "RI-WR0001", false},
+		{"no-id-here", "", true},
+		{"weekly-review-WR0001-0001", "", true},
+		{"", "", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.dirName, func(t *testing.T) {
+			got, err := ExtractLogicalIDFromDirName(tt.dirName)
+			if (err != nil) != tt.expectErr {
+				t.Errorf("ExtractLogicalIDFromDirName(%q) error = %v, wantErr %v", tt.dirName, err, tt.expectErr)
+				return
+			}
+			if got != tt.expectedID {
+				t.Errorf("ExtractLogicalIDFromDirName(%q) = %q, want %q", tt.dirName, got, tt.expectedID)
+			}
+		})
+	}
+}
