@@ -20,8 +20,9 @@ type FuzzyMatch struct {
 
 // FuzzyTarget represents a target for fuzzy matching
 type FuzzyTarget struct {
-	Name string // Display name (used for matching)
-	Path string // Full path (returned on match)
+	Name     string // Display name (used for matching)
+	Path     string // Full path (returned on match)
+	Priority int    // Status priority bonus applied after textual scoring
 }
 
 // FuzzyFinder provides fuzzy matching for festival navigation
@@ -71,6 +72,7 @@ func (f *FuzzyFinder) Find(pattern string) []FuzzyMatch {
 		}
 
 		if allMatch && totalScore >= f.threshold {
+			totalScore += target.Priority
 			result = append(result, FuzzyMatch{
 				Path:    target.Path,
 				Name:    target.Name,
@@ -117,18 +119,21 @@ func CollectNavigationTargets(festivalsDir string) []FuzzyTarget {
 				continue
 			}
 			festivalName := entry.Name()
+			festivalPath := filepath.Join(statusPath, festivalName)
 
-			// Only include directories with valid festival ID suffix (e.g., -GS0001)
-			if _, err := id.ExtractIDFromDirName(festivalName); err != nil {
+			// Active ritual runs append a run counter (e.g. -0001) after the
+			// festival ID, so they don't satisfy ExtractIDFromDirName even though
+			// they are valid festival roots. Fall back to festival marker files
+			// so fuzzy navigation can still reach them.
+			if !isNavigableFestivalDir(festivalPath, festivalName) {
 				continue // Skip non-festival directories
 			}
 
-			festivalPath := filepath.Join(statusPath, festivalName)
-
 			// Add festival by full name
 			targets = append(targets, FuzzyTarget{
-				Name: festivalName,
-				Path: festivalPath,
+				Name:     festivalName,
+				Path:     festivalPath,
+				Priority: statusNavigationPriority(status),
 			})
 		}
 	}
@@ -162,15 +167,47 @@ func CollectFestivalsInStatus(festivalsDir, status string) []FuzzyTarget {
 			continue
 		}
 		name := entry.Name()
-		if _, err := id.ExtractIDFromDirName(name); err != nil {
+		path := filepath.Join(statusPath, name)
+		if !isNavigableFestivalDir(path, name) {
 			continue
 		}
 		targets = append(targets, FuzzyTarget{
-			Name: name,
-			Path: filepath.Join(statusPath, name),
+			Name:     name,
+			Path:     path,
+			Priority: statusNavigationPriority(status),
 		})
 	}
 	return targets
+}
+
+func isNavigableFestivalDir(path, name string) bool {
+	if _, err := id.ExtractIDFromDirName(name); err == nil {
+		return true
+	}
+	return hasFestivalMarkers(path)
+}
+
+func hasFestivalMarkers(path string) bool {
+	for _, marker := range []string{"FESTIVAL_GOAL.md", "FESTIVAL_OVERVIEW.md", "fest.yaml"} {
+		info, err := os.Stat(filepath.Join(path, marker))
+		if err == nil && !info.IsDir() {
+			return true
+		}
+	}
+	return false
+}
+
+func statusNavigationPriority(status string) int {
+	switch status {
+	case "active":
+		return 40
+	case "ready":
+		return 20
+	case "planning":
+		return 10
+	default:
+		return 0
+	}
 }
 
 // SortMatchesByScore sorts matches by score in descending order

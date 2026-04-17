@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Obedience-Corp/camp/pkg/commitkit"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -119,6 +120,7 @@ func runRitual(ctx context.Context, nameOrID string, opts *runOptions) error {
 	}
 
 	display := ui.New(shared.IsNoColor(), shared.IsVerbose())
+	ritualID, _ := id.ExtractIDFromDirName(ritualDirName)
 
 	// Update ritual_config in the source ritual's fest.yaml
 	ritualCfg, cfgErr := config.LoadFestivalConfig(ritualPath, "")
@@ -130,24 +132,82 @@ func runRitual(ctx context.Context, nameOrID string, opts *runOptions) error {
 		}
 	}
 
+	commitHash, commitErr := autoCommitRitualRun(ctx, ritualDirName, ritualID, ritualPath, destPath)
+	if commitErr != nil {
+		display.Warning("Failed to auto-commit ritual run: %v", commitErr)
+	}
+
 	// Output
 	if opts.json {
-		return shared.EncodeJSON(os.Stdout, map[string]any{
+		result := map[string]any{
 			"success":     true,
 			"action":      "ritual_run",
 			"ritual":      ritualDirName,
+			"ritual_id":   ritualID,
 			"run_number":  nextRun,
 			"hex_counter": hexCounter,
 			"run_dir":     runDirName,
 			"dest_path":   destPath,
-		})
+		}
+		if commitHash != "" {
+			result["commit"] = commitHash
+		}
+		return shared.EncodeJSON(os.Stdout, result)
 	}
 	display.Success("Created ritual run: %s", runDirName)
 	display.Info("  Source: %s", ritualPath)
 	display.Info("  Destination: %s", destPath)
 	display.Info("  Run #%d (0x%s)", nextRun, hexCounter)
+	if commitHash != "" {
+		display.Info("  Commit: %s", commitHash)
+	}
 
 	return nil
+}
+
+func autoCommitRitualRun(ctx context.Context, ritualName, ritualID, ritualPath, destPath string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+
+	ws, ok := scope.WorkspaceFrom(ctx)
+	if !ok || ws == nil {
+		return "", errors.New("workspace not available in context")
+	}
+
+	if err := commitkit.StageFiles(ctx, ws.Root, ritualPath, destPath); err != nil {
+		return "", errors.Wrap(err, "stage")
+	}
+
+	hasChanges, err := commitkit.HasStagedChanges(ctx, ws.Root)
+	if err != nil {
+		return "", errors.Wrap(err, "check staged")
+	}
+	if !hasChanges {
+		return "", nil
+	}
+
+	message := fmt.Sprintf("chore(fest): ritual run: %s -> %s", ritualName, filepath.Base(destPath))
+	if ritualID != "" {
+		message = fmt.Sprintf("chore(fest): ritual run: %s (%s) -> %s", ritualName, ritualID, filepath.Base(destPath))
+	}
+
+	if ws.Type == scope.WorkspaceTypeCampaign {
+		campaignID, err := commitkit.LoadCampaignID(ctx, ws.Root)
+		if err == nil && campaignID != "" {
+			message = commitkit.PrependCampaignTag(campaignID, message)
+		}
+	}
+
+	if err := commitkit.Commit(ctx, ws.Root, commitkit.CommitOptions{Message: message}); err != nil {
+		return "", errors.Wrap(err, "commit")
+	}
+
+	hash, err := commitkit.ShortHash(ctx, ws.Root)
+	if err != nil {
+		return "committed", nil
+	}
+	return hash, nil
 }
 
 // findRitual searches ritual/ for a matching festival by name or ID.
