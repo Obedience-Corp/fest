@@ -205,7 +205,7 @@ func autoCommitRitualRun(ctx context.Context, ritualName, ritualID, ritualPath, 
 
 	hash, err := commitkit.ShortHash(ctx, ws.Root)
 	if err != nil {
-		return "committed", nil
+		return "", nil
 	}
 	return hash, nil
 }

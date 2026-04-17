@@ -8,11 +8,20 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Obedience-Corp/camp/pkg/commitkit"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 func TestRunRitual_AutoCommitsScopedFilesystemChanges(t *testing.T) {
+	testRunRitualAutoCommit(t, scope.WorkspaceTypeStandalone, "")
+}
+
+func TestRunRitual_AutoCommitsScopedFilesystemChanges_CampaignWorkspace(t *testing.T) {
+	testRunRitualAutoCommit(t, scope.WorkspaceTypeCampaign, "[OBEY-CAMPAIGN-12345678]")
+}
+
+func testRunRitualAutoCommit(t *testing.T, workspaceType scope.WorkspaceType, subjectPrefix string) {
 	tmpDir := t.TempDir()
 	festivalsDir := filepath.Join(tmpDir, "festivals")
 	ritualDir := filepath.Join(festivalsDir, "ritual", "daily-job-search-RI-DJ0001")
@@ -28,6 +37,16 @@ func TestRunRitual_AutoCommitsScopedFilesystemChanges(t *testing.T) {
 	}
 	if err := workspace.RegisterFestivals(festivalsDir); err != nil {
 		t.Fatal(err)
+	}
+	if workspaceType == scope.WorkspaceTypeCampaign {
+		writeCampaignConfig(t, tmpDir)
+		campaignID, err := commitkit.LoadCampaignID(context.Background(), tmpDir)
+		if err != nil {
+			t.Fatalf("LoadCampaignID returned error: %v", err)
+		}
+		if campaignID != "12345678-1234-1234-1234-123456789abc" {
+			t.Fatalf("LoadCampaignID = %q, want %q", campaignID, "12345678-1234-1234-1234-123456789abc")
+		}
 	}
 
 	runGit(t, tmpDir, "init")
@@ -55,7 +74,7 @@ func TestRunRitual_AutoCommitsScopedFilesystemChanges(t *testing.T) {
 	ctx := scope.WithWorkspace(context.Background(), &scope.WorkspaceInfo{
 		Root:          tmpDir,
 		FestivalsPath: festivalsDir,
-		Type:          scope.WorkspaceTypeStandalone,
+		Type:          workspaceType,
 	})
 
 	if err := runRitual(ctx, "daily-job", &runOptions{}); err != nil {
@@ -74,6 +93,9 @@ func TestRunRitual_AutoCommitsScopedFilesystemChanges(t *testing.T) {
 
 	subject := strings.TrimSpace(runGit(t, tmpDir, "log", "-1", "--pretty=%s"))
 	wantSubject := "chore(fest): ritual run: daily-job-search-RI-DJ0001 (DJ0001) -> daily-job-search-RI-DJ0001-0001"
+	if subjectPrefix != "" {
+		wantSubject = subjectPrefix + " " + wantSubject
+	}
 	if subject != wantSubject {
 		t.Fatalf("commit subject = %q, want %q", subject, wantSubject)
 	}
@@ -92,6 +114,23 @@ func TestRunRitual_AutoCommitsScopedFilesystemChanges(t *testing.T) {
 	status := runGit(t, tmpDir, "status", "--short")
 	if !strings.Contains(status, " M README.md") && !strings.Contains(status, "M README.md") {
 		t.Fatalf("expected unrelated README change to remain in worktree, got:\n%s", status)
+	}
+}
+
+func writeCampaignConfig(t *testing.T, root string) {
+	t.Helper()
+	campaignDir := filepath.Join(root, ".campaign")
+	settingsDir := filepath.Join(campaignDir, "settings")
+	if err := os.MkdirAll(settingsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	config := `id: 12345678-1234-1234-1234-123456789abc
+name: TestCampaign
+type: product
+`
+	if err := os.WriteFile(filepath.Join(campaignDir, "campaign.yaml"), []byte(config), 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 
