@@ -2,7 +2,9 @@
 
 > **Part of [Festival](https://github.com/Obedience-Corp/festival)** - mission-based AI workspace management. Fest handles hierarchical planning and execution; [camp](https://github.com/Obedience-Corp/camp) handles workspace management. Together they give structure to how you work across multiple projects, contexts, and AI agents.
 
-![Festival Methodology Banner](docs/images/banner.jpg)
+<p align="center">
+  <img src="docs/images/banner.jpg" alt="Festival Methodology Banner" width="400">
+</p>
 
 [![Watch the demo](docs/images/demo_video_thumb.jpg)](https://youtu.be/30m3VNl2G6k?si=4taH1m1q4MRkbOhd&t=21)
 
