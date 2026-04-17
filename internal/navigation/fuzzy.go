@@ -121,11 +121,7 @@ func CollectNavigationTargets(festivalsDir string) []FuzzyTarget {
 			festivalName := entry.Name()
 			festivalPath := filepath.Join(statusPath, festivalName)
 
-			// Active ritual runs append a run counter (e.g. -0001) after the
-			// festival ID, so they don't satisfy ExtractIDFromDirName even though
-			// they are valid festival roots. Fall back to festival marker files
-			// so fuzzy navigation can still reach them.
-			if !isNavigableFestivalDir(festivalPath, festivalName) {
+			if !isNavigableFestivalDir(festivalName) {
 				continue // Skip non-festival directories
 			}
 
@@ -153,7 +149,7 @@ func CollectNavigationTargets(festivalsDir string) []FuzzyTarget {
 }
 
 // CollectFestivalsInStatus gathers festivals from a single status directory.
-// Returns only directories with valid festival ID suffixes.
+// Returns only directories with supported festival naming formats.
 func CollectFestivalsInStatus(festivalsDir, status string) []FuzzyTarget {
 	statusPath := filepath.Join(festivalsDir, status)
 	entries, err := os.ReadDir(statusPath)
@@ -168,7 +164,7 @@ func CollectFestivalsInStatus(festivalsDir, status string) []FuzzyTarget {
 		}
 		name := entry.Name()
 		path := filepath.Join(statusPath, name)
-		if !isNavigableFestivalDir(path, name) {
+		if !isNavigableFestivalDir(name) {
 			continue
 		}
 		targets = append(targets, FuzzyTarget{
@@ -180,21 +176,9 @@ func CollectFestivalsInStatus(festivalsDir, status string) []FuzzyTarget {
 	return targets
 }
 
-func isNavigableFestivalDir(path, name string) bool {
-	if _, err := id.ExtractIDFromDirName(name); err == nil {
-		return true
-	}
-	return hasFestivalMarkers(path)
-}
-
-func hasFestivalMarkers(path string) bool {
-	for _, marker := range []string{"FESTIVAL_GOAL.md", "FESTIVAL_OVERVIEW.md", "fest.yaml"} {
-		info, err := os.Stat(filepath.Join(path, marker))
-		if err == nil && !info.IsDir() {
-			return true
-		}
-	}
-	return false
+func isNavigableFestivalDir(name string) bool {
+	_, err := id.ExtractLogicalIDFromDirName(name)
+	return err == nil
 }
 
 func statusNavigationPriority(status string) int {

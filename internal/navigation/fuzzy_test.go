@@ -215,7 +215,11 @@ func TestCollectNavigationTargets_IncludesActiveRitualRun(t *testing.T) {
 	if err := os.MkdirAll(runPath, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(runPath, "fest.yaml"), []byte("metadata:\n  name: daily-job-search\n"), 0o644); err != nil {
+	nonFestivalPath := filepath.Join(festivalsDir, "active", "notes-scratchpad")
+	if err := os.MkdirAll(nonFestivalPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(nonFestivalPath, "fest.yaml"), []byte("metadata:\n  name: notes-scratchpad\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -227,9 +231,11 @@ func TestCollectNavigationTargets_IncludesActiveRitualRun(t *testing.T) {
 	}
 
 	assert.Contains(t, names, runName,
-		"active ritual runs must be included so fgo fuzzy navigation can reach current ritual work")
+		"active ritual runs must be included based on supported ritual naming, not marker file fallback")
 	assert.Equal(t, runPath, names[runName],
 		"active ritual run path should point to festivals/active/{name}")
+	assert.NotContains(t, names, "notes-scratchpad",
+		"marker files alone should not make a directory navigable when the name has no supported festival format")
 }
 
 func TestFuzzyFinder_PrefersActiveRunOverRitualTemplate(t *testing.T) {

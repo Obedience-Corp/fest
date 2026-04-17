@@ -23,8 +23,14 @@ var commonWords = map[string]bool{
 	"to": true, "in": true, "on": true,
 }
 
-// idPattern matches festival IDs in directory names (e.g., -GC0001)
+// idPattern matches standard festival IDs in directory names (e.g., -GC0001)
 var idPattern = regexp.MustCompile(`-([A-Z]{2})(\d{4,})$`)
+
+// ritualIDPattern matches ritual festival IDs in directory names (e.g., -RI-GC0001)
+var ritualIDPattern = regexp.MustCompile(`-RI-([A-Z]{2})(\d{4,})$`)
+
+// ritualRunIDPattern matches ritual run directory names (e.g., -RI-GC0001-0001)
+var ritualRunIDPattern = regexp.MustCompile(`-RI-([A-Z]{2})(\d{4,})-([0-9A-Fa-f]{4})$`)
 
 // StatusDirectories are ALL directories that can contain festivals (full lifecycle)
 var StatusDirectories = []string{"planning", "ready", "active", "ritual", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
@@ -185,6 +191,25 @@ func ExtractIDFromDirName(dirName string) (string, error) {
 
 	// matches[0] is full match, matches[1] is prefix, matches[2] is counter
 	return matches[1] + matches[2], nil
+}
+
+// ExtractLogicalIDFromDirName extracts the logical festival ID from a directory name.
+// Supported formats:
+//   - standard festival: name-XX0001        -> XX0001
+//   - ritual template:   name-RI-XX0001     -> RI-XX0001
+//   - ritual run:        name-RI-XX0001-0001 -> RI-XX0001
+func ExtractLogicalIDFromDirName(dirName string) (string, error) {
+	if dirName == "" {
+		return "", errors.Validation("empty directory name")
+	}
+
+	if matches := ritualRunIDPattern.FindStringSubmatch(dirName); matches != nil {
+		return RitualPrefix + matches[1] + matches[2], nil
+	}
+	if matches := ritualIDPattern.FindStringSubmatch(dirName); matches != nil {
+		return RitualPrefix + matches[1] + matches[2], nil
+	}
+	return ExtractIDFromDirName(dirName)
 }
 
 // FindNextCounter scans all festival directories to find the next available

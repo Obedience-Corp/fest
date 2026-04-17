@@ -213,7 +213,7 @@ func dedupeSelectorCandidates(candidates []FestivalSelectorCandidate) []Festival
 }
 
 func extractSelectorID(name string) string {
-	extracted, err := id.ExtractIDFromDirName(name)
+	extracted, err := id.ExtractLogicalIDFromDirName(name)
 	if err != nil {
 		return ""
 	}
