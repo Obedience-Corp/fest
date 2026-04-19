@@ -117,7 +117,8 @@ func runSync(ctx context.Context, _ *cobra.Command, opts *syncOptions) error {
 	// Resolve channel intent to a concrete tag before creating downloader
 	var resolvedRefType, resolvedRefName string
 	var downloader *github.Downloader
-	if intent.Mode == config.SyncModeChannel {
+	switch intent.Mode {
+	case config.SyncModeChannel:
 		channel := intent.Value
 		if channel == "" {
 			channel = version.DefaultChannel()
@@ -130,11 +131,11 @@ func runSync(ctx context.Context, _ *cobra.Command, opts *syncOptions) error {
 		resolvedRefType = "tag"
 		resolvedRefName = tag
 		downloader = github.NewDownloaderWithRef(repoURL, "tag", tag, repoPath)
-	} else if intent.Mode == config.SyncModeTag {
+	case config.SyncModeTag:
 		resolvedRefType = "tag"
 		resolvedRefName = intent.Value
 		downloader = github.NewDownloaderWithRef(repoURL, "tag", intent.Value, repoPath)
-	} else {
+	default:
 		resolvedRefType = "branch"
 		resolvedRefName = intent.Value
 		downloader = github.NewDownloaderWithRef(repoURL, "branch", intent.Value, repoPath)
