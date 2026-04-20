@@ -60,6 +60,11 @@ quick-stable:
 quick-dev:
     BUILD_TAGS=dev just build quick
 
+# Show the command surface for stable/dev build profiles
+[no-cd]
+profile-commands profile='all':
+    @{{BUILDTOOL}} profile-commands {{profile}}
+
 # --- Cross-platform builds ---
 
 # Build for Linux AMD64
