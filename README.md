@@ -334,6 +334,7 @@ Subcommand modules:
 
 ```bash
 just build        # Build variants (local, cross-platform, profiles)
+just build profile-commands   # Show stable/dev CLI command surfaces
 just install      # Install fest (stable, dev, current)
 just test         # Testing commands
 just release      # Release packaging and versioning

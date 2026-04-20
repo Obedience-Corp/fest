@@ -60,6 +60,50 @@ quick-stable:
 quick-dev:
     BUILD_TAGS=dev just build quick
 
+# Show the command surface for stable/dev build profiles
+[no-cd]
+profile-commands profile='all':
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    stable_file="$(mktemp)"
+    dev_file="$(mktemp)"
+    cleanup() {
+        rm -f "$stable_file" "$dev_file"
+    }
+    trap cleanup EXIT
+
+    go run ./cmd/fest __commands > "$stable_file"
+    go run -tags dev ./cmd/fest __commands > "$dev_file"
+
+    print_profile() {
+        local name="$1"
+        local file="$2"
+        echo "== ${name} profile ($(wc -l < "$file" | tr -d ' ') commands) =="
+        cat "$file"
+    }
+
+    case "{{profile}}" in
+        stable)
+            print_profile "stable" "$stable_file"
+            ;;
+        dev)
+            print_profile "dev" "$dev_file"
+            ;;
+        all)
+            print_profile "stable" "$stable_file"
+            echo
+            print_profile "dev" "$dev_file"
+            echo
+            echo "== dev-only commands ($(comm -13 "$stable_file" "$dev_file" | wc -l | tr -d ' ') commands) =="
+            comm -13 "$stable_file" "$dev_file" || true
+            ;;
+        *)
+            echo "Unknown profile '{{profile}}'. Use stable, dev, or all."
+            exit 1
+            ;;
+    esac
+
 # --- Cross-platform builds ---
 
 # Build for Linux AMD64
