@@ -180,7 +180,7 @@ func Render(repo string, current TagInfo, previousTag string, changes []Change) 
 	}
 
 	highlights := highlightChanges(changes)
-	if len(highlights) > 0 && !(len(highlights) == 1 && countUserFacing(changes) == 1) {
+	if len(highlights) > 0 && (len(highlights) != 1 || countUserFacing(changes) != 1) {
 		writeLine("## Highlights")
 		writeLine("")
 		for _, change := range highlights {
