@@ -1,135 +1,112 @@
-// internal/buildutil/main.go
 package main
 
 import (
-	"flag"
 	"fmt"
-	"log"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"time"
 
-	"github.com/Obedience-Corp/fest/internal/buildutil/tasks"
-	"github.com/Obedience-Corp/fest/internal/buildutil/ui"
-)
-
-var (
-	noColor bool
-	verbose bool
+	"github.com/Obedience-Corp/obey-shared/buildutil"
 )
 
 func main() {
-	flag.BoolVar(&noColor, "no-color", false, "disable ANSI colours")
-	flag.BoolVar(&verbose, "v", false, "verbose output")
-	flag.Parse()
-
-	// Initialize UI with color preferences
-	ui.Init(noColor)
-
-	if flag.NArg() == 0 {
-		log.Fatalf("usage: buildutil <build|build-only|profile-commands|test|integration|clean|all>")
-	}
-
-	cmd := flag.Arg(0)
-	startTime := time.Now()
-
-	// Hide cursor during operations
-	if ui.ColourEnabled() {
-		fmt.Print(ui.HideCursor)
-		defer fmt.Print(ui.ShowCursor)
-	}
-
-	var err error
-
-	switch cmd {
-	case "build":
-		err = tasks.Build(verbose)
-
-	case "build-only":
-		err = tasks.BuildOnly(verbose)
-
-	case "profile-commands":
-		profile := "all"
-		if flag.NArg() > 1 {
-			profile = flag.Arg(1)
-		}
-		err = tasks.ProfileCommands(profile)
-
-	case "test":
-		err = tasks.Test(verbose)
-
-	case "integration":
-		err = tasks.Integration(verbose)
-
-	case "clean":
-		err = tasks.Clean(verbose)
-
-	case "all":
-		// Run all tasks in sequence
-		var errors []error
-
-		fmt.Println("\n🧹 Cleaning...")
-		if cleanErr := tasks.Clean(verbose); cleanErr != nil {
-			errors = append(errors, fmt.Errorf("clean failed: %w", cleanErr))
-		}
-
-		fmt.Println("\n🔨 Building...")
-		if buildErr := tasks.Build(verbose); buildErr != nil {
-			// Don't continue if build fails - can't test broken code
-			err = fmt.Errorf("stopping due to build failure: %w", buildErr)
-			break
-		}
-
-		fmt.Println("\n🧪 Testing...")
-		if testErr := tasks.Test(verbose); testErr != nil {
-			errors = append(errors, fmt.Errorf("tests failed: %w", testErr))
-			// Continue to integration tests even if unit tests fail
-		}
-
-		fmt.Println("\n🔗 Integration Testing...")
-		if integrationErr := tasks.Integration(verbose); integrationErr != nil {
-			errors = append(errors, fmt.Errorf("integration tests failed: %w", integrationErr))
-		}
-
-		// Set overall error if any step failed
-		if len(errors) > 0 {
-			err = fmt.Errorf("%d tasks failed", len(errors))
-		}
-
-		// Show overall summary
-		if err == nil {
-			totalTime := time.Since(startTime)
-			cleanStatus := "✓ Complete"
-			buildStatus := "✓ Complete"
-			testStatus := "✓ Complete"
-			integrationStatus := "✓ Complete"
-
-			if ui.ColourEnabled() {
-				cleanStatus = ui.Green + cleanStatus + ui.Reset
-				buildStatus = ui.Green + buildStatus + ui.Reset
-				testStatus = ui.Green + testStatus + ui.Reset
-				integrationStatus = ui.Green + integrationStatus + ui.Reset
-			}
-
-			rows := [][]string{
-				{"Task", "Status"},
-				{"Clean", cleanStatus},
-				{"Build", buildStatus},
-				{"Test", testStatus},
-				{"Integration", integrationStatus},
-			}
-			ui.SummaryCard("All Tasks Complete", rows, fmt.Sprintf("%.2fs", totalTime.Seconds()), true)
-		}
-
-	default:
-		log.Fatalf("unknown command %q", cmd)
-	}
-
-	if err != nil {
-		if ui.ColourEnabled() {
-			fmt.Printf("\n%s✗ Error: %v%s\n", ui.Red, err, ui.Reset)
-		} else {
-			fmt.Printf("\nError: %v\n", err)
-		}
+	args := os.Args[1:]
+	if err := configureIntegrationEnvironment(args); err != nil {
+		fmt.Fprintf(os.Stderr, "configure integration environment: %v\n", err)
 		os.Exit(1)
 	}
+
+	buildutil.Run(args, buildutil.BuildConfig{
+		BinaryName:  "fest",
+		MainPath:    "./cmd/fest",
+		SectionName: "Fest CLI",
+		LDFlags:     ldflags,
+		IntegrationBuildEnv: func() []string {
+			return []string{
+				"GOOS=linux",
+				"GOARCH=" + runtime.GOARCH,
+			}
+		},
+	})
+}
+
+func configureIntegrationEnvironment(args []string) error {
+	switch requestedCommand(args) {
+	case "integration", "all":
+	default:
+		return nil
+	}
+
+	if err := os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true"); err != nil {
+		return err
+	}
+
+	if strings.TrimSpace(os.Getenv("DOCKER_HOST")) != "" {
+		return nil
+	}
+
+	home := strings.TrimSpace(os.Getenv("HOME"))
+	if home == "" {
+		return nil
+	}
+
+	colimaSocket := filepath.Join(home, ".colima", "default", "docker.sock")
+	if _, err := os.Stat(colimaSocket); err != nil {
+		return nil
+	}
+
+	return os.Setenv("DOCKER_HOST", "unix://"+colimaSocket)
+}
+
+func requestedCommand(args []string) string {
+	for _, arg := range args {
+		if arg == "--" {
+			continue
+		}
+		if strings.HasPrefix(arg, "-") {
+			continue
+		}
+		return arg
+	}
+
+	return ""
+}
+
+func ldflags() string {
+	versionPkg := "github.com/Obedience-Corp/fest/internal/version"
+	version := resolvedVersion()
+	commit := cmdOutputOr("unknown", "git", "rev-parse", "--short", "HEAD")
+	date := time.Now().UTC().Format(time.RFC3339)
+
+	parts := []string{
+		fmt.Sprintf("-X %s.Version=%s", versionPkg, version),
+		fmt.Sprintf("-X %s.Commit=%s", versionPkg, commit),
+		fmt.Sprintf("-X %s.BuildDate=%s", versionPkg, date),
+	}
+	return strings.Join(parts, " ")
+}
+
+func resolvedVersion() string {
+	if version := strings.TrimSpace(os.Getenv("VERSION")); version != "" {
+		return version
+	}
+
+	return cmdOutputOr("dev", "git", "describe", "--tags", "--exact-match", "HEAD")
+}
+
+func cmdOutputOr(fallback, name string, args ...string) string {
+	out, err := exec.Command(name, args...).Output()
+	if err != nil {
+		return fallback
+	}
+
+	value := strings.TrimSpace(string(out))
+	if value == "" {
+		return fallback
+	}
+
+	return value
 }
