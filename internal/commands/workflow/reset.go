@@ -75,10 +75,13 @@ func runReset(ctx context.Context, force bool) error {
 		return fmt.Errorf("resetting workflow: %w", err)
 	}
 
-	// Reset phase frontmatter status since phase is no longer complete
+	// Reset phase frontmatter status since phase is no longer complete.
+	// Manager is constructed with the lifecycle gate as defense in depth;
+	// the runReset gate above is the user-facing block.
 	phasePath := nav.Ctx.PhasePath
 	festivalPath := nav.Ctx.FestivalPath
-	if mgr, err := progress.NewManager(ctx, festivalPath); err == nil {
+	if mgr, err := progress.NewManagerWithGate(ctx, festivalPath,
+		lifecycle.NewGateWithReason(festivalPath, "fest workflow reset")); err == nil {
 		_ = mgr.ResetPhaseStatus(ctx, phasePath)
 	}
 

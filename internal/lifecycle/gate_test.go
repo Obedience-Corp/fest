@@ -131,6 +131,32 @@ func TestEnforcePreActive(t *testing.T) {
 	}
 }
 
+func TestEnforcePreActive_MalformedConfig_FailsClosed(t *testing.T) {
+	festDir := t.TempDir()
+	// Write malformed YAML so config.LoadFestivalConfig returns a parse error.
+	if err := os.WriteFile(filepath.Join(festDir, "fest.yaml"), []byte(": not yaml :\n  - [broken\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	var err error
+	output := captureStdout(t, func() {
+		err = EnforcePreActive(context.Background(), festDir, EnforceOptions{Reason: "test"})
+	})
+
+	if err == nil {
+		t.Fatal("expected fail-closed error for malformed fest.yaml, got nil")
+	}
+	if !stderrors.Is(err, errors.ErrAlreadyPrinted) {
+		t.Errorf("expected ErrAlreadyPrinted, got: %v", err)
+	}
+	if !strings.Contains(output, "fest.yaml") {
+		t.Errorf("expected fest.yaml hint in output, got: %s", output)
+	}
+	if !strings.Contains(output, "fest validate") {
+		t.Errorf("expected 'fest validate' hint, got: %s", output)
+	}
+}
+
 func TestEnforcePreActive_NoConfig_FailsClosed(t *testing.T) {
 	festDir := t.TempDir()
 

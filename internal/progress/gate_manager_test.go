@@ -50,15 +50,45 @@ func TestManager_GateBlocksMutations(t *testing.T) {
 
 // TestManager_NoopGateAllowsMutations verifies plain NewManager (which
 // installs NoopGate) does not gate mutations. This preserves the
-// pre-existing behaviour of the 21+ NewManager call sites.
+// pre-existing behaviour of the existing NewManager call sites.
 func TestManager_NoopGateAllowsMutations(t *testing.T) {
 	ctx := context.Background()
-	mgr, err := NewManager(ctx, t.TempDir())
-	if err != nil {
-		t.Fatalf("NewManager: %v", err)
+
+	cases := []struct {
+		name string
+		call func(*Manager) error
+	}{
+		{"UpdateProgress", func(m *Manager) error { return m.UpdateProgress(ctx, "001/01/01_t.md", 25) }},
+		{"MarkInProgress", func(m *Manager) error { return m.MarkInProgress(ctx, "001/01/02_t.md") }},
+		{"MarkComplete", func(m *Manager) error { return m.MarkComplete(ctx, "001/01/03_t.md") }},
+		{"ReportBlocker", func(m *Manager) error { return m.ReportBlocker(ctx, "001/01/04_t.md", "x") }},
+		{"ResetTask", func(m *Manager) error { return m.ResetTask(ctx, "001/01/05_t.md") }},
 	}
 
-	if err := mgr.UpdateProgress(ctx, "001/01/01_t.md", 25); err != nil {
-		t.Errorf("UpdateProgress with NoopGate should not error, got: %v", err)
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mgr, err := NewManager(ctx, t.TempDir())
+			if err != nil {
+				t.Fatalf("NewManager: %v", err)
+			}
+			if err := tc.call(mgr); err != nil {
+				t.Errorf("%s with NoopGate should not error, got: %v", tc.name, err)
+			}
+		})
 	}
+
+	// ClearBlocker has its own happy path: it requires a pre-existing task
+	// with a blocker, so seed via ReportBlocker first.
+	t.Run("ClearBlocker", func(t *testing.T) {
+		mgr, err := NewManager(ctx, t.TempDir())
+		if err != nil {
+			t.Fatalf("NewManager: %v", err)
+		}
+		if err := mgr.ReportBlocker(ctx, "001/01/06_t.md", "blocker"); err != nil {
+			t.Fatalf("seed ReportBlocker: %v", err)
+		}
+		if err := mgr.ClearBlocker(ctx, "001/01/06_t.md"); err != nil {
+			t.Errorf("ClearBlocker with NoopGate should not error, got: %v", err)
+		}
+	})
 }

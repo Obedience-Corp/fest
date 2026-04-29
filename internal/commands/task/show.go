@@ -56,15 +56,20 @@ func runShow(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if err := lifecycle.EnforcePreActive(ctx, festivalPath, lifecycle.EnforceOptions{
-		TaskID: taskID,
-		Reason: "fest task show",
-	}); err != nil {
-		return err
+	// Auto-resolve (no arg) effectively tells the agent "here's the next
+	// implementation task to work on" — gate that path so a planning-status
+	// festival cannot use it as a launchpad. Explicit-arg reads stay open;
+	// reading a task file is not a lifecycle mutation.
+	if arg == "" {
+		if err := lifecycle.EnforcePreActive(ctx, festivalPath, lifecycle.EnforceOptions{
+			TaskID: taskID,
+			Reason: "fest task show",
+		}); err != nil {
+			return err
+		}
 	}
 
-	mgr, err := progress.NewManagerWithGate(ctx, festivalPath,
-		lifecycle.NewGateWithReason(festivalPath, "fest task show"))
+	mgr, err := progress.NewManager(ctx, festivalPath)
 	if err != nil {
 		return errors.Wrap(err, "loading progress")
 	}
