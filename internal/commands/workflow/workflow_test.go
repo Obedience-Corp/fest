@@ -55,9 +55,18 @@ func setupWorkflowFestival(t *testing.T) string {
 
 	dir := t.TempDir()
 
-	// Create fest.yaml
-	festYAML := `name: test-festival
+	// Create fest.yaml. The status_history entry is required so the
+	// lifecycle gate can determine the festival's current status; tests
+	// previously omitted this and got a fail-closed gate from the new
+	// workflow command guards.
+	festYAML := `version: "1.0"
+name: test-festival
 id: TEST-001
+metadata:
+  id: TEST-001
+  status_history:
+    - status: active
+      timestamp: 2026-02-10T00:00:00Z
 `
 	if err := os.WriteFile(filepath.Join(dir, "fest.yaml"), []byte(festYAML), 0o644); err != nil {
 		t.Fatalf("write fest.yaml: %v", err)

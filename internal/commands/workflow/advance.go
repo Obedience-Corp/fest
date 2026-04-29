@@ -6,6 +6,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/chaining"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -38,6 +39,13 @@ Note: If the current step has a blocking checkpoint, use 'fest workflow approve'
 func runAdvance(ctx context.Context) error {
 	nav, err := getWorkflowNavigator(ctx)
 	if err != nil {
+		return err
+	}
+
+	if err := lifecycle.EnforcePreActive(ctx, nav.Ctx.FestivalPath, lifecycle.EnforceOptions{
+		PhasePath: nav.Ctx.PhasePath,
+		Reason:    "fest workflow advance",
+	}); err != nil {
 		return err
 	}
 

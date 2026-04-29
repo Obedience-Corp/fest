@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -39,6 +40,13 @@ Use with caution as this cannot be undone.`,
 func runReset(ctx context.Context, force bool) error {
 	nav, err := getWorkflowNavigator(ctx)
 	if err != nil {
+		return err
+	}
+
+	if err := lifecycle.EnforcePreActive(ctx, nav.Ctx.FestivalPath, lifecycle.EnforceOptions{
+		PhasePath: nav.Ctx.PhasePath,
+		Reason:    "fest workflow reset",
+	}); err != nil {
 		return err
 	}
 

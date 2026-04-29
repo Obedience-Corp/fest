@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
@@ -85,6 +86,13 @@ func runSkip(ctx context.Context, reason string, terminalState wf.StepStatus) er
 
 	nav, err := getWorkflowNavigator(ctx)
 	if err != nil {
+		return err
+	}
+
+	if err := lifecycle.EnforcePreActive(ctx, nav.Ctx.FestivalPath, lifecycle.EnforceOptions{
+		PhasePath: nav.Ctx.PhasePath,
+		Reason:    "fest workflow skip",
+	}); err != nil {
 		return err
 	}
 

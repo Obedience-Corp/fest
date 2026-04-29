@@ -93,6 +93,15 @@ func handlePhaseStatusSetWithPath(ctx context.Context, display *ui.UI, festivalP
 		return err
 	}
 
+	// Defense in depth: pre-active festivals may not mutate implementation
+	// phase frontmatter. Planning/research/ingest phases pass through.
+	if err := lifecycle.EnforcePreActive(ctx, festivalPath, lifecycle.EnforceOptions{
+		PhasePath: phasePath,
+		Reason:    "fest status set --phase",
+	}); err != nil {
+		return err
+	}
+
 	goalPath := filepath.Join(phasePath, "PHASE_GOAL.md")
 	oldStatus, err := readGoalStatus(ctx, goalPath)
 	if err != nil {
@@ -348,6 +357,15 @@ func handlePhaseStatusSet(ctx context.Context, display *ui.UI, cwd, newStatus st
 		return err
 	}
 
+	// Defense in depth: pre-active festivals may not mutate implementation
+	// phase frontmatter. Planning/research/ingest phases pass through.
+	if err := lifecycle.EnforcePreActive(ctx, festivalPath, lifecycle.EnforceOptions{
+		PhasePath: phasePath,
+		Reason:    "fest status set --phase",
+	}); err != nil {
+		return err
+	}
+
 	goalPath := filepath.Join(phasePath, "PHASE_GOAL.md")
 	oldStatus, err := readGoalStatus(ctx, goalPath)
 	if err != nil {
@@ -467,6 +485,16 @@ func handleSequenceStatusSet(ctx context.Context, display *ui.UI, cwd, newStatus
 	// Find the sequence directory
 	seqPath, seqName, err := resolveSequence(festivalPath, cwd, opts.sequence)
 	if err != nil {
+		return err
+	}
+
+	// Defense in depth: pre-active festivals may not mutate sequence
+	// frontmatter under implementation phases. The gate evaluates the
+	// parent phase's type so planning/research/ingest sequences pass through.
+	if err := lifecycle.EnforcePreActive(ctx, festivalPath, lifecycle.EnforceOptions{
+		PhasePath: filepath.Dir(seqPath),
+		Reason:    "fest status set --sequence",
+	}); err != nil {
 		return err
 	}
 
