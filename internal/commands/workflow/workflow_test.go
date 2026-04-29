@@ -55,9 +55,19 @@ func setupWorkflowFestival(t *testing.T) string {
 
 	dir := t.TempDir()
 
-	// Create fest.yaml
-	festYAML := `name: test-festival
+	// Create fest.yaml. The status_history entry is required so the
+	// lifecycle gate can determine the festival's current status; tests
+	// previously omitted this and got a fail-closed gate from the new
+	// workflow command guards. The fixture phase is "ingest" (preparatory)
+	// so the gate would let active status through regardless.
+	festYAML := `version: "1.0"
+name: test-festival
 id: TEST-001
+metadata:
+  id: TEST-001
+  status_history:
+    - status: active
+      timestamp: 2026-02-10T00:00:00Z
 `
 	if err := os.WriteFile(filepath.Join(dir, "fest.yaml"), []byte(festYAML), 0o644); err != nil {
 		t.Fatalf("write fest.yaml: %v", err)
@@ -443,7 +453,7 @@ func setupGateOnlyFestival(t *testing.T) string {
 
 	dir := t.TempDir()
 
-	festYAML := "name: gate-cmd-test\nid: GATE-CMD-001\n"
+	festYAML := "name: gate-cmd-test\nid: GATE-CMD-001\nversion: \"1.0\"\nmetadata:\n  id: GATE-CMD-001\n  status_history:\n    - status: active\n      timestamp: 2026-02-10T00:00:00Z\n"
 	if err := os.WriteFile(filepath.Join(dir, "fest.yaml"), []byte(festYAML), 0o644); err != nil {
 		t.Fatalf("write fest.yaml: %v", err)
 	}

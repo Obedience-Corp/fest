@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
@@ -41,6 +42,13 @@ The feedback will be recorded in the workflow state for reference.`,
 func runReject(ctx context.Context, reason string) error {
 	nav, err := getWorkflowNavigator(ctx)
 	if err != nil {
+		return err
+	}
+
+	if err := lifecycle.EnforcePreActive(ctx, nav.Ctx.FestivalPath, lifecycle.EnforceOptions{
+		PhasePath: nav.Ctx.PhasePath,
+		Reason:    "fest workflow reject",
+	}); err != nil {
 		return err
 	}
 

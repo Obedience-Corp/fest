@@ -11,6 +11,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
+	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/ui"
 )
@@ -92,6 +93,15 @@ func handlePhaseStatusSetWithPath(ctx context.Context, display *ui.UI, festivalP
 		return err
 	}
 
+	// Defense in depth: pre-active festivals may not mutate implementation
+	// phase frontmatter. Planning/research/ingest phases pass through.
+	if err := lifecycle.EnforcePreActive(ctx, festivalPath, lifecycle.EnforceOptions{
+		PhasePath: phasePath,
+		Reason:    "fest status set --phase",
+	}); err != nil {
+		return err
+	}
+
 	goalPath := filepath.Join(phasePath, "PHASE_GOAL.md")
 	oldStatus, err := readGoalStatus(ctx, goalPath)
 	if err != nil {
@@ -142,8 +152,17 @@ func handleTaskStatusSet(ctx context.Context, display *ui.UI, cwd, newStatus str
 		return err
 	}
 
-	// Create progress manager
-	mgr, err := progress.NewManager(ctx, festivalPath)
+	if err := lifecycle.EnforcePreActive(ctx, festivalPath, lifecycle.EnforceOptions{
+		TaskID: taskID,
+		Reason: "fest status set",
+	}); err != nil {
+		return err
+	}
+
+	// Create progress manager with the lifecycle gate so mutations refuse
+	// pre-active festivals as defense in depth.
+	mgr, err := progress.NewManagerWithGate(ctx, festivalPath,
+		lifecycle.NewGateWithReason(festivalPath, "fest status set"))
 	if err != nil {
 		return errors.Wrap(err, "creating progress manager")
 	}
@@ -338,6 +357,15 @@ func handlePhaseStatusSet(ctx context.Context, display *ui.UI, cwd, newStatus st
 		return err
 	}
 
+	// Defense in depth: pre-active festivals may not mutate implementation
+	// phase frontmatter. Planning/research/ingest phases pass through.
+	if err := lifecycle.EnforcePreActive(ctx, festivalPath, lifecycle.EnforceOptions{
+		PhasePath: phasePath,
+		Reason:    "fest status set --phase",
+	}); err != nil {
+		return err
+	}
+
 	goalPath := filepath.Join(phasePath, "PHASE_GOAL.md")
 	oldStatus, err := readGoalStatus(ctx, goalPath)
 	if err != nil {
@@ -457,6 +485,16 @@ func handleSequenceStatusSet(ctx context.Context, display *ui.UI, cwd, newStatus
 	// Find the sequence directory
 	seqPath, seqName, err := resolveSequence(festivalPath, cwd, opts.sequence)
 	if err != nil {
+		return err
+	}
+
+	// Defense in depth: pre-active festivals may not mutate sequence
+	// frontmatter under implementation phases. The gate evaluates the
+	// parent phase's type so planning/research/ingest sequences pass through.
+	if err := lifecycle.EnforcePreActive(ctx, festivalPath, lifecycle.EnforceOptions{
+		PhasePath: filepath.Dir(seqPath),
+		Reason:    "fest status set --sequence",
+	}); err != nil {
 		return err
 	}
 

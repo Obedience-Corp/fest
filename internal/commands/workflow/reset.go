@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -42,6 +43,13 @@ func runReset(ctx context.Context, force bool) error {
 		return err
 	}
 
+	if err := lifecycle.EnforcePreActive(ctx, nav.Ctx.FestivalPath, lifecycle.EnforceOptions{
+		PhasePath: nav.Ctx.PhasePath,
+		Reason:    "fest workflow reset",
+	}); err != nil {
+		return err
+	}
+
 	state := nav.GetWorkflowState()
 	completed := state.CompletedCount()
 
@@ -67,10 +75,13 @@ func runReset(ctx context.Context, force bool) error {
 		return fmt.Errorf("resetting workflow: %w", err)
 	}
 
-	// Reset phase frontmatter status since phase is no longer complete
+	// Reset phase frontmatter status since phase is no longer complete.
+	// Manager is constructed with the lifecycle gate as defense in depth;
+	// the runReset gate above is the user-facing block.
 	phasePath := nav.Ctx.PhasePath
 	festivalPath := nav.Ctx.FestivalPath
-	if mgr, err := progress.NewManager(ctx, festivalPath); err == nil {
+	if mgr, err := progress.NewManagerWithGate(ctx, festivalPath,
+		lifecycle.NewGateWithReason(festivalPath, "fest workflow reset")); err == nil {
 		_ = mgr.ResetPhaseStatus(ctx, phasePath)
 	}
 

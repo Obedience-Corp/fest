@@ -11,6 +11,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/spf13/cobra"
@@ -146,8 +147,15 @@ func runProgress(ctx context.Context, opts *progressOptions) error {
 			WithField("hint", "run from inside a festival directory")
 	}
 
-	// Create progress manager
-	mgr, err := progress.NewManager(ctx, loc.Festival.Path)
+	// Create progress manager. Mutation flows install the lifecycle gate so
+	// pre-active festivals reject task changes; read-only flows do not need it.
+	var mgr *progress.Manager
+	if opts.taskID != "" || opts.taskPath != "" {
+		mgr, err = progress.NewManagerWithGate(ctx, loc.Festival.Path,
+			lifecycle.NewGateWithReason(loc.Festival.Path, "fest progress"))
+	} else {
+		mgr, err = progress.NewManager(ctx, loc.Festival.Path)
+	}
 	if err != nil {
 		return errors.Wrap(err, "initializing progress manager")
 	}

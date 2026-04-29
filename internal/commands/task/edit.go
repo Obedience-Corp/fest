@@ -8,6 +8,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/obey-shared/procutil"
@@ -41,6 +42,13 @@ func runEdit(cmd *cobra.Command, args []string) error {
 
 	taskID, taskFilePath, err := resolveTask(ctx, festivalPath, arg)
 	if err != nil {
+		return err
+	}
+
+	if err := lifecycle.EnforcePreActive(ctx, festivalPath, lifecycle.EnforceOptions{
+		TaskID: taskID,
+		Reason: "fest task edit",
+	}); err != nil {
 		return err
 	}
 

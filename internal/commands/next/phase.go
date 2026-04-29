@@ -9,6 +9,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
+	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/progress"
 )
 
@@ -36,61 +37,6 @@ func findSequencePath(cwd, festivalPath string) string {
 		current = parent
 	}
 	return ""
-}
-
-// findFirstIncompletePhase scans ALL phases in numerical order and returns the first incomplete phase.
-// It respects ordering across both workflow-based and task-based phases.
-// Returns (phasePath, isWorkflow, error). Empty phasePath means all phases are complete.
-func findFirstIncompletePhase(ctx context.Context, festivalPath string) (string, bool, error) {
-	entries, err := os.ReadDir(festivalPath)
-	if err != nil {
-		return "", false, err
-	}
-
-	var phases []string
-	for _, entry := range entries {
-		if entry.IsDir() && shared.IsNumberedDir(entry.Name()) {
-			phases = append(phases, filepath.Join(festivalPath, entry.Name()))
-		}
-	}
-
-	sort.Strings(phases)
-
-	// Load Store once for all workflow state lookups
-	store := progress.NewStore(festivalPath)
-	storeLoaded := store.Load(ctx) == nil
-
-	for _, phasePath := range phases {
-		phaseName := filepath.Base(phasePath)
-
-		workflowPath := filepath.Join(phasePath, "WORKFLOW.md")
-		if _, err := os.Stat(workflowPath); err == nil {
-			if storeLoaded {
-				state, ok := store.WorkflowPhaseState(phaseName)
-				if !ok || state.TotalSteps == 0 || !state.IsComplete() {
-					return phasePath, true, nil
-				}
-			} else {
-				return phasePath, true, nil // Can't load store, assume incomplete
-			}
-			// Workflow is complete — check if phase gate is incomplete
-			if hasIncompletePhaseGate(storeLoaded, store, phasePath, phaseName) {
-				return phasePath, false, nil
-			}
-			continue
-		}
-
-		if hasSequenceDirs(phasePath) && !arePhaseTasksComplete(storeLoaded, store, phasePath, phaseName) {
-			return phasePath, false, nil
-		}
-
-		// Sequences done / all tasks complete — check phase gate
-		if hasIncompletePhaseGate(storeLoaded, store, phasePath, phaseName) {
-			return phasePath, false, nil
-		}
-	}
-
-	return "", false, nil
 }
 
 // findFirstIncompleteWorkflowPhase scans phases in numerical order for the first with incomplete workflow.
@@ -184,42 +130,6 @@ func findEarlierIncompleteAfterWorkflow(ctx context.Context, festivalPath, curre
 	return "", nil
 }
 
-// hasSequenceDirs checks if a phase directory contains numbered subdirectories (sequences).
-func hasSequenceDirs(phasePath string) bool {
-	entries, err := os.ReadDir(phasePath)
-	if err != nil {
-		return false
-	}
-	for _, entry := range entries {
-		if entry.IsDir() && shared.IsNumberedDir(entry.Name()) {
-			return true
-		}
-	}
-	return false
-}
-
-// arePhaseTasksComplete checks whether all tasks in a phase's sequences
-// are marked complete in the progress store. Delegates to shared package.
-func arePhaseTasksComplete(storeLoaded bool, store *progress.Store, phasePath, phaseName string) bool {
-	return shared.ArePhaseTasksComplete(storeLoaded, store, phasePath, phaseName)
-}
-
-// hasIncompletePhaseGate checks if a phase has a GATES.md that is not yet complete.
-func hasIncompletePhaseGate(storeLoaded bool, store *progress.Store, phasePath, phaseName string) bool {
-	gatesPath := filepath.Join(phasePath, "GATES.md")
-	if _, err := os.Stat(gatesPath); err != nil {
-		return false // No GATES.md
-	}
-	if !storeLoaded {
-		return true // Can't check store, assume incomplete
-	}
-	state, ok := store.GatePhaseState(phaseName)
-	if !ok || state.TotalSteps == 0 || !state.IsComplete() {
-		return true
-	}
-	return false
-}
-
 // findEarlierIncompletePhaseGate scans phases in numerical order before the given phase
 // and returns the first one with an incomplete phase gate (GATES.md).
 // Phase gates run after all tasks, sequence gates, and workflows in a phase are complete.
@@ -254,7 +164,7 @@ func findEarlierIncompletePhaseGate(ctx context.Context, festivalPath, currentPh
 			continue
 		}
 
-		if hasIncompletePhaseGate(storeLoaded, store, phasePath, phaseName) {
+		if lifecycle.HasIncompletePhaseGate(storeLoaded, store, phasePath, phaseName) {
 			return phasePath, nil
 		}
 	}
@@ -287,7 +197,7 @@ func findFirstIncompletePhaseGate(ctx context.Context, festivalPath string) (str
 		if !isPhaseWorkAndWorkflowComplete(ctx, storeLoaded, store, phasePath, phaseName) {
 			continue
 		}
-		if hasIncompletePhaseGate(storeLoaded, store, phasePath, phaseName) {
+		if lifecycle.HasIncompletePhaseGate(storeLoaded, store, phasePath, phaseName) {
 			return phasePath, nil
 		}
 	}

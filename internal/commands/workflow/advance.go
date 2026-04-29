@@ -6,6 +6,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/chaining"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -38,6 +39,13 @@ Note: If the current step has a blocking checkpoint, use 'fest workflow approve'
 func runAdvance(ctx context.Context) error {
 	nav, err := getWorkflowNavigator(ctx)
 	if err != nil {
+		return err
+	}
+
+	if err := lifecycle.EnforcePreActive(ctx, nav.Ctx.FestivalPath, lifecycle.EnforceOptions{
+		PhasePath: nav.Ctx.PhasePath,
+		Reason:    "fest workflow advance",
+	}); err != nil {
 		return err
 	}
 
@@ -99,7 +107,8 @@ func showNextStep(ctx context.Context, nav *wf.Navigator, steps []wf.WorkflowSte
 		// Propagate phase completion to PHASE_GOAL.md frontmatter
 		gctx := nav.GetContext()
 		if gctx.FestivalPath != "" && gctx.PhasePath != "" {
-			if mgr, mgrErr := progress.NewManager(ctx, gctx.FestivalPath); mgrErr != nil {
+			if mgr, mgrErr := progress.NewManagerWithGate(ctx, gctx.FestivalPath,
+				lifecycle.NewGateWithReason(gctx.FestivalPath, "fest workflow advance")); mgrErr != nil {
 				fmt.Printf("%s %s\n", ui.Dim("Warning: could not initialize progress manager:"), ui.Dim(mgrErr.Error()))
 			} else {
 				if propErr := mgr.PropagatePhaseCompletion(ctx, gctx.PhasePath); propErr != nil {

@@ -13,6 +13,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/gates"
+	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/ui"
 )
@@ -20,6 +21,13 @@ import (
 func handleTaskUpdate(ctx context.Context, mgr *progress.Manager, festivalPath string, opts *progressOptions) error {
 	taskID, err := resolveTaskID(festivalPath, opts)
 	if err != nil {
+		return err
+	}
+
+	if err := lifecycle.EnforcePreActive(ctx, festivalPath, lifecycle.EnforceOptions{
+		TaskID: taskID,
+		Reason: progressReasonFor(opts),
+	}); err != nil {
 		return err
 	}
 
@@ -287,6 +295,25 @@ func statusForProgress(progressPct int) string {
 	default:
 		return progress.StatusPending
 	}
+}
+
+// progressReasonFor returns a label for the lifecycle gate based on the
+// active task-update flag, so the block message tells the agent which
+// command triggered it.
+func progressReasonFor(opts *progressOptions) string {
+	switch {
+	case opts.complete:
+		return "fest progress --complete"
+	case opts.inProgress:
+		return "fest progress --in-progress"
+	case opts.update != "":
+		return "fest progress --update"
+	case opts.blocker != "":
+		return "fest progress --blocker"
+	case opts.clear:
+		return "fest progress --clear"
+	}
+	return "fest progress"
 }
 
 func parsePercentage(s string) (int, error) {
