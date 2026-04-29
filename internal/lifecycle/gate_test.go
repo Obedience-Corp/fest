@@ -1,6 +1,7 @@
-package next
+package lifecycle
 
 import (
+	"bytes"
 	"context"
 	stderrors "errors"
 	"os"
@@ -9,10 +10,9 @@ import (
 	"testing"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
-	"github.com/Obedience-Corp/fest/internal/validator"
 )
 
-func TestCheckPreActiveStatus(t *testing.T) {
+func TestEnforcePreActive(t *testing.T) {
 	tests := []struct {
 		name           string
 		status         string
@@ -116,7 +116,7 @@ func TestCheckPreActiveStatus(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			err := checkPreActiveStatus(context.Background(), festDir, phaseDir)
+			err := EnforcePreActive(context.Background(), festDir, EnforceOptions{PhasePath: phaseDir})
 
 			if tt.expectBlocked {
 				if err == nil {
@@ -131,18 +131,32 @@ func TestCheckPreActiveStatus(t *testing.T) {
 	}
 }
 
-func TestCheckPreActiveStatus_NoConfig(t *testing.T) {
+func TestEnforcePreActive_NoConfig_FailsClosed(t *testing.T) {
 	festDir := t.TempDir()
-	err := checkPreActiveStatus(context.Background(), festDir, "")
-	if err != nil {
-		t.Errorf("expected no error without config, got: %v", err)
+
+	var err error
+	output := captureStdout(t, func() {
+		err = EnforcePreActive(context.Background(), festDir, EnforceOptions{Reason: "test"})
+	})
+
+	if err == nil {
+		t.Fatal("expected fail-closed error when fest.yaml is missing, got nil")
+	}
+	if !stderrors.Is(err, errors.ErrAlreadyPrinted) {
+		t.Errorf("expected ErrAlreadyPrinted, got: %v", err)
+	}
+	if !strings.Contains(output, "metadata missing") && !strings.Contains(output, "fest.yaml") {
+		t.Errorf("expected metadata/fest.yaml hint in output, got: %s", output)
+	}
+	if !strings.Contains(output, "fest validate") {
+		t.Errorf("expected 'fest validate' hint in output, got: %s", output)
 	}
 }
 
-func TestCheckPreActiveStatus_NoPhasePath(t *testing.T) {
+func TestEnforcePreActive_NoPhasePath_AutoDetect(t *testing.T) {
 	festDir := t.TempDir()
 	phaseDir := filepath.Join(festDir, "001_IMPL")
-	if err := os.MkdirAll(phaseDir, 0755); err != nil {
+	if err := os.MkdirAll(filepath.Join(phaseDir, "01_setup"), 0755); err != nil {
 		t.Fatal(err)
 	}
 
@@ -156,17 +170,58 @@ func TestCheckPreActiveStatus_NoPhasePath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := os.MkdirAll(filepath.Join(phaseDir, "01_setup"), 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	err := checkPreActiveStatus(context.Background(), festDir, "")
+	err := EnforcePreActive(context.Background(), festDir, EnforceOptions{})
 	if err == nil {
 		t.Error("expected blocked error when auto-detecting implementation phase, got nil")
 	}
 }
 
-func TestCheckPreActiveStatus_ReadyMessage(t *testing.T) {
+func TestEnforcePreActive_TaskID_DerivesPhase(t *testing.T) {
+	festDir := t.TempDir()
+
+	implPhase := filepath.Join(festDir, "002_IMPL")
+	if err := os.MkdirAll(filepath.Join(implPhase, "01_seq"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	goalImpl := "---\nfest_phase_type: implementation\n---\n# Implementation Phase\n"
+	if err := os.WriteFile(filepath.Join(implPhase, "PHASE_GOAL.md"), []byte(goalImpl), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	planPhase := filepath.Join(festDir, "001_PLAN")
+	if err := os.MkdirAll(filepath.Join(planPhase, "01_seq"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	goalPlan := "---\nfest_phase_type: planning\n---\n# Planning Phase\n"
+	if err := os.WriteFile(filepath.Join(planPhase, "PHASE_GOAL.md"), []byte(goalPlan), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	festYAML := "version: \"1.0\"\nmetadata:\n  id: TS0001\n  status_history:\n    - status: planning\n      timestamp: 2026-02-10T00:00:00Z\n"
+	if err := os.WriteFile(filepath.Join(festDir, "fest.yaml"), []byte(festYAML), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// TaskID points at the implementation phase even though planning phase is the
+	// scan-detected first incomplete. TaskID should win.
+	err := EnforcePreActive(context.Background(), festDir, EnforceOptions{
+		TaskID: "002_IMPL/01_seq/01_task.md",
+		Reason: "fest task completed",
+	})
+	if err == nil {
+		t.Error("expected block when TaskID resolves to implementation phase, got nil")
+	}
+
+	// TaskID points at the planning phase, should NOT block.
+	err = EnforcePreActive(context.Background(), festDir, EnforceOptions{
+		TaskID: "001_PLAN/01_seq/01_task.md",
+	})
+	if err != nil {
+		t.Errorf("expected no block when TaskID resolves to planning phase, got: %v", err)
+	}
+}
+
+func TestEnforcePreActive_ReadyMessage(t *testing.T) {
 	festDir := t.TempDir()
 	phaseDir := filepath.Join(festDir, "001_PHASE")
 	if err := os.MkdirAll(phaseDir, 0755); err != nil {
@@ -185,7 +240,10 @@ func TestCheckPreActiveStatus_ReadyMessage(t *testing.T) {
 
 	var err error
 	output := captureStdout(t, func() {
-		err = checkPreActiveStatus(context.Background(), festDir, phaseDir)
+		err = EnforcePreActive(context.Background(), festDir, EnforceOptions{
+			PhasePath: phaseDir,
+			Reason:    "fest task completed",
+		})
 	})
 
 	if err == nil {
@@ -198,45 +256,20 @@ func TestCheckPreActiveStatus_ReadyMessage(t *testing.T) {
 		t.Errorf("expected prompt block header, got: %s", output)
 	}
 	if !strings.Contains(output, "fest promote") {
-		t.Errorf("expected promote instruction in prompt block, got: %s", output)
+		t.Errorf("expected promote instruction, got: %s", output)
 	}
 	if !strings.Contains(output, "Did the user approve") {
-		t.Errorf("expected user approval check in prompt block, got: %s", output)
+		t.Errorf("expected user approval check, got: %s", output)
 	}
 	if !strings.Contains(output, "planning -> ready -> [active] -> completed") {
 		t.Errorf("expected lifecycle in prompt block, got: %s", output)
 	}
-}
-
-// TestValidationGateAllowsIngestPhaseWithMarkers verifies the full integration:
-// a planning-status festival with unfilled markers in FESTIVAL_GOAL.md and an
-// ingest-type current phase should NOT be blocked by the validation gate.
-// Uses a synthetic result with only marker errors to isolate the fix.
-func TestValidationGateAllowsIngestPhaseWithMarkers(t *testing.T) {
-	result := &validator.Result{
-		Issues: []validator.Issue{
-			{
-				Level:   validator.LevelError,
-				Code:    validator.CodeUnfilledTemplate,
-				Path:    "FESTIVAL_GOAL.md",
-				Message: "File contains 1 unfilled template markers ([FILL:)",
-			},
-		},
-	}
-
-	// With ingest phase, validation gate should NOT block (root markers are in scope)
-	if hasBlockingIssues(result, "ingest", "001_INGEST") {
-		t.Error("validation gate should not block ingest phase despite festival-root marker errors")
+	if !strings.Contains(output, "fest task completed") {
+		t.Errorf("expected reason in output, got: %s", output)
 	}
 }
 
-// TestCheckPreActiveStatus_MultiPhase_PlanningPhaseNotBlocked verifies the
-// regression scenario: a planning-status festival with a completed implementation
-// phase (001_IMPL) and an incomplete planning phase (002_PLAN). When run from the
-// festival root (no explicit phasePath), findFirstIncompletePhase should find
-// 002_PLAN (type=planning), NOT 001_IMPL (type=implementation), so the check
-// should NOT block.
-func TestCheckPreActiveStatus_MultiPhase_PlanningPhaseNotBlocked(t *testing.T) {
+func TestEnforcePreActive_MultiPhase_PlanningPhaseNotBlocked(t *testing.T) {
 	festDir := t.TempDir()
 
 	phase1 := filepath.Join(festDir, "001_IMPL")
@@ -268,22 +301,15 @@ func TestCheckPreActiveStatus_MultiPhase_PlanningPhaseNotBlocked(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := checkPreActiveStatus(context.Background(), festDir, "")
+	err := EnforcePreActive(context.Background(), festDir, EnforceOptions{})
 	if err != nil {
 		t.Errorf("expected no block for planning phase in planning-status festival, got: %v", err)
 	}
 }
 
-// TestCheckPreActiveStatus_CwdInsideLaterImplPhase verifies the cwd regression:
-// a planning-status festival with an incomplete ingest phase (001_INGEST) and a
-// later scaffolded implementation phase (002_IMPL). If the user runs fest next
-// from inside 002_IMPL, passing that phase path would incorrectly block.
-// The fix in runNext() passes findFirstIncompletePhase result instead of cwd.
-// This test validates both paths to document the expected behavior.
-func TestCheckPreActiveStatus_CwdInsideLaterImplPhase(t *testing.T) {
+func TestEnforcePreActive_CwdInsideLaterImplPhase(t *testing.T) {
 	festDir := t.TempDir()
 
-	// Incomplete ingest phase (the real next phase)
 	ingestPhase := filepath.Join(festDir, "001_INGEST")
 	if err := os.MkdirAll(filepath.Join(ingestPhase, "01_seq"), 0755); err != nil {
 		t.Fatal(err)
@@ -293,7 +319,6 @@ func TestCheckPreActiveStatus_CwdInsideLaterImplPhase(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Later scaffolded implementation phase (where cwd might be)
 	implPhase := filepath.Join(festDir, "002_IMPL")
 	if err := os.MkdirAll(filepath.Join(implPhase, "01_seq"), 0755); err != nil {
 		t.Fatal(err)
@@ -308,15 +333,43 @@ func TestCheckPreActiveStatus_CwdInsideLaterImplPhase(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Passing the impl phase path (simulating old cwd behavior) WOULD block
-	err := checkPreActiveStatus(context.Background(), festDir, implPhase)
+	// Passing the impl phase path WOULD block.
+	err := EnforcePreActive(context.Background(), festDir, EnforceOptions{PhasePath: implPhase})
 	if err == nil {
 		t.Error("expected block when passing implementation phase path directly")
 	}
 
-	// Passing the ingest phase path (what findFirstIncompletePhase returns) should NOT block
-	err = checkPreActiveStatus(context.Background(), festDir, ingestPhase)
+	// Passing the ingest phase path should NOT block.
+	err = EnforcePreActive(context.Background(), festDir, EnforceOptions{PhasePath: ingestPhase})
 	if err != nil {
 		t.Errorf("expected no block when passing ingest phase path, got: %v", err)
 	}
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	os.Stdout = w
+
+	fn()
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("close write pipe: %v", err)
+	}
+	os.Stdout = old
+
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(r); err != nil {
+		t.Fatalf("read pipe: %v", err)
+	}
+	if err := r.Close(); err != nil {
+		t.Fatalf("close read pipe: %v", err)
+	}
+
+	return buf.String()
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
+	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -55,7 +56,15 @@ func runShow(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	mgr, err := progress.NewManager(ctx, festivalPath)
+	if err := lifecycle.EnforcePreActive(ctx, festivalPath, lifecycle.EnforceOptions{
+		TaskID: taskID,
+		Reason: "fest task show",
+	}); err != nil {
+		return err
+	}
+
+	mgr, err := progress.NewManagerWithGate(ctx, festivalPath,
+		lifecycle.NewGateWithReason(festivalPath, "fest task show"))
 	if err != nil {
 		return errors.Wrap(err, "loading progress")
 	}

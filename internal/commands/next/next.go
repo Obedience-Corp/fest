@@ -17,6 +17,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/guidance/selection"
 	"github.com/Obedience-Corp/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/pathutil"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
@@ -124,12 +125,12 @@ func runNext(cmd *cobra.Command, args []string) error {
 	}
 
 	// Resolve the next incomplete phase for phase-aware gates.
-	// Always use findFirstIncompletePhase rather than cwd — cwd may be inside
+	// Always use FindFirstIncompletePhase rather than cwd — cwd may be inside
 	// a later scaffolded phase that isn't the actual next actionable one.
 	nextPhasePath := ""
 	nextPhaseType := ""
 	nextPhaseName := ""
-	if found, _, findErr := findFirstIncompletePhase(ctx, festivalPath); findErr == nil && found != "" {
+	if found, _, findErr := lifecycle.FindFirstIncompletePhase(ctx, festivalPath); findErr == nil && found != "" {
 		nextPhasePath = found
 		nextPhaseType = guidance.DetectPhaseType(found)
 		nextPhaseName = filepath.Base(found)
@@ -144,7 +145,10 @@ func runNext(cmd *cobra.Command, args []string) error {
 	// Block implementation/review phases in pre-active festivals (planning or ready).
 	// Use the next incomplete phase, not cwd — cwd may be inside a later scaffolded
 	// implementation phase while an earlier preparatory phase is the real next step.
-	if err := checkPreActiveStatus(ctx, festivalPath, nextPhasePath); err != nil {
+	if err := lifecycle.EnforcePreActive(ctx, festivalPath, lifecycle.EnforceOptions{
+		PhasePath: nextPhasePath,
+		Reason:    "fest next",
+	}); err != nil {
 		return err
 	}
 
@@ -179,7 +183,7 @@ func runNext(cmd *cobra.Command, args []string) error {
 
 	// If at festival root (no phase detected), find the first incomplete phase respecting numerical order
 	if phasePath == "" {
-		nextPhase, isWorkflow, fipErr := findFirstIncompletePhase(ctx, festivalPath)
+		nextPhase, isWorkflow, fipErr := lifecycle.FindFirstIncompletePhase(ctx, festivalPath)
 		if fipErr == nil && nextPhase != "" && isWorkflow {
 			// Only route to workflow immediately if position=before
 			position := shared.WorkflowPositionForPhase(nextPhase)

@@ -14,25 +14,43 @@ import (
 // Manager handles progress operations for a festival
 type Manager struct {
 	store *Store
+	gate  Gate
 }
 
-// NewManager creates a new progress manager
+// NewManager creates a new progress manager with no lifecycle gate.
+// Mutations are not gated. Suitable for read-heavy callers and tests.
+// CLI mutation entry points should use NewManagerWithGate instead.
 func NewManager(ctx context.Context, festivalPath string) (*Manager, error) {
+	return NewManagerWithGate(ctx, festivalPath, NoopGate{})
+}
+
+// NewManagerWithGate creates a new progress manager whose mutation
+// methods consult the supplied Gate. Pass a real gate at CLI mutation
+// sites; pass NoopGate{} for housekeeping paths that legitimately
+// bypass enforcement (e.g., promote internals, store fixups).
+func NewManagerWithGate(ctx context.Context, festivalPath string, gate Gate) (*Manager, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, errors.Wrap(err, "context cancelled")
+	}
+
+	if gate == nil {
+		gate = NoopGate{}
 	}
 
 	store := NewStore(festivalPath)
 	if err := store.Load(ctx); err != nil {
 		return nil, errors.Wrap(err, "loading progress data")
 	}
-	return &Manager{store: store}, nil
+	return &Manager{store: store, gate: gate}, nil
 }
 
 // UpdateProgress updates the progress percentage for a task
 func (m *Manager) UpdateProgress(ctx context.Context, taskID string, progress int) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
+	}
+	if err := m.gate.EnforceForTask(ctx, taskID); err != nil {
+		return err
 	}
 
 	if progress < 0 || progress > 100 {
@@ -114,6 +132,9 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
 	}
+	if err := m.gate.EnforceForTask(ctx, taskID); err != nil {
+		return err
+	}
 
 	task, exists := m.store.GetTask(taskID)
 	if !exists {
@@ -163,6 +184,9 @@ func (m *Manager) MarkInProgress(ctx context.Context, taskID string) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
 	}
+	if err := m.gate.EnforceForTask(ctx, taskID); err != nil {
+		return err
+	}
 
 	task, exists := m.store.GetTask(taskID)
 	if !exists {
@@ -200,6 +224,9 @@ func (m *Manager) MarkInProgress(ctx context.Context, taskID string) error {
 func (m *Manager) ReportBlocker(ctx context.Context, taskID, message string) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
+	}
+	if err := m.gate.EnforceForTask(ctx, taskID); err != nil {
+		return err
 	}
 
 	if message == "" {
@@ -245,6 +272,9 @@ func (m *Manager) ResetTask(ctx context.Context, taskID string) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
 	}
+	if err := m.gate.EnforceForTask(ctx, taskID); err != nil {
+		return err
+	}
 
 	task, exists := m.store.GetTask(taskID)
 	if !exists {
@@ -282,6 +312,9 @@ func (m *Manager) ResetTask(ctx context.Context, taskID string) error {
 func (m *Manager) ClearBlocker(ctx context.Context, taskID string) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
+	}
+	if err := m.gate.EnforceForTask(ctx, taskID); err != nil {
+		return err
 	}
 
 	task, exists := m.store.GetTask(taskID)

@@ -6,6 +6,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -53,6 +54,13 @@ func runBlocked(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if err := lifecycle.EnforcePreActive(ctx, festivalPath, lifecycle.EnforceOptions{
+		TaskID: taskID,
+		Reason: "fest task blocked",
+	}); err != nil {
+		return err
+	}
+
 	// Require interactive mode
 	if blockedJSON {
 		result := map[string]any{
@@ -66,7 +74,8 @@ func runBlocked(cmd *cobra.Command, args []string) error {
 		return errors.Validation("interactive confirmation required for reporting blockers")
 	}
 
-	mgr, err := progress.NewManager(ctx, festivalPath)
+	mgr, err := progress.NewManagerWithGate(ctx, festivalPath,
+		lifecycle.NewGateWithReason(festivalPath, "fest task blocked"))
 	if err != nil {
 		return errors.Wrap(err, "loading progress")
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
+	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/ui"
 )
@@ -142,8 +143,17 @@ func handleTaskStatusSet(ctx context.Context, display *ui.UI, cwd, newStatus str
 		return err
 	}
 
-	// Create progress manager
-	mgr, err := progress.NewManager(ctx, festivalPath)
+	if err := lifecycle.EnforcePreActive(ctx, festivalPath, lifecycle.EnforceOptions{
+		TaskID: taskID,
+		Reason: "fest status set",
+	}); err != nil {
+		return err
+	}
+
+	// Create progress manager with the lifecycle gate so mutations refuse
+	// pre-active festivals as defense in depth.
+	mgr, err := progress.NewManagerWithGate(ctx, festivalPath,
+		lifecycle.NewGateWithReason(festivalPath, "fest status set"))
 	if err != nil {
 		return errors.Wrap(err, "creating progress manager")
 	}

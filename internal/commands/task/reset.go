@@ -6,6 +6,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -48,6 +49,13 @@ func runReset(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if err := lifecycle.EnforcePreActive(ctx, festivalPath, lifecycle.EnforceOptions{
+		TaskID: taskID,
+		Reason: "fest task reset",
+	}); err != nil {
+		return err
+	}
+
 	// Require interactive mode
 	if resetJSON {
 		result := map[string]any{
@@ -61,7 +69,8 @@ func runReset(cmd *cobra.Command, args []string) error {
 		return errors.Validation("interactive confirmation required for task reset")
 	}
 
-	mgr, err := progress.NewManager(ctx, festivalPath)
+	mgr, err := progress.NewManagerWithGate(ctx, festivalPath,
+		lifecycle.NewGateWithReason(festivalPath, "fest task reset"))
 	if err != nil {
 		return errors.Wrap(err, "loading progress")
 	}

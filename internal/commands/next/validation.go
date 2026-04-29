@@ -2,14 +2,11 @@
 package next
 
 import (
-	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
 
-	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
-	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/validator"
 )
 
@@ -133,56 +130,3 @@ func emitValidationBlock(festivalPath string, result *validator.Result) error {
 	return errors.ErrAlreadyPrinted
 }
 
-// checkPreActiveStatus blocks implementation/review phases when the festival is in planning or ready status.
-func checkPreActiveStatus(ctx context.Context, festivalPath, phasePath string) error {
-	festCfg, err := config.LoadFestivalConfig(festivalPath, "")
-	if err != nil {
-		return nil // Can't load config — don't block
-	}
-
-	status := festCfg.Metadata.CurrentStatus()
-	if status != "planning" && status != "ready" {
-		return nil
-	}
-
-	// Only block if we can detect the phase type
-	if phasePath == "" {
-		// At festival root — find the first *incomplete* phase (the current one)
-		found, _, findErr := findFirstIncompletePhase(ctx, festivalPath)
-		if findErr != nil || found == "" {
-			return nil
-		}
-		phasePath = found
-	}
-
-	phaseType := guidance.DetectPhaseType(phasePath)
-	if phaseType != "implementation" && phaseType != "review" {
-		return nil
-	}
-
-	festName := filepath.Base(festivalPath)
-
-	if status == "ready" {
-		var sb strings.Builder
-		sb.WriteString("STOP — FESTIVAL NOT YET ACTIVE\n")
-		sb.WriteString("──────────────────────────────\n")
-		fmt.Fprintf(&sb, "Festival %q is in ready status.\n", festName)
-		sb.WriteString("Lifecycle: planning -> ready -> [active] -> completed\n\n")
-		sb.WriteString("Before executing, confirm:\n")
-		sb.WriteString("  - Is this the correct festival you should be working on?\n")
-		sb.WriteString("  - Did the user approve implementation of this festival?\n\n")
-		sb.WriteString("If approved, promote to active: fest promote\n")
-		fmt.Print(sb.String())
-		return errors.ErrAlreadyPrinted
-	}
-
-	var sb strings.Builder
-	sb.WriteString("STOP — FESTIVAL NOT YET ACTIVE\n")
-	sb.WriteString("──────────────────────────────\n")
-	fmt.Fprintf(&sb, "Festival %q is in planning status.\n", festName)
-	sb.WriteString("Lifecycle: [planning] -> ready -> active -> completed\n\n")
-	sb.WriteString("Implementation phases require active status.\n")
-	sb.WriteString("Promote to ready first: fest promote\n")
-	fmt.Print(sb.String())
-	return errors.ErrAlreadyPrinted
-}

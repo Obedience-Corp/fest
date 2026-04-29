@@ -8,6 +8,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/gates"
+	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -50,6 +51,13 @@ func runCompleted(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if err := lifecycle.EnforcePreActive(ctx, festivalPath, lifecycle.EnforceOptions{
+		TaskID: taskID,
+		Reason: "fest task completed",
+	}); err != nil {
+		return err
+	}
+
 	// Require interactive mode - no --json bypass for mutations
 	if completedJSON {
 		result := map[string]any{
@@ -63,7 +71,8 @@ func runCompleted(cmd *cobra.Command, args []string) error {
 		return errors.Validation("interactive confirmation required for task completion")
 	}
 
-	mgr, err := progress.NewManager(ctx, festivalPath)
+	mgr, err := progress.NewManagerWithGate(ctx, festivalPath,
+		lifecycle.NewGateWithReason(festivalPath, "fest task completed"))
 	if err != nil {
 		return errors.Wrap(err, "loading progress")
 	}
