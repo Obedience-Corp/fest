@@ -93,29 +93,11 @@ func TestImplementationMode_PhaseBoundaries(t *testing.T) {
 
 	festPath := findFestivalPath(t, container, festivalsPath+"/planning", "test-impl-phases")
 
-	// Write fest.yaml with quality gates enabled and auto-link disabled (no real project dirs in container)
-	festYaml := `version: "1.0"
-auto_link:
-  enabled: false
-quality_gates:
-  enabled: true
-  auto_append: true
-  implementation:
-    - id: testing
-      template: gates/implementation/QUALITY_GATE_TESTING
-      enabled: true
-    - id: review
-      template: gates/implementation/QUALITY_GATE_REVIEW
-      enabled: true
-    - id: iterate
-      template: gates/implementation/QUALITY_GATE_ITERATE
-      enabled: true
-    - id: fest-commit
-      template: gates/implementation/QUALITY_GATE_FEST_COMMIT
-      enabled: true
-`
-	err = writeFileInContainer(container, festPath+"/fest.yaml", festYaml)
-	require.NoError(t, err)
+	// Append quality_gates and disable auto_link without overwriting the
+	// metadata block that fest create festival wrote (status_history is
+	// required by the pre-active lifecycle gate and fest status set).
+	err = ensureQualityGatesInFestivalConfig(container, festPath)
+	require.NoError(t, err, "should ensure quality gates in fest.yaml")
 
 	// Create FESTIVAL_OVERVIEW.md (required by validator)
 	overviewContent := `---
@@ -163,6 +145,10 @@ fest_type: overview
 	err = replaceMarkersInContainer(container, festPath)
 	require.NoError(t, err, "should replace markers")
 
+	// Promote to active so the pre-active lifecycle gate allows
+	// progress mutations on implementation phases.
+	festPath = promoteToActive(t, container, festivalsPath, festPath)
+
 	// Run execute - should show phase 1 task
 	output := runExecuteMode(t, container, festPath)
 	verifyOutputContains(t, output, "phase1_task")
@@ -198,10 +184,11 @@ func TestImplementationMode_Completion(t *testing.T) {
 
 	festPath := findFestivalPath(t, container, festivalsPath+"/planning", "test-impl-done")
 
-	// Write fest.yaml with quality gates enabled and auto-link disabled (no real project dirs in container)
-	festYaml := "version: \"1.0\"\nauto_link:\n  enabled: false\nquality_gates:\n  enabled: true\n  auto_append: true\n  implementation:\n    - id: testing\n      template: gates/implementation/QUALITY_GATE_TESTING\n      enabled: true\n    - id: review\n      template: gates/implementation/QUALITY_GATE_REVIEW\n      enabled: true\n    - id: iterate\n      template: gates/implementation/QUALITY_GATE_ITERATE\n      enabled: true\n    - id: fest-commit\n      template: gates/implementation/QUALITY_GATE_FEST_COMMIT\n      enabled: true\n"
-	err = writeFileInContainer(container, festPath+"/fest.yaml", festYaml)
-	require.NoError(t, err)
+	// Append quality_gates and disable auto_link without overwriting the
+	// metadata block that fest create festival wrote (status_history is
+	// required by the pre-active lifecycle gate and fest status set).
+	err = ensureQualityGatesInFestivalConfig(container, festPath)
+	require.NoError(t, err, "should ensure quality gates in fest.yaml")
 
 	// Create FESTIVAL_OVERVIEW.md (required by validator)
 	overviewContent := "---\nfest_type: overview\n---\n\n# Test Festival Overview\n\n## Goals\n- Test completion behavior\n\n## Success Criteria\n- All tasks completed\n"
@@ -230,6 +217,10 @@ func TestImplementationMode_Completion(t *testing.T) {
 	// Replace markers across entire festival (simulates user/agent filling them in)
 	err = replaceMarkersInContainer(container, festPath)
 	require.NoError(t, err, "should replace markers")
+
+	// Promote to active so the pre-active lifecycle gate allows
+	// progress mutations on the implementation phase.
+	festPath = promoteToActive(t, container, festivalsPath, festPath)
 
 	// Run execute
 	_ = runExecuteMode(t, container, festPath)
