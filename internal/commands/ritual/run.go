@@ -14,6 +14,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/navigation"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
@@ -56,6 +57,7 @@ for existing runs.`,
 		Annotations: map[string]string{
 			"scope": string(scope.Workspace),
 		},
+		ValidArgsFunction: CompleteRitualName,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runRitual(cmd.Context(), args[0], opts)
 		},
@@ -208,6 +210,35 @@ func autoCommitRitualRun(ctx context.Context, ritualName, ritualID, ritualPath, 
 		return "", nil
 	}
 	return hash, nil
+}
+
+// CompleteRitualName provides shell completions for the ritual run argument.
+// It mirrors the substring matching semantics of findRitual so anything that
+// completes will resolve when invoked.
+func CompleteRitualName(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	festivalsRoot, err := workspace.FindFestivals(cwd)
+	if err != nil || festivalsRoot == "" {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	targets := navigation.CollectFestivalsInStatus(festivalsRoot, "ritual")
+	if len(targets) == 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
+	results := make([]string, 0, len(targets))
+	needle := strings.ToLower(toComplete)
+	for _, t := range targets {
+		if needle == "" || strings.Contains(strings.ToLower(t.Name), needle) {
+			results = append(results, t.Name)
+		}
+	}
+
+	return results, cobra.ShellCompDirectiveNoFileComp
 }
 
 // findRitual searches ritual/ for a matching festival by name or ID.
