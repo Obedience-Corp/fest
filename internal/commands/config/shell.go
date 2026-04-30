@@ -166,6 +166,41 @@ if [[ -n "$ZSH_VERSION" ]]; then
     compdef _fls_zsh fls 2>/dev/null
 fi
 
+# Tab completion for the fest binary itself, delegating to cobra's hidden
+# __complete subcommand. Every cobra command on fest gets free tab completion,
+# including ValidArgsFunction-driven completions like 'fest ritual run <tab>'.
+_fest_completions_bash() {
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    local -a args=("${COMP_WORDS[@]:1:$COMP_CWORD-1}" "$cur")
+    local -a completions=()
+    local line
+    while IFS= read -r line; do
+        [[ -z "$line" || "$line" == ":"* ]] && continue
+        completions+=("${line%%$'\t'*}")
+    done < <(command fest __complete "${args[@]}" 2>/dev/null)
+    COMPREPLY=($(compgen -W "${completions[*]}" -- "$cur"))
+}
+complete -F _fest_completions_bash fest
+
+if [[ -n "$ZSH_VERSION" ]]; then
+    _fest_zsh() {
+        local -a vals
+        local line val
+        local -a args
+        # words[1] is "fest"; pass words[2..CURRENT] to __complete
+        args=("${(@)words[2,$CURRENT]}")
+        while IFS= read -r line; do
+            [[ -z "$line" || "$line" == ":"* ]] && continue
+            val="${line%%$'\t'*}"
+            vals+=("$val")
+        done < <(command fest __complete "${args[@]}" 2>/dev/null)
+        if (( ${#vals} )); then
+            compadd -a vals
+        fi
+    }
+    compdef _fest_zsh fest 2>/dev/null
+fi
+
 fgo() {
     case "$1" in
         --help|-h|help)
@@ -332,6 +367,19 @@ complete -c fls -l json -d "Output in JSON format"
 complete -c fls -l all -d "Include empty status categories"
 complete -c fls -l help -d "Show help for fest list"
 complete -c fls -s h -d "Show help for fest list"
+
+# Tab completion for the fest binary itself, delegating to cobra's hidden
+# __complete subcommand. Picks up ValidArgsFunction completions for free
+# (e.g. 'fest ritual run <tab>').
+function __fest_complete
+    set -l tokens (commandline -opc)
+    set -l current (commandline -ct)
+    set -l args $tokens[2..-1] $current
+    command fest __complete $args 2>/dev/null \
+        | string match -rv '^:|^$' \
+        | string replace -r '\t.*$' ''
+end
+complete -c fest -f -a "(__fest_complete)"
 
 function fgo
     switch $argv[1]
