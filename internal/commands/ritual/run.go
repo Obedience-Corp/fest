@@ -215,7 +215,14 @@ func autoCommitRitualRun(ctx context.Context, ritualName, ritualID, ritualPath, 
 // CompleteRitualName provides shell completions for the ritual run argument.
 // It mirrors the substring matching semantics of findRitual so anything that
 // completes will resolve when invoked.
-func CompleteRitualName(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+func CompleteRitualName(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	// fest ritual run takes exactly one positional arg; once it's filled in,
+	// stop offering completions so we don't tempt callers into a form cobra
+	// will reject.
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
