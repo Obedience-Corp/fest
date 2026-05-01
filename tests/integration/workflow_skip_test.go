@@ -77,8 +77,14 @@ set -eu
 mkdir -p /festivals/.festival
 mkdir -p "` + phasePath + `"
 cat > "` + festPath + `/fest.yaml" <<'EOF'
+version: "1.0"
 name: workflow-skip-test
 id: WF-SKIP-001
+metadata:
+  id: WF-SKIP-001
+  status_history:
+    - status: active
+      timestamp: 2026-02-10T00:00:00Z
 EOF
 cat > "` + phasePath + `/PHASE_GOAL.md" <<'EOF'
 ---

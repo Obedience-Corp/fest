@@ -22,8 +22,10 @@ var forbiddenTemplateTokens = []string{
 }
 
 // setupTemplateFestival creates a festival with implementation phase for template testing.
-// Returns the festival path.
-func setupTemplateFestival(t *testing.T, tc *TestContainer, festName string) string {
+// Returns the festival path and the workspace's festivals/ root so callers can
+// promote the festival to active when they need to bypass the pre-active
+// lifecycle gate.
+func setupTemplateFestival(t *testing.T, tc *TestContainer, festName string) (string, string) {
 	t.Helper()
 
 	// Initialize workspace properly
@@ -36,29 +38,11 @@ func setupTemplateFestival(t *testing.T, tc *TestContainer, festName string) str
 	// Find the actual festival path (fest adds an ID suffix)
 	festPath := findFestivalPath(t, tc, festivalsPath+"/planning", festName)
 
-	// Write fest.yaml with quality gates enabled
-	festYaml := `version: "1.0"
-auto_link:
-  enabled: false
-quality_gates:
-  enabled: true
-  auto_append: true
-  implementation:
-    - id: testing
-      template: gates/implementation/QUALITY_GATE_TESTING
-      enabled: true
-    - id: review
-      template: gates/implementation/QUALITY_GATE_REVIEW
-      enabled: true
-    - id: iterate
-      template: gates/implementation/QUALITY_GATE_ITERATE
-      enabled: true
-    - id: fest-commit
-      template: gates/implementation/QUALITY_GATE_FEST_COMMIT
-      enabled: true
-`
-	err = writeFileInContainer(tc, festPath+"/fest.yaml", festYaml)
-	require.NoError(t, err, "should create fest.yaml")
+	// Append quality_gates and disable auto_link without overwriting the
+	// metadata block that fest create festival wrote (status_history is
+	// required by the pre-active lifecycle gate and fest status set).
+	err = ensureQualityGatesInFestivalConfig(tc, festPath)
+	require.NoError(t, err, "should ensure quality gates in fest.yaml")
 
 	// Create FESTIVAL_OVERVIEW.md (required by validator completeness check)
 	overviewContent := `---
@@ -81,7 +65,7 @@ fest_type: overview
 	err = writeFileInContainer(tc, festPath+"/FESTIVAL_RULES.md", rulesContent)
 	require.NoError(t, err, "should create FESTIVAL_RULES.md")
 
-	return festPath
+	return festPath, festivalsPath
 }
 
 // TestNextTemplateOutputIsValidBasic verifies that fest next produces
@@ -90,7 +74,7 @@ func TestNextTemplateOutputIsValidBasic(t *testing.T) {
 	tc := GetSharedContainer(t)
 
 	// Create a minimal festival for testing
-	festPath := setupTemplateFestival(t, tc, "template-test")
+	festPath, festivalsPath := setupTemplateFestival(t, tc, "template-test")
 
 	// Create an implementation phase with a task
 	_, err := tc.RunFestInDir(festPath, "create", "phase", "--name", "PLANNING", "--type", "implementation")
@@ -113,6 +97,10 @@ func TestNextTemplateOutputIsValidBasic(t *testing.T) {
 	err = replaceMarkersInContainer(tc, festPath)
 	require.NoError(t, err, "failed to replace markers")
 
+	// Promote to active so the pre-active lifecycle gate allows
+	// fest next on an implementation phase.
+	festPath = promoteToActive(t, tc, festivalsPath, festPath)
+
 	// Run next command - this uses the implementation/instructions template
 	output, err := tc.RunFestInDir(festPath, "next")
 	require.NoError(t, err, "fest next failed")
@@ -129,7 +117,7 @@ func TestNextTemplateOutputIsValid(t *testing.T) {
 	tc := GetSharedContainer(t)
 
 	// Create a festival with tasks
-	festPath := setupTemplateFestival(t, tc, "next-test")
+	festPath, festivalsPath := setupTemplateFestival(t, tc, "next-test")
 
 	_, err := tc.RunFestInDir(festPath, "create", "phase", "--name", "IMPL", "--type", "implementation")
 	require.NoError(t, err)
@@ -164,6 +152,10 @@ func TestNextTemplateOutputIsValid(t *testing.T) {
 	err = replaceMarkersInContainer(tc, festPath)
 	require.NoError(t, err, "failed to replace markers")
 
+	// Promote to active so the pre-active lifecycle gate allows
+	// fest next on an implementation phase.
+	festPath = promoteToActive(t, tc, festivalsPath, festPath)
+
 	// Run next command
 	output, err := tc.RunFestInDir(festPath, "next")
 	require.NoError(t, err, "fest next failed")
@@ -180,7 +172,7 @@ func TestValidateTemplateOutputIsValid(t *testing.T) {
 	tc := GetSharedContainer(t)
 
 	// Create a festival
-	festPath := setupTemplateFestival(t, tc, "validate-test")
+	festPath, _ := setupTemplateFestival(t, tc, "validate-test")
 
 	// Run validate command
 	output, err := tc.RunFestInDir(festPath, "validate")
@@ -196,7 +188,7 @@ func TestStatusTemplateOutputIsValid(t *testing.T) {
 	tc := GetSharedContainer(t)
 
 	// Create a festival with content
-	festPath := setupTemplateFestival(t, tc, "status-test")
+	festPath, _ := setupTemplateFestival(t, tc, "status-test")
 
 	_, err := tc.RunFestInDir(festPath, "create", "phase", "--name", "PHASE", "--type", "implementation")
 	require.NoError(t, err)
@@ -217,7 +209,7 @@ func TestAllCommandsProduceValidOutput(t *testing.T) {
 	tc := GetSharedContainer(t)
 
 	// Create base festival
-	festPath := setupTemplateFestival(t, tc, "allcmds-test")
+	festPath, _ := setupTemplateFestival(t, tc, "allcmds-test")
 
 	_, err := tc.RunFestInDir(festPath, "create", "phase", "--name", "PHASE", "--type", "implementation")
 	require.NoError(t, err)
@@ -274,7 +266,7 @@ func TestCompleteFestivalTemplateOutput(t *testing.T) {
 	tc := GetSharedContainer(t)
 
 	// Create a minimal festival
-	festPath := setupTemplateFestival(t, tc, "complete-test")
+	festPath, festivalsPath := setupTemplateFestival(t, tc, "complete-test")
 
 	_, err := tc.RunFestInDir(festPath, "create", "phase", "--name", "PHASE", "--type", "implementation")
 	require.NoError(t, err)
@@ -303,6 +295,10 @@ Complete the only_task task.
 `
 	err = writeFileInContainer(tc, seqPath+"/01_only_task.md", taskContent)
 	require.NoError(t, err)
+
+	// Promote to active so the pre-active lifecycle gate allows
+	// progress mutations on the implementation phase.
+	festPath = promoteToActive(t, tc, festivalsPath, festPath)
 
 	// Mark the task as complete
 	_, err = tc.RunFestInDir(festPath, "progress", "--task", "001_PHASE/01_seq/01_only_task.md", "--complete")
