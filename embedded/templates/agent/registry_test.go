@@ -131,6 +131,8 @@ func minimalTestData(templateName string) any {
 		return validateData(templateName, commonFields)
 	case strings.HasPrefix(templateName, "workflow/"):
 		return workflowData(templateName, commonFields)
+	case strings.HasPrefix(templateName, "lifecycle/"):
+		return lifecycleData()
 	default:
 		// Fallback: return common fields for any unknown template
 		return commonFields
@@ -218,6 +220,13 @@ func ingestData(common map[string]any) map[string]any {
 		"PositionSection": common["PositionSection"],
 		"ContextSection":  common["ContextSection"],
 		"ProgressCmd":     common["ProgressCmd"],
+	}
+}
+
+func lifecycleData() map[string]any {
+	return map[string]any{
+		"RitualName": "daily-ritual-RI-DR0001",
+		"Reason":     "fest next",
 	}
 }
 

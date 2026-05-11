@@ -157,6 +157,89 @@ func TestEnforcePreActive_MalformedConfig_FailsClosed(t *testing.T) {
 	}
 }
 
+func TestIsRitualTemplatePath(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{
+			name: "ritual template",
+			path: filepath.Join("workspace", "festivals", "ritual", "daily-ritual-RI-DR0001"),
+			want: true,
+		},
+		{
+			name: "active ritual run",
+			path: filepath.Join("workspace", "festivals", "active", "daily-ritual-RI-DR0001-0001"),
+			want: false,
+		},
+		{
+			name: "nested child inside ritual template is not festival root",
+			path: filepath.Join("workspace", "festivals", "ritual", "daily-ritual-RI-DR0001", "001_MONITOR"),
+			want: false,
+		},
+		{
+			name: "non festival ritual path",
+			path: filepath.Join("workspace", "ritual", "daily-ritual-RI-DR0001"),
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsRitualTemplatePath(tt.path); got != tt.want {
+				t.Fatalf("IsRitualTemplatePath(%q) = %v, want %v", tt.path, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEnforceRitualRun_BlocksRitualTemplate(t *testing.T) {
+	festDir := filepath.Join("workspace", "festivals", "ritual", "daily-ritual-RI-DR0001")
+
+	var err error
+	output := captureStdout(t, func() {
+		err = EnforceRitualRun(context.Background(), festDir, "fest next")
+	})
+
+	if err == nil {
+		t.Fatal("expected ritual template block, got nil")
+	}
+	if !stderrors.Is(err, errors.ErrAlreadyPrinted) {
+		t.Errorf("expected ErrAlreadyPrinted, got: %v", err)
+	}
+	if !strings.Contains(output, "RITUAL TEMPLATE IS NOT A RUN") {
+		t.Errorf("expected ritual block header, got: %s", output)
+	}
+	if !strings.Contains(output, "fest ritual run daily-ritual-RI-DR0001") {
+		t.Errorf("expected ritual run instruction, got: %s", output)
+	}
+	if !strings.Contains(output, "festivals/active") {
+		t.Errorf("expected active run instruction, got: %s", output)
+	}
+	if !strings.Contains(output, "fest next") {
+		t.Errorf("expected reason in output, got: %s", output)
+	}
+}
+
+func TestEnforceRitualRun_AllowsActiveRitualRunPath(t *testing.T) {
+	festDir := filepath.Join("workspace", "festivals", "active", "daily-ritual-RI-DR0001-0001")
+	if err := EnforceRitualRun(context.Background(), festDir, "fest next"); err != nil {
+		t.Errorf("expected active ritual run path to be allowed, got: %v", err)
+	}
+}
+
+func TestEnforceRitualRun_RespectsCanceledContext(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	festDir := filepath.Join("workspace", "festivals", "ritual", "daily-ritual-RI-DR0001")
+	err := EnforceRitualRun(ctx, festDir, "fest next")
+	if !stderrors.Is(err, context.Canceled) {
+		t.Errorf("expected context.Canceled, got: %v", err)
+	}
+}
+
 func TestEnforcePreActive_NoConfig_FailsClosed(t *testing.T) {
 	festDir := t.TempDir()
 
