@@ -23,6 +23,8 @@ const (
 	MarkerFile = ".workspace"
 	// FestivalsDir is the expected name of the festivals directory
 	FestivalsDir = "festivals"
+	// RitualDir is the expected name of the repeatable ritual template directory
+	RitualDir = "ritual"
 	// DotFestival is the hidden directory inside festivals/
 	DotFestival = ".festival"
 	// StateDir is the subdirectory for local state files (never synced)

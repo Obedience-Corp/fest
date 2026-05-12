@@ -1,0 +1,19 @@
+{{/*
+TEMPLATE: lifecycle/ritual_template_block.tmpl
+PURPOSE: Blocks execution commands from operating directly on ritual templates.
+
+Ritual templates under festivals/ritual/ are repeatable templates. Users must
+create a copied run under festivals/active/ before using execution commands.
+*/}}
+STOP - RITUAL TEMPLATE IS NOT A RUN
+-----------------------------------
+Ritual "{{.RitualName}}" lives in festivals/ritual/.
+That directory is the repeatable template, not an execution run.
+
+Create an active run first:
+  fest ritual run {{.RitualName}}
+
+Then work from the copied run under festivals/active/ with fest next,
+fest task, or fest workflow commands.
+{{if .Reason}}Action "{{.Reason}}" is blocked on the ritual template.
+{{end}}

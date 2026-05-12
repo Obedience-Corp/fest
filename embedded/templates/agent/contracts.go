@@ -308,6 +308,15 @@ var Contracts = map[string]TemplateContract{
 		ForbiddenTokens:  DefaultForbiddenTokens,
 		MinimumLength:    50,
 	},
+
+	// Lifecycle templates
+	"lifecycle/ritual_template_block": {
+		Name:             "lifecycle/ritual_template_block",
+		RequiredFields:   []string{"RitualName", "Reason"},
+		ExpectedSections: []string{"RITUAL TEMPLATE IS NOT A RUN", "fest ritual run"},
+		ForbiddenTokens:  DefaultForbiddenTokens,
+		MinimumLength:    100,
+	},
 }
 
 // Validate checks if rendered output satisfies the contract.

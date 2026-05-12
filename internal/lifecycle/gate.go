@@ -6,10 +6,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/embedded/templates/agent"
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/progress"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 // EnforceOptions controls which festival phase the gate evaluates.
@@ -35,6 +37,10 @@ type EnforceOptions struct {
 // Fail-closed: if the festival config or phase scan cannot be determined,
 // the gate blocks rather than silently allowing the operation.
 func EnforcePreActive(ctx context.Context, festivalPath string, opts EnforceOptions) error {
+	if err := EnforceRitualRun(ctx, festivalPath, opts.Reason); err != nil {
+		return err
+	}
+
 	festCfg, err := config.LoadFestivalConfig(festivalPath, "")
 	if err != nil {
 		return emitFailClosed(festivalPath, opts.Reason,
@@ -76,6 +82,32 @@ func EnforcePreActive(ctx context.Context, festivalPath string, opts EnforceOpti
 	return emitBlock(festivalPath, status, opts.Reason)
 }
 
+// EnforceRitualRun blocks execution-oriented commands from operating directly
+// on a ritual template under festivals/ritual/. Ritual templates must be copied
+// into active/ with `fest ritual run` before users work through them.
+func EnforceRitualRun(ctx context.Context, festivalPath, reason string) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+	if !IsRitualTemplatePath(festivalPath) {
+		return nil
+	}
+	return emitRitualTemplateBlock(ctx, festivalPath, reason)
+}
+
+// IsRitualTemplatePath reports whether festivalPath is a direct child of a
+// festivals/ritual/ directory. Active ritual runs are copied under active/ and
+// must remain executable even if their fest.yaml still records ritual metadata.
+func IsRitualTemplatePath(festivalPath string) bool {
+	clean := filepath.Clean(festivalPath)
+	if filepath.Base(filepath.Dir(clean)) != workspace.RitualDir {
+		return false
+	}
+	return filepath.Base(filepath.Dir(filepath.Dir(clean))) == workspace.FestivalsDir
+}
+
 func phasePathFromTaskID(festivalPath, taskID string) string {
 	parts := strings.SplitN(taskID, "/", 2)
 	if parts[0] == "" {
@@ -109,6 +141,27 @@ func emitBlock(festivalPath, status, reason string) error {
 	sb.WriteString("Promote first: fest promote\n")
 
 	fmt.Print(sb.String())
+	return errors.ErrAlreadyPrinted
+}
+
+func emitRitualTemplateBlock(ctx context.Context, festivalPath, reason string) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
+	ritualName := filepath.Base(festivalPath)
+
+	output, err := agent.Render("lifecycle/ritual_template_block", map[string]string{
+		"RitualName": ritualName,
+		"Reason":     reason,
+	})
+	if err != nil {
+		return errors.Wrap(err, "rendering ritual template block").WithCode(errors.ErrCodeTemplate)
+	}
+
+	fmt.Print(output)
 	return errors.ErrAlreadyPrinted
 }
 

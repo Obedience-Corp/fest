@@ -12,6 +12,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -137,6 +138,9 @@ func getWorkflowNavigator(ctx context.Context) (*wf.Navigator, error) {
 		if err != nil {
 			return nil, fmt.Errorf("not in a festival: %w", err)
 		}
+	}
+	if err := lifecycle.EnforceRitualRun(ctx, festivalPath, "fest workflow"); err != nil {
+		return nil, err
 	}
 
 	var phasePath string
