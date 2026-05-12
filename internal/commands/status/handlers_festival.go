@@ -17,6 +17,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
+	"github.com/Obedience-Corp/fest/internal/registry"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/ui/theme"
@@ -470,6 +471,13 @@ func AutoCommitStatusChange(ctx context.Context, festivalName, festivalID, oldSt
 		return "", errors.New("workspace not available in context")
 	}
 
+	if ws.FestivalsPath != "" {
+		eventsPath := registry.GetEventsPath(ws.FestivalsPath)
+		if _, err := os.Stat(eventsPath); err == nil {
+			changedPaths = statusChangeCommitPaths(changedPaths, eventsPath)
+		}
+	}
+
 	// Stage only the paths affected by the status change (lock-aware with retry).
 	if err := commitkit.StageFiles(ctx, ws.Root, changedPaths...); err != nil {
 		return "", errors.Wrap(err, "stage")
@@ -513,4 +521,28 @@ func AutoCommitStatusChange(ctx context.Context, festivalName, festivalID, oldSt
 	}
 
 	return hash, nil
+}
+
+func statusChangeCommitPaths(changedPaths []string, eventsPath string) []string {
+	paths := make([]string, 0, len(changedPaths)+1)
+	seen := make(map[string]struct{}, len(changedPaths)+1)
+
+	appendPath := func(path string) {
+		if path == "" {
+			return
+		}
+		key := filepath.Clean(path)
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		paths = append(paths, path)
+	}
+
+	for _, path := range changedPaths {
+		appendPath(path)
+	}
+	appendPath(eventsPath)
+
+	return paths
 }
