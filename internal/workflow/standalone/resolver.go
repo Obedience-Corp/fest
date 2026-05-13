@@ -56,7 +56,8 @@ func Resolve(ctx context.Context, startDir string) (*Result, error) {
 	}
 
 	// Priority 1: festival context.
-	if festPath, festErr := shared.ResolveFestivalPath(absStart, ""); festErr == nil && festPath != "" {
+	festPath, festErr := shared.ResolveFestivalPath(absStart, "")
+	if festErr == nil && festPath != "" {
 		phasePath := shared.ResolvePhasePath(absStart, festPath)
 		workflowDoc := ""
 		if phasePath != "" {
@@ -72,6 +73,13 @@ func Resolve(ctx context.Context, startDir string) (*Result, error) {
 			PhasePath:    phasePath,
 			WorkflowDoc:  workflowDoc,
 		}, nil
+	}
+	// A NotFound error means "not inside a festival" — fall through to
+	// standalone resolution. Any other error (permission denied, I/O failure
+	// while walking) is real and must propagate so the caller does not
+	// silently degrade to ModeAnonymous/ModeNone.
+	if festErr != nil && !festerrors.Is(festErr, festerrors.ErrCodeNotFound) {
+		return nil, festerrors.Wrap(festErr, "resolving festival path")
 	}
 
 	// Priority 2 + 3: standalone walk upward.

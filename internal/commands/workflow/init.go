@@ -11,6 +11,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/workflow/localstore"
 	"github.com/Obedience-Corp/fest/internal/workflow/standalone"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -97,9 +98,43 @@ func runInit(ctx context.Context) error {
 	return nil
 }
 
+// minimalWorkitem is the typed struct yaml.Marshal serializes for a bootstrap
+// .workitem file. Using a struct + yaml.Marshal escapes special characters
+// (colons, quotes, leading dashes, hash signs, whitespace) in fields like
+// title that flow from arbitrary user directory names. String concatenation
+// would produce malformed YAML for any directory name containing those.
+type minimalWorkitem struct {
+	Version  int                `yaml:"version"`
+	Kind     string             `yaml:"kind"`
+	ID       string             `yaml:"id"`
+	Type     string             `yaml:"type"`
+	Title    string             `yaml:"title"`
+	Workflow minimalWorkitemWf  `yaml:"workflow"`
+}
+
+type minimalWorkitemWf struct {
+	DocPath    string `yaml:"doc_path"`
+	RuntimeDir string `yaml:"runtime_dir"`
+	WorkflowID string `yaml:"workflow_id"`
+}
+
 func writeMinimalWorkitem(path, id, basename, workflowID string) error {
-	body := "version: 1\nkind: workitem\nid: " + id + "\ntype: workflow\ntitle: " + basename + "\nworkflow:\n  doc_path: WORKFLOW.md\n  runtime_dir: .workflow\n  workflow_id: " + workflowID + "\n"
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+	body, err := yaml.Marshal(minimalWorkitem{
+		Version: 1,
+		Kind:    "workitem",
+		ID:      id,
+		Type:    "workflow",
+		Title:   basename,
+		Workflow: minimalWorkitemWf{
+			DocPath:    "WORKFLOW.md",
+			RuntimeDir: ".workflow",
+			WorkflowID: workflowID,
+		},
+	})
+	if err != nil {
+		return festerrors.Wrap(err, "marshal .workitem")
+	}
+	if err := os.WriteFile(path, body, 0o644); err != nil {
 		return festerrors.IO("writing .workitem", err)
 	}
 	return nil
