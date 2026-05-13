@@ -142,6 +142,9 @@ func ListFestivalSelectorCandidates(ctx context.Context, cwd string) ([]Festival
 
 // ListFestivalPickCandidates lists picker/completion candidates from a campaign workspace.
 func ListFestivalPickCandidates(ctx context.Context, cwd string, opts FestivalPickerOptions) ([]FestivalPickCandidate, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	festivalsDir, err := findCampaignFestivalsDir(ctx, cwd)
 	if err != nil {
 		return nil, err
