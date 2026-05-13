@@ -35,6 +35,43 @@ func TestFestWatchExplicitAndDirectContexts(t *testing.T) {
 	})
 }
 
+func TestFestWatchLinkedProjectContexts(t *testing.T) {
+	container := GetSharedContainer(t)
+	_, festPath := setupWatchFixture(t, container)
+	festivalName := filepath.Base(festPath)
+	projectRoot := "/workspace/projects/demo-app"
+	projectSubdir := filepath.Join(projectRoot, "cmd", "demo")
+
+	_, err := container.runCommand([]string{"mkdir", "-p", projectSubdir})
+	require.NoError(t, err, "should create fake project tree")
+
+	linkOutput, err := container.RunFestInDir(festPath, "link", projectRoot)
+	require.NoError(t, err, "fest link should create container-local navigation state: %s", linkOutput)
+
+	navContent, err := container.ReadFile("/workspace/.campaign/fest/navigation.yaml")
+	require.NoError(t, err, "navigation state should be written inside the container campaign")
+	require.Contains(t, navContent, festivalName)
+	require.Contains(t, navContent, "projects/demo-app")
+
+	t.Run("project root", func(t *testing.T) {
+		output := runFestWatchForInitialRender(t, container, projectRoot)
+		requireFestWatchInitialRender(t, output, festivalName)
+	})
+
+	t.Run("project subdirectory", func(t *testing.T) {
+		output := runFestWatchForInitialRender(t, container, projectSubdir)
+		requireFestWatchInitialRender(t, output, festivalName)
+	})
+}
+
+// Picker selection is covered by internal/commands/watch resolver unit tests.
+// The current Testcontainers TTY helper can allocate a TTY, but Exec does not
+// expose deterministic stdin writes for selecting an item from the picker.
+// Keep this documented here so the remaining gap is explicit in PR notes.
+func TestFestWatchPickerSelectionHarnessLimitation(t *testing.T) {
+	t.Log("picker selection requires a TTY harness that can send deterministic stdin; resolver picker path is covered by pure tests")
+}
+
 func setupWatchFixture(t *testing.T, tc *TestContainer) (string, string) {
 	t.Helper()
 
