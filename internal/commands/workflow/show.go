@@ -3,12 +3,15 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
+	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/workflow/standalone"
 	"github.com/spf13/cobra"
 )
 
@@ -46,6 +49,24 @@ Shows:
 }
 
 func runShow(ctx context.Context, stepNum int) error {
+	// Narrow standalone-resolver integration (introduced in WW0001/004.01).
+	// Festival context always wins; tracked/anonymous standalone modes return
+	// a deferred-feature stub until the next sequence wires them in fully.
+	cwd, _ := os.Getwd()
+	if res, resErr := standalone.Resolve(ctx, cwd); resErr == nil {
+		switch res.Mode {
+		case standalone.ModeTracked:
+			return festerrors.New("standalone tracked workflow show not yet implemented").
+				WithField("workflow_doc", res.WorkflowDoc).
+				WithHint("Scheduled for sequence 004.02 of WW0001")
+		case standalone.ModeAnonymous:
+			return festerrors.New("anonymous WORKFLOW.md show not yet implemented").
+				WithField("workflow_doc", res.WorkflowDoc).
+				WithHint("Run 'fest workflow init' or wait for sequence 004.02")
+		}
+		// ModeFestival or ModeNone: fall through to existing behavior.
+	}
+
 	nav, err := getWorkflowNavigator(ctx)
 	if err != nil {
 		return err
