@@ -32,6 +32,18 @@ not updated to include the command.
 - Stable `./bin/fest __commands` does not include `fest watch`.
 - Dev `./bin/fest __commands` includes `fest watch`.
 
+## Final PR state
+
+- PR: https://github.com/Obedience-Corp/fest/pull/171
+- Branch: `fest-watch`
+- Latest reviewed commit: `c8aecd1`
+- Obey Agent review: commented on the PR with resolver fallback and nil-festival
+  handling confirmed resolved.
+- Final festival validation: `fest validate` passed with score 100/100.
+- Final container validation:
+  `TESTCONTAINERS_RYUK_DISABLED=true go test -count=1 -tags "integration dev" -run TestFestWatch ./tests/integration/...`
+  passed.
+
 ## Filesystem test safety
 
 The watch integration tests create festival trees, navigation links, and watch
