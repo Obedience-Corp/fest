@@ -93,7 +93,7 @@ func ValidateQualityGates(ctx context.Context, festivalPath string) ([]Issue, er
 			}
 
 			sort.Strings(missing)
-		if len(missing) > 0 && len(tasks) > 0 {
+			if len(missing) > 0 && len(tasks) > 0 {
 				rel, _ := filepath.Rel(festivalPath, seq.Path)
 				// Phase-type-aware error message
 				phaseTypeTitle := titleCase(phaseType)

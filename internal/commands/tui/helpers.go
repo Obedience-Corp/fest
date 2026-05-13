@@ -378,7 +378,6 @@ func nextTaskAfter(ctx context.Context, seqDir string) int {
 	return max
 }
 
-
 // PhaseInfo holds information about a discovered phase.
 type PhaseInfo struct {
 	Number    int

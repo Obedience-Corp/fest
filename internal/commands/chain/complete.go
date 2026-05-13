@@ -9,8 +9,8 @@ import (
 	chainpkg "github.com/Obedience-Corp/fest/internal/chain"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/ui"
-	"github.com/spf13/cobra"
 	"github.com/Obedience-Corp/fest/internal/yamlutil"
+	"github.com/spf13/cobra"
 )
 
 func newCompleteCmd() *cobra.Command {

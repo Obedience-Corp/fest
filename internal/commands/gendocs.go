@@ -263,7 +263,6 @@ func looksLikeShellBlock(line string) bool {
 	return false
 }
 
-
 // stripSeeAlso removes the "### SEE ALSO" section from markdown content.
 // Used when combining individual command docs into a single reference page
 // where cross-links are redundant.
