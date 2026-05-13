@@ -24,6 +24,22 @@ type FestivalSelectorCandidate struct {
 	Path string
 }
 
+// FestivalPickCandidate represents a festival or status directory target for
+// completion and picker surfaces.
+type FestivalPickCandidate struct {
+	Name            string
+	ID              string
+	Path            string
+	Status          string
+	StatusDirectory bool
+}
+
+// FestivalPickerOptions controls candidate collection for completion and picker surfaces.
+type FestivalPickerOptions struct {
+	IncludeStatusDirectories bool
+	PreferredStatuses        []string
+}
+
 type selectorMatch struct {
 	Name  string
 	Path  string
@@ -124,6 +140,24 @@ func ListFestivalSelectorCandidates(ctx context.Context, cwd string) ([]Festival
 	return collectSelectorCandidates(festivalsDir, id.StatusDirectories), nil
 }
 
+// ListFestivalPickCandidates lists picker/completion candidates from a campaign workspace.
+func ListFestivalPickCandidates(ctx context.Context, cwd string, opts FestivalPickerOptions) ([]FestivalPickCandidate, error) {
+	festivalsDir, err := findCampaignFestivalsDir(ctx, cwd)
+	if err != nil {
+		return nil, err
+	}
+	return CollectFestivalPickCandidates(festivalsDir, opts), nil
+}
+
+// CollectFestivalPickCandidates gathers festival picker/completion candidates from festivalsDir.
+func CollectFestivalPickCandidates(festivalsDir string, opts FestivalPickerOptions) []FestivalPickCandidate {
+	statuses := normalizeCandidateStatuses(opts.PreferredStatuses)
+	if len(statuses) == 0 {
+		statuses = id.StatusDirectories
+	}
+	return collectFestivalPickCandidates(festivalsDir, statuses, opts.IncludeStatusDirectories)
+}
+
 func findCampaignFestivalsDir(ctx context.Context, cwd string) (string, error) {
 	campaignRoot, err := workspace.DetectCampaign(ctx, cwd)
 	if err != nil {
@@ -143,13 +177,38 @@ func findCampaignFestivalsDir(ctx context.Context, cwd string) (string, error) {
 }
 
 func collectSelectorCandidates(festivalsDir string, statuses []string) []FestivalSelectorCandidate {
-	var candidates []FestivalSelectorCandidate
+	pickCandidates := collectFestivalPickCandidates(festivalsDir, statuses, false)
+	candidates := make([]FestivalSelectorCandidate, 0, len(pickCandidates))
+	for _, c := range pickCandidates {
+		if c.StatusDirectory {
+			continue
+		}
+		candidates = append(candidates, FestivalSelectorCandidate{
+			Name: c.Name,
+			ID:   c.ID,
+			Path: c.Path,
+		})
+	}
+	return candidates
+}
+
+func collectFestivalPickCandidates(festivalsDir string, statuses []string, includeStatusDirectories bool) []FestivalPickCandidate {
+	var candidates []FestivalPickCandidate
 
 	for _, status := range statuses {
 		statusDir := filepath.Join(festivalsDir, status)
 		entries, err := os.ReadDir(statusDir)
 		if err != nil {
 			continue
+		}
+
+		if includeStatusDirectories {
+			candidates = append(candidates, FestivalPickCandidate{
+				Name:            status,
+				Path:            statusDir,
+				Status:          status,
+				StatusDirectory: true,
+			})
 		}
 
 		for _, entry := range entries {
@@ -161,10 +220,11 @@ func collectSelectorCandidates(festivalsDir string, statuses []string) []Festiva
 			path := filepath.Join(statusDir, name)
 
 			if isValidFestival(path) {
-				candidates = append(candidates, FestivalSelectorCandidate{
-					Name: name,
-					ID:   extractSelectorID(name),
-					Path: path,
+				candidates = append(candidates, FestivalPickCandidate{
+					Name:   name,
+					ID:     extractSelectorID(name),
+					Path:   path,
+					Status: status,
 				})
 				continue
 			}
@@ -187,21 +247,22 @@ func collectSelectorCandidates(festivalsDir string, statuses []string) []Festiva
 				if !isValidFestival(festivalPath) {
 					continue
 				}
-				candidates = append(candidates, FestivalSelectorCandidate{
-					Name: festivalName,
-					ID:   extractSelectorID(festivalName),
-					Path: festivalPath,
+				candidates = append(candidates, FestivalPickCandidate{
+					Name:   festivalName,
+					ID:     extractSelectorID(festivalName),
+					Path:   festivalPath,
+					Status: status,
 				})
 			}
 		}
 	}
 
-	return dedupeSelectorCandidates(candidates)
+	return dedupeFestivalPickCandidates(candidates)
 }
 
-func dedupeSelectorCandidates(candidates []FestivalSelectorCandidate) []FestivalSelectorCandidate {
+func dedupeFestivalPickCandidates(candidates []FestivalPickCandidate) []FestivalPickCandidate {
 	seen := make(map[string]bool, len(candidates))
-	result := make([]FestivalSelectorCandidate, 0, len(candidates))
+	result := make([]FestivalPickCandidate, 0, len(candidates))
 	for _, c := range candidates {
 		if seen[c.Path] {
 			continue
@@ -210,6 +271,24 @@ func dedupeSelectorCandidates(candidates []FestivalSelectorCandidate) []Festival
 		result = append(result, c)
 	}
 	return result
+}
+
+func normalizeCandidateStatuses(statuses []string) []string {
+	seen := make(map[string]bool, len(statuses))
+	normalized := make([]string, 0, len(statuses))
+	for _, status := range statuses {
+		status = strings.TrimSpace(status)
+		if status == "" {
+			continue
+		}
+		status = id.ResolveStatusPath(status)
+		if seen[status] {
+			continue
+		}
+		seen[status] = true
+		normalized = append(normalized, status)
+	}
+	return normalized
 }
 
 func extractSelectorID(name string) string {
