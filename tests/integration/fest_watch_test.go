@@ -163,7 +163,7 @@ func runFestWatchForInitialRender(t *testing.T, tc *TestContainer, cwd string, a
 	t.Helper()
 
 	output, exitCode := runFestWatchBounded(t, tc, cwd, args...)
-	require.NotZero(t, exitCode, "watch should stay running until bounded timeout after initial render")
+	require.Contains(t, []int{124, 143}, exitCode, "watch should stay running until bounded timeout after initial render")
 	return output
 }
 
