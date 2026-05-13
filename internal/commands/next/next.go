@@ -3,6 +3,7 @@ package next
 
 import (
 	"context"
+	jsonpkg "encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,12 +17,15 @@ import (
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/guidance/selection"
+	wfparser "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/pathutil"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/validator"
+	"github.com/Obedience-Corp/fest/internal/workflow/localstore"
+	"github.com/Obedience-Corp/fest/internal/workflow/standalone"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 
@@ -54,7 +58,9 @@ func NewNextCommand() *cobra.Command {
 		Use:   "next",
 		Short: "Find the next task to work on",
 		Annotations: map[string]string{
-			"scope": string(scope.Festival),
+			// scope.Global so the cobra middleware does not pre-require a
+			// festival; runNext does its own festival vs standalone resolution.
+			"scope": string(scope.Global),
 		},
 		Long: `Determine the next task to work on based on dependencies and progress.
 
@@ -121,6 +127,17 @@ func runNext(cmd *cobra.Command, args []string) error {
 	// Resolve festival path (supports linked festivals via fest link)
 	festivalPath, err := shared.ResolveFestivalPath(cwd, "")
 	if err != nil {
+		// No festival context. Try standalone workflow resolution (WW0001/004.02).
+		if res, resErr := standalone.Resolve(ctx, cwd); resErr == nil {
+			switch res.Mode {
+			case standalone.ModeTracked:
+				return runStandaloneNext(ctx, res, showInlineContext)
+			case standalone.ModeAnonymous:
+				return errors.New("anonymous WORKFLOW.md routing not yet implemented").
+					WithField("workflow_doc", res.WorkflowDoc).
+					WithHint("Scheduled for sequence 004.02 task 03; run 'fest workflow init' to track this workflow first")
+			}
+		}
 		return errors.Wrap(err, "not inside a festival")
 	}
 
@@ -464,4 +481,125 @@ func mapChainFestivalStatus(s string) chainpkg.FestivalStatus {
 	default:
 		return chainpkg.FestivalPlanning
 	}
+}
+
+// StandaloneView is the JSON-friendly view of a standalone tracked workflow.
+type StandaloneView struct {
+	Mode           string   `json:"mode"`
+	WorkflowDoc    string   `json:"workflow_doc"`
+	RuntimeDir     string   `json:"runtime_dir,omitempty"`
+	RunID          string   `json:"run_id,omitempty"`
+	RunStatus      string   `json:"run_status,omitempty"`
+	CurrentStep    int      `json:"current_step,omitempty"`
+	TotalSteps     int      `json:"total_steps,omitempty"`
+	StepName       string   `json:"step_name,omitempty"`
+	StepGoal       string   `json:"step_goal,omitempty"`
+	StepActions    []string `json:"step_actions,omitempty"`
+	StepCheckpoint string   `json:"step_checkpoint,omitempty"`
+	Blocked        bool     `json:"blocked,omitempty"`
+	DocHashChanged bool     `json:"doc_hash_changed,omitempty"`
+	Completion     string   `json:"completion_command,omitempty"`
+}
+
+// runStandaloneNext renders the next step for a tracked standalone workflow.
+func runStandaloneNext(ctx context.Context, res *standalone.Result, showInlineContext bool) error {
+	store := localstore.Open(res.RuntimeDir, res.WorkflowDoc)
+	state, err := store.LoadActive(ctx)
+	if err != nil {
+		return err
+	}
+	if state == nil {
+		return errors.NotFound("no active run").
+			WithHint("Run 'fest workflow start' to begin")
+	}
+
+	steps, parseErr := wfparser.NewParser().Parse(ctx, res.WorkflowDoc)
+	if parseErr != nil {
+		return errors.Wrap(parseErr, "parsing WORKFLOW.md")
+	}
+
+	view := StandaloneView{
+		Mode:           "standalone-tracked",
+		WorkflowDoc:    res.WorkflowDoc,
+		RuntimeDir:     res.RuntimeDir,
+		RunID:          state.RunID,
+		RunStatus:      state.Status,
+		CurrentStep:    state.CurrentStep,
+		TotalSteps:     len(steps),
+		Blocked:        state.Blocked,
+		DocHashChanged: state.DocHashChanged,
+		Completion:     "fest workflow advance",
+	}
+	if state.CurrentStep > 0 && state.CurrentStep <= len(steps) {
+		s := steps[state.CurrentStep-1]
+		view.StepName = s.Name
+		view.StepGoal = s.Goal
+		view.StepActions = s.Actions
+		view.StepCheckpoint = string(s.Checkpoint)
+	} else if len(steps) > 0 {
+		// No step started yet; preview step 1.
+		s := steps[0]
+		view.StepName = s.Name
+		view.StepGoal = s.Goal
+		view.StepActions = s.Actions
+		view.StepCheckpoint = string(s.Checkpoint)
+		view.CurrentStep = 1
+	}
+
+	if projectDirFlag {
+		fmt.Println(filepath.Dir(res.WorkflowDoc))
+		return nil
+	}
+	if pathFlag {
+		rel, _ := filepath.Rel(res.StartDir, res.WorkflowDoc)
+		fmt.Println(rel)
+		return nil
+	}
+	if cdOutput {
+		fmt.Println(filepath.Dir(res.WorkflowDoc))
+		return nil
+	}
+	if shortOutput {
+		fmt.Printf("%s step %d/%d (%s)\n", view.WorkflowDoc, view.CurrentStep, view.TotalSteps, view.RunStatus)
+		return nil
+	}
+	if jsonOutput {
+		data, jerr := jsonMarshalView(view)
+		if jerr != nil {
+			return errors.Parse("formatting JSON", jerr)
+		}
+		fmt.Println(string(data))
+		return nil
+	}
+
+	fmt.Println("STANDALONE WORKFLOW")
+	fmt.Println("───────────────────")
+	fmt.Printf("Workflow doc: %s\n", view.WorkflowDoc)
+	fmt.Printf("Run: %s (%s)\n", view.RunID, view.RunStatus)
+	fmt.Printf("Step %d of %d", view.CurrentStep, view.TotalSteps)
+	if view.Blocked {
+		fmt.Print(" (blocked)")
+	}
+	fmt.Println()
+	if view.StepName != "" {
+		fmt.Printf("\n%s\n", view.StepName)
+		if showInlineContext && view.StepGoal != "" {
+			fmt.Printf("Goal: %s\n", view.StepGoal)
+		}
+		if showInlineContext && len(view.StepActions) > 0 {
+			fmt.Println("Actions:")
+			for i, a := range view.StepActions {
+				fmt.Printf("  %d. %s\n", i+1, a)
+			}
+		}
+	}
+	if view.DocHashChanged {
+		fmt.Println("\n⚠ WORKFLOW.md has changed since this run started")
+	}
+	fmt.Printf("\nWhen step complete: %s\n", view.Completion)
+	return nil
+}
+
+func jsonMarshalView(v StandaloneView) ([]byte, error) {
+	return jsonpkg.MarshalIndent(v, "", "  ")
 }
