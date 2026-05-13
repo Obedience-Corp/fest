@@ -32,7 +32,9 @@ Shows:
   - Expected output
   - Checkpoint type if applicable`,
 		Annotations: map[string]string{
-			"scope": string(scope.Festival),
+			// scope.Global so runShow can route to standalone tracked or
+			// anonymous workflows before middleware demands a festival.
+			"scope": string(scope.Global),
 		},
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
