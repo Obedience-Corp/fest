@@ -131,7 +131,7 @@ test-binary:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ -n "{{build_tags}}" ]; then
-        GOOS=linux GOARCH=amd64 go build -tags '{{build_tags}}' -ldflags '{{ldflags}}' -o {{bin_dir}}/linux/{{binary_name}} {{main_path}}
+        GOOS=linux GOARCH=$(go env GOARCH) go build -tags '{{build_tags}}' -ldflags '{{ldflags}}' -o {{bin_dir}}/linux/{{binary_name}} {{main_path}}
     else
-        GOOS=linux GOARCH=amd64 go build -ldflags '{{ldflags}}' -o {{bin_dir}}/linux/{{binary_name}} {{main_path}}
+        GOOS=linux GOARCH=$(go env GOARCH) go build -ldflags '{{ldflags}}' -o {{bin_dir}}/linux/{{binary_name}} {{main_path}}
     fi
