@@ -48,6 +48,10 @@ func FestivalPickerItems(festivalsDir string, opts FestivalPickerOptions) []pick
 		candidates = CollectFestivalPickCandidates(festivalsDir, opts)
 	}
 
+	return festivalPickerItemsFromCandidates(candidates)
+}
+
+func festivalPickerItemsFromCandidates(candidates []FestivalPickCandidate) []picker.Item {
 	items := make([]picker.Item, 0, len(candidates))
 	for _, candidate := range candidates {
 		items = append(items, picker.Item{

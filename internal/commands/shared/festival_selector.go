@@ -153,9 +153,9 @@ func ListFestivalPickCandidates(ctx context.Context, cwd string, opts FestivalPi
 func CollectFestivalPickCandidates(festivalsDir string, opts FestivalPickerOptions) []FestivalPickCandidate {
 	statuses := normalizeCandidateStatuses(opts.PreferredStatuses)
 	if len(statuses) == 0 {
-		statuses = id.StatusDirectories
+		statuses = defaultCandidateStatuses()
 	}
-	return collectFestivalPickCandidates(festivalsDir, statuses, opts.IncludeStatusDirectories)
+	return filterFestivalPickCandidates(collectFestivalPickCandidates(festivalsDir, statuses), opts)
 }
 
 func findCampaignFestivalsDir(ctx context.Context, cwd string) (string, error) {
@@ -177,7 +177,7 @@ func findCampaignFestivalsDir(ctx context.Context, cwd string) (string, error) {
 }
 
 func collectSelectorCandidates(festivalsDir string, statuses []string) []FestivalSelectorCandidate {
-	pickCandidates := collectFestivalPickCandidates(festivalsDir, statuses, false)
+	pickCandidates := filterFestivalPickCandidates(collectFestivalPickCandidates(festivalsDir, statuses), FestivalPickerOptions{})
 	candidates := make([]FestivalSelectorCandidate, 0, len(pickCandidates))
 	for _, c := range pickCandidates {
 		if c.StatusDirectory {
@@ -195,7 +195,7 @@ func collectSelectorCandidates(festivalsDir string, statuses []string) []Festiva
 	return candidates
 }
 
-func collectFestivalPickCandidates(festivalsDir string, statuses []string, includeStatusDirectories bool) []FestivalPickCandidate {
+func collectFestivalPickCandidates(festivalsDir string, statuses []string) []FestivalPickCandidate {
 	var candidates []FestivalPickCandidate
 
 	for _, status := range statuses {
@@ -205,14 +205,12 @@ func collectFestivalPickCandidates(festivalsDir string, statuses []string, inclu
 			continue
 		}
 
-		if includeStatusDirectories {
-			candidates = append(candidates, FestivalPickCandidate{
-				Name:            status,
-				Path:            statusDir,
-				Status:          status,
-				StatusDirectory: true,
-			})
-		}
+		candidates = append(candidates, FestivalPickCandidate{
+			Name:            status,
+			Path:            statusDir,
+			Status:          status,
+			StatusDirectory: true,
+		})
 
 		for _, entry := range entries {
 			if !entry.IsDir() {
@@ -263,6 +261,21 @@ func collectFestivalPickCandidates(festivalsDir string, statuses []string, inclu
 	return dedupeFestivalPickCandidates(candidates)
 }
 
+func filterFestivalPickCandidates(candidates []FestivalPickCandidate, opts FestivalPickerOptions) []FestivalPickCandidate {
+	statusSet := candidateStatusSet(normalizeCandidateStatuses(opts.PreferredStatuses))
+	result := make([]FestivalPickCandidate, 0, len(candidates))
+	for _, candidate := range candidates {
+		if candidate.StatusDirectory && !opts.IncludeStatusDirectories {
+			continue
+		}
+		if len(statusSet) > 0 && !statusSet[candidate.Status] {
+			continue
+		}
+		result = append(result, candidate)
+	}
+	return result
+}
+
 func dedupeFestivalPickCandidates(candidates []FestivalPickCandidate) []FestivalPickCandidate {
 	seen := make(map[string]bool, len(candidates))
 	result := make([]FestivalPickCandidate, 0, len(candidates))
@@ -292,6 +305,39 @@ func normalizeCandidateStatuses(statuses []string) []string {
 		normalized = append(normalized, status)
 	}
 	return normalized
+}
+
+func defaultCandidateStatuses() []string {
+	statuses := make([]string, 0, len(id.StatusDirectories))
+	seen := make(map[string]bool, len(id.StatusDirectories))
+	for _, status := range id.PrimaryStatusDirs {
+		status = id.ResolveStatusPath(status)
+		if seen[status] {
+			continue
+		}
+		seen[status] = true
+		statuses = append(statuses, status)
+	}
+	for _, status := range id.StatusDirectories {
+		status = id.ResolveStatusPath(status)
+		if seen[status] {
+			continue
+		}
+		seen[status] = true
+		statuses = append(statuses, status)
+	}
+	return statuses
+}
+
+func candidateStatusSet(statuses []string) map[string]bool {
+	if len(statuses) == 0 {
+		return nil
+	}
+	set := make(map[string]bool, len(statuses))
+	for _, status := range statuses {
+		set[status] = true
+	}
+	return set
 }
 
 func isFestivalPickCandidate(name, path string) bool {
