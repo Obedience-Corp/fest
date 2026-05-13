@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// These tests create festival trees, navigation links, and watch state.
+// They must remain in the containerized integration harness, not host t.TempDir tests.
 func TestFestWatchExplicitAndDirectContexts(t *testing.T) {
 	container := GetSharedContainer(t)
 	workspaceRoot, festPath := setupWatchFixture(t, container)
