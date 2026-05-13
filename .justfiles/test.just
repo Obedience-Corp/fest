@@ -70,6 +70,16 @@ integration-raw:
     echo "Running integration tests..."
     DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock" TESTCONTAINERS_RYUK_DISABLED=true go test -v -tags=integration -timeout 5m ./tests/integration/...
 
+# Run dev-profile fest watch integration tests through the container harness
+[no-cd]
+integration-dev-watch:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Building dev Linux binary..."
+    BUILD_TAGS=dev just build test-binary
+    echo "Running fest watch dev integration tests..."
+    TESTCONTAINERS_RYUK_DISABLED=true go test -v -tags "integration dev" -run TestFestWatch -timeout 5m ./tests/integration/...
+
 # Run all tests directly (fallback)
 [no-cd]
 all-raw: unit-raw integration-raw
