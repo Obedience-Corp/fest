@@ -3,7 +3,7 @@ package watch
 
 import (
 	"context"
-	"errors"
+	stderrors "errors"
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/scope"
@@ -54,6 +54,9 @@ func runWatch(ctx context.Context, args []string, opts *options) error {
 
 	festival, err := defaultResolver().resolve(ctx, selector)
 	if err != nil {
+		if isWatchPickerCancelled(err) {
+			return nil
+		}
 		return err
 	}
 	return watchFestival(ctx, festival, *opts)
@@ -63,5 +66,5 @@ func watchFestival(ctx context.Context, _ *show.FestivalInfo, _ options) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	return errors.New("fest watch is not implemented yet")
+	return stderrors.New("fest watch is not implemented yet")
 }

@@ -2,16 +2,22 @@ package watch
 
 import (
 	"context"
+	stderrors "errors"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
 	"github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/workspace"
+	"golang.org/x/term"
 )
+
+var errWatchPickerCancelled = stderrors.New("festival picker cancelled")
 
 type targetResolver struct {
 	getwd           func() (string, error)
@@ -19,6 +25,7 @@ type targetResolver struct {
 	findFestival    func(string) (string, error)
 	findFestivals   func(string) (string, error)
 	resolveLink     func(context.Context, string) (string, error)
+	canPickFestival func() bool
 	pickFestival    func(context.Context, string, shared.FestivalPickerOptions) (string, error)
 	detectFestival  func(context.Context, string) (*show.FestivalInfo, error)
 }
@@ -30,6 +37,7 @@ func defaultResolver() targetResolver {
 		findFestival:    defaultFindFestivalRoot,
 		findFestivals:   workspace.FindFestivals,
 		resolveLink:     defaultResolveLinkedFestivalPath,
+		canPickFestival: defaultCanPickFestival,
 		pickFestival:    shared.PickFestivalPath,
 		detectFestival: func(ctx context.Context, path string) (*show.FestivalInfo, error) {
 			return show.DetectCurrentFestival(ctx, path, "")
@@ -78,15 +86,19 @@ func (r targetResolver) resolve(ctx context.Context, selector string) (*show.Fes
 	if festivalsDir == "" {
 		return nil, noWatchTargetError()
 	}
+	if !r.canPickFestival() {
+		return nil, noWatchTargetError()
+	}
 
 	path, err := r.pickFestival(ctx, festivalsDir, shared.FestivalPickerOptions{
 		IncludeStatusDirectories: false,
+		PreferredStatuses:        preferredPickerStatuses(cwd, festivalsDir),
 	})
 	if err != nil {
 		return nil, err
 	}
 	if path == "" {
-		return nil, noWatchTargetError()
+		return nil, errWatchPickerCancelled
 	}
 	return r.detect(ctx, path)
 }
@@ -125,7 +137,33 @@ func defaultResolveLinkedFestivalPath(ctx context.Context, cwd string) (string, 
 	return shared.ResolveFestivalSelector(ctx, cwd, festivalName)
 }
 
+func defaultCanPickFestival() bool {
+	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stderr.Fd()))
+}
+
+func isWatchPickerCancelled(err error) bool {
+	return stderrors.Is(err, errWatchPickerCancelled)
+}
+
+func preferredPickerStatuses(cwd, festivalsDir string) []string {
+	rel, err := filepath.Rel(festivalsDir, cwd)
+	if err != nil || rel == "." || rel == ".." {
+		return nil
+	}
+	rel = filepath.ToSlash(rel)
+	if strings.HasPrefix(rel, "../") {
+		return nil
+	}
+	for _, status := range id.StatusDirectories {
+		status = filepath.ToSlash(id.ResolveStatusPath(status))
+		if rel == status || strings.HasPrefix(rel, status+"/") {
+			return []string{status}
+		}
+	}
+	return nil
+}
+
 func noWatchTargetError() error {
-	return errors.NotFound("festival context").
-		WithHint("Run from a festival, run from a linked project, or pass a selector like 'fest watch <festival>'")
+	return errors.Validation("festival could not be resolved from this directory").
+		WithHint("run from a festival, a linked project, or a campaign workspace with an interactive terminal")
 }
