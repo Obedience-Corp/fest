@@ -107,13 +107,12 @@ func CompleteFestivalSelector(ctx context.Context, cwd, toComplete string) ([]st
 		ctx = context.Background()
 	}
 
-	candidates, err := ListFestivalPickCandidates(ctx, cwd, FestivalPickerOptions{
-		PreferredStatuses: id.WorkingStatusDirectories,
-	})
+	festivalsDir, err := findCampaignFestivalsDir(ctx, cwd)
 	if err != nil {
 		return nil, err
 	}
-	return FormatFestivalSelectorCompletions(candidates, toComplete), nil
+	candidates := collectSelectorCandidates(festivalsDir, id.WorkingStatusDirectories)
+	return formatSelectorCandidateCompletions(candidates, toComplete), nil
 }
 
 // CompleteFestivalPickSelectors returns shell completion candidates from picker candidates.
@@ -128,6 +127,10 @@ func CompleteFestivalPickSelectors(ctx context.Context, cwd, toComplete string, 
 // FormatFestivalSelectorCompletions formats selector completions from candidate data.
 func FormatFestivalSelectorCompletions(candidates []FestivalPickCandidate, toComplete string) []string {
 	selectorCandidates := selectorCandidatesFromPickCandidates(candidates, false)
+	return formatSelectorCandidateCompletions(selectorCandidates, toComplete)
+}
+
+func formatSelectorCandidateCompletions(selectorCandidates []FestivalSelectorCandidate, toComplete string) []string {
 	if strings.TrimSpace(toComplete) == "" {
 		result := make([]string, 0, len(selectorCandidates))
 		for _, c := range selectorCandidates {
