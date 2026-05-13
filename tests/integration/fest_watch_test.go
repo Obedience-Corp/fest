@@ -6,6 +6,7 @@ package integration
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -62,6 +63,21 @@ func TestFestWatchLinkedProjectContexts(t *testing.T) {
 		output := runFestWatchForInitialRender(t, container, projectSubdir)
 		requireFestWatchInitialRender(t, output, festivalName)
 	})
+}
+
+func TestFestWatchNonInteractiveNoContextFailsFast(t *testing.T) {
+	container := GetSharedContainer(t)
+	workspaceRoot, _ := setupWatchFixture(t, container)
+
+	output, exitCode := runFestWatchBounded(t, container, workspaceRoot)
+	require.NotZero(t, exitCode, "no-context watch should fail")
+	require.NotEqual(t, 124, exitCode, "no-context watch should fail before timeout")
+	require.NotEqual(t, 143, exitCode, "no-context watch should fail before timeout")
+	require.Contains(t, output, "festival could not be resolved from this directory")
+	require.Contains(t, output, "linked project")
+	require.Contains(t, output, "interactive terminal")
+	require.NotContains(t, output, "cd ")
+	require.NotContains(t, output, "Watching for changes")
 }
 
 // Picker selection is covered by internal/commands/watch resolver unit tests.
@@ -144,19 +160,38 @@ Build the watch command.
 func runFestWatchForInitialRender(t *testing.T, tc *TestContainer, cwd string, args ...string) string {
 	t.Helper()
 
+	output, exitCode := runFestWatchBounded(t, tc, cwd, args...)
+	require.NotZero(t, exitCode, "watch should stay running until bounded timeout after initial render")
+	return output
+}
+
+func runFestWatchBounded(t *testing.T, tc *TestContainer, cwd string, args ...string) (string, int) {
+	t.Helper()
+
 	quotedArgs := make([]string, 0, len(args))
 	for _, arg := range args {
 		quotedArgs = append(quotedArgs, shellQuote(arg))
 	}
 
-	cmd := "cd " + shellQuote(cwd) + " && timeout 2s /fest watch"
+	outputPath := "/tmp/fest-watch-output"
+	cmd := "cd " + shellQuote(cwd) + " && rm -f " + outputPath + " && set +e; timeout 2s /fest watch"
 	if len(quotedArgs) > 0 {
 		cmd += " " + strings.Join(quotedArgs, " ")
 	}
+	cmd += " > " + outputPath + " 2>&1; code=$?; cat " + outputPath + "; printf '\\n__FEST_WATCH_EXIT_CODE:%d\\n' \"$code\""
 
 	output, err := tc.runCommand([]string{"sh", "-c", cmd})
 	require.NoError(t, err, "fest watch should start")
-	return output
+
+	marker := "\n__FEST_WATCH_EXIT_CODE:"
+	idx := strings.LastIndex(output, marker)
+	require.NotEqual(t, -1, idx, "bounded watch output should include exit marker: %s", output)
+
+	codeText := strings.TrimSpace(output[idx+len(marker):])
+	exitCode, err := strconv.Atoi(codeText)
+	require.NoError(t, err, "bounded watch exit code should parse")
+
+	return output[:idx], exitCode
 }
 
 func requireFestWatchInitialRender(t *testing.T, output, festivalName string) {
