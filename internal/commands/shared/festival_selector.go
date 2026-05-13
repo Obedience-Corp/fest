@@ -107,27 +107,42 @@ func CompleteFestivalSelector(ctx context.Context, cwd, toComplete string) ([]st
 		ctx = context.Background()
 	}
 
-	festivalsDir, err := findCampaignFestivalsDir(ctx, cwd)
+	candidates, err := ListFestivalPickCandidates(ctx, cwd, FestivalPickerOptions{
+		PreferredStatuses: id.WorkingStatusDirectories,
+	})
 	if err != nil {
 		return nil, err
 	}
-	candidates := collectSelectorCandidates(festivalsDir, id.WorkingStatusDirectories)
+	return FormatFestivalSelectorCompletions(candidates, toComplete), nil
+}
 
+// CompleteFestivalPickSelectors returns shell completion candidates from picker candidates.
+func CompleteFestivalPickSelectors(ctx context.Context, cwd, toComplete string, opts FestivalPickerOptions) ([]string, error) {
+	candidates, err := ListFestivalPickCandidates(ctx, cwd, opts)
+	if err != nil {
+		return nil, err
+	}
+	return FormatFestivalSelectorCompletions(candidates, toComplete), nil
+}
+
+// FormatFestivalSelectorCompletions formats selector completions from candidate data.
+func FormatFestivalSelectorCompletions(candidates []FestivalPickCandidate, toComplete string) []string {
+	selectorCandidates := selectorCandidatesFromPickCandidates(candidates, false)
 	if strings.TrimSpace(toComplete) == "" {
-		result := make([]string, 0, len(candidates))
-		for _, c := range candidates {
+		result := make([]string, 0, len(selectorCandidates))
+		for _, c := range selectorCandidates {
 			result = append(result, c.Name)
 		}
 		sort.Strings(result)
-		return result, nil
+		return result
 	}
 
-	matches := fuzzyMatchSelectorCandidates(toComplete, candidates)
+	matches := fuzzyMatchSelectorCandidates(toComplete, selectorCandidates)
 	result := make([]string, 0, len(matches))
 	for _, m := range matches {
 		result = append(result, m.Name)
 	}
-	return result, nil
+	return result
 }
 
 // ListFestivalSelectorCandidates lists all festivals available for selector matching.
@@ -181,12 +196,16 @@ func findCampaignFestivalsDir(ctx context.Context, cwd string) (string, error) {
 
 func collectSelectorCandidates(festivalsDir string, statuses []string) []FestivalSelectorCandidate {
 	pickCandidates := filterFestivalPickCandidates(collectFestivalPickCandidates(festivalsDir, statuses), FestivalPickerOptions{})
+	return selectorCandidatesFromPickCandidates(pickCandidates, true)
+}
+
+func selectorCandidatesFromPickCandidates(pickCandidates []FestivalPickCandidate, requireValidFestival bool) []FestivalSelectorCandidate {
 	candidates := make([]FestivalSelectorCandidate, 0, len(pickCandidates))
 	for _, c := range pickCandidates {
 		if c.StatusDirectory {
 			continue
 		}
-		if !isValidFestival(c.Path) {
+		if requireValidFestival && !isValidFestival(c.Path) {
 			continue
 		}
 		candidates = append(candidates, FestivalSelectorCandidate{
