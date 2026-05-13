@@ -9,6 +9,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
+	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 )
 
 func TestTargetResolverSelectorWinsOverContext(t *testing.T) {
@@ -160,6 +161,32 @@ func TestTargetResolverNonInteractiveNoContextIsActionable(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "linked project") {
 		t.Fatalf("error is not actionable: %v", err)
+	}
+}
+
+func TestTargetResolverInvalidPickedPathReturnsContext(t *testing.T) {
+	calls := []string{}
+	resolver := fakeResolver("/campaign", &calls)
+	resolver.findFestival = func(string) (string, error) { return "", nil }
+	resolver.resolveLink = func(context.Context, string) (string, error) { return "", nil }
+	resolver.findFestivals = func(string) (string, error) { return "/campaign/festivals", nil }
+	resolver.pickFestival = func(context.Context, string, shared.FestivalPickerOptions) (string, error) {
+		return "/campaign/festivals/active/not-a-festival", nil
+	}
+	resolver.detectFestival = func(context.Context, string) (*show.FestivalInfo, error) {
+		return nil, nil
+	}
+
+	_, err := resolver.resolve(context.Background(), "")
+	if err == nil {
+		t.Fatal("expected invalid picked path error")
+	}
+	var structured *festerrors.Error
+	if !errors.As(err, &structured) {
+		t.Fatalf("expected structured error, got %T: %v", err, err)
+	}
+	if structured.Fields["path"] != "/campaign/festivals/active/not-a-festival" {
+		t.Fatalf("path field = %#v", structured.Fields["path"])
 	}
 }
 
