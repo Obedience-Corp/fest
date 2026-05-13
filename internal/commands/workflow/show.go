@@ -11,6 +11,7 @@ import (
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/workflow/localstore"
 	"github.com/Obedience-Corp/fest/internal/workflow/standalone"
 	"github.com/spf13/cobra"
 )
@@ -55,14 +56,8 @@ func runShow(ctx context.Context, stepNum int) error {
 	cwd, _ := os.Getwd()
 	if res, resErr := standalone.Resolve(ctx, cwd); resErr == nil {
 		switch res.Mode {
-		case standalone.ModeTracked:
-			return festerrors.New("standalone tracked workflow show not yet implemented").
-				WithField("workflow_doc", res.WorkflowDoc).
-				WithHint("Scheduled for sequence 004.02 of WW0001")
-		case standalone.ModeAnonymous:
-			return festerrors.New("anonymous WORKFLOW.md show not yet implemented").
-				WithField("workflow_doc", res.WorkflowDoc).
-				WithHint("Run 'fest workflow init' or wait for sequence 004.02")
+		case standalone.ModeTracked, standalone.ModeAnonymous:
+			return runStandaloneShow(ctx, res, stepNum)
 		}
 		// ModeFestival or ModeNone: fall through to existing behavior.
 	}
@@ -196,4 +191,56 @@ func formatStepStatus(status wf.StepStatus) string {
 	default:
 		return string(status)
 	}
+}
+
+// runStandaloneShow renders the current step of a standalone workflow without
+// requiring a festival context. Anonymous mode renders step 1.
+func runStandaloneShow(ctx context.Context, res *standalone.Result, stepNum int) error {
+	parser := wf.NewParser()
+	steps, err := parser.Parse(ctx, res.WorkflowDoc)
+	if err != nil {
+		return festerrors.Wrap(err, "parsing WORKFLOW.md")
+	}
+	if len(steps) == 0 {
+		return festerrors.New("WORKFLOW.md has no parseable steps")
+	}
+
+	current := stepNum
+	if current == 0 {
+		if res.Mode == standalone.ModeTracked {
+			store := localstore.Open(res.RuntimeDir, res.WorkflowDoc)
+			state, lerr := store.LoadActive(ctx)
+			if lerr == nil && state != nil && state.CurrentStep > 0 {
+				current = state.CurrentStep
+			}
+		}
+		if current == 0 {
+			current = 1
+		}
+	}
+	if current < 1 || current > len(steps) {
+		return festerrors.New("step out of range").WithField("step", current).WithField("total", len(steps))
+	}
+
+	s := steps[current-1]
+	fmt.Printf("Step %d of %d: %s\n", current, len(steps), s.Name)
+	if s.Goal != "" {
+		fmt.Printf("Goal: %s\n", s.Goal)
+	}
+	if len(s.Actions) > 0 {
+		fmt.Println("Actions:")
+		for i, a := range s.Actions {
+			fmt.Printf("  %d. %s\n", i+1, a)
+		}
+	}
+	if s.Output != "" {
+		fmt.Printf("Output: %s\n", s.Output)
+	}
+	if s.Checkpoint != "" {
+		fmt.Printf("Checkpoint: %s\n", s.Checkpoint)
+	}
+	if res.Mode == standalone.ModeAnonymous {
+		fmt.Println("(anonymous; first mutation will bootstrap to tracked mode)")
+	}
+	return nil
 }

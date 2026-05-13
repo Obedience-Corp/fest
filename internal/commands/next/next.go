@@ -133,9 +133,7 @@ func runNext(cmd *cobra.Command, args []string) error {
 			case standalone.ModeTracked:
 				return runStandaloneNext(ctx, res, showInlineContext)
 			case standalone.ModeAnonymous:
-				return errors.New("anonymous WORKFLOW.md routing not yet implemented").
-					WithField("workflow_doc", res.WorkflowDoc).
-					WithHint("Scheduled for sequence 004.02 task 03; run 'fest workflow init' to track this workflow first")
+				return runAnonymousNext(ctx, res, showInlineContext)
 			}
 		}
 		return errors.Wrap(err, "not inside a festival")
@@ -602,4 +600,73 @@ func runStandaloneNext(ctx context.Context, res *standalone.Result, showInlineCo
 
 func jsonMarshalView(v StandaloneView) ([]byte, error) {
 	return jsonpkg.MarshalIndent(v, "", "  ")
+}
+
+// runAnonymousNext renders step 1 of a WORKFLOW.md that has no .workflow/
+// runtime yet. Pure read; creates no files. First mutation (fest workflow
+// advance) will bootstrap to tracked mode.
+func runAnonymousNext(ctx context.Context, res *standalone.Result, showInlineContext bool) error {
+	steps, parseErr := wfparser.NewParser().Parse(ctx, res.WorkflowDoc)
+	if parseErr != nil {
+		return errors.Wrap(parseErr, "parsing WORKFLOW.md")
+	}
+	if len(steps) == 0 {
+		return errors.New("WORKFLOW.md has no parseable steps").
+			WithField("workflow_doc", res.WorkflowDoc).
+			WithHint("Add at least one '## Step 1: NAME' header")
+	}
+
+	view := StandaloneView{
+		Mode:        "standalone-anonymous",
+		WorkflowDoc: res.WorkflowDoc,
+		RunStatus:   "not-started",
+		CurrentStep: 1,
+		TotalSteps:  len(steps),
+		Completion:  "fest workflow advance",
+	}
+	s := steps[0]
+	view.StepName = s.Name
+	view.StepGoal = s.Goal
+	view.StepActions = s.Actions
+	view.StepCheckpoint = string(s.Checkpoint)
+
+	if projectDirFlag || cdOutput {
+		fmt.Println(filepath.Dir(res.WorkflowDoc))
+		return nil
+	}
+	if pathFlag {
+		rel, _ := filepath.Rel(res.StartDir, res.WorkflowDoc)
+		fmt.Println(rel)
+		return nil
+	}
+	if shortOutput {
+		fmt.Printf("%s anonymous step 1/%d\n", res.WorkflowDoc, len(steps))
+		return nil
+	}
+	if jsonOutput {
+		data, jerr := jsonMarshalView(view)
+		if jerr != nil {
+			return errors.Parse("formatting JSON", jerr)
+		}
+		fmt.Println(string(data))
+		return nil
+	}
+
+	fmt.Println("STANDALONE WORKFLOW (anonymous)")
+	fmt.Println("───────────────────────────────")
+	fmt.Printf("Workflow doc: %s\n", res.WorkflowDoc)
+	fmt.Printf("Status: not-started\n")
+	fmt.Printf("Step 1 of %d\n", len(steps))
+	fmt.Printf("\n%s\n", view.StepName)
+	if showInlineContext && view.StepGoal != "" {
+		fmt.Printf("Goal: %s\n", view.StepGoal)
+	}
+	if showInlineContext && len(view.StepActions) > 0 {
+		fmt.Println("Actions:")
+		for i, a := range view.StepActions {
+			fmt.Printf("  %d. %s\n", i+1, a)
+		}
+	}
+	fmt.Printf("\nFirst mutating command (fest workflow advance) will bootstrap a tracked run.\n")
+	return nil
 }

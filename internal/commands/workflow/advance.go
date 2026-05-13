@@ -3,6 +3,8 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/chaining"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
@@ -10,6 +12,8 @@ import (
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/workflow/localstore"
+	"github.com/Obedience-Corp/fest/internal/workflow/standalone"
 	"github.com/spf13/cobra"
 )
 
@@ -26,7 +30,9 @@ This command:
 
 Note: If the current step has a blocking checkpoint, use 'fest workflow approve' instead.`,
 		Annotations: map[string]string{
-			"scope": string(scope.Festival),
+			// scope.Global so runAdvance can route to anonymous-bootstrap
+			// or tracked standalone runtimes outside a festival.
+			"scope": string(scope.Global),
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runAdvance(cmd.Context())
@@ -37,6 +43,26 @@ Note: If the current step has a blocking checkpoint, use 'fest workflow approve'
 }
 
 func runAdvance(ctx context.Context) error {
+	// Anonymous standalone bootstrap (WW0001/004.02/03): first mutation
+	// converts a hand-written WORKFLOW.md into tracked mode.
+	cwd, _ := os.Getwd()
+	if res, resErr := standalone.Resolve(ctx, cwd); resErr == nil && res.Mode == standalone.ModeAnonymous {
+		if _, err := EnsureTracked(ctx, res, BootstrapOptions{}); err != nil {
+			return err
+		}
+		// After bootstrap, advance the new run by appending a wf_step_start +
+		// wf_step_done event so step 1 is marked complete on the same call.
+		store := localstore.Open(filepath.Join(filepath.Dir(res.WorkflowDoc), ".workflow"), res.WorkflowDoc)
+		if err := store.AppendEvent(ctx, localstore.Event{EventType: localstore.EventStepStart}); err != nil {
+			return err
+		}
+		if err := store.AppendEvent(ctx, localstore.Event{EventType: localstore.EventStepDone}); err != nil {
+			return err
+		}
+		fmt.Println(ui.Success("✓ Bootstrapped tracked workflow and advanced step 1"))
+		return nil
+	}
+
 	nav, err := getWorkflowNavigator(ctx)
 	if err != nil {
 		return err
