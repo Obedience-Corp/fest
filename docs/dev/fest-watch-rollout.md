@@ -36,7 +36,8 @@ not updated to include the command.
 
 - PR: https://github.com/Obedience-Corp/fest/pull/171
 - Branch: `fest-watch`
-- Latest reviewed commit: `c8aecd1`
+- Implementation review commit: `c8aecd1`
+- Final summary commit: documentation-only traceability update after review.
 - Obey Agent review: commented on the PR with resolver fallback and nil-festival
   handling confirmed resolved.
 - Final festival validation: `fest validate` passed with score 100/100.
