@@ -42,8 +42,16 @@ func newWatchCommand(deps commandDeps) *cobra.Command {
 		Short: "Watch a festival's in-progress work",
 		Long: `Watch the in-progress state of a festival.
 
-With no selector, fest watch resolves the current festival context or linked
-project context. From broader workspace context it opens a festival picker.`,
+With a selector, fest watch resolves a festival by directory name or logical ID.
+Without a selector, it watches the current festival when run from a festival
+directory, or the linked festival when run from a linked project directory.
+
+From a campaign or festivals workspace in an interactive terminal, fest watch
+opens a festival picker. Watch mode refreshes in place until you press Ctrl+C.
+It does not change your shell directory.`,
+		Example: `  fest watch
+  fest watch my-festival
+  fest watch GS0001`,
 		Args:              cobra.MaximumNArgs(1),
 		ValidArgsFunction: completeWatchSelector,
 		Annotations: map[string]string{
