@@ -183,6 +183,9 @@ func collectSelectorCandidates(festivalsDir string, statuses []string) []Festiva
 		if c.StatusDirectory {
 			continue
 		}
+		if !isValidFestival(c.Path) {
+			continue
+		}
 		candidates = append(candidates, FestivalSelectorCandidate{
 			Name: c.Name,
 			ID:   c.ID,
@@ -219,7 +222,7 @@ func collectFestivalPickCandidates(festivalsDir string, statuses []string, inclu
 			name := entry.Name()
 			path := filepath.Join(statusDir, name)
 
-			if isValidFestival(path) {
+			if isFestivalPickCandidate(name, path) {
 				candidates = append(candidates, FestivalPickCandidate{
 					Name:   name,
 					ID:     extractSelectorID(name),
@@ -244,7 +247,7 @@ func collectFestivalPickCandidates(festivalsDir string, statuses []string, inclu
 				}
 				festivalName := de.Name()
 				festivalPath := filepath.Join(path, festivalName)
-				if !isValidFestival(festivalPath) {
+				if !isFestivalPickCandidate(festivalName, festivalPath) {
 					continue
 				}
 				candidates = append(candidates, FestivalPickCandidate{
@@ -289,6 +292,13 @@ func normalizeCandidateStatuses(statuses []string) []string {
 		normalized = append(normalized, status)
 	}
 	return normalized
+}
+
+func isFestivalPickCandidate(name, path string) bool {
+	if isValidFestival(path) {
+		return true
+	}
+	return extractSelectorID(name) != ""
 }
 
 func extractSelectorID(name string) string {
