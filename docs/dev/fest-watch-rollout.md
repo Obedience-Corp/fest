@@ -45,6 +45,24 @@ deterministic stdin to select picker entries. Picker selection is covered by
 pure resolver tests; a full interactive picker smoke should be done manually or
 with a richer TTY harness before stable promotion.
 
+## Self-review checklist
+
+- Command contract: `fest watch [festival-selector]` supports selector,
+  current festival, linked project, and picker resolution without changing cwd.
+- Resolver: precedence is selector, direct festival, link, picker, then
+  actionable no-context error.
+- Picker and completion: both use shared festival candidate helpers, exclude
+  status-directory targets for watch, and include valid dungeon date-bucket
+  festivals.
+- Dev gating: command registration is limited to dev builds through
+  `internal/commands/release/register_dev.go`; stable help, docs, and
+  `__commands` remain clean.
+- Tests: resolver, completion, command-surface, and option mapping tests are
+  pure; filesystem/link/watch behavior lives in the container integration
+  harness.
+- Docs: rollout notes document stable user impact, validation commands,
+  filesystem test safety, and the remaining picker automation limitation.
+
 ## Stable promotion criteria
 
 Promote `fest watch` out of dev-only registration only after:

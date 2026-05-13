@@ -366,10 +366,7 @@ func candidateStatusSet(statuses []string) map[string]bool {
 }
 
 func isFestivalPickCandidate(name, path string) bool {
-	if isValidFestival(path) {
-		return true
-	}
-	return extractSelectorID(name) != ""
+	return isValidFestival(path)
 }
 
 func extractSelectorID(name string) string {

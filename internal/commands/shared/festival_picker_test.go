@@ -72,6 +72,12 @@ func TestFestivalPickerItemsPreserveStatusPathAndLabel(t *testing.T) {
 	}
 }
 
+func TestFestivalPickCandidateRequiresFestivalMarker(t *testing.T) {
+	if isFestivalPickCandidate("id-shaped-only-IS0001", "/path/that/does/not/exist") {
+		t.Fatal("ID-shaped directory names must not be treated as watchable festivals without festival markers")
+	}
+}
+
 func TestDefaultCandidateStatusesPrioritizeActiveForPicker(t *testing.T) {
 	statuses := defaultCandidateStatuses()
 
