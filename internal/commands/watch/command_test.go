@@ -2,6 +2,8 @@ package watch
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
@@ -92,5 +94,29 @@ func TestWatchCommandCancellationDoesNotCallDelegate(t *testing.T) {
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("Execute() error = %v", err)
+	}
+}
+
+func TestWatchCommandPropagatesNilFestivalToDelegate(t *testing.T) {
+	calledWatch := false
+	cmd := newWatchCommand(commandDeps{
+		resolve: func(context.Context, string) (*show.FestivalInfo, error) {
+			return nil, nil
+		},
+		watch: func(context.Context, *show.FestivalInfo, show.WatchOptions) error {
+			calledWatch = true
+			return errors.New("nil festival")
+		},
+	})
+
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected delegate error")
+	}
+	if !calledWatch {
+		t.Fatal("watch delegate should receive nil festival and own validation")
+	}
+	if !strings.Contains(err.Error(), "nil festival") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

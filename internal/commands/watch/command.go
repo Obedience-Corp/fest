@@ -88,9 +88,6 @@ func runWatch(ctx context.Context, args []string, opts *options, deps commandDep
 }
 
 func watchFestival(ctx context.Context, festival *show.FestivalInfo, opts options, deps commandDeps) error {
-	if festival == nil {
-		return nil
-	}
 	return deps.watch(ctx, festival, showWatchOptions(opts))
 }
 

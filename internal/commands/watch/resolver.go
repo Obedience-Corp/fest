@@ -70,13 +70,21 @@ func (r targetResolver) resolve(ctx context.Context, selector string) (*show.Fes
 	if path, err := r.findFestival(cwd); err != nil {
 		return nil, err
 	} else if path != "" {
-		return r.detect(ctx, path)
+		if festival, found, err := r.tryDetect(ctx, path); err != nil {
+			return nil, err
+		} else if found {
+			return festival, nil
+		}
 	}
 
 	if path, err := r.resolveLink(ctx, cwd); err != nil {
 		return nil, err
 	} else if path != "" {
-		return r.detect(ctx, path)
+		if festival, found, err := r.tryDetect(ctx, path); err != nil {
+			return nil, err
+		} else if found {
+			return festival, nil
+		}
 	}
 
 	festivalsDir, err := r.findFestivals(cwd)
@@ -101,6 +109,20 @@ func (r targetResolver) resolve(ctx context.Context, selector string) (*show.Fes
 		return nil, errWatchPickerCancelled
 	}
 	return r.detect(ctx, path)
+}
+
+func (r targetResolver) tryDetect(ctx context.Context, path string) (*show.FestivalInfo, bool, error) {
+	festival, err := r.detectFestival(ctx, path)
+	if err != nil {
+		if isFestivalNotFound(err) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	if festival == nil {
+		return nil, false, nil
+	}
+	return festival, true, nil
 }
 
 func (r targetResolver) detect(ctx context.Context, path string) (*show.FestivalInfo, error) {
@@ -143,6 +165,11 @@ func defaultCanPickFestival() bool {
 
 func isWatchPickerCancelled(err error) bool {
 	return stderrors.Is(err, errWatchPickerCancelled)
+}
+
+func isFestivalNotFound(err error) bool {
+	var structured *errors.Error
+	return stderrors.As(err, &structured) && structured.Code == errors.ErrCodeNotFound
 }
 
 func preferredPickerStatuses(cwd, festivalsDir string) []string {

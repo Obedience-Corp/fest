@@ -91,6 +91,88 @@ func TestTargetResolverLinkedProjectFallback(t *testing.T) {
 	}
 }
 
+func TestTargetResolverInvalidDirectContextFallsBackToLink(t *testing.T) {
+	calls := []string{}
+	resolver := fakeResolver("/campaign/festivals/active/stale-FS0001", &calls)
+	resolver.findFestival = func(string) (string, error) {
+		calls = append(calls, "direct")
+		return "/campaign/festivals/active/stale-FS0001", nil
+	}
+	resolver.resolveLink = func(context.Context, string) (string, error) {
+		calls = append(calls, "link")
+		return "/campaign/festivals/active/link-FL0001", nil
+	}
+	resolver.detectFestival = func(_ context.Context, path string) (*show.FestivalInfo, error) {
+		calls = append(calls, "detect:"+path)
+		if strings.Contains(path, "stale") {
+			return nil, festerrors.NotFound("festival")
+		}
+		return &show.FestivalInfo{Path: path}, nil
+	}
+
+	festival, err := resolver.resolve(context.Background(), "")
+	if err != nil {
+		t.Fatalf("resolve returned error: %v", err)
+	}
+	if festival.Path != "/campaign/festivals/active/link-FL0001" {
+		t.Fatalf("resolved path = %q", festival.Path)
+	}
+	if !reflect.DeepEqual(calls, []string{
+		"direct",
+		"detect:/campaign/festivals/active/stale-FS0001",
+		"link",
+		"detect:/campaign/festivals/active/link-FL0001",
+	}) {
+		t.Fatalf("unexpected calls: %#v", calls)
+	}
+}
+
+func TestTargetResolverInvalidLinkContextFallsBackToPicker(t *testing.T) {
+	calls := []string{}
+	resolver := fakeResolver("/campaign/projects/fest", &calls)
+	resolver.findFestival = func(string) (string, error) {
+		calls = append(calls, "direct")
+		return "", nil
+	}
+	resolver.resolveLink = func(context.Context, string) (string, error) {
+		calls = append(calls, "link")
+		return "/campaign/festivals/active/stale-FS0001", nil
+	}
+	resolver.findFestivals = func(string) (string, error) {
+		calls = append(calls, "workspace")
+		return "/campaign/festivals", nil
+	}
+	resolver.pickFestival = func(context.Context, string, shared.FestivalPickerOptions) (string, error) {
+		calls = append(calls, "picker")
+		return "/campaign/festivals/active/picked-FP0001", nil
+	}
+	resolver.detectFestival = func(_ context.Context, path string) (*show.FestivalInfo, error) {
+		calls = append(calls, "detect:"+path)
+		if strings.Contains(path, "stale") {
+			return nil, festerrors.NotFound("festival")
+		}
+		return &show.FestivalInfo{Path: path}, nil
+	}
+
+	festival, err := resolver.resolve(context.Background(), "")
+	if err != nil {
+		t.Fatalf("resolve returned error: %v", err)
+	}
+	if festival.Path != "/campaign/festivals/active/picked-FP0001" {
+		t.Fatalf("resolved path = %q", festival.Path)
+	}
+	if !reflect.DeepEqual(calls, []string{
+		"direct",
+		"link",
+		"detect:/campaign/festivals/active/stale-FS0001",
+		"workspace",
+		"picker",
+		"detect:/campaign/festivals/active/picked-FP0001",
+	}) {
+		t.Fatalf("unexpected calls: %#v", calls)
+	}
+}
+
 func TestTargetResolverPickerUsesWorkspaceContext(t *testing.T) {
 	calls := []string{}
 	var gotOptions shared.FestivalPickerOptions
