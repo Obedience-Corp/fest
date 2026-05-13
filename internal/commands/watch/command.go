@@ -15,8 +15,26 @@ type options struct {
 	summary   bool
 }
 
+type commandDeps struct {
+	resolve func(context.Context, string) (*show.FestivalInfo, error)
+	watch   func(context.Context, *show.FestivalInfo, show.WatchOptions) error
+}
+
 // NewWatchCommand creates the watch command.
 func NewWatchCommand() *cobra.Command {
+	return newWatchCommand(defaultCommandDeps())
+}
+
+func defaultCommandDeps() commandDeps {
+	return commandDeps{
+		resolve: func(ctx context.Context, selector string) (*show.FestivalInfo, error) {
+			return defaultResolver().resolve(ctx, selector)
+		},
+		watch: show.WatchFestival,
+	}
+}
+
+func newWatchCommand(deps commandDeps) *cobra.Command {
 	opts := &options{}
 
 	cmd := &cobra.Command{
@@ -34,7 +52,7 @@ project context. From broader workspace context it opens a festival picker.`,
 			"long_running": "true",
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runWatch(cmd.Context(), args, opts)
+			return runWatch(cmd.Context(), args, opts, deps)
 		},
 	}
 
@@ -45,27 +63,27 @@ project context. From broader workspace context it opens a festival picker.`,
 	return cmd
 }
 
-func runWatch(ctx context.Context, args []string, opts *options) error {
+func runWatch(ctx context.Context, args []string, opts *options, deps commandDeps) error {
 	selector := ""
 	if len(args) > 0 {
 		selector = args[0]
 	}
 
-	festival, err := defaultResolver().resolve(ctx, selector)
+	festival, err := deps.resolve(ctx, selector)
 	if err != nil {
 		if isWatchPickerCancelled(err) {
 			return nil
 		}
 		return err
 	}
-	return watchFestival(ctx, festival, *opts)
+	return watchFestival(ctx, festival, *opts, deps)
 }
 
-func watchFestival(ctx context.Context, festival *show.FestivalInfo, opts options) error {
+func watchFestival(ctx context.Context, festival *show.FestivalInfo, opts options, deps commandDeps) error {
 	if festival == nil {
 		return nil
 	}
-	return show.WatchFestival(ctx, festival, showWatchOptions(opts))
+	return deps.watch(ctx, festival, showWatchOptions(opts))
 }
 
 func showWatchOptions(opts options) show.WatchOptions {
