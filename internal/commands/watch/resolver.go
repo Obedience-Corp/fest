@@ -17,7 +17,7 @@ import (
 	"golang.org/x/term"
 )
 
-var errWatchPickerCancelled = stderrors.New("festival picker cancelled")
+var errWatchPickerCancelled = errors.New("festival picker cancelled")
 
 type targetResolver struct {
 	getwd           func() (string, error)

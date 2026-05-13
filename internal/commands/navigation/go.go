@@ -469,14 +469,16 @@ func resolveSequenceShortcut(shortcut, phaseDir string) (string, error) {
 // Returns the selected path, or empty string if cancelled or not available.
 func launchFestivalPicker(ctx context.Context, festivalsDir string) (string, error) {
 	return sharedcmd.PickFestivalPath(ctx, festivalsDir, sharedcmd.FestivalPickerOptions{
-		IncludeStatusDirectories: true,
+		IncludeStatusDirectories:           true,
+		IncludeUnmarkedFestivalDirectories: true,
 	})
 }
 
 // collectPickerItems gathers all festivals and status directories as picker items.
 func collectPickerItems(festivalsDir string) []picker.Item {
 	return sharedcmd.FestivalPickerItems(festivalsDir, sharedcmd.FestivalPickerOptions{
-		IncludeStatusDirectories: true,
+		IncludeStatusDirectories:           true,
+		IncludeUnmarkedFestivalDirectories: true,
 	})
 }
 

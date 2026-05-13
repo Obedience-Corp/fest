@@ -73,8 +73,16 @@ func TestFestivalPickerItemsPreserveStatusPathAndLabel(t *testing.T) {
 }
 
 func TestFestivalPickCandidateRequiresFestivalMarker(t *testing.T) {
-	if isFestivalPickCandidate("id-shaped-only-IS0001", "/path/that/does/not/exist") {
+	if isFestivalPickCandidate("id-shaped-only-IS0001", "/path/that/does/not/exist", FestivalPickerOptions{}) {
 		t.Fatal("ID-shaped directory names must not be treated as watchable festivals without festival markers")
+	}
+}
+
+func TestFestivalPickCandidateCanIncludeUnmarkedForNavigation(t *testing.T) {
+	if !isFestivalPickCandidate("id-shaped-only-IS0001", "/path/that/does/not/exist", FestivalPickerOptions{
+		IncludeUnmarkedFestivalDirectories: true,
+	}) {
+		t.Fatal("fest go picker compatibility should allow unmarked status child directories")
 	}
 }
 

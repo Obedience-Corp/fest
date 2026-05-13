@@ -23,10 +23,10 @@ not updated to include the command.
 
 ## Validation run for this PR
 
-- `go test ./internal/commands/... -run '^$'`: passed.
-- `go test ./cmd/fest/... -run '^$'`: passed.
-- `go test -tags dev ./internal/commands/... -run '^$'`: passed.
-- `go test -tags dev ./cmd/fest/... -run '^$'`: passed.
+- `go test ./internal/commands/...`: passed.
+- `go test ./cmd/fest/... -run Test`: passed.
+- `go test -tags dev ./internal/commands/...`: passed.
+- `go test -tags dev ./cmd/fest/... -run Test`: passed.
 - `go test -tags dev ./internal/commands/watch/... ./internal/commands/shared/...`: passed.
 - `TESTCONTAINERS_RYUK_DISABLED=true go test -tags "integration dev" -run TestFestWatch ./tests/integration/...`: passed.
 - Stable `./bin/fest __commands` does not include `fest watch`.
@@ -36,10 +36,13 @@ not updated to include the command.
 
 - PR: https://github.com/Obedience-Corp/fest/pull/171
 - Branch: `fest-watch`
-- Implementation review commit: `c8aecd1`
-- Final summary commit: documentation-only traceability update after review.
-- Obey Agent review: commented on the PR with resolver fallback and nil-festival
-  handling confirmed resolved.
+- Request-changes follow-up: `fest go` picker compatibility is preserved with an
+  explicit shared picker option for unmarked navigation directories, while
+  `fest watch` still filters to valid festival markers.
+- Request-changes follow-up: picker cancellation uses the repo's internal error
+  package for its sentinel while keeping `errors.Is` matching.
+- Obey Agent review: resolver fallback and nil-festival handling were resolved;
+  follow-up request-changes comments were addressed in the latest PR revision.
 - Final festival validation: `fest validate` passed with score 100/100.
 - Final container validation:
   `TESTCONTAINERS_RYUK_DISABLED=true go test -count=1 -tags "integration dev" -run TestFestWatch ./tests/integration/...`
