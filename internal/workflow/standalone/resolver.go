@@ -1,11 +1,11 @@
 // Package standalone resolves workflow context outside of a festival.
 //
 // Resolution priority:
-//  1. Festival context (delegates to shared.ResolveFestivalPath) — always wins
-//     when both festival and standalone signals exist.
-//  2. Tracked standalone workflow — a directory with .workflow/workflow.yaml.
-//  3. Anonymous standalone workflow — a directory with WORKFLOW.md only.
-//  4. None — neither signal found.
+//  1. Festival context (delegates to shared.ResolveFestivalPath). Wins
+//     unconditionally when both festival and standalone signals exist.
+//  2. Tracked standalone workflow: a directory with .workflow/workflow.yaml.
+//  3. Anonymous standalone workflow: a directory with WORKFLOW.md only.
+//  4. None: neither signal found.
 package standalone
 
 import (

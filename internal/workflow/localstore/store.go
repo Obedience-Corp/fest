@@ -13,6 +13,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -115,10 +116,27 @@ func (s *Store) StartRun(ctx context.Context, startedBy string) (string, error) 
 		return "", err
 	}
 
-	runID := newRunID(time.Now().UTC())
+	// Allocate a unique run ID. Base is a UTC second-granularity timestamp;
+	// if two starts land in the same second we append -2, -3, ... so older
+	// runs are never overwritten.
+	base := newRunID(time.Now().UTC())
+	runID := base
 	runDir := filepath.Join(s.root, runsDir, runID)
-	if err := os.MkdirAll(runDir, 0o755); err != nil {
-		return "", festerrors.IO("creating run directory", err)
+	for suffix := 2; ; suffix++ {
+		if err := os.Mkdir(runDir, 0o755); err == nil {
+			break
+		} else if !os.IsExist(err) {
+			// Parent .workflow/runs may not exist yet; create and retry.
+			if errors.Is(err, os.ErrNotExist) {
+				if mkErr := os.MkdirAll(filepath.Dir(runDir), 0o755); mkErr != nil {
+					return "", festerrors.IO("creating runs directory", mkErr)
+				}
+				continue
+			}
+			return "", festerrors.IO("creating run directory", err)
+		}
+		runID = base + "-" + strconv.Itoa(suffix)
+		runDir = filepath.Join(s.root, runsDir, runID)
 	}
 
 	docHash := ""

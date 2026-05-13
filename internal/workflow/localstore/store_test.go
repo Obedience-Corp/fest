@@ -144,6 +144,47 @@ func TestStore_SecondStartCoexistsWithFirst(t *testing.T) {
 	}
 }
 
+func TestStore_StartRunUniqueWithinSameSecond(t *testing.T) {
+	// Pre-create the .workflow/runs/<base-id>/ directory so the next
+	// StartRun in the same second must allocate a -2 suffix instead of
+	// overwriting it.
+	s, _ := newTestStore(t)
+	ctx := context.Background()
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"}); err != nil {
+		t.Fatal(err)
+	}
+	first, err := s.StartRun(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstRunYAMLBefore, err := os.ReadFile(filepath.Join(s.root, "runs", first, "run.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Second start within the same second.
+	second, err := s.StartRun(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first == second {
+		t.Fatalf("expected distinct run ids on same-second starts, got %q and %q", first, second)
+	}
+
+	// First run's directory and run.yaml must be untouched.
+	firstRunYAMLAfter, err := os.ReadFile(filepath.Join(s.root, "runs", first, "run.yaml"))
+	if err != nil {
+		t.Fatalf("first run.yaml missing after second start: %v", err)
+	}
+	if string(firstRunYAMLBefore) != string(firstRunYAMLAfter) {
+		t.Errorf("first run.yaml was modified by second start")
+	}
+	// Second run directory must exist.
+	if _, err := os.Stat(filepath.Join(s.root, "runs", second, "run.yaml")); err != nil {
+		t.Errorf("second run.yaml missing: %v", err)
+	}
+}
+
 func TestStore_AppendEventAndReplay(t *testing.T) {
 	s, _ := newTestStore(t)
 	ctx := context.Background()
