@@ -41,6 +41,9 @@ not updated to include the command.
   `fest watch` still filters to valid festival markers.
 - Request-changes follow-up: picker cancellation uses the repo's internal error
   package for its sentinel while keeping `errors.Is` matching.
+- Merge-review follow-up: direct festival detection now accepts the same marker
+  files as the show renderer (`FESTIVAL_GOAL.md`, `FESTIVAL_OVERVIEW.md`, and
+  `fest.yaml`), with a container regression for marker-only festivals.
 - Obey Agent review: resolver fallback and nil-festival handling were resolved;
   follow-up request-changes comments were addressed in the latest PR revision.
 - Final festival validation: `fest validate` passed with score 100/100.
@@ -67,6 +70,8 @@ with a richer TTY harness before stable promotion.
   current festival, linked project, and picker resolution without changing cwd.
 - Resolver: precedence is selector, direct festival, link, picker, then
   actionable no-context error.
+- Direct detection: marker-only festivals remain watchable for legacy festival
+  trees that do not have `fest.yaml`.
 - Picker and completion: both use shared festival candidate helpers, exclude
   status-directory targets for watch, and include valid dungeon date-bucket
   festivals.

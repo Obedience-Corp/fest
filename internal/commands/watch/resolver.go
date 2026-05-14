@@ -12,7 +12,6 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
-	"github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"golang.org/x/term"
 )
@@ -137,11 +136,49 @@ func (r targetResolver) detect(ctx context.Context, path string) (*show.Festival
 }
 
 func defaultFindFestivalRoot(cwd string) (string, error) {
-	path, err := template.FindFestivalRoot(cwd)
+	path, err := findFestivalRootByMarkers(cwd)
 	if err != nil {
-		return "", nil
+		if isFestivalNotFound(err) {
+			return "", nil
+		}
+		return "", err
 	}
 	return path, nil
+}
+
+func findFestivalRootByMarkers(startDir string) (string, error) {
+	dir, err := filepath.Abs(startDir)
+	if err != nil {
+		return "", errors.Wrap(err, "resolving absolute path").WithField("start_dir", startDir)
+	}
+
+	for {
+		if hasFestivalMarker(dir) {
+			return dir, nil
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+
+	return "", errors.NotFound("festival root").
+		WithField("start_dir", startDir)
+}
+
+func hasFestivalMarker(dir string) bool {
+	for _, marker := range []string{
+		show.FestivalGoalFile,
+		show.FestivalOverviewFile,
+		show.FestivalConfigFile,
+	} {
+		if info, err := os.Stat(filepath.Join(dir, marker)); err == nil && !info.IsDir() {
+			return true
+		}
+	}
+	return false
 }
 
 func defaultResolveLinkedFestivalPath(ctx context.Context, cwd string) (string, error) {

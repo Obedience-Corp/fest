@@ -38,6 +38,18 @@ func TestFestWatchExplicitAndDirectContexts(t *testing.T) {
 	})
 }
 
+func TestFestWatchDirectMarkerOnlyFestival(t *testing.T) {
+	container := GetSharedContainer(t)
+	_, festPath := setupWatchMarkerOnlyFixture(t, container)
+	festivalName := filepath.Base(festPath)
+
+	_, err := container.runCommand([]string{"test", "!", "-e", filepath.Join(festPath, "fest.yaml")})
+	require.NoError(t, err, "fixture should exercise legacy marker-only festival detection")
+
+	output := runFestWatchForInitialRender(t, container, festPath)
+	requireFestWatchInitialRender(t, output, festivalName)
+}
+
 func TestFestWatchLinkedProjectContexts(t *testing.T) {
 	container := GetSharedContainer(t)
 	_, festPath := setupWatchFixture(t, container)
@@ -91,11 +103,18 @@ func TestFestWatchPickerSelectionHarnessLimitation(t *testing.T) {
 }
 
 func setupWatchFixture(t *testing.T, tc *TestContainer) (string, string) {
+	return setupWatchFixtureWithConfig(t, tc, "fest-watch-fixture-FW0001", true)
+}
+
+func setupWatchMarkerOnlyFixture(t *testing.T, tc *TestContainer) (string, string) {
+	return setupWatchFixtureWithConfig(t, tc, "legacy-watch-fixture-LW0001", false)
+}
+
+func setupWatchFixtureWithConfig(t *testing.T, tc *TestContainer, festivalName string, includeConfig bool) (string, string) {
 	t.Helper()
 
 	workspaceRoot := "/workspace"
 	festivalsRoot := filepath.Join(workspaceRoot, "festivals")
-	festivalName := "fest-watch-fixture-FW0001"
 	festivalPath := filepath.Join(festivalsRoot, "active", festivalName)
 	phasePath := filepath.Join(festivalPath, "001_IMPLEMENT")
 	sequencePath := filepath.Join(phasePath, "01_core")
@@ -114,21 +133,29 @@ func setupWatchFixture(t *testing.T, tc *TestContainer) (string, string) {
 	err = writeFileInContainer(tc, filepath.Join(festivalsRoot, ".festival", ".state", ".workspace"), `{"workspace":"workspace","registered":"2024-01-01T00:00:00Z"}`)
 	require.NoError(t, err, "should create workspace marker")
 
-	err = writeFileInContainer(tc, filepath.Join(festivalPath, "fest.yaml"), `version: "1.0"
+	if includeConfig {
+		logicalID := festivalName
+		name := festivalName
+		if idx := strings.LastIndex(festivalName, "-"); idx >= 0 {
+			logicalID = festivalName[idx+1:]
+			name = festivalName[:idx]
+		}
+		err = writeFileInContainer(tc, filepath.Join(festivalPath, "fest.yaml"), fmt.Sprintf(`version: "1.0"
 metadata:
-  id: FW0001
-  name: fest-watch-fixture
+  id: %s
+  name: %s
 auto_link:
   enabled: false
-`)
-	require.NoError(t, err, "should create fest.yaml")
+`, logicalID, name))
+		require.NoError(t, err, "should create fest.yaml")
+	}
 
-	err = writeFileInContainer(tc, filepath.Join(festivalPath, "FESTIVAL_GOAL.md"), `# Fest Watch Fixture
+	err = writeFileInContainer(tc, filepath.Join(festivalPath, "FESTIVAL_GOAL.md"), fmt.Sprintf(`# %s
 
 ## Goal
 
 Exercise watch command context resolution.
-`)
+`, festivalName))
 	require.NoError(t, err, "should create festival goal")
 
 	err = writeFileInContainer(tc, filepath.Join(festivalPath, "FESTIVAL_RULES.md"), "# Festival Rules\n\n- Keep watch tests containerized.\n")
