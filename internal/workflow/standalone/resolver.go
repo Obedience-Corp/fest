@@ -3,8 +3,11 @@
 // Resolution priority:
 //  1. Festival context (delegates to shared.ResolveFestivalPath). Wins
 //     unconditionally when both festival and standalone signals exist.
+//     Festival detection walks up parent directories.
 //  2. Tracked standalone workflow: a directory with .workflow/workflow.yaml.
+//     Detected at cwd only (D013) — does not walk up.
 //  3. Anonymous standalone workflow: a directory with WORKFLOW.md only.
+//     Detected at cwd only (D013).
 //  4. None: neither signal found.
 package standalone
 
@@ -88,44 +91,40 @@ func Resolve(ctx context.Context, startDir string) (*Result, error) {
 		return nil, festerrors.Wrap(festErr, "resolving festival path")
 	}
 
-	// Priority 2 + 3: standalone walk upward.
-	return walkForStandalone(ctx, absStart)
+	// Priority 2 + 3: standalone cwd-only check (D013). Unlike festival
+	// detection, standalone WORKFLOW.md detection does not walk up parent
+	// directories — `fest next` from a child directory of a workflow does
+	// not pick it up.
+	return checkCwdForStandalone(ctx, absStart)
 }
 
-func walkForStandalone(ctx context.Context, startDir string) (*Result, error) {
-	dir := startDir
-	for {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-
-		manifest := filepath.Join(dir, ".workflow", "workflow.yaml")
-		if _, err := os.Stat(manifest); err == nil {
-			return &Result{
-				Mode:        ModeTracked,
-				StartDir:    startDir,
-				WorkflowDoc: filepath.Join(dir, "WORKFLOW.md"),
-				RuntimeDir:  filepath.Join(dir, ".workflow"),
-			}, nil
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return nil, festerrors.Wrap(err, "stat workflow manifest")
-		}
-
-		doc := filepath.Join(dir, "WORKFLOW.md")
-		if _, err := os.Stat(doc); err == nil {
-			return &Result{
-				Mode:        ModeAnonymous,
-				StartDir:    startDir,
-				WorkflowDoc: doc,
-			}, nil
-		} else if !errors.Is(err, os.ErrNotExist) {
-			return nil, festerrors.Wrap(err, "stat workflow doc")
-		}
-
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return &Result{Mode: ModeNone, StartDir: startDir}, nil
-		}
-		dir = parent
+func checkCwdForStandalone(ctx context.Context, startDir string) (*Result, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
+
+	manifest := filepath.Join(startDir, ".workflow", "workflow.yaml")
+	if _, err := os.Stat(manifest); err == nil {
+		return &Result{
+			Mode:        ModeTracked,
+			StartDir:    startDir,
+			WorkflowDoc: filepath.Join(startDir, "WORKFLOW.md"),
+			RuntimeDir:  filepath.Join(startDir, ".workflow"),
+		}, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, festerrors.Wrap(err, "stat workflow manifest")
+	}
+
+	doc := filepath.Join(startDir, "WORKFLOW.md")
+	if _, err := os.Stat(doc); err == nil {
+		return &Result{
+			Mode:        ModeAnonymous,
+			StartDir:    startDir,
+			WorkflowDoc: doc,
+		}, nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return nil, festerrors.Wrap(err, "stat workflow doc")
+	}
+
+	return &Result{Mode: ModeNone, StartDir: startDir}, nil
 }

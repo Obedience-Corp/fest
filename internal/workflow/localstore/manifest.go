@@ -18,6 +18,7 @@ type RunRecord struct {
 	Path        string `yaml:"path"`
 	StartedAt   string `yaml:"started_at,omitempty"`
 	CompletedAt string `yaml:"completed_at,omitempty"`
+	EndedAt     string `yaml:"ended_at,omitempty"`
 }
 
 // ManifestVersion is the only manifest schema version supported.
