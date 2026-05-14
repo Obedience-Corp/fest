@@ -302,7 +302,7 @@ func (s *Store) appendEvent(_ context.Context, runDir string, evt Event) error {
 	if err != nil {
 		return festerrors.IO("opening events file", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	line, err := json.Marshal(evt)
 	if err != nil {
 		return festerrors.Parse("encoding event", err)
@@ -429,7 +429,7 @@ func replayEvents(eventsPath string, cache RunManifest) *RunState {
 	if err != nil {
 		return state
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// Replay overrides cache when events exist.
 	state.CurrentStep = 0
