@@ -44,7 +44,6 @@ func Open(workflowDir, workflowDocPath string) *Store {
 // InitOptions controls Store.Init.
 type InitOptions struct {
 	WorkflowID string
-	WorkitemID string
 	Force      bool
 }
 
@@ -56,9 +55,6 @@ func (s *Store) Init(ctx context.Context, opts InitOptions) error {
 	}
 	if opts.WorkflowID == "" {
 		return festerrors.Validation("workflow_id is required")
-	}
-	if opts.WorkitemID == "" {
-		return festerrors.Validation("workitem_id is required")
 	}
 
 	if err := os.MkdirAll(s.root, 0o755); err != nil {
@@ -80,7 +76,6 @@ func (s *Store) Init(ctx context.Context, opts InitOptions) error {
 		Version:    ManifestVersion,
 		Kind:       ManifestKind,
 		WorkflowID: opts.WorkflowID,
-		WorkitemID: opts.WorkitemID,
 		DocPath:    filepath.Base(s.workflowDoc),
 		DocHash:    docHash,
 	}
@@ -150,7 +145,6 @@ func (s *Store) StartRun(ctx context.Context, startedBy string) (string, error) 
 		Kind:       RunKind,
 		RunID:      runID,
 		WorkflowID: m.WorkflowID,
-		WorkitemID: m.WorkitemID,
 		Status:     "active",
 		StartedAt:  now,
 		StartedBy:  startedBy,
@@ -171,7 +165,6 @@ func (s *Store) StartRun(ctx context.Context, startedBy string) (string, error) 
 		EventType:  EventWorkflowRunStarted,
 		RunID:      runID,
 		WorkflowID: m.WorkflowID,
-		WorkitemID: m.WorkitemID,
 		Timestamp:  now,
 	}); err != nil {
 		return "", err

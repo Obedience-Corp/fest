@@ -10,7 +10,6 @@ type RunManifest struct {
 	Kind        string     `yaml:"kind"`
 	RunID       string     `yaml:"run_id"`
 	WorkflowID  string     `yaml:"workflow_id"`
-	WorkitemID  string     `yaml:"workitem_id"`
 	Status      string     `yaml:"status"`
 	StartedAt   time.Time  `yaml:"started_at"`
 	CompletedAt time.Time  `yaml:"completed_at,omitempty"`

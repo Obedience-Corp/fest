@@ -39,7 +39,7 @@ func newTestStore(t *testing.T) (*Store, string) {
 
 func TestStore_InitCreatesManifest(t *testing.T) {
 	s, _ := newTestStore(t)
-	err := s.Init(context.Background(), InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"})
+	err := s.Init(context.Background(), InitOptions{WorkflowID: "wf-x"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,10 +58,10 @@ func TestStore_InitCreatesManifest(t *testing.T) {
 func TestStore_InitRefusesOverwrite(t *testing.T) {
 	s, _ := newTestStore(t)
 	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"}); err != nil {
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
 		t.Fatal(err)
 	}
-	err := s.Init(ctx, InitOptions{WorkflowID: "wf-y", WorkitemID: "wi-y"})
+	err := s.Init(ctx, InitOptions{WorkflowID: "wf-y"})
 	if err == nil {
 		t.Fatal("expected refusal without Force")
 	}
@@ -70,10 +70,10 @@ func TestStore_InitRefusesOverwrite(t *testing.T) {
 func TestStore_InitForceOverwrites(t *testing.T) {
 	s, _ := newTestStore(t)
 	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"}); err != nil {
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-y", WorkitemID: "wi-y", Force: true}); err != nil {
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-y", Force: true}); err != nil {
 		t.Fatal(err)
 	}
 	m, _ := s.LoadManifest(ctx)
@@ -85,7 +85,7 @@ func TestStore_InitForceOverwrites(t *testing.T) {
 func TestStore_StartRunCreatesRunDir(t *testing.T) {
 	s, _ := newTestStore(t)
 	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"}); err != nil {
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
 		t.Fatal(err)
 	}
 	runID, err := s.StartRun(ctx, "tester")
@@ -122,7 +122,7 @@ func TestStore_StartRunCreatesRunDir(t *testing.T) {
 func TestStore_SecondStartCoexistsWithFirst(t *testing.T) {
 	s, _ := newTestStore(t)
 	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"}); err != nil {
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
 		t.Fatal(err)
 	}
 	first, _ := s.StartRun(ctx, "")
@@ -150,7 +150,7 @@ func TestStore_StartRunUniqueWithinSameSecond(t *testing.T) {
 	// overwriting it.
 	s, _ := newTestStore(t)
 	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"}); err != nil {
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
 		t.Fatal(err)
 	}
 	first, err := s.StartRun(ctx, "")
@@ -188,7 +188,7 @@ func TestStore_StartRunUniqueWithinSameSecond(t *testing.T) {
 func TestStore_AppendEventAndReplay(t *testing.T) {
 	s, _ := newTestStore(t)
 	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"}); err != nil {
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.StartRun(ctx, ""); err != nil {
@@ -216,7 +216,7 @@ func TestStore_AppendEventAndReplay(t *testing.T) {
 func TestStore_ReplayOverridesStaleSummary(t *testing.T) {
 	s, _ := newTestStore(t)
 	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"}); err != nil {
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
 		t.Fatal(err)
 	}
 	runID, _ := s.StartRun(ctx, "")
@@ -251,7 +251,7 @@ func TestStore_ReplayOverridesStaleSummary(t *testing.T) {
 func TestStore_DocHashChange(t *testing.T) {
 	s, root := newTestStore(t)
 	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"}); err != nil {
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -270,7 +270,7 @@ func TestStore_DocHashChange(t *testing.T) {
 func TestStore_EventsAreAppendOnly(t *testing.T) {
 	s, _ := newTestStore(t)
 	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"}); err != nil {
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.StartRun(ctx, ""); err != nil {
@@ -310,7 +310,7 @@ func TestStore_ContextCancel(t *testing.T) {
 	s, _ := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	err := s.Init(ctx, InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"})
+	err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"})
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("expected context.Canceled, got %v", err)
 	}

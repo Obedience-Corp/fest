@@ -5,7 +5,6 @@ type Manifest struct {
 	Version     int         `yaml:"version"`
 	Kind        string      `yaml:"kind"`
 	WorkflowID  string      `yaml:"workflow_id"`
-	WorkitemID  string      `yaml:"workitem_id"`
 	DocPath     string      `yaml:"doc_path,omitempty"`
 	DocHash     string      `yaml:"doc_hash,omitempty"`
 	ActiveRunID string      `yaml:"active_run_id,omitempty"`

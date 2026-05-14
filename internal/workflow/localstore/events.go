@@ -24,7 +24,6 @@ type Event struct {
 	EventType  string    `json:"event_type"`
 	RunID      string    `json:"run_id"`
 	WorkflowID string    `json:"workflow_id,omitempty"`
-	WorkitemID string    `json:"workitem_id,omitempty"`
 	StepID     string    `json:"step_id,omitempty"`
 	StepIndex  int       `json:"step_index,omitempty"`
 	Feedback   string    `json:"feedback,omitempty"`
