@@ -65,7 +65,7 @@ func TestRunStandaloneNext_Tracked(t *testing.T) {
 	doc := writeWFDoc(t, dir)
 	store := localstore.Open(filepath.Join(dir, ".workflow"), doc)
 	if err := store.Init(context.Background(), localstore.InitOptions{
-		WorkflowID: "wf-test", WorkitemID: "test-001",
+		WorkflowID: "wf-test",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestRunStandaloneNext_Tracked(t *testing.T) {
 	}
 
 	out, err := captureStdoutErr(t, func() error {
-		return runStandaloneNext(context.Background(), res, true)
+		return runStandaloneNext(context.Background(), res, RenderOptions{})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -99,7 +99,7 @@ func TestRunStandaloneNext_TrackedJSON(t *testing.T) {
 	doc := writeWFDoc(t, dir)
 	store := localstore.Open(filepath.Join(dir, ".workflow"), doc)
 	_ = store.Init(context.Background(), localstore.InitOptions{
-		WorkflowID: "wf-test", WorkitemID: "test-001",
+		WorkflowID: "wf-test",
 	})
 	_, _ = store.StartRun(context.Background(), "")
 
@@ -110,13 +110,8 @@ func TestRunStandaloneNext_TrackedJSON(t *testing.T) {
 		RuntimeDir:  filepath.Join(dir, ".workflow"),
 	}
 
-	// Set the JSON flag for this test.
-	prev := jsonOutput
-	jsonOutput = true
-	defer func() { jsonOutput = prev }()
-
 	out, err := captureStdoutErr(t, func() error {
-		return runStandaloneNext(context.Background(), res, true)
+		return runStandaloneNext(context.Background(), res, RenderOptions{JSON: true})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -140,7 +135,7 @@ func TestRunAnonymousNext_NoFilesCreated(t *testing.T) {
 	}
 
 	out, err := captureStdoutErr(t, func() error {
-		return runAnonymousNext(context.Background(), res, true)
+		return runAnonymousNext(context.Background(), res, RenderOptions{})
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -167,12 +162,8 @@ func TestRunAnonymousNext_JSONMode(t *testing.T) {
 		WorkflowDoc: doc,
 	}
 
-	prev := jsonOutput
-	jsonOutput = true
-	defer func() { jsonOutput = prev }()
-
 	out, err := captureStdoutErr(t, func() error {
-		return runAnonymousNext(context.Background(), res, true)
+		return runAnonymousNext(context.Background(), res, RenderOptions{JSON: true})
 	})
 	if err != nil {
 		t.Fatal(err)

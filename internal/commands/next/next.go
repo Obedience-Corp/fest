@@ -124,6 +124,20 @@ func runNext(cmd *cobra.Command, args []string) error {
 	// Context is shown by default, --no-context disables it
 	showInlineContext := !noInlineContext
 
+	// Snapshot cobra flag globals into a RenderOptions struct so render
+	// functions receive their configuration by parameter rather than reading
+	// package-level state. Without this, tests that toggle the flags inside
+	// goroutines (or under t.Parallel) race.
+	opts := RenderOptions{
+		JSON:       jsonOutput,
+		Short:      shortOutput,
+		CD:         cdOutput,
+		Path:       pathFlag,
+		ProjectDir: projectDirFlag,
+		Verbose:    verboseOutput,
+		NoContext:  noInlineContext,
+	}
+
 	// Resolve festival path (supports linked festivals via fest link)
 	festivalPath, err := shared.ResolveFestivalPath(cwd, "")
 	if err != nil {
@@ -131,9 +145,9 @@ func runNext(cmd *cobra.Command, args []string) error {
 		if res, resErr := standalone.Resolve(ctx, cwd); resErr == nil {
 			switch res.Mode {
 			case standalone.ModeTracked:
-				return runStandaloneNext(ctx, res, showInlineContext)
+				return runStandaloneNext(ctx, res, opts)
 			case standalone.ModeAnonymous:
-				return runAnonymousNext(ctx, res, showInlineContext)
+				return runAnonymousNext(ctx, res, opts)
 			}
 		}
 		return errors.Wrap(err, "not inside a festival")
@@ -497,10 +511,51 @@ type StandaloneView struct {
 	Blocked        bool     `json:"blocked,omitempty"`
 	DocHashChanged bool     `json:"doc_hash_changed,omitempty"`
 	Completion     string   `json:"completion_command,omitempty"`
+	RenderMode     string   `json:"render_mode,omitempty"` // "in_progress" | "next_up" | "complete"
 }
 
+// pickRenderStep selects which step runStandaloneNext should display. Returns
+// the 1-indexed step number plus a mode describing what the user is looking
+// at. The localstore replay distinguishes "started but not done" (CurrentStep
+// > CompletedSteps) from "last done, next not yet started" (equal). Without
+// this, post-bootstrap rendering shows the just-completed step (D030 #6).
+func pickRenderStep(state *localstore.RunState, totalSteps int) (int, string) {
+	if totalSteps == 0 {
+		return 0, "no_run"
+	}
+	if state.Status == "completed" || state.CompletedSteps >= totalSteps {
+		return totalSteps, "complete"
+	}
+	if state.CurrentStep > state.CompletedSteps {
+		return state.CurrentStep, "in_progress"
+	}
+	next := state.CompletedSteps + 1
+	if next > totalSteps {
+		return totalSteps, "complete"
+	}
+	if next < 1 {
+		return 1, "next_up"
+	}
+	return next, "next_up"
+}
+
+// RenderOptions configures rendering for standalone / anonymous next output.
+// Snapshotted from cobra flag globals once at runNext entry; render functions
+// only read this struct, not package state.
+type RenderOptions struct {
+	JSON       bool
+	Short      bool
+	CD         bool
+	Path       bool
+	ProjectDir bool
+	Verbose    bool
+	NoContext  bool
+}
+
+func (o RenderOptions) showInlineContext() bool { return !o.NoContext }
+
 // runStandaloneNext renders the next step for a tracked standalone workflow.
-func runStandaloneNext(ctx context.Context, res *standalone.Result, showInlineContext bool) error {
+func runStandaloneNext(ctx context.Context, res *standalone.Result, opts RenderOptions) error {
 	store := localstore.Open(res.RuntimeDir, res.WorkflowDoc)
 	state, err := store.LoadActive(ctx)
 	if err != nil {
@@ -516,52 +571,51 @@ func runStandaloneNext(ctx context.Context, res *standalone.Result, showInlineCo
 		return errors.Wrap(parseErr, "parsing WORKFLOW.md")
 	}
 
+	// Pick the step to render. Distinguishes "in progress" (start without
+	// matching done) from "next up" (last step completed, next not started)
+	// so post-bootstrap views don't show the just-completed step. Closes
+	// D030 finding #6.
+	renderIdx, renderMode := pickRenderStep(state, len(steps))
+
 	view := StandaloneView{
 		Mode:           "standalone-tracked",
 		WorkflowDoc:    res.WorkflowDoc,
 		RuntimeDir:     res.RuntimeDir,
 		RunID:          state.RunID,
 		RunStatus:      state.Status,
-		CurrentStep:    state.CurrentStep,
+		CurrentStep:    renderIdx,
 		TotalSteps:     len(steps),
 		Blocked:        state.Blocked,
 		DocHashChanged: state.DocHashChanged,
 		Completion:     "fest workflow advance",
+		RenderMode:     renderMode,
 	}
-	if state.CurrentStep > 0 && state.CurrentStep <= len(steps) {
-		s := steps[state.CurrentStep-1]
+	if renderIdx >= 1 && renderIdx <= len(steps) {
+		s := steps[renderIdx-1]
 		view.StepName = s.Name
 		view.StepGoal = s.Goal
 		view.StepActions = s.Actions
 		view.StepCheckpoint = string(s.Checkpoint)
-	} else if len(steps) > 0 {
-		// No step started yet; preview step 1.
-		s := steps[0]
-		view.StepName = s.Name
-		view.StepGoal = s.Goal
-		view.StepActions = s.Actions
-		view.StepCheckpoint = string(s.Checkpoint)
-		view.CurrentStep = 1
 	}
 
-	if projectDirFlag {
+	if opts.ProjectDir {
 		fmt.Println(filepath.Dir(res.WorkflowDoc))
 		return nil
 	}
-	if pathFlag {
+	if opts.Path {
 		rel, _ := filepath.Rel(res.StartDir, res.WorkflowDoc)
 		fmt.Println(rel)
 		return nil
 	}
-	if cdOutput {
+	if opts.CD {
 		fmt.Println(filepath.Dir(res.WorkflowDoc))
 		return nil
 	}
-	if shortOutput {
+	if opts.Short {
 		fmt.Printf("%s step %d/%d (%s)\n", view.WorkflowDoc, view.CurrentStep, view.TotalSteps, view.RunStatus)
 		return nil
 	}
-	if jsonOutput {
+	if opts.JSON {
 		data, jerr := jsonMarshalView(view)
 		if jerr != nil {
 			return errors.Parse("formatting JSON", jerr)
@@ -581,10 +635,10 @@ func runStandaloneNext(ctx context.Context, res *standalone.Result, showInlineCo
 	fmt.Println()
 	if view.StepName != "" {
 		fmt.Printf("\n%s\n", view.StepName)
-		if showInlineContext && view.StepGoal != "" {
+		if opts.showInlineContext() && view.StepGoal != "" {
 			fmt.Printf("Goal: %s\n", view.StepGoal)
 		}
-		if showInlineContext && len(view.StepActions) > 0 {
+		if opts.showInlineContext() && len(view.StepActions) > 0 {
 			fmt.Println("Actions:")
 			for i, a := range view.StepActions {
 				fmt.Printf("  %d. %s\n", i+1, a)
@@ -605,7 +659,7 @@ func jsonMarshalView(v StandaloneView) ([]byte, error) {
 // runAnonymousNext renders step 1 of a WORKFLOW.md that has no .workflow/
 // runtime yet. Pure read; creates no files. First mutation (fest workflow
 // advance) will bootstrap to tracked mode.
-func runAnonymousNext(ctx context.Context, res *standalone.Result, showInlineContext bool) error {
+func runAnonymousNext(ctx context.Context, res *standalone.Result, opts RenderOptions) error {
 	steps, parseErr := wfparser.NewParser().Parse(ctx, res.WorkflowDoc)
 	if parseErr != nil {
 		return errors.Wrap(parseErr, "parsing WORKFLOW.md")
@@ -630,20 +684,20 @@ func runAnonymousNext(ctx context.Context, res *standalone.Result, showInlineCon
 	view.StepActions = s.Actions
 	view.StepCheckpoint = string(s.Checkpoint)
 
-	if projectDirFlag || cdOutput {
+	if opts.ProjectDir || opts.CD {
 		fmt.Println(filepath.Dir(res.WorkflowDoc))
 		return nil
 	}
-	if pathFlag {
+	if opts.Path {
 		rel, _ := filepath.Rel(res.StartDir, res.WorkflowDoc)
 		fmt.Println(rel)
 		return nil
 	}
-	if shortOutput {
+	if opts.Short {
 		fmt.Printf("%s anonymous step 1/%d\n", res.WorkflowDoc, len(steps))
 		return nil
 	}
-	if jsonOutput {
+	if opts.JSON {
 		data, jerr := jsonMarshalView(view)
 		if jerr != nil {
 			return errors.Parse("formatting JSON", jerr)
@@ -658,10 +712,10 @@ func runAnonymousNext(ctx context.Context, res *standalone.Result, showInlineCon
 	fmt.Printf("Status: not-started\n")
 	fmt.Printf("Step 1 of %d\n", len(steps))
 	fmt.Printf("\n%s\n", view.StepName)
-	if showInlineContext && view.StepGoal != "" {
+	if opts.showInlineContext() && view.StepGoal != "" {
 		fmt.Printf("Goal: %s\n", view.StepGoal)
 	}
-	if showInlineContext && len(view.StepActions) > 0 {
+	if opts.showInlineContext() && len(view.StepActions) > 0 {
 		fmt.Println("Actions:")
 		for i, a := range view.StepActions {
 			fmt.Printf("  %d. %s\n", i+1, a)
