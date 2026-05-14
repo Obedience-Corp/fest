@@ -39,7 +39,7 @@ func newTestStore(t *testing.T) (*Store, string) {
 
 func TestStore_InitCreatesManifest(t *testing.T) {
 	s, _ := newTestStore(t)
-	err := s.Init(context.Background(), InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"})
+	err := s.Init(context.Background(), InitOptions{WorkflowID: "wf-x"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -58,10 +58,10 @@ func TestStore_InitCreatesManifest(t *testing.T) {
 func TestStore_InitRefusesOverwrite(t *testing.T) {
 	s, _ := newTestStore(t)
 	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"}); err != nil {
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
 		t.Fatal(err)
 	}
-	err := s.Init(ctx, InitOptions{WorkflowID: "wf-y", WorkitemID: "wi-y"})
+	err := s.Init(ctx, InitOptions{WorkflowID: "wf-y"})
 	if err == nil {
 		t.Fatal("expected refusal without Force")
 	}
@@ -70,10 +70,10 @@ func TestStore_InitRefusesOverwrite(t *testing.T) {
 func TestStore_InitForceOverwrites(t *testing.T) {
 	s, _ := newTestStore(t)
 	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"}); err != nil {
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-y", WorkitemID: "wi-y", Force: true}); err != nil {
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-y", Force: true}); err != nil {
 		t.Fatal(err)
 	}
 	m, _ := s.LoadManifest(ctx)
@@ -85,7 +85,7 @@ func TestStore_InitForceOverwrites(t *testing.T) {
 func TestStore_StartRunCreatesRunDir(t *testing.T) {
 	s, _ := newTestStore(t)
 	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"}); err != nil {
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
 		t.Fatal(err)
 	}
 	runID, err := s.StartRun(ctx, "tester")
@@ -122,7 +122,7 @@ func TestStore_StartRunCreatesRunDir(t *testing.T) {
 func TestStore_SecondStartCoexistsWithFirst(t *testing.T) {
 	s, _ := newTestStore(t)
 	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"}); err != nil {
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
 		t.Fatal(err)
 	}
 	first, _ := s.StartRun(ctx, "")
@@ -150,7 +150,7 @@ func TestStore_StartRunUniqueWithinSameSecond(t *testing.T) {
 	// overwriting it.
 	s, _ := newTestStore(t)
 	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"}); err != nil {
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
 		t.Fatal(err)
 	}
 	first, err := s.StartRun(ctx, "")
@@ -188,7 +188,7 @@ func TestStore_StartRunUniqueWithinSameSecond(t *testing.T) {
 func TestStore_AppendEventAndReplay(t *testing.T) {
 	s, _ := newTestStore(t)
 	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"}); err != nil {
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.StartRun(ctx, ""); err != nil {
@@ -213,10 +213,154 @@ func TestStore_AppendEventAndReplay(t *testing.T) {
 	}
 }
 
+// TestStore_TerminalEventFinalizesManifest locks in D030 finding #3:
+// completing/abandoning a run clears active_run_id and stamps the runs[]
+// entry. Without this, `fest workflow runs` reports terminated runs as
+// active.
+func TestStore_TerminalEventFinalizesManifest(t *testing.T) {
+	for _, ev := range []string{EventWorkflowRunCompleted, EventWorkflowRunAbandoned} {
+		t.Run(ev, func(t *testing.T) {
+			s, _ := newTestStore(t)
+			ctx := context.Background()
+			if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
+				t.Fatal(err)
+			}
+			runID, err := s.StartRun(ctx, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if err := s.AppendEvent(ctx, Event{EventType: ev}); err != nil {
+				t.Fatal(err)
+			}
+
+			m, err := s.LoadManifest(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if m.ActiveRunID != "" {
+				t.Errorf("ActiveRunID = %q, want empty after terminal event", m.ActiveRunID)
+			}
+			if len(m.Runs) != 1 {
+				t.Fatalf("Runs = %d, want 1", len(m.Runs))
+			}
+			wantStatus := "completed"
+			if ev == EventWorkflowRunAbandoned {
+				wantStatus = "abandoned"
+			}
+			if m.Runs[0].Status != wantStatus {
+				t.Errorf("Runs[0].Status = %q, want %q", m.Runs[0].Status, wantStatus)
+			}
+			if m.Runs[0].RunID != runID {
+				t.Errorf("Runs[0].RunID = %q, want %q", m.Runs[0].RunID, runID)
+			}
+			if m.Runs[0].EndedAt == "" {
+				t.Error("Runs[0].EndedAt empty, want a timestamp")
+			}
+
+			// Idempotent at the finalize layer: calling finalize again for an
+			// already-terminal run does not corrupt state. AppendEvent itself
+			// refuses with "no active run" once ActiveRunID is cleared, which
+			// is the expected guard for callers.
+			if err := s.finalizeRunInManifest(ctx, Event{EventType: ev, RunID: runID, Timestamp: time.Now().UTC()}); err != nil {
+				t.Fatalf("re-finalize should be idempotent, got %v", err)
+			}
+			m2, _ := s.LoadManifest(ctx)
+			if m2.Runs[0].Status != wantStatus {
+				t.Errorf("after re-finalize Runs[0].Status = %q, want %q", m2.Runs[0].Status, wantStatus)
+			}
+		})
+	}
+}
+
+// TestLoadManifest_RejectsMalformed locks in D030 finding #2: LoadManifest
+// must validate version/kind/workflow_id before returning so callers do not
+// silently propagate corrupt state.
+func TestLoadManifest_RejectsMalformed(t *testing.T) {
+	cases := []struct {
+		name string
+		yaml string
+		want string
+	}{
+		{
+			name: "missing version",
+			yaml: "kind: workflow-runtime\nworkflow_id: wf-x\n",
+			want: "missing version",
+		},
+		{
+			name: "unsupported version",
+			yaml: "version: 99\nkind: workflow-runtime\nworkflow_id: wf-x\n",
+			want: "unsupported workflow manifest version",
+		},
+		{
+			name: "wrong kind",
+			yaml: "version: 1\nkind: not-workflow\nworkflow_id: wf-x\n",
+			want: "kind mismatch",
+		},
+		{
+			name: "missing workflow_id",
+			yaml: "version: 1\nkind: workflow-runtime\n",
+			want: "missing workflow_id",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			dir := t.TempDir()
+			if err := os.WriteFile(filepath.Join(dir, manifestName), []byte(c.yaml), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			s := &Store{root: dir}
+			_, err := s.LoadManifest(context.Background())
+			if err == nil {
+				t.Fatalf("expected error containing %q, got nil", c.want)
+			}
+			if !strings.Contains(err.Error(), c.want) {
+				t.Errorf("error %q does not contain %q", err.Error(), c.want)
+			}
+		})
+	}
+}
+
+// TestStore_ReplayHandlesStepSkip locks in D030 finding #1: skip clears
+// Blocked and counts as forward progress, matching camp's localrun.go
+// semantics so the same event stream produces the same state in both repos.
+func TestStore_ReplayHandlesStepSkip(t *testing.T) {
+	s, _ := newTestStore(t)
+	ctx := context.Background()
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.StartRun(ctx, ""); err != nil {
+		t.Fatal(err)
+	}
+	for _, ev := range []string{EventStepStart, EventStepBlock, EventStepSkip} {
+		if err := s.AppendEvent(ctx, Event{EventType: ev}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	state, err := s.LoadActive(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state == nil {
+		t.Fatal("expected state, got nil")
+	}
+	if state.Blocked {
+		t.Errorf("Blocked = true after skip, want false")
+	}
+	if state.CompletedSteps != 1 {
+		t.Errorf("CompletedSteps = %d, want 1 (skip counts as progress)", state.CompletedSteps)
+	}
+	if state.Status != "active" {
+		t.Errorf("Status = %q, want active (skip clears blocked status)", state.Status)
+	}
+}
+
 func TestStore_ReplayOverridesStaleSummary(t *testing.T) {
 	s, _ := newTestStore(t)
 	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"}); err != nil {
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
 		t.Fatal(err)
 	}
 	runID, _ := s.StartRun(ctx, "")
@@ -251,7 +395,7 @@ func TestStore_ReplayOverridesStaleSummary(t *testing.T) {
 func TestStore_DocHashChange(t *testing.T) {
 	s, root := newTestStore(t)
 	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"}); err != nil {
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -270,7 +414,7 @@ func TestStore_DocHashChange(t *testing.T) {
 func TestStore_EventsAreAppendOnly(t *testing.T) {
 	s, _ := newTestStore(t)
 	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"}); err != nil {
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := s.StartRun(ctx, ""); err != nil {
@@ -310,7 +454,7 @@ func TestStore_ContextCancel(t *testing.T) {
 	s, _ := newTestStore(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	err := s.Init(ctx, InitOptions{WorkflowID: "wf-x", WorkitemID: "wi-x"})
+	err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"})
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("expected context.Canceled, got %v", err)
 	}

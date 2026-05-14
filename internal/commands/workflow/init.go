@@ -8,6 +8,7 @@ import (
 
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/scope"
+	"github.com/Obedience-Corp/fest/internal/workflow"
 	"github.com/Obedience-Corp/fest/internal/workflow/localstore"
 	"github.com/Obedience-Corp/fest/internal/workflow/standalone"
 	"github.com/spf13/cobra"
@@ -16,26 +17,27 @@ import (
 var (
 	initForce      bool
 	initWorkflowID string
-	initWorkitemID string
 )
 
 func newInitCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize standalone workflow runtime",
-		Long: `Create .workitem and .workflow/ next to an existing WORKFLOW.md.
+		Long: `Create .workflow/ next to an existing WORKFLOW.md.
 
 Run from the directory containing WORKFLOW.md. The command refuses to run
-inside a festival phase. Use --force to overwrite existing .workitem
-or .workflow/workflow.yaml.`,
+inside a festival phase. Use --force to overwrite an existing
+.workflow/workflow.yaml.
+
+This command does not create .workitem; that file is owned by camp
+(see 'camp workitem create' and 'camp workitem adopt').`,
 		Annotations: map[string]string{"scope": string(scope.Global)},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runInit(cmd.Context())
 		},
 	}
-	cmd.Flags().BoolVar(&initForce, "force", false, "overwrite existing .workitem and .workflow/")
+	cmd.Flags().BoolVar(&initForce, "force", false, "overwrite existing .workflow/workflow.yaml")
 	cmd.Flags().StringVar(&initWorkflowID, "workflow-id", "", "workflow_id to write into manifest (defaults to wf-<basename>)")
-	cmd.Flags().StringVar(&initWorkitemID, "workitem-id", "", "workitem_id to write into manifest (required)")
 	return cmd
 }
 
@@ -62,45 +64,24 @@ func runInit(ctx context.Context) error {
 			WithHint("Author a WORKFLOW.md before running init")
 	}
 
-	if initWorkitemID == "" {
-		return festerrors.Validation("--workitem-id is required")
-	}
-
 	workflowID := initWorkflowID
 	if workflowID == "" {
-		workflowID = "wf-" + filepath.Base(cwd)
+		slug := workflow.SanitizeBasenameAsSlug(filepath.Base(cwd))
+		workflowID = "wf-" + slug
 	}
-
-	// Refuse to overwrite an existing .workitem unless --force.
-	workitemPath := filepath.Join(cwd, ".workitem")
-	if _, statErr := os.Stat(workitemPath); statErr == nil && !initForce {
-		return festerrors.New(".workitem already exists; pass --force to overwrite").
-			WithField("path", workitemPath)
+	if err := workflow.ValidateWorkflowID(workflowID); err != nil {
+		return err
 	}
 
 	store := localstore.Open(filepath.Join(cwd, ".workflow"), doc)
 	if err := store.Init(ctx, localstore.InitOptions{
 		WorkflowID: workflowID,
-		WorkitemID: initWorkitemID,
 		Force:      initForce,
 	}); err != nil {
 		return err
 	}
 
-	if err := writeMinimalWorkitem(workitemPath, initWorkitemID, filepath.Base(cwd), workflowID); err != nil {
-		return err
-	}
-
 	fmt.Printf("Initialized standalone workflow runtime at %s\n", cwd)
-	fmt.Printf("  .workitem: workitem_id=%s\n", initWorkitemID)
 	fmt.Printf("  .workflow/workflow.yaml: workflow_id=%s\n", workflowID)
-	return nil
-}
-
-func writeMinimalWorkitem(path, id, basename, workflowID string) error {
-	body := "version: 1\nkind: workitem\nid: " + id + "\ntype: workflow\ntitle: " + basename + "\nworkflow:\n  doc_path: WORKFLOW.md\n  runtime_dir: .workflow\n  workflow_id: " + workflowID + "\n"
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-		return festerrors.IO("writing .workitem", err)
-	}
 	return nil
 }

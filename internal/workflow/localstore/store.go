@@ -18,6 +18,7 @@ import (
 	"time"
 
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
+	wfparser "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/google/uuid"
 	"gopkg.in/yaml.v3"
 )
@@ -44,7 +45,6 @@ func Open(workflowDir, workflowDocPath string) *Store {
 // InitOptions controls Store.Init.
 type InitOptions struct {
 	WorkflowID string
-	WorkitemID string
 	Force      bool
 }
 
@@ -56,9 +56,6 @@ func (s *Store) Init(ctx context.Context, opts InitOptions) error {
 	}
 	if opts.WorkflowID == "" {
 		return festerrors.Validation("workflow_id is required")
-	}
-	if opts.WorkitemID == "" {
-		return festerrors.Validation("workitem_id is required")
 	}
 
 	if err := os.MkdirAll(s.root, 0o755); err != nil {
@@ -80,14 +77,14 @@ func (s *Store) Init(ctx context.Context, opts InitOptions) error {
 		Version:    ManifestVersion,
 		Kind:       ManifestKind,
 		WorkflowID: opts.WorkflowID,
-		WorkitemID: opts.WorkitemID,
 		DocPath:    filepath.Base(s.workflowDoc),
 		DocHash:    docHash,
 	}
 	return writeYAML(manifestPath, &m)
 }
 
-// LoadManifest reads workflow.yaml.
+// LoadManifest reads workflow.yaml. Validates version, kind, and required
+// IDs before returning so callers do not propagate corrupt state.
 func (s *Store) LoadManifest(ctx context.Context) (*Manifest, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -101,7 +98,38 @@ func (s *Store) LoadManifest(ctx context.Context) (*Manifest, error) {
 	if err := yaml.Unmarshal(raw, &m); err != nil {
 		return nil, festerrors.Parse("parsing workflow manifest", err)
 	}
+	if err := validateManifest(&m, path); err != nil {
+		return nil, err
+	}
 	return &m, nil
+}
+
+// validateManifest enforces version/kind/workflow_id presence. Rejecting
+// malformed manifests at the loader prevents compound corruption from
+// downstream writes (D030 finding #2).
+func validateManifest(m *Manifest, path string) error {
+	if m.Version == 0 {
+		return festerrors.Validation("workflow manifest missing version").
+			WithField("path", path).
+			WithHint("expected version: 1")
+	}
+	if m.Version != ManifestVersion {
+		return festerrors.Validation("unsupported workflow manifest version").
+			WithField("path", path).
+			WithField("got", m.Version).
+			WithField("supported", ManifestVersion)
+	}
+	if m.Kind != ManifestKind {
+		return festerrors.Validation("workflow manifest kind mismatch").
+			WithField("path", path).
+			WithField("got", m.Kind).
+			WithField("expected", ManifestKind)
+	}
+	if m.WorkflowID == "" {
+		return festerrors.Validation("workflow manifest missing workflow_id").
+			WithField("path", path)
+	}
+	return nil
 }
 
 // StartRun creates a new run directory, writes run.yaml, appends the
@@ -144,13 +172,22 @@ func (s *Store) StartRun(ctx context.Context, startedBy string) (string, error) 
 		docHash, _ = HashWorkflowDoc(s.workflowDoc)
 	}
 
+	// Count steps for Summary.TotalSteps so consumers (camp dashboard, fest
+	// next renderer) can display "Step N of M" without inventing a fallback.
+	// Closes D030 finding #4.
+	totalSteps := 0
+	if s.workflowDoc != "" {
+		if n, parseErr := wfparser.NewParser().StepCount(ctx, s.workflowDoc); parseErr == nil {
+			totalSteps = n
+		}
+	}
+
 	now := time.Now().UTC()
 	run := RunManifest{
 		Version:    RunVersion,
 		Kind:       RunKind,
 		RunID:      runID,
 		WorkflowID: m.WorkflowID,
-		WorkitemID: m.WorkitemID,
 		Status:     "active",
 		StartedAt:  now,
 		StartedBy:  startedBy,
@@ -160,6 +197,7 @@ func (s *Store) StartRun(ctx context.Context, startedBy string) (string, error) 
 			WorkflowHash: docHash,
 			WorkitemPath: "../..",
 		},
+		Summary: RunSummary{TotalSteps: totalSteps},
 	}
 	if err := writeYAML(filepath.Join(runDir, runManifestName), &run); err != nil {
 		return "", err
@@ -171,7 +209,6 @@ func (s *Store) StartRun(ctx context.Context, startedBy string) (string, error) 
 		EventType:  EventWorkflowRunStarted,
 		RunID:      runID,
 		WorkflowID: m.WorkflowID,
-		WorkitemID: m.WorkitemID,
 		Timestamp:  now,
 	}); err != nil {
 		return "", err
@@ -215,7 +252,48 @@ func (s *Store) AppendEvent(ctx context.Context, evt Event) error {
 	if evt.Version == 0 {
 		evt.Version = 1
 	}
-	return s.appendEvent(ctx, runDir, evt)
+	if err := s.appendEvent(ctx, runDir, evt); err != nil {
+		return err
+	}
+	// Terminal events must also update the parent workflow.yaml so
+	// `fest workflow runs` and subsequent LoadActive calls see a consistent
+	// view. Without this, runs[i].Status stays "active" and ActiveRunID
+	// keeps pointing at a finished run (D030 finding #3).
+	if evt.EventType == EventWorkflowRunCompleted || evt.EventType == EventWorkflowRunAbandoned {
+		if err := s.finalizeRunInManifest(ctx, evt); err != nil {
+			return festerrors.Wrap(err, "finalize run in manifest")
+		}
+	}
+	return nil
+}
+
+// finalizeRunInManifest updates workflow.yaml after a terminal event.
+// Idempotent — re-finalizing an already-terminal run is a no-op.
+func (s *Store) finalizeRunInManifest(ctx context.Context, evt Event) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	m, err := s.LoadManifest(ctx)
+	if err != nil {
+		return err
+	}
+	terminalStatus := "completed"
+	if evt.EventType == EventWorkflowRunAbandoned {
+		terminalStatus = "abandoned"
+	}
+	for i := range m.Runs {
+		if m.Runs[i].RunID == evt.RunID {
+			m.Runs[i].Status = terminalStatus
+			if m.Runs[i].EndedAt == "" {
+				m.Runs[i].EndedAt = evt.Timestamp.Format(time.RFC3339)
+			}
+			break
+		}
+	}
+	if m.ActiveRunID == evt.RunID {
+		m.ActiveRunID = ""
+	}
+	return writeYAML(filepath.Join(s.root, manifestName), m)
 }
 
 func (s *Store) appendEvent(_ context.Context, runDir string, evt Event) error {
@@ -376,6 +454,13 @@ func replayEvents(eventsPath string, cache RunManifest) *RunState {
 		case EventStepStart:
 			state.CurrentStep++
 		case EventStepDone:
+			state.CompletedSteps++
+			state.Blocked = false
+		case EventStepSkip:
+			// Mirror camp's localrun.go skip handling: skipped steps count
+			// as forward progress and clear any prior block. Without this
+			// case, fest and camp would replay the same event stream into
+			// divergent state (D030 finding #1).
 			state.CompletedSteps++
 			state.Blocked = false
 		case EventStepBlock, EventCheckpointRejected:

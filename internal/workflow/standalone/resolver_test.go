@@ -2,10 +2,35 @@ package standalone
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+
+	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 )
+
+func TestResolve_PropagatesNonNotFoundFestivalError(t *testing.T) {
+	prev := resolveFestivalPath
+	t.Cleanup(func() { resolveFestivalPath = prev })
+
+	want := festerrors.IO("walking festivals dir", errors.New("permission denied"))
+	resolveFestivalPath = func(_, _ string) (string, error) {
+		return "", want
+	}
+
+	dir := t.TempDir()
+	res, err := Resolve(context.Background(), dir)
+	if err == nil {
+		t.Fatalf("expected error, got nil (res=%+v)", res)
+	}
+	if res != nil {
+		t.Errorf("expected nil result on propagated error, got %+v", res)
+	}
+	if !errors.Is(err, want) {
+		t.Errorf("expected wrapped festErr, got %T: %v", err, err)
+	}
+}
 
 func writeF(t *testing.T, path, body string) {
 	t.Helper()
@@ -112,7 +137,10 @@ func TestResolve_Anonymous(t *testing.T) {
 	}
 }
 
-func TestResolve_NestedAnonymous(t *testing.T) {
+// TestResolve_CwdOnly_NoWalkUp asserts D013: standalone detection checks
+// cwd only, not parent directories. A WORKFLOW.md in a parent dir must not
+// surface as ModeAnonymous when invoked from a child.
+func TestResolve_CwdOnly_NoWalkUp(t *testing.T) {
 	root := t.TempDir()
 	parent := filepath.Join(root, "wf-parent")
 	subdir := filepath.Join(parent, "deeper", "nested")
@@ -125,8 +153,8 @@ func TestResolve_NestedAnonymous(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Mode != ModeAnonymous {
-		t.Errorf("Mode = %q, want anonymous (walk up to parent)", r.Mode)
+	if r.Mode != ModeNone {
+		t.Errorf("Mode = %q from child dir, want ModeNone (cwd-only detection)", r.Mode)
 	}
 }
 

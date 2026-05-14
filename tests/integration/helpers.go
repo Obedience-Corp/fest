@@ -222,6 +222,35 @@ func (tc *TestContainer) RunFestInDirTTY(dir string, args ...string) (string, er
  return output, nil
 }
 
+// Exec runs an arbitrary shell command inside the container via `sh -c`.
+// Returns combined stdout+stderr and any execution error. Non-zero exit
+// codes are surfaced via the error so tests can assert on them.
+func (tc *TestContainer) Exec(cmd ...string) (string, error) {
+	out, err := tc.runCommand(cmd)
+	return out, err
+}
+
+// WriteFile writes content into a path inside the container, creating
+// any missing parent directories.
+func (tc *TestContainer) WriteFile(path, content string) error {
+	parent := filepath.Dir(path)
+	if _, _, err := tc.container.Exec(tc.ctx, []string{"mkdir", "-p", parent}); err != nil {
+		return fmt.Errorf("mkdir -p %s: %w", parent, err)
+	}
+	// Use a temp host file and CopyToContainer to avoid shell-escaping content.
+	f, err := os.CreateTemp("", "fest-helper-write-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.WriteString(content); err != nil {
+		f.Close()
+		return err
+	}
+	f.Close()
+	return tc.CopyToContainer(f.Name(), path)
+}
+
 // runCommand executes a command in the container
 // Returns output even on non-zero exit for test debugging
 func (tc *TestContainer) runCommand(cmd []string) (string, error) {

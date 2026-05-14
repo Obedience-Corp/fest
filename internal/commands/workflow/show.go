@@ -52,16 +52,15 @@ Shows:
 }
 
 func runShow(ctx context.Context, stepNum int) error {
-	// Narrow standalone-resolver integration (introduced in WW0001/004.01).
-	// Festival context always wins; tracked/anonymous standalone modes return
-	// a deferred-feature stub until the next sequence wires them in fully.
+	// Standalone-resolver integration. Festival context always wins; tracked
+	// and anonymous standalone modes route to runStandaloneShow.
 	cwd, _ := os.Getwd()
 	if res, resErr := standalone.Resolve(ctx, cwd); resErr == nil {
 		switch res.Mode {
 		case standalone.ModeTracked, standalone.ModeAnonymous:
 			return runStandaloneShow(ctx, res, stepNum)
 		}
-		// ModeFestival or ModeNone: fall through to existing behavior.
+		// ModeFestival or ModeNone: fall through to existing festival flow.
 	}
 
 	nav, err := getWorkflowNavigator(ctx)

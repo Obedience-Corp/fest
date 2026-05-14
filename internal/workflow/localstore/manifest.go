@@ -5,7 +5,6 @@ type Manifest struct {
 	Version     int         `yaml:"version"`
 	Kind        string      `yaml:"kind"`
 	WorkflowID  string      `yaml:"workflow_id"`
-	WorkitemID  string      `yaml:"workitem_id"`
 	DocPath     string      `yaml:"doc_path,omitempty"`
 	DocHash     string      `yaml:"doc_hash,omitempty"`
 	ActiveRunID string      `yaml:"active_run_id,omitempty"`
@@ -19,6 +18,7 @@ type RunRecord struct {
 	Path        string `yaml:"path"`
 	StartedAt   string `yaml:"started_at,omitempty"`
 	CompletedAt string `yaml:"completed_at,omitempty"`
+	EndedAt     string `yaml:"ended_at,omitempty"`
 }
 
 // ManifestVersion is the only manifest schema version supported.
