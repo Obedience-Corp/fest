@@ -32,6 +32,12 @@ const (
 	ModeAnonymous Mode = "anonymous"
 )
 
+// resolveFestivalPath is a package-level indirection over
+// shared.ResolveFestivalPath so tests can inject failures (permission
+// denied, I/O) without mutating the host filesystem. Production code
+// always uses the real implementation.
+var resolveFestivalPath = shared.ResolveFestivalPath
+
 // Result is the typed output of resolution. All paths are absolute.
 type Result struct {
 	Mode         Mode
@@ -56,7 +62,7 @@ func Resolve(ctx context.Context, startDir string) (*Result, error) {
 	}
 
 	// Priority 1: festival context.
-	festPath, festErr := shared.ResolveFestivalPath(absStart, "")
+	festPath, festErr := resolveFestivalPath(absStart, "")
 	if festErr == nil && festPath != "" {
 		phasePath := shared.ResolvePhasePath(absStart, festPath)
 		workflowDoc := ""

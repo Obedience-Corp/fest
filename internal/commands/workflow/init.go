@@ -8,6 +8,7 @@ import (
 
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/scope"
+	"github.com/Obedience-Corp/fest/internal/workflow"
 	"github.com/Obedience-Corp/fest/internal/workflow/localstore"
 	"github.com/Obedience-Corp/fest/internal/workflow/standalone"
 	"github.com/spf13/cobra"
@@ -65,7 +66,11 @@ func runInit(ctx context.Context) error {
 
 	workflowID := initWorkflowID
 	if workflowID == "" {
-		workflowID = "wf-" + filepath.Base(cwd)
+		slug := workflow.SanitizeBasenameAsSlug(filepath.Base(cwd))
+		workflowID = "wf-" + slug
+	}
+	if err := workflow.ValidateWorkflowID(workflowID); err != nil {
+		return err
 	}
 
 	store := localstore.Open(filepath.Join(cwd, ".workflow"), doc)

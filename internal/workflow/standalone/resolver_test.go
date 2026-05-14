@@ -2,10 +2,35 @@ package standalone
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
+
+	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 )
+
+func TestResolve_PropagatesNonNotFoundFestivalError(t *testing.T) {
+	prev := resolveFestivalPath
+	t.Cleanup(func() { resolveFestivalPath = prev })
+
+	want := festerrors.IO("walking festivals dir", errors.New("permission denied"))
+	resolveFestivalPath = func(_, _ string) (string, error) {
+		return "", want
+	}
+
+	dir := t.TempDir()
+	res, err := Resolve(context.Background(), dir)
+	if err == nil {
+		t.Fatalf("expected error, got nil (res=%+v)", res)
+	}
+	if res != nil {
+		t.Errorf("expected nil result on propagated error, got %+v", res)
+	}
+	if !errors.Is(err, want) {
+		t.Errorf("expected wrapped festErr, got %T: %v", err, err)
+	}
+}
 
 func writeF(t *testing.T, path, body string) {
 	t.Helper()
