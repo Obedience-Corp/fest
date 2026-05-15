@@ -21,7 +21,27 @@ import (
 // runAdvanceBootstrap converts an anonymous WORKFLOW.md into tracked mode
 // (D007 — fest writes only .workflow/, never .workitem). After bootstrap it
 // appends a start+done pair so step 1 reads as completed.
+//
+// Step 1's checkpoint is honored with the same fail-closed semantics as
+// runAdvanceTracked: a blocking checkpoint on step 1 cannot be auto-approved
+// by bootstrap, since standalone mode lacks approve/reject/reset. The check
+// runs before EnsureTracked so .workflow/ is never created when bootstrap
+// would refuse to mutate.
 func runAdvanceBootstrap(ctx context.Context, res *standalone.Result) error {
+	steps, parseErr := wf.NewParser().Parse(ctx, res.WorkflowDoc)
+	if parseErr != nil {
+		return festerrors.Wrap(parseErr, "parsing WORKFLOW.md")
+	}
+	if len(steps) == 0 {
+		return festerrors.Validation("WORKFLOW.md has no parseable steps").
+			WithField("path", res.WorkflowDoc)
+	}
+	if steps[0].Checkpoint.IsBlocking() {
+		return festerrors.New("standalone workflows do not support blocking checkpoints").
+			WithField("step", 1).
+			WithField("step_name", steps[0].Name).
+			WithHint("remove the blocking checkpoint from step 1 in WORKFLOW.md, or run this workflow inside a festival phase where 'fest workflow approve' is available")
+	}
 	if _, err := EnsureTracked(ctx, res, BootstrapOptions{}); err != nil {
 		return err
 	}

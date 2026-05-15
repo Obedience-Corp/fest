@@ -135,6 +135,12 @@ func validateManifest(m *Manifest, path string) error {
 // StartRun creates a new run directory, writes run.yaml, appends the
 // workflow_run_started event, and updates the manifest's active_run_id.
 // Returns the new run id.
+//
+// Pre-mutation contract: WORKFLOW.md must be hashable AND parseable before
+// we create any run state. A missing or unparseable doc is a hard error,
+// not a silent degradation to workflow_hash="" + total_steps=0, since
+// downstream readers (camp dashboard, fest next) cannot interpret a run
+// recorded with empty source provenance.
 func (s *Store) StartRun(ctx context.Context, startedBy string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", err
@@ -142,6 +148,30 @@ func (s *Store) StartRun(ctx context.Context, startedBy string) (string, error) 
 	m, err := s.LoadManifest(ctx)
 	if err != nil {
 		return "", err
+	}
+
+	docHash := ""
+	totalSteps := 0
+	if s.workflowDoc != "" {
+		h, hashErr := HashWorkflowDoc(s.workflowDoc)
+		if hashErr != nil {
+			return "", festerrors.Wrap(hashErr, "hashing WORKFLOW.md").
+				WithField("path", s.workflowDoc).
+				WithHint("restore WORKFLOW.md or rerun 'fest workflow init' after fixing the doc")
+		}
+		docHash = h
+
+		n, parseErr := wfparser.NewParser().StepCount(ctx, s.workflowDoc)
+		if parseErr != nil {
+			return "", festerrors.Wrap(parseErr, "parsing WORKFLOW.md for step count").
+				WithField("path", s.workflowDoc)
+		}
+		if n == 0 {
+			return "", festerrors.Validation("WORKFLOW.md has no parseable steps").
+				WithField("path", s.workflowDoc).
+				WithHint("add at least one '## Step 1:' heading before starting a run")
+		}
+		totalSteps = n
 	}
 
 	// Allocate a unique run ID. Base is a UTC second-granularity timestamp;
@@ -165,21 +195,6 @@ func (s *Store) StartRun(ctx context.Context, startedBy string) (string, error) 
 		}
 		runID = base + "-" + strconv.Itoa(suffix)
 		runDir = filepath.Join(s.root, runsDir, runID)
-	}
-
-	docHash := ""
-	if s.workflowDoc != "" {
-		docHash, _ = HashWorkflowDoc(s.workflowDoc)
-	}
-
-	// Count steps for Summary.TotalSteps so consumers (camp dashboard, fest
-	// next renderer) can display "Step N of M" without inventing a fallback.
-	// Closes D030 finding #4.
-	totalSteps := 0
-	if s.workflowDoc != "" {
-		if n, parseErr := wfparser.NewParser().StepCount(ctx, s.workflowDoc); parseErr == nil {
-			totalSteps = n
-		}
 	}
 
 	now := time.Now().UTC()

@@ -162,3 +162,33 @@ func TestStandaloneAdvance_RejectsBlockingCheckpoint(t *testing.T) {
 	require.Contains(t, retryOut, "blocking checkpoints",
 		"second attempt should hit the same checkpoint, got: %s", retryOut)
 }
+
+// TestStandaloneAdvance_BootstrapRejectsStep1Checkpoint pins the second
+// re-review finding on #173: anonymous bootstrap previously appended
+// wf_step_start + wf_step_done unconditionally, silently auto-approving a
+// blocking checkpoint on step 1. The bootstrap path must apply the same
+// fail-closed guard as runAdvanceTracked, and refuse before creating
+// .workflow/ at all.
+func TestStandaloneAdvance_BootstrapRejectsStep1Checkpoint(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	container := GetSharedContainer(t)
+	const dir = "/tmp/standalone-bootstrap-checkpoint"
+	_, err := container.Exec("rm", "-rf", dir)
+	require.NoError(t, err)
+
+	const workflowMD = "## Step 1: Approve\n\n**Goal:** Approve.\n\n**Output:** Approved.\n\n**Checkpoint:** USER APPROVAL REQUIRED\n\n## Step 2: Second\n\n**Goal:** Then.\n"
+	require.NoError(t, container.WriteFile(dir+"/WORKFLOW.md", workflowMD))
+
+	out, advanceErr := container.RunFestInDir(dir, "workflow", "advance")
+	require.Error(t, advanceErr,
+		"bootstrap into step 1 with blocking checkpoint must refuse: %s", out)
+	require.Contains(t, out, "blocking checkpoints",
+		"error should explain standalone limitation, got: %s", out)
+
+	manifestExists, _ := container.CheckFileExists(dir + "/.workflow/workflow.yaml")
+	require.False(t, manifestExists,
+		"refused bootstrap must not create .workflow/ — refusal is pre-mutation")
+}
