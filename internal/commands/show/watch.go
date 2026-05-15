@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/watch"
 )
@@ -18,6 +19,28 @@ const ProgressBarWidth = 20
 
 // pollingInterval is the fixed interval for the polling fallback when fsnotify is unavailable.
 const pollingInterval = 2 * time.Second
+
+// WatchOptions contains the public options needed to run the show watch renderer.
+type WatchOptions struct {
+	Summary    bool
+	Goals      bool
+	Collapsed  bool
+	InProgress bool
+}
+
+// WatchFestival watches a festival using the existing show watch renderer.
+func WatchFestival(ctx context.Context, festival *FestivalInfo, opts WatchOptions) error {
+	if festival == nil {
+		return errors.Validation("festival is required")
+	}
+	return runWatchMode(ctx, festival, &showOptions{
+		summary:    opts.Summary,
+		watch:      true,
+		goals:      opts.Goals,
+		collapsed:  opts.Collapsed,
+		inProgress: opts.InProgress,
+	})
+}
 
 // runWatchMode watches for file changes and refreshes the festival display.
 // Falls back to polling if file watching is not available.

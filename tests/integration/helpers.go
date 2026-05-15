@@ -58,7 +58,7 @@ func NewTestContainer(t *testing.T) (*TestContainer, error) {
 
  // Check if binary exists
  if _, err := os.Stat(festBinaryPath); err != nil {
-  return nil, fmt.Errorf("fest binary not found at %s: %w - run 'just build-test-binary' first", festBinaryPath, err)
+  return nil, fmt.Errorf("fest binary not found at %s: %w - run 'just build test-binary' first", festBinaryPath, err)
  }
 
  req := testcontainers.ContainerRequest{

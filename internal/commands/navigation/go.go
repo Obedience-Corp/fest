@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	sharedcmd "github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/id"
@@ -135,7 +136,7 @@ func runGo(ctx context.Context, target string, opts *goOptions) error {
 		}
 
 		// Try interactive picker if TTY available
-		if pickerPath, err := launchFestivalPicker(festivalsDir); err != nil {
+		if pickerPath, err := launchFestivalPicker(ctx, festivalsDir); err != nil {
 			return err
 		} else if pickerPath != "" {
 			outputPath(pickerPath, opts)
@@ -466,57 +467,19 @@ func resolveSequenceShortcut(shortcut, phaseDir string) (string, error) {
 
 // launchFestivalPicker shows an interactive fuzzy picker for all festivals.
 // Returns the selected path, or empty string if cancelled or not available.
-func launchFestivalPicker(festivalsDir string) (string, error) {
-	stdinIsTTY := term.IsTerminal(int(os.Stdin.Fd()))
-	stderrIsTTY := term.IsTerminal(int(os.Stderr.Fd()))
-	if !stdinIsTTY || !stderrIsTTY {
-		return "", nil
-	}
-
-	items := collectPickerItems(festivalsDir)
-	if len(items) == 0 {
-		return "", nil
-	}
-
-	selected, err := picker.Run(items, navigation.Score)
-	if err != nil {
-		return "", errors.Wrap(err, "running festival picker")
-	}
-	if selected == nil {
-		return "", nil
-	}
-
-	return selected.Value, nil
+func launchFestivalPicker(ctx context.Context, festivalsDir string) (string, error) {
+	return sharedcmd.PickFestivalPath(ctx, festivalsDir, sharedcmd.FestivalPickerOptions{
+		IncludeStatusDirectories:           true,
+		IncludeUnmarkedFestivalDirectories: true,
+	})
 }
 
 // collectPickerItems gathers all festivals and status directories as picker items.
 func collectPickerItems(festivalsDir string) []picker.Item {
-	var items []picker.Item
-
-	for _, status := range id.StatusDirectories {
-		statusPath := filepath.Join(festivalsDir, status)
-		entries, err := os.ReadDir(statusPath)
-		if err != nil {
-			continue
-		}
-
-		items = append(items, picker.Item{
-			Name:  fmt.Sprintf("[%s]/", status),
-			Value: statusPath,
-		})
-
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-			items = append(items, picker.Item{
-				Name:  fmt.Sprintf("[%s] %s", status, entry.Name()),
-				Value: filepath.Join(statusPath, entry.Name()),
-			})
-		}
-	}
-
-	return items
+	return sharedcmd.FestivalPickerItems(festivalsDir, sharedcmd.FestivalPickerOptions{
+		IncludeStatusDirectories:           true,
+		IncludeUnmarkedFestivalDirectories: true,
+	})
 }
 
 // showFuzzyPicker displays an interactive picker for ambiguous matches.
