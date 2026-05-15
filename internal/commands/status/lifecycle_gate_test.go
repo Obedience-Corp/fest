@@ -17,10 +17,10 @@ import (
 // the phase frontmatter without ever consulting the lifecycle gate.
 func TestPhaseStatusSetGate(t *testing.T) {
 	cases := []struct {
-		name         string
-		status       string
-		phaseType    string
-		expectBlock  bool
+		name        string
+		status      string
+		phaseType   string
+		expectBlock bool
 	}{
 		{name: "planning_blocks_impl_phase_completed", status: "planning", phaseType: "implementation", expectBlock: true},
 		{name: "ready_blocks_review_phase_completed", status: "ready", phaseType: "review", expectBlock: true},

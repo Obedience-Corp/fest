@@ -73,6 +73,10 @@ Examples:
 		newRejectCmd(),
 		newResetCmd(),
 		newShowCmd(),
+		// Standalone workflow lifecycle (introduced in WW0001/004.01).
+		newInitCmd(),
+		newStartCmd(),
+		newRunsCmd(),
 	)
 
 	return cmd

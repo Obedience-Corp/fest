@@ -48,13 +48,13 @@ type Execute struct {
 
 // Repository contains repository information
 type Repository struct {
-	URL      string `json:"url"`
-	Branch   string `json:"branch"`               // Legacy, still honored
-	Path     string `json:"path"`
+	URL    string `json:"url"`
+	Branch string `json:"branch"` // Legacy, still honored
+	Path   string `json:"path"`
 	// TODO: consider using SyncMode type directly once config validation is added
 	SyncMode string `json:"sync_mode,omitempty"` // "channel" | "branch" | "tag"
 	Channel  string `json:"channel,omitempty"`   // "stable" | "dev" | ""
-	Ref      string `json:"ref,omitempty"`        // Exact ref for tag/branch mode
+	Ref      string `json:"ref,omitempty"`       // Exact ref for tag/branch mode
 }
 
 // Local contains local path configuration

@@ -12,8 +12,8 @@ import (
 	"github.com/Obedience-Corp/fest/internal/markers"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
-	"github.com/spf13/cobra"
 	"github.com/Obedience-Corp/fest/internal/yamlutil"
+	"github.com/spf13/cobra"
 )
 
 // ScaffoldMeta contains metadata about the scaffold output

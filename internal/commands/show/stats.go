@@ -16,11 +16,11 @@ import (
 
 // FestivalInfo holds information about a festival.
 type FestivalInfo struct {
-	ID           string    `json:"id"`                      // Directory-based ID (e.g., "my-project_GU0001")
-	MetadataID   string    `json:"metadata_id,omitempty"`   // ID from fest.yaml metadata (e.g., "GU0001")
-	Name         string    `json:"name"`                    // Directory name (used for linking)
-	MetadataName string    `json:"metadata_name,omitempty"` // Name from fest.yaml metadata (clean name without ID)
-	Status       string    `json:"status"`
+	ID           string `json:"id"`                      // Directory-based ID (e.g., "my-project_GU0001")
+	MetadataID   string `json:"metadata_id,omitempty"`   // ID from fest.yaml metadata (e.g., "GU0001")
+	Name         string `json:"name"`                    // Directory name (used for linking)
+	MetadataName string `json:"metadata_name,omitempty"` // Name from fest.yaml metadata (clean name without ID)
+	Status       string `json:"status"`
 	// StatusDate is the dated bucket a festival lives under when it is in a
 	// dungeon substatus. Format is the raw on-disk directory name
 	// (YYYY-MM-DD for new entries, or YYYY-MM for legacy entries).
