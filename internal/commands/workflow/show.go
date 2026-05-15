@@ -211,7 +211,11 @@ func runStandaloneShow(ctx context.Context, res *standalone.Result, stepNum int)
 		if res.Mode == standalone.ModeTracked {
 			store := localstore.Open(res.RuntimeDir, res.WorkflowDoc)
 			state, lerr := store.LoadActive(ctx)
-			if lerr == nil && state != nil && state.CurrentStep > 0 {
+			if lerr != nil {
+				return festerrors.Wrap(lerr, "loading active run state").
+					WithHint("the .workflow/ runtime is unreadable; resolve the underlying I/O error or rerun `fest workflow init` after manual cleanup")
+			}
+			if state != nil && state.CurrentStep > 0 {
 				current = state.CurrentStep
 			}
 		}

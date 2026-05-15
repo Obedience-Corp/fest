@@ -392,6 +392,54 @@ func TestStore_ReplayOverridesStaleSummary(t *testing.T) {
 	}
 }
 
+func TestStore_ReplayEventsScannerErrorSurfaces(t *testing.T) {
+	s, _ := newTestStore(t)
+	ctx := context.Background()
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
+		t.Fatal(err)
+	}
+	runID, _ := s.StartRun(ctx, "")
+	eventsPath := filepath.Join(s.root, "runs", runID, "progress_events.jsonl")
+
+	huge := make([]byte, 4*1024*1024)
+	for i := range huge {
+		huge[i] = 'x'
+	}
+	huge = append(huge, '\n')
+	if err := os.WriteFile(eventsPath, huge, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := s.LoadActive(ctx)
+	if err == nil {
+		t.Fatal("expected scanner error to surface from LoadActive")
+	}
+	if !strings.Contains(err.Error(), "scanning event stream") {
+		t.Errorf("expected wrapped scanner error, got: %v", err)
+	}
+}
+
+func TestStore_ReplayEventsMissingFileDegradesToCache(t *testing.T) {
+	s, _ := newTestStore(t)
+	ctx := context.Background()
+	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
+		t.Fatal(err)
+	}
+	runID, _ := s.StartRun(ctx, "")
+	eventsPath := filepath.Join(s.root, "runs", runID, "progress_events.jsonl")
+	if err := os.Remove(eventsPath); err != nil {
+		t.Fatal(err)
+	}
+
+	state, err := s.LoadActive(ctx)
+	if err != nil {
+		t.Fatalf("missing event stream should not error: %v", err)
+	}
+	if state == nil {
+		t.Fatal("expected non-nil state from cached summary")
+	}
+}
+
 func TestStore_DocHashChange(t *testing.T) {
 	s, root := newTestStore(t)
 	ctx := context.Background()

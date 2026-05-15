@@ -64,6 +64,10 @@ func runInit(ctx context.Context) error {
 			WithHint("Author a WORKFLOW.md before running init")
 	}
 
+	if err := standalone.ValidateWorkflowDoc(ctx, doc); err != nil {
+		return err
+	}
+
 	workflowID := initWorkflowID
 	if workflowID == "" {
 		slug := workflow.SanitizeBasenameAsSlug(filepath.Base(cwd))

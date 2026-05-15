@@ -87,4 +87,17 @@ Do the second thing.
 		require.Error(t, err, "expected non-zero exit for invalid workflow_id")
 		require.Contains(t, out, "invalid workflow_id")
 	})
+
+	t.Run("InitRefusesUnparseableWorkflowDoc", func(t *testing.T) {
+		emptyDir := "/tmp/standalone-empty"
+		_, _ = container.Exec("rm", "-rf", emptyDir)
+		require.NoError(t, container.WriteFile(emptyDir+"/WORKFLOW.md", "# No steps here\n\nJust prose.\n"))
+
+		out, err := container.RunFestInDir(emptyDir, "workflow", "init")
+		require.Error(t, err, "expected non-zero exit for WORKFLOW.md with no parseable steps")
+		require.Contains(t, out, "no parseable steps")
+
+		exists, _ := container.CheckFileExists(emptyDir + "/.workflow/workflow.yaml")
+		require.False(t, exists, ".workflow/ must not be created when WORKFLOW.md is invalid")
+	})
 }

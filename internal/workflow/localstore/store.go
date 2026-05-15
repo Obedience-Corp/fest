@@ -338,7 +338,10 @@ func (s *Store) LoadActive(ctx context.Context) (*RunState, error) {
 		return nil, festerrors.Parse("parsing run manifest", err)
 	}
 
-	state := replayEvents(filepath.Join(runDir, eventsName), rm)
+	state, replayErr := replayEvents(filepath.Join(runDir, eventsName), rm)
+	if replayErr != nil {
+		return nil, festerrors.Wrap(replayErr, "replaying event stream")
+	}
 
 	// Repair stale summary on disk if it disagrees with replay.
 	if rm.Summary.CurrentStep != state.CurrentStep ||
@@ -417,8 +420,18 @@ func (s *Store) ListRuns(ctx context.Context) ([]RunSummaryView, error) {
 }
 
 // replayEvents walks the event stream and derives current state.
-// Returns zero values for missing or unreadable events.
-func replayEvents(eventsPath string, cache RunManifest) *RunState {
+//
+// The event stream is the authoritative source of run state, so I/O failures
+// on the events file must surface, not silently degrade to "no progress".
+// Distinguishes between:
+//   - missing file (run never appended events): returns cached summary, no error
+//   - readable file with parseable lines: returns derived state
+//   - permission/IO/scanner errors: returns the error so LoadActive can refuse
+//     to repair from corrupt input
+//
+// Malformed JSON lines are intentionally tolerated (skipped) for legacy
+// hand-edited streams.
+func replayEvents(eventsPath string, cache RunManifest) (*RunState, error) {
 	state := &RunState{
 		Status:         "active",
 		CurrentStep:    cache.Summary.CurrentStep,
@@ -427,11 +440,13 @@ func replayEvents(eventsPath string, cache RunManifest) *RunState {
 	}
 	f, err := os.Open(eventsPath)
 	if err != nil {
-		return state
+		if errors.Is(err, os.ErrNotExist) {
+			return state, nil
+		}
+		return nil, festerrors.IO("opening event stream", err)
 	}
 	defer func() { _ = f.Close() }()
 
-	// Replay overrides cache when events exist.
 	state.CurrentStep = 0
 	state.CompletedSteps = 0
 	state.Blocked = false
@@ -473,10 +488,13 @@ func replayEvents(eventsPath string, cache RunManifest) *RunState {
 			state.Status = "abandoned"
 		}
 	}
+	if err := scanner.Err(); err != nil {
+		return nil, festerrors.IO("scanning event stream", err)
+	}
 	if state.Blocked && state.Status == "active" {
 		state.Status = "blocked"
 	}
-	return state
+	return state, nil
 }
 
 func writeYAML(path string, v any) error {

@@ -128,3 +128,37 @@ func TestStandaloneAdvance_RejectsEmptyWorkflow(t *testing.T) {
 	exists, _ := container.CheckDirExists(dir + "/.workflow")
 	require.False(t, exists, ".workflow/ must not be created on validation failure (D030 #7)")
 }
+
+// TestStandaloneAdvance_RejectsBlockingCheckpoint pins #173 review feedback:
+// standalone runs do not yet implement approve/reject/reset, so a blocking
+// checkpoint reached by tracked-mode advance must fail closed instead of
+// silently appending wf_step_start and pointing the user toward
+// festival-only commands.
+func TestStandaloneAdvance_RejectsBlockingCheckpoint(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	container := GetSharedContainer(t)
+	const dir = "/tmp/standalone-checkpoint"
+	_, err := container.Exec("rm", "-rf", dir)
+	require.NoError(t, err)
+
+	const workflowMD = "## Step 1: First\n\n**Goal:** Do.\n\n**Output:** Done.\n\n## Step 2: Second\n\n**Goal:** Approve.\n\n**Output:** Approved.\n\n**Checkpoint:** USER APPROVAL REQUIRED\n\n## Step 3: Third\n\n**Goal:** Finish.\n"
+	require.NoError(t, container.WriteFile(dir+"/WORKFLOW.md", workflowMD))
+
+	bootstrapOut, err := container.RunFestInDir(dir, "workflow", "advance")
+	require.NoError(t, err, "bootstrap (step 1, no checkpoint) should succeed: %s", bootstrapOut)
+
+	checkpointOut, checkpointErr := container.RunFestInDir(dir, "workflow", "advance")
+	require.Error(t, checkpointErr,
+		"advance into step 2's blocking checkpoint must refuse cleanly: %s", checkpointOut)
+	require.Contains(t, checkpointOut, "blocking checkpoints",
+		"error should explain standalone limitation, got: %s", checkpointOut)
+
+	retryOut, retryErr := container.RunFestInDir(dir, "workflow", "advance")
+	require.Error(t, retryErr,
+		"second advance must remain at the checkpoint, not silently progress: %s", retryOut)
+	require.Contains(t, retryOut, "blocking checkpoints",
+		"second attempt should hit the same checkpoint, got: %s", retryOut)
+}

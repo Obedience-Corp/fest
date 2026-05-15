@@ -91,15 +91,17 @@ func runAdvanceTracked(ctx context.Context, res *standalone.Result) error {
 	step := steps[actionable-1]
 
 	if step.Checkpoint.IsBlocking() {
-		if needStart {
-			if err := store.AppendEvent(ctx, localstore.Event{EventType: localstore.EventStepStart}); err != nil {
-				return err
-			}
-		}
-		fmt.Printf("%s Step %d: %s — work complete\n", ui.Success("✓"), actionable, step.Name)
-		fmt.Printf("%s CHECKPOINT: awaiting approval\n", ui.Warning("⚠"))
-		fmt.Println("approve: " + ui.Accent("fest workflow approve"))
-		return nil
+		// Standalone mode does not yet implement approve/reject/reset for the
+		// .workflow/ event stream — those commands are festival-scoped. Rather
+		// than appending wf_step_start and routing the user toward a command
+		// that cannot mutate this runtime, refuse the advance up-front and
+		// keep .workflow/ state consistent. No event is written, so LoadActive
+		// continues to report the run as advanceable once the WORKFLOW.md is
+		// adjusted.
+		return festerrors.New("standalone workflows do not support blocking checkpoints").
+			WithField("step", actionable).
+			WithField("step_name", step.Name).
+			WithHint("remove the blocking checkpoint from this step in WORKFLOW.md, or run this workflow inside a festival phase where 'fest workflow approve' is available")
 	}
 
 	if needStart {
