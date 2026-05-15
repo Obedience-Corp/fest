@@ -3,15 +3,126 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/chaining"
+	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/workflow/localstore"
+	"github.com/Obedience-Corp/fest/internal/workflow/standalone"
 	"github.com/spf13/cobra"
 )
+
+// runAdvanceBootstrap converts an anonymous WORKFLOW.md into tracked mode
+// (D007 — fest writes only .workflow/, never .workitem). After bootstrap it
+// appends a start+done pair so step 1 reads as completed.
+func runAdvanceBootstrap(ctx context.Context, res *standalone.Result) error {
+	if _, err := EnsureTracked(ctx, res, BootstrapOptions{}); err != nil {
+		return err
+	}
+	store := localstore.Open(filepath.Join(filepath.Dir(res.WorkflowDoc), ".workflow"), res.WorkflowDoc)
+	if err := store.AppendEvent(ctx, localstore.Event{EventType: localstore.EventStepStart}); err != nil {
+		return err
+	}
+	if err := store.AppendEvent(ctx, localstore.Event{EventType: localstore.EventStepDone}); err != nil {
+		return err
+	}
+	fmt.Println(ui.Success("✓ Bootstrapped tracked workflow and advanced step 1"))
+	fmt.Println("next: " + ui.Accent("fest next"))
+	return nil
+}
+
+// runAdvanceTracked advances a standalone tracked workflow by one step. It
+// honors blocked state and blocking checkpoints with the same semantics as
+// the festival navigator. Closes D030 finding #5 — previously this code path
+// fell through to getWorkflowNavigator and failed.
+//
+// Step selection mirrors pickRenderStep so `fest workflow advance` operates
+// on the same step `fest next` shows. After bootstrap (start+done for step 1)
+// state.CurrentStep == state.CompletedSteps == 1, and the actionable step is
+// state.CompletedSteps + 1. When a step is in flight (CurrentStep > CompletedSteps)
+// only a Done event is appended; otherwise a Start+Done pair is appended for
+// the next unstarted step.
+func runAdvanceTracked(ctx context.Context, res *standalone.Result) error {
+	store := localstore.Open(res.RuntimeDir, res.WorkflowDoc)
+	state, err := store.LoadActive(ctx)
+	if err != nil {
+		return err
+	}
+	if state == nil {
+		return festerrors.NotFound("no active run").
+			WithHint("run 'fest workflow start' first")
+	}
+	if state.Blocked {
+		return festerrors.New("step is blocked").
+			WithField("step", state.CurrentStep).
+			WithHint("use 'fest workflow approve' or 'fest workflow reset'")
+	}
+
+	steps, parseErr := wf.NewParser().Parse(ctx, res.WorkflowDoc)
+	if parseErr != nil {
+		return festerrors.Wrap(parseErr, "parsing WORKFLOW.md")
+	}
+
+	actionable := state.CurrentStep
+	needStart := false
+	if state.CurrentStep <= state.CompletedSteps {
+		actionable = state.CompletedSteps + 1
+		needStart = true
+	}
+
+	if actionable > len(steps) {
+		if err := store.AppendEvent(ctx, localstore.Event{EventType: localstore.EventWorkflowRunCompleted}); err != nil {
+			return err
+		}
+		fmt.Println(ui.Success("🎉 Workflow complete!"))
+		return nil
+	}
+	if actionable < 1 {
+		return festerrors.New("invalid step index").
+			WithField("actionable_step", actionable).
+			WithField("total_steps", len(steps))
+	}
+	step := steps[actionable-1]
+
+	if step.Checkpoint.IsBlocking() {
+		if needStart {
+			if err := store.AppendEvent(ctx, localstore.Event{EventType: localstore.EventStepStart}); err != nil {
+				return err
+			}
+		}
+		fmt.Printf("%s Step %d: %s — work complete\n", ui.Success("✓"), actionable, step.Name)
+		fmt.Printf("%s CHECKPOINT: awaiting approval\n", ui.Warning("⚠"))
+		fmt.Println("approve: " + ui.Accent("fest workflow approve"))
+		return nil
+	}
+
+	if needStart {
+		if err := store.AppendEvent(ctx, localstore.Event{EventType: localstore.EventStepStart}); err != nil {
+			return err
+		}
+	}
+	if err := store.AppendEvent(ctx, localstore.Event{EventType: localstore.EventStepDone}); err != nil {
+		return err
+	}
+	fmt.Printf("%s Step %d: %s completed\n", ui.Success("✓"), actionable, step.Name)
+
+	if actionable >= len(steps) {
+		if err := store.AppendEvent(ctx, localstore.Event{EventType: localstore.EventWorkflowRunCompleted}); err != nil {
+			return err
+		}
+		fmt.Println(ui.Success("🎉 Workflow complete!"))
+		return nil
+	}
+
+	fmt.Println("next: " + ui.Accent("fest next"))
+	return nil
+}
 
 func newAdvanceCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -26,7 +137,9 @@ This command:
 
 Note: If the current step has a blocking checkpoint, use 'fest workflow approve' instead.`,
 		Annotations: map[string]string{
-			"scope": string(scope.Festival),
+			// scope.Global so runAdvance can route to anonymous-bootstrap
+			// or tracked standalone runtimes outside a festival.
+			"scope": string(scope.Global),
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runAdvance(cmd.Context())
@@ -37,6 +150,17 @@ Note: If the current step has a blocking checkpoint, use 'fest workflow approve'
 }
 
 func runAdvance(ctx context.Context) error {
+	cwd, _ := os.Getwd()
+	if res, resErr := standalone.Resolve(ctx, cwd); resErr == nil {
+		switch res.Mode {
+		case standalone.ModeAnonymous:
+			return runAdvanceBootstrap(ctx, res)
+		case standalone.ModeTracked:
+			return runAdvanceTracked(ctx, res)
+		}
+		// ModeFestival or ModeNone: fall through to festival navigator.
+	}
+
 	nav, err := getWorkflowNavigator(ctx)
 	if err != nil {
 		return err

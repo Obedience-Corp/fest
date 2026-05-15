@@ -3,12 +3,16 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
+	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/workflow/localstore"
+	"github.com/Obedience-Corp/fest/internal/workflow/standalone"
 	"github.com/spf13/cobra"
 )
 
@@ -28,7 +32,9 @@ Shows:
   - Expected output
   - Checkpoint type if applicable`,
 		Annotations: map[string]string{
-			"scope": string(scope.Festival),
+			// scope.Global so runShow can route to standalone tracked or
+			// anonymous workflows before middleware demands a festival.
+			"scope": string(scope.Global),
 		},
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -46,6 +52,17 @@ Shows:
 }
 
 func runShow(ctx context.Context, stepNum int) error {
+	// Standalone-resolver integration. Festival context always wins; tracked
+	// and anonymous standalone modes route to runStandaloneShow.
+	cwd, _ := os.Getwd()
+	if res, resErr := standalone.Resolve(ctx, cwd); resErr == nil {
+		switch res.Mode {
+		case standalone.ModeTracked, standalone.ModeAnonymous:
+			return runStandaloneShow(ctx, res, stepNum)
+		}
+		// ModeFestival or ModeNone: fall through to existing festival flow.
+	}
+
 	nav, err := getWorkflowNavigator(ctx)
 	if err != nil {
 		return err
@@ -175,4 +192,56 @@ func formatStepStatus(status wf.StepStatus) string {
 	default:
 		return string(status)
 	}
+}
+
+// runStandaloneShow renders the current step of a standalone workflow without
+// requiring a festival context. Anonymous mode renders step 1.
+func runStandaloneShow(ctx context.Context, res *standalone.Result, stepNum int) error {
+	parser := wf.NewParser()
+	steps, err := parser.Parse(ctx, res.WorkflowDoc)
+	if err != nil {
+		return festerrors.Wrap(err, "parsing WORKFLOW.md")
+	}
+	if len(steps) == 0 {
+		return festerrors.New("WORKFLOW.md has no parseable steps")
+	}
+
+	current := stepNum
+	if current == 0 {
+		if res.Mode == standalone.ModeTracked {
+			store := localstore.Open(res.RuntimeDir, res.WorkflowDoc)
+			state, lerr := store.LoadActive(ctx)
+			if lerr == nil && state != nil && state.CurrentStep > 0 {
+				current = state.CurrentStep
+			}
+		}
+		if current == 0 {
+			current = 1
+		}
+	}
+	if current < 1 || current > len(steps) {
+		return festerrors.New("step out of range").WithField("step", current).WithField("total", len(steps))
+	}
+
+	s := steps[current-1]
+	fmt.Printf("Step %d of %d: %s\n", current, len(steps), s.Name)
+	if s.Goal != "" {
+		fmt.Printf("Goal: %s\n", s.Goal)
+	}
+	if len(s.Actions) > 0 {
+		fmt.Println("Actions:")
+		for i, a := range s.Actions {
+			fmt.Printf("  %d. %s\n", i+1, a)
+		}
+	}
+	if s.Output != "" {
+		fmt.Printf("Output: %s\n", s.Output)
+	}
+	if s.Checkpoint != "" {
+		fmt.Printf("Checkpoint: %s\n", s.Checkpoint)
+	}
+	if res.Mode == standalone.ModeAnonymous {
+		fmt.Println("(anonymous; first mutation will bootstrap to tracked mode)")
+	}
+	return nil
 }

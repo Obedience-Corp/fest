@@ -3,6 +3,7 @@ package next
 
 import (
 	"context"
+	jsonpkg "encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -16,12 +17,15 @@ import (
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/guidance/selection"
+	wfparser "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/pathutil"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/validator"
+	"github.com/Obedience-Corp/fest/internal/workflow/localstore"
+	"github.com/Obedience-Corp/fest/internal/workflow/standalone"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 
@@ -54,7 +58,9 @@ func NewNextCommand() *cobra.Command {
 		Use:   "next",
 		Short: "Find the next task to work on",
 		Annotations: map[string]string{
-			"scope": string(scope.Festival),
+			// scope.Global so the cobra middleware does not pre-require a
+			// festival; runNext does its own festival vs standalone resolution.
+			"scope": string(scope.Global),
 		},
 		Long: `Determine the next task to work on based on dependencies and progress.
 
@@ -118,9 +124,32 @@ func runNext(cmd *cobra.Command, args []string) error {
 	// Context is shown by default, --no-context disables it
 	showInlineContext := !noInlineContext
 
+	// Snapshot cobra flag globals into a RenderOptions struct so render
+	// functions receive their configuration by parameter rather than reading
+	// package-level state. Without this, tests that toggle the flags inside
+	// goroutines (or under t.Parallel) race.
+	opts := RenderOptions{
+		JSON:       jsonOutput,
+		Short:      shortOutput,
+		CD:         cdOutput,
+		Path:       pathFlag,
+		ProjectDir: projectDirFlag,
+		Verbose:    verboseOutput,
+		NoContext:  noInlineContext,
+	}
+
 	// Resolve festival path (supports linked festivals via fest link)
 	festivalPath, err := shared.ResolveFestivalPath(cwd, "")
 	if err != nil {
+		// No festival context. Try standalone workflow resolution (WW0001/004.02).
+		if res, resErr := standalone.Resolve(ctx, cwd); resErr == nil {
+			switch res.Mode {
+			case standalone.ModeTracked:
+				return runStandaloneNext(ctx, res, opts)
+			case standalone.ModeAnonymous:
+				return runAnonymousNext(ctx, res, opts)
+			}
+		}
 		return errors.Wrap(err, "not inside a festival")
 	}
 
@@ -464,4 +493,234 @@ func mapChainFestivalStatus(s string) chainpkg.FestivalStatus {
 	default:
 		return chainpkg.FestivalPlanning
 	}
+}
+
+// StandaloneView is the JSON-friendly view of a standalone tracked workflow.
+type StandaloneView struct {
+	Mode           string   `json:"mode"`
+	WorkflowDoc    string   `json:"workflow_doc"`
+	RuntimeDir     string   `json:"runtime_dir,omitempty"`
+	RunID          string   `json:"run_id,omitempty"`
+	RunStatus      string   `json:"run_status,omitempty"`
+	CurrentStep    int      `json:"current_step,omitempty"`
+	TotalSteps     int      `json:"total_steps,omitempty"`
+	StepName       string   `json:"step_name,omitempty"`
+	StepGoal       string   `json:"step_goal,omitempty"`
+	StepActions    []string `json:"step_actions,omitempty"`
+	StepCheckpoint string   `json:"step_checkpoint,omitempty"`
+	Blocked        bool     `json:"blocked,omitempty"`
+	DocHashChanged bool     `json:"doc_hash_changed,omitempty"`
+	Completion     string   `json:"completion_command,omitempty"`
+	RenderMode     string   `json:"render_mode,omitempty"` // "in_progress" | "next_up" | "complete"
+}
+
+// pickRenderStep selects which step runStandaloneNext should display. Returns
+// the 1-indexed step number plus a mode describing what the user is looking
+// at. The localstore replay distinguishes "started but not done" (CurrentStep
+// > CompletedSteps) from "last done, next not yet started" (equal). Without
+// this, post-bootstrap rendering shows the just-completed step (D030 #6).
+func pickRenderStep(state *localstore.RunState, totalSteps int) (int, string) {
+	if totalSteps == 0 {
+		return 0, "no_run"
+	}
+	if state.Status == "completed" || state.CompletedSteps >= totalSteps {
+		return totalSteps, "complete"
+	}
+	if state.CurrentStep > state.CompletedSteps {
+		return state.CurrentStep, "in_progress"
+	}
+	next := state.CompletedSteps + 1
+	if next > totalSteps {
+		return totalSteps, "complete"
+	}
+	if next < 1 {
+		return 1, "next_up"
+	}
+	return next, "next_up"
+}
+
+// RenderOptions configures rendering for standalone / anonymous next output.
+// Snapshotted from cobra flag globals once at runNext entry; render functions
+// only read this struct, not package state.
+type RenderOptions struct {
+	JSON       bool
+	Short      bool
+	CD         bool
+	Path       bool
+	ProjectDir bool
+	Verbose    bool
+	NoContext  bool
+}
+
+func (o RenderOptions) showInlineContext() bool { return !o.NoContext }
+
+// runStandaloneNext renders the next step for a tracked standalone workflow.
+func runStandaloneNext(ctx context.Context, res *standalone.Result, opts RenderOptions) error {
+	store := localstore.Open(res.RuntimeDir, res.WorkflowDoc)
+	state, err := store.LoadActive(ctx)
+	if err != nil {
+		return err
+	}
+	if state == nil {
+		return errors.NotFound("no active run").
+			WithHint("Run 'fest workflow start' to begin")
+	}
+
+	steps, parseErr := wfparser.NewParser().Parse(ctx, res.WorkflowDoc)
+	if parseErr != nil {
+		return errors.Wrap(parseErr, "parsing WORKFLOW.md")
+	}
+
+	// Pick the step to render. Distinguishes "in progress" (start without
+	// matching done) from "next up" (last step completed, next not started)
+	// so post-bootstrap views don't show the just-completed step. Closes
+	// D030 finding #6.
+	renderIdx, renderMode := pickRenderStep(state, len(steps))
+
+	view := StandaloneView{
+		Mode:           "standalone-tracked",
+		WorkflowDoc:    res.WorkflowDoc,
+		RuntimeDir:     res.RuntimeDir,
+		RunID:          state.RunID,
+		RunStatus:      state.Status,
+		CurrentStep:    renderIdx,
+		TotalSteps:     len(steps),
+		Blocked:        state.Blocked,
+		DocHashChanged: state.DocHashChanged,
+		Completion:     "fest workflow advance",
+		RenderMode:     renderMode,
+	}
+	if renderIdx >= 1 && renderIdx <= len(steps) {
+		s := steps[renderIdx-1]
+		view.StepName = s.Name
+		view.StepGoal = s.Goal
+		view.StepActions = s.Actions
+		view.StepCheckpoint = string(s.Checkpoint)
+	}
+
+	if opts.ProjectDir {
+		fmt.Println(filepath.Dir(res.WorkflowDoc))
+		return nil
+	}
+	if opts.Path {
+		rel, _ := filepath.Rel(res.StartDir, res.WorkflowDoc)
+		fmt.Println(rel)
+		return nil
+	}
+	if opts.CD {
+		fmt.Println(filepath.Dir(res.WorkflowDoc))
+		return nil
+	}
+	if opts.Short {
+		fmt.Printf("%s step %d/%d (%s)\n", view.WorkflowDoc, view.CurrentStep, view.TotalSteps, view.RunStatus)
+		return nil
+	}
+	if opts.JSON {
+		data, jerr := jsonMarshalView(view)
+		if jerr != nil {
+			return errors.Parse("formatting JSON", jerr)
+		}
+		fmt.Println(string(data))
+		return nil
+	}
+
+	fmt.Println("STANDALONE WORKFLOW")
+	fmt.Println("───────────────────")
+	fmt.Printf("Workflow doc: %s\n", view.WorkflowDoc)
+	fmt.Printf("Run: %s (%s)\n", view.RunID, view.RunStatus)
+	fmt.Printf("Step %d of %d", view.CurrentStep, view.TotalSteps)
+	if view.Blocked {
+		fmt.Print(" (blocked)")
+	}
+	fmt.Println()
+	if view.StepName != "" {
+		fmt.Printf("\n%s\n", view.StepName)
+		if opts.showInlineContext() && view.StepGoal != "" {
+			fmt.Printf("Goal: %s\n", view.StepGoal)
+		}
+		if opts.showInlineContext() && len(view.StepActions) > 0 {
+			fmt.Println("Actions:")
+			for i, a := range view.StepActions {
+				fmt.Printf("  %d. %s\n", i+1, a)
+			}
+		}
+	}
+	if view.DocHashChanged {
+		fmt.Println("\n⚠ WORKFLOW.md has changed since this run started")
+	}
+	fmt.Printf("\nWhen step complete: %s\n", view.Completion)
+	return nil
+}
+
+func jsonMarshalView(v StandaloneView) ([]byte, error) {
+	return jsonpkg.MarshalIndent(v, "", "  ")
+}
+
+// runAnonymousNext renders step 1 of a WORKFLOW.md that has no .workflow/
+// runtime yet. Pure read; creates no files. First mutation (fest workflow
+// advance) will bootstrap to tracked mode.
+func runAnonymousNext(ctx context.Context, res *standalone.Result, opts RenderOptions) error {
+	steps, parseErr := wfparser.NewParser().Parse(ctx, res.WorkflowDoc)
+	if parseErr != nil {
+		return errors.Wrap(parseErr, "parsing WORKFLOW.md")
+	}
+	if len(steps) == 0 {
+		return errors.New("WORKFLOW.md has no parseable steps").
+			WithField("workflow_doc", res.WorkflowDoc).
+			WithHint("Add at least one '## Step 1: NAME' header")
+	}
+
+	view := StandaloneView{
+		Mode:        "standalone-anonymous",
+		WorkflowDoc: res.WorkflowDoc,
+		RunStatus:   "not-started",
+		CurrentStep: 1,
+		TotalSteps:  len(steps),
+		Completion:  "fest workflow advance",
+	}
+	s := steps[0]
+	view.StepName = s.Name
+	view.StepGoal = s.Goal
+	view.StepActions = s.Actions
+	view.StepCheckpoint = string(s.Checkpoint)
+
+	if opts.ProjectDir || opts.CD {
+		fmt.Println(filepath.Dir(res.WorkflowDoc))
+		return nil
+	}
+	if opts.Path {
+		rel, _ := filepath.Rel(res.StartDir, res.WorkflowDoc)
+		fmt.Println(rel)
+		return nil
+	}
+	if opts.Short {
+		fmt.Printf("%s anonymous step 1/%d\n", res.WorkflowDoc, len(steps))
+		return nil
+	}
+	if opts.JSON {
+		data, jerr := jsonMarshalView(view)
+		if jerr != nil {
+			return errors.Parse("formatting JSON", jerr)
+		}
+		fmt.Println(string(data))
+		return nil
+	}
+
+	fmt.Println("STANDALONE WORKFLOW (anonymous)")
+	fmt.Println("───────────────────────────────")
+	fmt.Printf("Workflow doc: %s\n", res.WorkflowDoc)
+	fmt.Printf("Status: not-started\n")
+	fmt.Printf("Step 1 of %d\n", len(steps))
+	fmt.Printf("\n%s\n", view.StepName)
+	if opts.showInlineContext() && view.StepGoal != "" {
+		fmt.Printf("Goal: %s\n", view.StepGoal)
+	}
+	if opts.showInlineContext() && len(view.StepActions) > 0 {
+		fmt.Println("Actions:")
+		for i, a := range view.StepActions {
+			fmt.Printf("  %d. %s\n", i+1, a)
+		}
+	}
+	fmt.Printf("\nFirst mutating command (fest workflow advance) will bootstrap a tracked run.\n")
+	return nil
 }
