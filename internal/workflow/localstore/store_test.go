@@ -392,100 +392,11 @@ func TestStore_ReplayOverridesStaleSummary(t *testing.T) {
 	}
 }
 
-func TestStore_ReplayEventsScannerErrorSurfaces(t *testing.T) {
-	s, _ := newTestStore(t)
-	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
-		t.Fatal(err)
-	}
-	runID, _ := s.StartRun(ctx, "")
-	eventsPath := filepath.Join(s.root, "runs", runID, "progress_events.jsonl")
-
-	huge := make([]byte, 4*1024*1024)
-	for i := range huge {
-		huge[i] = 'x'
-	}
-	huge = append(huge, '\n')
-	if err := os.WriteFile(eventsPath, huge, 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	_, err := s.LoadActive(ctx)
-	if err == nil {
-		t.Fatal("expected scanner error to surface from LoadActive")
-	}
-	if !strings.Contains(err.Error(), "scanning event stream") {
-		t.Errorf("expected wrapped scanner error, got: %v", err)
-	}
-}
-
-func TestStore_ReplayEventsMissingFileDegradesToCache(t *testing.T) {
-	s, _ := newTestStore(t)
-	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
-		t.Fatal(err)
-	}
-	runID, _ := s.StartRun(ctx, "")
-	eventsPath := filepath.Join(s.root, "runs", runID, "progress_events.jsonl")
-	if err := os.Remove(eventsPath); err != nil {
-		t.Fatal(err)
-	}
-
-	state, err := s.LoadActive(ctx)
-	if err != nil {
-		t.Fatalf("missing event stream should not error: %v", err)
-	}
-	if state == nil {
-		t.Fatal("expected non-nil state from cached summary")
-	}
-}
-
-func TestStore_StartRunFailsWhenWorkflowDocMissing(t *testing.T) {
-	s, root := newTestStore(t)
-	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := os.Remove(filepath.Join(root, "WORKFLOW.md")); err != nil {
-		t.Fatal(err)
-	}
-
-	runID, err := s.StartRun(ctx, "")
-	if err == nil {
-		t.Fatalf("expected StartRun to fail when WORKFLOW.md is missing, got runID=%q", runID)
-	}
-
-	runsRoot := filepath.Join(s.root, "runs")
-	if entries, _ := os.ReadDir(runsRoot); len(entries) != 0 {
-		t.Errorf("StartRun must not create run dir on hash failure, found %d entries", len(entries))
-	}
-}
-
-func TestStore_StartRunFailsWhenWorkflowDocHasNoSteps(t *testing.T) {
-	s, root := newTestStore(t)
-	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := os.WriteFile(filepath.Join(root, "WORKFLOW.md"), []byte("# Just prose, no steps\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	runID, err := s.StartRun(ctx, "")
-	if err == nil {
-		t.Fatalf("expected StartRun to fail when WORKFLOW.md has no steps, got runID=%q", runID)
-	}
-	if !strings.Contains(err.Error(), "no parseable steps") {
-		t.Errorf("error should mention no parseable steps, got: %v", err)
-	}
-
-	runsRoot := filepath.Join(s.root, "runs")
-	if entries, _ := os.ReadDir(runsRoot); len(entries) != 0 {
-		t.Errorf("StartRun must not create run dir for invalid WORKFLOW.md, found %d entries", len(entries))
-	}
-}
+// Note: regression coverage for replayEvents I/O surfacing and StartRun
+// pre-mutation validation lives in tests/integration/standalone_workflow_test.go
+// (containerized). The .workflow/ runtime mutates the filesystem and the
+// repo rule is to exercise that behavior inside the container harness, not
+// host TempDir.
 
 func TestStore_DocHashChange(t *testing.T) {
 	s, root := newTestStore(t)

@@ -100,4 +100,80 @@ Do the second thing.
 		exists, _ := container.CheckFileExists(emptyDir + "/.workflow/workflow.yaml")
 		require.False(t, exists, ".workflow/ must not be created when WORKFLOW.md is invalid")
 	})
+
+	t.Run("StartRefusesMissingWorkflowDoc", func(t *testing.T) {
+		startDir := "/tmp/standalone-start-missing"
+		_, _ = container.Exec("rm", "-rf", startDir)
+		require.NoError(t, container.WriteFile(startDir+"/WORKFLOW.md", "## Step 1: X\n"))
+
+		out, err := container.RunFestInDir(startDir, "workflow", "init")
+		require.NoError(t, err, "init: %s", out)
+
+		_, err = container.Exec("rm", startDir+"/WORKFLOW.md")
+		require.NoError(t, err)
+
+		out, err = container.RunFestInDir(startDir, "workflow", "start")
+		require.Error(t, err, "start must fail when WORKFLOW.md is missing: %s", out)
+
+		entries, _ := container.ListDirectory(startDir + "/.workflow/runs")
+		require.Empty(t, entries, "no run dir should be created on hash failure: %v", entries)
+	})
+
+	t.Run("StartRefusesUnparseableWorkflowDoc", func(t *testing.T) {
+		startDir := "/tmp/standalone-start-empty"
+		_, _ = container.Exec("rm", "-rf", startDir)
+		require.NoError(t, container.WriteFile(startDir+"/WORKFLOW.md", "## Step 1: X\n"))
+
+		out, err := container.RunFestInDir(startDir, "workflow", "init")
+		require.NoError(t, err, "init: %s", out)
+
+		require.NoError(t, container.WriteFile(startDir+"/WORKFLOW.md", "# No steps here\n"))
+
+		out, err = container.RunFestInDir(startDir, "workflow", "start")
+		require.Error(t, err, "start must fail when WORKFLOW.md has no parseable steps: %s", out)
+		require.Contains(t, out, "no parseable steps")
+
+		entries, _ := container.ListDirectory(startDir + "/.workflow/runs")
+		require.Empty(t, entries, "no run dir should be created for invalid doc: %v", entries)
+	})
+
+	t.Run("ShowToleratesMissingEventStream", func(t *testing.T) {
+		showDir := "/tmp/standalone-show-missing-events"
+		_, _ = container.Exec("rm", "-rf", showDir)
+		require.NoError(t, container.WriteFile(showDir+"/WORKFLOW.md", "## Step 1: X\n\n**Goal:** g\n\n## Step 2: Y\n"))
+
+		out, err := container.RunFestInDir(showDir, "workflow", "init")
+		require.NoError(t, err, "init: %s", out)
+		out, err = container.RunFestInDir(showDir, "workflow", "start")
+		require.NoError(t, err, "start: %s", out)
+
+		_, err = container.Exec("sh", "-c", "rm "+showDir+"/.workflow/runs/*/progress_events.jsonl")
+		require.NoError(t, err)
+
+		out, err = container.RunFestInDir(showDir, "workflow", "show")
+		require.NoError(t, err, "show must degrade to cached summary when events file missing: %s", out)
+		require.Contains(t, out, "Step 1")
+	})
+
+	t.Run("ShowSurfacesCorruptEventStream", func(t *testing.T) {
+		showDir := "/tmp/standalone-show-corrupt-events"
+		_, _ = container.Exec("rm", "-rf", showDir)
+		require.NoError(t, container.WriteFile(showDir+"/WORKFLOW.md", "## Step 1: X\n\n**Goal:** g\n\n## Step 2: Y\n"))
+
+		out, err := container.RunFestInDir(showDir, "workflow", "init")
+		require.NoError(t, err, "init: %s", out)
+		out, err = container.RunFestInDir(showDir, "workflow", "start")
+		require.NoError(t, err, "start: %s", out)
+
+		// Write an oversize single line (no newline) to trip bufio.Scanner's
+		// token-too-long limit; replayEvents must surface scanner.Err()
+		// instead of silently returning empty state.
+		_, err = container.Exec("sh", "-c",
+			"f=$(ls "+showDir+"/.workflow/runs/*/progress_events.jsonl); "+
+				"head -c 4194304 /dev/urandom | tr -d '\\n' > \"$f\"")
+		require.NoError(t, err)
+
+		out, err = container.RunFestInDir(showDir, "workflow", "show")
+		require.Error(t, err, "show must surface scanner error from corrupt event stream: %s", out)
+	})
 }
