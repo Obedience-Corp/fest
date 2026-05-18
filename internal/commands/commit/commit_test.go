@@ -32,6 +32,18 @@ func TestNewCommitCommand_SyncSubmoduleRefDeprecated(t *testing.T) {
 	}
 }
 
+func TestNewCommitCommand_AutoWriteFlag(t *testing.T) {
+	cmd := NewCommitCommand()
+
+	flag := cmd.Flags().Lookup("auto-write")
+	if flag == nil {
+		t.Fatal("--auto-write flag not registered")
+	}
+	if flag.DefValue != "false" {
+		t.Errorf("--auto-write default = %q, want %q", flag.DefValue, "false")
+	}
+}
+
 func TestNewCommitCommand_CampaignTaggingIndependentOfSync(t *testing.T) {
 	cmd := NewCommitCommand()
 

@@ -163,6 +163,42 @@ func TestStandaloneAdvance_RejectsBlockingCheckpoint(t *testing.T) {
 		"second attempt should hit the same checkpoint, got: %s", retryOut)
 }
 
+// TestStandaloneAdvance_BlockedRunHintStaysStandalone pins the tracked
+// blocked-state branch: if an existing .workflow/ event stream is already
+// blocked, standalone mode must not point the user at festival-only
+// approve/reset commands.
+func TestStandaloneAdvance_BlockedRunHintStaysStandalone(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	container := GetSharedContainer(t)
+	const dir = "/tmp/standalone-blocked-run"
+	_, err := container.Exec("rm", "-rf", dir)
+	require.NoError(t, err)
+
+	const workflowMD = "## Step 1: First\n\n**Goal:** Do.\n\n## Step 2: Second\n\n**Goal:** Continue.\n"
+	require.NoError(t, container.WriteFile(dir+"/WORKFLOW.md", workflowMD))
+
+	out, err := container.RunFestInDir(dir, "workflow", "init")
+	require.NoError(t, err, "init: %s", out)
+	out, err = container.RunFestInDir(dir, "workflow", "start")
+	require.NoError(t, err, "start: %s", out)
+
+	_, err = container.Exec("sh", "-c",
+		`f=$(ls `+dir+`/.workflow/runs/*/progress_events.jsonl); `+
+			`printf '%s\n' '{"version":1,"event_id":"evt_manual_start","event_type":"wf_step_start","run_id":"manual","timestamp":"2026-05-18T00:00:00Z"}' >> "$f"; `+
+			`printf '%s\n' '{"version":1,"event_id":"evt_manual_block","event_type":"wf_step_block","run_id":"manual","timestamp":"2026-05-18T00:00:01Z"}' >> "$f"`)
+	require.NoError(t, err)
+
+	out, err = container.RunFestInDir(dir, "workflow", "advance")
+	require.Error(t, err, "advance must reject already-blocked standalone run: %s", out)
+	require.Contains(t, out, "standalone workflow step is blocked")
+	require.Contains(t, out, "standalone workflows do not support approve/reset yet")
+	require.NotContains(t, out, "fest workflow approve")
+	require.NotContains(t, out, "fest workflow reset")
+}
+
 // TestStandaloneAdvance_BootstrapRejectsStep1Checkpoint pins the second
 // re-review finding on #173: anonymous bootstrap previously appended
 // wf_step_start + wf_step_done unconditionally, silently auto-approving a

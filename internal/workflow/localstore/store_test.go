@@ -2,330 +2,66 @@ package localstore
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
 
-const sampleWorkflow = `---
-workflow_version: 1
-workflow_id: wf-sample
-workitem_id: smoke-001
----
-
-## Step 1: ALIGN PROBLEM
-
-**Goal:** Sample.
-
-**Actions:**
-1. Read step.
-
-**Output:** A read step.
-`
-
-func newTestStore(t *testing.T) (*Store, string) {
-	t.Helper()
-	dir := t.TempDir()
-	docPath := filepath.Join(dir, "WORKFLOW.md")
-	if err := os.WriteFile(docPath, []byte(sampleWorkflow), 0o644); err != nil {
-		t.Fatal(err)
+func TestValidateManifest(t *testing.T) {
+	valid := Manifest{
+		Version:    ManifestVersion,
+		Kind:       ManifestKind,
+		WorkflowID: "wf-x",
 	}
-	return Open(filepath.Join(dir, ".workflow"), docPath), dir
-}
-
-func TestStore_InitCreatesManifest(t *testing.T) {
-	s, _ := newTestStore(t)
-	err := s.Init(context.Background(), InitOptions{WorkflowID: "wf-x"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	m, err := s.LoadManifest(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if m.Version != ManifestVersion || m.Kind != ManifestKind || m.WorkflowID != "wf-x" {
-		t.Errorf("unexpected manifest: %+v", m)
-	}
-	if m.DocHash == "" {
-		t.Errorf("DocHash should be populated when workflow doc exists")
-	}
-}
-
-func TestStore_InitRefusesOverwrite(t *testing.T) {
-	s, _ := newTestStore(t)
-	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
-		t.Fatal(err)
-	}
-	err := s.Init(ctx, InitOptions{WorkflowID: "wf-y"})
-	if err == nil {
-		t.Fatal("expected refusal without Force")
-	}
-}
-
-func TestStore_InitForceOverwrites(t *testing.T) {
-	s, _ := newTestStore(t)
-	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-y", Force: true}); err != nil {
-		t.Fatal(err)
-	}
-	m, _ := s.LoadManifest(ctx)
-	if m.WorkflowID != "wf-y" {
-		t.Errorf("expected overwrite to wf-y, got %q", m.WorkflowID)
-	}
-}
-
-func TestStore_StartRunCreatesRunDir(t *testing.T) {
-	s, _ := newTestStore(t)
-	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
-		t.Fatal(err)
-	}
-	runID, err := s.StartRun(ctx, "tester")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.HasPrefix(runID, "run-") {
-		t.Errorf("RunID = %q, want run- prefix", runID)
+	if err := validateManifest(&valid, "/virtual/.workflow/workflow.yaml"); err != nil {
+		t.Fatalf("valid manifest rejected: %v", err)
 	}
 
-	m, _ := s.LoadManifest(ctx)
-	if m.ActiveRunID != runID {
-		t.Errorf("active_run_id not updated, got %q", m.ActiveRunID)
-	}
-	if len(m.Runs) != 1 {
-		t.Errorf("expected 1 run record, got %d", len(m.Runs))
-	}
-
-	runDir := filepath.Join(s.root, "runs", runID)
-	if _, err := os.Stat(filepath.Join(runDir, "run.yaml")); err != nil {
-		t.Errorf("run.yaml missing: %v", err)
-	}
-
-	eventsPath := filepath.Join(runDir, "progress_events.jsonl")
-	raw, err := os.ReadFile(eventsPath)
-	if err != nil {
-		t.Fatalf("events file: %v", err)
-	}
-	if !strings.Contains(string(raw), EventWorkflowRunStarted) {
-		t.Errorf("missing workflow_run_started event: %s", raw)
-	}
-}
-
-func TestStore_SecondStartRefusedWhileActive(t *testing.T) {
-	s, _ := newTestStore(t)
-	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
-		t.Fatal(err)
-	}
-	first, err := s.StartRun(ctx, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	second, err := s.StartRun(ctx, "")
-	if err == nil {
-		t.Fatalf("expected second StartRun to fail while %q is still active, got runID=%q", first, second)
-	}
-	if !strings.Contains(err.Error(), "already active") {
-		t.Errorf("error should mention active run, got: %v", err)
-	}
-
-	// Manifest invariant: exactly one run recorded, still active and addressable.
-	runs, _ := s.ListRuns(ctx)
-	if len(runs) != 1 {
-		t.Fatalf("expected exactly 1 run after refused second start, got %d: %+v", len(runs), runs)
-	}
-	if runs[0].RunID != first {
-		t.Errorf("recorded run id = %q, want %q", runs[0].RunID, first)
-	}
-	if runs[0].Status != "active" {
-		t.Errorf("first run status = %q, want active", runs[0].Status)
-	}
-}
-
-func TestStore_StartRunUniqueWithinSameSecond(t *testing.T) {
-	// Two runs that land in the same UTC second must allocate distinct
-	// directory ids (e.g. base + "-2") so the older run.yaml is preserved.
-	// The single-active-run invariant means we must terminalize the first
-	// run before starting the second; that completion still happens fast
-	// enough that the second start typically lands in the same second.
-	s, _ := newTestStore(t)
-	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
-		t.Fatal(err)
-	}
-	first, err := s.StartRun(ctx, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	firstRunYAMLBefore, err := os.ReadFile(filepath.Join(s.root, "runs", first, "run.yaml"))
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// Complete the first run so the active-run invariant allows the next start.
-	if err := s.AppendEvent(ctx, Event{EventType: EventWorkflowRunCompleted}); err != nil {
-		t.Fatal(err)
-	}
-
-	// Second start within the same second.
-	second, err := s.StartRun(ctx, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if first == second {
-		t.Fatalf("expected distinct run ids on same-second starts, got %q and %q", first, second)
-	}
-
-	// First run's directory and run.yaml must be untouched by the second start
-	// (terminal event only mutates the parent manifest, not the run.yaml itself).
-	firstRunYAMLAfter, err := os.ReadFile(filepath.Join(s.root, "runs", first, "run.yaml"))
-	if err != nil {
-		t.Fatalf("first run.yaml missing after second start: %v", err)
-	}
-	if string(firstRunYAMLBefore) != string(firstRunYAMLAfter) {
-		t.Errorf("first run.yaml was modified by second start")
-	}
-	// Second run directory must exist.
-	if _, err := os.Stat(filepath.Join(s.root, "runs", second, "run.yaml")); err != nil {
-		t.Errorf("second run.yaml missing: %v", err)
-	}
-}
-
-func TestStore_AppendEventAndReplay(t *testing.T) {
-	s, _ := newTestStore(t)
-	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.StartRun(ctx, ""); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.AppendEvent(ctx, Event{EventType: EventStepStart}); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.AppendEvent(ctx, Event{EventType: EventStepDone}); err != nil {
-		t.Fatal(err)
-	}
-
-	state, err := s.LoadActive(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if state == nil {
-		t.Fatal("expected state, got nil")
-	}
-	if state.CurrentStep != 1 || state.CompletedSteps != 1 {
-		t.Errorf("CurrentStep=%d CompletedSteps=%d", state.CurrentStep, state.CompletedSteps)
-	}
-}
-
-// TestStore_TerminalEventFinalizesManifest locks in D030 finding #3:
-// completing/abandoning a run clears active_run_id and stamps the runs[]
-// entry. Without this, `fest workflow runs` reports terminated runs as
-// active.
-func TestStore_TerminalEventFinalizesManifest(t *testing.T) {
-	for _, ev := range []string{EventWorkflowRunCompleted, EventWorkflowRunAbandoned} {
-		t.Run(ev, func(t *testing.T) {
-			s, _ := newTestStore(t)
-			ctx := context.Background()
-			if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
-				t.Fatal(err)
-			}
-			runID, err := s.StartRun(ctx, "")
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			if err := s.AppendEvent(ctx, Event{EventType: ev}); err != nil {
-				t.Fatal(err)
-			}
-
-			m, err := s.LoadManifest(ctx)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if m.ActiveRunID != "" {
-				t.Errorf("ActiveRunID = %q, want empty after terminal event", m.ActiveRunID)
-			}
-			if len(m.Runs) != 1 {
-				t.Fatalf("Runs = %d, want 1", len(m.Runs))
-			}
-			wantStatus := "completed"
-			if ev == EventWorkflowRunAbandoned {
-				wantStatus = "abandoned"
-			}
-			if m.Runs[0].Status != wantStatus {
-				t.Errorf("Runs[0].Status = %q, want %q", m.Runs[0].Status, wantStatus)
-			}
-			if m.Runs[0].RunID != runID {
-				t.Errorf("Runs[0].RunID = %q, want %q", m.Runs[0].RunID, runID)
-			}
-			if m.Runs[0].EndedAt == "" {
-				t.Error("Runs[0].EndedAt empty, want a timestamp")
-			}
-
-			// Idempotent at the finalize layer: calling finalize again for an
-			// already-terminal run does not corrupt state. AppendEvent itself
-			// refuses with "no active run" once ActiveRunID is cleared, which
-			// is the expected guard for callers.
-			if err := s.finalizeRunInManifest(ctx, Event{EventType: ev, RunID: runID, Timestamp: time.Now().UTC()}); err != nil {
-				t.Fatalf("re-finalize should be idempotent, got %v", err)
-			}
-			m2, _ := s.LoadManifest(ctx)
-			if m2.Runs[0].Status != wantStatus {
-				t.Errorf("after re-finalize Runs[0].Status = %q, want %q", m2.Runs[0].Status, wantStatus)
-			}
-		})
-	}
-}
-
-// TestLoadManifest_RejectsMalformed locks in D030 finding #2: LoadManifest
-// must validate version/kind/workflow_id before returning so callers do not
-// silently propagate corrupt state.
-func TestLoadManifest_RejectsMalformed(t *testing.T) {
 	cases := []struct {
 		name string
-		yaml string
+		m    Manifest
 		want string
 	}{
 		{
 			name: "missing version",
-			yaml: "kind: workflow-runtime\nworkflow_id: wf-x\n",
+			m: Manifest{
+				Kind:       ManifestKind,
+				WorkflowID: "wf-x",
+			},
 			want: "missing version",
 		},
 		{
 			name: "unsupported version",
-			yaml: "version: 99\nkind: workflow-runtime\nworkflow_id: wf-x\n",
+			m: Manifest{
+				Version:    99,
+				Kind:       ManifestKind,
+				WorkflowID: "wf-x",
+			},
 			want: "unsupported workflow manifest version",
 		},
 		{
 			name: "wrong kind",
-			yaml: "version: 1\nkind: not-workflow\nworkflow_id: wf-x\n",
+			m: Manifest{
+				Version:    ManifestVersion,
+				Kind:       "not-workflow",
+				WorkflowID: "wf-x",
+			},
 			want: "kind mismatch",
 		},
 		{
 			name: "missing workflow_id",
-			yaml: "version: 1\nkind: workflow-runtime\n",
+			m: Manifest{
+				Version: ManifestVersion,
+				Kind:    ManifestKind,
+			},
 			want: "missing workflow_id",
 		},
 	}
+
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			dir := t.TempDir()
-			if err := os.WriteFile(filepath.Join(dir, manifestName), []byte(c.yaml), 0o644); err != nil {
-				t.Fatal(err)
-			}
-			s := &Store{root: dir}
-			_, err := s.LoadManifest(context.Background())
+			err := validateManifest(&c.m, "/virtual/.workflow/workflow.yaml")
 			if err == nil {
 				t.Fatalf("expected error containing %q, got nil", c.want)
 			}
@@ -336,147 +72,101 @@ func TestLoadManifest_RejectsMalformed(t *testing.T) {
 	}
 }
 
-// TestStore_ReplayHandlesStepSkip locks in D030 finding #1: skip clears
-// Blocked and counts as forward progress, matching camp's localrun.go
-// semantics so the same event stream produces the same state in both repos.
-func TestStore_ReplayHandlesStepSkip(t *testing.T) {
-	s, _ := newTestStore(t)
-	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.StartRun(ctx, ""); err != nil {
-		t.Fatal(err)
-	}
-	for _, ev := range []string{EventStepStart, EventStepBlock, EventStepSkip} {
-		if err := s.AppendEvent(ctx, Event{EventType: ev}); err != nil {
-			t.Fatal(err)
-		}
-	}
+func TestReplayEventStream_DerivesProgress(t *testing.T) {
+	events := strings.Join([]string{
+		`{"event_type":"workflow_run_started"}`,
+		`{"event_type":"wf_step_start"}`,
+		`{"event_type":"wf_step_block"}`,
+		`{"event_type":"wf_step_skip"}`,
+		`{"event_type":"wf_step_start"}`,
+		`{"event_type":"wf_step_done"}`,
+		`{"event_type":"unknown_event"}`,
+		`not-json`,
+	}, "\n")
 
-	state, err := s.LoadActive(ctx)
+	state, err := replayEventStream(strings.NewReader(events), RunManifest{
+		Summary: RunSummary{
+			CurrentStep:    999,
+			CompletedSteps: 998,
+			Blocked:        true,
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if state == nil {
-		t.Fatal("expected state, got nil")
+	if state.CurrentStep != 2 || state.CompletedSteps != 2 {
+		t.Errorf("CurrentStep=%d CompletedSteps=%d, want 2/2", state.CurrentStep, state.CompletedSteps)
 	}
 	if state.Blocked {
-		t.Errorf("Blocked = true after skip, want false")
-	}
-	if state.CompletedSteps != 1 {
-		t.Errorf("CompletedSteps = %d, want 1 (skip counts as progress)", state.CompletedSteps)
+		t.Error("Blocked = true, want false after skip/done")
 	}
 	if state.Status != "active" {
-		t.Errorf("Status = %q, want active (skip clears blocked status)", state.Status)
+		t.Errorf("Status = %q, want active", state.Status)
 	}
 }
 
-func TestStore_ReplayOverridesStaleSummary(t *testing.T) {
-	s, _ := newTestStore(t)
-	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
-		t.Fatal(err)
-	}
-	runID, _ := s.StartRun(ctx, "")
-	if err := s.AppendEvent(ctx, Event{EventType: EventStepStart}); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.AppendEvent(ctx, Event{EventType: EventStepStart}); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.AppendEvent(ctx, Event{EventType: EventStepDone}); err != nil {
-		t.Fatal(err)
+func TestReplayEventStream_StatusTransitions(t *testing.T) {
+	cases := []struct {
+		name          string
+		events        string
+		wantStatus    string
+		wantBlocked   bool
+		wantCompleted int
+	}{
+		{
+			name:        "block marks blocked",
+			events:      `{"event_type":"wf_step_start"}` + "\n" + `{"event_type":"wf_step_block"}`,
+			wantStatus:  "blocked",
+			wantBlocked: true,
+		},
+		{
+			name:          "completion marks completed",
+			events:        `{"event_type":"wf_step_start"}` + "\n" + `{"event_type":"wf_step_done"}` + "\n" + `{"event_type":"workflow_run_completed"}`,
+			wantStatus:    "completed",
+			wantCompleted: 1,
+		},
+		{
+			name:       "abandon marks abandoned",
+			events:     `{"event_type":"workflow_run_abandoned"}`,
+			wantStatus: "abandoned",
+		},
 	}
 
-	// Corrupt the summary on disk.
-	runPath := filepath.Join(s.root, "runs", runID, "run.yaml")
-	raw, _ := os.ReadFile(runPath)
-	bad := strings.Replace(string(raw), "current_step: 0", "current_step: 999", 1)
-	_ = os.WriteFile(runPath, []byte(bad), 0o644)
-
-	state, _ := s.LoadActive(ctx)
-	if state.CurrentStep != 2 || state.CompletedSteps != 1 {
-		t.Errorf("replay should override stale summary, got CurrentStep=%d CompletedSteps=%d", state.CurrentStep, state.CompletedSteps)
-	}
-
-	// Repair should have rewritten the summary.
-	raw2, _ := os.ReadFile(runPath)
-	if strings.Contains(string(raw2), "current_step: 999") {
-		t.Errorf("stale summary not repaired")
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			state, err := replayEventStream(strings.NewReader(c.events), RunManifest{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if state.Status != c.wantStatus {
+				t.Errorf("Status = %q, want %q", state.Status, c.wantStatus)
+			}
+			if state.Blocked != c.wantBlocked {
+				t.Errorf("Blocked = %v, want %v", state.Blocked, c.wantBlocked)
+			}
+			if state.CompletedSteps != c.wantCompleted {
+				t.Errorf("CompletedSteps = %d, want %d", state.CompletedSteps, c.wantCompleted)
+			}
+		})
 	}
 }
 
-// Note: regression coverage for replayEvents I/O surfacing and StartRun
-// pre-mutation validation lives in tests/integration/standalone_workflow_test.go
-// (containerized). The .workflow/ runtime mutates the filesystem and the
-// repo rule is to exercise that behavior inside the container harness, not
-// host TempDir.
-
-func TestStore_DocHashChange(t *testing.T) {
-	s, root := newTestStore(t)
-	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := os.WriteFile(filepath.Join(root, "WORKFLOW.md"), []byte("mutated"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	changed, cur, stored, err := s.CheckDocHash(ctx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !changed {
-		t.Errorf("expected changed=true, cur=%s stored=%s", cur, stored)
+func TestNewRunID(t *testing.T) {
+	ts := time.Date(2026, 5, 18, 12, 34, 56, 0, time.UTC)
+	if got := newRunID(ts); got != "run-20260518T123456Z" {
+		t.Fatalf("newRunID() = %q", got)
 	}
 }
 
-func TestStore_EventsAreAppendOnly(t *testing.T) {
-	s, _ := newTestStore(t)
-	ctx := context.Background()
-	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := s.StartRun(ctx, ""); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.AppendEvent(ctx, Event{EventType: "A"}); err != nil {
-		t.Fatal(err)
-	}
-	if err := s.AppendEvent(ctx, Event{EventType: "B"}); err != nil {
-		t.Fatal(err)
-	}
-
-	m, _ := s.LoadManifest(ctx)
-	eventsPath := filepath.Join(s.root, "runs", m.ActiveRunID, "progress_events.jsonl")
-	raw, _ := os.ReadFile(eventsPath)
-	lines := strings.Split(strings.TrimRight(string(raw), "\n"), "\n")
-	// expect 3 lines: workflow_run_started, A, B
-	if len(lines) != 3 {
-		t.Fatalf("expected 3 event lines, got %d: %s", len(lines), raw)
-	}
-
-	var first, second, third struct {
-		EventType string `json:"event_type"`
-	}
-	_ = json.Unmarshal([]byte(lines[0]), &first)
-	_ = json.Unmarshal([]byte(lines[1]), &second)
-	_ = json.Unmarshal([]byte(lines[2]), &third)
-	if first.EventType != EventWorkflowRunStarted {
-		t.Errorf("line 1 = %q", first.EventType)
-	}
-	if second.EventType != "A" || third.EventType != "B" {
-		t.Errorf("append order broken: A=%q B=%q", second.EventType, third.EventType)
-	}
-}
-
-func TestStore_ContextCancel(t *testing.T) {
-	s, _ := newTestStore(t)
+func TestStore_InitReturnsCanceledContextBeforeMutation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"})
+
+	err := Open("/virtual/.workflow", "/virtual/WORKFLOW.md").Init(ctx, InitOptions{WorkflowID: "wf-x"})
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("expected context.Canceled, got %v", err)
 	}
 }
+
+// Real .workflow/ filesystem mutation coverage lives in
+// tests/integration/standalone_*_test.go so unit tests do not mutate the host.

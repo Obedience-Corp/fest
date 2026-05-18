@@ -79,9 +79,9 @@ func runAdvanceTracked(ctx context.Context, res *standalone.Result) error {
 			WithHint("run 'fest workflow start' first")
 	}
 	if state.Blocked {
-		return festerrors.New("step is blocked").
+		return festerrors.New("standalone workflow step is blocked").
 			WithField("step", state.CurrentStep).
-			WithHint("use 'fest workflow approve' or 'fest workflow reset'")
+			WithHint("standalone workflows do not support approve/reset yet; remove the blocking checkpoint from WORKFLOW.md or run inside a festival phase where approval commands are available")
 	}
 
 	steps, parseErr := wf.NewParser().Parse(ctx, res.WorkflowDoc)

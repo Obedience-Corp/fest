@@ -31,6 +31,7 @@ var (
 	noTag            bool
 	jsonOut          bool
 	autoStage        bool
+	autoWrite        bool
 	noRoot           bool
 	syncSubmoduleRef bool // deprecated: kept for backward compat
 )
@@ -88,21 +89,23 @@ Examples:
   # → No reference
 
   fest commit --stage=false -m "Only commit staged"
-  # Skip auto-staging, commit only what's already staged`,
+  # Skip auto-staging, commit only what's already staged
+
+  fest commit --auto-write
+  # Run the configured campaign commit-message hook from the target repo`,
 		RunE: runCommit,
 	}
 
-	cmd.Flags().StringVarP(&message, "message", "m", "", "commit message")
+	cmd.Flags().StringVarP(&message, "message", "m", "", "commit message (required unless --auto-write)")
 	cmd.Flags().StringVar(&taskRef, "task", "", "task reference ID to use (e.g., FEST-a3b2c1)")
 	cmd.Flags().StringVar(&festivalFlag, "festival", "", "festival name or ID (overrides auto-detection)")
 	cmd.Flags().BoolVar(&noTag, "no-tag", false, "don't prepend task reference")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "output result as JSON")
 	cmd.Flags().BoolVar(&autoStage, "stage", true, "auto-stage all changes before commit")
+	cmd.Flags().BoolVar(&autoWrite, "auto-write", false, "run configured commit message writer")
 	cmd.Flags().BoolVar(&noRoot, "no-root", false, "skip campaign root commit (project commit only)")
 	cmd.Flags().BoolVar(&syncSubmoduleRef, "sync-submodule-ref", false, "deprecated: campaign root commit is now automatic")
 	_ = cmd.Flags().MarkDeprecated("sync-submodule-ref", "campaign root commit is now automatic; use --no-root to skip")
-
-	_ = cmd.MarkFlagRequired("message")
 
 	return cmd
 }
@@ -123,6 +126,17 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	ctx := cmd.Context()
 
 	result := &CommitResult{}
+
+	if autoWrite && message != "" {
+		result.Success = false
+		result.Error = "--auto-write cannot be used with --message"
+		return outputResult(result)
+	}
+	if !autoWrite && message == "" {
+		result.Success = false
+		result.Error = "required flag(s) \"message\" not set"
+		return outputResult(result)
+	}
 
 	// Resolve workspace for campaign integration (nil-safe: ok if absent).
 	ws, _ := scope.WorkspaceFrom(ctx)
@@ -146,6 +160,13 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	if !inRepo {
 		result.Success = false
 		result.Error = "not in a git repository"
+		return outputResult(result)
+	}
+
+	primaryRepoPath, err := currentGitRoot(ctx)
+	if err != nil {
+		result.Success = false
+		result.Error = err.Error()
 		return outputResult(result)
 	}
 
@@ -182,6 +203,22 @@ func runCommit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	rawMsg := message
+	if autoWrite {
+		if ws == nil || ws.Type != scope.WorkspaceTypeCampaign {
+			result.Success = false
+			result.Error = "auto-write requires campaign context"
+			return outputResult(result)
+		}
+		fmt.Fprintln(os.Stderr, ui.Info("Writing commit message..."))
+		rawMsg, err = commitkit.AutoWriteCommitMessage(ctx, ws.Root, primaryRepoPath)
+		if err != nil {
+			result.Success = false
+			result.Error = err.Error()
+			return outputResult(result)
+		}
+	}
+
 	// Get task reference via cascading detection strategies.
 	var ref string
 	if !noTag {
@@ -210,13 +247,13 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	}
 
 	// Build commit message with consolidated tag.
-	festMessage := message
+	festMessage := rawMsg
 	if ref != "" {
-		festMessage = fmt.Sprintf("[%s] %s", ref, message)
+		festMessage = fmt.Sprintf("[%s] %s", ref, rawMsg)
 	}
 
 	// Execute commit with campaign tag support.
-	if err := commitWithCampaignSupport(ctx, ws, ref, message, festMessage, result); err != nil {
+	if err := commitWithCampaignSupport(ctx, ws, primaryRepoPath, ref, rawMsg, festMessage, result); err != nil {
 		result.Success = false
 		result.Error = err.Error()
 		return outputResult(result)
@@ -229,7 +266,7 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	// Only when we're in a submodule (the campaign root commit is a second commit).
 	// When at the campaign root, the primary commit above already handled festival files.
 	if !noRoot && inSubmodule && ws != nil && ws.Type == scope.WorkspaceTypeCampaign && hasFestival {
-		rootHash, rootErr := commitFestivalAtRoot(ctx, ws, festivalPath, submoduleRelPath, result.CampaignTag, ref, message)
+		rootHash, rootErr := commitFestivalAtRoot(ctx, ws, festivalPath, submoduleRelPath, result.CampaignTag, ref, rawMsg)
 		if rootErr != nil {
 			fmt.Fprintf(os.Stderr, "%s %s\n", ui.Warning("campaign root commit skipped:"), rootErr.Error())
 		} else if rootHash != "" {
@@ -283,11 +320,11 @@ func isGitRepo(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func executeGitCommit(ctx context.Context, message string) (string, error) {
+func executeGitCommit(ctx context.Context, repoPath, message string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", errors.Wrap(err, "context cancelled")
 	}
-	cmd := exec.CommandContext(ctx, "git", "commit", "-m", message)
+	cmd := exec.CommandContext(ctx, "git", "-C", repoPath, "commit", "-m", message)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -296,7 +333,7 @@ func executeGitCommit(ctx context.Context, message string) (string, error) {
 	}
 
 	// Get the commit hash
-	hashCmd := exec.CommandContext(ctx, "git", "rev-parse", "--short", "HEAD")
+	hashCmd := exec.CommandContext(ctx, "git", "-C", repoPath, "rev-parse", "--short", "HEAD")
 	var out bytes.Buffer
 	hashCmd.Stdout = &out
 	if err := hashCmd.Run(); err != nil {
@@ -304,6 +341,18 @@ func executeGitCommit(ctx context.Context, message string) (string, error) {
 	}
 
 	return strings.TrimSpace(out.String()), nil
+}
+
+func currentGitRoot(ctx context.Context) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", errors.Wrap(err, "context cancelled")
+	}
+	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--show-toplevel")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", errors.Wrap(err, "finding git root")
+	}
+	return strings.TrimSpace(string(out)), nil
 }
 
 // stageAllChanges runs git add -A to stage all changes
@@ -402,7 +451,7 @@ func loadFestivalID(festivalPath, campaignRoot string) (string, error) {
 // integration. If the workspace is a campaign, it consolidates campaign and
 // festival refs into a single tag: [OBEY-CAMPAIGN-{cid}-FE-{fid}].
 // Campaign detection or sync failures degrade gracefully — the commit still proceeds.
-func commitWithCampaignSupport(ctx context.Context, ws *scope.WorkspaceInfo, festRef, rawMsg, festMessage string, result *CommitResult) error {
+func commitWithCampaignSupport(ctx context.Context, ws *scope.WorkspaceInfo, repoPath, festRef, rawMsg, festMessage string, result *CommitResult) error {
 	commitMessage := festMessage
 
 	var campaignID string
@@ -431,7 +480,7 @@ func commitWithCampaignSupport(ctx context.Context, ws *scope.WorkspaceInfo, fes
 		}
 	}
 
-	hash, err := executeGitCommit(ctx, commitMessage)
+	hash, err := executeGitCommit(ctx, repoPath, commitMessage)
 	if err != nil {
 		return err
 	}

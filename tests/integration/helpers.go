@@ -226,8 +226,24 @@ func (tc *TestContainer) RunFestInDirTTY(dir string, args ...string) (string, er
 // Returns combined stdout+stderr and any execution error. Non-zero exit
 // codes are surfaced via the error so tests can assert on them.
 func (tc *TestContainer) Exec(cmd ...string) (string, error) {
-	out, err := tc.runCommand(cmd)
-	return out, err
+	exitCode, reader, err := tc.container.Exec(tc.ctx, cmd)
+	if err != nil {
+		return "", fmt.Errorf("failed to execute command: %w", err)
+	}
+
+	var stdout, stderr bytes.Buffer
+	if _, err := stdcopy.StdCopy(&stdout, &stderr, reader); err != nil {
+		return "", fmt.Errorf("failed to read command output: %w", err)
+	}
+	output := stdout.String()
+	if stderr.Len() > 0 {
+		output += stderr.String()
+	}
+
+	if exitCode != 0 {
+		return output, fmt.Errorf("command exited with code %d: %s", exitCode, output)
+	}
+	return output, nil
 }
 
 // WriteFile writes content into a path inside the container, creating
