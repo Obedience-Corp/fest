@@ -4,8 +4,8 @@ go 1.25.6
 
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
-	github.com/Obedience-Corp/camp v0.2.6-0.20260516214523-02acfc0f9d91
-	github.com/Obedience-Corp/obey-shared v0.4.3
+	github.com/Obedience-Corp/camp v0.2.6-0.20260518212052-2079884af0c0
+	github.com/Obedience-Corp/obey-shared v0.4.4-0.20260518211933-8a93452bf649
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/glamour v0.10.0
@@ -109,7 +109,6 @@ require (
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.60.0 // indirect
 	go.opentelemetry.io/otel v1.42.0 // indirect
 	go.opentelemetry.io/otel/metric v1.42.0 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.39.0 // indirect
 	go.opentelemetry.io/otel/trace v1.42.0 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
