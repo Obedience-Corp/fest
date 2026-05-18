@@ -1,4 +1,4 @@
-// Package watch implements the dev-gated fest watch command.
+// Package watch implements the fest watch command.
 package watch
 
 import (
