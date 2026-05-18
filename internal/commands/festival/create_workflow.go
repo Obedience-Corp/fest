@@ -12,6 +12,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/workflow/standalone"
 	"github.com/spf13/cobra"
 )
 
@@ -24,6 +25,10 @@ type CreateWorkflowOptions struct {
 	Festival   string // --festival override
 	JSONOutput bool
 	AgentMode  bool
+
+	Name   string
+	Type   string
+	NoInit bool
 }
 
 // WorkflowInput defines the JSON input structure for workflow creation.
@@ -72,9 +77,13 @@ Examples:
   # With explicit phase path
   fest create workflow --steps-file steps.json --path ./004_POLISH`,
 		Annotations: map[string]string{
-			"scope": string(scope.Festival),
+			"scope": string(scope.Global),
 		},
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 1 {
+				opts.Name = args[0]
+			}
 			return RunCreateWorkflow(cmd.Context(), opts)
 		},
 	}
@@ -86,10 +95,13 @@ Examples:
 	cmd.Flags().StringVar(&opts.Festival, "festival", "", "Festival root override")
 	cmd.Flags().BoolVar(&opts.JSONOutput, "json", false, "Emit JSON output")
 	cmd.Flags().BoolVar(&opts.AgentMode, "agent", false, "Strict agent mode (implies --json)")
+	cmd.Flags().StringVar(&opts.Type, "type", "task", "workflow type (standalone mode only)")
+	cmd.Flags().BoolVar(&opts.NoInit, "no-init", false, "skip .workflow/ runtime init (standalone mode only)")
 	return cmd
 }
 
-// RunCreateWorkflow executes the create workflow command.
+// RunCreateWorkflow executes the create workflow command. Dispatches to
+// the festival or standalone handler based on standalone.Resolve mode (D009).
 func RunCreateWorkflow(ctx context.Context, opts *CreateWorkflowOptions) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled").WithOp("RunCreateWorkflow")
@@ -99,6 +111,38 @@ func RunCreateWorkflow(ctx context.Context, opts *CreateWorkflowOptions) error {
 		opts.JSONOutput = true
 	}
 
+	// Explicit festival targets win over cwd-derived mode: a caller passing
+	// --path /tmp/festival/001_PLAN or --festival <name> from outside any
+	// festival expects festival-mode handling, not "standalone rejects --path"
+	// (review feedback on PR #173).
+	hasExplicitFestivalTarget := opts.Festival != "" || (opts.Path != "" && opts.Path != ".")
+	if hasExplicitFestivalTarget {
+		return runFestivalCreateWorkflow(ctx, opts)
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return errors.Wrap(err, "get cwd")
+	}
+	res, err := standalone.Resolve(ctx, cwd)
+	if err != nil {
+		return errors.Wrap(err, "resolve mode").
+			WithHint("run inside a campaign root or pass --festival explicitly")
+	}
+	switch res.Mode {
+	case standalone.ModeFestival:
+		return runFestivalCreateWorkflow(ctx, opts)
+	case standalone.ModeTracked, standalone.ModeAnonymous, standalone.ModeNone:
+		return runStandaloneCreateWorkflow(ctx, opts, res, cwd)
+	default:
+		return errors.New("unknown resolver mode").
+			WithField("mode", string(res.Mode))
+	}
+}
+
+// runFestivalCreateWorkflow is the original festival-mode handler. Body
+// preserved unchanged from the pre-dispatch implementation (D009 task 08).
+func runFestivalCreateWorkflow(ctx context.Context, opts *CreateWorkflowOptions) error {
 	input, err := parseWorkflowInput(opts)
 	if err != nil {
 		return emitWorkflowError(opts, err)

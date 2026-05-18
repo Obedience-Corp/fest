@@ -129,4 +129,3 @@ func emitValidationBlock(festivalPath string, result *validator.Result) error {
 	fmt.Print(sb.String())
 	return errors.ErrAlreadyPrinted
 }
-

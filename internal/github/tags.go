@@ -129,7 +129,7 @@ func ResolveLatestTag(repoURL, channel string) (string, error) {
 	}
 
 	if len(candidates) == 0 {
-		return "", errors.NotFound("tags matching channel " + channel).WithField("url", repoURL)
+		return "", errors.NotFound("tags matching channel "+channel).WithField("url", repoURL)
 	}
 
 	// Sort descending and return the first element.
