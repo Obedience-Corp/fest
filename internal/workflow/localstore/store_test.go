@@ -119,35 +119,44 @@ func TestStore_StartRunCreatesRunDir(t *testing.T) {
 	}
 }
 
-func TestStore_SecondStartCoexistsWithFirst(t *testing.T) {
+func TestStore_SecondStartRefusedWhileActive(t *testing.T) {
 	s, _ := newTestStore(t)
 	ctx := context.Background()
 	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
 		t.Fatal(err)
 	}
-	first, _ := s.StartRun(ctx, "")
-	// Move clock forward slightly so the run-id timestamp differs.
-	time.Sleep(1100 * time.Millisecond)
-	second, err := s.StartRun(ctx, "")
+	first, err := s.StartRun(ctx, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if first == second {
-		t.Fatalf("expected distinct run ids, got %q and %q", first, second)
+
+	second, err := s.StartRun(ctx, "")
+	if err == nil {
+		t.Fatalf("expected second StartRun to fail while %q is still active, got runID=%q", first, second)
 	}
-	if _, err := os.Stat(filepath.Join(s.root, "runs", first, "run.yaml")); err != nil {
-		t.Errorf("first run dir missing after second start: %v", err)
+	if !strings.Contains(err.Error(), "already active") {
+		t.Errorf("error should mention active run, got: %v", err)
 	}
+
+	// Manifest invariant: exactly one run recorded, still active and addressable.
 	runs, _ := s.ListRuns(ctx)
-	if len(runs) != 2 {
-		t.Errorf("expected 2 runs, got %d", len(runs))
+	if len(runs) != 1 {
+		t.Fatalf("expected exactly 1 run after refused second start, got %d: %+v", len(runs), runs)
+	}
+	if runs[0].RunID != first {
+		t.Errorf("recorded run id = %q, want %q", runs[0].RunID, first)
+	}
+	if runs[0].Status != "active" {
+		t.Errorf("first run status = %q, want active", runs[0].Status)
 	}
 }
 
 func TestStore_StartRunUniqueWithinSameSecond(t *testing.T) {
-	// Pre-create the .workflow/runs/<base-id>/ directory so the next
-	// StartRun in the same second must allocate a -2 suffix instead of
-	// overwriting it.
+	// Two runs that land in the same UTC second must allocate distinct
+	// directory ids (e.g. base + "-2") so the older run.yaml is preserved.
+	// The single-active-run invariant means we must terminalize the first
+	// run before starting the second; that completion still happens fast
+	// enough that the second start typically lands in the same second.
 	s, _ := newTestStore(t)
 	ctx := context.Background()
 	if err := s.Init(ctx, InitOptions{WorkflowID: "wf-x"}); err != nil {
@@ -162,6 +171,11 @@ func TestStore_StartRunUniqueWithinSameSecond(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Complete the first run so the active-run invariant allows the next start.
+	if err := s.AppendEvent(ctx, Event{EventType: EventWorkflowRunCompleted}); err != nil {
+		t.Fatal(err)
+	}
+
 	// Second start within the same second.
 	second, err := s.StartRun(ctx, "")
 	if err != nil {
@@ -171,7 +185,8 @@ func TestStore_StartRunUniqueWithinSameSecond(t *testing.T) {
 		t.Fatalf("expected distinct run ids on same-second starts, got %q and %q", first, second)
 	}
 
-	// First run's directory and run.yaml must be untouched.
+	// First run's directory and run.yaml must be untouched by the second start
+	// (terminal event only mutates the parent manifest, not the run.yaml itself).
 	firstRunYAMLAfter, err := os.ReadFile(filepath.Join(s.root, "runs", first, "run.yaml"))
 	if err != nil {
 		t.Fatalf("first run.yaml missing after second start: %v", err)

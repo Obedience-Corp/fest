@@ -26,9 +26,9 @@ type CreateWorkflowOptions struct {
 	JSONOutput bool
 	AgentMode  bool
 
-	Name     string
-	Type     string
-	NoInit   bool
+	Name   string
+	Type   string
+	NoInit bool
 }
 
 // WorkflowInput defines the JSON input structure for workflow creation.
@@ -109,6 +109,15 @@ func RunCreateWorkflow(ctx context.Context, opts *CreateWorkflowOptions) error {
 
 	if opts.AgentMode {
 		opts.JSONOutput = true
+	}
+
+	// Explicit festival targets win over cwd-derived mode: a caller passing
+	// --path /tmp/festival/001_PLAN or --festival <name> from outside any
+	// festival expects festival-mode handling, not "standalone rejects --path"
+	// (review feedback on PR #173).
+	hasExplicitFestivalTarget := opts.Festival != "" || (opts.Path != "" && opts.Path != ".")
+	if hasExplicitFestivalTarget {
+		return runFestivalCreateWorkflow(ctx, opts)
 	}
 
 	cwd, err := os.Getwd()

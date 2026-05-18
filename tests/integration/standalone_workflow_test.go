@@ -155,6 +155,25 @@ Do the second thing.
 		require.Contains(t, out, "Step 1")
 	})
 
+	t.Run("StartRefusesSecondConcurrentActiveRun", func(t *testing.T) {
+		// Single-active-run invariant: two consecutive `fest workflow start`
+		// invocations must not leave the manifest with two active runs.
+		// Either the second start fails closed, or the prior run terminates
+		// implicitly. Current behavior: fail closed with a clear hint.
+		const dir = "/tmp/standalone-double-start"
+		_, _ = container.Exec("rm", "-rf", dir)
+		require.NoError(t, container.WriteFile(dir+"/WORKFLOW.md", "## Step 1: X\n\n**Goal:** g\n\n## Step 2: Y\n"))
+
+		out, err := container.RunFestInDir(dir, "workflow", "init")
+		require.NoError(t, err, "init: %s", out)
+		out, err = container.RunFestInDir(dir, "workflow", "start")
+		require.NoError(t, err, "first start: %s", out)
+
+		out, err = container.RunFestInDir(dir, "workflow", "start")
+		require.Error(t, err, "second start must refuse while a run is active: %s", out)
+		require.Contains(t, out, "already active", "error should mention active run: %s", out)
+	})
+
 	t.Run("ShowSurfacesCorruptEventStream", func(t *testing.T) {
 		showDir := "/tmp/standalone-show-corrupt-events"
 		_, _ = container.Exec("rm", "-rf", showDir)

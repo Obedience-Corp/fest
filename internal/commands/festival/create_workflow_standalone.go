@@ -64,11 +64,15 @@ func runStandaloneCreateWorkflow(ctx context.Context, opts *CreateWorkflowOption
 		fmt.Printf("created %s\n", target)
 	}
 
+	created := []string{target}
+	runtimeInitialized := false
 	if !opts.NoInit {
 		store := localstore.Open(filepath.Join(cwd, ".workflow"), target)
 		if err := store.Init(ctx, localstore.InitOptions{WorkflowID: workflowID}); err != nil {
 			return emitWorkflowError(opts, errors.Wrap(err, "initialize .workflow/"))
 		}
+		runtimeInitialized = true
+		created = append(created, filepath.Join(cwd, ".workflow", "workflow.yaml"))
 		if !opts.JSONOutput {
 			fmt.Printf("initialized .workflow/workflow.yaml (workflow_id=%s)\n", workflowID)
 		}
@@ -76,11 +80,41 @@ func runStandaloneCreateWorkflow(ctx context.Context, opts *CreateWorkflowOption
 		fmt.Println("skipped .workflow/ init (--no-init); run `fest workflow init` when ready")
 	}
 
-	if !opts.JSONOutput {
-		fmt.Println("next: fest next")
+	if opts.JSONOutput {
+		return emitStandaloneWorkflowJSON(opts, input, workflowID, target, created, runtimeInitialized)
 	}
+
+	fmt.Println("next: fest next")
 	_ = res
 	return nil
+}
+
+// emitStandaloneWorkflowJSON mirrors emitWorkflowOutput's JSON shape for the
+// standalone path so --json / --agent callers receive a structured result
+// instead of an empty stdout. (#173 review)
+func emitStandaloneWorkflowJSON(opts *CreateWorkflowOptions, input *WorkflowInput, workflowID, target string, created []string, runtimeInitialized bool) error {
+	suggestions := []string{
+		"fest next                  - Render the first step",
+		"fest workflow start        - Begin a tracked run",
+		"fest workflow show         - Show current step",
+	}
+	if !runtimeInitialized {
+		suggestions = append([]string{"fest workflow init         - Bootstrap .workflow/ runtime"}, suggestions...)
+	}
+	return emitWorkflowJSON(opts, createWorkflowResult{
+		OK:     true,
+		Action: "create_workflow",
+		Workflow: map[string]any{
+			"mode":                "standalone",
+			"workflow_id":         workflowID,
+			"workflow_doc":        target,
+			"title":               input.Title,
+			"steps":               len(input.Steps),
+			"runtime_initialized": runtimeInitialized,
+		},
+		Created:     created,
+		Suggestions: suggestions,
+	})
 }
 
 // rejectFestivalOnlyFlags returns a validation error when the caller passed a
@@ -94,6 +128,15 @@ func rejectFestivalOnlyFlags(opts *CreateWorkflowOptions) error {
 		return errors.Validation("--path is not valid in standalone mode").
 			WithField("path", opts.Path).
 			WithHint("standalone mode writes to the current directory")
+	}
+	// --position only meaningful when WORKFLOW.md lives inside a phase with
+	// neighbors; standalone mode writes a single doc in cwd, so any
+	// non-default value would have been silently dropped by the renderer.
+	// Reject explicitly so users see the contract.
+	if opts.Position != "" && opts.Position != "after" {
+		return errors.Validation("--position is not valid in standalone mode").
+			WithField("position", opts.Position).
+			WithHint("--position controls phase ordering and is only meaningful inside a festival; omit it in standalone mode")
 	}
 	return nil
 }

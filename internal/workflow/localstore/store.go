@@ -150,6 +150,18 @@ func (s *Store) StartRun(ctx context.Context, startedBy string) (string, error) 
 		return "", err
 	}
 
+	// Single-active-run invariant: refuse to start a new run while one is
+	// already active. The previous behavior silently appended a second
+	// active record to runs[] while pointing active_run_id at the newest
+	// run, leaving the prior run permanently labelled active but no longer
+	// addressable by AppendEvent/LoadActive. Callers must complete, abandon,
+	// or reset the existing run before starting another.
+	if m.ActiveRunID != "" {
+		return "", festerrors.Validation("a run is already active").
+			WithField("active_run_id", m.ActiveRunID).
+			WithHint("complete, abandon, or reset the active run before starting a new one (the manifest may have at most one active run)")
+	}
+
 	docHash := ""
 	totalSteps := 0
 	if s.workflowDoc != "" {

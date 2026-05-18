@@ -88,15 +88,47 @@ func TestCreateWorkflowStandalone(t *testing.T) {
 			"error should mention steps requirement, got: %s", out)
 	})
 
-	t.Run("RejectsFestivalFlagOutsideFestival", func(t *testing.T) {
+	t.Run("ExplicitFestivalFlagRoutesToFestivalHandler", func(t *testing.T) {
+		// Explicit --festival / --path now wins over cwd-derived mode so users
+		// can target a phase from outside it (#173 review). When the target
+		// isn't a real phase, the error must come from the festival handler's
+		// path-resolution, not "festival flag invalid in standalone mode".
 		const dir = "/tmp/cw-standalone-festflag"
 		_, _ = container.Exec("rm", "-rf", dir)
 		_, err := container.Exec("mkdir", "-p", dir)
 		require.NoError(t, err)
 
 		require.NoError(t, container.WriteFile(dir+"/steps.json", standaloneStepsJSON))
-		out, err := container.RunFestInDir(dir, "create", "workflow", "demo", "--steps-file", dir+"/steps.json", "--festival", "/some/path")
-		require.Error(t, err, "--festival in standalone mode must error")
-		require.Contains(t, out, "--festival is not valid")
+		out, err := container.RunFestInDir(dir, "create", "workflow", "demo", "--steps-file", dir+"/steps.json", "--festival", "/some/missing/path")
+		require.Error(t, err, "--festival pointing at a non-phase must error")
+		require.Contains(t, out, "not inside a phase directory",
+			"error should come from festival handler's path resolution, got: %s", out)
+	})
+
+	t.Run("StandaloneJSONEmitsStructuredResult", func(t *testing.T) {
+		const dir = "/tmp/cw-standalone-json"
+		_, _ = container.Exec("rm", "-rf", dir)
+		_, err := container.Exec("mkdir", "-p", dir)
+		require.NoError(t, err)
+
+		require.NoError(t, container.WriteFile(dir+"/steps.json", standaloneStepsJSON))
+		out, err := container.RunFestInDir(dir, "create", "workflow", "demo", "--steps-file", dir+"/steps.json", "--json")
+		require.NoError(t, err, "fest create workflow --json: %s", out)
+		require.Contains(t, out, `"ok": true`, "JSON success payload missing: %s", out)
+		require.Contains(t, out, `"mode": "standalone"`, "JSON should declare standalone mode: %s", out)
+		require.Contains(t, out, `"workflow_id": "wf-demo"`, "JSON missing workflow_id: %s", out)
+		require.Contains(t, out, `"runtime_initialized": true`, "JSON should report runtime_initialized: %s", out)
+	})
+
+	t.Run("StandaloneRejectsNonDefaultPosition", func(t *testing.T) {
+		const dir = "/tmp/cw-standalone-pos"
+		_, _ = container.Exec("rm", "-rf", dir)
+		_, err := container.Exec("mkdir", "-p", dir)
+		require.NoError(t, err)
+
+		require.NoError(t, container.WriteFile(dir+"/steps.json", standaloneStepsJSON))
+		out, err := container.RunFestInDir(dir, "create", "workflow", "demo", "--steps-file", dir+"/steps.json", "--position", "before", "--no-init")
+		require.Error(t, err, "--position non-default in standalone mode must error")
+		require.Contains(t, out, "--position is not valid", "error should mention --position: %s", out)
 	})
 }
