@@ -475,21 +475,15 @@ func replayEvents(eventsPath string, cache RunManifest) (*RunState, error) {
 	}
 	defer func() { _ = f.Close() }()
 
-	return replayEventStream(f, cache)
+	return replayEventStream(f)
 }
 
-func replayEventStream(r io.Reader, cache RunManifest) (*RunState, error) {
-	state := &RunState{
-		Status:         "active",
-		CurrentStep:    cache.Summary.CurrentStep,
-		CompletedSteps: cache.Summary.CompletedSteps,
-		Blocked:        cache.Summary.Blocked,
-	}
-
-	state.CurrentStep = 0
-	state.CompletedSteps = 0
-	state.Blocked = false
-	state.Status = "active"
+// replayEventStream derives run state from an event stream. The cached
+// summary from run.yaml is intentionally NOT seeded here — the missing-file
+// fallback is handled by replayEvents before delegating, and when events
+// exist they are the authoritative source.
+func replayEventStream(r io.Reader) (*RunState, error) {
+	state := &RunState{Status: "active"}
 
 	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)

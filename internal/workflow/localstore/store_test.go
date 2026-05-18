@@ -84,13 +84,7 @@ func TestReplayEventStream_DerivesProgress(t *testing.T) {
 		`not-json`,
 	}, "\n")
 
-	state, err := replayEventStream(strings.NewReader(events), RunManifest{
-		Summary: RunSummary{
-			CurrentStep:    999,
-			CompletedSteps: 998,
-			Blocked:        true,
-		},
-	})
+	state, err := replayEventStream(strings.NewReader(events))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -134,7 +128,7 @@ func TestReplayEventStream_StatusTransitions(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			state, err := replayEventStream(strings.NewReader(c.events), RunManifest{})
+			state, err := replayEventStream(strings.NewReader(c.events))
 			if err != nil {
 				t.Fatal(err)
 			}
