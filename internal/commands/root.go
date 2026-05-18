@@ -40,6 +40,7 @@ import (
 	typescmd "github.com/Obedience-Corp/fest/internal/commands/types"
 	understandcmd "github.com/Obedience-Corp/fest/internal/commands/understand"
 	"github.com/Obedience-Corp/fest/internal/commands/validation"
+	watchcmd "github.com/Obedience-Corp/fest/internal/commands/watch"
 	"github.com/Obedience-Corp/fest/internal/commands/wizard"
 	workflowcmd "github.com/Obedience-Corp/fest/internal/commands/workflow"
 	"github.com/Obedience-Corp/fest/internal/scope"
@@ -291,6 +292,10 @@ func init() {
 	idCmd := idcmd.NewIDCommand()
 	idCmd.GroupID = "query"
 	rootCmd.AddCommand(idCmd)
+
+	watchCmd := watchcmd.NewWatchCommand()
+	watchCmd.GroupID = "query"
+	rootCmd.AddCommand(watchCmd)
 
 	release.Register(rootCmd)
 
