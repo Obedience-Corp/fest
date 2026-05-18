@@ -14,7 +14,7 @@ import (
  "testing"
  "time"
 
- "github.com/docker/docker/pkg/stdcopy"
+ "github.com/moby/moby/api/pkg/stdcopy"
  "github.com/stretchr/testify/require"
  "github.com/testcontainers/testcontainers-go"
  tcexec "github.com/testcontainers/testcontainers-go/exec"
@@ -170,7 +170,7 @@ func (tc *TestContainer) RunFestTTY(args ...string) (string, error) {
 
  options := []tcexec.ProcessOption{
   tcexec.ProcessOptionFunc(func(opts *tcexec.ProcessOptions) {
-   opts.ExecConfig.Tty = true
+			opts.ExecConfig.TTY = true
    opts.ExecConfig.AttachStdin = true
   }),
  }
@@ -199,7 +199,7 @@ func (tc *TestContainer) RunFestInDirTTY(dir string, args ...string) (string, er
 
  options := []tcexec.ProcessOption{
   tcexec.ProcessOptionFunc(func(opts *tcexec.ProcessOptions) {
-   opts.ExecConfig.Tty = true
+			opts.ExecConfig.TTY = true
    opts.ExecConfig.AttachStdin = true
   }),
  }
