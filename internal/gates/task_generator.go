@@ -123,10 +123,11 @@ func (g *TaskGenerator) GenerateForSequence(
 			}
 			if !opts.Force {
 				results = append(results, GenerateResult{
-					Type:   "skip",
-					Path:   existingPath,
-					TaskID: gate.ID,
-					Reason: "gate_exists",
+					Type:     "skip",
+					Path:     existingPath,
+					Template: gate.Template,
+					TaskID:   gate.ID,
+					Reason:   "gate_exists",
 				})
 				continue
 			}
@@ -271,7 +272,7 @@ func (g *TaskGenerator) renderGateContent(ctx context.Context, gate GateTask, ta
 	}
 
 	// Extract phase type and gate name from template path
-	phaseType, gateName := extractPhaseAndGate(gate.Template)
+	phaseType, gateName := ExtractPhaseAndGate(gate.Template)
 	if phaseType == "" || gateName == "" {
 		return "", errors.Validation("invalid gate template path").
 			WithField("template", gate.Template).
@@ -296,22 +297,23 @@ func (g *TaskGenerator) renderGateContent(ctx context.Context, gate GateTask, ta
 	return content, nil
 }
 
-// extractPhaseAndGate extracts phase type and gate name from a template path.
-// Handles formats: "gates/{phaseType}/{gateName}", "{phaseType}/{gateName}"
-func extractPhaseAndGate(templatePath string) (phaseType, gateName string) {
-	// Strip common prefixes
+// ExtractPhaseAndGate extracts phase type and gate name from a template path.
+// Accepts "gates/{phaseType}/{gateName}", "agent/gates/{phaseType}/{gateName}",
+// or a bare "{phaseType}/{gateName}". A trailing ".md" on the gate name is
+// stripped so callers can append the extension exactly once when resolving
+// to a file.
+func ExtractPhaseAndGate(templatePath string) (phaseType, gateName string) {
 	path := templatePath
-	for _, prefix := range []string{"gates/", "agent/gates/"} {
-		if strings.HasPrefix(path, prefix) {
-			path = strings.TrimPrefix(path, prefix)
+	for _, prefix := range []string{"agent/gates/", "gates/"} {
+		if rest, ok := strings.CutPrefix(path, prefix); ok {
+			path = rest
 			break
 		}
 	}
 
-	// Split into parts: should be {phaseType}/{gateName}
 	parts := strings.Split(path, "/")
 	if len(parts) >= 2 {
-		return parts[0], parts[len(parts)-1]
+		return parts[0], strings.TrimSuffix(parts[len(parts)-1], ".md")
 	}
 
 	return "", ""

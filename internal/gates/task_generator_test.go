@@ -86,6 +86,134 @@ fest_status: pending
 	}
 }
 
+func TestGenerateForSequence_ResolvesTemplateWithMdSuffix(t *testing.T) {
+	t.Parallel()
+
+	festivalPath := t.TempDir()
+	sequencePath := filepath.Join(festivalPath, "001_IMPLEMENTATION", "01_core")
+	templateDir := filepath.Join(festivalPath, "gates", "problem-mining")
+	if err := os.MkdirAll(sequencePath, 0755); err != nil {
+		t.Fatalf("mkdir sequence: %v", err)
+	}
+	if err := os.MkdirAll(templateDir, 0755); err != nil {
+		t.Fatalf("mkdir template dir: %v", err)
+	}
+
+	templatePath := filepath.Join(templateDir, "QUALITY_GATE_ARTIFACT_CHECK.md")
+	templateContent := `---
+fest_type: gate
+fest_status: pending
+---
+# Gate: Artifact Check
+`
+	if err := os.WriteFile(templatePath, []byte(templateContent), 0644); err != nil {
+		t.Fatalf("write template: %v", err)
+	}
+
+	generator, err := NewTaskGenerator(context.Background(), festivalPath)
+	if err != nil {
+		t.Fatalf("NewTaskGenerator() error = %v", err)
+	}
+
+	results, warnings, err := generator.GenerateForSequence(
+		context.Background(),
+		sequencePath,
+		[]GateTask{{
+			ID:       "artifact-check",
+			Name:     "Artifact Check",
+			Template: "gates/problem-mining/QUALITY_GATE_ARTIFACT_CHECK.md",
+			Enabled:  true,
+		}},
+		GenerateOptions{DryRun: false},
+		festivalPath,
+	)
+	if err != nil {
+		t.Fatalf("GenerateForSequence() error = %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("GenerateForSequence() warnings = %v, want none", warnings)
+	}
+	if len(results) != 1 || results[0].Type != "create" {
+		t.Fatalf("GenerateForSequence() results = %+v, want 1 create", results)
+	}
+
+	if _, err := os.Stat(filepath.Join(sequencePath, "01_artifact_check.md")); err != nil {
+		t.Fatalf("expected generated gate file: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(sequencePath, "01_artifact_check.md.md")); err == nil {
+		t.Fatalf("double .md suffix file should not be created")
+	}
+}
+
+func TestExtractPhaseAndGate(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		template string
+		phase    string
+		gate     string
+	}{
+		{"gates/implementation/QUALITY_GATE_TESTING", "implementation", "QUALITY_GATE_TESTING"},
+		{"gates/implementation/QUALITY_GATE_TESTING.md", "implementation", "QUALITY_GATE_TESTING"},
+		{"gates/problem-mining/QUALITY_GATE_ARTIFACT_CHECK.md", "problem-mining", "QUALITY_GATE_ARTIFACT_CHECK"},
+		{"agent/gates/implementation/testing", "implementation", "testing"},
+		{"agent/gates/implementation/testing.md", "implementation", "testing"},
+		{"implementation/testing", "implementation", "testing"},
+		{"", "", ""},
+		{"gates/", "", ""},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.template, func(t *testing.T) {
+			t.Parallel()
+			phase, gate := ExtractPhaseAndGate(tc.template)
+			if phase != tc.phase || gate != tc.gate {
+				t.Fatalf("ExtractPhaseAndGate(%q) = (%q, %q), want (%q, %q)",
+					tc.template, phase, gate, tc.phase, tc.gate)
+			}
+		})
+	}
+}
+
+func TestGenerateForSequence_SkipResultPreservesTemplate(t *testing.T) {
+	t.Parallel()
+
+	sequencePath := t.TempDir()
+
+	existing := `---
+fest_type: gate
+fest_gate_id: testing
+fest_status: pending
+---
+# Gate: Testing
+`
+	if err := os.WriteFile(filepath.Join(sequencePath, "01_quality_gate_testing.md"), []byte(existing), 0644); err != nil {
+		t.Fatalf("write existing gate: %v", err)
+	}
+
+	generator := &TaskGenerator{}
+	gateTemplate := "gates/problem-mining/QUALITY_GATE_ARTIFACT_CHECK"
+	results, _, err := generator.GenerateForSequence(
+		context.Background(),
+		sequencePath,
+		[]GateTask{{ID: "testing", Template: gateTemplate, Enabled: true}},
+		GenerateOptions{DryRun: true},
+	)
+	if err != nil {
+		t.Fatalf("GenerateForSequence() error = %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("GenerateForSequence() returned %d results, want 1", len(results))
+	}
+	r := results[0]
+	if r.Type != "skip" || r.Reason != "gate_exists" {
+		t.Fatalf("GenerateForSequence() = %+v, want skip/gate_exists", r)
+	}
+	if r.Template != gateTemplate {
+		t.Fatalf("skip result Template = %q, want %q", r.Template, gateTemplate)
+	}
+}
+
 func TestGenerateForSequence_BackfillsLegacyGateIDFromFilename(t *testing.T) {
 	t.Parallel()
 
