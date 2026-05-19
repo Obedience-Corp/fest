@@ -245,17 +245,16 @@ func printGatesShowMergedTable(cmd *cobra.Command, merged *gatescore.MergedPolic
 
 // Apply command in apply.go
 
-// extractPhaseFromTemplate extracts the phase type from a template path.
-// e.g., "gates/implementation/QUALITY_GATE_TESTING" -> "implementation"
+// extractPhaseFromTemplate extracts the phase type bucket for a configured
+// gate template path. Delegates to the gates package parser so that built-in
+// "agent/gates/..." templates and user-configured "gates/..." templates bucket
+// consistently. Returns "other" when the path cannot be parsed.
 func extractPhaseFromTemplate(template string) string {
-	// Expected format: gates/<phase_type>/<gate_name>
-	if strings.HasPrefix(template, "gates/") {
-		parts := strings.Split(template, "/")
-		if len(parts) >= 2 {
-			return parts[1]
-		}
+	phaseType, _ := gatescore.ExtractPhaseAndGate(template)
+	if phaseType == "" {
+		return "other"
 	}
-	return "other"
+	return phaseType
 }
 
 // canonicalPhaseBuckets lists known phase types in display order. Custom

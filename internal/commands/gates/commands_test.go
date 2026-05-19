@@ -78,8 +78,9 @@ func TestExtractPhaseFromTemplate(t *testing.T) {
 	}{
 		{"gates/implementation/QUALITY_GATE_TESTING", "implementation"},
 		{"gates/problem-mining/QUALITY_GATE_ARTIFACT_CHECK", "problem-mining"},
+		{"gates/problem-mining/QUALITY_GATE_ARTIFACT_CHECK.md", "problem-mining"},
 		{"gates/research/QUALITY_GATE_FOO", "research"},
-		{"agent/gates/implementation/testing", "other"},
+		{"agent/gates/implementation/testing", "implementation"},
 		{"", "other"},
 	}
 
