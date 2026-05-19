@@ -123,10 +123,11 @@ func (g *TaskGenerator) GenerateForSequence(
 			}
 			if !opts.Force {
 				results = append(results, GenerateResult{
-					Type:   "skip",
-					Path:   existingPath,
-					TaskID: gate.ID,
-					Reason: "gate_exists",
+					Type:     "skip",
+					Path:     existingPath,
+					Template: gate.Template,
+					TaskID:   gate.ID,
+					Reason:   "gate_exists",
 				})
 				continue
 			}

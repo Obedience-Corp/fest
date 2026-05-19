@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -192,17 +193,13 @@ func printGatesShowMergedTable(cmd *cobra.Command, merged *gatescore.MergedPolic
 	if len(activeGates) == 0 {
 		_, _ = fmt.Fprintln(out, ui.Dim("No active gates."))
 	} else {
-		// Group gates by phase type from template path (e.g., gates/implementation/...)
 		phaseGates := make(map[string][]gatescore.GateTask)
-		phaseOrder := []string{"implementation"}
-
 		for _, gate := range activeGates {
 			phaseType := extractPhaseFromTemplate(gate.Template)
 			phaseGates[phaseType] = append(phaseGates[phaseType], gate)
 		}
 
-		// Display gates grouped by phase type
-		for _, phaseType := range phaseOrder {
+		for _, phaseType := range orderedPhaseBuckets(phaseGates) {
 			gates := phaseGates[phaseType]
 			if len(gates) == 0 {
 				continue
@@ -259,4 +256,43 @@ func extractPhaseFromTemplate(template string) string {
 		}
 	}
 	return "other"
+}
+
+// canonicalPhaseBuckets lists known phase types in display order. Custom
+// template paths produce additional buckets, which are appended (sorted)
+// after these.
+var canonicalPhaseBuckets = []string{
+	"implementation",
+	"research",
+	"planning",
+	"review",
+	"non_coding_action",
+}
+
+// orderedPhaseBuckets returns bucket names in display order: canonical
+// buckets first (in canonicalPhaseBuckets order), then any other buckets
+// present in phaseGates sorted alphabetically. "other" sorts with the rest.
+func orderedPhaseBuckets(phaseGates map[string][]gatescore.GateTask) []string {
+	canonical := make(map[string]struct{}, len(canonicalPhaseBuckets))
+	for _, name := range canonicalPhaseBuckets {
+		canonical[name] = struct{}{}
+	}
+
+	var ordered []string
+	for _, name := range canonicalPhaseBuckets {
+		if _, ok := phaseGates[name]; ok {
+			ordered = append(ordered, name)
+		}
+	}
+
+	var extras []string
+	for name := range phaseGates {
+		if _, isCanonical := canonical[name]; isCanonical {
+			continue
+		}
+		extras = append(extras, name)
+	}
+	sort.Strings(extras)
+
+	return append(ordered, extras...)
 }
