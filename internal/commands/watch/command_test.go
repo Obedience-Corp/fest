@@ -81,6 +81,74 @@ func TestWatchCommandDelegatesWithMappedOptions(t *testing.T) {
 	}
 }
 
+func TestWatchCommandStandaloneWorkflowDelegatesBeforeFestivalResolution(t *testing.T) {
+	var gotWorkflow *show.StandaloneWorkflowInfo
+	var gotOptions show.WatchOptions
+	calledStandalone := false
+
+	cmd := newWatchCommand(commandDeps{
+		resolveStandalone: func(context.Context) (*show.StandaloneWorkflowInfo, error) {
+			return &show.StandaloneWorkflowInfo{StartDir: "/workspace/workflow", WorkflowDoc: "/workspace/workflow/WORKFLOW.md"}, nil
+		},
+		resolve: func(context.Context, string) (*show.FestivalInfo, error) {
+			t.Fatal("festival resolver should not be called for standalone workflow context")
+			return nil, nil
+		},
+		watch: func(context.Context, *show.FestivalInfo, show.WatchOptions) error {
+			t.Fatal("festival watch delegate should not be called for standalone workflow context")
+			return nil
+		},
+		watchStandalone: func(_ context.Context, workflow *show.StandaloneWorkflowInfo, opts show.WatchOptions) error {
+			calledStandalone = true
+			gotWorkflow = workflow
+			gotOptions = opts
+			return nil
+		},
+	})
+	cmd.SetArgs([]string{"--summary"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !calledStandalone {
+		t.Fatal("standalone watch delegate was not called")
+	}
+	if gotWorkflow == nil || gotWorkflow.WorkflowDoc != "/workspace/workflow/WORKFLOW.md" {
+		t.Fatalf("workflow = %#v", gotWorkflow)
+	}
+	if !gotOptions.InProgress || !gotOptions.Summary {
+		t.Fatalf("watch options were not mapped for standalone workflow: %#v", gotOptions)
+	}
+}
+
+func TestWatchCommandSelectorSkipsStandaloneResolution(t *testing.T) {
+	calledResolve := false
+	cmd := newWatchCommand(commandDeps{
+		resolveStandalone: func(context.Context) (*show.StandaloneWorkflowInfo, error) {
+			t.Fatal("standalone resolver should not be called when selector is explicit")
+			return nil, nil
+		},
+		resolve: func(_ context.Context, selector string) (*show.FestivalInfo, error) {
+			calledResolve = true
+			if selector != "festival-FS0001" {
+				t.Fatalf("selector = %q", selector)
+			}
+			return &show.FestivalInfo{Path: "/campaign/festivals/active/festival-FS0001"}, nil
+		},
+		watch: func(context.Context, *show.FestivalInfo, show.WatchOptions) error {
+			return nil
+		},
+	})
+	cmd.SetArgs([]string{"festival-FS0001"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+	if !calledResolve {
+		t.Fatal("festival resolver was not called")
+	}
+}
+
 func TestWatchCommandCancellationDoesNotCallDelegate(t *testing.T) {
 	cmd := newWatchCommand(commandDeps{
 		resolve: func(context.Context, string) (*show.FestivalInfo, error) {

@@ -10,6 +10,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/pathutil"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
@@ -46,6 +47,9 @@ SUBCOMMANDS:
   fest show all          List all festivals grouped by status
   fest show <name>       Show details of a specific festival by name
   fest show --festival <selector>  Show a festival by explicit selector (campaign workspace)`,
+		Annotations: map[string]string{
+			"scope": string(scope.Global),
+		},
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if opts.festival != "" && len(args) > 0 {
@@ -188,6 +192,22 @@ func runShowCurrent(ctx context.Context, opts *showOptions) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return errors.IO("getting current directory", err)
+	}
+
+	standaloneWorkflow, err := ResolveStandaloneWorkflow(ctx, cwd)
+	if err != nil {
+		return err
+	}
+	if standaloneWorkflow != nil {
+		if opts.watch {
+			return WatchStandaloneWorkflow(ctx, standaloneWorkflow, WatchOptions{
+				Summary:    opts.summary,
+				Goals:      opts.goals,
+				Collapsed:  opts.collapsed,
+				InProgress: opts.inProgress,
+			})
+		}
+		return emitStandaloneWorkflow(standaloneWorkflow, opts)
 	}
 
 	campaignRoot, _ := workspace.DetectCampaign(ctx, "")

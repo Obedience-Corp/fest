@@ -4,6 +4,7 @@
 package integration
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -195,4 +196,119 @@ Do the second thing.
 		out, err = container.RunFestInDir(showDir, "workflow", "show")
 		require.Error(t, err, "show must surface scanner error from corrupt event stream: %s", out)
 	})
+}
+
+func TestStandaloneWorkflow_TopLevelShowAndWatch(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+
+	container := GetSharedContainer(t)
+
+	t.Run("ShowAnonymousWorkflow", func(t *testing.T) {
+		dir := "/tmp/standalone-top-show-anonymous"
+		_, _ = container.Exec("rm", "-rf", dir)
+		require.NoError(t, container.WriteFile(dir+"/WORKFLOW.md", `# Top Level Workflow
+
+## Step 1: First
+
+**Goal:** show the first step.
+
+## Step 2: Second
+
+**Goal:** show the second step.
+`))
+
+		out, err := container.RunFestInDir(dir, "show")
+		require.NoError(t, err, "fest show should support anonymous WORKFLOW.md: %s", out)
+		require.Contains(t, out, "Workflow Progress")
+		require.Contains(t, out, "Mode: anonymous")
+		require.Contains(t, out, "Progress: 0/2")
+		require.Contains(t, out, "Step 1: First")
+		require.Contains(t, out, "Step 2: Second")
+		require.Contains(t, out, "fest workflow advance")
+
+		jsonOut, err := container.RunFestInDir(dir, "show", "--json")
+		require.NoError(t, err, "fest show --json should support anonymous WORKFLOW.md: %s", jsonOut)
+		require.Contains(t, jsonOut, `"mode": "standalone-anonymous"`)
+		require.Contains(t, jsonOut, `"total_steps": 2`)
+	})
+
+	t.Run("ShowTrackedWorkflowProgress", func(t *testing.T) {
+		dir := "/tmp/standalone-top-show-tracked"
+		_, _ = container.Exec("rm", "-rf", dir)
+		require.NoError(t, container.WriteFile(dir+"/WORKFLOW.md", `# Tracked Workflow
+
+## Step 1: First
+
+**Goal:** complete the first step.
+
+## Step 2: Second
+
+**Goal:** continue to the second step.
+`))
+
+		out, err := container.RunFestInDir(dir, "workflow", "init")
+		require.NoError(t, err, "workflow init: %s", out)
+		out, err = container.RunFestInDir(dir, "workflow", "start")
+		require.NoError(t, err, "workflow start: %s", out)
+		out, err = container.RunFestInDir(dir, "workflow", "advance")
+		require.NoError(t, err, "workflow advance: %s", out)
+
+		out, err = container.RunFestInDir(dir, "show")
+		require.NoError(t, err, "fest show should support tracked WORKFLOW.md: %s", out)
+		require.Contains(t, out, "Mode: tracked")
+		require.Contains(t, out, "Progress: 1/2")
+		require.Contains(t, out, "Step 1: First")
+		require.Contains(t, out, "Step 2: Second")
+		require.Contains(t, out, "Current: Step 2 - Second")
+	})
+
+	t.Run("WatchAnonymousWorkflowInitialRender", func(t *testing.T) {
+		dir := "/tmp/standalone-top-watch-anonymous"
+		_, _ = container.Exec("rm", "-rf", dir)
+		require.NoError(t, container.WriteFile(dir+"/WORKFLOW.md", `# Watch Workflow
+
+## Step 1: First
+
+**Goal:** render first.
+
+## Step 2: Second
+
+**Goal:** render second.
+`))
+
+		output, exitCode := runStandaloneFestWatchBounded(t, container, dir)
+		require.Contains(t, []int{124, 143}, exitCode, "watch should stay running until bounded timeout after initial render")
+		require.Contains(t, output, "Workflow Progress")
+		require.Contains(t, output, "Step 1: First")
+		require.Contains(t, output, "Step 2: Second")
+		require.True(t,
+			strings.Contains(output, "Watching for changes") || strings.Contains(output, "Polling for changes"),
+			"watch output should include watch footer, got:\n%s",
+			output,
+		)
+		require.NotContains(t, output, "festival could not be resolved")
+	})
+}
+
+func runStandaloneFestWatchBounded(t *testing.T, tc *TestContainer, cwd string) (string, int) {
+	t.Helper()
+
+	outputPath := "/tmp/fest-standalone-watch-output"
+	cmd := "cd " + shellQuote(cwd) + " && rm -f " + outputPath + " && set +e; timeout 2s /fest watch"
+	cmd += " > " + outputPath + " 2>&1; code=$?; cat " + outputPath + "; printf '\\n__FEST_STANDALONE_WATCH_EXIT_CODE:%d\\n' \"$code\""
+
+	output, err := tc.runCommand([]string{"sh", "-c", cmd})
+	require.NoError(t, err, "fest watch should start")
+
+	marker := "\n__FEST_STANDALONE_WATCH_EXIT_CODE:"
+	idx := strings.LastIndex(output, marker)
+	require.NotEqual(t, -1, idx, "bounded watch output should include exit marker: %s", output)
+
+	codeText := strings.TrimSpace(output[idx+len(marker):])
+	exitCode, err := strconv.Atoi(codeText)
+	require.NoError(t, err, "bounded watch exit code should parse")
+
+	return output[:idx], exitCode
 }
