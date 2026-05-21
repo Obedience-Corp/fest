@@ -27,6 +27,9 @@ type Config struct {
 	// FallbackPoll is the polling interval to use if fsnotify fails.
 	// If zero, no fallback is used and errors are returned.
 	FallbackPoll time.Duration
+
+	// OnError receives non-fatal watcher errors reported by the OS.
+	OnError func(error)
 }
 
 // Watcher monitors files for changes and calls a callback when changes occur.
@@ -38,6 +41,7 @@ type Watcher struct {
 	mu      sync.Mutex
 	timer   *time.Timer
 	pending bool
+	watched map[string]struct{}
 }
 
 // ErrNoWatchablePaths is returned when none of the specified paths can be watched.
@@ -56,15 +60,24 @@ func New(cfg Config, onChange func()) (*Watcher, error) {
 		return nil, err
 	}
 
-	// Add all paths to the watcher
+	w := &Watcher{
+		config:   cfg,
+		onChange: onChange,
+		watcher:  fsw,
+		watched:  make(map[string]struct{}),
+	}
+
+	// Add all paths to the watcher.
 	watchedCount := 0
 	for _, path := range cfg.Paths {
-		// Only watch paths that exist
-		if _, err := os.Stat(path); err == nil {
-			if err := fsw.Add(path); err != nil {
+		if err := w.AddPath(path); err != nil {
+			if !os.IsNotExist(err) {
 				_ = fsw.Close()
 				return nil, err
 			}
+			continue
+		}
+		if path != "" {
 			watchedCount++
 		}
 	}
@@ -75,11 +88,29 @@ func New(cfg Config, onChange func()) (*Watcher, error) {
 		return nil, ErrNoWatchablePaths
 	}
 
-	return &Watcher{
-		config:   cfg,
-		onChange: onChange,
-		watcher:  fsw,
-	}, nil
+	return w, nil
+}
+
+// AddPath dynamically adds an existing file or directory to the watcher.
+// Re-adding an already watched path is a no-op.
+func (w *Watcher) AddPath(path string) error {
+	if path == "" {
+		return nil
+	}
+	if _, err := os.Stat(path); err != nil {
+		return err
+	}
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if _, ok := w.watched[path]; ok {
+		return nil
+	}
+	if err := w.watcher.Add(path); err != nil {
+		return err
+	}
+	w.watched[path] = struct{}{}
+	return nil
 }
 
 // Watch blocks until the context is cancelled, calling onChange when files change.
@@ -95,8 +126,10 @@ func (w *Watcher) Watch(ctx context.Context) error {
 			if !ok {
 				return nil
 			}
-			// Only trigger on write, create, or remove events
-			if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) || event.Has(fsnotify.Remove) {
+			if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
+				w.removePath(event.Name)
+			}
+			if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) || event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
 				w.scheduleCallback()
 			}
 
@@ -104,10 +137,17 @@ func (w *Watcher) Watch(ctx context.Context) error {
 			if !ok {
 				return nil
 			}
-			// Log but don't fail on transient errors
-			_ = err // Could log this in verbose mode
+			if w.config.OnError != nil {
+				w.config.OnError(err)
+			}
 		}
 	}
+}
+
+func (w *Watcher) removePath(path string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	delete(w.watched, path)
 }
 
 // scheduleCallback schedules the onChange callback after the debounce period.
