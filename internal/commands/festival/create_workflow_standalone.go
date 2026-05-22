@@ -18,8 +18,8 @@ import (
 
 // runStandaloneCreateWorkflow implements `fest create workflow <name>` outside
 // a festival context (D009). It writes <cwd>/WORKFLOW.md from the same
-// WorkflowInput shape festival mode uses, then optionally initializes
-// <cwd>/.workflow/workflow.yaml via localstore.Init.
+// WorkflowInput shape festival mode uses, then initializes
+// <cwd>/.workflow/workflow.yaml and starts a run unless --no-init is set.
 //
 // Festival-only flags (--position, --path, --festival) are rejected here so
 // users get an explicit error rather than confusing silent ignores.
@@ -49,6 +49,17 @@ func runStandaloneCreateWorkflow(ctx context.Context, opts *CreateWorkflowOption
 				WithField("path", target).
 				WithHint("remove it first or pick another directory"))
 	}
+	runtimeDir := filepath.Join(cwd, ".workflow")
+	if !opts.NoInit {
+		if _, err := os.Stat(runtimeDir); err == nil {
+			return emitWorkflowError(opts,
+				errors.Validation(".workflow/ already exists").
+					WithField("path", runtimeDir).
+					WithHint("use `fest workflow start` for an existing tracked workflow, or remove .workflow/ before creating a new one"))
+		} else if !os.IsNotExist(err) {
+			return emitWorkflowError(opts, errors.IO("checking .workflow/", err).WithField("path", runtimeDir))
+		}
+	}
 
 	workflowID := "wf-" + workflow.SanitizeBasenameAsSlug(opts.Name)
 	if err := workflow.ValidateWorkflowID(workflowID); err != nil {
@@ -66,22 +77,34 @@ func runStandaloneCreateWorkflow(ctx context.Context, opts *CreateWorkflowOption
 
 	created := []string{target}
 	runtimeInitialized := false
+	activeRunID := ""
 	if !opts.NoInit {
-		store := localstore.Open(filepath.Join(cwd, ".workflow"), target)
+		store := localstore.Open(runtimeDir, target)
 		if err := store.Init(ctx, localstore.InitOptions{WorkflowID: workflowID}); err != nil {
 			return emitWorkflowError(opts, errors.Wrap(err, "initialize .workflow/"))
 		}
+		runID, err := store.StartRun(ctx, "")
+		if err != nil {
+			_ = os.RemoveAll(runtimeDir)
+			return emitWorkflowError(opts, errors.Wrap(err, "start workflow run"))
+		}
+		activeRunID = runID
 		runtimeInitialized = true
-		created = append(created, filepath.Join(cwd, ".workflow", "workflow.yaml"))
+		created = append(created,
+			filepath.Join(runtimeDir, "workflow.yaml"),
+			filepath.Join(runtimeDir, "runs", runID, "run.yaml"),
+			filepath.Join(runtimeDir, "runs", runID, "progress_events.jsonl"),
+		)
 		if !opts.JSONOutput {
 			fmt.Printf("initialized .workflow/workflow.yaml (workflow_id=%s)\n", workflowID)
+			fmt.Printf("started workflow run %s\n", runID)
 		}
 	} else if !opts.JSONOutput {
 		fmt.Println("skipped .workflow/ init (--no-init); run `fest workflow init` when ready")
 	}
 
 	if opts.JSONOutput {
-		return emitStandaloneWorkflowJSON(opts, input, workflowID, target, created, runtimeInitialized)
+		return emitStandaloneWorkflowJSON(opts, input, workflowID, activeRunID, target, created, runtimeInitialized)
 	}
 
 	fmt.Println("next: fest next")
@@ -92,14 +115,20 @@ func runStandaloneCreateWorkflow(ctx context.Context, opts *CreateWorkflowOption
 // emitStandaloneWorkflowJSON mirrors emitWorkflowOutput's JSON shape for the
 // standalone path so --json / --agent callers receive a structured result
 // instead of an empty stdout. (#173 review)
-func emitStandaloneWorkflowJSON(opts *CreateWorkflowOptions, input *WorkflowInput, workflowID, target string, created []string, runtimeInitialized bool) error {
+func emitStandaloneWorkflowJSON(opts *CreateWorkflowOptions, input *WorkflowInput, workflowID, activeRunID, target string, created []string, runtimeInitialized bool) error {
 	suggestions := []string{
 		"fest next                  - Render the first step",
-		"fest workflow start        - Begin a tracked run",
+		"fest workflow advance      - Complete the current step",
 		"fest workflow show         - Show current step",
 	}
 	if !runtimeInitialized {
-		suggestions = append([]string{"fest workflow init         - Bootstrap .workflow/ runtime"}, suggestions...)
+		suggestions = []string{
+			"fest next                  - Render the first step",
+			"fest workflow advance      - Bootstrap and complete step 1",
+			"fest workflow init         - Bootstrap .workflow/ runtime",
+			"fest workflow start        - Begin a tracked run after init",
+			"fest workflow show         - Show current step",
+		}
 	}
 	return emitWorkflowJSON(opts, createWorkflowResult{
 		OK:     true,
@@ -111,6 +140,7 @@ func emitStandaloneWorkflowJSON(opts *CreateWorkflowOptions, input *WorkflowInpu
 			"title":               input.Title,
 			"steps":               len(input.Steps),
 			"runtime_initialized": runtimeInitialized,
+			"active_run_id":       activeRunID,
 		},
 		Created:     created,
 		Suggestions: suggestions,
