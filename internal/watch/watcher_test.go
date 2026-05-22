@@ -33,6 +33,58 @@ func TestNew(t *testing.T) {
 	}
 }
 
+func TestNewAllowsEmptyPathSet(t *testing.T) {
+	w, err := New(Config{}, func() {})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	defer func() { _ = w.Close() }()
+}
+
+func TestWatcherAddPathTracksDynamicPath(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	w, err := New(Config{}, func() {})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	defer func() { _ = w.Close() }()
+
+	if err := w.AddPath(tmpDir); err != nil {
+		t.Fatalf("AddPath() error = %v", err)
+	}
+	if err := w.AddPath(tmpDir); err != nil {
+		t.Fatalf("AddPath() duplicate error = %v", err)
+	}
+	if got := len(w.watched); got != 1 {
+		t.Fatalf("watched path count = %d, want 1", got)
+	}
+}
+
+func TestWatcherRemovePathAllowsReAdd(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	w, err := New(Config{}, func() {})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	defer func() { _ = w.Close() }()
+
+	if err := w.AddPath(tmpDir); err != nil {
+		t.Fatalf("AddPath() error = %v", err)
+	}
+	w.removePath(tmpDir)
+	if _, ok := w.watched[tmpDir]; ok {
+		t.Fatalf("removePath(%q) left stale cache entry", tmpDir)
+	}
+	if err := w.AddPath(tmpDir); err != nil {
+		t.Fatalf("AddPath() after remove error = %v", err)
+	}
+	if _, ok := w.watched[tmpDir]; !ok {
+		t.Fatalf("AddPath(%q) did not restore cache entry", tmpDir)
+	}
+}
+
 func TestWatcher_Watch_DetectsChanges(t *testing.T) {
 	tmpDir := t.TempDir()
 	tmpFile := filepath.Join(tmpDir, "test.txt")

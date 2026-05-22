@@ -45,6 +45,9 @@ func runWatchMode(ctx context.Context, mgr *progress.Manager, loc *show.Location
 	w, err := watch.New(watch.Config{
 		Paths:    watchPaths,
 		Debounce: 100 * time.Millisecond,
+		OnError: func(err error) {
+			fmt.Fprintf(os.Stderr, "%s file watch error: %v\n", ui.Warning("Warning:"), err)
+		},
 	}, func() {
 		clearScreen()
 		// Refresh progress manager to get latest data
@@ -54,7 +57,7 @@ func runWatchMode(ctx context.Context, mgr *progress.Manager, loc *show.Location
 		}
 		if err := showProgressOverview(ctx, mgr, loc, opts); err != nil {
 			// Log error but don't fail - just show stale data
-			_ = err
+			fmt.Fprintf(os.Stderr, "%s could not refresh progress view: %v\n", ui.Warning("Warning:"), err)
 		}
 		printWatchFooter(false, opts.interval)
 	})

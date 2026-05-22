@@ -70,6 +70,9 @@ func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions
 	w, err := watch.New(watch.Config{
 		Paths:    watchPaths,
 		Debounce: 100 * time.Millisecond,
+		OnError: func(err error) {
+			fmt.Fprintf(os.Stderr, "%s file watch error: %v\n", ui.Warning("Warning:"), err)
+		},
 	}, func() {
 		clearScreen()
 		// Refresh festival info to get latest data
@@ -79,7 +82,7 @@ func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions
 		}
 		if err := renderFestivalView(ctx, festival, opts); err != nil {
 			// Log error but don't fail - just show stale data
-			_ = err
+			fmt.Fprintf(os.Stderr, "%s could not refresh festival view: %v\n", ui.Warning("Warning:"), err)
 		}
 		printWatchFooter(false)
 	})
