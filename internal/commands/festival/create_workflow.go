@@ -61,20 +61,27 @@ func NewCreateWorkflowCommand() *cobra.Command {
 	opts := &CreateWorkflowOptions{}
 	cmd := &cobra.Command{
 		Use:   "workflow",
-		Short: "Create a WORKFLOW.md for a phase from structured step definitions",
-		Long: `Generate a WORKFLOW.md file for an existing phase directory.
+		Short: "Create a standalone or phase WORKFLOW.md from structured step definitions",
+		Long: `Generate a parseable WORKFLOW.md from prompts, inline JSON, or a steps file.
 
-Takes structured JSON input (inline or file) and produces a parseable WORKFLOW.md
-that matches the format expected by the workflow parser.
+Outside a festival phase, this creates WORKFLOW.md in the current directory,
+initializes .workflow/ runtime state, and starts a tracked run so fest next works
+immediately.
+
+Inside a festival phase, or when --path/--festival targets a phase, this writes
+the phase WORKFLOW.md without standalone runtime state.
 
 Examples:
-  # From a steps file
+  # Standalone workflow in the current directory
+  fest create workflow demo
+
+  # Standalone workflow from inline JSON (for agents)
+  fest create workflow demo --steps '{"title":"Review","steps":[...]}'
+
+  # Phase workflow from a steps file
   fest create workflow --steps-file steps.json --position after
 
-  # Inline JSON (for agents)
-  fest create workflow --steps '{"title":"Review","steps":[...]}' --position before
-
-  # With explicit phase path
+  # Explicit phase path
   fest create workflow --steps-file steps.json --path ./004_POLISH`,
 		Annotations: map[string]string{
 			"scope": string(scope.Global),
@@ -91,12 +98,12 @@ Examples:
 	cmd.Flags().StringVar(&opts.Steps, "steps", "", "Inline JSON with workflow definition")
 	cmd.Flags().StringVar(&opts.StepsFile, "steps-file", "", "Path to JSON file with workflow definition")
 	cmd.Flags().StringVar(&opts.Position, "position", "after", "Workflow position relative to sequences (before|after)")
-	cmd.Flags().StringVar(&opts.Path, "path", ".", "Phase directory path")
+	cmd.Flags().StringVar(&opts.Path, "path", ".", "Phase directory path (festival mode)")
 	cmd.Flags().StringVar(&opts.Festival, "festival", "", "Festival root override")
 	cmd.Flags().BoolVar(&opts.JSONOutput, "json", false, "Emit JSON output")
 	cmd.Flags().BoolVar(&opts.AgentMode, "agent", false, "Strict agent mode (implies --json)")
 	cmd.Flags().StringVar(&opts.Type, "type", "task", "workflow type (standalone mode only)")
-	cmd.Flags().BoolVar(&opts.NoInit, "no-init", false, "skip .workflow/ runtime init (standalone mode only)")
+	cmd.Flags().BoolVar(&opts.NoInit, "no-init", false, "skip .workflow/ runtime init (advanced standalone mode)")
 	return cmd
 }
 

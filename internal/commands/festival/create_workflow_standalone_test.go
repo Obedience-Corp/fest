@@ -37,6 +37,29 @@ func TestRejectFestivalOnlyFlags(t *testing.T) {
 	}
 }
 
+func TestCreateWorkflowHelpMentionsStandaloneFlow(t *testing.T) {
+	cmd := NewCreateWorkflowCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"--help"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("help command: %v", err)
+	}
+	help := out.String()
+	for _, want := range []string{
+		"Generate a parseable WORKFLOW.md",
+		"current directory",
+		"starts a tracked run so fest next works",
+		"fest create workflow demo",
+	} {
+		if !strings.Contains(help, want) {
+			t.Fatalf("help missing %q:\n%s", want, help)
+		}
+	}
+}
+
 func TestPromptForStandaloneInput_HappyPath(t *testing.T) {
 	in := strings.NewReader("My Title\nThe intent line\nALIGN|Get aligned\nBUILD|Do the work\n\n")
 	var out bytes.Buffer

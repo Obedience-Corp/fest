@@ -215,8 +215,8 @@ func runStandaloneShow(ctx context.Context, res *standalone.Result, stepNum int)
 				return festerrors.Wrap(lerr, "loading active run state").
 					WithHint("the .workflow/ runtime is unreadable; resolve the underlying I/O error or rerun `fest workflow init` after manual cleanup")
 			}
-			if state != nil && state.CurrentStep > 0 {
-				current = state.CurrentStep
+			if state != nil {
+				current = standaloneShowStep(state, len(steps))
 			}
 		}
 		if current == 0 {
@@ -248,4 +248,24 @@ func runStandaloneShow(ctx context.Context, res *standalone.Result, stepNum int)
 		fmt.Println("(anonymous; first mutation will bootstrap to tracked mode)")
 	}
 	return nil
+}
+
+func standaloneShowStep(state *localstore.RunState, totalSteps int) int {
+	if totalSteps == 0 || state == nil {
+		return 0
+	}
+	if state.Status == "completed" || state.CompletedSteps >= totalSteps {
+		return totalSteps
+	}
+	if state.CurrentStep > state.CompletedSteps {
+		return state.CurrentStep
+	}
+	next := state.CompletedSteps + 1
+	if next < 1 {
+		return 1
+	}
+	if next > totalSteps {
+		return totalSteps
+	}
+	return next
 }
