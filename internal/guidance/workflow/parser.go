@@ -155,6 +155,13 @@ func (p *Parser) parseCheckpoint(section string) CheckpointType {
 	}
 }
 
+// StepHeaderRegexp returns the compiled regexp used to match step headers.
+// Callers that need to locate or rewrite "## Step N: ..." headings (for example,
+// renumber tooling) should use this accessor instead of redefining the pattern.
+func StepHeaderRegexp() *regexp.Regexp {
+	return stepHeaderRe
+}
+
 // StepCount returns the number of steps in a WORKFLOW.md file without parsing fully.
 func (p *Parser) StepCount(ctx context.Context, path string) (int, error) {
 	select {

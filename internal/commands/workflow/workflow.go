@@ -77,6 +77,7 @@ Examples:
 		newInitCmd(),
 		newStartCmd(),
 		newRunsCmd(),
+		newRenumberCmd(),
 	)
 
 	return cmd
