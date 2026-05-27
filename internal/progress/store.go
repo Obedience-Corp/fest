@@ -556,12 +556,13 @@ func (s *Store) QueueWorkflowEvents(events []wf.WorkflowEvent) {
 	now := time.Now().UTC()
 	for _, we := range events {
 		pe := &ProgressEvent{
-			Timestamp:  now,
-			Event:      EventType(we.EventType),
-			Phase:      we.Phase,
-			Step:       we.Step,
-			TotalSteps: we.TotalSteps,
-			Feedback:   we.Feedback,
+			Timestamp:        now,
+			Event:            EventType(we.EventType),
+			Phase:            we.Phase,
+			Step:             we.Step,
+			TotalSteps:       we.TotalSteps,
+			Feedback:         we.Feedback,
+			RemediationPhase: we.RemediationPhase,
 		}
 		s.pendingEvents = append(s.pendingEvents, pe)
 	}
