@@ -651,6 +651,55 @@ func (n *Navigator) Reject(ctx context.Context, reason string) error {
 	return n.workflowState.Save(ctx, n.festivalPath, sk)
 }
 
+// RejectWithRemediation records the current step as failed with a linked
+// remediation phase. The step remains non-terminal so the workflow does not
+// silently complete past a real failure; the gate must be re-evaluated once
+// the remediation phase finishes.
+func (n *Navigator) RejectWithRemediation(ctx context.Context, reason, remediationPhase string) error {
+	if err := n.EnsureInitialized(); err != nil {
+		return err
+	}
+
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
+	n.workflowState.RejectWithRemediation(reason, remediationPhase)
+
+	sk := n.stateKey()
+	if n.store != nil {
+		n.store.QueueWorkflowEvents(EmitStepFailRemediationEvents(sk, n.workflowState.CurrentStep, reason, remediationPhase))
+		return n.store.SaveEvents(ctx)
+	}
+	return n.workflowState.Save(ctx, n.festivalPath, sk)
+}
+
+// Recheck transitions the current step out of failed_with_remediation back
+// to in-progress so the operator can re-evaluate (approve or reject) the
+// gate after the linked remediation phase has completed.
+func (n *Navigator) Recheck(ctx context.Context) error {
+	if err := n.EnsureInitialized(); err != nil {
+		return err
+	}
+
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
+	n.workflowState.ClearFailedRemediation()
+
+	sk := n.stateKey()
+	if n.store != nil {
+		n.store.QueueWorkflowEvents(EmitStepRecheckEvents(sk, n.workflowState.CurrentStep))
+		return n.store.SaveEvents(ctx)
+	}
+	return n.workflowState.Save(ctx, n.festivalPath, sk)
+}
+
 // GetWorkflowState returns the current workflow state.
 func (n *Navigator) GetWorkflowState() *WorkflowState {
 	return n.workflowState
