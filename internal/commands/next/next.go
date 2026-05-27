@@ -181,6 +181,16 @@ func runNext(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// Failed-gate remediation routing takes priority over normal phase
+	// resolution. When a phase gate was rejected with --remediation-phase,
+	// route into the remediation phase until it completes, then auto-recheck
+	// the failed gate.
+	if gate, gateErr := findFailedRemediationGate(ctx, festivalPath); gateErr == nil && gate != nil {
+		if handled, err := routeFailedRemediationGate(ctx, festivalPath, gate); handled {
+			return err
+		}
+	}
+
 	// If mode flag is provided or --navigator flag is set, use guidance navigator
 	if modeFlag != "" || useNavigator {
 		return runNavigatorMode(ctx, cwd, festivalPath)
