@@ -56,6 +56,7 @@ func runStatus(ctx context.Context) error {
 
 	// Convert to shared view format
 	views := make([]shared.WorkflowStepView, len(steps))
+	failedRemediation := make([]*wf.StepState, len(steps))
 	for i, step := range steps {
 		stepState := state.GetStepState(step.Number)
 		status := wf.StepStatusPending
@@ -63,6 +64,9 @@ func runStatus(ctx context.Context) error {
 		if stepState != nil {
 			status = stepState.Status
 			feedback = stepState.Feedback
+			if stepState.Status == wf.StepStatusFailedRemediation {
+				failedRemediation[i] = stepState
+			}
 		}
 
 		views[i] = shared.WorkflowStepView{
@@ -110,6 +114,23 @@ func runStatus(ctx context.Context) error {
 		sb.WriteString("\n")
 		sb.WriteString(ui.Success("✓ All steps complete"))
 		sb.WriteString("\n")
+	}
+
+	for i, ss := range failedRemediation {
+		if ss == nil {
+			continue
+		}
+		sb.WriteString("\n")
+		sb.WriteString(ui.Warning("⚠ Failed gate (remediation linked)"))
+		sb.WriteString("\n")
+		fmt.Fprintf(&sb, "  Step %d: %s\n", steps[i].Number, steps[i].Name)
+		if ss.Feedback != "" {
+			fmt.Fprintf(&sb, "  Reason: %s\n", ss.Feedback)
+		}
+		if ss.RemediationPhase != "" {
+			fmt.Fprintf(&sb, "  Remediation phase: %s\n", ss.RemediationPhase)
+		}
+		sb.WriteString("  Run 'fest next' to advance into remediation or recheck the gate.\n")
 	}
 
 	fmt.Print(sb.String())

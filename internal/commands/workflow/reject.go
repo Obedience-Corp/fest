@@ -3,7 +3,11 @@ package workflow
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
+	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -12,6 +16,7 @@ import (
 
 func newRejectCmd() *cobra.Command {
 	var reason string
+	var remediationPhase string
 
 	cmd := &cobra.Command{
 		Use:   "reject",
@@ -21,25 +26,41 @@ func newRejectCmd() *cobra.Command {
 When a step's work doesn't meet requirements, use this command
 to reject and request revisions.
 
-The feedback will be recorded in the workflow state for reference.`,
+The feedback will be recorded in the workflow state for reference.
+
+Failed gates with remediation:
+  Use --remediation-phase to record that a phase gate did not pass and
+  to link a remediation phase that will correct the underlying issues.
+  After the remediation phase completes, 'fest next' routes back to the
+  failed gate for re-evaluation rather than treating it as approved.
+
+Examples:
+  fest workflow reject --reason "needs revision"
+  fest workflow reject --reason "PR not ready" --remediation-phase 005_FIX_PR_302`,
 		Annotations: map[string]string{
 			"scope": string(scope.Festival),
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if reason == "" {
-				return fmt.Errorf("--reason is required\n\nUsage: fest workflow reject --reason \"your feedback here\"")
+				return festerrors.Validation("--reason is required").
+					WithHint("Usage: fest workflow reject --reason \"your feedback here\"")
 			}
-			return runReject(cmd.Context(), reason)
+			return runRejectWithRemediation(cmd.Context(), reason, remediationPhase)
 		},
 	}
 
 	cmd.Flags().StringVarP(&reason, "reason", "r", "", "reason for rejection (required)")
+	cmd.Flags().StringVar(&remediationPhase, "remediation-phase", "", "link a remediation phase for a failed gate (e.g. 005_FIX_PR_302)")
 	_ = cmd.MarkFlagRequired("reason")
 
 	return cmd
 }
 
 func runReject(ctx context.Context, reason string) error {
+	return runRejectWithRemediation(ctx, reason, "")
+}
+
+func runRejectWithRemediation(ctx context.Context, reason, remediationPhase string) error {
 	nav, err := getWorkflowNavigator(ctx)
 	if err != nil {
 		return err
@@ -55,27 +76,42 @@ func runReject(ctx context.Context, reason string) error {
 	state := nav.GetWorkflowState()
 	steps := nav.GetSteps()
 
-	// Check if already complete
 	if state.IsComplete() {
-		return fmt.Errorf("workflow is already complete")
+		return festerrors.Validation("workflow is already complete")
 	}
 
-	// Get current step info
 	currentStepNum := state.CurrentStep
 	if currentStepNum < 1 || currentStepNum > len(steps) {
-		return fmt.Errorf("invalid workflow state: current step %d out of range", currentStepNum)
+		return festerrors.Validation("invalid workflow state").
+			WithField("current_step", currentStepNum).
+			WithField("total_steps", len(steps))
 	}
 
 	step := steps[currentStepNum-1]
 
-	// Verify this is a checkpoint step
 	if !step.Checkpoint.IsBlocking() {
-		return fmt.Errorf("step %d does not have a blocking checkpoint\n\nReject is only for checkpoint steps", currentStepNum)
+		return festerrors.Validation("step does not have a blocking checkpoint").
+			WithField("step", currentStepNum).
+			WithHint("Reject is only for checkpoint steps")
 	}
 
-	// Reject with feedback
+	if remediationPhase != "" {
+		if err := validateRemediationPhase(nav.Ctx.FestivalPath, remediationPhase); err != nil {
+			return err
+		}
+		if err := nav.RejectWithRemediation(ctx, reason, remediationPhase); err != nil {
+			return festerrors.Wrap(err, "recording failed gate with remediation")
+		}
+		fmt.Printf("%s Step %d: %s failed with remediation\n", ui.Warning("⚠"), currentStepNum, step.Name)
+		fmt.Printf("  %s: %s\n", ui.Label("Reason"), reason)
+		fmt.Printf("  %s: %s\n\n", ui.Label("Remediation phase"), remediationPhase)
+		fmt.Println("Run " + ui.Accent("fest next") + " to advance into the remediation phase.")
+		fmt.Println("After remediation completes, " + ui.Accent("fest next") + " will route back to this gate for re-evaluation.")
+		return nil
+	}
+
 	if err := nav.Reject(ctx, reason); err != nil {
-		return fmt.Errorf("rejecting checkpoint: %w", err)
+		return festerrors.Wrap(err, "rejecting checkpoint")
 	}
 
 	fmt.Printf("%s Step %d: %s rejected\n", ui.Warning("⚠"), currentStepNum, step.Name)
@@ -83,5 +119,21 @@ func runReject(ctx context.Context, reason string) error {
 	fmt.Println("The step is now blocked. Address the feedback and revise the work.")
 	fmt.Println("When ready, run " + ui.Accent("fest workflow advance") + " to resubmit.")
 
+	return nil
+}
+
+func validateRemediationPhase(festivalPath, phaseName string) error {
+	candidate := filepath.Join(festivalPath, phaseName)
+	info, err := os.Stat(candidate)
+	if err != nil || !info.IsDir() {
+		return festerrors.NotFound("remediation phase").
+			WithField("phase", phaseName).
+			WithHint("create the phase first (e.g. 'fest create phase --name " + phaseName + " --type implementation')")
+	}
+	if !shared.IsNumberedDir(phaseName) {
+		return festerrors.Validation("remediation phase name must be a numbered phase directory").
+			WithField("phase", phaseName).
+			WithHint("expected format: NNN_NAME (e.g. 005_FIX_PR_302)")
+	}
 	return nil
 }
