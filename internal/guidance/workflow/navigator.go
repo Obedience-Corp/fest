@@ -66,6 +66,12 @@ func (n *Navigator) SetStateKeyPrefix(prefix string) {
 	n.stateKeyPrefix = prefix
 }
 
+// IsGate reports whether this navigator targets a phase gate (GATES.md) rather
+// than a regular WORKFLOW.md checkpoint.
+func (n *Navigator) IsGate() bool {
+	return n.docFilename == "GATES.md"
+}
+
 // stateKey returns the key used for progress state lookups.
 func (n *Navigator) stateKey() string {
 	return n.stateKeyPrefix + n.phaseName

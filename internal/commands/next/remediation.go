@@ -100,9 +100,11 @@ func lookupGateStepName(ctx context.Context, phasePath string, stepNum int) (str
 }
 
 // isRemediationPhaseComplete reports whether the remediation phase has all
-// task-based and workflow work complete. Sequence/task and WORKFLOW.md
-// completion both qualify; phase gates on the remediation phase are not
-// required (they would block remediation completion in a circular fashion).
+// task-based and workflow work complete. A remediation phase is driven by its
+// WORKFLOW.md and/or numbered sequences; it is validated to contain at least
+// one of these at link time (see validateRemediationPhase). A GATES.md on the
+// remediation phase is not part of the remediation loop: the original failed
+// gate is the verification step and is rechecked once remediation work is done.
 func isRemediationPhaseComplete(ctx context.Context, festivalPath, remediationPhase string) (bool, error) {
 	if remediationPhase == "" {
 		return false, nil
@@ -151,9 +153,6 @@ func renderRemediationRoute(ctx context.Context, festivalPath string, gate *fail
 
 	if _, err := os.Stat(filepath.Join(remPath, "WORKFLOW.md")); err == nil {
 		return runWorkflowMode(ctx, festivalPath, remPath)
-	}
-	if _, err := os.Stat(filepath.Join(remPath, "GATES.md")); err == nil {
-		return runPhaseGateMode(ctx, festivalPath, remPath)
 	}
 	return renderFirstIncompleteTask(ctx, festivalPath, remPath)
 }

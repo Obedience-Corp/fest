@@ -96,6 +96,11 @@ func runRejectWithRemediation(ctx context.Context, reason, remediationPhase stri
 	}
 
 	if remediationPhase != "" {
+		if !nav.IsGate() {
+			return festerrors.Validation("--remediation-phase is only valid for phase gates").
+				WithField("phase", filepath.Base(nav.Ctx.PhasePath)).
+				WithHint("failed-gate remediation routes via 'fest next' only for GATES.md gates; for a regular checkpoint use 'fest workflow reject --reason' (revise in place) or 'fest workflow skip' (done elsewhere)")
+		}
 		if err := validateRemediationPhase(nav.Ctx.FestivalPath, remediationPhase); err != nil {
 			return err
 		}
@@ -134,6 +139,15 @@ func validateRemediationPhase(festivalPath, phaseName string) error {
 		return festerrors.Validation("remediation phase name must be a numbered phase directory").
 			WithField("phase", phaseName).
 			WithHint("expected format: NNN_NAME (e.g. 005_FIX_PR_302)")
+	}
+	hasWorkflow := false
+	if info, statErr := os.Stat(filepath.Join(candidate, "WORKFLOW.md")); statErr == nil && !info.IsDir() {
+		hasWorkflow = true
+	}
+	if !hasWorkflow && !shared.HasSequenceDirs(candidate) {
+		return festerrors.Validation("remediation phase has no actionable work").
+			WithField("phase", phaseName).
+			WithHint("a remediation phase must contain a WORKFLOW.md or numbered sequence directories so 'fest next' has remediation work to route into; a GATES.md alone is not a remediation phase")
 	}
 	return nil
 }

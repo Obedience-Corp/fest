@@ -78,6 +78,61 @@ func TestRunRejectWithRemediation_ValidatesPhaseNameFormat(t *testing.T) {
 	}
 }
 
+func TestRunRejectWithRemediation_RejectsNonGateNavigator(t *testing.T) {
+	festDir := setupWorkflowCheckpointFestival(t)
+	ctx := scope.WithFestival(context.Background(), festDir)
+	if err := os.Chdir(festDir); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+
+	err := runRejectWithRemediation(ctx, "blockers", "005_FIX_PR_302")
+	if err == nil {
+		t.Fatal("expected error rejecting --remediation-phase on a non-gate navigator")
+	}
+	if !strings.Contains(err.Error(), "phase gate") {
+		t.Errorf("unexpected error: %v", err)
+	}
+
+	store := progress.NewStore(festDir)
+	if err := store.Load(ctx); err != nil {
+		t.Fatalf("store.Load: %v", err)
+	}
+	if _, ok := store.GatePhaseState("001_PLAN"); ok {
+		t.Error("non-gate rejection must not persist gate-prefixed state")
+	}
+}
+
+func TestValidateRemediationPhase_RequiresActionableWork(t *testing.T) {
+	festDir := t.TempDir()
+	emptyPhase := filepath.Join(festDir, "005_FIX_PR_302")
+	if err := os.MkdirAll(emptyPhase, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(emptyPhase, "GATES.md"), []byte("---\nfest_type: phase_gate\n---\n\n# Gate\n"), 0o644); err != nil {
+		t.Fatalf("write GATES.md: %v", err)
+	}
+
+	err := validateRemediationPhase(festDir, "005_FIX_PR_302")
+	if err == nil {
+		t.Fatal("expected error for remediation phase with no actionable work")
+	}
+	if !strings.Contains(err.Error(), "actionable work") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateRemediationPhase_AcceptsSequenceDirs(t *testing.T) {
+	festDir := t.TempDir()
+	phase := filepath.Join(festDir, "005_FIX_PR_302")
+	if err := os.MkdirAll(filepath.Join(phase, "001_FIX"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	if err := validateRemediationPhase(festDir, "005_FIX_PR_302"); err != nil {
+		t.Errorf("expected sequence-dir remediation phase to validate, got %v", err)
+	}
+}
+
 func TestRunReject_DefaultBehaviorUnchanged(t *testing.T) {
 	festDir := setupGateRemediationFestival(t)
 	ctx := scope.WithFestival(context.Background(), festDir)
@@ -104,6 +159,40 @@ func TestRunReject_DefaultBehaviorUnchanged(t *testing.T) {
 	if step.RemediationPhase != "" {
 		t.Errorf("RemediationPhase = %q, want empty", step.RemediationPhase)
 	}
+}
+
+func setupWorkflowCheckpointFestival(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+
+	festYAML := "name: wf-test\nid: WFT-001\nversion: \"1.0\"\nmetadata:\n  id: WFT-001\n  status_history:\n    - status: active\n      timestamp: 2026-02-10T00:00:00Z\n"
+	if err := os.WriteFile(filepath.Join(dir, "fest.yaml"), []byte(festYAML), 0o644); err != nil {
+		t.Fatalf("write fest.yaml: %v", err)
+	}
+
+	planPhase := filepath.Join(dir, "001_PLAN")
+	if err := os.MkdirAll(planPhase, 0o755); err != nil {
+		t.Fatalf("mkdir plan phase: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(planPhase, "PHASE_GOAL.md"), []byte("---\nfest_type: phase\nfest_id: 001_PLAN\nfest_phase_type: planning\n---\n\n# Plan\n"), 0o644); err != nil {
+		t.Fatalf("write PHASE_GOAL.md: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(planPhase, "WORKFLOW.md"), []byte("---\nfest_type: workflow\nfest_id: PLAN-WF\nfest_parent: 001_PLAN\n---\n\n# Plan Workflow\n\n## Step 1: REVIEW — Review the plan\n\n**Goal:** Review.\n\n**Actions:**\n1. Review\n\n**Output:** Reviewed\n\n**Checkpoint:** APPROVAL REQUIRED\n"), 0o644); err != nil {
+		t.Fatalf("write WORKFLOW.md: %v", err)
+	}
+
+	remPhase := filepath.Join(dir, "005_FIX_PR_302")
+	if err := os.MkdirAll(remPhase, 0o755); err != nil {
+		t.Fatalf("mkdir rem phase: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(remPhase, "PHASE_GOAL.md"), []byte("---\nfest_type: phase\nfest_id: 005_FIX_PR_302\nfest_phase_type: planning\n---\n\n# Fix PR 302\n"), 0o644); err != nil {
+		t.Fatalf("write rem PHASE_GOAL.md: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(remPhase, "WORKFLOW.md"), []byte("---\nfest_type: workflow\nfest_id: REM-WF\nfest_parent: 005_FIX_PR_302\n---\n\n# Fix Workflow\n\n## Step 1: ADDRESS — Address blockers\n\n**Goal:** Address it.\n\n**Actions:**\n1. Fix\n\n**Output:** Fixed\n\n**Checkpoint:** None\n"), 0o644); err != nil {
+		t.Fatalf("write rem WORKFLOW.md: %v", err)
+	}
+
+	return dir
 }
 
 func setupGateRemediationFestival(t *testing.T) string {
