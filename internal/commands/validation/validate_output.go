@@ -118,6 +118,9 @@ func printValidationResult(display *ui.UI, festivalPath string, result *Validati
 	autoLinkIssues := filterIssuesByPrefix(result.Issues, "autolink_")
 	printValidationSection(display, "AUTO-LINK", autoLinkIssues)
 
+	workflowIssues := filterIssuesByCode(result.Issues, CodeWorkflowNumbering, CodeWorkflowScan)
+	printValidationSection(display, "WORKFLOW", workflowIssues)
+
 	// Score and summary
 	fmt.Println()
 	fmt.Printf("%s %s\n", ui.Label("Score"), ui.Value(fmt.Sprintf("%d/100", result.Score)))

@@ -324,6 +324,7 @@ func runValidateAll(ctx context.Context, opts *validateOptions) error {
 	validateTemplateChecks(festivalPath, result)
 	validateOrderingChecks(ctx, festivalPath, result)
 	validateAutoLinkChecks(ctx, festivalPath, result)
+	validateWorkflowDocsChecks(ctx, festivalPath, result)
 
 	// Add suggestions based on issues
 	addSuggestions(result)
@@ -442,6 +443,7 @@ func addSuggestions(result *ValidationResult) {
 	hasMissingGates := false
 	hasUnfilledTemplates := false
 	hasNumberingGaps := false
+	hasWorkflowIssues := false
 
 	for _, issue := range result.Issues {
 		switch issue.Code {
@@ -453,6 +455,8 @@ func addSuggestions(result *ValidationResult) {
 			hasUnfilledTemplates = true
 		case CodeNumberingGap:
 			hasNumberingGaps = true
+		case CodeWorkflowNumbering:
+			hasWorkflowIssues = true
 		}
 	}
 
@@ -472,6 +476,10 @@ func addSuggestions(result *ValidationResult) {
 	if hasNumberingGaps {
 		result.Suggestions = append(result.Suggestions,
 			"Run 'fest renumber' to automatically fix numbering gaps")
+	}
+	if hasWorkflowIssues {
+		result.Suggestions = append(result.Suggestions,
+			"Run 'fest workflow validate <path>' against affected WORKFLOW.md files for detailed remediation")
 	}
 }
 
