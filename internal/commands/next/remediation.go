@@ -29,9 +29,30 @@ type failedGate struct {
 	RemediationPhase string
 }
 
-func findFailedRemediationGate(ctx context.Context, festivalPath string) (*failedGate, error) {
+func loadProgressStore(ctx context.Context, festivalPath string) (*progress.Store, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	store := progress.NewStore(festivalPath)
 	if err := store.Load(ctx); err != nil {
+		return nil, err
+	}
+	return store, nil
+}
+
+func findFailedRemediationGate(ctx context.Context, festivalPath string) (*failedGate, error) {
+	store, err := loadProgressStore(ctx, festivalPath)
+	if err != nil {
+		return nil, err
+	}
+	return findFailedRemediationGateInStore(ctx, festivalPath, store)
+}
+
+func findFailedRemediationGateInStore(ctx context.Context, festivalPath string, store *progress.Store) (*failedGate, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
@@ -108,17 +129,28 @@ func lookupGateStepName(ctx context.Context, phasePath string, stepNum int) (str
 // remediation phase is not part of the remediation loop: the original failed
 // gate is the verification step and is rechecked once remediation work is done.
 func isRemediationPhaseComplete(ctx context.Context, festivalPath, remediationPhase string) (bool, error) {
+	store, err := loadProgressStore(ctx, festivalPath)
+	if err != nil {
+		return false, err
+	}
+	phasePath, err := resolveRemediationPhasePath(festivalPath, &failedGate{RemediationPhase: remediationPhase})
+	if err != nil {
+		return false, err
+	}
+	return isRemediationPhaseCompleteWithStore(ctx, store, phasePath, remediationPhase)
+}
+
+func isRemediationPhaseCompleteWithStore(ctx context.Context, store *progress.Store, phasePath, remediationPhase string) (bool, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
 	if remediationPhase == "" {
 		return false, nil
 	}
-	phasePath := filepath.Join(festivalPath, remediationPhase)
-	if _, err := os.Stat(phasePath); err != nil {
-		return false, nil
-	}
-
-	store := progress.NewStore(festivalPath)
-	storeLoaded := store.Load(ctx) == nil
-	return shared.ArePhaseTasksAndWorkflowComplete(ctx, storeLoaded, store, phasePath, remediationPhase), nil
+	return shared.ArePhaseTasksAndWorkflowComplete(ctx, store != nil, store, phasePath, remediationPhase), nil
 }
 
 // routeFailedRemediationGate produces the appropriate `fest next` output for
@@ -128,31 +160,53 @@ func isRemediationPhaseComplete(ctx context.Context, festivalPath, remediationPh
 // and renders the gate step for re-evaluation. Returns (true, nil) when it
 // fully handled the request. opts controls output formatting so machine-output
 // modes are honored while remediation is active.
-func routeFailedRemediationGate(ctx context.Context, festivalPath string, gate *failedGate, opts RenderOptions) (bool, error) {
+func routeFailedRemediationGate(ctx context.Context, festivalPath string, store *progress.Store, gate *failedGate, opts RenderOptions) (bool, error) {
 	if gate == nil {
 		return false, nil
 	}
+	if store == nil {
+		var err error
+		store, err = loadProgressStore(ctx, festivalPath)
+		if err != nil {
+			return true, err
+		}
+	}
 
-	complete, err := isRemediationPhaseComplete(ctx, festivalPath, gate.RemediationPhase)
+	remPath, err := resolveRemediationPhasePath(festivalPath, gate)
+	if err != nil {
+		return true, err
+	}
+
+	complete, err := isRemediationPhaseCompleteWithStore(ctx, store, remPath, gate.RemediationPhase)
 	if err != nil {
 		return true, err
 	}
 
 	if complete {
-		return true, renderRecheckRoute(ctx, festivalPath, gate, opts)
+		return true, renderRecheckRoute(ctx, festivalPath, store, gate, opts)
 	}
-	return true, renderRemediationRoute(ctx, festivalPath, gate, opts)
+	return true, renderRemediationRoute(ctx, festivalPath, store, gate, remPath, opts)
 }
 
-func renderRemediationRoute(ctx context.Context, festivalPath string, gate *failedGate, opts RenderOptions) error {
-	remPath := filepath.Join(festivalPath, gate.RemediationPhase)
-	if _, err := os.Stat(remPath); err != nil {
-		return festerrors.NotFound("remediation phase directory").
-			WithField("phase", gate.RemediationPhase).
-			WithField("path", remPath)
+func resolveRemediationPhasePath(festivalPath string, gate *failedGate) (string, error) {
+	if gate == nil || gate.RemediationPhase == "" {
+		return "", festerrors.Validation("failed gate is missing a remediation phase").
+			WithHint("Reject the gate again with --remediation-phase, or clear the failed-remediation state with 'fest workflow reject --reason \"...\"'")
 	}
 
-	useWorkflow := shouldRouteToRemediationWorkflow(ctx, festivalPath, remPath, gate.RemediationPhase)
+	remPath := filepath.Join(festivalPath, gate.RemediationPhase)
+	info, err := os.Stat(remPath)
+	if err != nil || !info.IsDir() {
+		return "", festerrors.NotFound("remediation phase directory").
+			WithField("phase", gate.RemediationPhase).
+			WithField("path", remPath).
+			WithHint(fmt.Sprintf("The failed gate still references %s, but that phase no longer exists. Restore or rename the phase, or clear the failed-remediation state with 'fest workflow reject --phase %s --reason \"...\"'.", gate.RemediationPhase, gate.PhaseName))
+	}
+	return remPath, nil
+}
+
+func renderRemediationRoute(ctx context.Context, festivalPath string, store *progress.Store, gate *failedGate, remPath string, opts RenderOptions) error {
+	useWorkflow := shouldRouteToRemediationWorkflowWithStore(ctx, store, remPath, gate.RemediationPhase)
 
 	if opts.isMachineOutput() {
 		view, err := remediationRouteView(ctx, festivalPath, remPath, gate, useWorkflow)
@@ -164,7 +218,7 @@ func renderRemediationRoute(ctx context.Context, festivalPath string, gate *fail
 
 	printFailedGateBanner(gate)
 	if useWorkflow {
-		return runWorkflowMode(ctx, festivalPath, remPath)
+		return runWorkflowModeWithStore(ctx, festivalPath, remPath, store)
 	}
 	return renderFirstIncompleteTask(ctx, festivalPath, remPath, opts)
 }
@@ -178,13 +232,25 @@ func renderRemediationRoute(ctx context.Context, festivalPath string, gate *fail
 // runs before tasks (position=before); an after-position workflow waits until
 // the phase's tasks are complete, matching normal phase routing.
 func shouldRouteToRemediationWorkflow(ctx context.Context, festivalPath, remPath, remediationPhase string) bool {
+	store, err := loadProgressStore(ctx, festivalPath)
+	if err != nil {
+		return true
+	}
+	return shouldRouteToRemediationWorkflowWithStore(ctx, store, remPath, remediationPhase)
+}
+
+func shouldRouteToRemediationWorkflowWithStore(ctx context.Context, store *progress.Store, remPath, remediationPhase string) bool {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return true
+	}
 	if _, err := os.Stat(filepath.Join(remPath, "WORKFLOW.md")); err != nil {
 		return false
 	}
 
-	store := progress.NewStore(festivalPath)
-	storeLoaded := store.Load(ctx) == nil
-	if !storeLoaded {
+	if store == nil {
 		return true
 	}
 
@@ -199,7 +265,7 @@ func shouldRouteToRemediationWorkflow(ctx context.Context, festivalPath, remPath
 	if !shared.HasSequenceDirs(remPath) {
 		return true
 	}
-	return shared.ArePhaseTasksComplete(storeLoaded, store, remPath, remediationPhase)
+	return shared.ArePhaseTasksComplete(true, store, remPath, remediationPhase)
 }
 
 func renderFirstIncompleteTask(ctx context.Context, festivalPath, phasePath string, opts RenderOptions) error {
@@ -216,21 +282,19 @@ func renderFirstIncompleteTask(ctx context.Context, festivalPath, phasePath stri
 	return nil
 }
 
-func renderRecheckRoute(ctx context.Context, festivalPath string, gate *failedGate, opts RenderOptions) error {
-	// Record the recheck transition first so the gate leaves
-	// failed_with_remediation regardless of output mode. Machine-output callers
-	// then receive a clean view; human callers get the banner plus the gate
-	// step instructions.
-	nav, err := newRecheckNavigator(ctx, festivalPath, gate)
+func renderRecheckRoute(ctx context.Context, festivalPath string, store *progress.Store, gate *failedGate, opts RenderOptions) error {
+	if opts.isMachineOutput() {
+		return emitRemediationView(recheckRouteView(gate), opts)
+	}
+
+	// Human `fest next` is the explicit operator action that re-enters the
+	// failed gate. Pipe-oriented modes must remain read-only.
+	nav, err := newRecheckNavigator(ctx, festivalPath, store, gate)
 	if err != nil {
 		return err
 	}
 	if err := nav.Recheck(ctx); err != nil {
 		return festerrors.Wrap(err, "recording gate recheck event")
-	}
-
-	if opts.isMachineOutput() {
-		return emitRemediationView(recheckRouteView(gate), opts)
 	}
 
 	printRecheckBanner(gate)
@@ -245,7 +309,7 @@ func renderRecheckRoute(ctx context.Context, festivalPath string, gate *failedGa
 
 // newRecheckNavigator builds the GATES.md-configured workflow navigator used to
 // record the recheck transition and render the failed gate step.
-func newRecheckNavigator(ctx context.Context, festivalPath string, gate *failedGate) (*wf.Navigator, error) {
+func newRecheckNavigator(ctx context.Context, festivalPath string, store *progress.Store, gate *failedGate) (*wf.Navigator, error) {
 	gctx := &guidance.GuidanceContext{
 		FestivalPath: festivalPath,
 		FestivalName: filepath.Base(festivalPath),
@@ -266,9 +330,12 @@ func newRecheckNavigator(ctx context.Context, festivalPath string, gate *failedG
 	wfNav.SetDocFilename("GATES.md")
 	wfNav.SetStateKeyPrefix(gateStateKeyPrefix)
 
-	store := progress.NewStore(festivalPath)
-	if err := store.Load(ctx); err != nil {
-		return nil, festerrors.Wrap(err, "loading progress store for recheck")
+	if store == nil {
+		var err error
+		store, err = loadProgressStore(ctx, festivalPath)
+		if err != nil {
+			return nil, festerrors.Wrap(err, "loading progress store for recheck")
+		}
 	}
 	wfNav.SetStateStore(store)
 

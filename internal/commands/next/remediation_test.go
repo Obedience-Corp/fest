@@ -209,6 +209,15 @@ func completeRemediationWorkflow(t *testing.T, festDir string) {
 	}
 }
 
+func loadStoreForTest(t *testing.T, ctx context.Context, festDir string) *progress.Store {
+	t.Helper()
+	store, err := loadProgressStore(ctx, festDir)
+	if err != nil {
+		t.Fatalf("loadProgressStore: %v", err)
+	}
+	return store
+}
+
 func TestShouldRouteToRemediationWorkflow_IncompleteWorkflowOnly(t *testing.T) {
 	festDir := scaffoldRemediationFestival(t)
 	remPath := filepath.Join(festDir, "005_FIX_PR_302")
@@ -246,7 +255,7 @@ func TestRouteFailedRemediationGate_CompletedWorkflowSurfacesTask(t *testing.T) 
 	}
 
 	out := captureStdout(t, func() {
-		if _, rErr := routeFailedRemediationGate(ctx, festDir, gate, RenderOptions{}); rErr != nil {
+		if _, rErr := routeFailedRemediationGate(ctx, festDir, loadStoreForTest(t, ctx, festDir), gate, RenderOptions{}); rErr != nil {
 			t.Fatalf("route: %v", rErr)
 		}
 	})
@@ -271,7 +280,7 @@ func TestRouteFailedRemediationGate_MachineOutputSuppressesBanner(t *testing.T) 
 	wantDoc := filepath.Join("005_FIX_PR_302", "WORKFLOW.md")
 
 	pathOut := captureStdout(t, func() {
-		if _, rErr := routeFailedRemediationGate(ctx, festDir, gate, RenderOptions{Path: true}); rErr != nil {
+		if _, rErr := routeFailedRemediationGate(ctx, festDir, loadStoreForTest(t, ctx, festDir), gate, RenderOptions{Path: true}); rErr != nil {
 			t.Fatalf("route --path: %v", rErr)
 		}
 	})
@@ -283,7 +292,7 @@ func TestRouteFailedRemediationGate_MachineOutputSuppressesBanner(t *testing.T) 
 	}
 
 	cdOut := captureStdout(t, func() {
-		if _, rErr := routeFailedRemediationGate(ctx, festDir, gate, RenderOptions{CD: true}); rErr != nil {
+		if _, rErr := routeFailedRemediationGate(ctx, festDir, loadStoreForTest(t, ctx, festDir), gate, RenderOptions{CD: true}); rErr != nil {
 			t.Fatalf("route --cd: %v", rErr)
 		}
 	})
@@ -292,7 +301,7 @@ func TestRouteFailedRemediationGate_MachineOutputSuppressesBanner(t *testing.T) 
 	}
 
 	shortOut := captureStdout(t, func() {
-		if _, rErr := routeFailedRemediationGate(ctx, festDir, gate, RenderOptions{Short: true}); rErr != nil {
+		if _, rErr := routeFailedRemediationGate(ctx, festDir, loadStoreForTest(t, ctx, festDir), gate, RenderOptions{Short: true}); rErr != nil {
 			t.Fatalf("route --short: %v", rErr)
 		}
 	})
@@ -301,7 +310,7 @@ func TestRouteFailedRemediationGate_MachineOutputSuppressesBanner(t *testing.T) 
 	}
 
 	jsonOut := captureStdout(t, func() {
-		if _, rErr := routeFailedRemediationGate(ctx, festDir, gate, RenderOptions{JSON: true}); rErr != nil {
+		if _, rErr := routeFailedRemediationGate(ctx, festDir, loadStoreForTest(t, ctx, festDir), gate, RenderOptions{JSON: true}); rErr != nil {
 			t.Fatalf("route --json: %v", rErr)
 		}
 	})
@@ -323,7 +332,7 @@ func TestRouteFailedRemediationGate_MachineOutputSuppressesBanner(t *testing.T) 
 	}
 }
 
-func TestRouteFailedRemediationGate_RecheckMachineOutputAndSideEffect(t *testing.T) {
+func TestRouteFailedRemediationGate_RecheckMachineOutputDoesNotMutateState(t *testing.T) {
 	festDir := scaffoldRemediationFestival(t)
 	ctx := context.Background()
 	seedFailedGate(t, festDir)
@@ -335,7 +344,7 @@ func TestRouteFailedRemediationGate_RecheckMachineOutputAndSideEffect(t *testing
 	}
 
 	jsonOut := captureStdout(t, func() {
-		if _, rErr := routeFailedRemediationGate(ctx, festDir, gate, RenderOptions{JSON: true}); rErr != nil {
+		if _, rErr := routeFailedRemediationGate(ctx, festDir, loadStoreForTest(t, ctx, festDir), gate, RenderOptions{JSON: true}); rErr != nil {
 			t.Fatalf("route --json: %v", rErr)
 		}
 	})
@@ -356,14 +365,63 @@ func TestRouteFailedRemediationGate_RecheckMachineOutputAndSideEffect(t *testing
 		t.Fatalf("--json leaked the human banner:\n%s", jsonOut)
 	}
 
-	// The recheck transition must fire regardless of output mode, so the gate
-	// no longer reports as failed-with-remediation afterward.
+	after, err := findFailedRemediationGate(ctx, festDir)
+	if err != nil {
+		t.Fatalf("findFailedRemediationGate after recheck: %v", err)
+	}
+	if after == nil {
+		t.Fatal("machine-output recheck view must not clear failed-remediation state")
+	}
+}
+
+func TestRouteFailedRemediationGate_RecheckHumanOutputRecordsSideEffect(t *testing.T) {
+	festDir := scaffoldRemediationFestival(t)
+	ctx := context.Background()
+	seedFailedGate(t, festDir)
+	completeRemediationWorkflow(t, festDir)
+
+	gate, err := findFailedRemediationGate(ctx, festDir)
+	if err != nil || gate == nil {
+		t.Fatalf("findFailedRemediationGate: err=%v gate=%+v", err, gate)
+	}
+
+	out := captureStdout(t, func() {
+		if _, rErr := routeFailedRemediationGate(ctx, festDir, loadStoreForTest(t, ctx, festDir), gate, RenderOptions{}); rErr != nil {
+			t.Fatalf("route: %v", rErr)
+		}
+	})
+	if !strings.Contains(out, "RECHECK GATE") {
+		t.Fatalf("human output should include recheck banner:\n%s", out)
+	}
+
 	after, err := findFailedRemediationGate(ctx, festDir)
 	if err != nil {
 		t.Fatalf("findFailedRemediationGate after recheck: %v", err)
 	}
 	if after != nil {
-		t.Fatalf("recheck should have cleared the failed gate, still got %+v", after)
+		t.Fatalf("human recheck should have cleared the failed gate, still got %+v", after)
+	}
+}
+
+func TestRouteFailedRemediationGate_StaleRemediationPhasePointerIsActionable(t *testing.T) {
+	festDir := scaffoldRemediationFestival(t)
+	ctx := context.Background()
+	seedFailedGate(t, festDir)
+
+	gate, err := findFailedRemediationGate(ctx, festDir)
+	if err != nil || gate == nil {
+		t.Fatalf("findFailedRemediationGate: err=%v gate=%+v", err, gate)
+	}
+	if err := os.RemoveAll(filepath.Join(festDir, "005_FIX_PR_302")); err != nil {
+		t.Fatalf("remove remediation phase: %v", err)
+	}
+
+	_, err = routeFailedRemediationGate(ctx, festDir, loadStoreForTest(t, ctx, festDir), gate, RenderOptions{})
+	if err == nil {
+		t.Fatal("expected stale remediation phase error, got nil")
+	}
+	if !strings.Contains(err.Error(), "no longer exists") || !strings.Contains(err.Error(), "fest workflow reject --phase 001_REVIEW") {
+		t.Fatalf("error is not actionable: %v", err)
 	}
 }
 

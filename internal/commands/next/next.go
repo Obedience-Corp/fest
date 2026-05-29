@@ -187,14 +187,17 @@ func runNext(cmd *cobra.Command, args []string) error {
 	// the failed gate. The progress event log is the source of truth for active
 	// failed gates, so a load/materialization failure here must fail closed
 	// rather than silently falling through to normal routing.
-	gate, gateErr := findFailedRemediationGate(ctx, festivalPath)
+	remediationStore, gateErr := loadProgressStore(ctx, festivalPath)
+	if gateErr != nil {
+		return errors.Wrap(gateErr, "checking for failed-gate remediation state")
+	}
+	gate, gateErr := findFailedRemediationGateInStore(ctx, festivalPath, remediationStore)
 	if gateErr != nil {
 		return errors.Wrap(gateErr, "checking for failed-gate remediation state")
 	}
 	if gate != nil {
-		if handled, err := routeFailedRemediationGate(ctx, festivalPath, gate, opts); handled {
-			return err
-		}
+		_, err := routeFailedRemediationGate(ctx, festivalPath, remediationStore, gate, opts)
+		return err
 	}
 
 	// If mode flag is provided or --navigator flag is set, use guidance navigator
