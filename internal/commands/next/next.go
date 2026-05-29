@@ -184,9 +184,15 @@ func runNext(cmd *cobra.Command, args []string) error {
 	// Failed-gate remediation routing takes priority over normal phase
 	// resolution. When a phase gate was rejected with --remediation-phase,
 	// route into the remediation phase until it completes, then auto-recheck
-	// the failed gate.
-	if gate, gateErr := findFailedRemediationGate(ctx, festivalPath); gateErr == nil && gate != nil {
-		if handled, err := routeFailedRemediationGate(ctx, festivalPath, gate); handled {
+	// the failed gate. The progress event log is the source of truth for active
+	// failed gates, so a load/materialization failure here must fail closed
+	// rather than silently falling through to normal routing.
+	gate, gateErr := findFailedRemediationGate(ctx, festivalPath)
+	if gateErr != nil {
+		return errors.Wrap(gateErr, "checking for failed-gate remediation state")
+	}
+	if gate != nil {
+		if handled, err := routeFailedRemediationGate(ctx, festivalPath, gate, opts); handled {
 			return err
 		}
 	}
@@ -563,6 +569,16 @@ type RenderOptions struct {
 }
 
 func (o RenderOptions) showInlineContext() bool { return !o.NoContext }
+
+// isMachineOutput reports whether the active render mode expects pipeable or
+// structured output (path, cd, project-dir, short, or json) rather than the
+// default human banner plus instructions. Failed-gate remediation routing must
+// suppress its banner and navigator instructions in these modes so that
+// `fest next --path` and friends keep honoring their output contracts while a
+// remediation loop is active.
+func (o RenderOptions) isMachineOutput() bool {
+	return o.JSON || o.Path || o.CD || o.ProjectDir || o.Short
+}
 
 // runStandaloneNext renders the next step for a tracked standalone workflow.
 func runStandaloneNext(ctx context.Context, res *standalone.Result, opts RenderOptions) error {

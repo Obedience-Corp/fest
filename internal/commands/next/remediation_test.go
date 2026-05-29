@@ -2,8 +2,10 @@ package next
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
@@ -152,4 +154,233 @@ func scaffoldRemediationFestival(t *testing.T) string {
 		t.Fatalf("write rem WORKFLOW.md: %v", err)
 	}
 	return dir
+}
+
+// scaffoldRemediationFestivalWithTask adds a numbered sequence with one pending
+// task to the remediation phase so the mixed workflow-plus-task routing case
+// can be exercised.
+func scaffoldRemediationFestivalWithTask(t *testing.T) string {
+	t.Helper()
+	dir := scaffoldRemediationFestival(t)
+	remPhase := filepath.Join(dir, "005_FIX_PR_302")
+	// Re-type the remediation phase as implementation so the selector surfaces
+	// task files rather than planning objectives.
+	if err := os.WriteFile(filepath.Join(remPhase, "PHASE_GOAL.md"), []byte("---\nfest_type: phase\nfest_id: 005_FIX_PR_302\nfest_phase_type: implementation\n---\n\n# Fix\n"), 0o644); err != nil {
+		t.Fatalf("rewrite rem phase goal: %v", err)
+	}
+	seq := filepath.Join(remPhase, "001_REMEDIATE")
+	if err := os.MkdirAll(seq, 0o755); err != nil {
+		t.Fatalf("mkdir rem seq: %v", err)
+	}
+	task := "---\nfest_type: task\nfest_id: 01_fix.md\nfest_name: fix\nfest_status: pending\n---\n# Fix Task\n"
+	if err := os.WriteFile(filepath.Join(seq, "01_fix.md"), []byte(task), 0o644); err != nil {
+		t.Fatalf("write rem task: %v", err)
+	}
+	return dir
+}
+
+func seedFailedGate(t *testing.T, festDir string) {
+	t.Helper()
+	ctx := context.Background()
+	store := progress.NewStore(festDir)
+	if err := store.Load(ctx); err != nil {
+		t.Fatalf("store.Load: %v", err)
+	}
+	store.QueueWorkflowEvents(wf.EmitInitEvents("gate:001_REVIEW", 1))
+	store.QueueWorkflowEvents(wf.EmitStepStartEvents("gate:001_REVIEW", 1))
+	store.QueueWorkflowEvents(wf.EmitStepFailRemediationEvents("gate:001_REVIEW", 1, "PR not ready", "005_FIX_PR_302"))
+	if err := store.Save(ctx); err != nil {
+		t.Fatalf("store.Save: %v", err)
+	}
+}
+
+func completeRemediationWorkflow(t *testing.T, festDir string) {
+	t.Helper()
+	ctx := context.Background()
+	store := progress.NewStore(festDir)
+	if err := store.Load(ctx); err != nil {
+		t.Fatalf("store.Load: %v", err)
+	}
+	store.QueueWorkflowEvents(wf.EmitInitEvents("005_FIX_PR_302", 1))
+	store.QueueWorkflowEvents(wf.EmitStepStartEvents("005_FIX_PR_302", 1))
+	store.QueueWorkflowEvents(wf.EmitStepDoneEvents("005_FIX_PR_302", 1))
+	if err := store.Save(ctx); err != nil {
+		t.Fatalf("store.Save: %v", err)
+	}
+}
+
+func TestShouldRouteToRemediationWorkflow_IncompleteWorkflowOnly(t *testing.T) {
+	festDir := scaffoldRemediationFestival(t)
+	remPath := filepath.Join(festDir, "005_FIX_PR_302")
+	if !shouldRouteToRemediationWorkflow(context.Background(), festDir, remPath, "005_FIX_PR_302") {
+		t.Fatal("incomplete workflow-only remediation phase must route to the workflow")
+	}
+}
+
+func TestShouldRouteToRemediationWorkflow_CompletedWorkflowRoutesToTask(t *testing.T) {
+	festDir := scaffoldRemediationFestivalWithTask(t)
+	completeRemediationWorkflow(t, festDir)
+	remPath := filepath.Join(festDir, "005_FIX_PR_302")
+	if shouldRouteToRemediationWorkflow(context.Background(), festDir, remPath, "005_FIX_PR_302") {
+		t.Fatal("completed remediation workflow with an incomplete task must route to the task, not re-show WORKFLOW COMPLETE")
+	}
+}
+
+func TestShouldRouteToRemediationWorkflow_NoWorkflow(t *testing.T) {
+	festDir := scaffoldRemediationFestival(t)
+	gatePhase := filepath.Join(festDir, "001_REVIEW")
+	if shouldRouteToRemediationWorkflow(context.Background(), festDir, gatePhase, "001_REVIEW") {
+		t.Fatal("a phase without WORKFLOW.md must not route to workflow mode")
+	}
+}
+
+func TestRouteFailedRemediationGate_CompletedWorkflowSurfacesTask(t *testing.T) {
+	festDir := scaffoldRemediationFestivalWithTask(t)
+	ctx := context.Background()
+	seedFailedGate(t, festDir)
+	completeRemediationWorkflow(t, festDir)
+
+	gate, err := findFailedRemediationGate(ctx, festDir)
+	if err != nil || gate == nil {
+		t.Fatalf("findFailedRemediationGate: err=%v gate=%+v", err, gate)
+	}
+
+	out := captureStdout(t, func() {
+		if _, rErr := routeFailedRemediationGate(ctx, festDir, gate, RenderOptions{}); rErr != nil {
+			t.Fatalf("route: %v", rErr)
+		}
+	})
+	if strings.Contains(out, "WORKFLOW COMPLETE") {
+		t.Fatalf("remediation route dead-ended on WORKFLOW COMPLETE instead of surfacing the task:\n%s", out)
+	}
+	if !strings.Contains(out, "001_REMEDIATE") {
+		t.Fatalf("expected the remaining remediation task in output:\n%s", out)
+	}
+}
+
+func TestRouteFailedRemediationGate_MachineOutputSuppressesBanner(t *testing.T) {
+	festDir := scaffoldRemediationFestival(t)
+	ctx := context.Background()
+	seedFailedGate(t, festDir)
+
+	gate, err := findFailedRemediationGate(ctx, festDir)
+	if err != nil || gate == nil {
+		t.Fatalf("findFailedRemediationGate: err=%v gate=%+v", err, gate)
+	}
+
+	wantDoc := filepath.Join("005_FIX_PR_302", "WORKFLOW.md")
+
+	pathOut := captureStdout(t, func() {
+		if _, rErr := routeFailedRemediationGate(ctx, festDir, gate, RenderOptions{Path: true}); rErr != nil {
+			t.Fatalf("route --path: %v", rErr)
+		}
+	})
+	if strings.TrimSpace(pathOut) != wantDoc {
+		t.Fatalf("--path = %q, want %q", strings.TrimSpace(pathOut), wantDoc)
+	}
+	if strings.Contains(pathOut, "FAILED GATE") {
+		t.Fatalf("--path leaked the human banner: %q", pathOut)
+	}
+
+	cdOut := captureStdout(t, func() {
+		if _, rErr := routeFailedRemediationGate(ctx, festDir, gate, RenderOptions{CD: true}); rErr != nil {
+			t.Fatalf("route --cd: %v", rErr)
+		}
+	})
+	if strings.TrimSpace(cdOut) != filepath.Join(festDir, "005_FIX_PR_302") {
+		t.Fatalf("--cd = %q", strings.TrimSpace(cdOut))
+	}
+
+	shortOut := captureStdout(t, func() {
+		if _, rErr := routeFailedRemediationGate(ctx, festDir, gate, RenderOptions{Short: true}); rErr != nil {
+			t.Fatalf("route --short: %v", rErr)
+		}
+	})
+	if !strings.Contains(shortOut, "remediation active") || strings.Contains(shortOut, "FAILED GATE") {
+		t.Fatalf("--short = %q", shortOut)
+	}
+
+	jsonOut := captureStdout(t, func() {
+		if _, rErr := routeFailedRemediationGate(ctx, festDir, gate, RenderOptions{JSON: true}); rErr != nil {
+			t.Fatalf("route --json: %v", rErr)
+		}
+	})
+	if strings.Contains(jsonOut, "FAILED GATE") {
+		t.Fatalf("--json leaked the human banner:\n%s", jsonOut)
+	}
+	var v remediationView
+	if err := json.Unmarshal([]byte(jsonOut), &v); err != nil {
+		t.Fatalf("unmarshal --json: %v\n%s", err, jsonOut)
+	}
+	if v.Route != "remediation-workflow" {
+		t.Errorf("Route = %q, want remediation-workflow", v.Route)
+	}
+	if v.TargetDoc != wantDoc {
+		t.Errorf("TargetDoc = %q, want %q", v.TargetDoc, wantDoc)
+	}
+	if v.Complete {
+		t.Error("Complete = true, want false while remediation is active")
+	}
+}
+
+func TestRouteFailedRemediationGate_RecheckMachineOutputAndSideEffect(t *testing.T) {
+	festDir := scaffoldRemediationFestival(t)
+	ctx := context.Background()
+	seedFailedGate(t, festDir)
+	completeRemediationWorkflow(t, festDir)
+
+	gate, err := findFailedRemediationGate(ctx, festDir)
+	if err != nil || gate == nil {
+		t.Fatalf("findFailedRemediationGate: err=%v gate=%+v", err, gate)
+	}
+
+	jsonOut := captureStdout(t, func() {
+		if _, rErr := routeFailedRemediationGate(ctx, festDir, gate, RenderOptions{JSON: true}); rErr != nil {
+			t.Fatalf("route --json: %v", rErr)
+		}
+	})
+	var v remediationView
+	if err := json.Unmarshal([]byte(jsonOut), &v); err != nil {
+		t.Fatalf("unmarshal --json: %v\n%s", err, jsonOut)
+	}
+	if v.Route != "recheck-gate" {
+		t.Errorf("Route = %q, want recheck-gate", v.Route)
+	}
+	if !v.Complete {
+		t.Error("Complete = false, want true once the remediation phase is done")
+	}
+	if v.TargetDoc != filepath.Join("001_REVIEW", "GATES.md") {
+		t.Errorf("TargetDoc = %q", v.TargetDoc)
+	}
+	if strings.Contains(jsonOut, "RECHECK GATE") {
+		t.Fatalf("--json leaked the human banner:\n%s", jsonOut)
+	}
+
+	// The recheck transition must fire regardless of output mode, so the gate
+	// no longer reports as failed-with-remediation afterward.
+	after, err := findFailedRemediationGate(ctx, festDir)
+	if err != nil {
+		t.Fatalf("findFailedRemediationGate after recheck: %v", err)
+	}
+	if after != nil {
+		t.Fatalf("recheck should have cleared the failed gate, still got %+v", after)
+	}
+}
+
+func TestFindFailedRemediationGate_FailsClosedOnUnreadableStore(t *testing.T) {
+	festDir := scaffoldRemediationFestival(t)
+	progressDir := filepath.Join(festDir, progress.ProgressDir)
+	if err := os.MkdirAll(progressDir, 0o755); err != nil {
+		t.Fatalf("mkdir progress: %v", err)
+	}
+	// A single line longer than bufio.Scanner's max token size with no newline
+	// makes the event-log read fail, standing in for a corrupt/unreadable store.
+	oversized := strings.Repeat("x", 128*1024)
+	if err := os.WriteFile(filepath.Join(progressDir, progress.ProgressEventsFile), []byte(oversized), 0o644); err != nil {
+		t.Fatalf("write events: %v", err)
+	}
+
+	if _, err := findFailedRemediationGate(context.Background(), festDir); err == nil {
+		t.Fatal("expected an error from an unreadable progress store so fest next can fail closed")
+	}
 }
