@@ -34,6 +34,15 @@ const (
 	EventWorkflowStepBlock EventType = "wf_step_block"
 	EventWorkflowAdvance   EventType = "wf_advance"
 	EventWorkflowReset     EventType = "wf_reset"
+
+	// EventWorkflowStepFailRemediation records that a gate step did not pass
+	// and is linked to a remediation phase. The step remains non-terminal and
+	// must be re-evaluated after the remediation phase completes.
+	EventWorkflowStepFailRemediation EventType = "wf_step_fail_remediation"
+
+	// EventWorkflowStepRecheck records that the operator is re-entering a
+	// previously failed remediation step for re-evaluation.
+	EventWorkflowStepRecheck EventType = "wf_step_recheck"
 )
 
 // ProgressEvent represents a single progress event in JSONL format.
@@ -50,10 +59,11 @@ type ProgressEvent struct {
 	Reason  string `json:"reason,omitempty"`  // blocked event
 
 	// Workflow event-specific fields (omitempty)
-	Phase      string `json:"phase,omitempty"`
-	Step       int    `json:"step,omitempty"`
-	TotalSteps int    `json:"total_steps,omitempty"`
-	Feedback   string `json:"feedback,omitempty"`
+	Phase            string `json:"phase,omitempty"`
+	Step             int    `json:"step,omitempty"`
+	TotalSteps       int    `json:"total_steps,omitempty"`
+	Feedback         string `json:"feedback,omitempty"`
+	RemediationPhase string `json:"remediation_phase,omitempty"`
 }
 
 // loadFromEvents reads the JSONL file and materializes current state.
@@ -359,6 +369,19 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 			ss := phaseState.GetOrCreateStepState(e.Step)
 			ss.Status = wf.StepStatusBlocked
 			ss.Feedback = e.Feedback
+
+		case EventWorkflowStepFailRemediation:
+			ss := phaseState.GetOrCreateStepState(e.Step)
+			ss.Status = wf.StepStatusFailedRemediation
+			ss.Feedback = e.Feedback
+			ss.RemediationPhase = e.RemediationPhase
+
+		case EventWorkflowStepRecheck:
+			ss := phaseState.GetOrCreateStepState(e.Step)
+			if ss.Status == wf.StepStatusFailedRemediation {
+				ss.Status = wf.StepStatusInProgress
+				ss.RemediationPhase = ""
+			}
 
 		case EventWorkflowAdvance:
 			phaseState.CurrentStep = e.Step

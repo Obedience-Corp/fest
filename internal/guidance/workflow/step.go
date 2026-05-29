@@ -20,6 +20,12 @@ const (
 
 	// StepStatusBlocked indicates the step cannot proceed due to a dependency or issue.
 	StepStatusBlocked StepStatus = "blocked"
+
+	// StepStatusFailedRemediation indicates the step (typically a phase gate)
+	// did not pass and a remediation phase has been linked to correct the
+	// underlying issues. The step remains non-terminal so the gate must be
+	// re-evaluated after the remediation phase completes.
+	StepStatusFailedRemediation StepStatus = "failed_with_remediation"
 )
 
 // String returns the string representation of the step status.
@@ -30,7 +36,7 @@ func (s StepStatus) String() string {
 // IsValid returns true if the status is a known valid status.
 func (s StepStatus) IsValid() bool {
 	switch s {
-	case StepStatusPending, StepStatusInProgress, StepStatusCompleted, StepStatusSkipped, StepStatusBlocked:
+	case StepStatusPending, StepStatusInProgress, StepStatusCompleted, StepStatusSkipped, StepStatusBlocked, StepStatusFailedRemediation:
 		return true
 	default:
 		return false

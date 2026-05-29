@@ -223,6 +223,25 @@ fest workflow show       # Display current step details
 fest workflow advance    # Complete step, move to next
 fest workflow approve    # User approves a blocking checkpoint
 fest workflow reject     # Reject with feedback
+fest workflow skip       # Operator override (work was done outside the workflow)
+```
+
+### When to use reject, skip, and failed-gate remediation
+
+Three operator actions look similar but record different audit trails. Pick the one that matches the real situation:
+
+- `fest workflow reject --reason "..."` records that a checkpoint was reviewed and rejected. The step becomes blocked and waits for a revision. Use when the work itself needs to be redone in place.
+- `fest workflow skip --reason "..."` records that the step was completed by some other means (off-workflow work, manual action, etc.). The step is treated as terminal. Use when the work is genuinely already done and you do not need a revision loop.
+- `fest workflow reject --reason "..." --remediation-phase <PHASE>` records that a phase gate did not pass and links a remediation phase that will correct the underlying issues. The gate step enters `failed_with_remediation` and remains non-terminal. `fest next` routes into the remediation phase, and once that phase completes, `fest next` routes back to the failed gate for re-evaluation. Use this for the CW0003-style case where a review gate found real blockers and a new phase was added to fix them. This preserves an honest audit trail: the gate is logged as failed (not approved and not skipped) and is rechecked after remediation, instead of being silently passed.
+
+Example flow:
+
+```bash
+fest workflow reject --reason "PR 302 is not ready" --remediation-phase 005_FIX_PR_302_AGGREGATE
+fest next   # routes into 005_FIX_PR_302_AGGREGATE
+# ... work through the remediation phase ...
+fest next   # remediation complete; routes back to the failed gate for recheck
+fest workflow approve   # gate passes the second time
 ```
 
 **Implementation phases** use numbered sequences containing task files. Every implementation sequence ends with quality gates.

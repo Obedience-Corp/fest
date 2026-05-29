@@ -39,11 +39,12 @@ type StateStore interface {
 // workflow state changes from the workflow package to the progress store
 // without importing the progress package (avoiding import cycles).
 type WorkflowEvent struct {
-	EventType  string
-	Phase      string
-	Step       int
-	TotalSteps int
-	Feedback   string
+	EventType        string
+	Phase            string
+	Step             int
+	TotalSteps       int
+	Feedback         string
+	RemediationPhase string
 }
 
 // StepState tracks the state of a single workflow step.
@@ -62,6 +63,10 @@ type StepState struct {
 
 	// Feedback stores rejection reasons or notes.
 	Feedback string `yaml:"feedback,omitempty" json:"feedback,omitempty"`
+
+	// RemediationPhase is the linked phase name for a step in
+	// StepStatusFailedRemediation. Empty for any other status.
+	RemediationPhase string `yaml:"remediation_phase,omitempty" json:"remediation_phase,omitempty"`
 }
 
 // FestivalWorkflowState contains workflow state for all phases in a festival.
@@ -324,6 +329,31 @@ func (s *WorkflowState) Reject(feedback string) {
 	state := s.GetOrCreateStepState(s.CurrentStep)
 	state.Status = StepStatusBlocked
 	state.Feedback = feedback
+	state.RemediationPhase = ""
+}
+
+// RejectWithRemediation records a non-passing gate decision with a linked
+// remediation phase. The step enters StepStatusFailedRemediation and remains
+// non-terminal so the gate must be re-evaluated after the remediation phase
+// completes.
+func (s *WorkflowState) RejectWithRemediation(feedback, remediationPhase string) {
+	state := s.GetOrCreateStepState(s.CurrentStep)
+	state.Status = StepStatusFailedRemediation
+	state.Feedback = feedback
+	state.RemediationPhase = remediationPhase
+}
+
+// ClearFailedRemediation transitions the current step out of the failed
+// remediation state, returning it to in-progress for re-evaluation. Called
+// when the linked remediation phase has completed and the gate is ready to
+// be rechecked.
+func (s *WorkflowState) ClearFailedRemediation() {
+	state := s.GetOrCreateStepState(s.CurrentStep)
+	if state.Status != StepStatusFailedRemediation {
+		return
+	}
+	state.Status = StepStatusInProgress
+	state.RemediationPhase = ""
 }
 
 // Reset resets the workflow to step 1 and clears all step states.
@@ -442,6 +472,28 @@ func EmitStepBlockEvents(phaseName string, step int, feedback string) []Workflow
 		Phase:     phaseName,
 		Step:      step,
 		Feedback:  feedback,
+	}}
+}
+
+// EmitStepFailRemediationEvents generates events for marking a step as
+// failed with a linked remediation phase.
+func EmitStepFailRemediationEvents(phaseName string, step int, feedback, remediationPhase string) []WorkflowEvent {
+	return []WorkflowEvent{{
+		EventType:        "wf_step_fail_remediation",
+		Phase:            phaseName,
+		Step:             step,
+		Feedback:         feedback,
+		RemediationPhase: remediationPhase,
+	}}
+}
+
+// EmitStepRecheckEvents generates events for re-entering a failed
+// remediation step once the remediation phase has completed.
+func EmitStepRecheckEvents(phaseName string, step int) []WorkflowEvent {
+	return []WorkflowEvent{{
+		EventType: "wf_step_recheck",
+		Phase:     phaseName,
+		Step:      step,
 	}}
 }
 

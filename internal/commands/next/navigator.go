@@ -88,6 +88,10 @@ func runNavigatorMode(ctx context.Context, cwd, festivalPath string) error {
 
 // runWorkflowMode uses the workflow navigator for WORKFLOW.md-based navigation.
 func runWorkflowMode(ctx context.Context, festivalPath, phasePath string) error {
+	return runWorkflowModeWithStore(ctx, festivalPath, phasePath, nil)
+}
+
+func runWorkflowModeWithStore(ctx context.Context, festivalPath, phasePath string, store *progress.Store) error {
 	// Create guidance context for workflow navigation
 	gctx := &guidance.GuidanceContext{
 		FestivalPath: festivalPath,
@@ -106,10 +110,13 @@ func runWorkflowMode(ctx context.Context, festivalPath, phasePath string) error 
 			WithField("phase_path", phasePath)
 	}
 
-	// Create and load progress Store, inject into navigator for JSONL-backed state
-	store := progress.NewStore(festivalPath)
-	if err := store.Load(ctx); err != nil {
-		return errors.Wrap(err, "loading progress store")
+	// Create and load progress Store when the caller has not already loaded it,
+	// then inject it into the workflow navigator for JSONL-backed state.
+	if store == nil {
+		store = progress.NewStore(festivalPath)
+		if err := store.Load(ctx); err != nil {
+			return errors.Wrap(err, "loading progress store")
+		}
 	}
 	if wfNav, ok := nav.(*wf.Navigator); ok {
 		wfNav.SetStateStore(store)
