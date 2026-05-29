@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -78,7 +79,7 @@ Examples:
 				return errors.Wrap(err, "resolving path").WithField("path", path)
 			}
 
-			return runWorkflowRenumber(cmd.OutOrStdout(), absPath, dryRun, backup)
+			return runWorkflowRenumber(cmd.Context(), cmd.OutOrStdout(), absPath, dryRun, backup)
 		},
 	}
 
@@ -89,7 +90,14 @@ Examples:
 	return cmd
 }
 
-func runWorkflowRenumber(out io.Writer, path string, dryRun, backup bool) error {
+func runWorkflowRenumber(ctx context.Context, out io.Writer, path string, dryRun, backup bool) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled before reading workflow file").WithField("path", path)
+	}
+
 	content, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -100,7 +108,7 @@ func runWorkflowRenumber(out io.Writer, path string, dryRun, backup bool) error 
 		return errors.IO("reading workflow file", err).WithField("path", path)
 	}
 
-	plan, planErr := buildRenumberPlan(string(content))
+	plan, planErr := buildRenumberPlan(ctx, string(content))
 	if planErr != nil {
 		return planErr.WithField("path", path)
 	}
@@ -124,13 +132,17 @@ func runWorkflowRenumber(out io.Writer, path string, dryRun, backup bool) error 
 	}
 
 	if backup {
-		if err := os.WriteFile(path+".bak", content, 0o644); err != nil {
+		if err := writeFileAtomic(ctx, path+".bak", content, 0o644); err != nil {
 			return errors.IO("writing backup", err).WithField("path", path+".bak")
 		}
 	}
 
 	updated := applyRenumber(string(content), plan)
-	if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
+	mode := os.FileMode(0o644)
+	if info, statErr := os.Stat(path); statErr == nil {
+		mode = info.Mode().Perm()
+	}
+	if err := writeFileAtomic(ctx, path, []byte(updated), mode); err != nil {
 		return errors.IO("writing workflow file", err).WithField("path", path)
 	}
 
@@ -138,7 +150,14 @@ func runWorkflowRenumber(out io.Writer, path string, dryRun, backup bool) error 
 	return nil
 }
 
-func buildRenumberPlan(content string) (renumberPlan, *errors.Error) {
+func buildRenumberPlan(ctx context.Context, content string) (renumberPlan, *errors.Error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return renumberPlan{}, errors.Wrap(err, "context cancelled before building renumber plan")
+	}
+
 	re := wf.StepHeaderRegexp()
 	matches := re.FindAllStringSubmatchIndex(content, -1)
 
@@ -188,6 +207,49 @@ func buildRenumberPlan(content string) (renumberPlan, *errors.Error) {
 	}
 
 	return plan, nil
+}
+
+func writeFileAtomic(ctx context.Context, path string, content []byte, mode os.FileMode) error {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = os.Remove(tmpName)
+		}
+	}()
+
+	if _, err := tmp.Write(content); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := ctx.Err(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(mode); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	if err := os.Rename(tmpName, path); err != nil {
+		return err
+	}
+	cleanup = false
+	return nil
 }
 
 type duplicate struct {

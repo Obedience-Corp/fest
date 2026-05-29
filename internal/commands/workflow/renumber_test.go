@@ -2,6 +2,8 @@ package workflow
 
 import (
 	"bytes"
+	"context"
+	stderrors "errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -129,7 +131,7 @@ func TestBuildRenumberPlan(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			plan, err := buildRenumberPlan(tt.content)
+			plan, err := buildRenumberPlan(context.Background(), tt.content)
 			if err != nil {
 				t.Fatalf("buildRenumberPlan: %v", err)
 			}
@@ -150,7 +152,7 @@ func TestBuildRenumberPlan(t *testing.T) {
 }
 
 func TestBuildRenumberPlanDuplicatesError(t *testing.T) {
-	_, err := buildRenumberPlan(workflowDuplicates)
+	_, err := buildRenumberPlan(context.Background(), workflowDuplicates)
 	if err == nil {
 		t.Fatal("expected duplicate error, got nil")
 	}
@@ -167,7 +169,7 @@ func TestBuildRenumberPlanDuplicatesError(t *testing.T) {
 }
 
 func TestApplyRenumberPreservesSuffix(t *testing.T) {
-	plan, err := buildRenumberPlan(workflowStepZero)
+	plan, err := buildRenumberPlan(context.Background(), workflowStepZero)
 	if err != nil {
 		t.Fatalf("plan: %v", err)
 	}
@@ -194,7 +196,7 @@ func TestApplyRenumberPreservesSuffix(t *testing.T) {
 }
 
 func TestApplyRenumberGapsCompact(t *testing.T) {
-	plan, err := buildRenumberPlan(workflowGaps)
+	plan, err := buildRenumberPlan(context.Background(), workflowGaps)
 	if err != nil {
 		t.Fatalf("plan: %v", err)
 	}
@@ -221,7 +223,7 @@ func TestRunWorkflowRenumberDryRunDoesNotWrite(t *testing.T) {
 	original, _ := os.ReadFile(path)
 
 	var out bytes.Buffer
-	if err := runWorkflowRenumber(&out, path, true, false); err != nil {
+	if err := runWorkflowRenumber(context.Background(), &out, path, true, false); err != nil {
 		t.Fatalf("runWorkflowRenumber: %v", err)
 	}
 
@@ -241,7 +243,7 @@ func TestRunWorkflowRenumberWrites(t *testing.T) {
 	path := writeTempWorkflow(t, workflowStepZero)
 
 	var out bytes.Buffer
-	if err := runWorkflowRenumber(&out, path, false, false); err != nil {
+	if err := runWorkflowRenumber(context.Background(), &out, path, false, false); err != nil {
 		t.Fatalf("runWorkflowRenumber: %v", err)
 	}
 
@@ -261,7 +263,7 @@ func TestRunWorkflowRenumberBackup(t *testing.T) {
 	path := writeTempWorkflow(t, workflowStepZero)
 
 	var out bytes.Buffer
-	if err := runWorkflowRenumber(&out, path, false, true); err != nil {
+	if err := runWorkflowRenumber(context.Background(), &out, path, false, true); err != nil {
 		t.Fatalf("runWorkflowRenumber: %v", err)
 	}
 
@@ -279,7 +281,7 @@ func TestRunWorkflowRenumberAlreadyCorrectIsNoop(t *testing.T) {
 	original, _ := os.ReadFile(path)
 
 	var out bytes.Buffer
-	if err := runWorkflowRenumber(&out, path, false, false); err != nil {
+	if err := runWorkflowRenumber(context.Background(), &out, path, false, false); err != nil {
 		t.Fatalf("runWorkflowRenumber: %v", err)
 	}
 
@@ -297,7 +299,7 @@ func TestRunWorkflowRenumberDuplicatesError(t *testing.T) {
 	original, _ := os.ReadFile(path)
 
 	var out bytes.Buffer
-	err := runWorkflowRenumber(&out, path, false, false)
+	err := runWorkflowRenumber(context.Background(), &out, path, false, false)
 	if err == nil {
 		t.Fatal("expected duplicate error, got nil")
 	}
@@ -311,11 +313,33 @@ func TestRunWorkflowRenumberDuplicatesError(t *testing.T) {
 	}
 }
 
+func TestRunWorkflowRenumberCancelledContext(t *testing.T) {
+	path := writeTempWorkflow(t, workflowStepZero)
+	original, _ := os.ReadFile(path)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	var out bytes.Buffer
+	err := runWorkflowRenumber(ctx, &out, path, false, false)
+	if err == nil {
+		t.Fatal("expected cancelled context error, got nil")
+	}
+	if !stderrors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+
+	current, _ := os.ReadFile(path)
+	if string(current) != string(original) {
+		t.Fatal("cancelled context wrote changes")
+	}
+}
+
 func TestRunWorkflowRenumberEmptyFileError(t *testing.T) {
 	path := writeTempWorkflow(t, "# Just a heading\n\nNo steps here.\n")
 
 	var out bytes.Buffer
-	err := runWorkflowRenumber(&out, path, false, false)
+	err := runWorkflowRenumber(context.Background(), &out, path, false, false)
 	if err == nil {
 		t.Fatal("expected error for file with no steps")
 	}
@@ -328,7 +352,7 @@ func TestRunWorkflowRenumberFileNotFound(t *testing.T) {
 	missing := filepath.Join(t.TempDir(), "does-not-exist", "WORKFLOW.md")
 
 	var out bytes.Buffer
-	err := runWorkflowRenumber(&out, missing, true, false)
+	err := runWorkflowRenumber(context.Background(), &out, missing, true, false)
 	if err == nil {
 		t.Fatal("expected error for missing file")
 	}
