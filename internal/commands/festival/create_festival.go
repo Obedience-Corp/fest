@@ -932,7 +932,7 @@ func rollbackCreatedFestival(ctx context.Context, cfg *createConfig, res *create
 	}
 
 	if len(failures) > 0 {
-		return fmt.Errorf("%s", strings.Join(failures, "; "))
+		return errors.New(strings.Join(failures, "; "))
 	}
 	return nil
 }

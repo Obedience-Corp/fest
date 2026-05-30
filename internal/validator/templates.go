@@ -134,12 +134,12 @@ func scanTemplateMarkersInContent(content string) ([]TemplateMarkerOccurrence, [
 
 		lineWithoutCode := stripInlineCode(line)
 		for _, marker := range templateMarkers {
-			for _, content := range extractMarkerContents(lineWithoutCode, marker) {
+			for _, markerText := range extractMarkerContents(lineWithoutCode, marker) {
 				markerTypes[marker] = true
 				occurrences = append(occurrences, TemplateMarkerOccurrence{
 					Line:       i + 1,
 					MarkerType: marker,
-					Content:    content,
+					Content:    markerText,
 				})
 			}
 		}
