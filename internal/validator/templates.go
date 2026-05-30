@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
@@ -32,10 +33,18 @@ func stripInlineCode(line string) string {
 
 // MarkerFileResult holds per-file marker scan results.
 type MarkerFileResult struct {
-	RelPath     string
-	MarkerCount int
-	MarkerTypes []string
-	Level       string
+	RelPath     string                     `json:"file"`
+	MarkerCount int                        `json:"count"`
+	MarkerTypes []string                   `json:"marker_types,omitempty"`
+	Level       string                     `json:"level,omitempty"`
+	Markers     []TemplateMarkerOccurrence `json:"markers,omitempty"`
+}
+
+// TemplateMarkerOccurrence describes a single unfilled marker location.
+type TemplateMarkerOccurrence struct {
+	Line       int    `json:"line"`
+	MarkerType string `json:"marker_type"`
+	Content    string `json:"content"`
 }
 
 // ValidateTemplateMarkers scans .md files for unfilled markers with phase-aware severity.
@@ -43,7 +52,28 @@ type MarkerFileResult struct {
 func ValidateTemplateMarkers(festivalPath string) ([]Issue, error) {
 	var issues []Issue
 
-	_ = filepath.Walk(festivalPath, func(path string, info os.FileInfo, err error) error {
+	results, err := ScanTemplateMarkers(festivalPath)
+	if err != nil {
+		return nil, err
+	}
+	for _, result := range results {
+		issues = append(issues, Issue{
+			Level:   result.Level,
+			Code:    CodeUnfilledTemplate,
+			Path:    result.RelPath,
+			Message: fmt.Sprintf("File contains %d unfilled template markers (%s)", result.MarkerCount, strings.Join(result.MarkerTypes, ", ")),
+			Fix:     "Edit file and replace template markers with actual content",
+		})
+	}
+	return issues, nil
+}
+
+// ScanTemplateMarkers scans .md files for unfilled markers and returns
+// per-file detail suitable for validation output and agent JSON responses.
+func ScanTemplateMarkers(festivalPath string) ([]MarkerFileResult, error) {
+	var results []MarkerFileResult
+
+	err := filepath.Walk(festivalPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil || info.IsDir() {
 			return nil
 		}
@@ -63,100 +93,99 @@ func ValidateTemplateMarkers(festivalPath string) ([]Issue, error) {
 			return nil
 		}
 
-		// Scan line-by-line, skipping code blocks
-		lines := strings.Split(string(content), "\n")
-		inCodeBlock := false
-		fileMarkerCount := 0
-		foundMarkers := make(map[string]bool)
-
-		for _, line := range lines {
-			// Toggle fence state on ``` lines (handles ```go, ```yaml, etc.)
-			if strings.HasPrefix(strings.TrimSpace(line), "```") {
-				inCodeBlock = !inCodeBlock
-				continue
-			}
-			// Skip markers inside code blocks - they're documentation examples
-			if inCodeBlock {
-				continue
-			}
-			// Strip inline code (backticks) before checking for markers
-			lineWithoutCode := stripInlineCode(line)
-			for _, m := range templateMarkers {
-				count := strings.Count(lineWithoutCode, m)
-				if count > 0 {
-					fileMarkerCount += count
-					foundMarkers[m] = true
-				}
-			}
+		fileMarkers, markerTypes := scanTemplateMarkersInContent(string(content))
+		if len(fileMarkers) == 0 {
+			return nil
 		}
 
-		if fileMarkerCount > 0 {
-			markerTypes := make([]string, 0, len(foundMarkers))
-			for m := range foundMarkers {
-				markerTypes = append(markerTypes, m)
-			}
-
-			// Phase-aware severity
-			level := resolveMarkerLevel(festivalPath, rel)
-
-			issues = append(issues, Issue{
-				Level:   level,
-				Code:    CodeUnfilledTemplate,
-				Path:    rel,
-				Message: fmt.Sprintf("File contains %d unfilled template markers (%s)", fileMarkerCount, strings.Join(markerTypes, ", ")),
-				Fix:     "Edit file and replace template markers with actual content",
-			})
-		}
-
+		results = append(results, MarkerFileResult{
+			RelPath:     rel,
+			MarkerCount: len(fileMarkers),
+			MarkerTypes: markerTypes,
+			Level:       resolveMarkerLevel(festivalPath, rel),
+			Markers:     fileMarkers,
+		})
 		return nil
 	})
-	return issues, nil
+	if err != nil {
+		return nil, err
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].RelPath < results[j].RelPath
+	})
+	return results, nil
+}
+
+func scanTemplateMarkersInContent(content string) ([]TemplateMarkerOccurrence, []string) {
+	lines := strings.Split(content, "\n")
+	inCodeBlock := false
+	markerTypes := make(map[string]bool)
+	var occurrences []TemplateMarkerOccurrence
+
+	for i, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), "```") {
+			inCodeBlock = !inCodeBlock
+			continue
+		}
+		if inCodeBlock {
+			continue
+		}
+
+		lineWithoutCode := stripInlineCode(line)
+		for _, marker := range templateMarkers {
+			for _, content := range extractMarkerContents(lineWithoutCode, marker) {
+				markerTypes[marker] = true
+				occurrences = append(occurrences, TemplateMarkerOccurrence{
+					Line:       i + 1,
+					MarkerType: marker,
+					Content:    content,
+				})
+			}
+		}
+	}
+
+	types := make([]string, 0, len(markerTypes))
+	for markerType := range markerTypes {
+		types = append(types, markerType)
+	}
+	sort.Strings(types)
+
+	return occurrences, types
+}
+
+func extractMarkerContents(line, marker string) []string {
+	var contents []string
+	endMarker := "]"
+	if marker == "{{ " {
+		endMarker = "}}"
+	}
+
+	offset := 0
+	for {
+		idx := strings.Index(line[offset:], marker)
+		if idx == -1 {
+			break
+		}
+		start := offset + idx
+		end := strings.Index(line[start:], endMarker)
+		if end == -1 {
+			contents = append(contents, strings.TrimSpace(line[start:]))
+			offset = start + len(marker)
+			continue
+		}
+		end += start + len(endMarker)
+		contents = append(contents, strings.TrimSpace(line[start:end]))
+		offset = end
+	}
+
+	return contents
 }
 
 // CheckTemplatesFilled returns true if no unfilled template markers remain.
 func CheckTemplatesFilled(festivalPath string) bool {
-	filled := true
-	_ = filepath.Walk(festivalPath, func(path string, info os.FileInfo, err error) error {
-		if err != nil || info.IsDir() || !strings.HasSuffix(path, ".md") {
-			return nil
-		}
-		rel, _ := filepath.Rel(festivalPath, path)
-		if strings.HasPrefix(rel, ".") || strings.Contains(rel, "/.") {
-			return nil
-		}
-		// Skip gates/ directory - these are intentional template files
-		if strings.HasPrefix(rel, "gates/") || strings.HasPrefix(rel, "gates"+string(filepath.Separator)) {
-			return nil
-		}
-		b, err := os.ReadFile(path)
-		if err != nil {
-			return nil
-		}
-		// Scan line-by-line, skipping code blocks
-		lines := strings.Split(string(b), "\n")
-		inCodeBlock := false
-		for _, line := range lines {
-			// Toggle fence state on ``` lines
-			if strings.HasPrefix(strings.TrimSpace(line), "```") {
-				inCodeBlock = !inCodeBlock
-				continue
-			}
-			// Skip markers inside code blocks - they're documentation examples
-			if inCodeBlock {
-				continue
-			}
-			// Strip inline code (backticks) before checking for markers
-			lineWithoutCode := stripInlineCode(line)
-			for _, m := range templateMarkers {
-				if strings.Contains(lineWithoutCode, m) {
-					filled = false
-					return filepath.SkipAll
-				}
-			}
-		}
-		return nil
-	})
-	return filled
+	results, err := ScanTemplateMarkers(festivalPath)
+	return err == nil && len(results) == 0
 }
 
 // resolveMarkerLevel determines the severity level for template markers
