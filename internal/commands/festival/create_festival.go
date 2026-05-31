@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -24,6 +25,7 @@ import (
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/types"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/validator"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/Obedience-Corp/obey-shared/contract"
 	"github.com/google/uuid"
@@ -51,6 +53,7 @@ type createFestivalResult struct {
 	OK                bool               `json:"ok"`
 	Action            string             `json:"action"`
 	Festival          map[string]string  `json:"festival,omitempty"`
+	CreatedPath       string             `json:"created_path,omitempty"`
 	Created           []string           `json:"created,omitempty"`
 	AutoPhasesCreated []string           `json:"auto_phases_created,omitempty"`
 	GatesDirectory    string             `json:"gates_directory,omitempty"`
@@ -61,10 +64,28 @@ type createFestivalResult struct {
 	Markers           []map[string]any   `json:"markers,omitempty"`
 	MarkersFilled     int                `json:"markers_filled,omitempty"`
 	MarkersTotal      int                `json:"markers_total,omitempty"`
+	MarkersUnfilled   int                `json:"markers_unfilled,omitempty"`
+	UnfilledMarkers   []markerFileResult `json:"unfilled_markers,omitempty"`
 	Validation        *ValidationSummary `json:"validation,omitempty"`
+	RolledBack        *bool              `json:"rolled_back,omitempty"`
+	RollbackError     string             `json:"rollback_error,omitempty"`
 	Errors            []map[string]any   `json:"errors,omitempty"`
 	Warnings          []string           `json:"warnings,omitempty"`
 	Extra             map[string]any     `json:"extra,omitempty"`
+}
+
+type markerFileResult struct {
+	File        string                 `json:"file"`
+	Count       int                    `json:"count"`
+	MarkerTypes []string               `json:"marker_types,omitempty"`
+	Level       string                 `json:"level,omitempty"`
+	Markers     []markerOccurrenceInfo `json:"markers,omitempty"`
+}
+
+type markerOccurrenceInfo struct {
+	Line       int    `json:"line"`
+	MarkerType string `json:"marker_type"`
+	Content    string `json:"content"`
 }
 
 // createConfig holds all resolved configuration for festival creation.
@@ -121,7 +142,7 @@ func NewCreateFestivalCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "Show template markers without creating file")
 	cmd.Flags().BoolVar(&opts.JSONOutput, "json", false, "Emit JSON output")
 	cmd.Flags().StringVar(&opts.Dest, "dest", "planning", "Destination under festivals/: planning or ritual (use 'fest promote' to advance to active)")
-	cmd.Flags().BoolVar(&opts.AgentMode, "agent", false, "Strict mode: require markers, auto-validate, block on errors, JSON output")
+	cmd.Flags().BoolVar(&opts.AgentMode, "agent", false, "Strict mode: process markers, auto-validate, rollback on blocking errors, JSON output")
 	return cmd
 }
 
@@ -246,6 +267,7 @@ type createResult struct {
 	markersTotal      int
 	allMarkers        []map[string]any
 	validationResult  *ValidationSummary
+	registered        bool
 }
 
 // RunCreateFestival executes the create festival command logic.
@@ -265,19 +287,41 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 
 	created, copiedGates, err := renderFestivalTemplates(ctx, cfg)
 	if err != nil {
-		return emitCreateFestivalError(opts, err)
+		return emitCreateFestivalCreatedError(ctx, cfg, nil, err)
 	}
 
 	res, err := writeFestYaml(ctx, cfg)
 	if err != nil {
-		return emitCreateFestivalError(opts, err)
+		return emitCreateFestivalCreatedError(ctx, cfg, nil, err)
 	}
 	created = append(created, res.festConfigPath)
 
 	created, res.autoPhasesCreated = autoScaffoldPhases(ctx, cfg, created)
 
 	recordInitialSize(ctx, cfg, res.festConfig)
-	registerFestival(ctx, cfg)
+
+	res.created = created
+	res.copiedGates = copiedGates
+	if err := processAllMarkers(ctx, cfg, res); err != nil {
+		return emitCreateFestivalCreatedError(ctx, cfg, res, err)
+	}
+
+	if opts.DryRun && res.markersTotal > 0 {
+		result := &MarkerResult{Markers: res.allMarkers, Total: res.markersTotal}
+		if err := PrintDryRunMarkers(result, opts.JSONOutput); err != nil {
+			return emitCreateFestivalCreatedError(ctx, cfg, res, err)
+		}
+		return nil
+	}
+
+	if err := validateIfConfigured(ctx, cfg, res); err != nil {
+		if opts.AgentMode && res.validationResult != nil && !res.validationResult.OK && config.ShouldBlockOnErrors(cfg.agentCfg, opts.AgentMode) {
+			return emitCreateFestivalValidationFailure(ctx, cfg, res, err)
+		}
+		return emitCreateFestivalCreatedError(ctx, cfg, res, err)
+	}
+
+	registerFestival(ctx, cfg, res)
 
 	// Ensure fest contract entries are present in .campaign/watchers.yaml.
 	// This is idempotent: if fest init already wrote them, WriteEntries
@@ -285,24 +329,6 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 	// fest init ran before camp init (so .campaign/ didn't exist yet),
 	// or where the contract file was deleted and needs regeneration.
 	writeContractEntries(cfg.campaignRoot)
-
-	res.created = created
-	res.copiedGates = copiedGates
-	if err := processAllMarkers(ctx, cfg, res); err != nil {
-		return emitCreateFestivalError(opts, err)
-	}
-
-	if opts.DryRun && res.markersTotal > 0 {
-		result := &MarkerResult{Markers: res.allMarkers, Total: res.markersTotal}
-		if err := PrintDryRunMarkers(result, opts.JSONOutput); err != nil {
-			return emitCreateFestivalError(opts, err)
-		}
-		return nil
-	}
-
-	if err := validateIfConfigured(ctx, cfg, res); err != nil {
-		return emitCreateFestivalError(opts, err)
-	}
 
 	return emitCreateOutput(cfg, res)
 }
@@ -622,7 +648,9 @@ func recordInitialSize(ctx context.Context, cfg *createConfig, festConfig *confi
 }
 
 // registerFestival records the festival in the ID registry with event logging.
-func registerFestival(ctx context.Context, cfg *createConfig) {
+// On success it marks res.registered so rollback only cleans up the registry
+// when a write actually happened.
+func registerFestival(ctx context.Context, cfg *createConfig, res *createResult) {
 	regPath := registry.GetEventsPath(cfg.festivalsRoot)
 	reg, regErr := registry.Load(ctx, regPath)
 	if regErr != nil {
@@ -637,7 +665,9 @@ func registerFestival(ctx context.Context, cfg *createConfig) {
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
-	_ = reg.AddWithEvent(ctx, regEntry)
+	if err := reg.AddWithEvent(ctx, regEntry); err == nil && res != nil {
+		res.registered = true
+	}
 }
 
 // processAllMarkers processes REPLACE markers in all created files.
@@ -756,14 +786,7 @@ func emitCreateOutput(cfg *createConfig, res *createResult) error {
 
 // emitCreateJSON emits JSON output for festival creation.
 func emitCreateJSON(cfg *createConfig, res *createResult, gatesDir string, remainingMarkers int) error {
-	// Get campaign root for relative path display
-	campaignRoot := cfg.campaignRoot
-	displayPath := func(p string) string {
-		if campaignRoot != "" {
-			return pathutil.DisplayPath(p, campaignRoot)
-		}
-		return p
-	}
+	displayPath := createDisplayPathFunc(cfg)
 
 	warnings := []string{}
 	if remainingMarkers > 0 {
@@ -801,6 +824,7 @@ func emitCreateJSON(cfg *createConfig, res *createResult, gatesDir string, remai
 		OK:                true,
 		Action:            "create_festival",
 		Festival:          festivalMap,
+		CreatedPath:       displayPath(cfg.destDir),
 		Created:           relCreated,
 		AutoPhasesCreated: res.autoPhasesCreated,
 		GatesDirectory:    displayPath(gatesDir),
@@ -813,6 +837,235 @@ func emitCreateJSON(cfg *createConfig, res *createResult, gatesDir string, remai
 		Validation:        res.validationResult,
 		Warnings:          warnings,
 	})
+}
+
+func emitCreateFestivalCreatedError(ctx context.Context, cfg *createConfig, res *createResult, err error) error {
+	if cfg != nil && cfg.opts != nil && cfg.opts.AgentMode {
+		return emitCreateFestivalFailure(ctx, cfg, res, err, nil)
+	}
+	if cfg != nil && cfg.opts != nil {
+		return emitCreateFestivalError(cfg.opts, err)
+	}
+	return err
+}
+
+func emitCreateFestivalValidationFailure(ctx context.Context, cfg *createConfig, res *createResult, err error) error {
+	unfilledMarkers, scanErr := validator.ScanTemplateMarkers(cfg.destDir)
+	if scanErr != nil && err == nil {
+		err = errors.Wrap(scanErr, "scanning unfilled markers")
+	}
+	return emitCreateFestivalFailure(ctx, cfg, res, err, unfilledMarkers)
+}
+
+func emitCreateFestivalFailure(ctx context.Context, cfg *createConfig, res *createResult, err error, unfilledMarkers []validator.MarkerFileResult) error {
+	displayPath := createDisplayPathFunc(cfg)
+	relCreated := createdDisplayPaths(cfg, res)
+	relGates := gateDisplayPaths(cfg, res)
+	markerDetails := markerFileResultsFromValidator(unfilledMarkers)
+	markersUnfilled := countMarkerFileResults(markerDetails)
+	if markersUnfilled == 0 && res != nil {
+		markersUnfilled = res.markersTotal - res.markersFilled
+	}
+
+	rolledBack := true
+	rollbackErr := rollbackCreatedFestival(ctx, cfg, res)
+	if rollbackErr != nil {
+		rolledBack = false
+	}
+	message := "festival creation failed"
+	if err != nil {
+		message = err.Error()
+	}
+
+	result := createFestivalResult{
+		OK:                false,
+		Action:            "create_festival",
+		Festival:          festivalMapForConfig(cfg),
+		CreatedPath:       displayPath(cfg.destDir),
+		Created:           relCreated,
+		AutoPhasesCreated: nil,
+		GatesDirectory:    displayPath(filepath.Join(cfg.destDir, "gates")),
+		FestYAML:          displayPath(festConfigPath(res)),
+		GateTemplates:     relGates,
+		ProjectPath:       displayPath(projectPath(res)),
+		ProjectLinked:     projectLinked(res),
+		MarkersFilled:     markersFilled(res),
+		MarkersTotal:      markersTotal(res),
+		MarkersUnfilled:   markersUnfilled,
+		UnfilledMarkers:   markerDetails,
+		Validation:        validationSummary(res),
+		RolledBack:        &rolledBack,
+		Errors: []map[string]any{{
+			"code":    "error",
+			"message": message,
+		}},
+	}
+	if rollbackErr != nil {
+		result.RollbackError = rollbackErr.Error()
+	}
+
+	_ = emitCreateFestivalJSON(cfg.opts, result)
+	return errors.ErrAlreadyPrinted
+}
+
+func rollbackCreatedFestival(ctx context.Context, cfg *createConfig, res *createResult) error {
+	var failures []string
+
+	if res != nil && res.projectLinked {
+		nav, err := navigation.LoadNavigation()
+		if err != nil {
+			failures = append(failures, fmt.Sprintf("removing navigation link: %v", err))
+		} else if nav.RemoveLink(cfg.dirName) {
+			if err := nav.Save(); err != nil {
+				failures = append(failures, fmt.Sprintf("saving navigation rollback: %v", err))
+			}
+		}
+	}
+
+	if res != nil && res.registered {
+		regPath := registry.GetEventsPath(cfg.festivalsRoot)
+		reg, err := registry.Load(ctx, regPath)
+		if err != nil {
+			failures = append(failures, fmt.Sprintf("loading registry for rollback: %v", err))
+		} else if reg.Exists(ctx, cfg.festivalID) {
+			if err := reg.DeleteWithEvent(ctx, cfg.festivalID); err != nil {
+				failures = append(failures, fmt.Sprintf("deleting registry entry: %v", err))
+			}
+		}
+	}
+
+	if err := os.RemoveAll(cfg.destDir); err != nil {
+		failures = append(failures, fmt.Sprintf("removing created festival directory: %v", err))
+	}
+
+	if len(failures) > 0 {
+		return errors.New(strings.Join(failures, "; "))
+	}
+	return nil
+}
+
+func createDisplayPathFunc(cfg *createConfig) func(string) string {
+	return func(p string) string {
+		if p == "" {
+			return ""
+		}
+		if cfg != nil && cfg.campaignRoot != "" {
+			return pathutil.DisplayPath(p, cfg.campaignRoot)
+		}
+		return p
+	}
+}
+
+func festivalMapForConfig(cfg *createConfig) map[string]string {
+	festivalMap := map[string]string{
+		"name":      cfg.opts.Name,
+		"slug":      cfg.slug,
+		"dest":      cfg.destCategory,
+		"id":        cfg.festivalID,
+		"directory": cfg.dirName,
+	}
+	if cfg.festivalTypeName != "" {
+		festivalMap["type"] = cfg.festivalTypeName
+	}
+	return festivalMap
+}
+
+func createdDisplayPaths(cfg *createConfig, res *createResult) []string {
+	if res == nil || len(res.created) == 0 {
+		return nil
+	}
+	displayPath := createDisplayPathFunc(cfg)
+	relCreated := make([]string, len(res.created))
+	for i, p := range res.created {
+		relCreated[i] = displayPath(p)
+	}
+	return relCreated
+}
+
+func gateDisplayPaths(cfg *createConfig, res *createResult) []string {
+	if res == nil || len(res.copiedGates) == 0 {
+		return nil
+	}
+	displayPath := createDisplayPathFunc(cfg)
+	relGates := make([]string, len(res.copiedGates))
+	for i, p := range res.copiedGates {
+		relGates[i] = displayPath(p)
+	}
+	return relGates
+}
+
+func markerFileResultsFromValidator(results []validator.MarkerFileResult) []markerFileResult {
+	if len(results) == 0 {
+		return nil
+	}
+	out := make([]markerFileResult, 0, len(results))
+	for _, result := range results {
+		markers := make([]markerOccurrenceInfo, 0, len(result.Markers))
+		for _, marker := range result.Markers {
+			markers = append(markers, markerOccurrenceInfo{
+				Line:       marker.Line,
+				MarkerType: marker.MarkerType,
+				Content:    marker.Content,
+			})
+		}
+		markerTypes := append([]string(nil), result.MarkerTypes...)
+		sort.Strings(markerTypes)
+		out = append(out, markerFileResult{
+			File:        result.RelPath,
+			Count:       result.MarkerCount,
+			MarkerTypes: markerTypes,
+			Level:       result.Level,
+			Markers:     markers,
+		})
+	}
+	return out
+}
+
+func countMarkerFileResults(results []markerFileResult) int {
+	total := 0
+	for _, result := range results {
+		total += result.Count
+	}
+	return total
+}
+
+func festConfigPath(res *createResult) string {
+	if res == nil {
+		return ""
+	}
+	return res.festConfigPath
+}
+
+func projectPath(res *createResult) string {
+	if res == nil {
+		return ""
+	}
+	return res.projectPath
+}
+
+func projectLinked(res *createResult) bool {
+	return res != nil && res.projectLinked
+}
+
+func markersFilled(res *createResult) int {
+	if res == nil {
+		return 0
+	}
+	return res.markersFilled
+}
+
+func markersTotal(res *createResult) int {
+	if res == nil {
+		return 0
+	}
+	return res.markersTotal
+}
+
+func validationSummary(res *createResult) *ValidationSummary {
+	if res == nil {
+		return nil
+	}
+	return res.validationResult
 }
 
 func parseTags(s string) []string {
@@ -840,6 +1093,9 @@ func emitCreateFestivalError(opts *CreateFestivalOptions, err error) error {
 				"message": err.Error(),
 			}},
 		})
+		if opts.AgentMode {
+			return errors.ErrAlreadyPrinted
+		}
 		return nil
 	}
 	return err

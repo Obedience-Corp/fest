@@ -9,7 +9,7 @@ fest create festival [flags]
 ### Options
 
 ```
-      --agent                 Strict mode: require markers, auto-validate, block on errors, JSON output
+      --agent                 Strict mode: process markers, auto-validate, rollback on blocking errors, JSON output
       --dest string           Destination under festivals/: planning or ritual (use 'fest promote' to advance to active) (default "planning")
       --dry-run               Show template markers without creating file
       --goal string           Festival goal
@@ -37,4 +37,3 @@ fest create festival [flags]
 ### SEE ALSO
 
 * [fest create](fest_create.md)	 - Create festivals, phases, sequences, or tasks (TUI)
-
