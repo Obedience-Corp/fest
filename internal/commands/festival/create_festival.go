@@ -267,6 +267,7 @@ type createResult struct {
 	markersTotal      int
 	allMarkers        []map[string]any
 	validationResult  *ValidationSummary
+	registered        bool
 }
 
 // RunCreateFestival executes the create festival command logic.
@@ -320,7 +321,7 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 		return emitCreateFestivalCreatedError(ctx, cfg, res, err)
 	}
 
-	registerFestival(ctx, cfg)
+	registerFestival(ctx, cfg, res)
 
 	// Ensure fest contract entries are present in .campaign/watchers.yaml.
 	// This is idempotent: if fest init already wrote them, WriteEntries
@@ -647,7 +648,9 @@ func recordInitialSize(ctx context.Context, cfg *createConfig, festConfig *confi
 }
 
 // registerFestival records the festival in the ID registry with event logging.
-func registerFestival(ctx context.Context, cfg *createConfig) {
+// On success it marks res.registered so rollback only cleans up the registry
+// when a write actually happened.
+func registerFestival(ctx context.Context, cfg *createConfig, res *createResult) {
 	regPath := registry.GetEventsPath(cfg.festivalsRoot)
 	reg, regErr := registry.Load(ctx, regPath)
 	if regErr != nil {
@@ -662,7 +665,9 @@ func registerFestival(ctx context.Context, cfg *createConfig) {
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
-	_ = reg.AddWithEvent(ctx, regEntry)
+	if err := reg.AddWithEvent(ctx, regEntry); err == nil && res != nil {
+		res.registered = true
+	}
 }
 
 // processAllMarkers processes REPLACE markers in all created files.
@@ -917,13 +922,15 @@ func rollbackCreatedFestival(ctx context.Context, cfg *createConfig, res *create
 		}
 	}
 
-	regPath := registry.GetEventsPath(cfg.festivalsRoot)
-	reg, err := registry.Load(ctx, regPath)
-	if err != nil {
-		failures = append(failures, fmt.Sprintf("loading registry for rollback: %v", err))
-	} else if reg.Exists(ctx, cfg.festivalID) {
-		if err := reg.DeleteWithEvent(ctx, cfg.festivalID); err != nil {
-			failures = append(failures, fmt.Sprintf("deleting registry entry: %v", err))
+	if res != nil && res.registered {
+		regPath := registry.GetEventsPath(cfg.festivalsRoot)
+		reg, err := registry.Load(ctx, regPath)
+		if err != nil {
+			failures = append(failures, fmt.Sprintf("loading registry for rollback: %v", err))
+		} else if reg.Exists(ctx, cfg.festivalID) {
+			if err := reg.DeleteWithEvent(ctx, cfg.festivalID); err != nil {
+				failures = append(failures, fmt.Sprintf("deleting registry entry: %v", err))
+			}
 		}
 	}
 

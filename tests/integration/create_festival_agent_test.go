@@ -96,6 +96,28 @@ func TestCreateFestivalAgentValidationFailureRollsBackAndReportsMarkers(t *testi
 	require.True(t, strings.Contains(dirs[0], "AR0001"), "created directory should use first ID, got %v", dirs)
 }
 
+func TestCreateFestivalAgentValidationFailureLeavesLegacyRegistryIntact(t *testing.T) {
+	tc := GetSharedContainer(t)
+	festivalsPath := setupWorkspace(t, tc, "/")
+	writeAgentMarkerTemplates(t, tc, festivalsPath)
+
+	legacyPath := festivalsPath + "/.festival/.state/id_registry.yaml"
+	eventsPath := festivalsPath + "/.festival/.state/festival_events.jsonl"
+	legacyYAML := "version: \"1\"\nentries:\n  ZZ0001:\n    id: ZZ0001\n    name: Legacy Festival\n    status: planning\n    path: /festivals/planning/legacy-ZZ0001\n"
+	require.NoError(t, writeFileInContainer(tc, legacyPath, legacyYAML))
+
+	_, err := tc.RunFestInDir(festivalsPath, "create", "festival", "--name", "legacy-guard", "--dest", "planning", "--agent")
+	require.Error(t, err, "agent mode should exit non-zero when strict validation blocks")
+
+	legacyExists, err := tc.CheckFileExists(legacyPath)
+	require.NoError(t, err)
+	require.True(t, legacyExists, "failed agent create must not migrate or remove the legacy registry")
+
+	eventsExists, err := tc.CheckFileExists(eventsPath)
+	require.NoError(t, err)
+	require.False(t, eventsExists, "failed agent create must not trigger legacy registry migration")
+}
+
 func writeAgentMarkerTemplates(t *testing.T, tc *TestContainer, festivalsPath string) {
 	t.Helper()
 
