@@ -16,6 +16,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const chainIDPrefix = "CH"
+
 func newCreateCmd() *cobra.Command {
 	var (
 		name string
@@ -59,10 +61,9 @@ func runCreate(cmd *cobra.Command, name, goal string) error {
 		return errors.IO("creating chains directory", err)
 	}
 
-	// Generate chain ID from name prefix.
+	// Generate chain IDs from the fixed chain namespace.
 	slug := strings.ToLower(strings.ReplaceAll(name, " ", "-"))
-	prefix := chainIDPrefix(name)
-	id := nextChainID(chainsDir, prefix)
+	id := nextChainID(chainsDir, chainIDPrefix)
 
 	// Render embedded chain template.
 	tplData, err := chaintpl.Templates.ReadFile("chain_template.yaml")
@@ -147,16 +148,4 @@ func nextChainID(chainsDir, prefix string) string {
 
 func createChainFile(path string) (*os.File, error) {
 	return os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
-}
-
-// chainIDPrefix extracts a 2-letter uppercase prefix from the chain name.
-func chainIDPrefix(name string) string {
-	words := strings.Fields(strings.TrimSpace(name))
-	if len(words) >= 2 {
-		return strings.ToUpper(string(words[0][0])) + strings.ToUpper(string(words[1][0]))
-	}
-	if len(name) >= 2 {
-		return strings.ToUpper(name[:2])
-	}
-	return "CH"
 }
