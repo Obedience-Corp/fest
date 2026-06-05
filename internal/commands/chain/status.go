@@ -16,11 +16,18 @@ import (
 
 func newStatusCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "status <chain-id>",
+		Use:   "status [chain-id]",
 		Short: "Show chain status and progress",
-		Args:  cobra.ExactArgs(1),
+		Long: "Show chain status and progress. The chain id is optional when it can " +
+			"be inferred from the current festival or linked project, or selected " +
+			"interactively in a terminal.",
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runStatus(cmd.Context(), args[0])
+			chainID, _, err := resolveChainID(cmd.Context(), firstArg(args))
+			if err != nil {
+				return err
+			}
+			return runStatus(cmd.Context(), chainID)
 		},
 	}
 }

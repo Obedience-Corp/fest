@@ -14,18 +14,22 @@ func newValidateCmd() *cobra.Command {
 	var cross bool
 
 	cmd := &cobra.Command{
-		Use:   "validate <chain-id>",
+		Use:   "validate [chain-id]",
 		Short: "Validate a festival chain",
-		Long:  "Run all structural validation checks (S1-S10) against a chain definition.\nUse --cross to validate across all chains.",
-		Args:  cobra.MaximumNArgs(1),
+		Long: "Run all structural validation checks (S1-S10) against a chain definition.\n" +
+			"The chain id is optional when it can be inferred from the current festival " +
+			"or linked project, or selected interactively in a terminal.\n" +
+			"Use --cross to validate across all chains.",
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cross {
 				return runCrossValidate(cmd.Context())
 			}
-			if len(args) == 0 {
-				return errors.Validation("chain-id required (or use --cross for cross-chain validation)")
+			chainID, _, err := resolveChainID(cmd.Context(), firstArg(args))
+			if err != nil {
+				return err
 			}
-			return runValidate(cmd.Context(), args[0])
+			return runValidate(cmd.Context(), chainID)
 		},
 	}
 

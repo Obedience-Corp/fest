@@ -17,12 +17,18 @@ func newGraphCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "graph <chain-id>",
+		Use:   "graph [chain-id]",
 		Short: "Visualize chain dependency graph",
-		Long:  "Render the chain's dependency graph as ASCII waves or Mermaid diagram syntax.",
-		Args:  cobra.ExactArgs(1),
+		Long: "Render the chain's dependency graph as ASCII waves or Mermaid diagram " +
+			"syntax. The chain id is optional when it can be inferred from the current " +
+			"festival or linked project, or selected interactively in a terminal.",
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runGraph(cmd.Context(), args[0], mermaid, live)
+			chainID, _, err := resolveChainID(cmd.Context(), firstArg(args))
+			if err != nil {
+				return err
+			}
+			return runGraph(cmd.Context(), chainID, mermaid, live)
 		},
 	}
 

@@ -16,12 +16,23 @@ func newCheckCmd() *cobra.Command {
 	var chainID string
 
 	cmd := &cobra.Command{
-		Use:   "check <ref-or-id>",
+		Use:   "check [ref-or-id]",
 		Short: "Check if a festival is unblocked within its chain",
-		Long:  "Quick check whether a specific festival's hard dependencies are met.",
-		Args:  cobra.ExactArgs(1),
+		Long: "Quick check whether a specific festival's hard dependencies are met. " +
+			"The festival ref or id is optional when it can be inferred from the " +
+			"current festival or linked project.",
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runCheck(cmd.Context(), args[0], chainID)
+			refOrID := firstArg(args)
+			if refOrID == "" {
+				festID, ok := resolveCurrentFestivalID(cmd.Context())
+				if !ok {
+					return errors.Validation("festival ref or id required").
+						WithHint("run from inside a festival or linked project, or pass a ref/id")
+				}
+				refOrID = festID
+			}
+			return runCheck(cmd.Context(), refOrID, chainID)
 		},
 	}
 
