@@ -37,8 +37,9 @@ func resolveChainStatuses(ctx context.Context, c *chainpkg.Chain) (map[string]ch
 		searchDirs[i] = filepath.Join(root, d)
 	}
 
-	// Resolve festival refs to filesystem paths.
-	resolved, resolveErr := chainpkg.Resolve(ctx, c, searchDirs)
+	// Resolve festival refs to filesystem paths best-effort so one unresolvable
+	// member does not blank out the whole chain's live status.
+	resolved, resolveErr := chainpkg.ResolveAvailable(ctx, c, searchDirs)
 
 	statuses := make(map[string]chainpkg.FestivalStatus, len(c.Festivals))
 

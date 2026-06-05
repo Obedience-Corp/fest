@@ -117,6 +117,105 @@ func TestResolve_SkipsUnreadableDir(t *testing.T) {
 	assert.Contains(t, resolved["a"].Path, "alpha-A0001")
 }
 
+func TestResolve_FindsFestivalInDungeonDatedBucket(t *testing.T) {
+	root := t.TempDir()
+	// Working festival sits directly under its status dir.
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "active", "onboarding-parity-FA0010"), 0o755))
+	// Completed festival lives inside a dated dungeon bucket.
+	require.NoError(t, os.MkdirAll(
+		filepath.Join(root, "dungeon", "completed", "2026-06-04", "audit-remediation-FA0009"), 0o755))
+
+	c := &Chain{
+		Festivals: []FestivalNode{
+			{Ref: "audit", ID: "FA0009", Name: "audit-remediation"},
+			{Ref: "onboarding", ID: "FA0010", Name: "onboarding-parity"},
+		},
+	}
+
+	searchDirs := []string{
+		filepath.Join(root, "active"),
+		filepath.Join(root, "dungeon", "completed"),
+	}
+
+	resolved, err := Resolve(context.Background(), c, searchDirs)
+	require.NoError(t, err)
+	assert.Equal(t,
+		filepath.Join(root, "dungeon", "completed", "2026-06-04", "audit-remediation-FA0009"),
+		resolved["audit"].Path)
+	assert.Equal(t, filepath.Join(root, "active", "onboarding-parity-FA0010"), resolved["onboarding"].Path)
+}
+
+func TestResolve_IgnoresNonDateDungeonSubdirs(t *testing.T) {
+	root := t.TempDir()
+	// A non-date subdir (e.g. the dungeon chains dir) must not be descended.
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "dungeon", "completed", "chains"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "dungeon", "completed", "chains", "decoy-FA0009"), 0o755))
+
+	c := &Chain{Festivals: []FestivalNode{{Ref: "x", ID: "FA0009", Name: "audit"}}}
+
+	_, err := Resolve(context.Background(), c, []string{filepath.Join(root, "dungeon", "completed")})
+	assert.Error(t, err, "should not match festivals under non-date subdirectories")
+}
+
+func TestResolveAvailable_OmitsMissingRefs(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(root, "alpha-A0001"), 0o755))
+
+	c := &Chain{
+		Festivals: []FestivalNode{
+			{Ref: "a", ID: "A0001", Name: "alpha"},
+			{Ref: "missing", ID: "M0001", Name: "missing"},
+		},
+	}
+
+	resolved, err := ResolveAvailable(context.Background(), c, []string{root})
+	require.NoError(t, err)
+	assert.Len(t, resolved, 1, "missing ref should be omitted, not fail the whole resolution")
+	assert.Contains(t, resolved["a"].Path, "alpha-A0001")
+	_, ok := resolved["missing"]
+	assert.False(t, ok)
+}
+
+func TestResolveAvailable_FindsDungeonFestival(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.MkdirAll(
+		filepath.Join(root, "dungeon", "completed", "2026-06-04", "audit-remediation-FA0009"), 0o755))
+
+	c := &Chain{Festivals: []FestivalNode{{Ref: "audit", ID: "FA0009", Name: "audit-remediation"}}}
+
+	resolved, err := ResolveAvailable(context.Background(), c, []string{filepath.Join(root, "dungeon", "completed")})
+	require.NoError(t, err)
+	assert.Contains(t, resolved["audit"].Path, filepath.Join("2026-06-04", "audit-remediation-FA0009"))
+}
+
+func TestResolveAvailable_ContextCancellation(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	c := &Chain{Festivals: []FestivalNode{{Ref: "a", ID: "A0001", Name: "alpha"}}}
+	_, err := ResolveAvailable(ctx, c, []string{"/tmp"})
+	assert.Error(t, err)
+}
+
+func TestIsDateBucket(t *testing.T) {
+	tests := []struct {
+		name string
+		want bool
+	}{
+		{"2026-06-04", true},
+		{"2026-12-31", true},
+		{"chains", false},
+		{"2026-6-4", false},
+		{"2026-06-04-extra", false},
+		{"audit-remediation-FA0009", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, isDateBucket(tt.name))
+		})
+	}
+}
+
 func TestMatchesFestivalID(t *testing.T) {
 	tests := []struct {
 		dirName    string

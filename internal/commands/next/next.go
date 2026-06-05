@@ -464,8 +464,9 @@ func printChainContext(ctx context.Context, festivalPath string, festivalComplet
 		searchDirs[i] = filepath.Join(root, d)
 	}
 
-	// Resolve live statuses.
-	resolved, _ := chainpkg.Resolve(ctx, c, searchDirs)
+	// Resolve live statuses best-effort so a missing chain member does not
+	// blank out the rest of the chain.
+	resolved, _ := chainpkg.ResolveAvailable(ctx, c, searchDirs)
 	statuses := make(map[string]chainpkg.FestivalStatus, len(c.Festivals))
 	for _, node := range c.Festivals {
 		rf, ok := resolved[node.Ref]
