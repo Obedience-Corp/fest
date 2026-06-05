@@ -99,7 +99,7 @@ func (r targetResolver) resolve(ctx context.Context, selector string) (*show.Fes
 
 	path, err := r.pickFestival(ctx, festivalsDir, shared.FestivalPickerOptions{
 		IncludeStatusDirectories: false,
-		PreferredStatuses:        preferredPickerStatuses(cwd, festivalsDir),
+		PreferredStatuses:        pickerStatuses(cwd, festivalsDir),
 	})
 	if err != nil {
 		return nil, err
@@ -209,6 +209,20 @@ func isFestivalNotFound(err error) bool {
 	return stderrors.As(err, &structured) && structured.Code == errors.ErrCodeNotFound
 }
 
+// pickerStatuses returns the statuses to offer in the interactive watch picker.
+// If cwd is inside a specific working status dir, it narrows to that status;
+// otherwise it offers all working statuses. Dungeon festivals are terminal and
+// never watched, so they are never offered.
+func pickerStatuses(cwd, festivalsDir string) []string {
+	if narrowed := preferredPickerStatuses(cwd, festivalsDir); len(narrowed) > 0 {
+		return narrowed
+	}
+	return id.WorkingStatusDirectories
+}
+
+// preferredPickerStatuses narrows the picker to the single working status dir
+// the user is currently inside, if any. It never returns a dungeon status, so a
+// terminal location does not surface dungeon festivals in the picker.
 func preferredPickerStatuses(cwd, festivalsDir string) []string {
 	rel, err := filepath.Rel(festivalsDir, cwd)
 	if err != nil || rel == "." || rel == ".." {
@@ -218,7 +232,7 @@ func preferredPickerStatuses(cwd, festivalsDir string) []string {
 	if strings.HasPrefix(rel, "../") {
 		return nil
 	}
-	for _, status := range id.StatusDirectories {
+	for _, status := range id.WorkingStatusDirectories {
 		status = filepath.ToSlash(id.ResolveStatusPath(status))
 		if rel == status || strings.HasPrefix(rel, status+"/") {
 			return []string{status}

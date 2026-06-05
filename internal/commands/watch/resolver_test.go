@@ -10,6 +10,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/id"
 )
 
 func TestTargetResolverSelectorWinsOverContext(t *testing.T) {
@@ -272,10 +273,26 @@ func TestTargetResolverInvalidPickedPathReturnsContext(t *testing.T) {
 	}
 }
 
-func TestPreferredPickerStatusesDerivesDungeonSubstatus(t *testing.T) {
+func TestPreferredPickerStatusesNarrowsToWorkingStatus(t *testing.T) {
+	got := preferredPickerStatuses("/campaign/festivals/active/launch-LW0001", "/campaign/festivals")
+	if !reflect.DeepEqual(got, []string{"active"}) {
+		t.Fatalf("preferred statuses = %#v, want [active]", got)
+	}
+}
+
+func TestPreferredPickerStatusesIgnoresDungeon(t *testing.T) {
+	// Dungeon festivals are terminal and never watched, so a dungeon cwd must
+	// not narrow (or surface) dungeon festivals in the picker.
 	got := preferredPickerStatuses("/campaign/festivals/dungeon/completed/2026-05", "/campaign/festivals")
-	if !reflect.DeepEqual(got, []string{"dungeon/completed"}) {
-		t.Fatalf("preferred statuses = %#v", got)
+	if got != nil {
+		t.Fatalf("preferred statuses for a dungeon cwd = %#v, want nil", got)
+	}
+}
+
+func TestPickerStatusesFallsBackToWorkingStatuses(t *testing.T) {
+	got := pickerStatuses("/campaign/festivals/dungeon/completed/2026-05", "/campaign/festivals")
+	if !reflect.DeepEqual(got, id.WorkingStatusDirectories) {
+		t.Fatalf("picker statuses for a dungeon cwd = %#v, want WorkingStatusDirectories", got)
 	}
 }
 
