@@ -176,6 +176,19 @@ func TestResolveAvailable_OmitsMissingRefs(t *testing.T) {
 	assert.False(t, ok)
 }
 
+func TestResolve_FindsFestivalInLegacyMonthBucket(t *testing.T) {
+	root := t.TempDir()
+	// Legacy dungeon buckets use YYYY-MM (no day); the resolver must still descend.
+	require.NoError(t, os.MkdirAll(
+		filepath.Join(root, "dungeon", "completed", "2026-05", "old-work-OW0001"), 0o755))
+
+	c := &Chain{Festivals: []FestivalNode{{Ref: "ow", ID: "OW0001", Name: "old-work"}}}
+
+	resolved, err := Resolve(context.Background(), c, []string{filepath.Join(root, "dungeon", "completed")})
+	require.NoError(t, err)
+	assert.Contains(t, resolved["ow"].Path, filepath.Join("2026-05", "old-work-OW0001"))
+}
+
 func TestResolveAvailable_FindsDungeonFestival(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.MkdirAll(
@@ -203,6 +216,10 @@ func TestIsDateBucket(t *testing.T) {
 	}{
 		{"2026-06-04", true},
 		{"2026-12-31", true},
+		{"2026-05", true},  // legacy YYYY-MM bucket
+		{"2025-01", true},  // legacy YYYY-MM bucket
+		{"2026-5", false},  // single-digit month
+		{"2026", false},    // year only
 		{"chains", false},
 		{"2026-6-4", false},
 		{"2026-06-04-extra", false},

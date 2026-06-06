@@ -9,6 +9,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -150,13 +151,18 @@ func findChainForFestival(ctx context.Context, refOrID, chainIDFlag string) (*ch
 		WithHint("specify a chain with --chain or ensure the festival is in a chain")
 }
 
-// festivalsRoot returns the festivals root directory.
+// festivalsRoot resolves the campaign's festivals dir from inside festivals/, a
+// linked project dir, or the campaign root (tpl.FindFestivalsRoot only handles
+// the first; workspace.FindFestivals covers the rest).
 func festivalsRoot() (string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return "", errors.IO("getting working directory", err)
 	}
-	root, err := tpl.FindFestivalsRoot(cwd)
+	if root, err := tpl.FindFestivalsRoot(cwd); err == nil {
+		return root, nil
+	}
+	root, err := workspace.FindFestivals(cwd)
 	if err != nil {
 		return "", errors.Wrap(err, "finding festivals root").WithCode(errors.ErrCodeConfig)
 	}

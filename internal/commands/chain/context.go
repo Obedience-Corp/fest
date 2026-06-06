@@ -16,7 +16,6 @@ import (
 	"golang.org/x/term"
 )
 
-// firstArg returns the first positional argument, or "" if none were given.
 func firstArg(args []string) string {
 	if len(args) > 0 {
 		return args[0]
@@ -24,9 +23,8 @@ func firstArg(args []string) string {
 	return ""
 }
 
-// resolveCurrentFestivalID infers the festival the user is currently working in,
-// from the cwd (inside a festival directory) or a linked project working
-// directory. Returns ("", false) when no festival context is available.
+// resolveCurrentFestivalID infers the current festival id from the cwd festival
+// dir or a linked project working dir, or ("", false).
 func resolveCurrentFestivalID(ctx context.Context) (string, bool) {
 	if err := ctx.Err(); err != nil {
 		return "", false
@@ -44,8 +42,6 @@ func resolveCurrentFestivalID(ctx context.Context) (string, bool) {
 	return "", false
 }
 
-// festivalIDFromMarkers walks up from cwd looking for a festival fest.yaml and
-// returns its metadata id, or "" if cwd is not inside a festival.
 func festivalIDFromMarkers(cwd string) string {
 	dir := cwd
 	for {
@@ -62,8 +58,6 @@ func festivalIDFromMarkers(cwd string) string {
 	}
 }
 
-// festivalIDFromLink resolves a linked project working directory to the linked
-// festival's id, or "" if cwd is not inside a linked project.
 func festivalIDFromLink(cwd string) string {
 	nav, err := navigation.LoadNavigation()
 	if err != nil {
@@ -84,11 +78,9 @@ func festivalIDFromLink(cwd string) string {
 	return cfg.Metadata.ID
 }
 
-// resolveChainID returns the chain id to operate on. An explicit id is returned
-// as-is. Otherwise the current festival context is used to find its chain;
-// failing that, an interactive picker is shown in a TTY. inferred reports
-// whether the id was inferred or picked rather than passed explicitly, so
-// mutating commands can confirm before acting.
+// resolveChainID returns the chain id: explicit if given, else inferred from the
+// current festival's chain, else picked interactively in a TTY. inferred is true
+// when not passed explicitly, so mutating commands can confirm first.
 func resolveChainID(ctx context.Context, explicit string) (chainID string, inferred bool, err error) {
 	if explicit != "" {
 		return explicit, false, nil
@@ -116,9 +108,8 @@ func resolveChainID(ctx context.Context, explicit string) (chainID string, infer
 	return picked, true, nil
 }
 
-// pickChainID opens an interactive picker over the campaign's non-terminal
-// chains and returns the selected chain id. Returns "" when stdout is not a TTY,
-// no selectable chains exist, or the user cancels.
+// pickChainID picks a non-terminal chain interactively, or returns "" when not a
+// TTY, no chains exist, or cancelled.
 func pickChainID(ctx context.Context, festivalsRoot string) (string, error) {
 	if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stderr.Fd())) {
 		return "", nil
@@ -132,7 +123,7 @@ func pickChainID(ctx context.Context, festivalsRoot string) (string, error) {
 	items := make([]picker.Item, 0, len(chains))
 	for _, c := range chains {
 		if c.Metadata.Status == chainpkg.StatusCompleted {
-			continue // terminal chains are not actionable targets
+			continue
 		}
 		items = append(items, picker.Item{
 			Name:  fmt.Sprintf("[%s] %s", c.Metadata.ID, c.Metadata.Name),
@@ -153,10 +144,8 @@ func pickChainID(ctx context.Context, festivalsRoot string) (string, error) {
 	return selected.Value, nil
 }
 
-// confirmChainCompletion asks the user to confirm archiving a chain that was
-// inferred or picked rather than named explicitly. In a non-interactive
-// environment it refuses (returns false) and asks for an explicit id, so a
-// mutating archive is never performed on an inferred target without consent.
+// confirmChainCompletion confirms archiving an inferred/picked chain; refuses in
+// a non-interactive shell so an inferred target is never archived without consent.
 func confirmChainCompletion(chainID string) bool {
 	if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stderr.Fd())) {
 		fmt.Fprintf(os.Stderr,

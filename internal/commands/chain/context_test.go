@@ -111,3 +111,43 @@ func TestConfirmChainCompletion_NonInteractiveRefuses(t *testing.T) {
 		t.Fatal("non-interactive confirmation must refuse (return false)")
 	}
 }
+
+func setupCampaign(t *testing.T) string {
+	t.Helper()
+	root := t.TempDir()
+	for _, d := range []string{".campaign", filepath.Join("festivals", ".festival"), filepath.Join("projects", "demo")} {
+		if err := os.MkdirAll(filepath.Join(root, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return root
+}
+
+func TestFestivalsRoot_ResolvesFromLinkedProjectDir(t *testing.T) {
+	// A chain command run from a linked project working directory (outside
+	// festivals/) must still resolve the campaign's festivals root, so context
+	// inference is not blocked before the navigation lookup runs.
+	root := setupCampaign(t)
+	t.Chdir(filepath.Join(root, "projects", "demo"))
+
+	got, err := festivalsRoot()
+	if err != nil {
+		t.Fatalf("festivalsRoot from a project dir should resolve, got err: %v", err)
+	}
+	if filepath.Base(got) != "festivals" {
+		t.Fatalf("festivalsRoot = %q, want a .../festivals dir", got)
+	}
+}
+
+func TestFestivalsRoot_ResolvesFromInsideFestivals(t *testing.T) {
+	root := setupCampaign(t)
+	t.Chdir(filepath.Join(root, "festivals"))
+
+	got, err := festivalsRoot()
+	if err != nil {
+		t.Fatalf("festivalsRoot from inside festivals/ should resolve, got err: %v", err)
+	}
+	if filepath.Base(got) != "festivals" {
+		t.Fatalf("festivalsRoot = %q, want a .../festivals dir", got)
+	}
+}

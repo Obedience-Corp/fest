@@ -8,9 +8,7 @@ import (
 
 	chainpkg "github.com/Obedience-Corp/fest/internal/chain"
 	"github.com/Obedience-Corp/fest/internal/config"
-	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/id"
-	tpl "github.com/Obedience-Corp/fest/internal/template"
 )
 
 // resolveChainStatuses resolves live festival statuses for a chain by reading
@@ -21,14 +19,9 @@ func resolveChainStatuses(ctx context.Context, c *chainpkg.Chain) (map[string]ch
 		return nil, err
 	}
 
-	cwd, err := os.Getwd()
+	root, err := festivalsRoot()
 	if err != nil {
-		return nil, errors.IO("getting working directory", err)
-	}
-
-	root, err := tpl.FindFestivalsRoot(cwd)
-	if err != nil {
-		return nil, errors.Wrap(err, "finding festivals root").WithCode(errors.ErrCodeConfig)
+		return nil, err
 	}
 
 	// Build search directories from all lifecycle status paths.
@@ -37,8 +30,7 @@ func resolveChainStatuses(ctx context.Context, c *chainpkg.Chain) (map[string]ch
 		searchDirs[i] = filepath.Join(root, d)
 	}
 
-	// Resolve festival refs to filesystem paths best-effort so one unresolvable
-	// member does not blank out the whole chain's live status.
+	// Best-effort so one unresolvable member does not blank the whole chain.
 	resolved, resolveErr := chainpkg.ResolveAvailable(ctx, c, searchDirs)
 
 	statuses := make(map[string]chainpkg.FestivalStatus, len(c.Festivals))

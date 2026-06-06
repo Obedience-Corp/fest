@@ -22,8 +22,7 @@ func completeWatchSelector(_ *cobra.Command, _ []string, toComplete string) ([]s
 }
 
 func watchSelectorCompletions(ctx context.Context, cwd, toComplete string) ([]string, error) {
-	// Dungeon festivals are terminal and never watched, so restrict completion
-	// to working statuses (planning/ready/active/ritual).
+	// Dungeon is terminal and never watched; restrict to working statuses.
 	return shared.CompleteFestivalPickSelectors(ctx, cwd, toComplete, shared.FestivalPickerOptions{
 		IncludeStatusDirectories: false,
 		PreferredStatuses:        id.WorkingStatusDirectories,

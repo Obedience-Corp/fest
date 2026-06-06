@@ -36,12 +36,9 @@ func Resolve(ctx context.Context, c *Chain, searchDirs []string) (map[string]Res
 	return resolved, nil
 }
 
-// ResolveAvailable resolves festival references best-effort: refs whose
-// directory cannot be found are omitted from the result rather than failing the
-// entire resolution (as Resolve does). Use this when partial chain state is
-// acceptable — computing live statuses for display or dependency gates, where
-// one missing or not-yet-created festival should not blank out the rest of the
-// chain. Use Resolve when every ref must resolve (e.g. chain validation).
+// ResolveAvailable is like Resolve but best-effort: unresolved refs are omitted
+// instead of failing the whole resolution, so one missing festival does not blank
+// out the rest of the chain. Use Resolve when every ref must resolve.
 func ResolveAvailable(ctx context.Context, c *Chain, searchDirs []string) (map[string]ResolvedFestival, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -82,9 +79,7 @@ func findFestivalDir(ctx context.Context, festivalID string, searchDirs []string
 			if matchesFestivalID(entry.Name(), festivalID) {
 				return filepath.Join(dir, entry.Name()), nil
 			}
-			// Dungeon status dirs interpose a dated bucket between the status
-			// dir and the festival (dungeon/<status>/YYYY-MM-DD/<festival>), so
-			// descend one level into date buckets to match festivals there.
+			// Dungeon dirs nest festivals under a date bucket; descend one level.
 			if dungeon && isDateBucket(entry.Name()) {
 				if path, ok := matchFestivalInDir(filepath.Join(dir, entry.Name()), festivalID); ok {
 					return path, nil
@@ -96,8 +91,6 @@ func findFestivalDir(ctx context.Context, festivalID string, searchDirs []string
 	return "", errors.NotFound("festival").WithField("festivalID", festivalID)
 }
 
-// matchFestivalInDir returns the path of a festival directory matching
-// festivalID located directly inside dir, if present.
 func matchFestivalInDir(dir, festivalID string) (string, bool) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -111,20 +104,25 @@ func matchFestivalInDir(dir, festivalID string) (string, bool) {
 	return "", false
 }
 
-// isDungeonStatusDir reports whether dir is a dungeon status directory
-// (festivals/dungeon/{completed,archived,someday}), which holds festivals one
-// level deeper inside dated YYYY-MM-DD buckets.
 func isDungeonStatusDir(dir string) bool {
 	return filepath.Base(filepath.Dir(dir)) == "dungeon"
 }
 
-// isDateBucket reports whether name is a YYYY-MM-DD dungeon bucket directory.
+// isDateBucket matches a dungeon date bucket: YYYY-MM-DD or legacy YYYY-MM
+// (mirrors show.LooksLikeDateDir; kept local to avoid importing a commands pkg).
 func isDateBucket(name string) bool {
-	if len(name) != 10 || name[4] != '-' || name[7] != '-' {
+	// YYYY-MM (len 7) or YYYY-MM-DD (len 10).
+	if len(name) != 7 && len(name) != 10 {
+		return false
+	}
+	if name[4] != '-' {
+		return false
+	}
+	if len(name) == 10 && name[7] != '-' {
 		return false
 	}
 	for i := 0; i < len(name); i++ {
-		if i == 4 || i == 7 {
+		if i == 4 || (len(name) == 10 && i == 7) {
 			continue
 		}
 		if name[i] < '0' || name[i] > '9' {
