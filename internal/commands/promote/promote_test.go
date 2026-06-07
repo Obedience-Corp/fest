@@ -127,3 +127,86 @@ func TestDungeonFlagValidation(t *testing.T) {
 		})
 	}
 }
+
+func writeGateFestival(t *testing.T, dir, festivalID, status string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	yaml := "version: \"1.0\"\nmetadata:\n  id: " + festivalID +
+		"\n  status_history:\n    - status: " + status + "\n"
+	if err := os.WriteFile(filepath.Join(dir, "fest.yaml"), []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeGateChain(t *testing.T, path string) {
+	t.Helper()
+	yaml := `chain_version: "1.0"
+metadata:
+  id: CH0001
+  name: onboarding-readiness
+  created_at: 2026-01-01T00:00:00Z
+  status: active
+festivals:
+  - ref: audit
+    id: FA0009
+    name: audit-remediation
+  - ref: onboarding
+    id: FA0010
+    name: onboarding-parity
+edges:
+  - from: audit
+    to: onboarding
+    type: hard
+`
+	if err := os.WriteFile(path, []byte(yaml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// setupChainGateCampaign builds a campaign with a CH0001 chain (hard edge
+// FA0009 -> FA0010), FA0010 in ready, and FA0009 at upstreamStatus in the given
+// upstreamDir relative to festivals/. Returns the FA0010 festival dir.
+func setupChainGateCampaign(t *testing.T, upstreamRelDir, upstreamStatus string) string {
+	t.Helper()
+	root := t.TempDir()
+	festivals := filepath.Join(root, "festivals")
+	if err := os.MkdirAll(filepath.Join(festivals, ".festival"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(festivals, "chains"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeGateChain(t, filepath.Join(festivals, "chains", "onboarding-readiness-CH0001.yaml"))
+
+	fa10 := filepath.Join(festivals, "ready", "onboarding-parity-FA0010")
+	writeGateFestival(t, fa10, "FA0010", "ready")
+	writeGateFestival(t, filepath.Join(festivals, upstreamRelDir, "audit-remediation-FA0009"), "FA0009", upstreamStatus)
+
+	t.Chdir(festivals)
+	return fa10
+}
+
+func TestCheckChainDependencies_DungeonCompletedUpstreamDoesNotBlock(t *testing.T) {
+	fa10 := setupChainGateCampaign(t, filepath.Join("dungeon", "completed", "2026-06-04"), "completed")
+
+	festival := &show.FestivalInfo{Name: "onboarding-parity", Path: fa10, Status: "ready"}
+	blocked, msg := checkChainDependencies(t.Context(), festival)
+	if blocked {
+		t.Fatalf("expected no block when upstream FA0009 is completed in the dungeon, got: %s", msg)
+	}
+}
+
+func TestCheckChainDependencies_IncompleteUpstreamStillBlocks(t *testing.T) {
+	fa10 := setupChainGateCampaign(t, "active", "active")
+
+	festival := &show.FestivalInfo{Name: "onboarding-parity", Path: fa10, Status: "ready"}
+	blocked, msg := checkChainDependencies(t.Context(), festival)
+	if !blocked {
+		t.Fatal("expected a block when upstream FA0009 is still active (not completed)")
+	}
+	if !strings.Contains(msg, "FA0009") {
+		t.Fatalf("block message should name the incomplete upstream, got: %s", msg)
+	}
+}

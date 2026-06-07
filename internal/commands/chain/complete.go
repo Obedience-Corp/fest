@@ -20,14 +20,26 @@ func newCompleteCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "complete <chain-id>",
+		Use:   "complete [chain-id]",
 		Short: "Complete and archive a chain",
 		Long: `Mark a chain as completed and move it to festivals/dungeon/completed/chains/.
 
-All festivals in the chain must be completed unless --force is used.`,
-		Args: cobra.ExactArgs(1),
+All festivals in the chain must be completed unless --force is used.
+
+The chain id is optional when it can be inferred from the current festival or
+linked project, or selected interactively. Because this archives the chain, an
+inferred or picked target must be confirmed, and a non-interactive run requires
+the chain id to be passed explicitly.`,
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runComplete(cmd.Context(), args[0], force, notes)
+			chainID, inferred, err := resolveChainID(cmd.Context(), firstArg(args))
+			if err != nil {
+				return err
+			}
+			if inferred && !confirmChainCompletion(chainID) {
+				return nil
+			}
+			return runComplete(cmd.Context(), chainID, force, notes)
 		},
 	}
 

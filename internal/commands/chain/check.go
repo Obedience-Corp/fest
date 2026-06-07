@@ -9,6 +9,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -16,12 +17,23 @@ func newCheckCmd() *cobra.Command {
 	var chainID string
 
 	cmd := &cobra.Command{
-		Use:   "check <ref-or-id>",
+		Use:   "check [ref-or-id]",
 		Short: "Check if a festival is unblocked within its chain",
-		Long:  "Quick check whether a specific festival's hard dependencies are met.",
-		Args:  cobra.ExactArgs(1),
+		Long: "Quick check whether a specific festival's hard dependencies are met. " +
+			"The festival ref or id is optional when it can be inferred from the " +
+			"current festival or linked project.",
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runCheck(cmd.Context(), args[0], chainID)
+			refOrID := firstArg(args)
+			if refOrID == "" {
+				festID, ok := resolveCurrentFestivalID(cmd.Context())
+				if !ok {
+					return errors.Validation("festival ref or id required").
+						WithHint("run from inside a festival or linked project, or pass a ref/id")
+				}
+				refOrID = festID
+			}
+			return runCheck(cmd.Context(), refOrID, chainID)
 		},
 	}
 
@@ -139,13 +151,18 @@ func findChainForFestival(ctx context.Context, refOrID, chainIDFlag string) (*ch
 		WithHint("specify a chain with --chain or ensure the festival is in a chain")
 }
 
-// festivalsRoot returns the festivals root directory.
+// festivalsRoot resolves the campaign's festivals dir from inside festivals/, a
+// linked project dir, or the campaign root (tpl.FindFestivalsRoot only handles
+// the first; workspace.FindFestivals covers the rest).
 func festivalsRoot() (string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return "", errors.IO("getting working directory", err)
 	}
-	root, err := tpl.FindFestivalsRoot(cwd)
+	if root, err := tpl.FindFestivalsRoot(cwd); err == nil {
+		return root, nil
+	}
+	root, err := workspace.FindFestivals(cwd)
 	if err != nil {
 		return "", errors.Wrap(err, "finding festivals root").WithCode(errors.ErrCodeConfig)
 	}

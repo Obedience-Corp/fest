@@ -320,8 +320,8 @@ func checkChainDependencies(ctx context.Context, festival *show.FestivalInfo) (b
 		searchDirs[i] = filepath.Join(root, d)
 	}
 
-	// Resolve live statuses.
-	resolved, _ := chainpkg.Resolve(ctx, c, searchDirs)
+	// Best-effort: a missing chain member must not blank the upstream we gate on.
+	resolved, _ := chainpkg.ResolveAvailable(ctx, c, searchDirs)
 	statuses := make(map[string]chainpkg.FestivalStatus, len(c.Festivals))
 	for _, node := range c.Festivals {
 		rf, ok := resolved[node.Ref]

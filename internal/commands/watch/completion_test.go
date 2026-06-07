@@ -1,10 +1,13 @@
 package watch
 
 import (
+	"os"
+	"path/filepath"
 	"reflect"
 	"testing"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	"github.com/Obedience-Corp/fest/internal/id"
 )
 
 func TestWatchCompletionExcludesStatusDirectories(t *testing.T) {
@@ -16,11 +19,58 @@ func TestWatchCompletionExcludesStatusDirectories(t *testing.T) {
 	}
 }
 
-func TestWatchCompletionIncludesDungeonDateBucketFestivals(t *testing.T) {
-	got := formatWatchSelectorCompletions(watchCompletionCandidates(), "")
-	if !containsString(got, "old-work-OW0001") {
-		t.Fatalf("watch completion should include dungeon date-bucket festivals, got %#v", got)
+func TestWatchCompletionExcludesDungeonFestivals(t *testing.T) {
+	festivals := t.TempDir()
+	makeWatchTestFestival(t, filepath.Join(festivals, "active", "launch-work-LW0001"))
+	makeWatchTestFestival(t, filepath.Join(festivals, "dungeon", "completed", "2026-05-01", "old-work-OW0001"))
+
+	// Production watch setting: restrict completion to working statuses.
+	working := shared.CollectFestivalPickCandidates(festivals, shared.FestivalPickerOptions{
+		IncludeStatusDirectories: false,
+		PreferredStatuses:        id.WorkingStatusDirectories,
+	})
+	if candidateNamePresent(working, "old-work-OW0001") {
+		t.Fatalf("watch completion must exclude dungeon festivals (terminal, never watched): %v", candidateNames(working))
 	}
+	if !candidateNamePresent(working, "launch-work-LW0001") {
+		t.Fatalf("watch completion should include working festivals: %v", candidateNames(working))
+	}
+
+	// Without the working-status restriction the default surfaces dungeon
+	// festivals — the leak the fix avoids by passing WorkingStatusDirectories.
+	all := shared.CollectFestivalPickCandidates(festivals, shared.FestivalPickerOptions{
+		IncludeStatusDirectories: false,
+	})
+	if !candidateNamePresent(all, "old-work-OW0001") {
+		t.Fatalf("default collection should still surface dungeon festivals: %v", candidateNames(all))
+	}
+}
+
+func makeWatchTestFestival(t *testing.T, dir string) {
+	t.Helper()
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "FESTIVAL_GOAL.md"), []byte("# Goal\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func candidateNames(candidates []shared.FestivalPickCandidate) []string {
+	names := make([]string, 0, len(candidates))
+	for _, c := range candidates {
+		names = append(names, c.Name)
+	}
+	return names
+}
+
+func candidateNamePresent(candidates []shared.FestivalPickCandidate, name string) bool {
+	for _, c := range candidates {
+		if c.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func TestWatchCompletionFuzzyNarrowsByNameAndID(t *testing.T) {

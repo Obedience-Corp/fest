@@ -9,18 +9,24 @@ import (
 
 	chainpkg "github.com/Obedience-Corp/fest/internal/chain"
 	"github.com/Obedience-Corp/fest/internal/errors"
-	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
 )
 
 func newStatusCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "status <chain-id>",
+		Use:   "status [chain-id]",
 		Short: "Show chain status and progress",
-		Args:  cobra.ExactArgs(1),
+		Long: "Show chain status and progress. The chain id is optional when it can " +
+			"be inferred from the current festival or linked project, or selected " +
+			"interactively in a terminal.",
+		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runStatus(cmd.Context(), args[0])
+			chainID, _, err := resolveChainID(cmd.Context(), firstArg(args))
+			if err != nil {
+				return err
+			}
+			return runStatus(cmd.Context(), chainID)
 		},
 	}
 }
@@ -130,14 +136,9 @@ func progressBar(completed, total, width int) string {
 
 // findChainByID searches for a chain file by its ID across active and completed dirs.
 func findChainByID(ctx context.Context, chainID string) (*chainpkg.Chain, string, error) {
-	cwd, err := os.Getwd()
+	root, err := festivalsRoot()
 	if err != nil {
-		return nil, "", errors.IO("getting working directory", err)
-	}
-
-	root, err := tpl.FindFestivalsRoot(cwd)
-	if err != nil {
-		return nil, "", errors.Wrap(err, "finding festivals root").WithCode(errors.ErrCodeConfig)
+		return nil, "", err
 	}
 
 	searchDirs := []string{
