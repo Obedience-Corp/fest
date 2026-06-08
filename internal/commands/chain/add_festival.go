@@ -10,12 +10,8 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
-// festivalStatusDirs are the festivals-root subdirectories that hold active
-// festival directories searched when resolving --festival by id or name.
 var festivalStatusDirs = []string{"planning", "active", "ready", "ritual"}
 
-// resolvedFestival holds the metadata and on-disk location of the festival
-// being added to a chain.
 type resolvedFestival struct {
 	ID       string
 	Name     string
@@ -23,10 +19,6 @@ type resolvedFestival struct {
 	Path     string
 }
 
-// resolveFestivalToAdd resolves the --festival value (a path, festival id, or
-// festival name) to its metadata. A value pointing at a directory or fest.yaml
-// is loaded directly; otherwise the festivals-root status dirs are scanned for a
-// festival whose metadata id or name matches.
 func resolveFestivalToAdd(ctx context.Context, root, value string) (resolvedFestival, error) {
 	if err := ctx.Err(); err != nil {
 		return resolvedFestival{}, err
@@ -47,8 +39,6 @@ func resolveFestivalToAdd(ctx context.Context, root, value string) (resolvedFest
 	return loadResolvedFestival(dir)
 }
 
-// festivalDirFromPath returns the festival directory when value is a path to a
-// festival directory or directly to its fest.yaml.
 func festivalDirFromPath(value string) (string, bool) {
 	if !strings.ContainsAny(value, "/\\") && !strings.HasPrefix(value, ".") {
 		return "", false
@@ -69,8 +59,6 @@ func festivalDirFromPath(value string) (string, bool) {
 	return "", false
 }
 
-// findFestivalDirByIdentifier scans the festivals-root status dirs for a festival
-// directory whose fest.yaml metadata id or name matches the identifier.
 func findFestivalDirByIdentifier(ctx context.Context, root, identifier string) (string, error) {
 	for _, sub := range festivalStatusDirs {
 		if err := ctx.Err(); err != nil {
@@ -103,7 +91,6 @@ func findFestivalDirByIdentifier(ctx context.Context, root, identifier string) (
 		WithHint("pass --festival as a festival id, name, or path")
 }
 
-// loadResolvedFestival reads a festival directory's fest.yaml into resolvedFestival.
 func loadResolvedFestival(dir string) (resolvedFestival, error) {
 	cfg, err := config.LoadFestivalConfig(dir, "")
 	if err != nil {
@@ -123,8 +110,6 @@ func loadResolvedFestival(dir string) (resolvedFestival, error) {
 	}, nil
 }
 
-// festivalProjects returns the festival's linked project path as a one-element
-// slice, or nil when unknown. Projects is best-effort per the design.
 func festivalProjects(cfg *config.FestivalConfig) []string {
 	if cfg.ProjectPath == "" {
 		return nil

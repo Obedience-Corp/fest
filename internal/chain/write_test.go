@@ -20,7 +20,7 @@ func TestWrite_RoundTrip(t *testing.T) {
 	require.NoError(t, err)
 
 	out := filepath.Join(dir, "out.yaml")
-	require.NoError(t, Write(out, original))
+	require.NoError(t, Write(context.Background(), out, original))
 
 	reparsed, err := Parse(context.Background(), out)
 	require.NoError(t, err)
@@ -45,7 +45,7 @@ func TestWrite_DropsTemplateComments(t *testing.T) {
 	require.NoError(t, err)
 
 	out := filepath.Join(dir, "out.yaml")
-	require.NoError(t, Write(out, c))
+	require.NoError(t, Write(context.Background(), out, c))
 
 	data, err := os.ReadFile(out)
 	require.NoError(t, err)
@@ -58,7 +58,7 @@ func TestWrite_AtomicNoTempLeftBehind(t *testing.T) {
 
 	c, err := ParseBytes(context.Background(), []byte(validChainYAML))
 	require.NoError(t, err)
-	require.NoError(t, Write(out, c))
+	require.NoError(t, Write(context.Background(), out, c))
 
 	entries, err := os.ReadDir(dir)
 	require.NoError(t, err)
@@ -78,7 +78,7 @@ func TestWrite_OverwriteDoesNotCorruptOnReParse(t *testing.T) {
 
 	c, err := ParseBytes(context.Background(), []byte(validChainYAML))
 	require.NoError(t, err)
-	require.NoError(t, Write(out, c))
+	require.NoError(t, Write(context.Background(), out, c))
 
 	reparsed, err := Parse(context.Background(), out)
 	require.NoError(t, err)
@@ -86,13 +86,13 @@ func TestWrite_OverwriteDoesNotCorruptOnReParse(t *testing.T) {
 }
 
 func TestWrite_NilChain(t *testing.T) {
-	err := Write(filepath.Join(t.TempDir(), "x.yaml"), nil)
+	err := Write(context.Background(), filepath.Join(t.TempDir(), "x.yaml"), nil)
 	assert.Error(t, err)
 }
 
 func TestWrite_BadDir(t *testing.T) {
 	c, err := ParseBytes(context.Background(), []byte(validChainYAML))
 	require.NoError(t, err)
-	err = Write("/nonexistent-dir-xyz/out.yaml", c)
+	err = Write(context.Background(), "/nonexistent-dir-xyz/out.yaml", c)
 	assert.Error(t, err)
 }

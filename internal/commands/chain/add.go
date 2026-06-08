@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// addOptions holds the parsed flags for `fest chain add`.
 type addOptions struct {
 	chain    string
 	festival string
@@ -22,7 +21,6 @@ type addOptions struct {
 	json     bool
 }
 
-// addedEdge is the JSON shape for an edge created by the command.
 type addedEdge struct {
 	From string `json:"from"`
 	To   string `json:"to"`
@@ -30,7 +28,6 @@ type addedEdge struct {
 	Note string `json:"note,omitempty"`
 }
 
-// addedNode is the JSON shape for the festival node added to the chain.
 type addedNode struct {
 	Ref      string   `json:"ref"`
 	ID       string   `json:"id"`
@@ -38,14 +35,12 @@ type addedNode struct {
 	Projects []string `json:"projects,omitempty"`
 }
 
-// validationSummary is the JSON shape for the in-memory validation result.
 type validationSummary struct {
 	Valid  bool     `json:"valid"`
 	Score  int      `json:"score"`
 	Errors []string `json:"errors,omitempty"`
 }
 
-// addResult is the structured result emitted by `fest chain add --json`.
 type addResult struct {
 	ChainID    string            `json:"chain_id"`
 	ChainName  string            `json:"chain_name"`
@@ -115,7 +110,7 @@ func runAdd(ctx context.Context, opts *addOptions) error {
 		return validationError(result)
 	}
 
-	if err := chainpkg.Write(path, c); err != nil {
+	if err := chainpkg.Write(ctx, path, c); err != nil {
 		return err
 	}
 
@@ -126,8 +121,6 @@ func runAdd(ctx context.Context, opts *addOptions) error {
 	return nil
 }
 
-// resolveAddFestival resolves the festival to add, falling back to the current
-// festival context when --festival is omitted.
 func resolveAddFestival(ctx context.Context, flag string) (resolvedFestival, error) {
 	root, err := festivalsRoot()
 	if err != nil {
@@ -146,9 +139,6 @@ func resolveAddFestival(ctx context.Context, flag string) (resolvedFestival, err
 	return resolveFestivalToAdd(ctx, root, value)
 }
 
-// mutateChain appends the festival node and any prerequisite edges to the chain
-// in memory, rejecting duplicates and self-edges, and places the node in a
-// trailing wave when the chain uses waves.
 func mutateChain(ctx context.Context, c *chainpkg.Chain, festival resolvedFestival, after []string, edgeType chainpkg.EdgeType, note string) (chainpkg.FestivalNode, []chainpkg.Edge, error) {
 	if err := ctx.Err(); err != nil {
 		return chainpkg.FestivalNode{}, nil, err
@@ -185,8 +175,6 @@ func mutateChain(ctx context.Context, c *chainpkg.Chain, festival resolvedFestiv
 	return node, edges, nil
 }
 
-// validationError converts a failed validation result into an actionable error
-// listing each structural error.
 func validationError(result *chainpkg.ValidationResult) error {
 	msgs := make([]string, 0, len(result.Errors))
 	for _, e := range result.Errors {

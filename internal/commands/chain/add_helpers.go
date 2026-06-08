@@ -11,9 +11,6 @@ import (
 
 var nonSlugChars = regexp.MustCompile(`[^a-z0-9]+`)
 
-// slugifyRef converts a festival name into a chain ref token: lowercase, with
-// runs of non-alphanumeric characters collapsed to single underscores and
-// leading/trailing underscores trimmed. Empty input yields "festival".
 func slugifyRef(name string) string {
 	s := strings.ToLower(strings.TrimSpace(name))
 	s = nonSlugChars.ReplaceAllString(s, "_")
@@ -24,8 +21,6 @@ func slugifyRef(name string) string {
 	return s
 }
 
-// uniqueRef returns base if it is not already in taken, otherwise base with a
-// numeric suffix (_2, _3, ...) until it is unique.
 func uniqueRef(base string, taken map[string]bool) string {
 	if !taken[base] {
 		return base
@@ -38,8 +33,6 @@ func uniqueRef(base string, taken map[string]bool) string {
 	}
 }
 
-// buildNode constructs a FestivalNode for the festival being added, assigning a
-// ref derived from name and deduplicated against the chain's existing refs.
 func buildNode(c *chainpkg.Chain, id, name string, projects []string) chainpkg.FestivalNode {
 	ref := uniqueRef(slugifyRef(name), c.RefSet())
 	return chainpkg.FestivalNode{
@@ -50,8 +43,6 @@ func buildNode(c *chainpkg.Chain, id, name string, projects []string) chainpkg.F
 	}
 }
 
-// resolvePrereqRef maps an --after value (a chain ref or a festival ID) to an
-// existing ref in the chain, erroring if it matches nothing.
 func resolvePrereqRef(c *chainpkg.Chain, after string) (string, error) {
 	if node := c.FestivalByRef(after); node != nil {
 		return after, nil
@@ -67,8 +58,6 @@ func resolvePrereqRef(c *chainpkg.Chain, after string) (string, error) {
 		WithHint("pass the ref or id of a festival already in the chain")
 }
 
-// buildEdge constructs a dependency edge from a resolved prerequisite ref to the
-// added ref, rejecting self-edges and duplicates of edges already in the chain.
 func buildEdge(c *chainpkg.Chain, fromRef, toRef string, edgeType chainpkg.EdgeType, note string) (chainpkg.Edge, error) {
 	if fromRef == toRef {
 		return chainpkg.Edge{}, errors.Validation("cannot add a self-edge").
@@ -89,7 +78,6 @@ func buildEdge(c *chainpkg.Chain, fromRef, toRef string, edgeType chainpkg.EdgeT
 	}, nil
 }
 
-// parseEdgeType validates the --type flag value.
 func parseEdgeType(s string) (chainpkg.EdgeType, error) {
 	switch chainpkg.EdgeType(s) {
 	case chainpkg.EdgeHard:
@@ -127,9 +115,6 @@ func placeInTrailingWave(c *chainpkg.Chain, addedRef string) {
 	})
 }
 
-// waveUnlock builds the unlock expression for the trailing wave: each hard
-// prerequisite of addedRef must be completed. With no hard prerequisites the
-// wave unlocks unconditionally ("none").
 func waveUnlock(c *chainpkg.Chain, addedRef string) string {
 	var conds []string
 	seen := make(map[string]bool)

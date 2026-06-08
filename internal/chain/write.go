@@ -1,24 +1,29 @@
 package chain
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
-	"gopkg.in/yaml.v3"
+	"github.com/Obedience-Corp/fest/internal/yamlutil"
 )
 
 // Write marshals a Chain to YAML and writes it atomically to path. It renders a
 // clean document from the struct (dropping any explanatory comments the create
 // template added) and replaces the destination via a temp file in the same
 // directory followed by an atomic rename, so a failed write never leaves a
-// partial or corrupt chain file in place.
-func Write(path string, c *Chain) error {
+// partial or corrupt chain file in place. It uses 2-space indentation
+// (yamlutil.Marshal) to match the rest of the repo's chain files.
+func Write(ctx context.Context, path string, c *Chain) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if c == nil {
 		return errors.Validation("cannot write nil chain")
 	}
 
-	data, err := yaml.Marshal(c)
+	data, err := yamlutil.Marshal(c)
 	if err != nil {
 		return errors.Wrap(err, "marshaling chain").WithCode(errors.ErrCodeParse)
 	}

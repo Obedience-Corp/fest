@@ -256,6 +256,7 @@ func TestRunAdd_JSONOutput(t *testing.T) {
 func captureStdout(t *testing.T, fn func() error) string {
 	t.Helper()
 	old := os.Stdout
+	t.Cleanup(func() { os.Stdout = old })
 	r, w, err := os.Pipe()
 	require.NoError(t, err)
 	os.Stdout = w
