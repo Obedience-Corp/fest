@@ -104,7 +104,7 @@ func runCreate(cmd *cobra.Command, name, goal string) error {
 	fmt.Printf("  Name: %s\n", slug)
 	fmt.Printf("  File: %s\n", path)
 	fmt.Println()
-	fmt.Println("Add festivals and edges by editing the chain file directly,")
+	fmt.Println("Add festivals with 'fest chain add --chain " + id + " --festival <id> [--after <ref>]',")
 	fmt.Println("then run 'fest chain validate " + id + "' to verify.")
 
 	return nil

@@ -20,6 +20,7 @@ func NewChainCmd() *cobra.Command {
 
 	cmd.AddCommand(
 		newCreateCmd(),
+		newAddCmd(),
 		newListCmd(),
 		newStatusCmd(),
 		newValidateCmd(),
