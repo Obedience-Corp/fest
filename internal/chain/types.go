@@ -39,9 +39,9 @@ type Metadata struct {
 	ID            string        `yaml:"id"`
 	Name          string        `yaml:"name"`
 	Goal          string        `yaml:"goal,omitempty"`
-	CreatedAt     time.Time     `yaml:"created_at"`
+	CreatedAt     time.Time     `yaml:"created_at,omitempty"`
 	Status        ChainStatus   `yaml:"status"`
-	StatusHistory []StatusEntry `yaml:"status_history"`
+	StatusHistory []StatusEntry `yaml:"status_history,omitempty"`
 }
 
 // StatusEntry is a single lifecycle state transition in the audit trail.
