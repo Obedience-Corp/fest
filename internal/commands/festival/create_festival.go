@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -42,6 +43,8 @@ type CreateFestivalOptions struct {
 	VarsFile    string
 	Markers     string // Inline JSON with hint→value mappings
 	MarkersFile string // JSON file path with hint→value mappings
+	Seed        string // Inline seed/input-spec content for the ingest phase
+	SeedFile    string // File whose contents seed the ingest phase
 	SkipMarkers bool   // Skip marker processing
 	DryRun      bool   // Show markers without creating file
 	JSONOutput  bool
@@ -59,6 +62,7 @@ type createFestivalResult struct {
 	GatesDirectory    string             `json:"gates_directory,omitempty"`
 	FestYAML          string             `json:"fest_yaml,omitempty"`
 	GateTemplates     []string           `json:"gate_templates,omitempty"`
+	SeedPath          string             `json:"seed_path,omitempty"`
 	ProjectPath       string             `json:"project_path,omitempty"`
 	ProjectLinked     bool               `json:"project_linked,omitempty"`
 	Markers           []map[string]any   `json:"markers,omitempty"`
@@ -107,6 +111,8 @@ type createConfig struct {
 	tmplCtx          *tpl.Context
 	festivalType     *types.FestivalType
 	festivalTypeName string
+	seedContent      string
+	seedRequested    bool
 }
 
 // NewCreateFestivalCommand adds 'create festival'
@@ -138,6 +144,8 @@ func NewCreateFestivalCommand() *cobra.Command {
 	cmd.Flags().StringVar(&opts.VarsFile, "vars-file", "", "JSON file with variables")
 	cmd.Flags().StringVar(&opts.Markers, "markers", "", "JSON string with REPLACE marker hint→value mappings")
 	cmd.Flags().StringVar(&opts.MarkersFile, "markers-file", "", "JSON file with REPLACE marker hint→value mappings")
+	cmd.Flags().StringVar(&opts.Seed, "seed", "", "Inline seed content written to the ingest phase input_specs/ (requires a type with an ingest phase)")
+	cmd.Flags().StringVar(&opts.SeedFile, "seed-file", "", "File whose contents seed the ingest phase input_specs/ (mutually exclusive with --seed)")
 	cmd.Flags().BoolVar(&opts.SkipMarkers, "skip-markers", false, "Skip REPLACE marker processing")
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "Show template markers without creating file")
 	cmd.Flags().BoolVar(&opts.JSONOutput, "json", false, "Emit JSON output")
@@ -268,6 +276,7 @@ type createResult struct {
 	allMarkers        []map[string]any
 	validationResult  *ValidationSummary
 	registered        bool
+	seedPath          string
 }
 
 // RunCreateFestival executes the create festival command logic.
@@ -276,8 +285,17 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 		return errors.Wrap(err, "context cancelled").WithOp("RunCreateFestival")
 	}
 
+	if opts.Seed != "" && opts.SeedFile != "" {
+		return emitCreateFestivalError(opts, errors.Validation(
+			"--seed and --seed-file are mutually exclusive"))
+	}
+
 	cfg, err := resolveCreateConfig(ctx, opts)
 	if err != nil {
+		return emitCreateFestivalError(opts, err)
+	}
+
+	if err := resolveAndValidateSeed(cfg); err != nil {
 		return emitCreateFestivalError(opts, err)
 	}
 
@@ -298,12 +316,27 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 
 	created, res.autoPhasesCreated = autoScaffoldPhases(ctx, cfg, created)
 
-	recordInitialSize(ctx, cfg, res.festConfig)
-
 	res.created = created
 	res.copiedGates = copiedGates
+
+	// Seed before the initial-size snapshot so seeded content is part of the
+	// creation baseline, not later counted as post-create growth. Skipped on
+	// dry-run. The seed file is registered in res.created after marker processing
+	// so user content is never marker-substituted.
+	if !opts.DryRun {
+		if err := writeSeedFile(cfg, res); err != nil {
+			return emitCreateFestivalCreatedError(ctx, cfg, res, err)
+		}
+	}
+
+	recordInitialSize(ctx, cfg, res.festConfig)
+
 	if err := processAllMarkers(ctx, cfg, res); err != nil {
 		return emitCreateFestivalCreatedError(ctx, cfg, res, err)
+	}
+
+	if res.seedPath != "" {
+		res.created = append(res.created, res.seedPath)
 	}
 
 	if opts.DryRun && res.markersTotal > 0 {
@@ -638,6 +671,93 @@ func autoScaffoldPhases(ctx context.Context, cfg *createConfig, created []string
 	return created, autoPhasesCreated
 }
 
+// resolveAndValidateSeed resolves --seed/--seed-file content and verifies the
+// festival type has an ingest phase to seed BEFORE any scaffolding happens, so a
+// type with no ingest phase fails fast instead of leaving a half-created
+// festival. input_specs/ is an ingest-phase concept; types without one are
+// refused rather than silently misplaced.
+func resolveAndValidateSeed(cfg *createConfig) error {
+	content, ok, err := resolveSeedContent(cfg.opts)
+	if err != nil || !ok {
+		return err
+	}
+
+	if _, found := ingestAutoPhaseID(cfg.festivalType); !found {
+		typeName := cfg.festivalTypeName
+		if typeName == "" {
+			typeName = "(none)"
+		}
+		return errors.Validation("festival type has no ingest phase to seed").
+			WithField("type", typeName).
+			WithHint("use --markers, or choose a festival type with an ingest phase")
+	}
+
+	cfg.seedContent = content
+	cfg.seedRequested = true
+	return nil
+}
+
+// writeSeedFile writes the pre-resolved seed content into the festival's ingest
+// phase input_specs/. The ingest phase is guaranteed to exist by
+// resolveAndValidateSeed.
+func writeSeedFile(cfg *createConfig, res *createResult) error {
+	if !cfg.seedRequested {
+		return nil
+	}
+
+	ingestPhaseID, _ := ingestAutoPhaseID(cfg.festivalType)
+	// autoScaffoldPhases swallows per-phase failures, so confirm the ingest
+	// phase was actually created before seeding into it; otherwise seeding
+	// would write under a missing phase and falsely report success.
+	if !slices.Contains(res.autoPhasesCreated, ingestPhaseID) {
+		return errors.New("ingest phase was not scaffolded; cannot seed").
+			WithField("phase", ingestPhaseID)
+	}
+
+	inputSpecsDir := filepath.Join(cfg.destDir, ingestPhaseID, "input_specs")
+	if err := os.MkdirAll(inputSpecsDir, 0755); err != nil {
+		return errors.IO("creating input_specs directory", err).WithField("path", inputSpecsDir)
+	}
+
+	seedPath := filepath.Join(inputSpecsDir, "seed.md")
+	if err := os.WriteFile(seedPath, []byte(cfg.seedContent), 0644); err != nil {
+		return errors.IO("writing seed file", err).WithField("path", seedPath)
+	}
+
+	res.seedPath = seedPath
+	return nil
+}
+
+// resolveSeedContent returns the seed content from --seed or --seed-file.
+// The bool is false when no seed flag was provided.
+func resolveSeedContent(opts *CreateFestivalOptions) (string, bool, error) {
+	if opts.Seed != "" {
+		return opts.Seed, true, nil
+	}
+	if opts.SeedFile != "" {
+		data, err := os.ReadFile(opts.SeedFile)
+		if err != nil {
+			return "", false, errors.IO("reading seed file", err).WithField("path", opts.SeedFile)
+		}
+		return string(data), true, nil
+	}
+	return "", false, nil
+}
+
+// ingestAutoPhaseID returns the phase ID of the festival type's auto-scaffolded
+// ingest phase, matching the IDs autoScaffoldPhases produces.
+func ingestAutoPhaseID(festivalType *types.FestivalType) (string, bool) {
+	if festivalType == nil {
+		return "", false
+	}
+	for i, phaseSpec := range festivalType.GetAutoPhases() {
+		if phaseSpec.Type == "ingest" {
+			return tpl.FormatPhaseID(i+1, phaseSpec.Name), true
+		}
+	}
+	return "", false
+}
+
 // recordInitialSize records the initial content size for token delta tracking.
 func recordInitialSize(ctx context.Context, cfg *createConfig, festConfig *config.FestivalConfig) {
 	initialSize, sizeErr := progress.ComputeDirectorySize(ctx, cfg.destDir)
@@ -830,6 +950,7 @@ func emitCreateJSON(cfg *createConfig, res *createResult, gatesDir string, remai
 		GatesDirectory:    displayPath(gatesDir),
 		FestYAML:          displayPath(res.festConfigPath),
 		GateTemplates:     relGates,
+		SeedPath:          displayPath(res.seedPath),
 		ProjectPath:       displayPath(res.projectPath),
 		ProjectLinked:     res.projectLinked,
 		MarkersFilled:     res.markersFilled,
