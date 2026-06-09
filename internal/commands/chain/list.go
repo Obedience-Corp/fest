@@ -2,6 +2,7 @@ package chain
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,23 +14,37 @@ import (
 	"github.com/spf13/cobra"
 )
 
+type chainListItem struct {
+	ID            string   `json:"id"`
+	Name          string   `json:"name"`
+	Status        string   `json:"status"`
+	FestivalCount int      `json:"festival_count"`
+	Refs          []string `json:"refs"`
+}
+
+type chainListResult struct {
+	Chains []chainListItem `json:"chains"`
+}
+
 func newListCmd() *cobra.Command {
 	var statusFilter string
+	var jsonOut bool
 
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List all festival chains",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runList(cmd.Context(), statusFilter)
+			return runList(cmd.Context(), statusFilter, jsonOut)
 		},
 	}
 
 	cmd.Flags().StringVar(&statusFilter, "status", "", "filter by status (planning|active|completed)")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "emit structured JSON result")
 
 	return cmd
 }
 
-func runList(ctx context.Context, statusFilter string) error {
+func runList(ctx context.Context, statusFilter string, jsonOut bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -48,7 +63,8 @@ func runList(ctx context.Context, statusFilter string) error {
 	dungeonChains, _ := discoverChains(ctx, filepath.Join(root, "dungeon", "completed", "chains"))
 	chains = append(chains, dungeonChains...)
 
-	if len(chains) == 0 {
+	// Human empty-workspace message reflects the unfiltered set; JSON reports the filtered set.
+	if !jsonOut && len(chains) == 0 {
 		fmt.Println("No chains found. Create one with 'fest chain create --name <name>'.")
 		return nil
 	}
@@ -62,6 +78,10 @@ func runList(ctx context.Context, statusFilter string) error {
 			}
 		}
 		chains = filtered
+	}
+
+	if jsonOut {
+		return printChainListJSON(chains)
 	}
 
 	// Group by status.
@@ -95,6 +115,30 @@ func runList(ctx context.Context, statusFilter string) error {
 		}
 	}
 
+	return nil
+}
+
+func printChainListJSON(chains []*chainpkg.Chain) error {
+	items := make([]chainListItem, 0, len(chains))
+	for _, c := range chains {
+		refs := make([]string, len(c.Festivals))
+		for i, f := range c.Festivals {
+			refs[i] = f.Ref
+		}
+		items = append(items, chainListItem{
+			ID:            c.Metadata.ID,
+			Name:          c.Metadata.Name,
+			Status:        string(c.Metadata.Status),
+			FestivalCount: len(c.Festivals),
+			Refs:          refs,
+		})
+	}
+
+	data, err := json.MarshalIndent(chainListResult{Chains: items}, "", "  ")
+	if err != nil {
+		return errors.IO("marshaling chain list", err)
+	}
+	fmt.Println(string(data))
 	return nil
 }
 
