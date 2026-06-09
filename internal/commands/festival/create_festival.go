@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -694,6 +695,14 @@ func writeSeedFile(cfg *createConfig, res *createResult) error {
 	}
 
 	ingestPhaseID, _ := ingestAutoPhaseID(cfg.festivalType)
+	// autoScaffoldPhases swallows per-phase failures, so confirm the ingest
+	// phase was actually created before seeding into it; otherwise seeding
+	// would write under a missing phase and falsely report success.
+	if !slices.Contains(res.autoPhasesCreated, ingestPhaseID) {
+		return errors.New("ingest phase was not scaffolded; cannot seed").
+			WithField("phase", ingestPhaseID)
+	}
+
 	inputSpecsDir := filepath.Join(cfg.destDir, ingestPhaseID, "input_specs")
 	if err := os.MkdirAll(inputSpecsDir, 0755); err != nil {
 		return errors.IO("creating input_specs directory", err).WithField("path", inputSpecsDir)
