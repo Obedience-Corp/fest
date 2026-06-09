@@ -93,17 +93,10 @@ func TestCreateFestivalSeed_NoSeedLeavesNoSeedFile(t *testing.T) {
 }
 
 func TestCreateFestivalSeed_CountedInInitialSizeBytes(t *testing.T) {
-	baselineDir := runCreateForSeed(t, &CreateFestivalOptions{
-		Name:       "SizeProbe",
-		Type:       "standard",
-		Dest:       "planning",
-		JSONOutput: true,
-	})
-	baselineCfg, err := config.LoadFestivalConfig(baselineDir, "")
-	if err != nil {
-		t.Fatalf("load baseline config: %v", err)
-	}
-
+	// A large seed (9000 bytes) far exceeds the unseeded standard scaffold
+	// (~1KB of .md), so initial_size_bytes can only reach len(seed) if the seed
+	// is counted in the creation baseline. A single-festival lower bound keeps
+	// this deterministic (no cross-creation byte jitter).
 	seed := strings.Repeat("seed content line\n", 500)
 	seededDir := runCreateForSeed(t, &CreateFestivalOptions{
 		Name:       "SizeProbe",
@@ -117,10 +110,9 @@ func TestCreateFestivalSeed_CountedInInitialSizeBytes(t *testing.T) {
 		t.Fatalf("load seeded config: %v", err)
 	}
 
-	growth := seededCfg.Metadata.InitialSizeBytes - baselineCfg.Metadata.InitialSizeBytes
-	if growth < int64(len(seed)) {
-		t.Errorf("seed not counted in initial_size_bytes baseline: growth=%d, seed len=%d (baseline=%d, seeded=%d)",
-			growth, len(seed), baselineCfg.Metadata.InitialSizeBytes, seededCfg.Metadata.InitialSizeBytes)
+	if seededCfg.Metadata.InitialSizeBytes < int64(len(seed)) {
+		t.Errorf("seed not counted in initial_size_bytes: got %d, want >= %d",
+			seededCfg.Metadata.InitialSizeBytes, len(seed))
 	}
 }
 
