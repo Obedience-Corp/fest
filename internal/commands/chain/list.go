@@ -63,6 +63,12 @@ func runList(ctx context.Context, statusFilter string, jsonOut bool) error {
 	dungeonChains, _ := discoverChains(ctx, filepath.Join(root, "dungeon", "completed", "chains"))
 	chains = append(chains, dungeonChains...)
 
+	// Human empty-workspace message reflects the unfiltered set; JSON reports the filtered set.
+	if !jsonOut && len(chains) == 0 {
+		fmt.Println("No chains found. Create one with 'fest chain create --name <name>'.")
+		return nil
+	}
+
 	// Filter if requested.
 	if statusFilter != "" {
 		var filtered []*chainpkg.Chain
@@ -76,11 +82,6 @@ func runList(ctx context.Context, statusFilter string, jsonOut bool) error {
 
 	if jsonOut {
 		return printChainListJSON(chains)
-	}
-
-	if len(chains) == 0 {
-		fmt.Println("No chains found. Create one with 'fest chain create --name <name>'.")
-		return nil
 	}
 
 	// Group by status.

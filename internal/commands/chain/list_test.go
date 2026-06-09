@@ -56,6 +56,16 @@ func TestRunList_JSONStatusFilter(t *testing.T) {
 	assert.Empty(t, result.Chains)
 }
 
+func TestRunList_HumanStatusFilterEmptyPrintsNoMessage(t *testing.T) {
+	addTestEnv(t, noWaveChainYAML, "demo-chain.yaml", "A0001", "alpha")
+
+	out := captureStdout(t, func() error {
+		return runList(context.Background(), "active", false)
+	})
+
+	assert.NotContains(t, out, "No chains found")
+}
+
 func TestRunList_ContextCancelled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
