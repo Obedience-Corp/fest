@@ -4,8 +4,10 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/types"
 )
 
@@ -87,6 +89,38 @@ func TestCreateFestivalSeed_NoSeedLeavesNoSeedFile(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(festivalDir, "001_INGEST", "input_specs", "seed.md")); !os.IsNotExist(err) {
 		t.Errorf("expected no seed file when --seed is absent, stat err = %v", err)
+	}
+}
+
+func TestCreateFestivalSeed_CountedInInitialSizeBytes(t *testing.T) {
+	baselineDir := runCreateForSeed(t, &CreateFestivalOptions{
+		Name:       "SizeProbe",
+		Type:       "standard",
+		Dest:       "planning",
+		JSONOutput: true,
+	})
+	baselineCfg, err := config.LoadFestivalConfig(baselineDir, "")
+	if err != nil {
+		t.Fatalf("load baseline config: %v", err)
+	}
+
+	seed := strings.Repeat("seed content line\n", 500)
+	seededDir := runCreateForSeed(t, &CreateFestivalOptions{
+		Name:       "SizeProbe",
+		Type:       "standard",
+		Dest:       "planning",
+		Seed:       seed,
+		JSONOutput: true,
+	})
+	seededCfg, err := config.LoadFestivalConfig(seededDir, "")
+	if err != nil {
+		t.Fatalf("load seeded config: %v", err)
+	}
+
+	growth := seededCfg.Metadata.InitialSizeBytes - baselineCfg.Metadata.InitialSizeBytes
+	if growth < int64(len(seed)) {
+		t.Errorf("seed not counted in initial_size_bytes baseline: growth=%d, seed len=%d (baseline=%d, seeded=%d)",
+			growth, len(seed), baselineCfg.Metadata.InitialSizeBytes, seededCfg.Metadata.InitialSizeBytes)
 	}
 }
 

@@ -316,12 +316,27 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 
 	created, res.autoPhasesCreated = autoScaffoldPhases(ctx, cfg, created)
 
-	recordInitialSize(ctx, cfg, res.festConfig)
-
 	res.created = created
 	res.copiedGates = copiedGates
+
+	// Seed before the initial-size snapshot so seeded content is part of the
+	// creation baseline, not later counted as post-create growth. Skipped on
+	// dry-run. The seed file is registered in res.created after marker processing
+	// so user content is never marker-substituted.
+	if !opts.DryRun {
+		if err := writeSeedFile(cfg, res); err != nil {
+			return emitCreateFestivalCreatedError(ctx, cfg, res, err)
+		}
+	}
+
+	recordInitialSize(ctx, cfg, res.festConfig)
+
 	if err := processAllMarkers(ctx, cfg, res); err != nil {
 		return emitCreateFestivalCreatedError(ctx, cfg, res, err)
+	}
+
+	if res.seedPath != "" {
+		res.created = append(res.created, res.seedPath)
 	}
 
 	if opts.DryRun && res.markersTotal > 0 {
@@ -330,10 +345,6 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 			return emitCreateFestivalCreatedError(ctx, cfg, res, err)
 		}
 		return nil
-	}
-
-	if err := writeSeedFile(cfg, res); err != nil {
-		return emitCreateFestivalCreatedError(ctx, cfg, res, err)
 	}
 
 	if err := validateIfConfigured(ctx, cfg, res); err != nil {
@@ -714,7 +725,6 @@ func writeSeedFile(cfg *createConfig, res *createResult) error {
 	}
 
 	res.seedPath = seedPath
-	res.created = append(res.created, seedPath)
 	return nil
 }
 
