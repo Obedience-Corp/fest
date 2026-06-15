@@ -210,14 +210,10 @@ func isFestivalNotFound(err error) bool {
 	return stderrors.As(err, &structured) && structured.Code == errors.ErrCodeNotFound
 }
 
-// watchPickerStatuses are the statuses surfaced by `fest watch`, in display
-// priority order. Ritual templates are excluded: `fest ritual run` copies a
-// ritual into active/ before there is anything to watch, so the template is
-// never itself a watch target. dungeon/* is terminal and likewise never watched.
+// watchPickerStatuses are watch targets, in display priority order. Ritual is a
+// template (run into active/ first) and dungeon is terminal, so neither is watched.
 var watchPickerStatuses = []string{"active", "ready", "planning"}
 
-// pickerStatuses narrows the watch picker to the watchable status dir the user is
-// inside, else all watchable statuses (active, ready, planning).
 func pickerStatuses(cwd, festivalsDir string) []string {
 	if narrowed := preferredPickerStatuses(cwd, festivalsDir); len(narrowed) > 0 {
 		return narrowed

@@ -21,10 +21,6 @@ func completeWatchSelector(_ *cobra.Command, _ []string, toComplete string) ([]s
 }
 
 func watchSelectorCompletions(ctx context.Context, cwd, toComplete string) ([]string, error) {
-	// Restrict completion to watchable statuses (active, ready, planning).
-	// Ritual templates and terminal dungeon/* festivals are never watched.
-	// No ordering option here: completion stays alphabetical and avoids the
-	// per-candidate filesystem stats the interactive picker performs.
 	return shared.CompleteFestivalPickSelectors(ctx, cwd, toComplete, shared.FestivalPickerOptions{
 		IncludeStatusDirectories: false,
 		PreferredStatuses:        watchPickerStatuses,

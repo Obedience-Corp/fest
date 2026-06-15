@@ -292,8 +292,6 @@ func TestPreferredPickerStatusesIgnoresDungeon(t *testing.T) {
 }
 
 func TestPreferredPickerStatusesIgnoresRitual(t *testing.T) {
-	// Ritual festivals are templates, not watch targets, so a ritual cwd must
-	// not narrow to ritual; it falls back to all watchable statuses.
 	got := preferredPickerStatuses("/campaign/festivals/ritual/weekly-review-RI-WR0001", "/campaign/festivals")
 	if got != nil {
 		t.Fatalf("preferred statuses for a ritual cwd = %#v, want nil", got)

@@ -33,9 +33,7 @@ type FestivalPickCandidate struct {
 	Path            string
 	Status          string
 	StatusDirectory bool
-	// ModTime is the most-recent modification time found under Path. It is only
-	// populated when a caller requests recency ordering (OrderByStatusThenRecency);
-	// otherwise it is the zero time.
+	// ModTime is populated only when OrderByStatusThenRecency is set.
 	ModTime time.Time
 }
 
@@ -46,10 +44,7 @@ type FestivalPickerOptions struct {
 	// status child directories are navigable even before they have festival markers.
 	IncludeUnmarkedFestivalDirectories bool
 	PreferredStatuses                  []string
-	// OrderByStatusThenRecency sorts candidates by watch status priority
-	// (active, ready, planning), then most-recently-modified first, then name.
-	// The interactive watch picker sets this; other surfaces leave it false to
-	// preserve collection order and avoid per-candidate filesystem stats.
+	// OrderByStatusThenRecency sorts by status priority, then newest-modified, then name.
 	OrderByStatusThenRecency bool
 }
 
