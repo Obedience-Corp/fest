@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
-	"github.com/Obedience-Corp/fest/internal/id"
 )
 
 func TestWatchCompletionExcludesStatusDirectories(t *testing.T) {
@@ -24,10 +23,10 @@ func TestWatchCompletionExcludesDungeonFestivals(t *testing.T) {
 	makeWatchTestFestival(t, filepath.Join(festivals, "active", "launch-work-LW0001"))
 	makeWatchTestFestival(t, filepath.Join(festivals, "dungeon", "completed", "2026-05-01", "old-work-OW0001"))
 
-	// Production watch setting: restrict completion to working statuses.
+	// Production watch setting: restrict completion to watchable statuses.
 	working := shared.CollectFestivalPickCandidates(festivals, shared.FestivalPickerOptions{
 		IncludeStatusDirectories: false,
-		PreferredStatuses:        id.WorkingStatusDirectories,
+		PreferredStatuses:        watchPickerStatuses,
 	})
 	if candidateNamePresent(working, "old-work-OW0001") {
 		t.Fatalf("watch completion must exclude dungeon festivals (terminal, never watched): %v", candidateNames(working))
@@ -43,6 +42,23 @@ func TestWatchCompletionExcludesDungeonFestivals(t *testing.T) {
 	})
 	if !candidateNamePresent(all, "old-work-OW0001") {
 		t.Fatalf("default collection should still surface dungeon festivals: %v", candidateNames(all))
+	}
+}
+
+func TestWatchCompletionExcludesRitualFestivals(t *testing.T) {
+	festivals := t.TempDir()
+	makeWatchTestFestival(t, filepath.Join(festivals, "active", "launch-work-LW0001"))
+	makeWatchTestFestival(t, filepath.Join(festivals, "ritual", "weekly-review-RI-WR0001"))
+
+	working := shared.CollectFestivalPickCandidates(festivals, shared.FestivalPickerOptions{
+		IncludeStatusDirectories: false,
+		PreferredStatuses:        watchPickerStatuses,
+	})
+	if candidateNamePresent(working, "weekly-review-RI-WR0001") {
+		t.Fatalf("watch completion must exclude ritual festivals (templates, never watched): %v", candidateNames(working))
+	}
+	if !candidateNamePresent(working, "launch-work-LW0001") {
+		t.Fatalf("watch completion should include working festivals: %v", candidateNames(working))
 	}
 }
 

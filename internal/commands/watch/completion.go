@@ -5,7 +5,6 @@ import (
 	"os"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
-	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/spf13/cobra"
 )
 
@@ -22,10 +21,13 @@ func completeWatchSelector(_ *cobra.Command, _ []string, toComplete string) ([]s
 }
 
 func watchSelectorCompletions(ctx context.Context, cwd, toComplete string) ([]string, error) {
-	// Dungeon is terminal and never watched; restrict to working statuses.
+	// Restrict completion to watchable statuses (active, ready, planning).
+	// Ritual templates and terminal dungeon/* festivals are never watched.
+	// No ordering option here: completion stays alphabetical and avoids the
+	// per-candidate filesystem stats the interactive picker performs.
 	return shared.CompleteFestivalPickSelectors(ctx, cwd, toComplete, shared.FestivalPickerOptions{
 		IncludeStatusDirectories: false,
-		PreferredStatuses:        id.WorkingStatusDirectories,
+		PreferredStatuses:        watchPickerStatuses,
 	})
 }
 

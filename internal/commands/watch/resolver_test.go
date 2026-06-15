@@ -10,7 +10,6 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
-	"github.com/Obedience-Corp/fest/internal/id"
 )
 
 func TestTargetResolverSelectorWinsOverContext(t *testing.T) {
@@ -209,6 +208,9 @@ func TestTargetResolverPickerUsesWorkspaceContext(t *testing.T) {
 	if !reflect.DeepEqual(gotOptions.PreferredStatuses, []string{"active"}) {
 		t.Fatalf("preferred statuses = %#v", gotOptions.PreferredStatuses)
 	}
+	if !gotOptions.OrderByStatusThenRecency {
+		t.Fatal("watch picker must order by status priority then recency")
+	}
 }
 
 func TestTargetResolverPickerCancellationIsDistinct(t *testing.T) {
@@ -289,10 +291,31 @@ func TestPreferredPickerStatusesIgnoresDungeon(t *testing.T) {
 	}
 }
 
-func TestPickerStatusesFallsBackToWorkingStatuses(t *testing.T) {
+func TestPreferredPickerStatusesIgnoresRitual(t *testing.T) {
+	// Ritual festivals are templates, not watch targets, so a ritual cwd must
+	// not narrow to ritual; it falls back to all watchable statuses.
+	got := preferredPickerStatuses("/campaign/festivals/ritual/weekly-review-RI-WR0001", "/campaign/festivals")
+	if got != nil {
+		t.Fatalf("preferred statuses for a ritual cwd = %#v, want nil", got)
+	}
+}
+
+func TestPickerStatusesFallsBackToWatchableStatuses(t *testing.T) {
 	got := pickerStatuses("/campaign/festivals/dungeon/completed/2026-05", "/campaign/festivals")
-	if !reflect.DeepEqual(got, id.WorkingStatusDirectories) {
-		t.Fatalf("picker statuses for a dungeon cwd = %#v, want WorkingStatusDirectories", got)
+	if !reflect.DeepEqual(got, watchPickerStatuses) {
+		t.Fatalf("picker statuses for a dungeon cwd = %#v, want watchPickerStatuses", got)
+	}
+}
+
+func TestWatchableStatusesExcludeRitualAndOrderActiveFirst(t *testing.T) {
+	want := []string{"active", "ready", "planning"}
+	if !reflect.DeepEqual(watchPickerStatuses, want) {
+		t.Fatalf("watchPickerStatuses = %#v, want %#v", watchPickerStatuses, want)
+	}
+	for _, status := range watchPickerStatuses {
+		if status == "ritual" || strings.HasPrefix(status, "dungeon") {
+			t.Fatalf("watch picker must not surface %q (not a watch target)", status)
+		}
 	}
 }
 
