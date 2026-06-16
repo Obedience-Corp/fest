@@ -2,8 +2,10 @@
 package show
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"time"
@@ -13,6 +15,68 @@ import (
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/watch"
 )
+
+// crlfWriter translates a bare "\n" into "\r\n" before writing. The watch cycle
+// reader puts the terminal in raw mode (term.MakeRaw) to capture arrow keys,
+// which clears OPOST/ONLCR so the terminal no longer maps "\n" to "\r\n" on
+// output. Without this, every rendered line starts where the previous one ended
+// (a diagonal staircase). It reports the original input length per io.Writer.
+type crlfWriter struct{ w io.Writer }
+
+func (c crlfWriter) Write(p []byte) (int, error) {
+	var b bytes.Buffer
+	b.Grow(len(p) + bytes.Count(p, []byte{'\n'}))
+	for i := 0; i < len(p); i++ {
+		if p[i] == '\n' && (i == 0 || p[i-1] != '\r') {
+			b.WriteByte('\r')
+		}
+		b.WriteByte(p[i])
+	}
+	translated := b.Bytes()
+	written, err := c.w.Write(translated)
+	if written == len(translated) && err == nil {
+		return len(p), nil
+	}
+
+	n, remaining := 0, written
+	for i := 0; i < len(p); i++ {
+		cost := 1
+		if p[i] == '\n' && (i == 0 || p[i-1] != '\r') {
+			cost = 2
+		}
+		if remaining < cost {
+			break
+		}
+		remaining -= cost
+		n++
+	}
+	if err == nil && n < len(p) {
+		err = io.ErrShortWrite
+	}
+	return n, err
+}
+
+// watchWriter returns the stdout writer for a watch frame. In cycle mode the
+// terminal is in raw mode, so newlines must be translated to keep lines
+// column-aligned.
+func watchWriter(cycleHint bool) io.Writer {
+	return cycleOutput(cycleHint, os.Stdout)
+}
+
+// watchErrWriter returns the writer for warnings and errors emitted during a
+// watch frame. term.MakeRaw stays active for the entire cycle session, so
+// stderr output must also translate newlines or it produces the same staircase
+// as the rendered tree.
+func watchErrWriter(cycleHint bool) io.Writer {
+	return cycleOutput(cycleHint, os.Stderr)
+}
+
+func cycleOutput(cycleHint bool, w io.Writer) io.Writer {
+	if cycleHint {
+		return crlfWriter{w: w}
+	}
+	return w
+}
 
 // ProgressBarWidth defines the number of characters in the progress bar
 const ProgressBarWidth = 20
@@ -46,9 +110,12 @@ func WatchFestival(ctx context.Context, festival *FestivalInfo, opts WatchOption
 // runWatchMode watches for file changes and refreshes the festival display.
 // Falls back to polling if file watching is not available.
 func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions, cycleHint bool) error {
+	out := watchWriter(cycleHint)
+	errOut := watchErrWriter(cycleHint)
+
 	stateDir := filepath.Join(festival.Path, ".fest")
 	if err := os.MkdirAll(stateDir, 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: could not create state directory: %v\n", err)
+		_, _ = fmt.Fprintf(errOut, "Warning: could not create state directory: %v\n", err)
 	}
 
 	watchPaths := []string{
@@ -56,32 +123,32 @@ func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions
 		stateDir,
 	}
 
-	clearScreen()
-	if err := renderFestivalView(ctx, festival, opts); err != nil {
+	clearScreen(out)
+	if err := renderFestivalView(ctx, festival, opts, out); err != nil {
 		return err
 	}
-	printWatchFooter(false, cycleHint)
+	printWatchFooter(out, false, cycleHint)
 
 	w, err := watch.New(watch.Config{
 		Paths:    watchPaths,
 		Debounce: 100 * time.Millisecond,
 		OnError: func(err error) {
-			fmt.Fprintf(os.Stderr, "%s file watch error: %v\n", ui.Warning("Warning:"), err)
+			_, _ = fmt.Fprintf(errOut, "%s file watch error: %v\n", ui.Warning("Warning:"), err)
 		},
 	}, func() {
-		clearScreen()
+		clearScreen(out)
 		refreshed, err := DetectCurrentFestival(ctx, festival.Path, "")
 		if err == nil && refreshed != nil {
 			festival = refreshed
 		}
-		if err := renderFestivalView(ctx, festival, opts); err != nil {
-			fmt.Fprintf(os.Stderr, "%s could not refresh festival view: %v\n", ui.Warning("Warning:"), err)
+		if err := renderFestivalView(ctx, festival, opts, out); err != nil {
+			_, _ = fmt.Fprintf(errOut, "%s could not refresh festival view: %v\n", ui.Warning("Warning:"), err)
 		}
-		printWatchFooter(false, cycleHint)
+		printWatchFooter(out, false, cycleHint)
 	})
 
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "File watching unavailable (%v), using polling fallback\n", err)
+		_, _ = fmt.Fprintf(errOut, "File watching unavailable (%v), using polling fallback\n", err)
 		return runPollingMode(ctx, festival, opts, cycleHint)
 	}
 	defer func() { _ = w.Close() }()
@@ -95,40 +162,41 @@ func runPollingMode(ctx context.Context, festival *FestivalInfo, opts *showOptio
 	ticker := time.NewTicker(pollingInterval)
 	defer ticker.Stop()
 
-	clearScreen()
-	if err := renderFestivalView(ctx, festival, opts); err != nil {
+	out := watchWriter(cycleHint)
+	clearScreen(out)
+	if err := renderFestivalView(ctx, festival, opts, out); err != nil {
 		return err
 	}
-	printWatchFooter(true, cycleHint)
+	printWatchFooter(out, true, cycleHint)
 
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Println()
+			_, _ = fmt.Fprintln(out)
 			return nil
 		case <-ticker.C:
-			clearScreen()
+			clearScreen(out)
 
 			refreshed, err := DetectCurrentFestival(ctx, festival.Path, "")
 			if err == nil && refreshed != nil {
 				festival = refreshed
 			}
 
-			if err := renderFestivalView(ctx, festival, opts); err != nil {
+			if err := renderFestivalView(ctx, festival, opts, out); err != nil {
 				return err
 			}
-			printWatchFooter(true, cycleHint)
+			printWatchFooter(out, true, cycleHint)
 		}
 	}
 }
 
 // renderFestivalView renders the appropriate view for the festival.
-func renderFestivalView(ctx context.Context, festival *FestivalInfo, opts *showOptions) error {
+func renderFestivalView(ctx context.Context, festival *FestivalInfo, opts *showOptions, out io.Writer) error {
 	verbose := shared.IsVerbose()
 
 	// Use tree view by default, summary view with --summary flag
 	if opts.summary {
-		fmt.Println(FormatFestivalDetails(festival, verbose, ""))
+		_, _ = fmt.Fprintln(out, FormatFestivalDetails(festival, verbose, ""))
 		return nil
 	}
 
@@ -136,14 +204,14 @@ func renderFestivalView(ctx context.Context, festival *FestivalInfo, opts *showO
 	tree, err := BuildFestivalTree(ctx, festival.Path)
 	if err != nil {
 		// Fall back to summary view on error
-		fmt.Println(FormatFestivalDetails(festival, verbose, ""))
+		_, _ = fmt.Fprintln(out, FormatFestivalDetails(festival, verbose, ""))
 		return nil
 	}
 
 	// Render progress bar at the top
 	if festival.Stats != nil {
 		progressBar := renderProgressBar(int(festival.Stats.Progress))
-		fmt.Printf("%s %s %s\n\n",
+		_, _ = fmt.Fprintf(out, "%s %s %s\n\n",
 			ui.Value(fmt.Sprintf("%.0f%%", festival.Stats.Progress)),
 			progressBar,
 			ui.Dim(fmt.Sprintf("(%d/%d tasks)", festival.Stats.Tasks.Completed, festival.Stats.Tasks.Total)))
@@ -153,7 +221,7 @@ func renderFestivalView(ctx context.Context, festival *FestivalInfo, opts *showO
 	treeOpts.ShowGoals = opts.goals
 	treeOpts.Collapsed = opts.collapsed
 	treeOpts.InProgress = opts.inProgress
-	fmt.Println(RenderTree(tree, treeOpts))
+	_, _ = fmt.Fprintln(out, RenderTree(tree, treeOpts))
 	return nil
 }
 
@@ -171,20 +239,20 @@ func renderProgressBar(percentage int) string {
 }
 
 // clearScreen clears the terminal screen using ANSI escape codes.
-func clearScreen() {
-	fmt.Print("\033[H\033[2J")
+func clearScreen(out io.Writer) {
+	_, _ = fmt.Fprint(out, "\033[H\033[2J")
 }
 
 // printWatchFooter prints the watch mode footer with exit instructions.
-func printWatchFooter(polling bool, cycleHint bool) {
-	fmt.Println()
+func printWatchFooter(out io.Writer, polling bool, cycleHint bool) {
+	_, _ = fmt.Fprintln(out)
 	suffix := "Watching for changes"
 	if polling {
 		suffix = "Polling for changes"
 	}
 	if cycleHint {
-		fmt.Println(ui.Dim("Ctrl+C to exit • ← → cycle festivals • " + suffix))
+		_, _ = fmt.Fprintln(out, ui.Dim("Ctrl+C to exit • ← → cycle festivals • "+suffix))
 	} else {
-		fmt.Println(ui.Dim("Press Ctrl+C to exit • " + suffix))
+		_, _ = fmt.Fprintln(out, ui.Dim("Press Ctrl+C to exit • "+suffix))
 	}
 }

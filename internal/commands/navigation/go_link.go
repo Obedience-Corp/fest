@@ -27,6 +27,8 @@ var (
 	pathStyle     = lipgloss.NewStyle().Foreground(ui.MetadataColor)
 )
 
+const linkForceHint = "use 'fest link --force' to override, or run 'fest unlink' from the active festival first"
+
 // NewGoLinkCommand creates the context-aware link subcommand for fest go
 func NewGoLinkCommand() *cobra.Command {
 	var force bool
@@ -174,7 +176,7 @@ func linkFestivalToProject(ctx context.Context, cwd, targetPath string) error {
 			return festErrors.Validation("project is already linked to an active festival").
 				WithField("existing_festival", existing).
 				WithField("project", projectPath).
-				WithField("hint", "use 'fest link --force' to override, or run 'fest unlink' from the active festival first")
+				WithField("hint", linkForceHint)
 		}
 	}
 
@@ -277,7 +279,7 @@ func linkProjectToFestival(cwd string, force bool) error {
 				return festErrors.Validation("project is already linked to an active festival").
 					WithField("existing_festival", existing).
 					WithField("project", absPath).
-					WithField("hint", "use 'fgo link --force' to override, or run 'fest unlink' from the active festival first")
+					WithField("hint", linkForceHint)
 			}
 		}
 	}

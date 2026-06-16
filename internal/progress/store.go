@@ -157,6 +157,67 @@ func (s *Store) Load(ctx context.Context) error {
 	return nil
 }
 
+// LoadReadOnly materializes progress state without mutating disk: it never
+// converts legacy YAML to JSONL or removes workflow_state.yaml. JSONL, when
+// present, is authoritative and is materialized from events (layering any
+// workflow_state.yaml on top). Legacy progress.yaml is loaded directly rather
+// than round-tripped through synthetic events, because accepted legacy entries
+// may omit started_at/completed_at and the synthetic-event path emits nothing
+// for those, which would silently drop completed/in-progress tasks. Use for
+// orientation-only callers (walk/inspect/stats).
+func (s *Store) LoadReadOnly(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled")
+	}
+
+	if fileExists(s.eventsFilePath()) {
+		events, err := s.parseEventsFile(ctx)
+		if err != nil {
+			return err
+		}
+		if fileExists(s.workflowYAMLPath()) {
+			workflowEvents, err := s.readonlyWorkflowEvents(ctx)
+			if err != nil {
+				return err
+			}
+			events = append(events, workflowEvents...)
+		}
+		s.materializeFrom(events)
+		return nil
+	}
+
+	if fileExists(s.legacyFilePath()) {
+		if err := s.loadLegacyYAML(ctx); err != nil {
+			return errors.Wrap(err, "loading legacy progress format")
+		}
+	} else {
+		s.initializeEmptyState()
+	}
+
+	if fileExists(s.workflowYAMLPath()) {
+		festState, err := s.parseWorkflowYAML()
+		if err != nil {
+			return err
+		}
+		s.workflowData = festState
+	} else if s.workflowData == nil {
+		s.workflowData = wf.NewFestivalWorkflowState()
+	}
+
+	return nil
+}
+
+func (s *Store) readonlyWorkflowEvents(ctx context.Context) ([]ProgressEvent, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, errors.Wrap(err, "context cancelled")
+	}
+	festState, err := s.parseWorkflowYAML()
+	if err != nil {
+		return nil, err
+	}
+	return generateWorkflowEventsFromYAML(festState), nil
+}
+
 // fileExists checks if a file exists and is not a directory
 func fileExists(path string) bool {
 	info, err := os.Stat(path)
@@ -592,34 +653,14 @@ func (s *Store) migrateWorkflowYAML(ctx context.Context) error {
 		return nil
 	}
 
-	// Read and parse the YAML file
-	data, err := os.ReadFile(yamlPath)
+	festState, err := s.parseWorkflowYAML()
 	if err != nil {
-		return errors.IO("reading workflow state YAML", err).
-			WithField("path", yamlPath)
+		return err
 	}
 
-	var festState wf.FestivalWorkflowState
-	if err := yaml.Unmarshal(data, &festState); err != nil {
-		return errors.Parse("parsing workflow state YAML", err).
-			WithField("path", yamlPath)
-	}
-
-	// Ensure maps are initialized
-	if festState.Phases == nil {
-		festState.Phases = make(map[string]*wf.WorkflowState)
-	}
-	for _, phaseState := range festState.Phases {
-		if phaseState.Steps == nil {
-			phaseState.Steps = make(map[int]*wf.StepState)
-		}
-	}
-
-	// Generate synthetic events from the YAML state
-	syntheticEvents := generateWorkflowEventsFromYAML(&festState)
+	syntheticEvents := generateWorkflowEventsFromYAML(festState)
 
 	if len(syntheticEvents) > 0 {
-		// Append synthetic events to JSONL
 		ptrs := make([]*ProgressEvent, len(syntheticEvents))
 		for i := range syntheticEvents {
 			ptrs[i] = &syntheticEvents[i]
@@ -638,4 +679,31 @@ func (s *Store) migrateWorkflowYAML(ctx context.Context) error {
 	_ = os.Remove(yamlPath)
 
 	return nil
+}
+
+func (s *Store) parseWorkflowYAML() (*wf.FestivalWorkflowState, error) {
+	yamlPath := s.workflowYAMLPath()
+
+	data, err := os.ReadFile(yamlPath)
+	if err != nil {
+		return nil, errors.IO("reading workflow state YAML", err).
+			WithField("path", yamlPath)
+	}
+
+	var festState wf.FestivalWorkflowState
+	if err := yaml.Unmarshal(data, &festState); err != nil {
+		return nil, errors.Parse("parsing workflow state YAML", err).
+			WithField("path", yamlPath)
+	}
+
+	if festState.Phases == nil {
+		festState.Phases = make(map[string]*wf.WorkflowState)
+	}
+	for _, phaseState := range festState.Phases {
+		if phaseState.Steps == nil {
+			phaseState.Steps = make(map[int]*wf.StepState)
+		}
+	}
+
+	return &festState, nil
 }

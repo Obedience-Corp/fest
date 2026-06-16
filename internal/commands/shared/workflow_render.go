@@ -130,9 +130,10 @@ func LoadWorkflowStepsForPhase(ctx context.Context, festivalPath, phasePath stri
 		return []WorkflowStepView{}, nil
 	}
 
-	// Load workflow state from Store (JSONL-backed)
+	// Load workflow state read-only: rendering steps for display must never
+	// migrate or rewrite the festival's .fest/ files as a side effect.
 	store := progress.NewStore(festivalPath)
-	if err := store.Load(ctx); err != nil {
+	if err := store.LoadReadOnly(ctx); err != nil {
 		return nil, fmt.Errorf("loading progress store: %w", err)
 	}
 	state, ok := store.WorkflowPhaseState(phaseName)
@@ -227,7 +228,7 @@ func LoadGateStepsForPhase(ctx context.Context, festivalPath, phasePath string) 
 	}
 
 	store := progress.NewStore(festivalPath)
-	if err := store.Load(ctx); err != nil {
+	if err := store.LoadReadOnly(ctx); err != nil {
 		return nil, fmt.Errorf("loading progress store: %w", err)
 	}
 	state, ok := store.GatePhaseState(phaseName)
