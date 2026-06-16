@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
-	"github.com/Obedience-Corp/fest/embedded/templates/agent"
+	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 )
 
@@ -123,7 +122,7 @@ func (n *Navigator) Initialize(ctx context.Context) error {
 
 	steps, err := n.parser.Parse(ctx, docPath)
 	if err != nil {
-		return fmt.Errorf("parsing %s: %w", n.filename(), err)
+		return errors.Parse("parsing workflow document", err).WithField("file", n.filename())
 	}
 
 	n.steps = steps
@@ -135,13 +134,13 @@ func (n *Navigator) Initialize(ctx context.Context) error {
 		// Use JSONL-backed store
 		state, err = LoadStateFromStore(n.store, sk)
 		if err != nil {
-			return fmt.Errorf("loading state from store: %w", err)
+			return errors.Wrap(err, "loading state from store")
 		}
 	} else {
 		// Fall back to YAML file
 		state, err = LoadState(ctx, n.festivalPath, sk)
 		if err != nil {
-			return fmt.Errorf("loading state: %w", err)
+			return errors.Wrap(err, "loading state")
 		}
 	}
 
@@ -155,7 +154,7 @@ func (n *Navigator) Initialize(ctx context.Context) error {
 			// Also emit step_start for step 1
 			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, 1))
 			if err := n.store.SaveEvents(ctx); err != nil {
-				return fmt.Errorf("saving init events: %w", err)
+				return errors.Wrap(err, "saving init events")
 			}
 		}
 	}
@@ -247,358 +246,6 @@ func (n *Navigator) getContextFiles() []string {
 	}
 
 	return files
-}
-
-// MarkComplete marks a step as complete.
-func (n *Navigator) MarkComplete(ctx context.Context, stepID string) error {
-	if err := n.EnsureInitialized(); err != nil {
-		return err
-	}
-
-	if ctx != nil {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-	}
-
-	currentStep := n.workflowState.CurrentStep
-	n.workflowState.CompleteCurrentStep()
-
-	sk := n.stateKey()
-	if n.store != nil {
-		n.store.QueueWorkflowEvents(EmitStepDoneEvents(sk, currentStep))
-		if n.workflowState.CurrentStep < n.workflowState.TotalSteps {
-			_ = n.workflowState.Advance()
-			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
-			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, n.workflowState.CurrentStep))
-		}
-		return n.store.SaveEvents(ctx)
-	}
-
-	if n.workflowState.CurrentStep < n.workflowState.TotalSteps {
-		_ = n.workflowState.Advance()
-	}
-	return n.workflowState.Save(ctx, n.festivalPath, sk)
-}
-
-// MarkSkipped marks a step as skipped.
-func (n *Navigator) MarkSkipped(ctx context.Context, stepID string) error {
-	if err := n.EnsureInitialized(); err != nil {
-		return err
-	}
-	if err := n.validateCurrentStepID(stepID); err != nil {
-		return err
-	}
-	return n.SkipCurrentStep(ctx, StepStatusSkipped, "")
-}
-
-func (n *Navigator) validateCurrentStepID(stepID string) error {
-	if strings.TrimSpace(stepID) == "" {
-		return nil
-	}
-	expected := fmt.Sprintf("step_%d", n.workflowState.CurrentStep)
-	if stepID != expected {
-		return fmt.Errorf("step ID mismatch: expected %s, got %s", expected, stepID)
-	}
-	return nil
-}
-
-// SkipCurrentStep marks the current step as skipped/completed with an audit reason.
-func (n *Navigator) SkipCurrentStep(ctx context.Context, status StepStatus, reason string) error {
-	if err := n.EnsureInitialized(); err != nil {
-		return err
-	}
-
-	if ctx != nil {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-	}
-
-	if status != StepStatusSkipped && status != StepStatusCompleted {
-		return fmt.Errorf("invalid terminal status for skip: %s", status)
-	}
-
-	currentStep := n.workflowState.CurrentStep
-	n.workflowState.MarkCurrentStep(status, reason)
-
-	sk := n.stateKey()
-	if n.store != nil {
-		if status == StepStatusSkipped {
-			n.store.QueueWorkflowEvents(EmitStepSkipEvents(sk, currentStep, reason))
-		} else {
-			n.store.QueueWorkflowEvents(EmitStepDoneWithFeedbackEvents(sk, currentStep, reason))
-		}
-		if n.workflowState.CurrentStep < n.workflowState.TotalSteps {
-			_ = n.workflowState.Advance()
-			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
-			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, n.workflowState.CurrentStep))
-		}
-		return n.store.SaveEvents(ctx)
-	}
-
-	if n.workflowState.CurrentStep < n.workflowState.TotalSteps {
-		_ = n.workflowState.Advance()
-	}
-	return n.workflowState.Save(ctx, n.festivalPath, sk)
-}
-
-// MarkFailed marks a step as failed.
-func (n *Navigator) MarkFailed(ctx context.Context, stepID string) error {
-	if err := n.EnsureInitialized(); err != nil {
-		return err
-	}
-
-	if ctx != nil {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-	}
-
-	n.workflowState.Reject("step failed")
-
-	sk := n.stateKey()
-	if n.store != nil {
-		n.store.QueueWorkflowEvents(EmitStepBlockEvents(sk, n.workflowState.CurrentStep, "step failed"))
-		return n.store.SaveEvents(ctx)
-	}
-	return n.workflowState.Save(ctx, n.festivalPath, sk)
-}
-
-// Advance moves to the next step.
-func (n *Navigator) Advance(ctx context.Context) error {
-	if err := n.EnsureInitialized(); err != nil {
-		return err
-	}
-
-	if ctx != nil {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-	}
-
-	if n.workflowState.IsComplete() {
-		return guidance.ErrAlreadyComplete
-	}
-
-	currentStep := n.workflowState.CurrentStep
-	n.workflowState.CompleteCurrentStep()
-
-	sk := n.stateKey()
-	if n.store != nil {
-		n.store.QueueWorkflowEvents(EmitStepDoneEvents(sk, currentStep))
-		if n.workflowState.CurrentStep < n.workflowState.TotalSteps {
-			if err := n.workflowState.Advance(); err != nil {
-				return err
-			}
-			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
-			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, n.workflowState.CurrentStep))
-		}
-		return n.store.SaveEvents(ctx)
-	}
-
-	if n.workflowState.CurrentStep < n.workflowState.TotalSteps {
-		if err := n.workflowState.Advance(); err != nil {
-			return err
-		}
-	}
-	return n.workflowState.Save(ctx, n.festivalPath, sk)
-}
-
-// GetProgress returns workflow progress.
-func (n *Navigator) GetProgress(ctx context.Context) (*guidance.Progress, error) {
-	if err := n.EnsureInitialized(); err != nil {
-		return nil, err
-	}
-
-	if ctx != nil {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-	}
-
-	progress := guidance.NewProgress(n.mode)
-	progress.Total = n.workflowState.TotalSteps
-	progress.Completed = n.workflowState.CompletedCount()
-	progress.Pending = progress.Total - progress.Completed
-	progress.Calculate()
-
-	if n.workflowState.CurrentStep >= 1 && n.workflowState.CurrentStep <= len(n.steps) {
-		step := n.steps[n.workflowState.CurrentStep-1]
-		progress.CurrentTask = step.Name
-	}
-
-	return progress, nil
-}
-
-// FormatInstructions generates agent-friendly workflow instructions using templates.
-func (n *Navigator) FormatInstructions(ctx context.Context) (string, error) {
-	if err := n.EnsureInitialized(); err != nil {
-		return "", err
-	}
-
-	if ctx != nil {
-		if err := ctx.Err(); err != nil {
-			return "", err
-		}
-	}
-
-	// Check if complete
-	if n.workflowState.IsComplete() {
-		return n.formatComplete(), nil
-	}
-
-	// No steps
-	if len(n.steps) == 0 {
-		return "No workflow steps defined.\n", nil
-	}
-
-	currentStepNum := n.workflowState.CurrentStep
-	if currentStepNum < 1 || currentStepNum > len(n.steps) {
-		return "Invalid workflow state.\n", nil
-	}
-
-	step := n.steps[currentStepNum-1]
-	stepState := n.workflowState.GetStepState(currentStepNum)
-
-	// Check if this is a blocking step that's currently in progress (awaiting user action)
-	// A blocking checkpoint means the user needs to approve before advancing
-	if step.Checkpoint.IsBlocking() && stepState.Status == StepStatusInProgress {
-		return n.formatCheckpoint(step)
-	}
-
-	return n.formatStep(step, stepState)
-}
-
-// displayPhaseType returns the uppercased phase type for use in rendered headers.
-// It prefers the context's PhaseType (e.g. "ingest", "planning") over the mode
-// string, which is always "workflow" for workflow-based phases and gives no
-// useful identity when multiple workflow phases appear in sequence.
-func (n *Navigator) displayPhaseType() string {
-	if n.Ctx != nil && n.Ctx.PhaseType != "" {
-		return strings.ToUpper(n.Ctx.PhaseType)
-	}
-	return strings.ToUpper(string(n.mode))
-}
-
-// formatComplete renders the completion message using templates.
-func (n *Navigator) formatComplete() string {
-	type stepSummary struct {
-		Number int
-		Name   string
-	}
-
-	steps := make([]stepSummary, len(n.steps))
-	for i, step := range n.steps {
-		steps[i] = stepSummary{
-			Number: step.Number,
-			Name:   step.Name,
-		}
-	}
-
-	data := map[string]any{
-		"PhaseType":  n.displayPhaseType(),
-		"TotalSteps": n.workflowState.TotalSteps,
-		"Steps":      steps,
-	}
-
-	output, err := agent.Render("workflow/complete", data)
-	if err != nil {
-		// Fallback to simple message on error
-		return "# Workflow Complete\n\nAll steps completed. Run `fest status` to view progress.\n"
-	}
-	return output
-}
-
-// formatCheckpoint renders the checkpoint template for blocking steps.
-func (n *Navigator) formatCheckpoint(step WorkflowStep) (string, error) {
-	data := map[string]any{
-		"InstructionHeader": guidance.InstructionHeader,
-		"StepNumber":        step.Number,
-		"StepName":          step.Name,
-	}
-
-	return agent.Render("workflow/checkpoint", data)
-}
-
-// formatStep renders the step template for the current workflow step.
-func (n *Navigator) formatStep(step WorkflowStep, stepState *StepState) (string, error) {
-	status := string(stepState.Status)
-	feedback := stepState.Feedback
-
-	isGate := n.docFilename == "GATES.md"
-	phaseType := n.displayPhaseType()
-	if isGate {
-		phaseType = phaseType + " PHASE GATE"
-	}
-
-	data := map[string]any{
-		"InstructionHeader": guidance.InstructionHeader,
-		"PhaseType":         phaseType,
-		"PhaseName":         n.Ctx.PhaseName,
-		"StepNumber":        step.Number,
-		"TotalSteps":        n.workflowState.TotalSteps,
-		"StepName":          step.Name,
-		"Goal":              step.Goal,
-		"Actions":           step.Actions,
-		"Output":            step.Output,
-		"IsBlocking":        step.Checkpoint.IsBlocking(),
-		"Status":            status,
-		"Feedback":          feedback,
-		"CurrentStep":       n.workflowState.CurrentStep,
-		"IsGate":            isGate,
-	}
-
-	return agent.Render("workflow/step", data)
-}
-
-// FormatProgress renders the progress template showing workflow status.
-func (n *Navigator) FormatProgress(ctx context.Context) (string, error) {
-	if err := n.EnsureInitialized(); err != nil {
-		return "", err
-	}
-
-	if ctx != nil {
-		if err := ctx.Err(); err != nil {
-			return "", err
-		}
-	}
-
-	type stepInfo struct {
-		Number     int
-		Name       string
-		Status     string
-		IsBlocking bool
-	}
-
-	steps := make([]stepInfo, len(n.steps))
-	for i, step := range n.steps {
-		state := n.workflowState.GetStepState(step.Number)
-		steps[i] = stepInfo{
-			Number:     step.Number,
-			Name:       step.Name,
-			Status:     string(state.Status),
-			IsBlocking: step.Checkpoint.IsBlocking(),
-		}
-	}
-
-	currentStatus := ""
-	if n.workflowState.CurrentStep >= 1 && n.workflowState.CurrentStep <= len(n.steps) {
-		state := n.workflowState.GetStepState(n.workflowState.CurrentStep)
-		currentStatus = string(state.Status)
-	}
-
-	data := map[string]any{
-		"PhaseName":     n.Ctx.PhaseName,
-		"PhaseType":     n.displayPhaseType(),
-		"Completed":     n.workflowState.CompletedCount(),
-		"Total":         n.workflowState.TotalSteps,
-		"CurrentStep":   n.workflowState.CurrentStep,
-		"CurrentStatus": currentStatus,
-		"Steps":         steps,
-	}
-
-	return agent.Render("workflow/progress", data)
 }
 
 // GetContextFiles returns context files.
