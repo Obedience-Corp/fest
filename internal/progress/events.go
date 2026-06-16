@@ -68,57 +68,59 @@ type ProgressEvent struct {
 
 // loadFromEvents reads the JSONL file and materializes current state.
 func (s *Store) loadFromEvents(ctx context.Context) error {
+	events, err := s.parseEventsFile(ctx)
+	if err != nil {
+		return err
+	}
+	s.materializeFrom(events)
+	return nil
+}
+
+func (s *Store) parseEventsFile(ctx context.Context) ([]ProgressEvent, error) {
 	if err := ctx.Err(); err != nil {
-		return errors.Wrap(err, "context cancelled")
+		return nil, errors.Wrap(err, "context cancelled")
 	}
 
 	eventsPath := s.eventsFilePath()
 
 	f, err := os.Open(eventsPath)
 	if err != nil {
-		return errors.IO("opening events file", err).
+		return nil, errors.IO("opening events file", err).
 			WithField("path", eventsPath)
 	}
 	defer func() { _ = f.Close() }()
 
 	var events []ProgressEvent
 	scanner := bufio.NewScanner(f)
-	lineNum := 0
 	for scanner.Scan() {
-		lineNum++
 		line := scanner.Bytes()
 		if len(line) == 0 {
-			continue // Skip empty lines
+			continue
 		}
 
 		var event ProgressEvent
 		if err := json.Unmarshal(line, &event); err != nil {
-			// Log warning but continue - don't fail on single bad line
-			// This makes the format resilient to partial writes
 			continue
 		}
 		events = append(events, event)
 	}
 
 	if err := scanner.Err(); err != nil {
-		return errors.IO("reading events file", err).
+		return nil, errors.IO("reading events file", err).
 			WithField("path", eventsPath)
 	}
 
-	// Materialize state from events
+	return events, nil
+}
+
+func (s *Store) materializeFrom(events []ProgressEvent) {
 	s.data = &FestivalProgressData{
 		Festival:  filepath.Base(s.festivalPath),
 		UpdatedAt: time.Now().UTC(),
 		Tasks:     materializeState(events),
 	}
-
-	// Initialize TimeMetrics from events
 	s.data.TimeMetrics = materializeTimeMetrics(events, s.data.Tasks)
-
-	// Materialize workflow state from events
 	s.workflowData = materializeWorkflowState(events)
-
-	return nil
 }
 
 // materializeState builds current task state from a sequence of events.

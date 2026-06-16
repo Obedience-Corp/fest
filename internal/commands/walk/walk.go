@@ -66,7 +66,7 @@ func NewWalkCommand() *cobra.Command {
 
 Shows what the festival is, where it is, its current status and progress,
 the next task, blocked tasks, active quality gates, and any warnings.
-May transparently migrate legacy progress formats on first access.
+This is a read-only orientation command; it never mutates festival state.
 
 Useful for quickly orienting inside a festival before continuing work,
 especially for rituals where the template and active run are distinct.
@@ -133,7 +133,7 @@ func runWalk(ctx context.Context, opts *walkOptions) error {
 	view.Goal = loadGoal(festivalPath)
 	view.Warnings = append(view.Warnings, kindWarnings(view.Kind, festival)...)
 
-	mgr, mgrErr := progress.NewManager(ctx, festivalPath)
+	mgr, mgrErr := progress.NewManagerReadOnly(ctx, festivalPath)
 	if mgrErr == nil {
 		festProgress, progressErr := mgr.GetFestivalProgress(ctx, festivalPath)
 		if progressErr == nil && festProgress.Overall != nil {
@@ -243,7 +243,7 @@ func resolveNext(ctx context.Context, festivalPath, cwd string) string {
 		return ""
 	}
 
-	mgr, mgrErr := progress.NewManager(ctx, festivalPath)
+	mgr, mgrErr := progress.NewManagerReadOnly(ctx, festivalPath)
 
 	for _, entry := range entries {
 		if !entry.IsDir() || !hasNumericPrefix(entry.Name()) {

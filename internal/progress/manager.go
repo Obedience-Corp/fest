@@ -44,6 +44,21 @@ func NewManagerWithGate(ctx context.Context, festivalPath string, gate Gate) (*M
 	return &Manager{store: store, gate: gate}, nil
 }
 
+// NewManagerReadOnly creates a progress manager that never mutates disk while
+// loading: legacy progress and workflow YAML are materialized in memory rather
+// than migrated. Use for orientation-only callers such as walk/inspect.
+func NewManagerReadOnly(ctx context.Context, festivalPath string) (*Manager, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, errors.Wrap(err, "context cancelled")
+	}
+
+	store := NewStore(festivalPath)
+	if err := store.LoadReadOnly(ctx); err != nil {
+		return nil, errors.Wrap(err, "loading progress data")
+	}
+	return &Manager{store: store, gate: NoopGate{}}, nil
+}
+
 // UpdateProgress updates the progress percentage for a task
 func (m *Manager) UpdateProgress(ctx context.Context, taskID string, progress int) error {
 	if err := ctx.Err(); err != nil {
