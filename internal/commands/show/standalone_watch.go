@@ -80,9 +80,9 @@ func (s *standaloneWatchSession) render(ctx context.Context, polling bool) error
 		return errors.NotFound("standalone workflow").WithField("path", s.startDir)
 	}
 
-	clearScreen()
+	clearScreen(os.Stdout)
 	fmt.Print(formatStandaloneWorkflowProgress(info, standaloneRenderOptionsFromWatch(s.opts)))
-	printWatchFooter(polling, false)
+	printWatchFooter(os.Stdout, polling, false)
 	s.addWatchPaths(info)
 	return nil
 }

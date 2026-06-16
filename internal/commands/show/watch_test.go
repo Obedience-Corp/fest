@@ -1,0 +1,129 @@
+package show
+
+import (
+	"bytes"
+	"io"
+	"strings"
+	"testing"
+)
+
+type limitedWriter struct {
+	limit int
+	buf   bytes.Buffer
+}
+
+func (l *limitedWriter) Write(p []byte) (int, error) {
+	n := len(p)
+	if n > l.limit {
+		n = l.limit
+	}
+	l.buf.Write(p[:n])
+	if n < len(p) {
+		return n, io.ErrShortWrite
+	}
+	return n, nil
+}
+
+func TestCRLFWriter_TranslatesBareNewlines(t *testing.T) {
+	var buf bytes.Buffer
+	w := crlfWriter{w: &buf}
+
+	in := "line1\nline2\n"
+	n, err := w.Write([]byte(in))
+	if err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	if n != len(in) {
+		t.Errorf("Write returned %d, want original length %d", n, len(in))
+	}
+	if got, want := buf.String(), "line1\r\nline2\r\n"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestCRLFWriter_DoesNotDoubleExistingCRLF(t *testing.T) {
+	var buf bytes.Buffer
+	w := crlfWriter{w: &buf}
+
+	if _, err := w.Write([]byte("a\r\nb\n")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	if got, want := buf.String(), "a\r\nb\r\n"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestCRLFWriter_LeavesEscapeSequencesIntact(t *testing.T) {
+	var buf bytes.Buffer
+	w := crlfWriter{w: &buf}
+
+	if _, err := w.Write([]byte("\033[H\033[2J")); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	if got, want := buf.String(), "\033[H\033[2J"; got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+func TestWatchWriter_CycleModeWrapsCRLF(t *testing.T) {
+	if _, ok := watchWriter(false).(crlfWriter); ok {
+		t.Error("watchWriter(false) should not translate newlines")
+	}
+	if _, ok := watchWriter(true).(crlfWriter); !ok {
+		t.Error("watchWriter(true) should translate newlines (raw mode)")
+	}
+}
+
+func TestWatchErrWriter_CycleModeWrapsCRLF(t *testing.T) {
+	if _, ok := watchErrWriter(false).(crlfWriter); ok {
+		t.Error("watchErrWriter(false) should not translate newlines")
+	}
+	if _, ok := watchErrWriter(true).(crlfWriter); !ok {
+		t.Error("watchErrWriter(true) should translate newlines (raw mode)")
+	}
+}
+
+func TestCRLFWriter_PreservesPartialWriteCount(t *testing.T) {
+	tests := []struct {
+		name    string
+		in      string
+		limit   int
+		wantN   int
+		wantErr bool
+	}{
+		{"stops mid-crlf pair", "ab\ncd", 3, 2, true},
+		{"stops after translated newline", "ab\ncd", 4, 3, true},
+		{"full write", "ab\ncd", 6, 5, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			lw := &limitedWriter{limit: tt.limit}
+			n, err := crlfWriter{w: lw}.Write([]byte(tt.in))
+			if n != tt.wantN {
+				t.Errorf("Write returned n=%d, want %d", n, tt.wantN)
+			}
+			if tt.wantErr && err == nil {
+				t.Error("expected a short-write error, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			if n < 0 || n > len(tt.in) {
+				t.Errorf("n=%d violates io.Writer contract for input length %d", n, len(tt.in))
+			}
+		})
+	}
+}
+
+func TestPrintWatchFooter_CycleModeEmitsCRLF(t *testing.T) {
+	var buf bytes.Buffer
+	printWatchFooter(crlfWriter{w: &buf}, false, true)
+
+	out := buf.String()
+	if !strings.Contains(out, "\r\n") {
+		t.Errorf("cycle-mode footer should use CRLF line endings, got %q", out)
+	}
+	if strings.Contains(strings.ReplaceAll(out, "\r\n", ""), "\n") {
+		t.Errorf("cycle-mode footer has a bare \\n (cursor would not return to column 0): %q", out)
+	}
+}
