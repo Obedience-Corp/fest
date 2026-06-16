@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"os"
+	"time"
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -17,6 +18,8 @@ const (
 	cyclePrev
 	cycleQuit
 )
+
+const cycleKeyPollInterval = 150 * time.Millisecond
 
 func runWatchCycle(ctx context.Context, paths []string, startIndex int, opts options, deps commandDeps) error {
 	if len(paths) == 0 {
@@ -76,7 +79,7 @@ func runWatchCycle(ctx context.Context, paths []string, startIndex int, opts opt
 			watchDone <- deps.watch(watchCtx, festival, cycleWatchOptions(opts))
 		}()
 
-		dir := readCycleKey(ctx, os.Stdin, cancelWatch)
+		dir := readCycleKey(ctx, os.Stdin)
 		cancelWatch()
 		watchErr := <-watchDone
 		if watchErr != nil && watchCtx.Err() == nil {
@@ -114,7 +117,55 @@ func cycleWatchOptions(opts options) show.WatchOptions {
 	return wo
 }
 
-func readCycleKey(ctx context.Context, r io.Reader, cancelWatch context.CancelFunc) cycleDirection {
+type deadlineReader interface {
+	io.Reader
+	SetReadDeadline(t time.Time) error
+}
+
+func readCycleKey(ctx context.Context, r io.Reader) cycleDirection {
+	if dr, ok := r.(deadlineReader); ok {
+		if dir, supported := readCycleKeyWithDeadline(ctx, dr); supported {
+			return dir
+		}
+	}
+	return readCycleKeyBlocking(ctx, r)
+}
+
+func readCycleKeyWithDeadline(ctx context.Context, r deadlineReader) (cycleDirection, bool) {
+	deadlineSet := false
+	defer func() {
+		if deadlineSet {
+			_ = r.SetReadDeadline(time.Time{})
+		}
+	}()
+
+	buf := make([]byte, 3)
+	for {
+		if ctx.Err() != nil {
+			return cycleQuit, true
+		}
+		if err := r.SetReadDeadline(time.Now().Add(cycleKeyPollInterval)); err != nil {
+			return 0, false
+		}
+		deadlineSet = true
+
+		n, err := r.Read(buf)
+		if err != nil {
+			if os.IsTimeout(err) {
+				continue
+			}
+			return cycleQuit, true
+		}
+		if n == 0 {
+			return cycleQuit, true
+		}
+		if dir, ok := classifyCycleKey(buf[:n]); ok {
+			return dir, true
+		}
+	}
+}
+
+func readCycleKeyBlocking(ctx context.Context, r io.Reader) cycleDirection {
 	buf := make([]byte, 3)
 	keyCh := make(chan cycleDirection, 1)
 
@@ -125,31 +176,35 @@ func readCycleKey(ctx context.Context, r io.Reader, cancelWatch context.CancelFu
 				keyCh <- cycleQuit
 				return
 			}
-			b := buf[:n]
-			if b[0] == 0x03 {
-				keyCh <- cycleQuit
+			if dir, ok := classifyCycleKey(buf[:n]); ok {
+				keyCh <- dir
 				return
-			}
-			if n >= 3 && b[0] == 0x1b && b[1] == '[' {
-				switch b[2] {
-				case 'C':
-					keyCh <- cycleNext
-					return
-				case 'D':
-					keyCh <- cyclePrev
-					return
-				}
 			}
 		}
 	}()
 
 	select {
 	case dir := <-keyCh:
-		if dir == cycleQuit {
-			cancelWatch()
-		}
 		return dir
 	case <-ctx.Done():
 		return cycleQuit
 	}
+}
+
+func classifyCycleKey(b []byte) (cycleDirection, bool) {
+	if len(b) == 0 {
+		return 0, false
+	}
+	if b[0] == 0x03 {
+		return cycleQuit, true
+	}
+	if len(b) >= 3 && b[0] == 0x1b && b[1] == '[' {
+		switch b[2] {
+		case 'C':
+			return cycleNext, true
+		case 'D':
+			return cyclePrev, true
+		}
+	}
+	return 0, false
 }
