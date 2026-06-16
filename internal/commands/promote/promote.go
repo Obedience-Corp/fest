@@ -394,12 +394,9 @@ func checkChainDependencies(ctx context.Context, festival *show.FestivalInfo) (b
 	}
 	festivalID := festCfg.Metadata.ID
 
-	// Find festivals root.
-	cwd, err := os.Getwd()
-	if err != nil {
-		return false, ""
-	}
-	root, err := tpl.FindFestivalsRoot(cwd)
+	// Anchor the festivals root on the festival being promoted, not process cwd:
+	// selector and picker resolution can promote from outside festivals/.
+	root, err := tpl.FindFestivalsRoot(festival.Path)
 	if err != nil {
 		return false, ""
 	}

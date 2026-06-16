@@ -215,6 +215,53 @@ func TestCheckChainDependencies_IncompleteUpstreamStillBlocks(t *testing.T) {
 	}
 }
 
+func TestCheckChainDependencies_AnchorsOnFestivalNotCwd(t *testing.T) {
+	fa10 := setupChainGateCampaign(t, "active", "active")
+	root := filepath.Dir(filepath.Dir(filepath.Dir(fa10)))
+	t.Chdir(root)
+
+	festival := &show.FestivalInfo{Name: "onboarding-parity", Path: fa10, Status: "ready"}
+	blocked, msg := checkChainDependencies(t.Context(), festival)
+	if !blocked {
+		t.Fatal("expected chain gate to block when checked from outside festivals/")
+	}
+	if !strings.Contains(msg, "FA0009") {
+		t.Fatalf("block message should name the incomplete upstream, got: %s", msg)
+	}
+}
+
+func TestRunPromote_SelectorReadyToActiveBlockedByChainFromCampaignRoot(t *testing.T) {
+	root := t.TempDir()
+	festivals := filepath.Join(root, "festivals")
+	for _, dir := range []string{
+		filepath.Join(root, ".campaign"),
+		filepath.Join(festivals, ".festival"),
+		filepath.Join(festivals, "chains"),
+	} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeGateChain(t, filepath.Join(festivals, "chains", "onboarding-readiness-CH0001.yaml"))
+	fa10 := filepath.Join(festivals, "ready", "onboarding-parity-FA0010")
+	writeGateFestival(t, fa10, "FA0010", "ready")
+	writeGateFestival(t, filepath.Join(festivals, "active", "audit-remediation-FA0009"), "FA0009", "active")
+	t.Setenv("CAMP_ROOT", root)
+	t.Chdir(root)
+
+	if err := runPromote(t.Context(), &promoteOptions{noCommit: true}, "FA0010"); err != nil {
+		t.Fatalf("runPromote: %v", err)
+	}
+
+	if _, err := os.Stat(fa10); err != nil {
+		t.Fatalf("FA0010 should remain in ready (chain gate must block), got stat err: %v", err)
+	}
+	promoted := filepath.Join(festivals, "active", "onboarding-parity-FA0010")
+	if _, err := os.Stat(promoted); !os.IsNotExist(err) {
+		t.Fatal("FA0010 must not be promoted to active while hard upstream FA0009 is incomplete")
+	}
+}
+
 func writePromoteFestival(t *testing.T, dir, festivalID, status string) {
 	t.Helper()
 	if err := os.MkdirAll(dir, 0o755); err != nil {
