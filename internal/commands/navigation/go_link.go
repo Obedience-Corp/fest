@@ -165,6 +165,15 @@ func linkFestivalToProject(ctx context.Context, cwd, targetPath string) error {
 	// Get the festival path for reverse navigation
 	festivalPath := loc.Festival.Path
 
+	if existing, existingFestivalPath, hasConflict := nav.ProjectConflict(festivalName, projectPath); hasConflict {
+		if isActiveFestivalPath(existingFestivalPath) {
+			return festErrors.Validation("project is already linked to an active festival").
+				WithField("existing_festival", existing).
+				WithField("project", projectPath).
+				WithField("hint", "use 'fest link --force' to override, or run 'fest unlink' from the active festival first")
+		}
+	}
+
 	// Set the bidirectional link with festival path
 	nav.SetLinkWithPath(festivalName, projectPath, festivalPath)
 
