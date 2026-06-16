@@ -12,9 +12,6 @@ import (
 type cycleDirection int
 
 const (
-	// cycleNone is the zero value: not a navigable direction. It is returned
-	// alongside ok=false for unrecognized input and must never be treated as a
-	// movement; keeping it distinct from cycleNext avoids a 0-aliases-next trap.
 	cycleNone cycleDirection = iota
 	cycleNext
 	cyclePrev
@@ -117,8 +114,6 @@ func cycleWatchOptions(opts options) show.WatchOptions {
 	return wo
 }
 
-// classifyCycleKey maps a raw key sequence to a cycle direction. It returns
-// (cycleNone, false) for any input that is not a recognized cycle key.
 func classifyCycleKey(b []byte) (cycleDirection, bool) {
 	if len(b) == 0 {
 		return cycleNone, false

@@ -62,7 +62,7 @@ func TestReadCycleKey_EOFReturnsQuit(t *testing.T) {
 	r, w := newCyclePipe(t)
 	defer func() { _ = r.Close() }()
 
-	_ = w.Close() // closing the write end signals EOF/hangup on the read end
+	_ = w.Close()
 	if dir := readCycleKey(context.Background(), r); dir != cycleQuit {
 		t.Errorf("readCycleKey on EOF = %v, want cycleQuit", dir)
 	}
@@ -80,11 +80,6 @@ func TestReadCycleKey_ContextAlreadyCancelled(t *testing.T) {
 	}
 }
 
-// TestReadCycleKey_CancelReturnsQuitNoLeak is the regression test for the
-// goroutine leak: while blocked waiting for a key, a cancelled context must
-// make readCycleKey return cycleQuit promptly AND leave no goroutine parked on
-// the terminal. The earlier SetReadDeadline approach no-oped on macOS TTYs and
-// fell back to a goroutine that stayed blocked on Read until the next keystroke.
 func TestReadCycleKey_CancelReturnsQuitNoLeak(t *testing.T) {
 	r, w := newCyclePipe(t)
 	defer func() { _ = r.Close() }()
@@ -97,7 +92,7 @@ func TestReadCycleKey_CancelReturnsQuitNoLeak(t *testing.T) {
 	done := make(chan cycleDirection, 1)
 	go func() { done <- readCycleKey(ctx, r) }()
 
-	time.Sleep(50 * time.Millisecond) // let readCycleKey enter poll
+	time.Sleep(50 * time.Millisecond)
 	cancel()
 
 	select {

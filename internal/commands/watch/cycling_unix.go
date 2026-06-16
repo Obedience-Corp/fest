@@ -9,13 +9,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// readCycleKey blocks until the user presses a recognized cycle key
-// (→ next, ← previous, q/Ctrl-C quit) or ctx is cancelled, whichever comes
-// first. It polls the terminal fd alongside a self-pipe that is closed when
-// ctx is done, so a cancelled context wakes the poll immediately and leaves no
-// reader blocked on the terminal. Returns cycleQuit on cancellation, EOF, or
-// terminal hangup. This poll-based path is leak-free on every unix platform,
-// including macOS TTYs (which do not honor SetReadDeadline).
 func readCycleKey(ctx context.Context, f *os.File) cycleDirection {
 	fd := int(f.Fd())
 
@@ -51,7 +44,6 @@ func readCycleKey(ctx context.Context, f *os.File) cycleDirection {
 			return cycleQuit
 		}
 		if fds[1].Revents != 0 {
-			// self-pipe closed: ctx was cancelled.
 			return cycleQuit
 		}
 		if fds[0].Revents&unix.POLLIN != 0 {
@@ -76,11 +68,6 @@ func readCycleKey(ctx context.Context, f *os.File) cycleDirection {
 	}
 }
 
-// readCycleKeyBlocking is the degraded path used only when self-pipe creation
-// fails (e.g. the process is out of file descriptors). It reads in a goroutine
-// and selects on ctx; the goroutine may remain blocked on its final read until
-// the next keystroke, but this path is only reached under fd exhaustion, where
-// a single parked goroutine is not the pressing concern.
 func readCycleKeyBlocking(ctx context.Context, f *os.File) cycleDirection {
 	keyCh := make(chan cycleDirection, 1)
 	go func() {
