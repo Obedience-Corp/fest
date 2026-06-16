@@ -149,3 +149,37 @@ func TestLoadReadOnly_MatchesMigratingLoad(t *testing.T) {
 		t.Error("read-only load must preserve workflow_state.yaml")
 	}
 }
+
+func TestLoadReadOnly_PreservesTimestampFreeLegacyTasks(t *testing.T) {
+	dir := t.TempDir()
+	festDir := filepath.Join(dir, ProgressDir)
+	if err := os.MkdirAll(festDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	legacy := "festival: legacy-no-ts\nupdated_at: 2026-01-15T10:00:00Z\ntasks:\n" +
+		"  001_PHASE/01_seq/01_task.md:\n" +
+		"    task_id: 001_PHASE/01_seq/01_task.md\n" +
+		"    status: completed\n" +
+		"    progress: 100\n" +
+		"  001_PHASE/01_seq/02_task.md:\n" +
+		"    task_id: 001_PHASE/01_seq/02_task.md\n" +
+		"    status: in_progress\n" +
+		"    progress: 50\n"
+	if err := os.WriteFile(filepath.Join(festDir, ProgressFileName), []byte(legacy), 0o644); err != nil {
+		t.Fatalf("write legacy: %v", err)
+	}
+
+	store := NewStore(dir)
+	if err := store.LoadReadOnly(context.Background()); err != nil {
+		t.Fatalf("LoadReadOnly: %v", err)
+	}
+
+	completed, ok := store.GetTask("001_PHASE/01_seq/01_task.md")
+	if !ok || completed.Status != StatusCompleted {
+		t.Errorf("completed timestamp-free task lost: ok=%v task=%+v", ok, completed)
+	}
+	inProgress, ok := store.GetTask("001_PHASE/01_seq/02_task.md")
+	if !ok || inProgress.Status != StatusInProgress {
+		t.Errorf("in-progress timestamp-free task lost: ok=%v task=%+v", ok, inProgress)
+	}
+}

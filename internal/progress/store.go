@@ -157,40 +157,53 @@ func (s *Store) Load(ctx context.Context) error {
 	return nil
 }
 
-// LoadReadOnly materializes progress state without mutating disk. Unlike Load,
-// it never converts legacy YAML to JSONL or removes workflow_state.yaml; legacy
-// formats are parsed into synthetic events in memory and materialized the same
-// way Load would after migration. Use for orientation-only callers (walk/inspect).
+// LoadReadOnly materializes progress state without mutating disk: it never
+// converts legacy YAML to JSONL or removes workflow_state.yaml. JSONL, when
+// present, is authoritative and is materialized from events (layering any
+// workflow_state.yaml on top). Legacy progress.yaml is loaded directly rather
+// than round-tripped through synthetic events, because accepted legacy entries
+// may omit started_at/completed_at and the synthetic-event path emits nothing
+// for those, which would silently drop completed/in-progress tasks. Use for
+// orientation-only callers (walk/inspect/stats).
 func (s *Store) LoadReadOnly(ctx context.Context) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
 	}
 
-	var events []ProgressEvent
-
-	switch {
-	case fileExists(s.eventsFilePath()):
-		parsed, err := s.parseEventsFile(ctx)
+	if fileExists(s.eventsFilePath()) {
+		events, err := s.parseEventsFile(ctx)
 		if err != nil {
 			return err
 		}
-		events = parsed
-	case fileExists(s.legacyFilePath()):
+		if fileExists(s.workflowYAMLPath()) {
+			workflowEvents, err := s.readonlyWorkflowEvents(ctx)
+			if err != nil {
+				return err
+			}
+			events = append(events, workflowEvents...)
+		}
+		s.materializeFrom(events)
+		return nil
+	}
+
+	if fileExists(s.legacyFilePath()) {
 		if err := s.loadLegacyYAML(ctx); err != nil {
 			return errors.Wrap(err, "loading legacy progress format")
 		}
-		events = generateEventsFromState(s.data.Tasks)
+	} else {
+		s.initializeEmptyState()
 	}
 
 	if fileExists(s.workflowYAMLPath()) {
-		workflowEvents, err := s.readonlyWorkflowEvents(ctx)
+		festState, err := s.parseWorkflowYAML()
 		if err != nil {
 			return err
 		}
-		events = append(events, workflowEvents...)
+		s.workflowData = festState
+	} else if s.workflowData == nil {
+		s.workflowData = wf.NewFestivalWorkflowState()
 	}
 
-	s.materializeFrom(events)
 	return nil
 }
 
