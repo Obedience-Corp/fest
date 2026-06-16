@@ -244,3 +244,24 @@ func noWatchTargetError() error {
 	return errors.Validation("festival could not be resolved from this directory").
 		WithHint("run from a festival, a linked project, or a campaign workspace with an interactive terminal")
 }
+
+func defaultListCycleTargets(ctx context.Context, cwd string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	festivalsDir, err := workspace.FindFestivals(cwd)
+	if err != nil || festivalsDir == "" {
+		return nil, nil
+	}
+	items := shared.FestivalPickerItems(festivalsDir, shared.FestivalPickerOptions{
+		IncludeStatusDirectories: false,
+		PreferredStatuses:        watchPickerStatuses,
+		FallbackStatuses:         watchPickerStatuses,
+		OrderByStatusThenRecency: true,
+	})
+	paths := make([]string, 0, len(items))
+	for _, item := range items {
+		paths = append(paths, item.Value)
+	}
+	return paths, nil
+}

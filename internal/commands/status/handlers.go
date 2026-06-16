@@ -28,17 +28,25 @@ func runStatusShow(ctx context.Context, cmd *cobra.Command, opts *statusOptions)
 		return errors.IO("getting current directory", err)
 	}
 
-	// Resolve festival path (supports linked festivals via fest link)
-	_, err = shared.ResolveFestivalPath(cwd, opts.path)
-	if err != nil {
+	festivalPath, resolveErr := shared.ResolveFestivalPath(cwd, opts.path)
+	var detectPath string
+	if resolveErr != nil {
 		if opts.json {
 			return emitErrorJSON("not in a festival directory")
 		}
-		return errors.Wrap(err, "not inside a festival")
+		picked, pickErr := pickFestivalForDisplay(ctx, cwd)
+		if pickErr != nil {
+			return pickErr
+		}
+		if picked == "" {
+			return nil
+		}
+		detectPath = picked
+	} else {
+		detectPath = festivalPath
 	}
 
-	// Detect current location using cwd for accurate location detection
-	loc, err := show.DetectCurrentLocation(ctx, cwd)
+	loc, err := show.DetectCurrentLocation(ctx, detectPath)
 	if err != nil {
 		if opts.json {
 			return emitErrorJSON("not in a festival directory")
@@ -51,6 +59,22 @@ func runStatusShow(ctx context.Context, cmd *cobra.Command, opts *statusOptions)
 	}
 	return emitLocationText(ctx, loc)
 }
+
+func pickFestivalForDisplay(ctx context.Context, cwd string) (string, error) {
+	festivalsDir, err := workspace.FindFestivals(cwd)
+	if err != nil || festivalsDir == "" {
+		return "", errors.NotFound("festival").
+			WithHint("navigate to a festival directory or a campaign workspace")
+	}
+	return shared.PickFestivalPath(ctx, festivalsDir, shared.FestivalPickerOptions{
+		IncludeStatusDirectories: false,
+		PreferredStatuses:        statusPickerStatuses,
+		FallbackStatuses:         statusPickerStatuses,
+		OrderByStatusThenRecency: true,
+	})
+}
+
+var statusPickerStatuses = []string{"active", "ready", "planning"}
 
 // statusHandler is the signature for status set handler functions.
 type statusHandler func(ctx context.Context, display *ui.UI, cwd, newStatus string, opts *statusOptions) error

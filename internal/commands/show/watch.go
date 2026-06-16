@@ -26,6 +26,7 @@ type WatchOptions struct {
 	Goals      bool
 	Collapsed  bool
 	InProgress bool
+	CycleHint  bool
 }
 
 // WatchFestival watches a festival using the existing show watch renderer.
@@ -39,34 +40,28 @@ func WatchFestival(ctx context.Context, festival *FestivalInfo, opts WatchOption
 		goals:      opts.Goals,
 		collapsed:  opts.Collapsed,
 		inProgress: opts.InProgress,
-	})
+	}, opts.CycleHint)
 }
 
 // runWatchMode watches for file changes and refreshes the festival display.
 // Falls back to polling if file watching is not available.
-func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions) error {
-	// Ensure .fest state directory exists so fsnotify has something to watch
+func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions, cycleHint bool) error {
 	stateDir := filepath.Join(festival.Path, ".fest")
 	if err := os.MkdirAll(stateDir, 0755); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: could not create state directory: %v\n", err)
 	}
 
-	// Watch paths include the festival root directory to detect structural changes
-	// (new phases, fest.yaml modifications) in addition to state directory changes.
-	// This ensures `fest show --watch` reflects the full festival state.
 	watchPaths := []string{
-		festival.Path, // Festival root — detects structural changes
-		stateDir,      // State directory — detects progress/state changes
+		festival.Path,
+		stateDir,
 	}
 
-	// Initial render
 	clearScreen()
 	if err := renderFestivalView(ctx, festival, opts); err != nil {
 		return err
 	}
-	printWatchFooter(false)
+	printWatchFooter(false, cycleHint)
 
-	// Attempt file watching with fallback to polling
 	w, err := watch.New(watch.Config{
 		Paths:    watchPaths,
 		Debounce: 100 * time.Millisecond,
@@ -75,21 +70,19 @@ func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions
 		},
 	}, func() {
 		clearScreen()
-		// Refresh festival info to get latest data
 		refreshed, err := DetectCurrentFestival(ctx, festival.Path, "")
 		if err == nil && refreshed != nil {
 			festival = refreshed
 		}
 		if err := renderFestivalView(ctx, festival, opts); err != nil {
-			// Log error but don't fail - just show stale data
 			fmt.Fprintf(os.Stderr, "%s could not refresh festival view: %v\n", ui.Warning("Warning:"), err)
 		}
-		printWatchFooter(false)
+		printWatchFooter(false, cycleHint)
 	})
 
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "File watching unavailable (%v), using polling fallback\n", err)
-		return runPollingMode(ctx, festival, opts)
+		return runPollingMode(ctx, festival, opts, cycleHint)
 	}
 	defer func() { _ = w.Close() }()
 
@@ -98,26 +91,24 @@ func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions
 
 // runPollingMode continuously refreshes the festival display at the specified interval.
 // Used as a fallback when file watching is not available.
-func runPollingMode(ctx context.Context, festival *FestivalInfo, opts *showOptions) error {
+func runPollingMode(ctx context.Context, festival *FestivalInfo, opts *showOptions, cycleHint bool) error {
 	ticker := time.NewTicker(pollingInterval)
 	defer ticker.Stop()
 
-	// Re-render with polling indicator
 	clearScreen()
 	if err := renderFestivalView(ctx, festival, opts); err != nil {
 		return err
 	}
-	printWatchFooter(true)
+	printWatchFooter(true, cycleHint)
 
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Println() // Clean newline on exit
+			fmt.Println()
 			return nil
 		case <-ticker.C:
 			clearScreen()
 
-			// Refresh festival info to get latest data
 			refreshed, err := DetectCurrentFestival(ctx, festival.Path, "")
 			if err == nil && refreshed != nil {
 				festival = refreshed
@@ -126,7 +117,7 @@ func runPollingMode(ctx context.Context, festival *FestivalInfo, opts *showOptio
 			if err := renderFestivalView(ctx, festival, opts); err != nil {
 				return err
 			}
-			printWatchFooter(true)
+			printWatchFooter(true, cycleHint)
 		}
 	}
 }
@@ -185,11 +176,15 @@ func clearScreen() {
 }
 
 // printWatchFooter prints the watch mode footer with exit instructions.
-func printWatchFooter(polling bool) {
+func printWatchFooter(polling bool, cycleHint bool) {
 	fmt.Println()
+	suffix := "Watching for changes"
 	if polling {
-		fmt.Println(ui.Dim("Press Ctrl+C to exit • Polling for changes"))
+		suffix = "Polling for changes"
+	}
+	if cycleHint {
+		fmt.Println(ui.Dim("Ctrl+C to exit • ← → cycle festivals • " + suffix))
 	} else {
-		fmt.Println(ui.Dim("Press Ctrl+C to exit • Watching for changes"))
+		fmt.Println(ui.Dim("Press Ctrl+C to exit • " + suffix))
 	}
 }
