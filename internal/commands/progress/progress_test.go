@@ -1,11 +1,13 @@
 package progress
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
@@ -107,5 +109,54 @@ func writeTask(t *testing.T, path string) {
 	}
 	if err := os.WriteFile(path, []byte("# Task\n"), 0o644); err != nil {
 		t.Fatalf("write: %v", err)
+	}
+}
+
+func TestProgressLocationGranularity_SubdirUsescwd(t *testing.T) {
+	root := t.TempDir()
+
+	festivalPath := filepath.Join(root, "festivals", "active", "my-fest-MF0001")
+	phaseDir := filepath.Join(festivalPath, "001_IMPL")
+	seqDir := filepath.Join(phaseDir, "01_core")
+
+	for _, d := range []string{seqDir} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(festivalPath, "FESTIVAL_GOAL.md"), []byte("goal\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(phaseDir, "PHASE_GOAL.md"), []byte("# Phase\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(seqDir, "SEQUENCE_GOAL.md"), []byte("# Seq\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+
+	locFromPhase, err := show.DetectCurrentLocation(ctx, phaseDir)
+	if err != nil {
+		t.Fatalf("DetectCurrentLocation(phaseDir) error = %v", err)
+	}
+	if locFromPhase.Type != "phase" {
+		t.Errorf("from phase subdir: loc.Type = %q, want %q (regression: #204 used festival root, always producing 'festival')", locFromPhase.Type, "phase")
+	}
+
+	locFromSeq, err := show.DetectCurrentLocation(ctx, seqDir)
+	if err != nil {
+		t.Fatalf("DetectCurrentLocation(seqDir) error = %v", err)
+	}
+	if locFromSeq.Type != "sequence" {
+		t.Errorf("from sequence subdir: loc.Type = %q, want %q (regression: #204 used festival root, always producing 'festival')", locFromSeq.Type, "sequence")
+	}
+
+	locFromRoot, err := show.DetectCurrentLocation(ctx, festivalPath)
+	if err != nil {
+		t.Fatalf("DetectCurrentLocation(festivalPath) error = %v", err)
+	}
+	if locFromRoot.Type != "festival" {
+		t.Errorf("from festival root: loc.Type = %q, want %q", locFromRoot.Type, "festival")
 	}
 }

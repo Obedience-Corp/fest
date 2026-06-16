@@ -590,7 +590,7 @@ func (n *Navigator) FormatProgress(ctx context.Context) (string, error) {
 
 	data := map[string]any{
 		"PhaseName":     n.Ctx.PhaseName,
-		"PhaseType":     string(n.mode),
+		"PhaseType":     n.displayPhaseType(),
 		"Completed":     n.workflowState.CompletedCount(),
 		"Total":         n.workflowState.TotalSteps,
 		"CurrentStep":   n.workflowState.CurrentStep,

@@ -137,7 +137,10 @@ func runProgress(ctx context.Context, opts *progressOptions) error {
 		resolvedFestivalPath = picked
 	}
 
-	targetPath := resolvedFestivalPath
+	targetPath := cwd
+	if resolveErr != nil {
+		targetPath = resolvedFestivalPath
+	}
 	if opts.taskPath != "" {
 		resolvedTaskPath, err := resolveTaskPath(opts.taskPath, resolvedFestivalPath, cwd)
 		if err != nil {

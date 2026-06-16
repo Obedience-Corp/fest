@@ -58,14 +58,15 @@ func NewWalkCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "walk [path]",
 		Aliases: []string{"inspect"},
-		Short:   "Guided read-only overview of a festival",
+		Short:   "Guided overview of a festival",
 		Annotations: map[string]string{
 			"scope": string(scope.Global),
 		},
-		Long: `Display a guided orientation overview of a festival without mutating anything.
+		Long: `Display a guided orientation overview of a festival.
 
 Shows what the festival is, where it is, its current status and progress,
 the next task, blocked tasks, active quality gates, and any warnings.
+May transparently migrate legacy progress formats on first access.
 
 Useful for quickly orienting inside a festival before continuing work,
 especially for rituals where the template and active run are distinct.
@@ -187,10 +188,6 @@ func detectKind(festivalPath, status string) string {
 
 	if parentDir == ritualDir {
 		return "ritual-template"
-	}
-
-	if status == "ritual" {
-		return "ritual-run"
 	}
 
 	return "festival"

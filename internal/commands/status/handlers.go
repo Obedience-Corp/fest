@@ -28,7 +28,7 @@ func runStatusShow(ctx context.Context, cmd *cobra.Command, opts *statusOptions)
 		return errors.IO("getting current directory", err)
 	}
 
-	festivalPath, resolveErr := shared.ResolveFestivalPath(cwd, opts.path)
+	_, resolveErr := shared.ResolveFestivalPath(cwd, opts.path)
 	var detectPath string
 	if resolveErr != nil {
 		if opts.json {
@@ -43,7 +43,7 @@ func runStatusShow(ctx context.Context, cmd *cobra.Command, opts *statusOptions)
 		}
 		detectPath = picked
 	} else {
-		detectPath = festivalPath
+		detectPath = cwd
 	}
 
 	loc, err := show.DetectCurrentLocation(ctx, detectPath)

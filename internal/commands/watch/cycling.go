@@ -37,6 +37,7 @@ func runWatchCycle(ctx context.Context, paths []string, startIndex int, opts opt
 	defer func() { _ = term.Restore(int(os.Stdin.Fd()), oldState) }()
 
 	index := startIndex
+	staleSince := -1
 	for {
 		if ctx.Err() != nil {
 			return nil
@@ -46,15 +47,28 @@ func runWatchCycle(ctx context.Context, paths []string, startIndex int, opts opt
 		festival, err := deps.detectFestival(ctx, path)
 		if err != nil {
 			if isFestivalNotFound(err) {
+				if staleSince < 0 {
+					staleSince = index
+				} else if staleSince == index {
+					return errors.Validation("all cycle targets are stale; no festival found").
+						WithField("checked", len(paths))
+				}
 				index = (index + 1) % len(paths)
 				continue
 			}
 			return err
 		}
 		if festival == nil {
+			if staleSince < 0 {
+				staleSince = index
+			} else if staleSince == index {
+				return errors.Validation("all cycle targets are stale; no festival found").
+					WithField("checked", len(paths))
+			}
 			index = (index + 1) % len(paths)
 			continue
 		}
+		staleSince = -1
 
 		watchCtx, cancelWatch := context.WithCancel(ctx)
 		watchDone := make(chan error, 1)
