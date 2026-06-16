@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 )
 
@@ -121,7 +122,7 @@ func (n *Navigator) Initialize(ctx context.Context) error {
 
 	steps, err := n.parser.Parse(ctx, docPath)
 	if err != nil {
-		return fmt.Errorf("parsing %s: %w", n.filename(), err)
+		return errors.Parse("parsing workflow document", err).WithField("file", n.filename())
 	}
 
 	n.steps = steps
@@ -133,13 +134,13 @@ func (n *Navigator) Initialize(ctx context.Context) error {
 		// Use JSONL-backed store
 		state, err = LoadStateFromStore(n.store, sk)
 		if err != nil {
-			return fmt.Errorf("loading state from store: %w", err)
+			return errors.Wrap(err, "loading state from store")
 		}
 	} else {
 		// Fall back to YAML file
 		state, err = LoadState(ctx, n.festivalPath, sk)
 		if err != nil {
-			return fmt.Errorf("loading state: %w", err)
+			return errors.Wrap(err, "loading state")
 		}
 	}
 
@@ -153,7 +154,7 @@ func (n *Navigator) Initialize(ctx context.Context) error {
 			// Also emit step_start for step 1
 			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, 1))
 			if err := n.store.SaveEvents(ctx); err != nil {
-				return fmt.Errorf("saving init events: %w", err)
+				return errors.Wrap(err, "saving init events")
 			}
 		}
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 )
 
@@ -57,7 +58,9 @@ func (n *Navigator) validateCurrentStepID(stepID string) error {
 	}
 	expected := fmt.Sprintf("step_%d", n.workflowState.CurrentStep)
 	if stepID != expected {
-		return fmt.Errorf("step ID mismatch: expected %s, got %s", expected, stepID)
+		return errors.Validation("step ID mismatch").
+			WithField("expected", expected).
+			WithField("got", stepID)
 	}
 	return nil
 }
@@ -75,7 +78,8 @@ func (n *Navigator) SkipCurrentStep(ctx context.Context, status StepStatus, reas
 	}
 
 	if status != StepStatusSkipped && status != StepStatusCompleted {
-		return fmt.Errorf("invalid terminal status for skip: %s", status)
+		return errors.Validation("invalid terminal status for skip").
+			WithField("status", status)
 	}
 
 	currentStep := n.workflowState.CurrentStep
