@@ -397,14 +397,29 @@ func TestParser_ContextCancellation(t *testing.T) {
 }
 
 func TestParser_RealWorkflowTemplate(t *testing.T) {
-	// Test with content matching real ingest workflow template
 	content := `---
 fest_type: workflow
 ---
 
 # Ingest Phase Workflow
 
-## Step 1: READ — Understand All Input
+## Step 1: GATHER — Copy All Requirement Artifacts into input_specs/
+
+**Goal:** Ensure every piece of requirement material the user already has is present in input_specs/ before any reading or analysis begins.
+
+**Actions:**
+1. Ask the user what requirement artifacts exist: intents, notes, structured specs, prior planning text, docs, or any other relevant material
+2. Copy or transcribe each artifact into input_specs/
+3. If the user seeded content at festival creation time, confirm it is present in input_specs/
+4. List the files now in input_specs/ and confirm with the user that nothing is missing
+
+**Output:** All available requirement artifacts present in input_specs/
+
+**Checkpoint:** None — proceed to Step 2
+
+---
+
+## Step 2: READ — Understand All Input
 
 **Goal:** Build comprehensive understanding of what the user has provided.
 
@@ -416,11 +431,11 @@ fest_type: workflow
 
 **Output:** Mental model of the user's intent (no document yet)
 
-**Checkpoint:** None — proceed to Step 2
+**Checkpoint:** None — proceed to Step 3
 
 ---
 
-## Step 2: EXTRACT — Identify Key Elements
+## Step 3: EXTRACT — Identify Key Elements
 
 **Goal:** Pull out the essential information that needs to be structured.
 
@@ -432,11 +447,11 @@ fest_type: workflow
 
 **Output:** Notes on each element (can be rough)
 
-**Checkpoint:** None — proceed to Step 3
+**Checkpoint:** None — proceed to Step 4
 
 ---
 
-## Step 3: STRUCTURE — Produce Output Specs
+## Step 4: STRUCTURE — Produce Output Specs
 
 **Goal:** Transform extracted elements into structured documents.
 
@@ -448,11 +463,11 @@ fest_type: workflow
 
 **Output:** Four documents in output_specs/
 
-**Checkpoint:** None — proceed to Step 4
+**Checkpoint:** None — proceed to Step 5
 
 ---
 
-## Step 4: PRESENT — Get User Approval
+## Step 5: PRESENT — Get User Approval
 
 **Goal:** Verify the structured output captures the user's intent.
 
@@ -467,12 +482,12 @@ fest_type: workflow
 
 ---
 
-## Step 5: ITERATE or COMPLETE
+## Step 6: ITERATE or COMPLETE
 
 **Goal:** Handle user feedback or finalize the phase.
 
 **Actions:**
-1. If user rejects: Note feedback, return to Step 3, update specs
+1. If user rejects: Note feedback, return to Step 4, update specs
 2. If user approves: Mark phase complete
 
 **Output:** Phase completion or iteration
@@ -486,24 +501,21 @@ fest_type: workflow
 		t.Fatalf("ParseContent() error = %v", err)
 	}
 
-	if len(steps) != 5 {
-		t.Errorf("ParseContent() got %d steps, want 5", len(steps))
+	if len(steps) != 6 {
+		t.Errorf("ParseContent() got %d steps, want 6", len(steps))
 	}
 
-	// Verify step names
-	expectedNames := []string{"READ", "EXTRACT", "STRUCTURE", "PRESENT", "ITERATE or COMPLETE"}
+	expectedNames := []string{"GATHER", "READ", "EXTRACT", "STRUCTURE", "PRESENT", "ITERATE or COMPLETE"}
 	for i, name := range expectedNames {
 		if i < len(steps) && steps[i].Name != name {
 			t.Errorf("Step %d name = %q, want %q", i+1, steps[i].Name, name)
 		}
 	}
 
-	// Verify checkpoint on step 4
-	if steps[3].Checkpoint != CheckpointUserApproval {
-		t.Errorf("Step 4 checkpoint = %v, want CheckpointUserApproval", steps[3].Checkpoint)
+	if steps[4].Checkpoint != CheckpointUserApproval {
+		t.Errorf("Step 5 checkpoint = %v, want CheckpointUserApproval", steps[4].Checkpoint)
 	}
 
-	// Verify actions count
 	if len(steps[0].Actions) != 4 {
 		t.Errorf("Step 1 has %d actions, want 4", len(steps[0].Actions))
 	}
