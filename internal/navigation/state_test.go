@@ -606,3 +606,96 @@ func TestNavigation_RelinkWithSaveLoadCycle(t *testing.T) {
 		t.Errorf("After persist, expected 1 project link, got %d", len(nav3.ProjectLinks))
 	}
 }
+
+func TestNavigation_ProjectConflict_NoConflict(t *testing.T) {
+	setupTestCampaign(t)
+
+	nav, err := LoadNavigation()
+	if err != nil {
+		t.Fatalf("LoadNavigation() error = %v", err)
+	}
+
+	nav.SetLink("festival-a", "/path/to/project-a")
+
+	existing, _, hasConflict := nav.ProjectConflict("festival-a", "/path/to/project-a")
+	if hasConflict {
+		t.Errorf("ProjectConflict() should not report conflict for same festival, got existing=%q", existing)
+	}
+
+	_, _, hasConflict = nav.ProjectConflict("festival-b", "/path/to/project-b")
+	if hasConflict {
+		t.Error("ProjectConflict() should not report conflict for unlinked project")
+	}
+}
+
+func TestNavigation_ProjectConflict_ActiveFestivalBlocked(t *testing.T) {
+	setupTestCampaign(t)
+
+	nav, err := LoadNavigation()
+	if err != nil {
+		t.Fatalf("LoadNavigation() error = %v", err)
+	}
+
+	projectPath := "/path/to/shared-project"
+	activeFestivalPath := "/path/to/campaigns/festivals/active/fest-a-FA0009"
+
+	nav.SetLinkWithPath("fest-a-FA0009", projectPath, activeFestivalPath)
+
+	existing, existingFestivalPath, hasConflict := nav.ProjectConflict("fest-b-FA0010", projectPath)
+	if !hasConflict {
+		t.Fatal("ProjectConflict() should detect conflict when project is linked to a different festival")
+	}
+	if existing != "fest-a-FA0009" {
+		t.Errorf("ProjectConflict() existing = %q, want %q", existing, "fest-a-FA0009")
+	}
+	if existingFestivalPath != activeFestivalPath {
+		t.Errorf("ProjectConflict() existingFestivalPath = %q, want %q", existingFestivalPath, activeFestivalPath)
+	}
+
+	if nav.GetLinkedFestival(projectPath) != "fest-a-FA0009" {
+		t.Error("ProjectConflict() must not mutate state; active festival link should still be intact")
+	}
+}
+
+func TestNavigation_ProjectConflict_PlanningFestivalAllowed(t *testing.T) {
+	setupTestCampaign(t)
+
+	nav, err := LoadNavigation()
+	if err != nil {
+		t.Fatalf("LoadNavigation() error = %v", err)
+	}
+
+	projectPath := "/path/to/shared-project"
+	planningFestivalPath := "/path/to/campaigns/festivals/planning/fest-b-FA0010"
+
+	nav.SetLinkWithPath("fest-b-FA0010", projectPath, planningFestivalPath)
+
+	existing, _, hasConflict := nav.ProjectConflict("fest-c-FA0011", projectPath)
+	if !hasConflict {
+		t.Fatal("ProjectConflict() should detect conflict for any different festival (caller decides to block or allow)")
+	}
+	if existing != "fest-b-FA0010" {
+		t.Errorf("ProjectConflict() existing = %q, want %q", existing, "fest-b-FA0010")
+	}
+}
+
+func TestNavigation_ProjectConflict_LegacyLinkTreatedAsActive(t *testing.T) {
+	setupTestCampaign(t)
+
+	nav, err := LoadNavigation()
+	if err != nil {
+		t.Fatalf("LoadNavigation() error = %v", err)
+	}
+
+	projectPath := "/path/to/shared-project"
+
+	nav.SetLink("legacy-festival", projectPath)
+
+	_, existingFestivalPath, hasConflict := nav.ProjectConflict("new-festival", projectPath)
+	if !hasConflict {
+		t.Fatal("ProjectConflict() should detect conflict for legacy link")
+	}
+	if existingFestivalPath != "" {
+		t.Errorf("ProjectConflict() existingFestivalPath should be empty for legacy link (no festival path stored), got %q", existingFestivalPath)
+	}
+}
