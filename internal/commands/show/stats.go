@@ -73,8 +73,9 @@ func CalculateFestivalStats(ctx context.Context, festivalDir string) (*FestivalS
 	festivalRoot := resolveFestivalRoot(festivalDir)
 
 	// Manager is the single source of truth for progress numbers.
-	// Keep a reference to delegate task totals after the structural walk.
-	mgr, mgrErr := progress.NewManager(ctx, festivalRoot)
+	// Stats are display-only, so load read-only: computing a festival's stats
+	// must never migrate or rewrite its .fest/ files as a side effect.
+	mgr, mgrErr := progress.NewManagerReadOnly(ctx, festivalRoot)
 	var store *progress.Store
 	if mgrErr == nil {
 		store = mgr.Store()
