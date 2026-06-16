@@ -92,7 +92,7 @@ func runLink(ctx context.Context, targetPath string, opts *linkOptions) error {
 			}
 			projectDir = absPath
 		}
-		return linkProjectToFestival(projectDir)
+		return linkProjectToFestival(projectDir, opts.force)
 	}
 
 	// Inside a festival - detect location for festival metadata
@@ -460,11 +460,5 @@ func isActiveFestivalPath(festivalPath string) bool {
 	if festivalPath == "" {
 		return true
 	}
-	parts := strings.Split(filepath.ToSlash(festivalPath), "/")
-	for _, part := range parts {
-		if part == "active" {
-			return true
-		}
-	}
-	return false
+	return filepath.Base(filepath.Dir(festivalPath)) == "active"
 }

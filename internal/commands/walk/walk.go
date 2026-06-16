@@ -227,8 +227,8 @@ func loadGoal(festivalPath string) string {
 			if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 				continue
 			}
-			if len(trimmed) > 300 {
-				trimmed = trimmed[:300] + "..."
+			if len([]rune(trimmed)) > 300 {
+				trimmed = string([]rune(trimmed)[:300]) + "..."
 			}
 			return trimmed
 		}

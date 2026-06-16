@@ -96,6 +96,42 @@ func TestLoadGoal_MissingFile(t *testing.T) {
 	}
 }
 
+func TestLoadGoal_MultibyteTruncation(t *testing.T) {
+	festDir := t.TempDir()
+
+	multibyte := "日本語テスト"
+	longLine := strings.Repeat(multibyte, 60)
+
+	content := "---\nfest_status: active\n---\n\n" + longLine + "\n"
+	if err := os.WriteFile(filepath.Join(festDir, "FESTIVAL_GOAL.md"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	goal := loadGoal(festDir)
+
+	if goal == "" {
+		t.Fatal("loadGoal() returned empty for multibyte content")
+	}
+
+	runes := []rune(goal)
+	if len(runes) > 303 {
+		t.Errorf("loadGoal() returned %d runes, want at most 303 (300 + '...')", len(runes))
+	}
+
+	if !strings.HasSuffix(goal, "...") {
+		t.Errorf("loadGoal() = %q, want suffix '...' for long line", goal)
+	}
+
+	for i, b := range []byte(goal) {
+		if b == 0xef && i+2 < len([]byte(goal)) {
+			next := []byte(goal)[i+1]
+			if next == 0xbf && []byte(goal)[i+2] == 0xbd {
+				t.Errorf("loadGoal() contains UTF-8 replacement character at byte %d: rune was split", i)
+			}
+		}
+	}
+}
+
 func TestHasNumericPrefix_Walk(t *testing.T) {
 	cases := []struct {
 		name string
