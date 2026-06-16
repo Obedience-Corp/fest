@@ -2,6 +2,7 @@
 package promote
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -42,7 +43,7 @@ type promoteOptions struct {
 func NewPromoteCommand() *cobra.Command {
 	opts := &promoteOptions{}
 	cmd := &cobra.Command{
-		Use:   "promote",
+		Use:   "promote [festival]",
 		Short: "Promote a festival to the next lifecycle status",
 		Long: `Promote moves a festival through the lifecycle: planning → ready → active → completed.
 
@@ -51,15 +52,26 @@ Each transition validates readiness:
   ready → active:      Festival is ready to begin execution
   active → completed:  All tasks must be completed
 
+By default, promotes the festival you are currently inside. From elsewhere in a
+campaign, pass a festival name or run promote interactively to pick one:
+  fest promote my-feature       Promote a festival by name (tab completion)
+  fest promote                  Pick a festival from a fuzzy picker (in a terminal)
+
 Use --dungeon to send a festival directly to a dungeon status:
   fest promote --dungeon someday     Shelve for later
   fest promote --dungeon archived    Archive the festival
   fest promote --dungeon completed   Mark as completed (skips task validation)`,
 		Annotations: map[string]string{
-			"scope": string(scope.Festival),
+			"scope": string(scope.Workspace),
 		},
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completePromoteTarget,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runPromote(cmd.Context(), opts)
+			selector := ""
+			if len(args) > 0 {
+				selector = args[0]
+			}
+			return runPromote(cmd.Context(), opts, selector)
 		},
 	}
 
@@ -71,7 +83,81 @@ Use --dungeon to send a festival directly to a dungeon status:
 	return cmd
 }
 
-func runPromote(ctx context.Context, opts *promoteOptions) error {
+// promotePickerOptions limits the picker and completion to promotable festivals.
+func promotePickerOptions() shared.FestivalPickerOptions {
+	return shared.FestivalPickerOptions{
+		PreferredStatuses: []string{"planning", "ready", "active"},
+	}
+}
+
+// completePromoteTarget provides shell completion for the festival selector.
+func completePromoteTarget(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	completions, err := shared.CompleteFestivalPickSelectors(cmd.Context(), cwd, toComplete, promotePickerOptions())
+	if err != nil {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	return completions, cobra.ShellCompDirectiveNoFileComp
+}
+
+// resolveFestivalForPromote resolves the festival to promote from an explicit
+// selector, the current directory, or an interactive picker. The returned bool
+// reports whether the festival was chosen from the picker.
+func resolveFestivalForPromote(ctx context.Context, festivalsDir, cwd, selector string, allowPicker bool) (*show.FestivalInfo, bool, error) {
+	if strings.TrimSpace(selector) != "" {
+		path, err := shared.ResolveFestivalSelector(ctx, cwd, selector)
+		if err != nil {
+			return nil, false, err
+		}
+		festival, err := show.DetectCurrentFestival(ctx, path, "")
+		return festival, false, err
+	}
+
+	if loc, err := show.DetectCurrentLocation(ctx, cwd); err == nil && loc.Festival != nil {
+		return loc.Festival, false, nil
+	}
+
+	if allowPicker && festivalsDir != "" {
+		picked, err := shared.PickFestivalPath(ctx, festivalsDir, promotePickerOptions())
+		if err != nil {
+			return nil, false, err
+		}
+		if picked != "" {
+			festival, err := show.DetectCurrentFestival(ctx, picked, "")
+			return festival, true, err
+		}
+	}
+
+	return nil, false, errors.NotFound("festival").
+		WithHint("Run inside a festival, pass a name (fest promote <festival>), or run 'fest promote' in a terminal to pick one")
+}
+
+// confirmPromotion asks the operator to confirm a picker-selected promotion.
+func confirmPromotion(name, from, to string) bool {
+	fmt.Printf("Promote %s: %s → %s? [y/N] ",
+		ui.Value(name, ui.FestivalColor),
+		ui.GetStateStyle(from).Render(from),
+		ui.GetStateStyle(to).Render(to))
+
+	line, err := bufio.NewReader(os.Stdin).ReadString('\n')
+	if err != nil {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "y", "yes":
+		return true
+	default:
+		return false
+	}
+}
+
+func runPromote(ctx context.Context, opts *promoteOptions, selector string) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
 	}
@@ -81,16 +167,21 @@ func runPromote(ctx context.Context, opts *promoteOptions) error {
 		return errors.IO("getting current directory", err)
 	}
 
-	// Detect current location
-	loc, err := show.DetectCurrentLocation(ctx, cwd)
-	if err != nil {
-		return errors.Wrap(err, "detecting location")
-	}
-	if loc.Festival == nil {
-		return errors.NotFound("festival")
+	festivalsDir := ""
+	if ws, ok := scope.WorkspaceFrom(ctx); ok && ws != nil {
+		festivalsDir = ws.FestivalsPath
 	}
 
-	festival := loc.Festival
+	festival, fromPicker, err := resolveFestivalForPromote(ctx, festivalsDir, cwd, selector, !opts.json)
+	if err != nil {
+		if opts.json {
+			return shared.EncodeJSON(os.Stdout, map[string]any{
+				"success": false,
+				"error":   err.Error(),
+			})
+		}
+		return err
+	}
 	currentStatus := festival.Status
 
 	var nextStatus string
@@ -155,6 +246,11 @@ func runPromote(ctx context.Context, opts *promoteOptions) error {
 			fmt.Printf("\n  %s\n", ui.Dim("Use --force to skip chain dependency check"))
 			return nil
 		}
+	}
+
+	if fromPicker && !confirmPromotion(festival.Name, currentStatus, nextStatus) {
+		fmt.Println(ui.Dim("Promotion cancelled"))
+		return nil
 	}
 
 	// Execute the move using existing atomic status change
