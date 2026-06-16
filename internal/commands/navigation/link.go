@@ -21,6 +21,7 @@ import (
 type linkOptions struct {
 	showLink bool
 	json     bool
+	force    bool
 }
 
 // NewLinkCommand creates the link command
@@ -65,6 +66,7 @@ Use 'fest unlink' to remove the link for current festival.`,
 
 	cmd.Flags().BoolVar(&opts.showLink, "show", false, "show current link")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "output in JSON format")
+	cmd.Flags().BoolVar(&opts.force, "force", false, "overwrite an existing active festival link")
 
 	return cmd
 }
@@ -90,7 +92,7 @@ func runLink(ctx context.Context, targetPath string, opts *linkOptions) error {
 			}
 			projectDir = absPath
 		}
-		return linkProjectToFestival(projectDir)
+		return linkProjectToFestival(projectDir, opts.force)
 	}
 
 	// Inside a festival - detect location for festival metadata
@@ -144,6 +146,18 @@ func runLink(ctx context.Context, targetPath string, opts *linkOptions) error {
 	// Create link with festival path for reverse navigation
 	festivalName := loc.Festival.Name
 	festivalPath := loc.Festival.Path
+
+	if !opts.force {
+		if existing, existingFestivalPath, hasConflict := nav.ProjectConflict(festivalName, absPath); hasConflict {
+			if isActiveFestivalPath(existingFestivalPath) {
+				return errors.Validation("project is already linked to an active festival").
+					WithField("existing_festival", existing).
+					WithField("project", absPath).
+					WithField("hint", "use --force to override, or run 'fest unlink' from the active festival first")
+			}
+		}
+	}
+
 	nav.SetLinkWithPath(festivalName, absPath, festivalPath)
 
 	// Save navigation state
@@ -437,4 +451,14 @@ func findFestivalStatus(festivalsDir, festivalName string) string {
 		}
 	}
 	return ""
+}
+
+// isActiveFestivalPath reports whether the stored festival path is inside the active/ directory.
+// A festival path of "" means the link predates festival-path tracking; treat it as active
+// to be safe (prefer the existing link when uncertain).
+func isActiveFestivalPath(festivalPath string) bool {
+	if festivalPath == "" {
+		return true
+	}
+	return filepath.Base(filepath.Dir(festivalPath)) == "active"
 }

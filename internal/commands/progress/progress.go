@@ -14,6 +14,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -121,12 +122,25 @@ func runProgress(ctx context.Context, opts *progressOptions) error {
 	}
 
 	// Use shared helper to resolve festival path (supports linked festivals)
-	resolvedFestivalPath, err := shared.ResolveFestivalPath(cwd, festivalPath)
-	if err != nil {
-		return errors.Wrap(err, "detecting festival location")
+	resolvedFestivalPath, resolveErr := shared.ResolveFestivalPath(cwd, festivalPath)
+	if resolveErr != nil {
+		if opts.festival != "" || opts.taskID != "" || opts.taskPath != "" {
+			return errors.Wrap(resolveErr, "detecting festival location")
+		}
+		picked, pickErr := pickFestivalForProgress(ctx, cwd)
+		if pickErr != nil {
+			return pickErr
+		}
+		if picked == "" {
+			return nil
+		}
+		resolvedFestivalPath = picked
 	}
 
-	targetPath := cwd // Use current directory for location detection
+	targetPath := cwd
+	if resolveErr != nil {
+		targetPath = resolvedFestivalPath
+	}
 	if opts.taskPath != "" {
 		resolvedTaskPath, err := resolveTaskPath(opts.taskPath, resolvedFestivalPath, cwd)
 		if err != nil {
@@ -172,4 +186,20 @@ func runProgress(ctx context.Context, opts *progressOptions) error {
 
 	// Show progress overview
 	return showProgressOverview(ctx, mgr, loc, opts)
+}
+
+var progressPickerStatuses = []string{"active", "ready", "planning"}
+
+func pickFestivalForProgress(ctx context.Context, cwd string) (string, error) {
+	festivalsDir, err := workspace.FindFestivals(cwd)
+	if err != nil || festivalsDir == "" {
+		return "", errors.NotFound("festival").
+			WithHint("navigate to a festival directory or a campaign workspace")
+	}
+	return shared.PickFestivalPath(ctx, festivalsDir, shared.FestivalPickerOptions{
+		IncludeStatusDirectories: false,
+		PreferredStatuses:        progressPickerStatuses,
+		FallbackStatuses:         progressPickerStatuses,
+		OrderByStatusThenRecency: true,
+	})
 }

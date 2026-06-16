@@ -5,6 +5,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"testing"
+	"time"
+
+	nav "github.com/Obedience-Corp/fest/internal/navigation"
 )
 
 func TestIsInsideFestival(t *testing.T) {
@@ -341,4 +344,107 @@ func TestResolveFestivalPath(t *testing.T) {
 			t.Errorf("resolveFestivalPath(%q) = %q, want %q", tc.name, result, tc.expected)
 		}
 	}
+}
+
+func TestIsActiveFestivalPath_ImmediateParentOnly(t *testing.T) {
+	tests := []struct {
+		name         string
+		festivalPath string
+		want         bool
+	}{
+		{
+			"active festival",
+			"/campaign/festivals/active/my-fest",
+			true,
+		},
+		{
+			"planning festival",
+			"/campaign/festivals/planning/my-fest",
+			false,
+		},
+		{
+			"dungeon completed",
+			"/campaign/festivals/dungeon/completed/my-fest",
+			false,
+		},
+		{
+			"empty path treated as active",
+			"",
+			true,
+		},
+		{
+			"workspace under ancestor dir named active is not misclassified",
+			"/home/active/campaign/festivals/planning/my-fest",
+			false,
+		},
+		{
+			"deep active path with active ancestor dir not misclassified",
+			"/home/active/projects/active/campaign/festivals/planning/my-fest",
+			false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isActiveFestivalPath(tc.festivalPath)
+			if got != tc.want {
+				t.Errorf("isActiveFestivalPath(%q) = %v, want %v", tc.festivalPath, got, tc.want)
+			}
+		})
+	}
+}
+
+func newTestNav() *nav.Navigation {
+	return &nav.Navigation{
+		Version:      1,
+		UpdatedAt:    time.Now().UTC(),
+		Links:        make(map[string]*nav.Link),
+		ProjectLinks: make(map[string]string),
+		Shortcuts:    make(map[string]string),
+	}
+}
+
+func TestLinkProjectToFestival_HijackGuardBlocks(t *testing.T) {
+	tmpDir := t.TempDir()
+	projectPath := filepath.Join(tmpDir, "projects", "camp")
+	activeFestPath := filepath.Join(tmpDir, "festivals", "active", "active-fest-AF0001")
+	planningFestPath := filepath.Join(tmpDir, "festivals", "planning", "planning-fest-PF0001")
+
+	for _, d := range []string{projectPath, activeFestPath, planningFestPath} {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	n := newTestNav()
+	n.SetLinkWithPath("active-fest-AF0001", projectPath, activeFestPath)
+
+	existing, existingFestivalPath, hasConflict := n.ProjectConflict("planning-fest-PF0001", projectPath)
+	if !hasConflict {
+		t.Fatal("ProjectConflict() should detect conflict: project already linked to a different festival")
+	}
+	if existing != "active-fest-AF0001" {
+		t.Errorf("ProjectConflict() existing = %q, want %q", existing, "active-fest-AF0001")
+	}
+	if !isActiveFestivalPath(existingFestivalPath) {
+		t.Errorf("isActiveFestivalPath(%q) = false; guard should block re-link to planning festival", existingFestivalPath)
+	}
+
+	n2 := newTestNav()
+	n2.SetLinkWithPath("active-fest-AF0001", projectPath, activeFestPath)
+	n2.SetLinkWithPath("planning-fest-PF0001", projectPath, planningFestPath)
+
+	link, ok := n2.GetLink("active-fest-AF0001")
+	if ok && link.Path == projectPath {
+		t.Error("without guard, SetLinkWithPath silently re-points project away from active festival — this is the hijack bug #201 fixes")
+	}
+
+	n3 := newTestNav()
+	n3.SetLinkWithPath("active-fest-AF0001", filepath.Join(tmpDir, "projects", "other"), activeFestPath)
+	_, _, hasConflict = n3.ProjectConflict("planning-fest-PF0001", projectPath)
+	if hasConflict {
+		t.Error("ProjectConflict() should not report conflict when project is not yet linked")
+	}
+
+	_ = planningFestPath
 }

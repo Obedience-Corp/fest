@@ -702,6 +702,46 @@ func TestNavigator_getAutonomyLevel(t *testing.T) {
 	}
 }
 
+func TestNavigator_FormatInstructions_ShowsPhaseType(t *testing.T) {
+	cases := []struct {
+		phaseType string
+		wantLabel string
+	}{
+		{"ingest", "INGEST PHASE"},
+		{"planning", "PLANNING PHASE"},
+		{"research", "RESEARCH PHASE"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.phaseType, func(t *testing.T) {
+			gctx := createTestGuidanceContext(t)
+			gctx.PhaseType = tc.phaseType
+			createTestWorkflow(t, gctx.FestivalPath)
+
+			nav, err := NewNavigator(gctx, guidance.ModeWorkflow)
+			if err != nil {
+				t.Fatalf("NewNavigator() error = %v", err)
+			}
+
+			if err := nav.Initialize(context.Background()); err != nil {
+				t.Fatalf("Initialize() error = %v", err)
+			}
+
+			instructions, err := nav.FormatInstructions(context.Background())
+			if err != nil {
+				t.Fatalf("FormatInstructions() error = %v", err)
+			}
+
+			if !strings.Contains(instructions, tc.wantLabel) {
+				t.Errorf("instructions missing %q; got:\n%s", tc.wantLabel, instructions)
+			}
+			if strings.Contains(instructions, "WORKFLOW PHASE") {
+				t.Errorf("instructions must not contain generic WORKFLOW PHASE label; got:\n%s", instructions)
+			}
+		})
+	}
+}
+
 // contains checks if a string contains a substring
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))

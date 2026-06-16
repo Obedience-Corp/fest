@@ -22,6 +22,8 @@ type commandDeps struct {
 	resolveStandalone func(context.Context) (*show.StandaloneWorkflowInfo, error)
 	watch             func(context.Context, *show.FestivalInfo, show.WatchOptions) error
 	watchStandalone   func(context.Context, *show.StandaloneWorkflowInfo, show.WatchOptions) error
+	detectFestival    func(context.Context, string) (*show.FestivalInfo, error)
+	listCycleTargets  func(context.Context, string) ([]string, error)
 }
 
 // NewWatchCommand creates the watch command.
@@ -30,13 +32,18 @@ func NewWatchCommand() *cobra.Command {
 }
 
 func defaultCommandDeps() commandDeps {
+	r := defaultResolver()
 	return commandDeps{
 		resolve: func(ctx context.Context, selector string) (*show.FestivalInfo, error) {
-			return defaultResolver().resolve(ctx, selector)
+			return r.resolve(ctx, selector)
 		},
 		resolveStandalone: defaultResolveStandaloneWorkflow,
 		watch:             show.WatchFestival,
 		watchStandalone:   show.WatchStandaloneWorkflow,
+		detectFestival: func(ctx context.Context, path string) (*show.FestivalInfo, error) {
+			return r.detectFestival(ctx, path)
+		},
+		listCycleTargets: defaultListCycleTargets,
 	}
 }
 
@@ -99,6 +106,16 @@ func runWatch(ctx context.Context, args []string, opts *options, deps commandDep
 		}
 		if workflow != nil {
 			return watchStandaloneWorkflow(ctx, workflow, *opts, deps)
+		}
+	}
+
+	if selector == "" && deps.listCycleTargets != nil {
+		cwd, err := os.Getwd()
+		if err == nil {
+			paths, listErr := deps.listCycleTargets(ctx, cwd)
+			if listErr == nil && len(paths) > 1 {
+				return runWatchCycle(ctx, paths, 0, *opts, deps)
+			}
 		}
 	}
 

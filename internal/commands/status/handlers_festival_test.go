@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/scope"
 )
 
@@ -236,5 +237,57 @@ func TestAutoCommitStatusChange_SelectiveStaging(t *testing.T) {
 	committedFiles := string(out)
 	if strings.Contains(committedFiles, "unrelated.txt") {
 		t.Errorf("unrelated.txt should NOT appear in committed files:\n%s", committedFiles)
+	}
+}
+
+func TestStatusLocationGranularity_SubdirUsescwd(t *testing.T) {
+	root := t.TempDir()
+
+	festivalPath := filepath.Join(root, "festivals", "active", "my-fest-MF0001")
+	phaseDir := filepath.Join(festivalPath, "001_PLAN")
+	seqDir := filepath.Join(phaseDir, "01_research")
+
+	for _, d := range []string{seqDir} {
+		if err := os.MkdirAll(d, 0755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(festivalPath, "FESTIVAL_GOAL.md"), []byte("goal\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(phaseDir, "PHASE_GOAL.md"), []byte("# Phase\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(seqDir, "SEQUENCE_GOAL.md"), []byte("# Seq\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx := context.Background()
+
+	locFromPhase, err := show.DetectCurrentLocation(ctx, phaseDir)
+	if err != nil {
+		t.Fatalf("DetectCurrentLocation(phaseDir) error = %v", err)
+	}
+	if locFromPhase.Type != "phase" {
+		t.Errorf("from phase subdir: loc.Type = %q, want %q (regression: #204 used festival root, always producing 'festival')", locFromPhase.Type, "phase")
+	}
+	if locFromPhase.Phase != "001_PLAN" {
+		t.Errorf("from phase subdir: loc.Phase = %q, want %q", locFromPhase.Phase, "001_PLAN")
+	}
+
+	locFromSeq, err := show.DetectCurrentLocation(ctx, seqDir)
+	if err != nil {
+		t.Fatalf("DetectCurrentLocation(seqDir) error = %v", err)
+	}
+	if locFromSeq.Type != "sequence" {
+		t.Errorf("from sequence subdir: loc.Type = %q, want %q (regression: #204 used festival root, always producing 'festival')", locFromSeq.Type, "sequence")
+	}
+
+	locFromRoot, err := show.DetectCurrentLocation(ctx, festivalPath)
+	if err != nil {
+		t.Fatalf("DetectCurrentLocation(festivalPath) error = %v", err)
+	}
+	if locFromRoot.Type != "festival" {
+		t.Errorf("from festival root: loc.Type = %q, want %q", locFromRoot.Type, "festival")
 	}
 }

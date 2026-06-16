@@ -10,7 +10,23 @@ This document guides the agent through the ingest phase. Follow these steps in o
 
 ---
 
-## Step 1: READ — Understand All Input
+## Step 1: GATHER — Copy All Requirement Artifacts into input_specs/
+
+**Goal:** Ensure every piece of requirement material the user already has is present in `input_specs/` before any reading or analysis begins.
+
+**Actions:**
+1. Ask the user (or check the festival context) what requirement artifacts exist: intents, notes, structured specs, prior planning text, chat history summaries, docs, screenshots, or any other relevant material
+2. Copy or transcribe each artifact into `input_specs/` — one file per source, named descriptively (e.g., `intent-original.md`, `prior-design-notes.md`, `user-chat-summary.md`)
+3. If the user seeded content at festival creation time, confirm it is present in `input_specs/` and correctly named
+4. List the files now in `input_specs/` and confirm with the user that nothing is missing before proceeding
+
+**Output:** All available requirement artifacts present in `input_specs/`
+
+**Checkpoint:** None — proceed to Step 2
+
+---
+
+## Step 2: READ — Understand All Input
 
 **Goal:** Build comprehensive understanding of what the user has provided.
 
@@ -22,11 +38,11 @@ This document guides the agent through the ingest phase. Follow these steps in o
 
 **Output:** Mental model of the user's intent (no document yet)
 
-**Checkpoint:** None — proceed to Step 2
+**Checkpoint:** None — proceed to Step 3
 
 ---
 
-## Step 2: EXTRACT — Identify Key Elements
+## Step 3: EXTRACT — Identify Key Elements
 
 **Goal:** Pull out the essential information that needs to be structured.
 
@@ -38,11 +54,11 @@ This document guides the agent through the ingest phase. Follow these steps in o
 
 **Output:** Notes on each element (can be rough)
 
-**Checkpoint:** None — proceed to Step 3
+**Checkpoint:** None — proceed to Step 4
 
 ---
 
-## Step 3: STRUCTURE — Produce Output Specs
+## Step 4: STRUCTURE — Produce Output Specs
 
 **Goal:** Transform extracted elements into structured documents.
 
@@ -54,11 +70,11 @@ This document guides the agent through the ingest phase. Follow these steps in o
 
 **Output:** Four documents in `output_specs/`
 
-**Checkpoint:** None — proceed to Step 4
+**Checkpoint:** None — proceed to Step 5
 
 ---
 
-## Step 4: PRESENT — Get User Approval
+## Step 5: PRESENT — Get User Approval
 
 **Goal:** Verify the structured output captures the user's intent.
 
@@ -73,12 +89,12 @@ This document guides the agent through the ingest phase. Follow these steps in o
 
 ---
 
-## Step 5: ITERATE or COMPLETE
+## Step 6: ITERATE or COMPLETE
 
 **Goal:** Handle user feedback or finalize the phase.
 
 **Actions:**
-1. If user rejects: Note feedback, return to Step 3, update specs
+1. If user rejects: Note feedback, return to Step 4, update specs
 2. If user approves: Mark phase complete, note any caveats
 
 **Output:** Phase completion or iteration
@@ -91,8 +107,9 @@ This document guides the agent through the ingest phase. Follow these steps in o
 
 | Step | Status | Notes |
 |------|--------|-------|
-| 1. READ | [ ] pending | |
-| 2. EXTRACT | [ ] pending | |
-| 3. STRUCTURE | [ ] pending | |
-| 4. PRESENT | [ ] pending | Blocks until user approval |
-| 5. COMPLETE | [ ] pending | |
+| 1. GATHER | [ ] pending | Blocks until all artifacts are in input_specs/ |
+| 2. READ | [ ] pending | |
+| 3. EXTRACT | [ ] pending | |
+| 4. STRUCTURE | [ ] pending | |
+| 5. PRESENT | [ ] pending | Blocks until user approval |
+| 6. COMPLETE | [ ] pending | |

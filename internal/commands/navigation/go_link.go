@@ -29,6 +29,8 @@ var (
 
 // NewGoLinkCommand creates the context-aware link subcommand for fest go
 func NewGoLinkCommand() *cobra.Command {
+	var force bool
+
 	cmd := &cobra.Command{
 		Use:   "link [path]",
 		Short: "Link current festival to a project directory (or vice versa)",
@@ -59,14 +61,16 @@ Examples:
 			if len(args) > 0 {
 				path = args[0]
 			}
-			return runGoLink(cmd.Context(), path)
+			return runGoLink(cmd.Context(), path, force)
 		},
 	}
+
+	cmd.Flags().BoolVar(&force, "force", false, "overwrite an existing active festival link")
 
 	return cmd
 }
 
-func runGoLink(ctx context.Context, targetPath string) error {
+func runGoLink(ctx context.Context, targetPath string, force bool) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return festErrors.IO("getting current directory", err)
@@ -78,7 +82,7 @@ func runGoLink(ctx context.Context, targetPath string) error {
 	}
 
 	// We're in a project directory, show festival picker
-	return linkProjectToFestival(cwd)
+	return linkProjectToFestival(cwd, force)
 }
 
 // isInsideFestival checks if the path is within a festivals/ directory
@@ -165,6 +169,15 @@ func linkFestivalToProject(ctx context.Context, cwd, targetPath string) error {
 	// Get the festival path for reverse navigation
 	festivalPath := loc.Festival.Path
 
+	if existing, existingFestivalPath, hasConflict := nav.ProjectConflict(festivalName, projectPath); hasConflict {
+		if isActiveFestivalPath(existingFestivalPath) {
+			return festErrors.Validation("project is already linked to an active festival").
+				WithField("existing_festival", existing).
+				WithField("project", projectPath).
+				WithField("hint", "use 'fest link --force' to override, or run 'fest unlink' from the active festival first")
+		}
+	}
+
 	// Set the bidirectional link with festival path
 	nav.SetLinkWithPath(festivalName, projectPath, festivalPath)
 
@@ -183,7 +196,7 @@ func linkFestivalToProject(ctx context.Context, cwd, targetPath string) error {
 }
 
 // linkProjectToFestival shows a picker to select a festival to link
-func linkProjectToFestival(cwd string) error {
+func linkProjectToFestival(cwd string, force bool) error {
 	absPath, err := filepath.Abs(cwd)
 	if err != nil {
 		return festErrors.Wrap(err, "resolving current directory")
@@ -256,6 +269,17 @@ func linkProjectToFestival(cwd string) error {
 	nav, err := navigation.LoadNavigation()
 	if err != nil {
 		return festErrors.Wrap(err, "loading navigation state")
+	}
+
+	if !force {
+		if existing, existingFestivalPath, hasConflict := nav.ProjectConflict(selectedFestival, absPath); hasConflict {
+			if isActiveFestivalPath(existingFestivalPath) {
+				return festErrors.Validation("project is already linked to an active festival").
+					WithField("existing_festival", existing).
+					WithField("project", absPath).
+					WithField("hint", "use 'fgo link --force' to override, or run 'fest unlink' from the active festival first")
+			}
+		}
 	}
 
 	// Set the bidirectional link with festival path

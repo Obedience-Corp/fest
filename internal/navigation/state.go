@@ -189,6 +189,21 @@ func (n *Navigation) SetLinkWithPath(festivalName, projectPath, festivalPath str
 	n.ProjectLinks[projectPath] = festivalName
 }
 
+// ProjectConflict returns information about a conflicting project link, if one exists.
+// It reports the existing festival name, its stored festival path, and whether it
+// differs from the requesting festival. Callers use this to warn before overwriting.
+func (n *Navigation) ProjectConflict(festivalName, projectPath string) (existingFestival string, existingFestivalPath string, hasConflict bool) {
+	existing, ok := n.ProjectLinks[projectPath]
+	if !ok || existing == festivalName {
+		return "", "", false
+	}
+	existingLink := n.Links[existing]
+	if existingLink != nil {
+		return existing, existingLink.FestivalPath, true
+	}
+	return existing, "", true
+}
+
 // GetLink retrieves a project link for a festival
 func (n *Navigation) GetLink(festivalName string) (*Link, bool) {
 	link, ok := n.Links[festivalName]
