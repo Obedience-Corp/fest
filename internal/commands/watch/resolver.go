@@ -100,6 +100,8 @@ func (r targetResolver) resolve(ctx context.Context, selector string) (*show.Fes
 	path, err := r.pickFestival(ctx, festivalsDir, shared.FestivalPickerOptions{
 		IncludeStatusDirectories: false,
 		PreferredStatuses:        pickerStatuses(cwd, festivalsDir),
+		FallbackStatuses:         watchPickerStatuses,
+		OrderByStatusThenRecency: true,
 	})
 	if err != nil {
 		return nil, err
@@ -209,13 +211,15 @@ func isFestivalNotFound(err error) bool {
 	return stderrors.As(err, &structured) && structured.Code == errors.ErrCodeNotFound
 }
 
-// pickerStatuses narrows the watch picker to the working status dir the user is
-// inside, else all working statuses. Dungeon is terminal, so never offered.
+// watchPickerStatuses are watch targets, in display priority order. Ritual is a
+// template (run into active/ first) and dungeon is terminal, so neither is watched.
+var watchPickerStatuses = []string{"active", "ready", "planning"}
+
 func pickerStatuses(cwd, festivalsDir string) []string {
 	if narrowed := preferredPickerStatuses(cwd, festivalsDir); len(narrowed) > 0 {
 		return narrowed
 	}
-	return id.WorkingStatusDirectories
+	return watchPickerStatuses
 }
 
 func preferredPickerStatuses(cwd, festivalsDir string) []string {
@@ -227,7 +231,7 @@ func preferredPickerStatuses(cwd, festivalsDir string) []string {
 	if strings.HasPrefix(rel, "../") {
 		return nil
 	}
-	for _, status := range id.WorkingStatusDirectories {
+	for _, status := range watchPickerStatuses {
 		status = filepath.ToSlash(id.ResolveStatusPath(status))
 		if rel == status || strings.HasPrefix(rel, status+"/") {
 			return []string{status}

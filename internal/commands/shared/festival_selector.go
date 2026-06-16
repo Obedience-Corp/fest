@@ -41,6 +41,12 @@ type FestivalPickerOptions struct {
 	// status child directories are navigable even before they have festival markers.
 	IncludeUnmarkedFestivalDirectories bool
 	PreferredStatuses                  []string
+	// FallbackStatuses bounds the empty-result broadening in FestivalPickerItems:
+	// when PreferredStatuses yields nothing, it broadens to these rather than the
+	// unbounded default set.
+	FallbackStatuses []string
+	// OrderByStatusThenRecency sorts by status priority, then newest-modified, then name.
+	OrderByStatusThenRecency bool
 }
 
 type selectorMatch struct {
@@ -179,7 +185,11 @@ func CollectFestivalPickCandidates(festivalsDir string, opts FestivalPickerOptio
 	if len(statuses) == 0 {
 		statuses = defaultCandidateStatuses()
 	}
-	return filterFestivalPickCandidates(collectFestivalPickCandidates(festivalsDir, statuses, opts), opts)
+	candidates := filterFestivalPickCandidates(collectFestivalPickCandidates(festivalsDir, statuses, opts), opts)
+	if opts.OrderByStatusThenRecency {
+		candidates = orderWatchPickerCandidates(candidates)
+	}
+	return candidates
 }
 
 func findCampaignFestivalsDir(ctx context.Context, cwd string) (string, error) {

@@ -44,7 +44,7 @@ func PickFestivalPath(ctx context.Context, festivalsDir string, opts FestivalPic
 func FestivalPickerItems(festivalsDir string, opts FestivalPickerOptions) []picker.Item {
 	candidates := CollectFestivalPickCandidates(festivalsDir, opts)
 	if len(candidates) == 0 && len(opts.PreferredStatuses) > 0 {
-		opts.PreferredStatuses = nil
+		opts.PreferredStatuses = opts.FallbackStatuses
 		candidates = CollectFestivalPickCandidates(festivalsDir, opts)
 	}
 
