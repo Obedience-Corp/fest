@@ -39,6 +39,7 @@ import (
 	templatescmd "github.com/Obedience-Corp/fest/internal/commands/templates"
 	typescmd "github.com/Obedience-Corp/fest/internal/commands/types"
 	understandcmd "github.com/Obedience-Corp/fest/internal/commands/understand"
+	walkcmd "github.com/Obedience-Corp/fest/internal/commands/walk"
 	"github.com/Obedience-Corp/fest/internal/commands/validation"
 	watchcmd "github.com/Obedience-Corp/fest/internal/commands/watch"
 	"github.com/Obedience-Corp/fest/internal/commands/wizard"
@@ -264,6 +265,10 @@ func init() {
 	showCmd := show.NewShowCommand()
 	showCmd.GroupID = "query"
 	rootCmd.AddCommand(showCmd)
+
+	walkCmd := walkcmd.NewWalkCommand()
+	walkCmd.GroupID = "query"
+	rootCmd.AddCommand(walkCmd)
 
 	rulesCmd := show.NewRulesCommand()
 	rulesCmd.GroupID = "query"
