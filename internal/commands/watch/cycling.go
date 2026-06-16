@@ -2,9 +2,7 @@ package watch
 
 import (
 	"context"
-	"io"
 	"os"
-	"time"
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -14,12 +12,14 @@ import (
 type cycleDirection int
 
 const (
-	cycleNext cycleDirection = iota
+	// cycleNone is the zero value: not a navigable direction. It is returned
+	// alongside ok=false for unrecognized input and must never be treated as a
+	// movement; keeping it distinct from cycleNext avoids a 0-aliases-next trap.
+	cycleNone cycleDirection = iota
+	cycleNext
 	cyclePrev
 	cycleQuit
 )
-
-const cycleKeyPollInterval = 150 * time.Millisecond
 
 func runWatchCycle(ctx context.Context, paths []string, startIndex int, opts options, deps commandDeps) error {
 	if len(paths) == 0 {
@@ -117,83 +117,11 @@ func cycleWatchOptions(opts options) show.WatchOptions {
 	return wo
 }
 
-type deadlineReader interface {
-	io.Reader
-	SetReadDeadline(t time.Time) error
-}
-
-func readCycleKey(ctx context.Context, r io.Reader) cycleDirection {
-	if dr, ok := r.(deadlineReader); ok {
-		if dir, supported := readCycleKeyWithDeadline(ctx, dr); supported {
-			return dir
-		}
-	}
-	return readCycleKeyBlocking(ctx, r)
-}
-
-func readCycleKeyWithDeadline(ctx context.Context, r deadlineReader) (cycleDirection, bool) {
-	deadlineSet := false
-	defer func() {
-		if deadlineSet {
-			_ = r.SetReadDeadline(time.Time{})
-		}
-	}()
-
-	buf := make([]byte, 3)
-	for {
-		if ctx.Err() != nil {
-			return cycleQuit, true
-		}
-		if err := r.SetReadDeadline(time.Now().Add(cycleKeyPollInterval)); err != nil {
-			return 0, false
-		}
-		deadlineSet = true
-
-		n, err := r.Read(buf)
-		if err != nil {
-			if os.IsTimeout(err) {
-				continue
-			}
-			return cycleQuit, true
-		}
-		if n == 0 {
-			return cycleQuit, true
-		}
-		if dir, ok := classifyCycleKey(buf[:n]); ok {
-			return dir, true
-		}
-	}
-}
-
-func readCycleKeyBlocking(ctx context.Context, r io.Reader) cycleDirection {
-	buf := make([]byte, 3)
-	keyCh := make(chan cycleDirection, 1)
-
-	go func() {
-		for {
-			n, err := r.Read(buf)
-			if err != nil || n == 0 {
-				keyCh <- cycleQuit
-				return
-			}
-			if dir, ok := classifyCycleKey(buf[:n]); ok {
-				keyCh <- dir
-				return
-			}
-		}
-	}()
-
-	select {
-	case dir := <-keyCh:
-		return dir
-	case <-ctx.Done():
-		return cycleQuit
-	}
-}
-
+// classifyCycleKey maps a raw key sequence to a cycle direction. It returns
+// (cycleNone, false) for any input that is not a recognized cycle key.
 func classifyCycleKey(b []byte) (cycleDirection, bool) {
 	if len(b) == 0 {
-		return 0, false
+		return cycleNone, false
 	}
 	if b[0] == 0x03 {
 		return cycleQuit, true
@@ -206,5 +134,5 @@ func classifyCycleKey(b []byte) (cycleDirection, bool) {
 			return cyclePrev, true
 		}
 	}
-	return 0, false
+	return cycleNone, false
 }
