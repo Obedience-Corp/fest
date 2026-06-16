@@ -2,7 +2,6 @@ package watch
 
 import (
 	"context"
-	"io"
 	"os"
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
@@ -13,7 +12,8 @@ import (
 type cycleDirection int
 
 const (
-	cycleNext cycleDirection = iota
+	cycleNone cycleDirection = iota
+	cycleNext
 	cyclePrev
 	cycleQuit
 )
@@ -76,7 +76,7 @@ func runWatchCycle(ctx context.Context, paths []string, startIndex int, opts opt
 			watchDone <- deps.watch(watchCtx, festival, cycleWatchOptions(opts))
 		}()
 
-		dir := readCycleKey(ctx, os.Stdin, cancelWatch)
+		dir := readCycleKey(ctx, os.Stdin)
 		cancelWatch()
 		watchErr := <-watchDone
 		if watchErr != nil && watchCtx.Err() == nil {
@@ -114,42 +114,20 @@ func cycleWatchOptions(opts options) show.WatchOptions {
 	return wo
 }
 
-func readCycleKey(ctx context.Context, r io.Reader, cancelWatch context.CancelFunc) cycleDirection {
-	buf := make([]byte, 3)
-	keyCh := make(chan cycleDirection, 1)
-
-	go func() {
-		for {
-			n, err := r.Read(buf)
-			if err != nil || n == 0 {
-				keyCh <- cycleQuit
-				return
-			}
-			b := buf[:n]
-			if b[0] == 0x03 {
-				keyCh <- cycleQuit
-				return
-			}
-			if n >= 3 && b[0] == 0x1b && b[1] == '[' {
-				switch b[2] {
-				case 'C':
-					keyCh <- cycleNext
-					return
-				case 'D':
-					keyCh <- cyclePrev
-					return
-				}
-			}
-		}
-	}()
-
-	select {
-	case dir := <-keyCh:
-		if dir == cycleQuit {
-			cancelWatch()
-		}
-		return dir
-	case <-ctx.Done():
-		return cycleQuit
+func classifyCycleKey(b []byte) (cycleDirection, bool) {
+	if len(b) == 0 {
+		return cycleNone, false
 	}
+	if b[0] == 0x03 {
+		return cycleQuit, true
+	}
+	if len(b) >= 3 && b[0] == 0x1b && b[1] == '[' {
+		switch b[2] {
+		case 'C':
+			return cycleNext, true
+		case 'D':
+			return cyclePrev, true
+		}
+	}
+	return cycleNone, false
 }
