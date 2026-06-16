@@ -100,6 +100,7 @@ func (r targetResolver) resolve(ctx context.Context, selector string) (*show.Fes
 	path, err := r.pickFestival(ctx, festivalsDir, shared.FestivalPickerOptions{
 		IncludeStatusDirectories: false,
 		PreferredStatuses:        pickerStatuses(cwd, festivalsDir),
+		FallbackStatuses:         watchPickerStatuses,
 		OrderByStatusThenRecency: true,
 	})
 	if err != nil {

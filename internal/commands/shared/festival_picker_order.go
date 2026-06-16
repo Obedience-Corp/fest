@@ -15,28 +15,42 @@ var watchPickerStatusRank = map[string]int{
 	"planning": 2,
 }
 
+type rankedCandidate struct {
+	candidate FestivalPickCandidate
+	modTime   time.Time
+}
+
 func orderWatchPickerCandidates(candidates []FestivalPickCandidate) []FestivalPickCandidate {
-	ordered := make([]FestivalPickCandidate, len(candidates))
-	copy(ordered, candidates)
-	populateCandidateModTimes(ordered)
-	sortWatchPickerCandidates(ordered)
+	ranked := make([]rankedCandidate, len(candidates))
+	for i, c := range candidates {
+		ranked[i] = rankedCandidate{candidate: c}
+		if !c.StatusDirectory {
+			ranked[i].modTime = latestModTime(c.Path)
+		}
+	}
+	sortRankedCandidates(ranked)
+
+	ordered := make([]FestivalPickCandidate, len(ranked))
+	for i, r := range ranked {
+		ordered[i] = r.candidate
+	}
 	return ordered
 }
 
-func sortWatchPickerCandidates(candidates []FestivalPickCandidate) {
-	sort.SliceStable(candidates, func(i, j int) bool {
-		return lessWatchPickerCandidate(candidates[i], candidates[j])
+func sortRankedCandidates(ranked []rankedCandidate) {
+	sort.SliceStable(ranked, func(i, j int) bool {
+		return lessRankedCandidate(ranked[i], ranked[j])
 	})
 }
 
-func lessWatchPickerCandidate(a, b FestivalPickCandidate) bool {
-	if ra, rb := watchStatusRank(a.Status), watchStatusRank(b.Status); ra != rb {
+func lessRankedCandidate(a, b rankedCandidate) bool {
+	if ra, rb := watchStatusRank(a.candidate.Status), watchStatusRank(b.candidate.Status); ra != rb {
 		return ra < rb
 	}
-	if !a.ModTime.Equal(b.ModTime) {
-		return a.ModTime.After(b.ModTime)
+	if !a.modTime.Equal(b.modTime) {
+		return a.modTime.After(b.modTime)
 	}
-	return a.Name < b.Name
+	return a.candidate.Name < b.candidate.Name
 }
 
 func watchStatusRank(status string) int {
@@ -44,15 +58,6 @@ func watchStatusRank(status string) int {
 		return rank
 	}
 	return len(watchPickerStatusRank)
-}
-
-func populateCandidateModTimes(candidates []FestivalPickCandidate) {
-	for i := range candidates {
-		if candidates[i].StatusDirectory {
-			continue
-		}
-		candidates[i].ModTime = latestModTime(candidates[i].Path)
-	}
 }
 
 func latestModTime(dir string) time.Time {

@@ -8,7 +8,6 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/id"
@@ -33,8 +32,6 @@ type FestivalPickCandidate struct {
 	Path            string
 	Status          string
 	StatusDirectory bool
-	// ModTime is populated only when OrderByStatusThenRecency is set.
-	ModTime time.Time
 }
 
 // FestivalPickerOptions controls candidate collection for completion and picker surfaces.
@@ -44,6 +41,10 @@ type FestivalPickerOptions struct {
 	// status child directories are navigable even before they have festival markers.
 	IncludeUnmarkedFestivalDirectories bool
 	PreferredStatuses                  []string
+	// FallbackStatuses bounds the empty-result broadening in FestivalPickerItems:
+	// when PreferredStatuses yields nothing, it broadens to these rather than the
+	// unbounded default set.
+	FallbackStatuses []string
 	// OrderByStatusThenRecency sorts by status priority, then newest-modified, then name.
 	OrderByStatusThenRecency bool
 }
