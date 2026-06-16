@@ -470,6 +470,17 @@ func (n *Navigator) FormatInstructions(ctx context.Context) (string, error) {
 	return n.formatStep(step, stepState)
 }
 
+// displayPhaseType returns the uppercased phase type for use in rendered headers.
+// It prefers the context's PhaseType (e.g. "ingest", "planning") over the mode
+// string, which is always "workflow" for workflow-based phases and gives no
+// useful identity when multiple workflow phases appear in sequence.
+func (n *Navigator) displayPhaseType() string {
+	if n.Ctx != nil && n.Ctx.PhaseType != "" {
+		return strings.ToUpper(n.Ctx.PhaseType)
+	}
+	return strings.ToUpper(string(n.mode))
+}
+
 // formatComplete renders the completion message using templates.
 func (n *Navigator) formatComplete() string {
 	type stepSummary struct {
@@ -486,7 +497,7 @@ func (n *Navigator) formatComplete() string {
 	}
 
 	data := map[string]any{
-		"PhaseType":  strings.ToUpper(string(n.mode)),
+		"PhaseType":  n.displayPhaseType(),
 		"TotalSteps": n.workflowState.TotalSteps,
 		"Steps":      steps,
 	}
@@ -515,11 +526,10 @@ func (n *Navigator) formatStep(step WorkflowStep, stepState *StepState) (string,
 	status := string(stepState.Status)
 	feedback := stepState.Feedback
 
-	// Show "PHASE GATE" for gate documents, phase type for workflows
-	phaseType := strings.ToUpper(string(n.mode))
 	isGate := n.docFilename == "GATES.md"
+	phaseType := n.displayPhaseType()
 	if isGate {
-		phaseType = strings.ToUpper(n.Ctx.PhaseType) + " PHASE GATE"
+		phaseType = phaseType + " PHASE GATE"
 	}
 
 	data := map[string]any{
