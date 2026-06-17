@@ -23,6 +23,13 @@ These commands work with WORKFLOW.md files (step-by-step guidance for workflow p
 and GATES.md files (phase-level quality gates for all phase types). Use 'fest next'
 to see the current step, then these commands to advance.
 
+Creating a Workflow:
+  Use 'fest workflow create <name>' (an alias of 'fest create workflow') to
+  scaffold a brand-new standalone WORKFLOW.md outside a festival. It writes the
+  document, initializes .workflow/ runtime state, and starts a tracked run so
+  'fest next' works immediately. The init/start subcommands below operate on a
+  WORKFLOW.md that already exists.
+
 Workflow Steps:
   Workflows are defined in WORKFLOW.md files within phase directories.
   Each step has a goal, actions to complete, expected output, and an optional checkpoint.
@@ -51,6 +58,7 @@ Auto-Routing:
   - GATES.md if workflow is complete/absent and phase work is done
 
 Examples:
+  fest workflow create my-review    # Scaffold a new standalone WORKFLOW.md
   fest workflow status              # Show workflow or gate progress
   fest workflow status --phase 001_INGEST  # Show specific phase
   fest workflow advance             # Complete current step and move to next
@@ -74,6 +82,7 @@ Examples:
 		newResetCmd(),
 		newShowCmd(),
 		// Standalone workflow lifecycle (introduced in WW0001/004.01).
+		newCreateCmd(),
 		newInitCmd(),
 		newStartCmd(),
 		newRunsCmd(),

@@ -56,13 +56,9 @@ type createWorkflowResult struct {
 	Suggestions []string         `json:"suggestions,omitempty"`
 }
 
-// NewCreateWorkflowCommand creates the 'create workflow' subcommand.
-func NewCreateWorkflowCommand() *cobra.Command {
-	opts := &CreateWorkflowOptions{}
-	cmd := &cobra.Command{
-		Use:   "workflow",
-		Short: "Create a standalone or phase WORKFLOW.md from structured step definitions",
-		Long: `Generate a parseable WORKFLOW.md from prompts, inline JSON, or a steps file.
+// createWorkflowLong is the shared help text for `fest create workflow` and its
+// `fest workflow create` alias so the two never drift.
+const createWorkflowLong = `Generate a parseable WORKFLOW.md from prompts, inline JSON, or a steps file.
 
 Outside a festival phase, this creates WORKFLOW.md in the current directory,
 initializes .workflow/ runtime state, and starts a tracked run so fest next works
@@ -82,7 +78,15 @@ Examples:
   fest create workflow --steps-file steps.json --position after
 
   # Explicit phase path
-  fest create workflow --steps-file steps.json --path ./004_POLISH`,
+  fest create workflow --steps-file steps.json --path ./004_POLISH`
+
+// NewCreateWorkflowCommand creates the 'create workflow' subcommand.
+func NewCreateWorkflowCommand() *cobra.Command {
+	opts := &CreateWorkflowOptions{}
+	cmd := &cobra.Command{
+		Use:   "workflow",
+		Short: "Create a standalone or phase WORKFLOW.md from structured step definitions",
+		Long:  createWorkflowLong,
 		Annotations: map[string]string{
 			"scope": string(scope.Global),
 		},
@@ -95,6 +99,14 @@ Examples:
 		},
 	}
 
+	BindCreateWorkflowFlags(cmd, opts)
+	return cmd
+}
+
+// BindCreateWorkflowFlags binds the create-workflow flag set to opts on cmd.
+// Shared by `fest create workflow` and the `fest workflow create` alias so the
+// two surfaces expose an identical flag set.
+func BindCreateWorkflowFlags(cmd *cobra.Command, opts *CreateWorkflowOptions) {
 	cmd.Flags().StringVar(&opts.Steps, "steps", "", "Inline JSON with workflow definition")
 	cmd.Flags().StringVar(&opts.StepsFile, "steps-file", "", "Path to JSON file with workflow definition")
 	cmd.Flags().StringVar(&opts.Position, "position", "after", "Workflow position relative to sequences (before|after)")
@@ -104,7 +116,6 @@ Examples:
 	cmd.Flags().BoolVar(&opts.AgentMode, "agent", false, "Strict agent mode (implies --json)")
 	cmd.Flags().StringVar(&opts.Type, "type", "task", "workflow type (standalone mode only)")
 	cmd.Flags().BoolVar(&opts.NoInit, "no-init", false, "skip .workflow/ runtime init (advanced standalone mode)")
-	return cmd
 }
 
 // RunCreateWorkflow executes the create workflow command. Dispatches to
