@@ -202,6 +202,19 @@ func defaultCanPickFestival() bool {
 	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stderr.Fd()))
 }
 
+func canonicalWatchPath(p string) string {
+	if p == "" {
+		return ""
+	}
+	if resolved, err := filepath.EvalSymlinks(p); err == nil {
+		return resolved
+	}
+	if abs, err := filepath.Abs(p); err == nil {
+		return abs
+	}
+	return filepath.Clean(p)
+}
+
 func isWatchPickerCancelled(err error) bool {
 	return stderrors.Is(err, errWatchPickerCancelled)
 }

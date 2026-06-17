@@ -114,7 +114,7 @@ func runWatch(ctx context.Context, args []string, opts *options, deps commandDep
 		if err == nil {
 			paths, listErr := deps.listCycleTargets(ctx, cwd)
 			if listErr == nil && len(paths) > 1 {
-				return runWatchCycle(ctx, paths, 0, *opts, deps)
+				return runWatchCycle(ctx, paths, currentFestivalIndex(ctx, cwd, paths, deps), *opts, deps)
 			}
 		}
 	}
@@ -127,6 +127,26 @@ func runWatch(ctx context.Context, args []string, opts *options, deps commandDep
 		return err
 	}
 	return watchFestival(ctx, festival, *opts, deps)
+}
+
+func currentFestivalIndex(ctx context.Context, cwd string, paths []string, deps commandDeps) int {
+	if deps.detectFestival == nil {
+		return 0
+	}
+	festival, err := deps.detectFestival(ctx, cwd)
+	if err != nil || festival == nil {
+		return 0
+	}
+	target := canonicalWatchPath(festival.Path)
+	if target == "" {
+		return 0
+	}
+	for i, path := range paths {
+		if canonicalWatchPath(path) == target {
+			return i
+		}
+	}
+	return 0
 }
 
 func watchFestival(ctx context.Context, festival *show.FestivalInfo, opts options, deps commandDeps) error {

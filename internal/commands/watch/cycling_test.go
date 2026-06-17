@@ -2,9 +2,11 @@ package watch
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 func TestCycleWatchOptionsSetsCycleHint(t *testing.T) {
@@ -46,6 +48,89 @@ func TestRunWatchCycle_SinglePath_CallsWatch(t *testing.T) {
 	}
 	if !watchCalled {
 		t.Fatal("watch delegate was not called for single-path cycle")
+	}
+}
+
+func TestCurrentFestivalIndex(t *testing.T) {
+	paths := []string{
+		"/festivals/active/a-FS0001",
+		"/festivals/ready/b-FS0002",
+		"/festivals/planning/c-FS0003",
+	}
+	tests := []struct {
+		name           string
+		detectFestival func(context.Context, string) (*show.FestivalInfo, error)
+		want           int
+	}{
+		{
+			name: "detected festival selects its index",
+			detectFestival: func(context.Context, string) (*show.FestivalInfo, error) {
+				return &show.FestivalInfo{Path: paths[2]}, nil
+			},
+			want: 2,
+		},
+		{
+			name: "not in a festival falls back to zero",
+			detectFestival: func(context.Context, string) (*show.FestivalInfo, error) {
+				return nil, errors.NotFound("festival")
+			},
+			want: 0,
+		},
+		{
+			name: "detected festival outside the cycle falls back to zero",
+			detectFestival: func(context.Context, string) (*show.FestivalInfo, error) {
+				return &show.FestivalInfo{Path: "/festivals/active/unlisted-FS0009"}, nil
+			},
+			want: 0,
+		},
+		{
+			name:           "missing detector falls back to zero",
+			detectFestival: nil,
+			want:           0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			deps := commandDeps{detectFestival: tt.detectFestival}
+			if got := currentFestivalIndex(t.Context(), "/some/cwd", paths, deps); got != tt.want {
+				t.Fatalf("currentFestivalIndex = %d, want %d", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestWatchCommandCycleStartsAtCurrentFestival(t *testing.T) {
+	paths := []string{
+		"/festivals/active/first-FS0001",
+		"/festivals/ready/current-FS0002",
+		"/festivals/planning/third-FS0003",
+	}
+	var watched string
+	deps := commandDeps{
+		resolveStandalone: func(context.Context) (*show.StandaloneWorkflowInfo, error) {
+			return nil, nil
+		},
+		listCycleTargets: func(_ context.Context, _ string) ([]string, error) {
+			return paths, nil
+		},
+		detectFestival: func(_ context.Context, p string) (*show.FestivalInfo, error) {
+			if strings.HasPrefix(p, "/festivals/") {
+				return &show.FestivalInfo{Path: p}, nil
+			}
+			return &show.FestivalInfo{Path: paths[1]}, nil
+		},
+		watch: func(_ context.Context, festival *show.FestivalInfo, _ show.WatchOptions) error {
+			watched = festival.Path
+			return nil
+		},
+	}
+
+	if err := runWatch(t.Context(), nil, &options{}, deps); err != nil {
+		t.Fatalf("runWatch: %v", err)
+	}
+	if watched != paths[1] {
+		t.Fatalf("watch started at %q, want current festival %q", watched, paths[1])
 	}
 }
 
