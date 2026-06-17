@@ -1,6 +1,77 @@
 package shared
 
-import "testing"
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/Obedience-Corp/fest/internal/progress"
+	"github.com/Obedience-Corp/fest/internal/tui/picker"
+)
+
+func writeProgressFestival(t *testing.T, total, completed int) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "fest.yaml"), []byte("name: test\nid: TEST-001\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	seq := filepath.Join(dir, "001_PHASE", "01_sequence")
+	if err := os.MkdirAll(seq, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < total; i++ {
+		content := fmt.Sprintf("---\nfest_type: task\nfest_status: pending\n---\n# Task %d\n", i+1)
+		if err := os.WriteFile(filepath.Join(seq, fmt.Sprintf("%02d_task.md", i+1)), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mgr, err := progress.NewManager(t.Context(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < completed; i++ {
+		if err := mgr.MarkComplete(t.Context(), fmt.Sprintf("001_PHASE/01_sequence/%02d_task.md", i+1)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
+}
+
+func TestFestivalProgressDetail(t *testing.T) {
+	withTasks := writeProgressFestival(t, 4, 2)
+	detail := festivalProgressDetail(t.Context(), withTasks)
+	if detail == "" {
+		t.Fatal("expected a progress bar for a festival with tasks")
+	}
+	if !strings.Contains(detail, "50%") {
+		t.Fatalf("expected 50%% in progress detail, got %q", detail)
+	}
+
+	empty := t.TempDir()
+	if err := os.WriteFile(filepath.Join(empty, "fest.yaml"), []byte("name: empty\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if d := festivalProgressDetail(t.Context(), empty); d != "" {
+		t.Fatalf("expected no bar for a festival with no tasks, got %q", d)
+	}
+}
+
+func TestAttachProgressDetails(t *testing.T) {
+	withTasks := writeProgressFestival(t, 2, 1)
+	items := []picker.Item{
+		{Name: "[active] has-tasks", Value: withTasks},
+		{Name: "[active]/", Value: ""},
+	}
+	attachProgressDetails(t.Context(), items)
+	if !strings.Contains(items[0].Detail, "%") {
+		t.Fatalf("expected a progress bar for the festival item, got %q", items[0].Detail)
+	}
+	if items[1].Detail != "" {
+		t.Fatalf("expected no detail for an item without a path, got %q", items[1].Detail)
+	}
+}
 
 func TestFestivalPickCandidatesForGoIncludeStatusDirectories(t *testing.T) {
 	candidates := filterFestivalPickCandidates(pureCandidateFixture(), FestivalPickerOptions{

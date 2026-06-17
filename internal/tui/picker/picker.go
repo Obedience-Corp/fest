@@ -16,9 +16,10 @@ import (
 
 // Item represents a pickable item with a display name and value.
 type Item struct {
-	Name  string // Display name (used for matching)
-	Value string // Return value (e.g., path)
-	Score int    // Match score for sorting
+	Name   string // Display name (used for matching)
+	Value  string // Return value (e.g., path)
+	Detail string // Optional trailing text shown after the name (not matched)
+	Score  int    // Match score for sorting
 }
 
 // Scorer is a function that scores a query against a target string.
@@ -262,18 +263,34 @@ func (m Model) View() string {
 		endIdx = len(m.filtered)
 	}
 
+	// Align trailing detail (e.g. progress bars) into a column when present.
+	nameWidth, showDetail := 0, false
+	for _, it := range m.filtered {
+		if it.Detail != "" {
+			showDetail = true
+		}
+		if w := lipgloss.Width(it.Name); w > nameWidth {
+			nameWidth = w
+		}
+	}
+
 	for i := m.scrollStart; i < endIdx; i++ {
 		item := m.filtered[i]
+		name := item.Name
+		if showDetail {
+			name = padRight(name, nameWidth)
+		}
 
 		// Cursor and item name
 		if i == m.selected {
-			cursor := m.cursorStyle.Render("▶ ")
-			name := m.selectedStyle.Render(item.Name)
-			b.WriteString(cursor + name + "\n")
+			b.WriteString(m.cursorStyle.Render("▶ ") + m.selectedStyle.Render(name))
 		} else {
-			name := m.normalStyle.Render(item.Name)
-			b.WriteString("  " + name + "\n")
+			b.WriteString("  " + m.normalStyle.Render(name))
 		}
+		if showDetail && item.Detail != "" {
+			b.WriteString("  " + item.Detail)
+		}
+		b.WriteString("\n")
 	}
 
 	// Padding for empty space (only if we have fewer items than maxVisible)
@@ -287,6 +304,13 @@ func (m Model) View() string {
 	b.WriteString(help)
 
 	return b.String()
+}
+
+func padRight(s string, width int) string {
+	if w := lipgloss.Width(s); w < width {
+		return s + strings.Repeat(" ", width-w)
+	}
+	return s
 }
 
 // Selected returns the selected item, or nil if cancelled.

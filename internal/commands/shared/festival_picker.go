@@ -4,12 +4,17 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/navigation"
+	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/tui/picker"
+	"github.com/Obedience-Corp/fest/internal/ui"
 	"golang.org/x/term"
 )
+
+const progressDetailWorkers = 8
 
 // PickFestivalPath opens the shared festival picker and returns the selected path.
 func PickFestivalPath(ctx context.Context, festivalsDir string, opts FestivalPickerOptions) (string, error) {
@@ -28,6 +33,7 @@ func PickFestivalPath(ctx context.Context, festivalsDir string, opts FestivalPic
 	if len(items) == 0 {
 		return "", nil
 	}
+	attachProgressDetails(ctx, items)
 
 	selected, err := picker.Run(items, navigation.Score)
 	if err != nil {
@@ -67,4 +73,46 @@ func festivalPickerItemName(candidate FestivalPickCandidate) string {
 		return fmt.Sprintf("[%s]/", candidate.Status)
 	}
 	return fmt.Sprintf("[%s] %s", candidate.Status, candidate.Name)
+}
+
+// attachProgressDetails fills each item's Detail with a progress bar, computed
+// read-only and concurrently. Items without tasks (status directories, empty
+// festivals) get no bar.
+func attachProgressDetails(ctx context.Context, items []picker.Item) {
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, progressDetailWorkers)
+	for i := range items {
+		if items[i].Value == "" {
+			continue
+		}
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(i int) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			items[i].Detail = festivalProgressDetail(ctx, items[i].Value)
+		}(i)
+	}
+	wg.Wait()
+}
+
+func festivalProgressDetail(ctx context.Context, festivalPath string) string {
+	mgr, err := progress.NewManagerReadOnly(ctx, festivalPath)
+	if err != nil {
+		return ""
+	}
+	prog, err := mgr.GetFestivalProgress(ctx, festivalPath)
+	if err != nil || prog == nil || prog.Overall == nil || prog.Overall.Total == 0 {
+		return ""
+	}
+	return ui.RenderProgressBar(ui.ProgressBarOptions{
+		Current:        prog.Overall.Percentage,
+		Total:          100,
+		Width:          10,
+		FilledChar:     "█",
+		EmptyChar:      "░",
+		FilledColor:    ui.SuccessColor,
+		EmptyColor:     ui.BorderColor,
+		ShowPercentage: true,
+	})
 }

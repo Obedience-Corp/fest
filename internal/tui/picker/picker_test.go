@@ -2,11 +2,35 @@ package picker
 
 import (
 	"os"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
+
+func TestPadRight(t *testing.T) {
+	if got := padRight("abc", 6); got != "abc   " {
+		t.Fatalf("padRight(\"abc\", 6) = %q, want %q", got, "abc   ")
+	}
+	if got := padRight("abcdef", 3); got != "abcdef" {
+		t.Fatalf("padRight must not truncate, got %q", got)
+	}
+}
+
+func TestViewRendersDetailColumn(t *testing.T) {
+	items := []Item{
+		{Name: "alpha", Value: "/a", Detail: "BAR-50%"},
+		{Name: "bravo-longer", Value: "/b"},
+	}
+	out := New(items, dummyScorer, testRenderer).View()
+	if !strings.Contains(out, "BAR-50%") {
+		t.Fatalf("View should render item Detail, got:\n%s", out)
+	}
+	if !strings.Contains(out, "alpha") || !strings.Contains(out, "bravo-longer") {
+		t.Fatalf("View should render item names, got:\n%s", out)
+	}
+}
 
 func dummyScorer(q, target string) (int, []int) {
 	return 1, nil
