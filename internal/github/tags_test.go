@@ -63,6 +63,13 @@ func TestSemverGreater(t *testing.T) {
 		{"v1.2.3-dev.5", "v1.2.3-dev.4", true},
 		{"v1.2.3-dev.10", "v1.2.3-dev.9", true},
 		{"v1.2.3-dev.3", "v1.2.3-dev.10", false},
+		// A release outranks any pre-release of the same base version.
+		{"v1.2.3", "v1.2.3-dev.5", true},
+		{"v1.2.3-dev.5", "v1.2.3", false},
+		// A higher base beats a lower-base pre-release (and vice versa).
+		{"v1.0.1", "v1.0.0-dev.10", true},
+		{"v0.4.3", "v0.1.0-dev.2", true},
+		{"v0.5.0-dev.1", "v0.4.3", true},
 	}
 
 	for _, tc := range tests {
@@ -91,68 +98,8 @@ func buildLsRemoteOutput(tags []string) string {
 	return sb.String()
 }
 
-// resolveFromOutput mirrors the filtering/parsing logic in ResolveLatestTag so
-// we can test it without executing real git commands.
-func resolveFromOutput(output, channel string) (string, error) {
-	lines := strings.Split(output, "\n")
-	var candidates []semver
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
-		parts := strings.Fields(line)
-		if len(parts) < 2 {
-			continue
-		}
-		ref := parts[1]
-		if strings.HasSuffix(ref, "^{}") {
-			continue
-		}
-		tagName := strings.TrimPrefix(ref, "refs/tags/")
-
-		switch channel {
-		case "stable":
-			if !stableTagRe.MatchString(tagName) {
-				continue
-			}
-		case "dev":
-			if !devTagRe.MatchString(tagName) {
-				continue
-			}
-		default:
-			return "", &parseError{msg: "unknown channel: " + channel}
-		}
-
-		sv, ok := parseSemver(tagName)
-		if !ok {
-			continue
-		}
-		candidates = append(candidates, sv)
-	}
-
-	if len(candidates) == 0 {
-		return "", &notFoundError{channel: channel}
-	}
-
-	best := candidates[0]
-	for _, c := range candidates[1:] {
-		if semverGreater(c, best) {
-			best = c
-		}
-	}
-	return best.raw, nil
-}
-
-type parseError struct{ msg string }
-
-func (e *parseError) Error() string { return e.msg }
-
-type notFoundError struct{ channel string }
-
-func (e *notFoundError) Error() string { return "no tags found for channel " + e.channel }
-
-// TestResolveLatestTagFiltering tests the filtering logic with mock data.
-func TestResolveLatestTagFiltering(t *testing.T) {
+// TestSelectLatestTag tests channel filtering and selection with mock tags.
+func TestSelectLatestTag(t *testing.T) {
 	allTags := []string{
 		"v0.1.0",
 		"v0.1.0-dev.1",
@@ -164,18 +111,14 @@ func TestResolveLatestTagFiltering(t *testing.T) {
 		"v1.0.0-dev.10",
 		"v1.0.0-dev.9",
 		"v1.0.1",
-		// Should be ignored by both channels:
+		// Never selected by either channel:
 		"v1.0.0-rc.1",
 		"v1.0.0-alpha.2",
 		"latest",
 	}
 
-	output := buildLsRemoteOutput(allTags)
-	// Also add an annotated tag pointer that should be filtered out.
-	output += "deadbeef\trefs/tags/v1.0.1^{}\n"
-
 	t.Run("stable channel", func(t *testing.T) {
-		got, err := resolveFromOutput(output, "stable")
+		got, err := selectLatestTag(allTags, "stable")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -184,53 +127,99 @@ func TestResolveLatestTagFiltering(t *testing.T) {
 		}
 	})
 
-	t.Run("dev channel", func(t *testing.T) {
-		got, err := resolveFromOutput(output, "dev")
+	t.Run("dev channel includes stable releases", func(t *testing.T) {
+		got, err := selectLatestTag(allTags, "dev")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if got != "v1.0.0-dev.10" {
-			t.Errorf("dev: got %q, want %q", got, "v1.0.0-dev.10")
+		// v1.0.1 (stable) > v1.0.0-dev.10, so dev resolves to the stable release.
+		if got != "v1.0.1" {
+			t.Errorf("dev: got %q, want %q", got, "v1.0.1")
 		}
 	})
 
 	t.Run("unknown channel", func(t *testing.T) {
-		_, err := resolveFromOutput(output, "nightly")
-		if err == nil {
+		if _, err := selectLatestTag(allTags, "nightly"); err == nil {
 			t.Fatal("expected error for unknown channel")
 		}
 	})
 }
 
-// TestResolveLatestTagNoMatches tests that a clear error is returned when no
-// tags match the requested channel.
-func TestResolveLatestTagNoMatches(t *testing.T) {
-	output := buildLsRemoteOutput([]string{
-		"v1.0.0-dev.1",
-		"v1.0.0-dev.2",
-	})
+// TestSelectLatestTag_DevNeverBehindStable verifies the dev channel resolves to
+// the newest tag overall: it falls back to stable when dev tags are stale, and
+// a newer dev pre-release leads when one exists.
+func TestSelectLatestTag_DevNeverBehindStable(t *testing.T) {
+	tests := []struct {
+		name string
+		tags []string
+		want string
+	}{
+		{
+			name: "falls back to stable when dev tags are stale",
+			tags: []string{"v0.1.0-dev.1", "v0.1.0-dev.2", "v0.2.0", "v0.3.1", "v0.4.3"},
+			want: "v0.4.3",
+		},
+		{
+			name: "newer dev pre-release leads stable",
+			tags: []string{"v0.4.3", "v0.5.0-dev.1"},
+			want: "v0.5.0-dev.1",
+		},
+		{
+			name: "release outranks its own pre-releases",
+			tags: []string{"v0.5.0-dev.1", "v0.5.0-dev.3", "v0.5.0"},
+			want: "v0.5.0",
+		},
+		{
+			name: "dev tags only still resolves to the highest dev",
+			tags: []string{"v0.1.0-dev.1", "v0.1.0-dev.2"},
+			want: "v0.1.0-dev.2",
+		},
+	}
 
-	_, err := resolveFromOutput(output, "stable")
-	if err == nil {
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := selectLatestTag(tc.tags, "dev")
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestSelectLatestTag_NoMatches verifies a clear error when no tags match.
+func TestSelectLatestTag_NoMatches(t *testing.T) {
+	if _, err := selectLatestTag([]string{"v1.0.0-dev.1", "v1.0.0-dev.2"}, "stable"); err == nil {
 		t.Fatal("expected error when no stable tags exist")
 	}
-}
-
-// TestResolveLatestTagAnnotatedTagsFiltered verifies that ^{} entries are skipped.
-func TestResolveLatestTagAnnotatedTagsFiltered(t *testing.T) {
-	// Only annotated pointer entry — no plain ref should result in no match.
-	output := "abc123\trefs/tags/v2.0.0^{}\n"
-
-	_, err := resolveFromOutput(output, "stable")
-	if err == nil {
-		t.Fatal("expected not-found error when only annotated pointers are present")
+	if _, err := selectLatestTag(nil, "dev"); err == nil {
+		t.Fatal("expected error when no tags exist")
 	}
 }
 
-// TestResolveLatestTagEmptyOutput verifies that empty output returns an error.
-func TestResolveLatestTagEmptyOutput(t *testing.T) {
-	_, err := resolveFromOutput("", "stable")
-	if err == nil {
-		t.Fatal("expected error for empty output")
+// TestParseLsRemoteTags verifies tag-name extraction and annotated-pointer filtering.
+func TestParseLsRemoteTags(t *testing.T) {
+	output := buildLsRemoteOutput([]string{"v1.0.0", "v1.0.1"})
+	// Annotated tag pointer entries (ending in ^{}) must be skipped.
+	output += "deadbeef\trefs/tags/v1.0.1^{}\n"
+
+	got := parseLsRemoteTags(output)
+	want := []string{"v1.0.0", "v1.0.1"}
+	if len(got) != len(want) {
+		t.Fatalf("parseLsRemoteTags returned %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("tag[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+
+	if tags := parseLsRemoteTags(""); len(tags) != 0 {
+		t.Errorf("parseLsRemoteTags(\"\") = %v, want empty", tags)
+	}
+	if tags := parseLsRemoteTags("abc123\trefs/tags/v2.0.0^{}\n"); len(tags) != 0 {
+		t.Errorf("parseLsRemoteTags with only annotated pointers = %v, want empty", tags)
 	}
 }

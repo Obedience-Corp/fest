@@ -51,11 +51,14 @@ func semverGreater(a, b semver) bool {
 	if a.patch != b.patch {
 		return a.patch > b.patch
 	}
-	// For pre-release comparison (dev channel), compare numerically by pre suffix.
-	// e.g. "dev.10" > "dev.9"
-	aNum := preReleaseNum(a.pre)
-	bNum := preReleaseNum(b.pre)
-	return aNum > bNum
+	// Same base version: a release (no pre-release) outranks any pre-release of
+	// that version, e.g. v1.0.0 > v1.0.0-dev.5.
+	if (a.pre == "") != (b.pre == "") {
+		return a.pre == ""
+	}
+	// Two pre-releases of the same base: compare numerically by suffix, e.g.
+	// "dev.10" > "dev.9".
+	return preReleaseNum(a.pre) > preReleaseNum(b.pre)
 }
 
 // preReleaseNum extracts the numeric part from a pre-release string like "dev.3".
@@ -69,11 +72,13 @@ func preReleaseNum(pre string) int {
 }
 
 // ResolveLatestTag queries the remote repository for tags and returns the
-// highest semver tag matching the given channel.
+// highest-precedence tag for the given channel.
 //
 // Supported channels:
 //   - "stable": tags matching `^v\d+\.\d+\.\d+$`
-//   - "dev":    tags matching `^v\d+\.\d+\.\d+-dev\.\d+$`
+//   - "dev":    dev pre-release tags (`^v\d+\.\d+\.\d+-dev\.\d+$`) AND stable
+//     releases, so the dev channel never resolves to a tag older than the
+//     latest stable. A newer dev pre-release still wins when one exists.
 func ResolveLatestTag(repoURL, channel string) (string, error) {
 	if !IsGitAvailable() {
 		return "", errors.Validation("git command not found")
@@ -85,57 +90,71 @@ func ResolveLatestTag(repoURL, channel string) (string, error) {
 		return "", errors.IO("listing remote tags", err).WithField("url", repoURL)
 	}
 
-	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	tag, err := selectLatestTag(parseLsRemoteTags(string(output)), channel)
+	if err != nil {
+		return "", err
+	}
+	return tag, nil
+}
 
-	var candidates []semver
-	for _, line := range lines {
+// parseLsRemoteTags extracts plain tag names from `git ls-remote --tags` output,
+// skipping annotated tag pointer entries (refs ending in "^{}").
+func parseLsRemoteTags(output string) []string {
+	var tags []string
+	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
 		if line == "" {
 			continue
 		}
-
-		// Each line is "<sha>\trefs/tags/<name>"
+		// Each line is "<sha>\trefs/tags/<name>".
 		parts := strings.Fields(line)
 		if len(parts) < 2 {
 			continue
 		}
-
 		ref := parts[1]
-
-		// Skip annotated tag pointer entries (end with ^{})
 		if strings.HasSuffix(ref, "^{}") {
 			continue
 		}
+		tags = append(tags, strings.TrimPrefix(ref, "refs/tags/"))
+	}
+	return tags
+}
 
-		tagName := strings.TrimPrefix(ref, "refs/tags/")
-
+// selectLatestTag returns the highest-precedence tag for the channel from the
+// given tag names. See ResolveLatestTag for channel semantics.
+func selectLatestTag(tags []string, channel string) (string, error) {
+	matchesChannel := func(tag string) bool {
 		switch channel {
 		case "stable":
-			if !stableTagRe.MatchString(tagName) {
-				continue
-			}
+			return stableTagRe.MatchString(tag)
 		case "dev":
-			if !devTagRe.MatchString(tagName) {
-				continue
-			}
+			return devTagRe.MatchString(tag) || stableTagRe.MatchString(tag)
 		default:
-			return "", errors.Validation("unknown channel: " + channel)
+			return false
 		}
+	}
 
-		sv, ok := parseSemver(tagName)
-		if !ok {
+	switch channel {
+	case "stable", "dev":
+	default:
+		return "", errors.Validation("unknown channel: " + channel)
+	}
+
+	var candidates []semver
+	for _, tag := range tags {
+		if !matchesChannel(tag) {
 			continue
 		}
-		candidates = append(candidates, sv)
+		if sv, ok := parseSemver(tag); ok {
+			candidates = append(candidates, sv)
+		}
 	}
 
 	if len(candidates) == 0 {
-		return "", errors.NotFound("tags matching channel "+channel).WithField("url", repoURL)
+		return "", errors.NotFound("tags matching channel " + channel)
 	}
 
-	// Sort descending and return the first element.
 	sort.Slice(candidates, func(i, j int) bool {
 		return semverGreater(candidates[i], candidates[j])
 	})
-
 	return candidates[0].raw, nil
 }
