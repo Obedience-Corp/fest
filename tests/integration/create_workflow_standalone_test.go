@@ -164,4 +164,38 @@ func TestCreateWorkflowStandalone(t *testing.T) {
 		require.Error(t, err, "--position non-default in standalone mode must error")
 		require.Contains(t, out, "--position is not valid", "error should mention --position: %s", out)
 	})
+
+	t.Run("WorkflowCreateAliasMatchesCreateWorkflow", func(t *testing.T) {
+		const dir = "/tmp/cw-standalone-alias"
+		_, _ = container.Exec("rm", "-rf", dir)
+		_, err := container.Exec("mkdir", "-p", dir)
+		require.NoError(t, err)
+
+		require.NoError(t, container.WriteFile(dir+"/steps.json", standaloneStepsJSON))
+		out, err := container.RunFestInDir(dir, "workflow", "create", "demo", "--steps-file", dir+"/steps.json")
+		require.NoError(t, err, "fest workflow create: %s", out)
+		require.Contains(t, out, "initialized .workflow/workflow.yaml")
+		require.Contains(t, out, "workflow_id=wf-demo")
+
+		exists, _ := container.CheckFileExists(dir + "/WORKFLOW.md")
+		require.True(t, exists, "WORKFLOW.md should exist")
+		exists, _ = container.CheckFileExists(dir + "/.workflow/workflow.yaml")
+		require.True(t, exists, ".workflow/workflow.yaml should exist")
+
+		out, err = container.RunFestInDir(dir, "next", "--json")
+		require.NoError(t, err, "fest next should work after workflow create: %s", out)
+		require.Contains(t, out, `"mode": "standalone-tracked"`)
+	})
+
+	t.Run("WorkflowCreateAliasRejectsPhaseFlag", func(t *testing.T) {
+		const dir = "/tmp/cw-standalone-alias-phase"
+		_, _ = container.Exec("rm", "-rf", dir)
+		_, err := container.Exec("mkdir", "-p", dir)
+		require.NoError(t, err)
+
+		require.NoError(t, container.WriteFile(dir+"/steps.json", standaloneStepsJSON))
+		out, err := container.RunFestInDir(dir, "workflow", "create", "demo", "--steps-file", dir+"/steps.json", "--phase", "001_X")
+		require.Error(t, err, "--phase must be rejected by the alias")
+		require.Contains(t, out, "--phase is not supported", "error should mention --phase: %s", out)
+	})
 }
