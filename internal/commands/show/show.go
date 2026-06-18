@@ -299,7 +299,7 @@ func emitShowFestival(ctx context.Context, festival *FestivalInfo, opts *showOpt
 	}
 
 	if opts.json {
-		return emitFestivalJSON(festival, campaignRoot)
+		return emitFestivalJSON(ctx, festival, opts, campaignRoot)
 	}
 	return emitFestivalText(festival, opts, campaignRoot)
 }
@@ -406,15 +406,73 @@ func emitShowErrorJSON(message string) error {
 	return nil
 }
 
-func emitFestivalJSON(festival *FestivalInfo, campaignRoot string) error {
+type festivalShowJSON struct {
+	*FestivalInfo
+	View *festivalShowView `json:"view,omitempty"`
+}
+
+type festivalShowView struct {
+	Mode    string                  `json:"mode"`
+	Options festivalShowViewOptions `json:"options"`
+	Tree    *DisplayNode            `json:"tree,omitempty"`
+	Error   string                  `json:"error,omitempty"`
+}
+
+type festivalShowViewOptions struct {
+	Summary    bool `json:"summary"`
+	ShowGoals  bool `json:"show_goals"`
+	Collapsed  bool `json:"collapsed"`
+	InProgress bool `json:"in_progress"`
+}
+
+func emitFestivalJSON(ctx context.Context, festival *FestivalInfo, opts *showOptions, campaignRoot string) error {
 	output := festival
 	if campaignRoot != "" {
 		output = toDisplayFestival(festival, campaignRoot)
 	}
-	if err := shared.EncodeJSON(os.Stdout, output); err != nil {
+
+	result := &festivalShowJSON{
+		FestivalInfo: output,
+		View:         buildFestivalShowView(ctx, festival, opts),
+	}
+	if err := shared.EncodeJSON(os.Stdout, result); err != nil {
 		return errors.Wrap(err, "encoding JSON output")
 	}
 	return nil
+}
+
+func buildFestivalShowView(ctx context.Context, festival *FestivalInfo, opts *showOptions) *festivalShowView {
+	if opts == nil {
+		opts = &showOptions{}
+	}
+
+	view := &festivalShowView{
+		Mode: "tree",
+		Options: festivalShowViewOptions{
+			Summary:    opts.summary,
+			ShowGoals:  opts.goals,
+			Collapsed:  opts.collapsed,
+			InProgress: opts.inProgress,
+		},
+	}
+
+	if opts.summary {
+		view.Mode = "summary"
+		return view
+	}
+
+	tree, err := BuildFestivalTree(ctx, festival.Path)
+	if err != nil {
+		view.Mode = "summary"
+		view.Error = err.Error()
+		return view
+	}
+
+	if opts.inProgress {
+		markNextPending(tree)
+	}
+	view.Tree = tree
+	return view
 }
 
 func emitFestivalText(festival *FestivalInfo, showOpts *showOptions, campaignRoot string) error {

@@ -19,13 +19,13 @@ import (
 
 // DisplayNode represents a node in the festival tree hierarchy.
 type DisplayNode struct {
-	Name          string       // Directory/file name
-	Goal          string       // Primary goal from *_GOAL.md
-	Status        string       // pending/in_progress/completed/blocked
-	Stats         StatusCounts // Task counts for this level
-	NodeType      string       // "festival", "phase", "sequence", "step", "task"
-	Children      []*DisplayNode
-	IsNextPending bool // First incomplete node at this level — expanded by --inprogress
+	Name          string         `json:"name"`                      // Directory/file name
+	Goal          string         `json:"goal,omitempty"`            // Primary goal from *_GOAL.md
+	Status        string         `json:"status"`                    // pending/in_progress/completed/blocked
+	Stats         StatusCounts   `json:"stats"`                     // Task counts for this level
+	NodeType      string         `json:"node_type"`                 // "festival", "phase", "sequence", "step", "task"
+	Children      []*DisplayNode `json:"children,omitempty"`        // Child phases, sequences, steps, or tasks
+	IsNextPending bool           `json:"is_next_pending,omitempty"` // First incomplete node at this level — expanded by --inprogress
 }
 
 // TreeOptions configures how the tree is rendered.
