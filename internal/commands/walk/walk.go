@@ -28,16 +28,17 @@ type walkOptions struct {
 
 // WalkView is the structured view returned by fest walk.
 type WalkView struct {
-	Kind     string `json:"kind"`
-	Name     string `json:"name"`
-	Status   string `json:"status"`
-	Path     string `json:"path"`
-	Goal     string `json:"goal,omitempty"`
+	Kind     string        `json:"kind"`
+	Name     string        `json:"name"`
+	Status   string        `json:"status"`
+	Path     string        `json:"path"`
+	Goal     string        `json:"goal,omitempty"`
 	Progress *walkProgress `json:"progress,omitempty"`
-	Next     string `json:"next,omitempty"`
+	Next     string        `json:"next,omitempty"`
 	Blocked  []walkBlocker `json:"blocked,omitempty"`
-	Gates    []string `json:"gates,omitempty"`
-	Warnings []string `json:"warnings,omitempty"`
+	Gates    []string      `json:"gates,omitempty"`
+	Warnings []string      `json:"warnings,omitempty"`
+	Workflow *walkWorkflow `json:"workflow,omitempty"`
 }
 
 type walkProgress struct {
@@ -47,8 +48,31 @@ type walkProgress struct {
 }
 
 type walkBlocker struct {
-	Task    string `json:"task"`
-	Reason  string `json:"reason"`
+	Task   string `json:"task"`
+	Reason string `json:"reason"`
+}
+
+type walkWorkflow struct {
+	Mode           string             `json:"mode"`
+	WorkflowDoc    string             `json:"workflow_doc"`
+	RuntimeDir     string             `json:"runtime_dir,omitempty"`
+	RunID          string             `json:"run_id,omitempty"`
+	RunStatus      string             `json:"run_status"`
+	CurrentStep    int                `json:"current_step"`
+	TotalSteps     int                `json:"total_steps"`
+	CompletedSteps int                `json:"completed_steps"`
+	Blocked        bool               `json:"blocked,omitempty"`
+	DocHashChanged bool               `json:"doc_hash_changed,omitempty"`
+	Steps          []walkWorkflowStep `json:"steps"`
+}
+
+type walkWorkflowStep struct {
+	Number        int    `json:"number"`
+	Name          string `json:"name"`
+	Status        string `json:"status"`
+	Current       bool   `json:"current,omitempty"`
+	HasCheckpoint bool   `json:"has_checkpoint,omitempty"`
+	Goal          string `json:"goal,omitempty"`
 }
 
 // NewWalkCommand creates the walk/inspect command.
@@ -58,22 +82,26 @@ func NewWalkCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "walk [path]",
 		Aliases: []string{"inspect"},
-		Short:   "Guided overview of a festival",
+		Short:   "Guided overview of a festival or workflow",
 		Annotations: map[string]string{
 			"scope": string(scope.Global),
 		},
-		Long: `Display a guided orientation overview of a festival.
+		Long: `Display a guided orientation overview of a festival or workflow.
 
-Shows what the festival is, where it is, its current status and progress,
-the next task, blocked tasks, active quality gates, and any warnings.
-This is a read-only orientation command; it never mutates festival state.
+For festivals, shows what the festival is, where it is, its current status
+and progress, the next task, blocked tasks, active quality gates, and any
+warnings. For standalone WORKFLOW.md files, shows workflow mode, run status,
+step progress, and the current step. This is a read-only orientation command;
+it never mutates festival or workflow state.
 
-Useful for quickly orienting inside a festival before continuing work,
-especially for rituals where the template and active run are distinct.
+Useful for quickly orienting inside a festival or standalone workflow before
+continuing work, especially for rituals where the template and active run are
+distinct.
 
 EXAMPLES:
-  fest walk                      # Walk current festival from cwd
+  fest walk                      # Walk current festival or WORKFLOW.md from cwd
   fest walk festivals/active/my-festival
+  fest walk path/to/workflow-dir
   fest walk --json               # Machine-readable output`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -115,10 +143,22 @@ func runWalk(ctx context.Context, opts *walkOptions) error {
 
 	campaignRoot, _ := workspace.DetectCampaign(ctx, startDir)
 
+	standaloneWorkflow, err := show.ResolveStandaloneWorkflow(ctx, startDir)
+	if err != nil {
+		return errors.Wrap(err, "resolving standalone workflow")
+	}
+	if standaloneWorkflow != nil {
+		view := buildStandaloneWalkView(standaloneWorkflow)
+		if opts.json {
+			return emitJSON(view)
+		}
+		return emitStandaloneText(view, standaloneWorkflow, campaignRoot)
+	}
+
 	festival, err := resolveFestival(ctx, startDir, campaignRoot)
 	if err != nil {
-		return errors.Wrap(err, "not inside a festival").
-			WithHint("Run from within a festival directory or pass a festival path as an argument")
+		return errors.Wrap(err, "not inside a festival or standalone workflow").
+			WithHint("Run from within a festival directory, a directory containing WORKFLOW.md, or pass a path as an argument")
 	}
 
 	festivalPath := festival.Path
@@ -175,6 +215,71 @@ func resolveFestival(ctx context.Context, startDir, campaignRoot string) (*show.
 		return show.DetectCurrentFestival(ctx, festivalPath, campaignRoot)
 	}
 	return show.DetectCurrentFestival(ctx, startDir, campaignRoot)
+}
+
+func buildStandaloneWalkView(info *show.StandaloneWorkflowInfo) *WalkView {
+	view := &WalkView{
+		Kind:   "workflow",
+		Name:   filepath.Base(info.StartDir),
+		Status: info.RunStatus,
+		Path:   info.WorkflowDoc,
+		Progress: &walkProgress{
+			Completed:  info.CompletedSteps,
+			Total:      info.TotalSteps,
+			Percentage: progressPercentage(info.CompletedSteps, info.TotalSteps),
+		},
+		Workflow: &walkWorkflow{
+			Mode:           info.Mode,
+			WorkflowDoc:    info.WorkflowDoc,
+			RuntimeDir:     info.RuntimeDir,
+			RunID:          info.RunID,
+			RunStatus:      info.RunStatus,
+			CurrentStep:    info.CurrentStep,
+			TotalSteps:     info.TotalSteps,
+			CompletedSteps: info.CompletedSteps,
+			Blocked:        info.Blocked,
+			DocHashChanged: info.DocHashChanged,
+			Steps:          make([]walkWorkflowStep, 0, len(info.Steps)),
+		},
+	}
+
+	for _, step := range info.Steps {
+		if step.IsCurrent {
+			view.Next = fmt.Sprintf("Step %d: %s", step.Number, step.Name)
+		}
+		view.Workflow.Steps = append(view.Workflow.Steps, walkWorkflowStep{
+			Number:        step.Number,
+			Name:          step.Name,
+			Status:        string(step.Status),
+			Current:       step.IsCurrent,
+			HasCheckpoint: step.HasCheckpoint,
+			Goal:          step.Goal,
+		})
+	}
+
+	if info.Blocked && view.Next != "" {
+		view.Blocked = append(view.Blocked, walkBlocker{
+			Task:   view.Next,
+			Reason: "workflow run is blocked",
+		})
+	}
+	if info.DocHashChanged {
+		view.Warnings = append(view.Warnings, "WORKFLOW.md has changed since this run started")
+	}
+	return view
+}
+
+func progressPercentage(completed, total int) int {
+	if total <= 0 {
+		return 0
+	}
+	if completed < 0 {
+		completed = 0
+	}
+	if completed > total {
+		completed = total
+	}
+	return completed * 100 / total
 }
 
 func detectKind(festivalPath, status string) string {
@@ -382,6 +487,69 @@ func emitJSON(view *WalkView) error {
 	if err := enc.Encode(view); err != nil {
 		return errors.Wrap(err, "encoding JSON output")
 	}
+	return nil
+}
+
+func emitStandaloneText(view *WalkView, info *show.StandaloneWorkflowInfo, campaignRoot string) error {
+	displayPath := view.Path
+	if campaignRoot != "" && strings.HasPrefix(view.Path, campaignRoot) {
+		rel, err := filepath.Rel(campaignRoot, view.Path)
+		if err == nil {
+			displayPath = rel
+		}
+	}
+
+	fmt.Println(ui.H1("Workflow Walk"))
+	fmt.Printf("%s %s\n", ui.Label("Workflow"), ui.Value(view.Name, ui.FestivalColor))
+	fmt.Printf("%s %s\n", ui.Label("Kind"), ui.Value(view.Kind))
+	fmt.Printf("%s %s\n", ui.Label("Mode"), ui.Value(strings.TrimPrefix(info.Mode, "standalone-")))
+	fmt.Printf("%s %s\n", ui.Label("Status"), ui.GetStateStyle(view.Status).Render(view.Status))
+	fmt.Printf("%s %s\n", ui.Label("Path"), ui.Dim(displayPath))
+	if info.RunID != "" {
+		fmt.Printf("%s %s\n", ui.Label("Run"), ui.Value(info.RunID))
+	}
+
+	if view.Progress != nil {
+		fmt.Println()
+		fmt.Println(ui.H2("Progress"))
+		fmt.Println(ui.Dim(strings.Repeat("─", 60)))
+		fmt.Printf("%s %d/%d steps (%d%%)\n",
+			ui.Label("Steps"),
+			view.Progress.Completed,
+			view.Progress.Total,
+			view.Progress.Percentage,
+		)
+	}
+
+	if view.Next != "" {
+		fmt.Println()
+		fmt.Println(ui.H2("Current"))
+		fmt.Println(ui.Dim(strings.Repeat("─", 60)))
+		fmt.Printf("%s\n", view.Next)
+	}
+
+	if len(view.Blocked) > 0 {
+		fmt.Println()
+		fmt.Println(ui.H2("Blocked"))
+		fmt.Println(ui.Dim(strings.Repeat("─", 60)))
+		for _, b := range view.Blocked {
+			if b.Reason != "" {
+				fmt.Printf("%s %s %s\n", ui.StateIcon("blocked"), ui.Value(b.Task, ui.TaskColor), ui.Dim(b.Reason))
+			} else {
+				fmt.Printf("%s %s\n", ui.StateIcon("blocked"), ui.Value(b.Task, ui.TaskColor))
+			}
+		}
+	}
+
+	if len(view.Warnings) > 0 {
+		fmt.Println()
+		fmt.Println(ui.H2("Warnings"))
+		fmt.Println(ui.Dim(strings.Repeat("─", 60)))
+		for _, w := range view.Warnings {
+			fmt.Printf("%s %s\n", ui.StateIcon("blocked"), ui.Warning(w))
+		}
+	}
+
 	return nil
 }
 
