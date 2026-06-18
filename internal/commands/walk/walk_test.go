@@ -9,7 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
+	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 )
 
 func makeMinimalFestival(t *testing.T, root, name, status string) string {
@@ -357,6 +359,51 @@ func TestRunWalk_StandaloneWorkflowTextOutput(t *testing.T) {
 		if !strings.Contains(output, want) {
 			t.Fatalf("output missing %q:\n%s", want, output)
 		}
+	}
+}
+
+func TestBuildStandaloneWalkView_BlockedAndStale(t *testing.T) {
+	info := &show.StandaloneWorkflowInfo{
+		Mode:           "standalone-tracked",
+		StartDir:       "/tmp/demo",
+		WorkflowDoc:    "/tmp/demo/WORKFLOW.md",
+		RunID:          "run-1",
+		RunStatus:      "blocked",
+		CurrentStep:    1,
+		TotalSteps:     2,
+		CompletedSteps: 0,
+		Blocked:        true,
+		DocHashChanged: true,
+		Steps: []shared.WorkflowStepView{
+			{Number: 1, Name: "First", Status: wf.StepStatusBlocked, IsCurrent: true},
+			{Number: 2, Name: "Second", Status: wf.StepStatusPending},
+		},
+	}
+
+	view := buildStandaloneWalkView(info)
+
+	if view.Next != "Step 1: First" {
+		t.Fatalf("Next = %q, want Step 1: First", view.Next)
+	}
+	if len(view.Blocked) != 1 {
+		t.Fatalf("Blocked = %#v, want exactly one blocker", view.Blocked)
+	}
+	if view.Blocked[0].Task != "Step 1: First" || view.Blocked[0].Reason != "workflow run is blocked" {
+		t.Fatalf("Blocked[0] = %#v", view.Blocked[0])
+	}
+
+	foundWarning := false
+	for _, warning := range view.Warnings {
+		if strings.Contains(warning, "WORKFLOW.md has changed") {
+			foundWarning = true
+		}
+	}
+	if !foundWarning {
+		t.Fatalf("Warnings = %#v, want a doc-hash-changed warning", view.Warnings)
+	}
+
+	if view.Workflow == nil || !view.Workflow.Blocked || !view.Workflow.DocHashChanged {
+		t.Fatalf("Workflow = %#v, want blocked and doc-hash-changed", view.Workflow)
 	}
 }
 

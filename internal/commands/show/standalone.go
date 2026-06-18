@@ -322,21 +322,23 @@ func currentStandaloneStep(info *StandaloneWorkflowInfo) *shared.WorkflowStepVie
 	return nil
 }
 
-type standaloneWorkflowJSON struct {
-	Mode           string                   `json:"mode"`
-	WorkflowDoc    string                   `json:"workflow_doc"`
-	RuntimeDir     string                   `json:"runtime_dir,omitempty"`
-	RunID          string                   `json:"run_id,omitempty"`
-	RunStatus      string                   `json:"run_status"`
-	CurrentStep    int                      `json:"current_step"`
-	TotalSteps     int                      `json:"total_steps"`
-	CompletedSteps int                      `json:"completed_steps"`
-	Blocked        bool                     `json:"blocked,omitempty"`
-	DocHashChanged bool                     `json:"doc_hash_changed,omitempty"`
-	Steps          []standaloneWorkflowStep `json:"steps"`
+// StandaloneWorkflowJSON is the machine-readable view of a standalone WORKFLOW.md.
+type StandaloneWorkflowJSON struct {
+	Mode           string                       `json:"mode"`
+	WorkflowDoc    string                       `json:"workflow_doc"`
+	RuntimeDir     string                       `json:"runtime_dir,omitempty"`
+	RunID          string                       `json:"run_id,omitempty"`
+	RunStatus      string                       `json:"run_status"`
+	CurrentStep    int                          `json:"current_step"`
+	TotalSteps     int                          `json:"total_steps"`
+	CompletedSteps int                          `json:"completed_steps"`
+	Blocked        bool                         `json:"blocked,omitempty"`
+	DocHashChanged bool                         `json:"doc_hash_changed,omitempty"`
+	Steps          []StandaloneWorkflowStepJSON `json:"steps"`
 }
 
-type standaloneWorkflowStep struct {
+// StandaloneWorkflowStepJSON is a single step in a standalone workflow view.
+type StandaloneWorkflowStepJSON struct {
 	Number        int    `json:"number"`
 	Name          string `json:"name"`
 	Status        string `json:"status"`
@@ -345,8 +347,9 @@ type standaloneWorkflowStep struct {
 	Goal          string `json:"goal,omitempty"`
 }
 
-func emitStandaloneWorkflowJSON(info *StandaloneWorkflowInfo) error {
-	out := standaloneWorkflowJSON{
+// NewStandaloneWorkflowJSON projects resolved info into the JSON view.
+func NewStandaloneWorkflowJSON(info *StandaloneWorkflowInfo) StandaloneWorkflowJSON {
+	out := StandaloneWorkflowJSON{
 		Mode:           info.Mode,
 		WorkflowDoc:    info.WorkflowDoc,
 		RuntimeDir:     info.RuntimeDir,
@@ -357,10 +360,10 @@ func emitStandaloneWorkflowJSON(info *StandaloneWorkflowInfo) error {
 		CompletedSteps: info.CompletedSteps,
 		Blocked:        info.Blocked,
 		DocHashChanged: info.DocHashChanged,
-		Steps:          make([]standaloneWorkflowStep, 0, len(info.Steps)),
+		Steps:          make([]StandaloneWorkflowStepJSON, 0, len(info.Steps)),
 	}
 	for _, step := range info.Steps {
-		out.Steps = append(out.Steps, standaloneWorkflowStep{
+		out.Steps = append(out.Steps, StandaloneWorkflowStepJSON{
 			Number:        step.Number,
 			Name:          step.Name,
 			Status:        string(step.Status),
@@ -369,7 +372,11 @@ func emitStandaloneWorkflowJSON(info *StandaloneWorkflowInfo) error {
 			Goal:          step.Goal,
 		})
 	}
-	if err := shared.EncodeJSON(os.Stdout, out); err != nil {
+	return out
+}
+
+func emitStandaloneWorkflowJSON(info *StandaloneWorkflowInfo) error {
+	if err := shared.EncodeJSON(os.Stdout, NewStandaloneWorkflowJSON(info)); err != nil {
 		return errors.Wrap(err, "encoding JSON output")
 	}
 	return nil

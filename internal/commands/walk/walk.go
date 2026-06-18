@@ -28,17 +28,17 @@ type walkOptions struct {
 
 // WalkView is the structured view returned by fest walk.
 type WalkView struct {
-	Kind     string        `json:"kind"`
-	Name     string        `json:"name"`
-	Status   string        `json:"status"`
-	Path     string        `json:"path"`
-	Goal     string        `json:"goal,omitempty"`
-	Progress *walkProgress `json:"progress,omitempty"`
-	Next     string        `json:"next,omitempty"`
-	Blocked  []walkBlocker `json:"blocked,omitempty"`
-	Gates    []string      `json:"gates,omitempty"`
-	Warnings []string      `json:"warnings,omitempty"`
-	Workflow *walkWorkflow `json:"workflow,omitempty"`
+	Kind     string                       `json:"kind"`
+	Name     string                       `json:"name"`
+	Status   string                       `json:"status"`
+	Path     string                       `json:"path"`
+	Goal     string                       `json:"goal,omitempty"`
+	Progress *walkProgress                `json:"progress,omitempty"`
+	Next     string                       `json:"next,omitempty"`
+	Blocked  []walkBlocker                `json:"blocked,omitempty"`
+	Gates    []string                     `json:"gates,omitempty"`
+	Warnings []string                     `json:"warnings,omitempty"`
+	Workflow *show.StandaloneWorkflowJSON `json:"workflow,omitempty"`
 }
 
 type walkProgress struct {
@@ -50,29 +50,6 @@ type walkProgress struct {
 type walkBlocker struct {
 	Task   string `json:"task"`
 	Reason string `json:"reason"`
-}
-
-type walkWorkflow struct {
-	Mode           string             `json:"mode"`
-	WorkflowDoc    string             `json:"workflow_doc"`
-	RuntimeDir     string             `json:"runtime_dir,omitempty"`
-	RunID          string             `json:"run_id,omitempty"`
-	RunStatus      string             `json:"run_status"`
-	CurrentStep    int                `json:"current_step"`
-	TotalSteps     int                `json:"total_steps"`
-	CompletedSteps int                `json:"completed_steps"`
-	Blocked        bool               `json:"blocked,omitempty"`
-	DocHashChanged bool               `json:"doc_hash_changed,omitempty"`
-	Steps          []walkWorkflowStep `json:"steps"`
-}
-
-type walkWorkflowStep struct {
-	Number        int    `json:"number"`
-	Name          string `json:"name"`
-	Status        string `json:"status"`
-	Current       bool   `json:"current,omitempty"`
-	HasCheckpoint bool   `json:"has_checkpoint,omitempty"`
-	Goal          string `json:"goal,omitempty"`
 }
 
 // NewWalkCommand creates the walk/inspect command.
@@ -218,6 +195,7 @@ func resolveFestival(ctx context.Context, startDir, campaignRoot string) (*show.
 }
 
 func buildStandaloneWalkView(info *show.StandaloneWorkflowInfo) *WalkView {
+	workflow := show.NewStandaloneWorkflowJSON(info)
 	view := &WalkView{
 		Kind:   "workflow",
 		Name:   filepath.Base(info.StartDir),
@@ -228,33 +206,13 @@ func buildStandaloneWalkView(info *show.StandaloneWorkflowInfo) *WalkView {
 			Total:      info.TotalSteps,
 			Percentage: progressPercentage(info.CompletedSteps, info.TotalSteps),
 		},
-		Workflow: &walkWorkflow{
-			Mode:           info.Mode,
-			WorkflowDoc:    info.WorkflowDoc,
-			RuntimeDir:     info.RuntimeDir,
-			RunID:          info.RunID,
-			RunStatus:      info.RunStatus,
-			CurrentStep:    info.CurrentStep,
-			TotalSteps:     info.TotalSteps,
-			CompletedSteps: info.CompletedSteps,
-			Blocked:        info.Blocked,
-			DocHashChanged: info.DocHashChanged,
-			Steps:          make([]walkWorkflowStep, 0, len(info.Steps)),
-		},
+		Workflow: &workflow,
 	}
 
 	for _, step := range info.Steps {
 		if step.IsCurrent {
 			view.Next = fmt.Sprintf("Step %d: %s", step.Number, step.Name)
 		}
-		view.Workflow.Steps = append(view.Workflow.Steps, walkWorkflowStep{
-			Number:        step.Number,
-			Name:          step.Name,
-			Status:        string(step.Status),
-			Current:       step.IsCurrent,
-			HasCheckpoint: step.HasCheckpoint,
-			Goal:          step.Goal,
-		})
 	}
 
 	if info.Blocked && view.Next != "" {
