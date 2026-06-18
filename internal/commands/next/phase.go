@@ -210,3 +210,46 @@ func findFirstIncompletePhaseGate(ctx context.Context, festivalPath string) (str
 func isPhaseWorkAndWorkflowComplete(ctx context.Context, storeLoaded bool, store *progress.Store, phasePath, phaseName string) bool {
 	return shared.ArePhaseTasksAndWorkflowComplete(ctx, storeLoaded, store, phasePath, phaseName)
 }
+
+// completeRoute identifies what fest next should surface when the task selector
+// reports the festival complete but workflow or gate work still remains.
+type completeRoute int
+
+const (
+	routeNone completeRoute = iota
+	routeWorkflow
+	routeGate
+)
+
+// resolveCompletePhaseRoute decides, when the task selector reports the festival
+// complete, whether to surface an incomplete phase workflow or an incomplete
+// phase gate — choosing whichever phase comes first in numerical order. A later
+// phase's workflow must not mask an earlier phase's unsatisfied gate, which is
+// what makes fest next desync from fest workflow status. Returns routeNone when
+// nothing remains. Phase basenames are zero-padded numeric prefixes, so lexical
+// comparison matches numerical order (the same convention the phase scanners use
+// via sort.Strings).
+func resolveCompletePhaseRoute(ctx context.Context, festivalPath string) (completeRoute, string, error) {
+	incompleteWorkflow, wErr := findFirstIncompleteWorkflowPhase(ctx, festivalPath)
+	if wErr != nil {
+		return routeNone, "", wErr
+	}
+	incompleteGate, gErr := findFirstIncompletePhaseGate(ctx, festivalPath)
+	if gErr != nil {
+		return routeNone, "", gErr
+	}
+
+	switch {
+	case incompleteGate != "" && incompleteWorkflow != "":
+		if filepath.Base(incompleteGate) < filepath.Base(incompleteWorkflow) {
+			return routeGate, incompleteGate, nil
+		}
+		return routeWorkflow, incompleteWorkflow, nil
+	case incompleteGate != "":
+		return routeGate, incompleteGate, nil
+	case incompleteWorkflow != "":
+		return routeWorkflow, incompleteWorkflow, nil
+	default:
+		return routeNone, "", nil
+	}
+}

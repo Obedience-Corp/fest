@@ -293,19 +293,22 @@ func runNext(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// If selector says festival is complete, check for remaining incomplete workflow phases
+	// If the selector says the festival is complete, workflow phases and/or
+	// phase gates may still remain. Surface whichever incomplete phase comes
+	// FIRST in numerical order. A completed workflow phase can still have an
+	// unsatisfied gate (GATES.md) that must be walked before a LATER phase's
+	// workflow; routing to the later workflow first would skip that gate and
+	// desync `fest next` from `fest workflow status` (which stays on the
+	// earlier phase's gate).
 	if result.FestivalComplete {
-		incompleteWorkflow, wErr := findFirstIncompleteWorkflowPhase(ctx, festivalPath)
-		if wErr == nil && incompleteWorkflow != "" {
-			return runWorkflowMode(ctx, festivalPath, incompleteWorkflow)
-		}
-	}
-
-	// If selector says festival is complete, check for remaining incomplete phase gates
-	if result.FestivalComplete {
-		incompleteGate, gErr := findFirstIncompletePhaseGate(ctx, festivalPath)
-		if gErr == nil && incompleteGate != "" {
-			return runPhaseGateMode(ctx, festivalPath, incompleteGate)
+		route, routePhase, routeErr := resolveCompletePhaseRoute(ctx, festivalPath)
+		if routeErr == nil {
+			switch route {
+			case routeGate:
+				return runPhaseGateMode(ctx, festivalPath, routePhase)
+			case routeWorkflow:
+				return runWorkflowMode(ctx, festivalPath, routePhase)
+			}
 		}
 	}
 
