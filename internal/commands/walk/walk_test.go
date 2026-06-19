@@ -9,7 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
+	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 )
 
 func makeMinimalFestival(t *testing.T, root, name, status string) string {
@@ -40,6 +42,27 @@ func makePhaseAndTask(t *testing.T, festivalDir, phaseName, seqName, taskName st
 	if err := os.WriteFile(filepath.Join(seqDir, taskName), []byte("# Task\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func makeStandaloneWorkflow(t *testing.T, root string) string {
+	t.Helper()
+	if err := os.MkdirAll(root, 0755); err != nil {
+		t.Fatal(err)
+	}
+	content := `# Workflow
+
+## Step 1: First
+
+**Goal:** Start work.
+
+## Step 2: Second
+
+**Goal:** Finish work.
+`
+	if err := os.WriteFile(filepath.Join(root, "WORKFLOW.md"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	return root
 }
 
 func TestDetectKind_Festival(t *testing.T) {
@@ -245,6 +268,142 @@ func TestRunWalk_ErrorOutsideFestival(t *testing.T) {
 	err = runWalk(context.Background(), &walkOptions{})
 	if err == nil {
 		t.Fatal("runWalk() expected error outside festival, got nil")
+	}
+}
+
+func TestRunWalk_StandaloneWorkflowJSONOutput(t *testing.T) {
+	workflowDir := makeStandaloneWorkflow(t, filepath.Join(t.TempDir(), "standalone-work"))
+
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatal(pipeErr)
+	}
+	os.Stdout = w
+
+	runErr := runWalk(context.Background(), &walkOptions{json: true, from: workflowDir})
+
+	if closeErr := w.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	os.Stdout = origStdout
+
+	var buf bytes.Buffer
+	if _, readErr := buf.ReadFrom(r); readErr != nil {
+		t.Fatal(readErr)
+	}
+
+	if runErr != nil {
+		t.Fatalf("runWalk() error: %v", runErr)
+	}
+
+	var view WalkView
+	if unmarshalErr := json.Unmarshal(buf.Bytes(), &view); unmarshalErr != nil {
+		t.Fatalf("failed to parse JSON output: %v\noutput: %s", unmarshalErr, buf.String())
+	}
+
+	if view.Kind != "workflow" {
+		t.Fatalf("WalkView.Kind = %q, want workflow", view.Kind)
+	}
+	if view.Workflow == nil {
+		t.Fatal("WalkView.Workflow is nil")
+	}
+	if view.Workflow.Mode != "standalone-anonymous" {
+		t.Fatalf("Workflow.Mode = %q, want standalone-anonymous", view.Workflow.Mode)
+	}
+	if view.Workflow.TotalSteps != 2 {
+		t.Fatalf("Workflow.TotalSteps = %d, want 2", view.Workflow.TotalSteps)
+	}
+	if view.Next != "Step 1: First" {
+		t.Fatalf("WalkView.Next = %q, want Step 1: First", view.Next)
+	}
+	if view.Progress == nil || view.Progress.Total != 2 || view.Progress.Completed != 0 {
+		t.Fatalf("WalkView.Progress = %#v, want 0/2", view.Progress)
+	}
+}
+
+func TestRunWalk_StandaloneWorkflowTextOutput(t *testing.T) {
+	workflowDir := makeStandaloneWorkflow(t, filepath.Join(t.TempDir(), "standalone-work"))
+
+	origStdout := os.Stdout
+	r, w, pipeErr := os.Pipe()
+	if pipeErr != nil {
+		t.Fatal(pipeErr)
+	}
+	os.Stdout = w
+
+	err := runWalk(context.Background(), &walkOptions{from: workflowDir})
+
+	if closeErr := w.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	os.Stdout = origStdout
+
+	var buf bytes.Buffer
+	if _, readErr := buf.ReadFrom(r); readErr != nil {
+		t.Fatal(readErr)
+	}
+
+	if err != nil {
+		t.Fatalf("runWalk() error: %v", err)
+	}
+
+	output := buf.String()
+	for _, want := range []string{
+		"WORKFLOW WALK",
+		"Mode",
+		"anonymous",
+		"0/2 steps",
+		"Step 1: First",
+	} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("output missing %q:\n%s", want, output)
+		}
+	}
+}
+
+func TestBuildStandaloneWalkView_BlockedAndStale(t *testing.T) {
+	info := &show.StandaloneWorkflowInfo{
+		Mode:           "standalone-tracked",
+		StartDir:       "/tmp/demo",
+		WorkflowDoc:    "/tmp/demo/WORKFLOW.md",
+		RunID:          "run-1",
+		RunStatus:      "blocked",
+		CurrentStep:    1,
+		TotalSteps:     2,
+		CompletedSteps: 0,
+		Blocked:        true,
+		DocHashChanged: true,
+		Steps: []shared.WorkflowStepView{
+			{Number: 1, Name: "First", Status: wf.StepStatusBlocked, IsCurrent: true},
+			{Number: 2, Name: "Second", Status: wf.StepStatusPending},
+		},
+	}
+
+	view := buildStandaloneWalkView(info)
+
+	if view.Next != "Step 1: First" {
+		t.Fatalf("Next = %q, want Step 1: First", view.Next)
+	}
+	if len(view.Blocked) != 1 {
+		t.Fatalf("Blocked = %#v, want exactly one blocker", view.Blocked)
+	}
+	if view.Blocked[0].Task != "Step 1: First" || view.Blocked[0].Reason != "workflow run is blocked" {
+		t.Fatalf("Blocked[0] = %#v", view.Blocked[0])
+	}
+
+	foundWarning := false
+	for _, warning := range view.Warnings {
+		if strings.Contains(warning, "WORKFLOW.md has changed") {
+			foundWarning = true
+		}
+	}
+	if !foundWarning {
+		t.Fatalf("Warnings = %#v, want a doc-hash-changed warning", view.Warnings)
+	}
+
+	if view.Workflow == nil || !view.Workflow.Blocked || !view.Workflow.DocHashChanged {
+		t.Fatalf("Workflow = %#v, want blocked and doc-hash-changed", view.Workflow)
 	}
 }
 
