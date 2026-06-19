@@ -6,7 +6,11 @@
   <img src="docs/images/banner.jpg" alt="Festival Methodology Banner" width="400">
 </p>
 
-[![Watch the demo](docs/images/demo_video_thumb.jpg)](https://youtu.be/30m3VNl2G6k?si=4taH1m1q4MRkbOhd&t=21)
+<p align="center">
+  <img src="docs/images/fest-show.gif" alt="Animated fest show tree for the camp-hardening CH0001 festival" width="400">
+</p>
+
+<p align="center"><em><a href="https://github.com/Festival-Examples/example-camp-hardening-festival">See the festival behind this demo &rarr;</a></em></p>
 
 Festival Methodology transforms high-level objectives into structured, executable work that AI agents complete autonomously. **Fest** is the CLI that makes it happen - scaffolding festivals, guiding agents through execution, and tracking progress from goal to completion.
 
@@ -348,6 +352,10 @@ Fest is one half of the Festival product. The other half is [camp](https://githu
 - [Festival documentation](https://fest.build) - Full docs, methodology, tutorials
 - [camp CLI](https://github.com/Obedience-Corp/camp) - Campaign workspace management
 - [Festival repo](https://github.com/Obedience-Corp/festival) - Distribution hub and releases
+
+## Watch
+
+[![Watch the demo](docs/images/demo_video_thumb.jpg)](https://youtu.be/30m3VNl2G6k?si=4taH1m1q4MRkbOhd&t=21)
 
 ## License
 
