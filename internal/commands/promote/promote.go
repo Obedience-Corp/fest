@@ -182,6 +182,18 @@ func runPromote(ctx context.Context, opts *promoteOptions, selector string) erro
 		}
 		return err
 	}
+
+	_, err = promoteCore(ctx, festival, fromPicker, opts)
+	return err
+}
+
+// PromoteResolved promotes an already-resolved festival through the fest promote
+// flow, asking for confirmation, and returns the post-move path (empty if nothing moved).
+func PromoteResolved(ctx context.Context, festival *show.FestivalInfo) (string, error) {
+	return promoteCore(ctx, festival, true, &promoteOptions{})
+}
+
+func promoteCore(ctx context.Context, festival *show.FestivalInfo, confirm bool, opts *promoteOptions) (string, error) {
 	currentStatus := festival.Status
 
 	var nextStatus string
@@ -190,7 +202,7 @@ func runPromote(ctx context.Context, opts *promoteOptions, selector string) erro
 		// Dungeon override: resolve the dungeon status
 		resolved := id.ResolveStatusPath(opts.dungeon)
 		if !strings.HasPrefix(resolved, "dungeon/") {
-			return errors.Validation("invalid dungeon status").
+			return "", errors.Validation("invalid dungeon status").
 				WithField("value", opts.dungeon).
 				WithField("hint", "valid values: completed, archived, someday")
 		}
@@ -201,13 +213,13 @@ func runPromote(ctx context.Context, opts *promoteOptions, selector string) erro
 		nextStatus, ok = validTransitions[currentStatus]
 		if !ok {
 			if opts.json {
-				return shared.EncodeJSON(os.Stdout, map[string]any{
+				return "", shared.EncodeJSON(os.Stdout, map[string]any{
 					"success": false,
 					"error":   fmt.Sprintf("cannot promote festival with status %q", currentStatus),
 					"status":  currentStatus,
 				})
 			}
-			return errors.Validation("cannot promote festival").
+			return "", errors.Validation("cannot promote festival").
 				WithField("status", currentStatus).
 				WithField("hint", "only planning, ready, and active festivals can be promoted")
 		}
@@ -216,7 +228,7 @@ func runPromote(ctx context.Context, opts *promoteOptions, selector string) erro
 		if !opts.force {
 			if err := validateReadiness(ctx, festival, currentStatus, nextStatus); err != nil {
 				if opts.json {
-					return shared.EncodeJSON(os.Stdout, map[string]any{
+					return "", shared.EncodeJSON(os.Stdout, map[string]any{
 						"success": false,
 						"error":   err.Error(),
 						"from":    currentStatus,
@@ -226,7 +238,7 @@ func runPromote(ctx context.Context, opts *promoteOptions, selector string) erro
 				}
 				fmt.Printf("%s %s\n", ui.Warning("Promotion blocked"), ui.Dim(err.Error()))
 				fmt.Printf("\n  %s\n", ui.Dim("Use --force to skip validation"))
-				return nil
+				return "", nil
 			}
 		}
 	}
@@ -235,7 +247,7 @@ func runPromote(ctx context.Context, opts *promoteOptions, selector string) erro
 	if nextStatus == "active" && !opts.force && opts.dungeon == "" {
 		if blocked, blockMsg := checkChainDependencies(ctx, festival); blocked {
 			if opts.json {
-				return shared.EncodeJSON(os.Stdout, map[string]any{
+				return "", shared.EncodeJSON(os.Stdout, map[string]any{
 					"success": false,
 					"error":   "chain dependencies not met",
 					"details": blockMsg,
@@ -244,19 +256,19 @@ func runPromote(ctx context.Context, opts *promoteOptions, selector string) erro
 			}
 			fmt.Printf("%s %s\n", ui.Warning("Chain dependency gate:"), blockMsg)
 			fmt.Printf("\n  %s\n", ui.Dim("Use --force to skip chain dependency check"))
-			return nil
+			return "", nil
 		}
 	}
 
-	if fromPicker && !confirmPromotion(festival.Name, currentStatus, nextStatus) {
+	if confirm && !confirmPromotion(festival.Name, currentStatus, nextStatus) {
 		fmt.Println(ui.Dim("Promotion cancelled"))
-		return nil
+		return "", nil
 	}
 
 	// Execute the move using existing atomic status change
 	newPath, err := status.AtomicStatusChange(ctx, festival.Path, currentStatus, nextStatus)
 	if err != nil {
-		return errors.Wrap(err, "promoting festival")
+		return "", errors.Wrap(err, "promoting festival")
 	}
 
 	// Update FESTIVAL_GOAL.md frontmatter with the new status
@@ -310,7 +322,7 @@ func runPromote(ctx context.Context, opts *promoteOptions, selector string) erro
 		if commitHash != "" {
 			result["commit"] = commitHash
 		}
-		return shared.EncodeJSON(os.Stdout, result)
+		return newPath, shared.EncodeJSON(os.Stdout, result)
 	}
 
 	fmt.Println(ui.H2("Festival Promoted"))
@@ -324,7 +336,7 @@ func runPromote(ctx context.Context, opts *promoteOptions, selector string) erro
 		fmt.Printf("%s %s\n", ui.Label("Commit"), ui.Dim(commitHash))
 	}
 
-	return nil
+	return newPath, nil
 }
 
 // validateReadiness checks if a festival is ready for the next lifecycle status.

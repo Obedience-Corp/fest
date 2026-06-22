@@ -287,7 +287,7 @@ func runShowBySelector(ctx context.Context, selector string, opts *showOptions) 
 func emitShowFestival(ctx context.Context, festival *FestivalInfo, opts *showOptions, campaignRoot string) error {
 	// Watch mode - continuously refresh display
 	if opts.watch {
-		return runWatchMode(ctx, festival, opts, false)
+		return runWatchMode(ctx, festival, opts, false, false)
 	}
 
 	// Roadmap mode - full execution plan

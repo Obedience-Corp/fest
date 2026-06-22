@@ -381,3 +381,68 @@ func TestRunPromote_SelectorPromotesPlanningToReady(t *testing.T) {
 		t.Fatalf("expected planning copy removed, stat err=%v", err)
 	}
 }
+
+func feedStdin(t *testing.T, input string) {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stdin
+	os.Stdin = r
+	t.Cleanup(func() {
+		os.Stdin = old
+		_ = r.Close()
+	})
+	if _, err := w.WriteString(input); err != nil {
+		t.Fatal(err)
+	}
+	_ = w.Close()
+}
+
+func TestPromoteResolved_ConfirmedSharesTheCLIFlow(t *testing.T) {
+	_, festivalsDir := setupPromoteCampaign(t)
+
+	festival, _, err := resolveFestivalForPromote(t.Context(), "", filepath.Dir(festivalsDir), "alpha-feature-FE0001", false)
+	if err != nil {
+		t.Fatalf("resolveFestivalForPromote: %v", err)
+	}
+
+	feedStdin(t, "y\n")
+	newPath, err := PromoteResolved(t.Context(), festival)
+	if err != nil {
+		t.Fatalf("PromoteResolved: %v", err)
+	}
+	if newPath == "" {
+		t.Fatal("confirmed promotion should return the post-move path")
+	}
+
+	movedPath := filepath.Join(festivalsDir, "ready", "alpha-feature-FE0001")
+	if _, err := os.Stat(movedPath); err != nil {
+		t.Fatalf("expected festival moved to %s: %v", movedPath, err)
+	}
+	if _, err := os.Stat(filepath.Join(festivalsDir, "planning", "alpha-feature-FE0001")); !os.IsNotExist(err) {
+		t.Fatalf("expected planning copy removed, stat err=%v", err)
+	}
+}
+
+func TestPromoteResolved_DeclinedDoesNotMove(t *testing.T) {
+	_, festivalsDir := setupPromoteCampaign(t)
+
+	festival, _, err := resolveFestivalForPromote(t.Context(), "", filepath.Dir(festivalsDir), "alpha-feature-FE0001", false)
+	if err != nil {
+		t.Fatalf("resolveFestivalForPromote: %v", err)
+	}
+
+	feedStdin(t, "n\n")
+	newPath, err := PromoteResolved(t.Context(), festival)
+	if err != nil {
+		t.Fatalf("PromoteResolved: %v", err)
+	}
+	if newPath != "" {
+		t.Fatalf("declined promotion must not return a path, got %q", newPath)
+	}
+	if _, err := os.Stat(filepath.Join(festivalsDir, "planning", "alpha-feature-FE0001")); err != nil {
+		t.Fatalf("festival must remain in planning after decline: %v", err)
+	}
+}
