@@ -11,12 +11,18 @@ import (
 
 func TestCycleWatchOptionsSetsCycleHint(t *testing.T) {
 	opts := options{summary: true, goals: true, collapsed: true}
-	got := cycleWatchOptions(opts)
+	got := cycleWatchOptions(opts, true)
 	if !got.CycleHint {
 		t.Fatal("cycleWatchOptions must set CycleHint = true")
 	}
+	if !got.Cycling {
+		t.Fatal("cycleWatchOptions must propagate cycling = true")
+	}
 	if !got.Summary || !got.Goals || !got.Collapsed {
 		t.Fatalf("cycleWatchOptions dropped flags: %#v", got)
+	}
+	if single := cycleWatchOptions(opts, false); single.Cycling {
+		t.Fatal("cycleWatchOptions must leave Cycling = false for a single target")
 	}
 }
 
@@ -144,6 +150,8 @@ func TestClassifyCycleKey(t *testing.T) {
 		{"ctrl_c", []byte{0x03}, cycleQuit, true},
 		{"right_arrow", []byte{0x1b, '[', 'C'}, cycleNext, true},
 		{"left_arrow", []byte{0x1b, '[', 'D'}, cyclePrev, true},
+		{"lower_p_promotes", []byte{'p'}, cyclePromote, true},
+		{"upper_p_promotes", []byte{'P'}, cyclePromote, true},
 		{"up_arrow_ignored", []byte{0x1b, '[', 'A'}, cycleNone, false},
 		{"plain_char", []byte{'x'}, cycleNone, false},
 		{"short_escape", []byte{0x1b, '['}, cycleNone, false},

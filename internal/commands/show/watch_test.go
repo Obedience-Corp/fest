@@ -117,7 +117,7 @@ func TestCRLFWriter_PreservesPartialWriteCount(t *testing.T) {
 
 func TestPrintWatchFooter_CycleModeEmitsCRLF(t *testing.T) {
 	var buf bytes.Buffer
-	printWatchFooter(crlfWriter{w: &buf}, false, true)
+	printWatchFooter(crlfWriter{w: &buf}, false, true, true)
 
 	out := buf.String()
 	if !strings.Contains(out, "\r\n") {
@@ -125,5 +125,52 @@ func TestPrintWatchFooter_CycleModeEmitsCRLF(t *testing.T) {
 	}
 	if strings.Contains(strings.ReplaceAll(out, "\r\n", ""), "\n") {
 		t.Errorf("cycle-mode footer has a bare \\n (cursor would not return to column 0): %q", out)
+	}
+}
+
+func TestPrintWatchFooter_PromoteHint(t *testing.T) {
+	cases := []struct {
+		name        string
+		cycleHint   bool
+		cycling     bool
+		wantPromote bool
+		wantCycle   bool
+	}{
+		{"raw_single", true, false, true, false},
+		{"raw_multi", true, true, true, true},
+		{"non_raw", false, false, false, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var buf bytes.Buffer
+			printWatchFooter(&buf, false, tc.cycleHint, tc.cycling)
+			out := buf.String()
+			if got := strings.Contains(out, "p promote"); got != tc.wantPromote {
+				t.Errorf("promote hint present = %v, want %v (footer %q)", got, tc.wantPromote, out)
+			}
+			if got := strings.Contains(out, "cycle"); got != tc.wantCycle {
+				t.Errorf("cycle hint present = %v, want %v (footer %q)", got, tc.wantCycle, out)
+			}
+			if !tc.cycleHint && !strings.Contains(out, "Press Ctrl+C to exit") {
+				t.Errorf("non-raw footer should keep the plain exit hint, got %q", out)
+			}
+		})
+	}
+}
+
+func TestRenderFestivalView_TreeShowsLifecycleStatus(t *testing.T) {
+	festDir := setupTempFestival(t)
+	festival := &FestivalInfo{Name: "test-fest", Status: "active", Path: festDir}
+
+	var buf bytes.Buffer
+	if err := renderFestivalView(t.Context(), festival, &showOptions{}, &buf); err != nil {
+		t.Fatalf("renderFestivalView: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "Status") || !strings.Contains(out, "active") {
+		t.Errorf("tree watch view should surface the lifecycle status, got %q", out)
+	}
+	if strings.Contains(out, "Path") {
+		t.Errorf("expected tree view, but summary fallback rendered: %q", out)
 	}
 }

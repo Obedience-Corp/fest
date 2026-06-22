@@ -9,6 +9,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 type options struct {
@@ -125,6 +126,9 @@ func runWatch(ctx context.Context, args []string, opts *options, deps commandDep
 			return nil
 		}
 		return err
+	}
+	if term.IsTerminal(int(os.Stdin.Fd())) {
+		return runWatchCycle(ctx, []string{festival.Path}, 0, *opts, deps)
 	}
 	return watchFestival(ctx, festival, *opts, deps)
 }

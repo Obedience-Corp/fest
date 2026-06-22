@@ -91,6 +91,7 @@ type WatchOptions struct {
 	Collapsed  bool
 	InProgress bool
 	CycleHint  bool
+	Cycling    bool
 }
 
 // WatchFestival watches a festival using the existing show watch renderer.
@@ -104,12 +105,12 @@ func WatchFestival(ctx context.Context, festival *FestivalInfo, opts WatchOption
 		goals:      opts.Goals,
 		collapsed:  opts.Collapsed,
 		inProgress: opts.InProgress,
-	}, opts.CycleHint)
+	}, opts.CycleHint, opts.Cycling)
 }
 
 // runWatchMode watches for file changes and refreshes the festival display.
 // Falls back to polling if file watching is not available.
-func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions, cycleHint bool) error {
+func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions, cycleHint bool, cycling bool) error {
 	out := watchWriter(cycleHint)
 	errOut := watchErrWriter(cycleHint)
 
@@ -127,7 +128,7 @@ func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions
 	if err := renderFestivalView(ctx, festival, opts, out); err != nil {
 		return err
 	}
-	printWatchFooter(out, false, cycleHint)
+	printWatchFooter(out, false, cycleHint, cycling)
 
 	w, err := watch.New(watch.Config{
 		Paths:    watchPaths,
@@ -144,12 +145,12 @@ func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions
 		if err := renderFestivalView(ctx, festival, opts, out); err != nil {
 			_, _ = fmt.Fprintf(errOut, "%s could not refresh festival view: %v\n", ui.Warning("Warning:"), err)
 		}
-		printWatchFooter(out, false, cycleHint)
+		printWatchFooter(out, false, cycleHint, cycling)
 	})
 
 	if err != nil {
 		_, _ = fmt.Fprintf(errOut, "File watching unavailable (%v), using polling fallback\n", err)
-		return runPollingMode(ctx, festival, opts, cycleHint)
+		return runPollingMode(ctx, festival, opts, cycleHint, cycling)
 	}
 	defer func() { _ = w.Close() }()
 
@@ -158,7 +159,7 @@ func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions
 
 // runPollingMode continuously refreshes the festival display at the specified interval.
 // Used as a fallback when file watching is not available.
-func runPollingMode(ctx context.Context, festival *FestivalInfo, opts *showOptions, cycleHint bool) error {
+func runPollingMode(ctx context.Context, festival *FestivalInfo, opts *showOptions, cycleHint bool, cycling bool) error {
 	ticker := time.NewTicker(pollingInterval)
 	defer ticker.Stop()
 
@@ -167,7 +168,7 @@ func runPollingMode(ctx context.Context, festival *FestivalInfo, opts *showOptio
 	if err := renderFestivalView(ctx, festival, opts, out); err != nil {
 		return err
 	}
-	printWatchFooter(out, true, cycleHint)
+	printWatchFooter(out, true, cycleHint, cycling)
 
 	for {
 		select {
@@ -185,7 +186,7 @@ func runPollingMode(ctx context.Context, festival *FestivalInfo, opts *showOptio
 			if err := renderFestivalView(ctx, festival, opts, out); err != nil {
 				return err
 			}
-			printWatchFooter(out, true, cycleHint)
+			printWatchFooter(out, true, cycleHint, cycling)
 		}
 	}
 }
@@ -206,6 +207,14 @@ func renderFestivalView(ctx context.Context, festival *FestivalInfo, opts *showO
 		// Fall back to summary view on error
 		_, _ = fmt.Fprintln(out, FormatFestivalDetails(festival, verbose, ""))
 		return nil
+	}
+
+	if festival.Status != "" {
+		statusValue := ui.GetStatusStyle(festival.Status).Render(festival.Status)
+		if festival.StatusDate != "" {
+			statusValue += " " + ui.Dim("("+festival.StatusDate+")")
+		}
+		_, _ = fmt.Fprintf(out, "%s %s\n", ui.Label("Status"), statusValue)
 	}
 
 	// Render progress bar at the top
@@ -244,15 +253,20 @@ func clearScreen(out io.Writer) {
 }
 
 // printWatchFooter prints the watch mode footer with exit instructions.
-func printWatchFooter(out io.Writer, polling bool, cycleHint bool) {
+func printWatchFooter(out io.Writer, polling bool, cycleHint bool, cycling bool) {
 	_, _ = fmt.Fprintln(out)
 	suffix := "Watching for changes"
 	if polling {
 		suffix = "Polling for changes"
 	}
-	if cycleHint {
-		_, _ = fmt.Fprintln(out, ui.Dim("Ctrl+C to exit • ← → cycle festivals • "+suffix))
-	} else {
+	if !cycleHint {
 		_, _ = fmt.Fprintln(out, ui.Dim("Press Ctrl+C to exit • "+suffix))
+		return
 	}
+	hint := "Ctrl+C exit • "
+	if cycling {
+		hint += "← → cycle • "
+	}
+	hint += "p promote • " + suffix
+	_, _ = fmt.Fprintln(out, ui.Dim(hint))
 }
