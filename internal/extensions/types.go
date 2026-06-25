@@ -29,7 +29,7 @@ type Extension struct {
 
 	// Paths and metadata
 	Path   string `yaml:"-" json:"path"`   // Directory containing the extension
-	Source string `yaml:"-" json:"source"` // project, user, built-in
+	Source string `yaml:"-" json:"source"` // project, user, marketplace, built-in
 
 	// Extension contents
 	Files []ExtensionFile `yaml:"files,omitempty" json:"files,omitempty"`
