@@ -5,6 +5,8 @@ package version
 import (
 	"runtime"
 	"strings"
+
+	"github.com/Obedience-Corp/fest/internal/features"
 )
 
 var (
@@ -20,11 +22,12 @@ var (
 
 // Info contains all version information
 type Info struct {
-	Version   string `json:"version"`
-	Commit    string `json:"commit"`
-	BuildDate string `json:"buildDate"`
-	GoVersion string `json:"goVersion"`
-	Platform  string `json:"platform"`
+	Version   string   `json:"version"`
+	Commit    string   `json:"commit"`
+	BuildDate string   `json:"buildDate"`
+	GoVersion string   `json:"goVersion"`
+	Platform  string   `json:"platform"`
+	Features  []string `json:"features"`
 }
 
 // IsDevBuild reports whether this is a development build.
@@ -50,5 +53,6 @@ func Get() Info {
 		BuildDate: BuildDate,
 		GoVersion: runtime.Version(),
 		Platform:  runtime.GOOS + "/" + runtime.GOARCH,
+		Features:  features.Supported(),
 	}
 }

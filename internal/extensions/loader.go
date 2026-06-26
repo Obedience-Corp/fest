@@ -5,8 +5,16 @@ import (
 	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/config"
+	"github.com/Obedience-Corp/fest/internal/features"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 )
+
+// MarketplaceExtensionsDir returns the obey-installer-managed extension path
+// (~/.obey/fest/marketplace/extensions). Extensions the installer activates
+// there are loaded when the marketplace_extension_source_v1 feature is on.
+func MarketplaceExtensionsDir() string {
+	return filepath.Join(config.ConfigDir(), "marketplace", ExtensionsDirName)
+}
 
 // ExtensionLoader handles loading extensions from multiple sources
 type ExtensionLoader struct {
@@ -23,13 +31,21 @@ func NewExtensionLoader() *ExtensionLoader {
 }
 
 // LoadAll loads extensions from all sources with proper precedence
+// (highest-priority last; whatever loads last wins):
 // 1. Project-local (.festival/extensions/)
 // 2. User config repo (festivals/.festival/extensions/)
-// 3. Built-in (~/.config/fest/festivals/.festival/extensions/)
+// 3. Installer-managed marketplace (~/.obey/fest/marketplace/extensions/), gated
+//    by the marketplace_extension_source_v1 feature
+// 4. Built-in (~/.obey/fest/festivals/.festival/extensions/)
 func (el *ExtensionLoader) LoadAll(festivalRoot string) error {
 	// Load built-in extensions first (lowest priority)
 	builtInPath := filepath.Join(config.ConfigDir(), "festivals", ".festival", ExtensionsDirName)
 	_ = el.loadFromDirectory(builtInPath, "built-in")
+
+	// Load installer-managed marketplace extensions (above built-in, below user)
+	if features.Enabled(features.MarketplaceExtensionSource) {
+		_ = el.loadFromDirectory(MarketplaceExtensionsDir(), "marketplace")
+	}
 
 	// Load user config repo extensions (medium priority)
 	if userFestPath := config.ActiveFestivalsPath(); userFestPath != "" {
