@@ -1,6 +1,6 @@
 # Fest CLI
 
-> **Part of [Festival](https://github.com/Obedience-Corp/festival)** - mission-based AI workspace management. Fest handles hierarchical planning and execution; [camp](https://github.com/Obedience-Corp/camp) handles workspace management. Together they give structure to how you work across multiple projects, contexts, and AI agents.
+> **Part of [Festival](https://github.com/Obedience-Corp/festival)** - mission-based AI workspace management. Fest handles hierarchical planning and execution loops; [camp](https://github.com/Obedience-Corp/camp) handles workspace management. Together they give structure to how you work across multiple projects, contexts, and AI agents.
 
 <p align="center">
   <a href="https://github.com/Obedience-Corp/fest/stargazers"><img src="https://img.shields.io/github/stars/Obedience-Corp/fest?style=social" alt="Star fest on GitHub"></a>
