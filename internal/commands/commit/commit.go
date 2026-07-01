@@ -449,7 +449,7 @@ func loadFestivalID(festivalPath, campaignRoot string) (string, error) {
 
 // commitWithCampaignSupport executes the git commit with optional campaign
 // integration. If the workspace is a campaign, it consolidates campaign and
-// festival refs into a single tag: [OBEY-CAMPAIGN-{cid}-FE-{fid}].
+// festival refs into a single name-style tag: [{campaign-name}:{cid}-FE-{fid}].
 // Campaign detection or sync failures degrade gracefully — the commit still proceeds.
 func commitWithCampaignSupport(ctx context.Context, ws *scope.WorkspaceInfo, repoPath, festRef, rawMsg, festMessage string, result *CommitResult) error {
 	commitMessage := festMessage
