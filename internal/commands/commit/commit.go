@@ -449,31 +449,23 @@ func loadFestivalID(festivalPath, campaignRoot string) (string, error) {
 
 // commitWithCampaignSupport executes the git commit with optional campaign
 // integration. If the workspace is a campaign, it consolidates campaign and
-// festival refs into a single tag: [OBEY-CAMPAIGN-{cid}-FE-{fid}].
+// festival refs into a single name-style tag: [{campaign-name}:{cid}-FE-{fid}].
 // Campaign detection or sync failures degrade gracefully — the commit still proceeds.
 func commitWithCampaignSupport(ctx context.Context, ws *scope.WorkspaceInfo, repoPath, festRef, rawMsg, festMessage string, result *CommitResult) error {
 	commitMessage := festMessage
 
-	var campaignID string
 	if ws != nil && ws.Type == scope.WorkspaceTypeCampaign {
 		cid, err := commitkit.DetectCampaign(ctx)
 		if err == nil && cid != "" {
-			campaignID = cid
+			name, _ := commitkit.DetectCampaignName(ctx)
 			if festRef != "" {
-				// Consolidate: [OBEY-CAMPAIGN-{cid}-FE-{fid}] msg
-				// instead of [OBEY-CAMPAIGN-{cid}] [OBEY-FE-{fid}] msg
-				shortID := campaignID
-				if len(shortID) > 8 {
-					shortID = shortID[:8]
-				}
-				// festRef is "OBEY-FE-{id}" — strip the "OBEY-" prefix to avoid
-				// redundancy in the consolidated tag.
-				componentRef := strings.TrimPrefix(festRef, "OBEY-")
-				tag := fmt.Sprintf("[OBEY-CAMPAIGN-%s-%s]", shortID, componentRef)
+				// festRef is "OBEY-FE-<id>"; pass the bare id (the formatter re-adds FE-).
+				festID := strings.TrimPrefix(strings.TrimPrefix(festRef, "OBEY-"), "FE-")
+				tag := commitkit.FormatContextTagsFullNamed(name, cid, "", festID, "")
 				commitMessage = tag + " " + rawMsg
 				result.CampaignTag = tag
 			} else {
-				tag := commitkit.FormatCampaignTag(campaignID)
+				tag := commitkit.FormatContextTagsFullNamed(name, cid, "", "", "")
 				commitMessage = tag + " " + festMessage
 				result.CampaignTag = tag
 			}

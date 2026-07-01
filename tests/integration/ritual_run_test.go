@@ -17,7 +17,7 @@ import (
 // template into active/, increments run_count in the source fest.yaml, and
 // auto-commits only the scoped filesystem changes (leaving unrelated worktree
 // modifications uncommitted). It covers both standalone and campaign workspace
-// detection so the PrependCampaignTag path is exercised end-to-end.
+// detection so the name-style campaign tag path is exercised end-to-end.
 //
 // This test must live in the container harness because it exercises real git
 // and real filesystem mutation. CLAUDE.md §11 forbids running this class of
@@ -29,7 +29,7 @@ func TestRitualRun_AutoCommit(t *testing.T) {
 		subjectPrefix string
 	}{
 		{name: "StandaloneWorkspace", setupCampaign: false, subjectPrefix: ""},
-		{name: "CampaignWorkspace", setupCampaign: true, subjectPrefix: "[OBEY-CAMPAIGN-12345678]"},
+		{name: "CampaignWorkspace", setupCampaign: true, subjectPrefix: "[testcampaign:12345678]"},
 	}
 
 	for _, tc := range cases {
