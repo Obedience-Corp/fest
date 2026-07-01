@@ -504,7 +504,8 @@ func AutoCommitStatusChange(ctx context.Context, festivalName, festivalID, oldSt
 	if ws.Type == scope.WorkspaceTypeCampaign {
 		cid, err := commitkit.DetectCampaign(ctx)
 		if err == nil && cid != "" {
-			message = commitkit.PrependCampaignTag(cid, message)
+			name, _ := commitkit.DetectCampaignName(ctx)
+			message = commitkit.PrependContextTagsFullNamed(name, cid, "", "", "", message)
 		}
 	}
 

@@ -197,7 +197,8 @@ func autoCommitRitualRun(ctx context.Context, ritualName, ritualID, ritualPath, 
 	if ws.Type == scope.WorkspaceTypeCampaign {
 		campaignID, err := commitkit.LoadCampaignID(ctx, ws.Root)
 		if err == nil && campaignID != "" {
-			message = commitkit.PrependCampaignTag(campaignID, message)
+			name, _ := commitkit.LoadCampaignName(ctx, ws.Root)
+			message = commitkit.PrependContextTagsFullNamed(name, campaignID, "", "", "", message)
 		}
 	}
 
