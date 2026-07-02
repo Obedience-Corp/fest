@@ -337,6 +337,10 @@ func init() {
 	extensionCmd.GroupID = "system"
 	rootCmd.AddCommand(extensionCmd)
 
+	pluginsCmd := newPluginsCommand()
+	pluginsCmd.GroupID = "system"
+	rootCmd.AddCommand(pluginsCmd)
+
 	if shared.NewTUICommand != nil {
 		tuiCmd := shared.NewTUICommand()
 		tuiCmd.GroupID = "creation"
