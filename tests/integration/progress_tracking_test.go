@@ -72,20 +72,20 @@ type ProgressEvent struct {
 
 // JSON response structures for parsing fest output
 type FestivalProgressJSON struct {
-	FestivalName string                  `json:"festival_name"`
-	Overall      AggregateProgressJSON   `json:"overall"`
-	Phases       []PhaseProgressJSON     `json:"phases,omitempty"`
+	FestivalName string                `json:"festival_name"`
+	Overall      AggregateProgressJSON `json:"overall"`
+	Phases       []PhaseProgressJSON   `json:"phases,omitempty"`
 }
 
 type AggregateProgressJSON struct {
-	Total        int                  `json:"total"`
-	Completed    int                  `json:"completed"`
-	InProgress   int                  `json:"in_progress"`
-	Blocked      int                  `json:"blocked"`
-	Pending      int                  `json:"pending"`
-	Percentage   int                  `json:"percentage"`
-	Blockers     []BlockerJSON        `json:"blockers,omitempty"`
-	TimeSpentMin int                  `json:"time_spent_minutes"`
+	Total        int           `json:"total"`
+	Completed    int           `json:"completed"`
+	InProgress   int           `json:"in_progress"`
+	Blocked      int           `json:"blocked"`
+	Pending      int           `json:"pending"`
+	Percentage   int           `json:"percentage"`
+	Blockers     []BlockerJSON `json:"blockers,omitempty"`
+	TimeSpentMin int           `json:"time_spent_minutes"`
 }
 
 type PhaseProgressJSON struct {
@@ -169,13 +169,13 @@ func setupTodoAppFestival(t *testing.T, tc *TestContainer, festivalPath string) 
 
 	// Create initial task files (all with 0% completion)
 	taskFiles := map[string]string{
-		"001_PLAN/01_design/01_requirements.md":                  "task_templates/01_requirements_0_of_2.md",
-		"001_PLAN/01_design/02_architecture.md":                  "task_templates/02_architecture_0_of_3.md",
-		"002_IMPLEMENT/01_development/01_setup.md":               "task_templates/01_setup_0_of_2.md",
-		"002_IMPLEMENT/01_development/02_create_task_list.md":    "task_templates/02_create_task_list_0_of_3.md",
+		"001_PLAN/01_design/01_requirements.md":                   "task_templates/01_requirements_0_of_2.md",
+		"001_PLAN/01_design/02_architecture.md":                   "task_templates/02_architecture_0_of_3.md",
+		"002_IMPLEMENT/01_development/01_setup.md":                "task_templates/01_setup_0_of_2.md",
+		"002_IMPLEMENT/01_development/02_create_task_list.md":     "task_templates/02_create_task_list_0_of_3.md",
 		"002_IMPLEMENT/01_development/03_add_complete_feature.md": "task_templates/03_add_complete_0_of_2.md",
-		"003_POLISH/01_finalize/01_documentation.md":             "task_templates/01_documentation_0_of_2.md",
-		"003_POLISH/01_finalize/02_cleanup.md":                   "task_templates/02_cleanup_0_of_1.md",
+		"003_POLISH/01_finalize/01_documentation.md":              "task_templates/01_documentation_0_of_2.md",
+		"003_POLISH/01_finalize/02_cleanup.md":                    "task_templates/02_cleanup_0_of_1.md",
 	}
 
 	for relPath, templatePath := range taskFiles {
