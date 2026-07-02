@@ -62,10 +62,48 @@ func RecordStatusChange(ctx context.Context, festivalDir, fromStatus, toStatus, 
 	}
 
 	data := bytes.TrimRight(buffer.Bytes(), "\n")
-	if err := os.WriteFile(historyPath, data, 0644); err != nil {
-		return errors.IO("writing status history", err)
+	if err := writeStatusHistoryAtomic(historyPath, data); err != nil {
+		return err
 	}
 
+	return nil
+}
+
+// writeStatusHistoryAtomic writes the history file via a temp file and rename so
+// a crash mid-write cannot truncate or corrupt the existing history.
+func writeStatusHistoryAtomic(path string, data []byte) error {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".status-history-*.tmp")
+	if err != nil {
+		return errors.IO("creating temp status history", err).WithField("dir", dir)
+	}
+	tmpPath := tmp.Name()
+
+	cleanup := func() {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+	}
+
+	if _, err := tmp.Write(data); err != nil {
+		cleanup()
+		return errors.IO("writing temp status history", err).WithField("path", tmpPath)
+	}
+	if err := tmp.Sync(); err != nil {
+		cleanup()
+		return errors.IO("syncing temp status history", err).WithField("path", tmpPath)
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return errors.IO("closing temp status history", err).WithField("path", tmpPath)
+	}
+	if err := os.Chmod(tmpPath, 0644); err != nil {
+		_ = os.Remove(tmpPath)
+		return errors.IO("setting status history mode", err).WithField("path", tmpPath)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return errors.IO("replacing status history", err).WithField("path", path)
+	}
 	return nil
 }
 
@@ -90,7 +128,11 @@ func LoadStatusHistory(ctx context.Context, festivalDir string) ([]StatusHistory
 
 	var history []StatusHistoryEntry
 	if err := json.Unmarshal(data, &history); err != nil {
-		return nil, errors.Wrap(err, "parsing status history")
+		quarantinePath := historyPath + ".corrupt"
+		if renameErr := os.Rename(historyPath, quarantinePath); renameErr != nil {
+			return nil, errors.Wrap(err, "parsing status history")
+		}
+		return []StatusHistoryEntry{}, nil
 	}
 
 	return history, nil

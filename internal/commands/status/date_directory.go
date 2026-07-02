@@ -2,9 +2,11 @@
 package status
 
 import (
+	stderrors "errors"
 	"io"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -45,11 +47,25 @@ func MoveToDateDirectory(sourcePath, completedDir, dateDir string) (string, erro
 
 	// Attempt atomic rename first
 	if err := os.Rename(sourcePath, destPath); err != nil {
-		// Fallback to copy+delete for cross-filesystem moves
+		if !isCrossDevice(err) {
+			return "", errors.IO("moving festival to date directory", err).
+				WithField("source", sourcePath).
+				WithField("destination", destPath)
+		}
 		return copyAndDelete(sourcePath, destPath)
 	}
 
 	return destPath, nil
+}
+
+// isCrossDevice reports whether a rename failed solely because source and
+// destination live on different filesystems.
+func isCrossDevice(err error) bool {
+	var linkErr *os.LinkError
+	if stderrors.As(err, &linkErr) {
+		return stderrors.Is(linkErr.Err, syscall.EXDEV)
+	}
+	return stderrors.Is(err, syscall.EXDEV)
 }
 
 // GetCompletedPath returns the full path for a completed festival with date organization.
@@ -58,16 +74,18 @@ func GetCompletedPath(festivalsRoot, festivalName, dateDir string) string {
 	return filepath.Join(festivalsRoot, "dungeon", "completed", dateDir, festivalName)
 }
 
-// copyAndDelete performs a copy+delete operation for cross-filesystem moves.
-// It copies all files recursively, then deletes the source.
-// If copy fails, no deletion occurs (atomic behavior).
+// copyAndDelete performs a copy+delete move across filesystems. It stages the
+// copy into a sibling ".partial" directory it owns and renames that into place
+// only after a complete copy, so a failure never removes a destination this
+// call did not create.
 func copyAndDelete(sourcePath, destPath string) (string, error) {
-	// Create destination directory
-	if err := os.MkdirAll(destPath, 0755); err != nil {
-		return "", errors.IO("creating destination directory", err)
+	stagePath := destPath + ".partial"
+	_ = os.RemoveAll(stagePath)
+
+	if err := os.MkdirAll(stagePath, 0755); err != nil {
+		return "", errors.IO("creating staging directory", err)
 	}
 
-	// Copy all files recursively
 	err := filepath.Walk(sourcePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -78,22 +96,31 @@ func copyAndDelete(sourcePath, destPath string) (string, error) {
 			return err
 		}
 
-		targetPath := filepath.Join(destPath, relPath)
+		targetPath := filepath.Join(stagePath, relPath)
 
 		if info.IsDir() {
 			return os.MkdirAll(targetPath, info.Mode())
 		}
 
-		// Copy file
 		return copyFile(path, targetPath, info.Mode())
 	})
 	if err != nil {
-		// Cleanup on failure - remove partial copy
-		_ = os.RemoveAll(destPath)
+		_ = os.RemoveAll(stagePath)
 		return "", errors.Wrap(err, "copying festival files")
 	}
 
-	// Delete source only after successful copy
+	if _, err := os.Stat(destPath); err == nil {
+		_ = os.RemoveAll(stagePath)
+		return "", errors.Validation("destination already exists").
+			WithField("destination", destPath)
+	}
+
+	if err := os.Rename(stagePath, destPath); err != nil {
+		_ = os.RemoveAll(stagePath)
+		return "", errors.IO("finalizing festival move", err).
+			WithField("destination", destPath)
+	}
+
 	if err := os.RemoveAll(sourcePath); err != nil {
 		return "", errors.IO("removing source after copy", err)
 	}
