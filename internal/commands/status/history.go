@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -108,7 +109,9 @@ func writeStatusHistoryAtomic(path string, data []byte) error {
 }
 
 // LoadStatusHistory loads the status history from a festival's .fest directory.
-// Returns an empty slice if no history file exists.
+// Returns an empty slice if no history file exists. If the existing history
+// file is corrupt, this call quarantines it (renames it to a unique
+// ".corrupt" path and warns on stderr) and returns an empty slice.
 func LoadStatusHistory(ctx context.Context, festivalDir string) ([]StatusHistoryEntry, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -128,14 +131,33 @@ func LoadStatusHistory(ctx context.Context, festivalDir string) ([]StatusHistory
 
 	var history []StatusHistoryEntry
 	if err := json.Unmarshal(data, &history); err != nil {
-		quarantinePath := historyPath + ".corrupt"
-		if renameErr := os.Rename(historyPath, quarantinePath); renameErr != nil {
+		quarantinePath, quarantineErr := quarantineCorruptHistory(historyPath)
+		if quarantineErr != nil {
 			return nil, errors.Wrap(err, "parsing status history")
 		}
+		fmt.Fprintf(os.Stderr, "fest: discarded corrupt status history, quarantined at %s\n", quarantinePath)
 		return []StatusHistoryEntry{}, nil
 	}
 
 	return history, nil
+}
+
+// quarantineCorruptHistory renames a corrupt history file to a unique
+// ".corrupt" path so it never overwrites an earlier quarantined file.
+func quarantineCorruptHistory(historyPath string) (string, error) {
+	dest := historyPath + ".corrupt"
+	for i := 1; ; i++ {
+		if _, err := os.Stat(dest); os.IsNotExist(err) {
+			break
+		} else if err != nil {
+			return "", err
+		}
+		dest = fmt.Sprintf("%s.corrupt.%d", historyPath, i)
+	}
+	if err := os.Rename(historyPath, dest); err != nil {
+		return "", err
+	}
+	return dest, nil
 }
 
 // GetLastStatusChange returns the most recent status change entry, if any.

@@ -75,18 +75,22 @@ func GetCompletedPath(festivalsRoot, festivalName, dateDir string) string {
 }
 
 // copyAndDelete performs a copy+delete move across filesystems. It stages the
-// copy into a sibling ".partial" directory it owns and renames that into place
-// only after a complete copy, so a failure never removes a destination this
-// call did not create.
+// copy into a process-unique sibling directory it owns and renames that into
+// place only after a complete copy, so concurrent moves of the same festival
+// never delete each other's in-progress stage, and a failure never removes a
+// destination this call did not create.
 func copyAndDelete(sourcePath, destPath string) (string, error) {
-	stagePath := destPath + ".partial"
-	_ = os.RemoveAll(stagePath)
-
-	if err := os.MkdirAll(stagePath, 0755); err != nil {
+	destParent := filepath.Dir(destPath)
+	if err := os.MkdirAll(destParent, 0755); err != nil {
 		return "", errors.IO("creating staging directory", err)
 	}
 
-	err := filepath.Walk(sourcePath, func(path string, info os.FileInfo, err error) error {
+	stagePath, err := os.MkdirTemp(destParent, filepath.Base(destPath)+".partial-*")
+	if err != nil {
+		return "", errors.IO("creating staging directory", err)
+	}
+
+	err = filepath.Walk(sourcePath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
