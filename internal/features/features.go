@@ -19,13 +19,13 @@ func Supported() []string {
 }
 
 // Enabled reports whether a capability is active. The marketplace extension
-// source defaults on (a missing marketplace dir is a harmless no-op for users
-// who never run the installer) and can be turned off with
-// FEST_FEATURE_MARKETPLACE_EXTENSION_SOURCE=0.
+// source defaults off (extensions are agent-guiding methodology content, so
+// loading them is opt-in) and can be turned on with
+// FEST_FEATURE_MARKETPLACE_EXTENSION_SOURCE=1.
 func Enabled(name string) bool {
 	switch name {
 	case MarketplaceExtensionSource:
-		return envFlag("FEST_FEATURE_MARKETPLACE_EXTENSION_SOURCE", true)
+		return envFlag("FEST_FEATURE_MARKETPLACE_EXTENSION_SOURCE", false)
 	default:
 		return false
 	}
@@ -37,9 +37,11 @@ func envFlag(key string, def bool) bool {
 		return def
 	}
 	switch strings.ToLower(v) {
+	case "1", "true", "on", "yes":
+		return true
 	case "0", "false", "off", "no":
 		return false
 	default:
-		return true
+		return def
 	}
 }
