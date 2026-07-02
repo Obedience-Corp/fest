@@ -172,8 +172,21 @@ These festivals span Go, Rust, Python, and web projects - from simple CLI fixes 
 
 ## Installation
 
+fest ships bundled with camp as part of the [Festival packaging repo](https://github.com/Obedience-Corp/festival), which is the canonical, checksum-verified distributor for prebuilt binaries:
+
 ```bash
-# Install from source
+# macOS/Linux, via Homebrew
+brew install --cask Obedience-Corp/tap/festival
+
+# or via the Festival installer directly
+curl -fsSL https://raw.githubusercontent.com/Obedience-Corp/festival/main/install.sh | bash
+```
+
+See the [festival repo](https://github.com/Obedience-Corp/festival#install) for the full package list (npm, deb, rpm, apk, Arch) and published `checksums.txt`.
+
+To install fest on its own from source:
+
+```bash
 git clone https://github.com/Obedience-Corp/fest
 cd fest
 just install
@@ -185,15 +198,7 @@ Or with Go:
 go install github.com/Obedience-Corp/fest/cmd/fest@latest
 ```
 
-### install.sh
-
-`install.sh` downloads a prebuilt binary from the [Obedience-Corp/fest releases](https://github.com/Obedience-Corp/fest/releases), verifies its sha256 checksum against the release's published `checksums.txt`, and installs it to `/usr/local/bin/fest` (using `sudo` if that directory isn't writable):
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/Obedience-Corp/fest/main/install.sh | bash
-```
-
-It refuses to install anything it cannot verify: if a release has no matching binary archive or no published `checksums.txt`, it fails with an error instead of installing an unverified binary. Prebuilt binaries are not yet published on every release; if the script fails for that reason, use `go install` or build from source above.
+This repo's `install.sh` does not download or install a binary itself; running it prints the install paths above.
 
 ## Shell Integration (Recommended)
 
