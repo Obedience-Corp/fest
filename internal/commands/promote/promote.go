@@ -213,11 +213,14 @@ func promoteCore(ctx context.Context, festival *show.FestivalInfo, confirm bool,
 		nextStatus, ok = validTransitions[currentStatus]
 		if !ok {
 			if opts.json {
-				return "", shared.EncodeJSON(os.Stdout, map[string]any{
+				if encErr := shared.EncodeJSON(os.Stdout, map[string]any{
 					"success": false,
 					"error":   fmt.Sprintf("cannot promote festival with status %q", currentStatus),
 					"status":  currentStatus,
-				})
+				}); encErr != nil {
+					return "", encErr
+				}
+				return "", errors.ErrAlreadyPrinted
 			}
 			return "", errors.Validation("cannot promote festival").
 				WithField("status", currentStatus).
@@ -228,13 +231,16 @@ func promoteCore(ctx context.Context, festival *show.FestivalInfo, confirm bool,
 		if !opts.force {
 			if err := validateReadiness(ctx, festival, currentStatus, nextStatus); err != nil {
 				if opts.json {
-					return "", shared.EncodeJSON(os.Stdout, map[string]any{
+					if encErr := shared.EncodeJSON(os.Stdout, map[string]any{
 						"success": false,
 						"error":   err.Error(),
 						"from":    currentStatus,
 						"to":      nextStatus,
 						"hint":    "use --force to skip validation",
-					})
+					}); encErr != nil {
+						return "", encErr
+					}
+					return "", errors.ErrAlreadyPrinted
 				}
 				fmt.Printf("%s %s\n", ui.Warning("Promotion blocked"), ui.Dim(err.Error()))
 				fmt.Printf("\n  %s\n", ui.Dim("Use --force to skip validation"))
@@ -247,12 +253,15 @@ func promoteCore(ctx context.Context, festival *show.FestivalInfo, confirm bool,
 	if nextStatus == "active" && !opts.force && opts.dungeon == "" {
 		if blocked, blockMsg := checkChainDependencies(ctx, festival); blocked {
 			if opts.json {
-				return "", shared.EncodeJSON(os.Stdout, map[string]any{
+				if encErr := shared.EncodeJSON(os.Stdout, map[string]any{
 					"success": false,
 					"error":   "chain dependencies not met",
 					"details": blockMsg,
 					"hint":    "use --force to skip chain dependency check",
-				})
+				}); encErr != nil {
+					return "", encErr
+				}
+				return "", errors.ErrAlreadyPrinted
 			}
 			fmt.Printf("%s %s\n", ui.Warning("Chain dependency gate:"), blockMsg)
 			fmt.Printf("\n  %s\n", ui.Dim("Use --force to skip chain dependency check"))
