@@ -37,9 +37,11 @@ func envFlag(key string, def bool) bool {
 		return def
 	}
 	switch strings.ToLower(v) {
+	case "1", "true", "on", "yes":
+		return true
 	case "0", "false", "off", "no":
 		return false
 	default:
-		return true
+		return def
 	}
 }
