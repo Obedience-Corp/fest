@@ -478,20 +478,18 @@ func AutoCommitStatusChange(ctx context.Context, festivalName, festivalID, oldSt
 		}
 	}
 
-	// Stage each affected path independently (lock-aware with retry): a
-	// pathspec matching nothing (e.g. a never-committed pre-move festival
-	// directory) must not sink staging for the paths that do exist.
-	var stageFailures []string
-	staged := 0
+	// Stage each affected path independently (lock-aware with retry). The
+	// only benign failure is a path that no longer exists anywhere (e.g. a
+	// never-committed pre-move festival directory after the move); any
+	// staging error on an existing path is real and must fail loudly, or a
+	// lifecycle commit could silently land without the festival content.
 	for _, p := range changedPaths {
 		if err := commitkit.StageFiles(ctx, ws.Root, p); err != nil {
-			stageFailures = append(stageFailures, fmt.Sprintf("%s (%v)", p, err))
-			continue
+			if _, statErr := os.Stat(p); os.IsNotExist(statErr) {
+				continue
+			}
+			return "", errors.Wrap(err, "stage").WithField("path", p)
 		}
-		staged++
-	}
-	if staged == 0 && len(stageFailures) > 0 {
-		return "", errors.New("stage: no paths could be staged: " + strings.Join(stageFailures, "; "))
 	}
 
 	// Check if anything is actually staged.

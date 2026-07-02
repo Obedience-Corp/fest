@@ -49,7 +49,7 @@ func TestAutoCommitStatusChange_ToleratesMissingPremovePath(t *testing.T) {
 	}
 }
 
-func TestAutoCommitStatusChange_AllPathsFailReturnsError(t *testing.T) {
+func TestAutoCommitStatusChange_MissingOnlyPathsIsNoOp(t *testing.T) {
 	root := t.TempDir()
 	initTestRepo(t, root)
 
@@ -61,13 +61,61 @@ func TestAutoCommitStatusChange_AllPathsFailReturnsError(t *testing.T) {
 
 	missing1 := filepath.Join(root, "festivals", "planning", "ghost")
 	missing2 := filepath.Join(root, "festivals", "ready", "ghost")
-	_, err := AutoCommitStatusChange(ctx, "ghost", "GH001", "planning", "ready", []string{missing1, missing2})
-	if err == nil {
-		t.Fatal("expected an error when no path can be staged")
+	hash, err := AutoCommitStatusChange(ctx, "ghost", "GH001", "planning", "ready", []string{missing1, missing2})
+	if err != nil {
+		t.Fatalf("missing-only paths are benign, expected no error, got: %v", err)
 	}
-	for _, p := range []string{missing1, missing2} {
-		if !strings.Contains(err.Error(), p) {
-			t.Errorf("error should name failed path %s, got: %v", p, err)
-		}
+	if hash != "" {
+		t.Fatalf("expected no commit for missing-only paths, got hash %q", hash)
+	}
+}
+
+func TestAutoCommitStatusChange_RealStageFailurePropagates(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("permission-based failure injection does not work as root")
+	}
+	root := t.TempDir()
+	initTestRepo(t, root)
+
+	okDir := filepath.Join(root, "festivals", "ready", "my-fest")
+	if err := os.MkdirAll(okDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(okDir, "FESTIVAL_GOAL.md"), []byte("# Goal"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	brokenDir := filepath.Join(root, "festivals", "ready", "broken")
+	if err := os.MkdirAll(brokenDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	brokenFile := filepath.Join(brokenDir, "file.md")
+	if err := os.WriteFile(brokenFile, []byte("x"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(brokenFile, 0000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(brokenFile, 0644) })
+
+	ctx := scope.WithWorkspace(context.Background(), &scope.WorkspaceInfo{
+		Root:          root,
+		FestivalsPath: filepath.Join(root, "festivals"),
+		Type:          scope.WorkspaceTypeStandalone,
+	})
+
+	_, err := AutoCommitStatusChange(ctx, "my-fest", "MF001", "planning", "ready", []string{brokenDir, okDir})
+	if err == nil {
+		t.Fatal("expected a real staging failure on an existing path to propagate, not a partial commit")
+	}
+	if !strings.Contains(err.Error(), filepath.Join("festivals", "ready", "broken")) {
+		t.Errorf("error should name the failing path, got: %v", err)
+	}
+
+	cmd := exec.Command("git", "log", "--oneline")
+	cmd.Dir = root
+	out, _ := cmd.CombinedOutput()
+	if strings.Count(strings.TrimSpace(string(out)), "\n")+1 > 1 {
+		t.Errorf("no lifecycle commit should land on a staging failure, log:\n%s", out)
 	}
 }

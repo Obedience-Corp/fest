@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
@@ -136,15 +137,16 @@ Run 'fest validate tasks' to verify task files exist in implementation sequences
 
 // resolveTaskInsertAfter maps the --after default (-1) to append-at-end by
 // detecting the highest existing task number in the sequence directory,
-// matching create sequence's behavior.
-func resolveTaskInsertAfter(ctx context.Context, sequenceDir string, after int) int {
+// matching create sequence's behavior. A parse failure is an error, not a
+// silent prepend into a possibly non-empty sequence.
+func resolveTaskInsertAfter(ctx context.Context, sequenceDir string, after int) (int, error) {
 	if after != -1 {
-		return after
+		return after, nil
 	}
 	parser := festival.NewParser()
 	tasks, err := parser.ParseTasks(ctx, sequenceDir)
-	if err != nil || len(tasks) == 0 {
-		return 0
+	if err != nil {
+		return 0, errors.Wrap(err, "detecting last task number").WithField("dir", sequenceDir)
 	}
 	maxNum := 0
 	for _, t := range tasks {
@@ -152,7 +154,34 @@ func resolveTaskInsertAfter(ctx context.Context, sequenceDir string, after int) 
 			maxNum = t.Number
 		}
 	}
-	return maxNum
+	return maxNum, nil
+}
+
+// netRenames collapses per-step rename chains from batch inserts (a->b in
+// one step, b->c in a later step) into net a->c entries, sorted by the
+// original name for stable, readable output.
+func netRenames(steps [][2]string) []string {
+	finalOf := map[string]string{}
+	originOf := map[string]string{}
+	var order []string
+	for _, s := range steps {
+		oldName, newName := s[0], s[1]
+		if origin, ok := originOf[oldName]; ok {
+			delete(originOf, oldName)
+			originOf[newName] = origin
+			finalOf[origin] = newName
+			continue
+		}
+		originOf[newName] = oldName
+		finalOf[oldName] = newName
+		order = append(order, oldName)
+	}
+	sort.Strings(order)
+	out := make([]string, 0, len(order))
+	for _, o := range order {
+		out = append(out, fmt.Sprintf("%s -> %s", o, finalOf[o]))
+	}
+	return out
 }
 
 // RunCreateTask executes the create task command logic.
@@ -206,12 +235,16 @@ func RunCreateTask(ctx context.Context, opts *CreateTaskOptions) error {
 	mgr := tpl.NewManager()
 	loader := tpl.NewLoader()
 
-	opts.After = resolveTaskInsertAfter(ctx, absPath, opts.After)
+	after, afterErr := resolveTaskInsertAfter(ctx, absPath, opts.After)
+	if afterErr != nil {
+		return emitCreateTaskError(opts, afterErr)
+	}
+	opts.After = after
 
 	// Track all created tasks for output
 	var createdTasks []map[string]any
 	var createdPaths []string
-	var renumbered []string
+	var renameSteps [][2]string
 	var totalMarkersFilled, totalMarkersCount int
 	currentAfter := opts.After
 
@@ -229,8 +262,8 @@ func RunCreateTask(ctx context.Context, opts *CreateTaskOptions) error {
 		}
 		for _, ch := range ren.Changes() {
 			if ch.Type == festival.ChangeRename {
-				renumbered = append(renumbered,
-					fmt.Sprintf("%s -> %s", filepath.Base(ch.OldPath), filepath.Base(ch.NewPath)))
+				renameSteps = append(renameSteps,
+					[2]string{filepath.Base(ch.OldPath), filepath.Base(ch.NewPath)})
 			}
 		}
 
@@ -380,6 +413,7 @@ func RunCreateTask(ctx context.Context, opts *CreateTaskOptions) error {
 	}
 
 	// Output results
+	renumbered := netRenames(renameSteps)
 	remainingMarkers := totalMarkersCount - totalMarkersFilled
 
 	if opts.JSONOutput {
