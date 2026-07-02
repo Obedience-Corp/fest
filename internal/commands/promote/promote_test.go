@@ -1,6 +1,10 @@
 package promote
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -8,6 +12,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
+	ferrors "github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/id"
 )
 
@@ -445,4 +450,69 @@ func TestPromoteResolved_DeclinedDoesNotMove(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(festivalsDir, "planning", "alpha-feature-FE0001")); err != nil {
 		t.Fatalf("festival must remain in planning after decline: %v", err)
 	}
+}
+
+func capturePromoteStdout(t *testing.T, fn func() error) (string, error) {
+	t.Helper()
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+	defer func() { os.Stdout = old }()
+
+	done := make(chan struct{})
+	var buf bytes.Buffer
+	go func() {
+		_, _ = io.Copy(&buf, r)
+		close(done)
+	}()
+
+	fnErr := fn()
+	_ = w.Close()
+	<-done
+	return buf.String(), fnErr
+}
+
+func assertJSONFailureBody(t *testing.T, out string) {
+	t.Helper()
+	var body map[string]any
+	if err := json.Unmarshal([]byte(out), &body); err != nil {
+		t.Fatalf("stdout must be parseable JSON, got %q (err: %v)", out, err)
+	}
+	if body["success"] != false {
+		t.Fatalf("JSON body should carry success=false, got %v", body["success"])
+	}
+	if body["error"] == nil || body["error"] == "" {
+		t.Fatalf("JSON body should carry a non-empty error, got %v", body["error"])
+	}
+}
+
+func TestRunPromote_ResolveFailureJSONExitsNonZeroWithBody(t *testing.T) {
+	root, _ := setupPromoteCampaign(t)
+	t.Chdir(root)
+
+	out, err := capturePromoteStdout(t, func() error {
+		return runPromote(t.Context(), &promoteOptions{json: true, noCommit: true}, "no-such-festival-FE9999")
+	})
+
+	if !errors.Is(err, ferrors.ErrAlreadyPrinted) {
+		t.Fatalf("resolve failure under --json must return ErrAlreadyPrinted (non-zero exit), got %v", err)
+	}
+	assertJSONFailureBody(t, out)
+}
+
+func TestPromoteCore_InvalidDungeonJSONExitsNonZeroWithBody(t *testing.T) {
+	festival := &show.FestivalInfo{Name: "alpha-feature", Status: "planning", Path: t.TempDir()}
+
+	out, err := capturePromoteStdout(t, func() error {
+		_, e := promoteCore(t.Context(), festival, false, &promoteOptions{dungeon: "bogus", json: true})
+		return e
+	})
+
+	if !errors.Is(err, ferrors.ErrAlreadyPrinted) {
+		t.Fatalf("invalid --dungeon under --json must return ErrAlreadyPrinted (non-zero exit), got %v", err)
+	}
+	assertJSONFailureBody(t, out)
 }

@@ -363,6 +363,72 @@ func TestParseFestivalInfo_DateDirectoryStatus(t *testing.T) {
 	}
 }
 
+func TestListFestivalsByStatus_ActiveWrapperDirNotSurfaced(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	festivalsDir := filepath.Join(tmpDir, "festivals")
+	activeDir := filepath.Join(festivalsDir, "active")
+	wrappedFestival := filepath.Join(activeDir, "backup", "old-fest")
+
+	if err := os.MkdirAll(wrappedFestival, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(wrappedFestival, FestivalGoalFile), []byte("# Test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	directFestival := filepath.Join(activeDir, "direct-fest")
+	if err := os.MkdirAll(directFestival, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(directFestival, FestivalGoalFile), []byte("# Test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	festivals, err := ListFestivalsByStatus(context.Background(), festivalsDir, "active", "")
+	if err != nil {
+		t.Fatalf("ListFestivalsByStatus() error = %v", err)
+	}
+
+	if len(festivals) != 1 {
+		t.Fatalf("ListFestivalsByStatus() returned %d festivals, want 1: %+v", len(festivals), festivals)
+	}
+	if festivals[0].Name != "direct-fest" {
+		t.Errorf("ListFestivalsByStatus() surfaced %q, want %q", festivals[0].Name, "direct-fest")
+	}
+}
+
+func TestFindFestivalByName_ExactMatchPreferredOverSubstring(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	festivalsDir := filepath.Join(tmpDir, "festivals")
+	activeDir := filepath.Join(festivalsDir, "active")
+
+	exactFestival := filepath.Join(activeDir, "FA0001")
+	if err := os.MkdirAll(exactFestival, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(exactFestival, FestivalGoalFile), []byte("# Test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	substringFestival := filepath.Join(activeDir, "FA00010")
+	if err := os.MkdirAll(substringFestival, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(substringFestival, FestivalGoalFile), []byte("# Test"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	info, err := FindFestivalByName(context.Background(), festivalsDir, "FA0001", "")
+	if err != nil {
+		t.Fatalf("FindFestivalByName() error = %v", err)
+	}
+	if info.Name != "FA0001" {
+		t.Errorf("FindFestivalByName(%q) = %q, want %q", "FA0001", info.Name, "FA0001")
+	}
+}
+
 // TestParseFestivalInfo_LegacyFestivalNoMetadata tests legacy festivals without metadata
 func TestParseFestivalInfo_LegacyFestivalNoMetadata(t *testing.T) {
 	tmpDir := t.TempDir()

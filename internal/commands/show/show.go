@@ -403,7 +403,7 @@ func emitShowErrorJSON(message string) error {
 	if err := shared.EncodeJSON(os.Stdout, result); err != nil {
 		return errors.Wrap(err, "encoding JSON output")
 	}
-	return nil
+	return errors.ErrAlreadyPrinted
 }
 
 type festivalShowJSON struct {

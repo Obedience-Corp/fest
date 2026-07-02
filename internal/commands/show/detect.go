@@ -89,38 +89,81 @@ func DetectCurrentFestival(ctx context.Context, startDir, campaignRoot string) (
 	return nil, errors.NotFound("festival").WithHint(errors.HintFestivalNotFound)
 }
 
-// findLinkedFestivalPath searches for a festival by name in all status directories.
-// For dungeon statuses, also searches inside date subdirectories.
+// findLinkedFestivalPath searches for a festival by exact name in all status
+// directories, including festivals nested under organizational buckets.
 func findLinkedFestivalPath(festivalsRoot, name string) string {
 	for _, status := range id.StatusDirectories {
-		// Try direct path
-		festivalPath := filepath.Join(festivalsRoot, status, name)
-		if info, err := os.Stat(festivalPath); err == nil && info.IsDir() {
-			if isValidFestival(festivalPath) {
-				return festivalPath
-			}
-		}
-
-		// For dungeon statuses, search inside date subdirectories
-		if strings.HasPrefix(status, "dungeon/") {
-			statusDir := filepath.Join(festivalsRoot, status)
-			entries, err := os.ReadDir(statusDir)
-			if err != nil {
-				continue
-			}
-			for _, entry := range entries {
-				if entry.IsDir() && LooksLikeDateDir(entry.Name()) {
-					datePath := filepath.Join(statusDir, entry.Name(), name)
-					if info, err := os.Stat(datePath); err == nil && info.IsDir() {
-						if isValidFestival(datePath) {
-							return datePath
-						}
-					}
-				}
+		deep := strings.HasPrefix(status, "dungeon/")
+		for _, entry := range festivalDirsUnderStatus(filepath.Join(festivalsRoot, status), deep) {
+			if filepath.Base(entry.path) == name {
+				return entry.path
 			}
 		}
 	}
 	return ""
+}
+
+// maxDungeonNestDepth bounds how deep festival resolution recurses under a
+// dungeon status directory when festivals are filed inside organizational
+// subfolders (date buckets like 2026-03-01, or free-form buckets like
+// pre-2026-03-01).
+const maxDungeonNestDepth = 3
+
+// maxWorkingStatusNestDepth bounds recursion under a working status
+// directory (active/ready/planning/ritual) to a single date-bucket level,
+// matching the shallow lookup those statuses have always used.
+const maxWorkingStatusNestDepth = 1
+
+// festivalDir is a resolved festival root plus the outermost organizational
+// bucket it was nested under below the status dir, if any.
+type festivalDir struct {
+	path   string
+	bucket string
+}
+
+// festivalDirsUnderStatus returns every festival root at or below statusDir.
+// When deep is true (dungeon statuses), it recurses through any non-festival
+// subdirectory up to maxDungeonNestDepth so a festival filed under any
+// organizational bucket resolves. When deep is false (working statuses), it
+// only recurses one level into date-bucket-shaped subdirectories, preserving
+// the prior shallow lookup for active/ready/planning/ritual.
+func festivalDirsUnderStatus(statusDir string, deep bool) []festivalDir {
+	maxDepth := maxWorkingStatusNestDepth
+	if deep {
+		maxDepth = maxDungeonNestDepth
+	}
+
+	var out []festivalDir
+	var walk func(dir, bucket string, depth int)
+	walk = func(dir, bucket string, depth int) {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				continue
+			}
+			child := filepath.Join(dir, entry.Name())
+			if isValidFestival(child) {
+				out = append(out, festivalDir{path: child, bucket: bucket})
+				continue
+			}
+			if depth >= maxDepth {
+				continue
+			}
+			if !deep && !LooksLikeDateDir(entry.Name()) {
+				continue
+			}
+			nextBucket := bucket
+			if nextBucket == "" {
+				nextBucket = entry.Name()
+			}
+			walk(child, nextBucket, depth+1)
+		}
+	}
+	walk(statusDir, "", 0)
+	return out
 }
 
 // isValidFestival checks if a directory is a valid festival root.
@@ -151,56 +194,41 @@ func FindFestivalByName(ctx context.Context, festivalsDir, name, campaignRoot st
 	if ctx == nil {
 		ctx = context.Background()
 	}
+
+	var loose *festivalDir
+	var looseStatus string
+
 	for _, status := range id.StatusDirectories {
-		statusDir := filepath.Join(festivalsDir, status)
-		entries, err := os.ReadDir(statusDir)
-		if err != nil {
-			continue // Skip inaccessible directories
-		}
-
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-
-			// Check exact match or prefix match
-			if entry.Name() == name || strings.HasPrefix(entry.Name(), name+"_") || strings.Contains(entry.Name(), name) {
-				festivalDir := filepath.Join(statusDir, entry.Name())
-				if isValidFestival(festivalDir) {
-					info, err := parseFestivalInfo(ctx, festivalDir, campaignRoot)
-					if err != nil {
-						continue
-					}
-					info.Status = status
-					return info, nil
-				}
-			}
-
-			// If this is a date directory, search inside it
-			if LooksLikeDateDir(entry.Name()) {
-				bucket := entry.Name()
-				subEntries, subErr := os.ReadDir(filepath.Join(statusDir, bucket))
-				if subErr != nil {
+		deep := strings.HasPrefix(status, "dungeon/")
+		for _, entry := range festivalDirsUnderStatus(filepath.Join(festivalsDir, status), deep) {
+			base := filepath.Base(entry.path)
+			switch {
+			case base == name || strings.HasPrefix(base, name+"_"):
+				info, err := parseFestivalInfo(ctx, entry.path, campaignRoot)
+				if err != nil {
 					continue
 				}
-				for _, sub := range subEntries {
-					if !sub.IsDir() {
-						continue
-					}
-					if sub.Name() == name || strings.HasPrefix(sub.Name(), name+"_") || strings.Contains(sub.Name(), name) {
-						festivalDir := filepath.Join(statusDir, bucket, sub.Name())
-						if isValidFestival(festivalDir) {
-							info, err := parseFestivalInfo(ctx, festivalDir, campaignRoot)
-							if err != nil {
-								continue
-							}
-							info.Status = status
-							info.StatusDate = bucket
-							return info, nil
-						}
-					}
+				info.Status = status
+				if entry.bucket != "" {
+					info.StatusDate = entry.bucket
 				}
+				return info, nil
+			case loose == nil && strings.Contains(base, name):
+				match := entry
+				loose = &match
+				looseStatus = status
 			}
+		}
+	}
+
+	if loose != nil {
+		info, err := parseFestivalInfo(ctx, loose.path, campaignRoot)
+		if err == nil {
+			info.Status = looseStatus
+			if loose.bucket != "" {
+				info.StatusDate = loose.bucket
+			}
+			return info, nil
 		}
 	}
 
@@ -215,8 +243,7 @@ func ListFestivalsByStatus(ctx context.Context, festivalsDir, status, campaignRo
 		ctx = context.Background()
 	}
 	statusDir := filepath.Join(festivalsDir, status)
-	entries, err := os.ReadDir(statusDir)
-	if err != nil {
+	if _, err := os.ReadDir(statusDir); err != nil {
 		if os.IsNotExist(err) {
 			return []*FestivalInfo{}, nil
 		}
@@ -224,53 +251,21 @@ func ListFestivalsByStatus(ctx context.Context, festivalsDir, status, campaignRo
 	}
 
 	var festivals []*FestivalInfo
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		festivalDir := filepath.Join(statusDir, entry.Name())
-		if isValidFestival(festivalDir) {
-			info, err := parseFestivalInfo(ctx, festivalDir, campaignRoot)
-			if err != nil {
-				info = &FestivalInfo{
-					ID:     entry.Name(),
-					Name:   entry.Name(),
-					Status: status,
-					Path:   festivalDir,
-				}
-			}
-			info.Status = status
-			festivals = append(festivals, info)
-		} else if LooksLikeDateDir(entry.Name()) {
-			// Recurse into date subdirectory
-			bucket := entry.Name()
-			subEntries, subErr := os.ReadDir(festivalDir)
-			if subErr != nil {
-				continue
-			}
-			for _, sub := range subEntries {
-				if !sub.IsDir() {
-					continue
-				}
-				subDir := filepath.Join(festivalDir, sub.Name())
-				if !isValidFestival(subDir) {
-					continue
-				}
-				info, err := parseFestivalInfo(ctx, subDir, campaignRoot)
-				if err != nil {
-					info = &FestivalInfo{
-						ID:     sub.Name(),
-						Name:   sub.Name(),
-						Status: status,
-						Path:   subDir,
-					}
-				}
-				info.Status = status
-				info.StatusDate = bucket
-				festivals = append(festivals, info)
+	for _, entry := range festivalDirsUnderStatus(statusDir, strings.HasPrefix(status, "dungeon/")) {
+		info, err := parseFestivalInfo(ctx, entry.path, campaignRoot)
+		if err != nil {
+			info = &FestivalInfo{
+				ID:     filepath.Base(entry.path),
+				Name:   filepath.Base(entry.path),
+				Status: status,
+				Path:   entry.path,
 			}
 		}
+		info.Status = status
+		if entry.bucket != "" {
+			info.StatusDate = entry.bucket
+		}
+		festivals = append(festivals, info)
 	}
 
 	return festivals, nil
@@ -282,8 +277,7 @@ func ListFestivalsByStatus(ctx context.Context, festivalsDir, status, campaignRo
 // For dungeon statuses, also recurses into date subdirectories.
 func ListFestivalsByStatusLight(_ context.Context, festivalsDir, status string) ([]*FestivalInfo, error) {
 	statusDir := filepath.Join(festivalsDir, status)
-	entries, err := os.ReadDir(statusDir)
-	if err != nil {
+	if _, err := os.ReadDir(statusDir); err != nil {
 		if os.IsNotExist(err) {
 			return []*FestivalInfo{}, nil
 		}
@@ -291,35 +285,12 @@ func ListFestivalsByStatusLight(_ context.Context, festivalsDir, status string) 
 	}
 
 	var festivals []*FestivalInfo
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
+	for _, entry := range festivalDirsUnderStatus(statusDir, strings.HasPrefix(status, "dungeon/")) {
+		info := lightFestivalInfo(entry.path, filepath.Base(entry.path), status)
+		if entry.bucket != "" {
+			info.StatusDate = entry.bucket
 		}
-
-		festivalDir := filepath.Join(statusDir, entry.Name())
-		if isValidFestival(festivalDir) {
-			info := lightFestivalInfo(festivalDir, entry.Name(), status)
-			festivals = append(festivals, info)
-		} else if LooksLikeDateDir(entry.Name()) {
-			// Recurse into date subdirectory
-			bucket := entry.Name()
-			subEntries, subErr := os.ReadDir(festivalDir)
-			if subErr != nil {
-				continue
-			}
-			for _, sub := range subEntries {
-				if !sub.IsDir() {
-					continue
-				}
-				subDir := filepath.Join(festivalDir, sub.Name())
-				if !isValidFestival(subDir) {
-					continue
-				}
-				info := lightFestivalInfo(subDir, sub.Name(), status)
-				info.StatusDate = bucket
-				festivals = append(festivals, info)
-			}
-		}
+		festivals = append(festivals, info)
 	}
 
 	return festivals, nil
