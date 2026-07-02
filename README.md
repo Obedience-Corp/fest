@@ -185,6 +185,16 @@ Or with Go:
 go install github.com/Obedience-Corp/fest/cmd/fest@latest
 ```
 
+### install.sh
+
+`install.sh` downloads a prebuilt binary from the [Obedience-Corp/fest releases](https://github.com/Obedience-Corp/fest/releases), verifies its sha256 checksum against the release's published `checksums.txt`, and installs it to `/usr/local/bin/fest` (using `sudo` if that directory isn't writable):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Obedience-Corp/fest/main/install.sh | bash
+```
+
+It refuses to install anything it cannot verify: if a release has no matching binary archive or no published `checksums.txt`, it fails with an error instead of installing an unverified binary. Prebuilt binaries are not yet published on every release; if the script fails for that reason, use `go install` or build from source above.
+
 ## Shell Integration (Recommended)
 
 Add to your shell config for quick navigation commands:

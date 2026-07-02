@@ -1,6 +1,7 @@
 package extensions
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 
@@ -69,7 +70,10 @@ func (el *ExtensionLoader) LoadAll(festivalRoot string) error {
 func (el *ExtensionLoader) loadFromDirectory(dir string, source string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil // Directory doesn't exist or can't be read
+		if !os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "Warning: failed to read extensions directory %s: %v\n", dir, err)
+		}
+		return nil
 	}
 
 	for _, entry := range entries {
@@ -80,10 +84,14 @@ func (el *ExtensionLoader) loadFromDirectory(dir string, source string) error {
 		extPath := filepath.Join(dir, entry.Name())
 		ext, err := LoadExtensionFromDir(extPath, source)
 		if err != nil {
-			continue // Skip invalid extensions
+			fmt.Fprintf(os.Stderr, "Warning: skipping invalid extension %s (%s): %v\n", extPath, source, err)
+			continue
 		}
 
-		// Higher priority sources override lower ones
+		if existing, ok := el.extensions[ext.Name]; ok && existing.Source != ext.Source {
+			fmt.Fprintf(os.Stderr, "Warning: %s extension %q shadows %s extension of the same name\n", ext.Source, ext.Name, existing.Source)
+		}
+
 		el.extensions[ext.Name] = ext
 	}
 
