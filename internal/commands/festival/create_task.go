@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
@@ -76,16 +77,19 @@ TEMPLATE VARIABLES (automatically set from --name):
   {{ full_path }}            Complete path from festival root
 
 EXAMPLES:
-  # Create single task in current sequence
+  # Create single task in current sequence (appends at the end)
   fest create task --name "design endpoints" --json
 
-  # Create multiple tasks at once (sequential numbering)
+  # Create multiple tasks at once (sequential numbering, appended at end)
   fest create task --name "requirements" --name "design" --name "implement"
   # Creates: 01_requirements.md, 02_design.md, 03_implement.md
 
-  # Create tasks starting after position 2
+  # Insert tasks after position 2 (existing tasks renumber down, reported)
   fest create task --after 2 --name "new step" --name "another step"
   # Creates: 03_new_step.md, 04_another_step.md
+
+  # Insert at the beginning
+  fest create task --after 0 --name "prerequisite"
 
   # Create task in specific sequence
   fest create task --name "setup" --path ./002_IMPLEMENT/01_api --json
@@ -118,7 +122,7 @@ Run 'fest validate tasks' to verify task files exist in implementation sequences
 			return RunCreateTask(cmd.Context(), opts)
 		},
 	}
-	cmd.Flags().IntVar(&opts.After, "after", 0, "Insert after this number (0 inserts at beginning)")
+	cmd.Flags().IntVar(&opts.After, "after", -1, "Insert after this task number (-1 or omit to append at end; 0 inserts at beginning)")
 	cmd.Flags().StringSliceVar(&opts.Names, "name", nil, "Task name(s) - can be specified multiple times for batch creation")
 	cmd.Flags().StringVar(&opts.Path, "path", ".", "Path to sequence directory (directory containing numbered task files)")
 	cmd.Flags().StringVar(&opts.VarsFile, "vars-file", "", "JSON vars for rendering")
@@ -129,6 +133,55 @@ Run 'fest validate tasks' to verify task files exist in implementation sequences
 	cmd.Flags().BoolVar(&opts.JSONOutput, "json", false, "Emit JSON output")
 	cmd.Flags().BoolVar(&opts.AgentMode, "agent", false, "Strict mode: require markers, auto-validate, block on errors, JSON output")
 	return cmd
+}
+
+// resolveTaskInsertAfter maps the --after default (-1) to append-at-end by
+// detecting the highest existing task number in the sequence directory,
+// matching create sequence's behavior. A parse failure is an error, not a
+// silent prepend into a possibly non-empty sequence.
+func resolveTaskInsertAfter(ctx context.Context, sequenceDir string, after int) (int, error) {
+	if after != -1 {
+		return after, nil
+	}
+	parser := festival.NewParser()
+	tasks, err := parser.ParseTasks(ctx, sequenceDir)
+	if err != nil {
+		return 0, errors.Wrap(err, "detecting last task number").WithField("dir", sequenceDir)
+	}
+	maxNum := 0
+	for _, t := range tasks {
+		if t.Number > maxNum {
+			maxNum = t.Number
+		}
+	}
+	return maxNum, nil
+}
+
+// netRenames collapses per-step rename chains from batch inserts (a->b in
+// one step, b->c in a later step) into net a->c entries, sorted by the
+// original name for stable, readable output.
+func netRenames(steps [][2]string) []string {
+	finalOf := map[string]string{}
+	originOf := map[string]string{}
+	var order []string
+	for _, s := range steps {
+		oldName, newName := s[0], s[1]
+		if origin, ok := originOf[oldName]; ok {
+			delete(originOf, oldName)
+			originOf[newName] = origin
+			finalOf[origin] = newName
+			continue
+		}
+		originOf[newName] = oldName
+		finalOf[oldName] = newName
+		order = append(order, oldName)
+	}
+	sort.Strings(order)
+	out := make([]string, 0, len(order))
+	for _, o := range order {
+		out = append(out, fmt.Sprintf("%s -> %s", o, finalOf[o]))
+	}
+	return out
 }
 
 // RunCreateTask executes the create task command logic.
@@ -182,9 +235,16 @@ func RunCreateTask(ctx context.Context, opts *CreateTaskOptions) error {
 	mgr := tpl.NewManager()
 	loader := tpl.NewLoader()
 
+	after, afterErr := resolveTaskInsertAfter(ctx, absPath, opts.After)
+	if afterErr != nil {
+		return emitCreateTaskError(opts, afterErr)
+	}
+	opts.After = after
+
 	// Track all created tasks for output
 	var createdTasks []map[string]any
 	var createdPaths []string
+	var renameSteps [][2]string
 	var totalMarkersFilled, totalMarkersCount int
 	currentAfter := opts.After
 
@@ -199,6 +259,12 @@ func RunCreateTask(ctx context.Context, opts *CreateTaskOptions) error {
 		ren := festival.NewRenumberer(festival.RenumberOptions{AutoApprove: true, Quiet: true})
 		if err := ren.InsertTask(ctx, absPath, currentAfter, name); err != nil {
 			return emitCreateTaskError(opts, errors.Wrap(err, "inserting task").WithField("name", name))
+		}
+		for _, ch := range ren.Changes() {
+			if ch.Type == festival.ChangeRename {
+				renameSteps = append(renameSteps,
+					[2]string{filepath.Base(ch.OldPath), filepath.Base(ch.NewPath)})
+			}
 		}
 
 		// Compute new task id
@@ -347,6 +413,7 @@ func RunCreateTask(ctx context.Context, opts *CreateTaskOptions) error {
 	}
 
 	// Output results
+	renumbered := netRenames(renameSteps)
 	remainingMarkers := totalMarkersCount - totalMarkersFilled
 
 	if opts.JSONOutput {
@@ -372,7 +439,7 @@ func RunCreateTask(ctx context.Context, opts *CreateTaskOptions) error {
 			OK:              true,
 			Action:          "create_task",
 			Created:         createdPaths,
-			Renumber:        []string{},
+			Renumber:        renumbered,
 			MarkersFilled:   totalMarkersFilled,
 			MarkersTotal:    totalMarkersCount,
 			MarkersUnfilled: remainingMarkers,
@@ -410,6 +477,12 @@ func RunCreateTask(ctx context.Context, opts *CreateTaskOptions) error {
 		display.Success("Created %d tasks:", len(createdTasks))
 		for _, task := range createdTasks {
 			display.Info("  └── %s", task["id"])
+		}
+	}
+	if len(renumbered) > 0 {
+		display.Warning("Renumbered %d existing task(s):", len(renumbered))
+		for _, r := range renumbered {
+			display.Info("  └── %s", r)
 		}
 	}
 

@@ -215,6 +215,12 @@ type Frontmatter struct {
 	EstimatedTokens int        `yaml:"fest_estimated_tokens,omitempty" json:"fest_estimated_tokens,omitempty"`
 	RequiresHuman   bool       `yaml:"fest_requires_human,omitempty" json:"fest_requires_human,omitempty"`
 	RequiresContext bool       `yaml:"fest_requires_context,omitempty" json:"fest_requires_context,omitempty"`
+
+	// Extra preserves keys this schema does not know about, so every
+	// parse -> mutate -> inject round-trip (task status updates, goal
+	// status changes, migrations) keeps user-added metadata instead of
+	// silently dropping it.
+	Extra map[string]any `yaml:",inline" json:"-"`
 }
 
 // Validate checks if the frontmatter is valid
