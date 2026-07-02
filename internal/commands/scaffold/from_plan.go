@@ -12,6 +12,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/progress"
 	sc "github.com/Obedience-Corp/fest/internal/scaffold"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -158,17 +159,17 @@ func runFromPlan(ctx context.Context, opts *fromPlanOptions) error {
 
 	if !opts.DryRun {
 		campaignRoot := filepath.Dir(festivalsRoot)
-		if werr := writeScaffoldFestYaml(festivalDir, campaignRoot, festivalID, destCategory, plan); werr != nil {
+		if werr := writeScaffoldFestYaml(ctx, festivalDir, campaignRoot, festivalID, destCategory, plan); werr != nil {
 			return emitError(opts, werr)
 		}
-		result.FilesCreated = append(result.FilesCreated, filepath.Join(festivalDir, config.FestivalConfigFileName))
 	}
+	result.FilesCreated = append(result.FilesCreated, filepath.Join(festivalDir, config.FestivalConfigFileName))
 
 	// Emit result
 	return emitResult(opts, result, festivalID)
 }
 
-func writeScaffoldFestYaml(festivalDir, campaignRoot, festivalID, destCategory string, plan *sc.ParsedPlan) error {
+func writeScaffoldFestYaml(ctx context.Context, festivalDir, campaignRoot, festivalID, destCategory string, plan *sc.ParsedPlan) error {
 	now := time.Now().UTC()
 	cfg := config.DefaultFestivalConfig()
 	cfg.Metadata = config.FestivalMetadata{
@@ -186,6 +187,9 @@ func writeScaffoldFestYaml(festivalDir, campaignRoot, festivalID, destCategory s
 				Notes:     "Festival scaffolded from plan",
 			},
 		},
+	}
+	if initialSize, sizeErr := progress.ComputeDirectorySize(ctx, festivalDir); sizeErr == nil && initialSize > 0 {
+		cfg.Metadata.InitialSizeBytes = initialSize
 	}
 	if err := config.SaveFestivalConfig(festivalDir, campaignRoot, cfg); err != nil {
 		return errors.Wrap(err, "writing fest.yaml").WithField("path", filepath.Join(festivalDir, config.FestivalConfigFileName))
