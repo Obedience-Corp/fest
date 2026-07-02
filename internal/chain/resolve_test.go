@@ -216,10 +216,10 @@ func TestIsDateBucket(t *testing.T) {
 	}{
 		{"2026-06-04", true},
 		{"2026-12-31", true},
-		{"2026-05", true},  // legacy YYYY-MM bucket
-		{"2025-01", true},  // legacy YYYY-MM bucket
-		{"2026-5", false},  // single-digit month
-		{"2026", false},    // year only
+		{"2026-05", true}, // legacy YYYY-MM bucket
+		{"2025-01", true}, // legacy YYYY-MM bucket
+		{"2026-5", false}, // single-digit month
+		{"2026", false},   // year only
 		{"chains", false},
 		{"2026-6-4", false},
 		{"2026-06-04-extra", false},
