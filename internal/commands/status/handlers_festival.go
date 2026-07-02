@@ -478,9 +478,20 @@ func AutoCommitStatusChange(ctx context.Context, festivalName, festivalID, oldSt
 		}
 	}
 
-	// Stage only the paths affected by the status change (lock-aware with retry).
-	if err := commitkit.StageFiles(ctx, ws.Root, changedPaths...); err != nil {
-		return "", errors.Wrap(err, "stage")
+	// Stage each affected path independently (lock-aware with retry): a
+	// pathspec matching nothing (e.g. a never-committed pre-move festival
+	// directory) must not sink staging for the paths that do exist.
+	var stageFailures []string
+	staged := 0
+	for _, p := range changedPaths {
+		if err := commitkit.StageFiles(ctx, ws.Root, p); err != nil {
+			stageFailures = append(stageFailures, fmt.Sprintf("%s (%v)", p, err))
+			continue
+		}
+		staged++
+	}
+	if staged == 0 && len(stageFailures) > 0 {
+		return "", errors.New("stage: no paths could be staged: " + strings.Join(stageFailures, "; "))
 	}
 
 	// Check if anything is actually staged.

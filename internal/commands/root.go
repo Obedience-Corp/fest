@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	chaincmd "github.com/Obedience-Corp/fest/internal/commands/chain"
 	commitcmd "github.com/Obedience-Corp/fest/internal/commands/commit"
@@ -44,6 +45,7 @@ import (
 	watchcmd "github.com/Obedience-Corp/fest/internal/commands/watch"
 	"github.com/Obedience-Corp/fest/internal/commands/wizard"
 	workflowcmd "github.com/Obedience-Corp/fest/internal/commands/workflow"
+	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/version"
@@ -184,6 +186,7 @@ func init() {
 	createCmd.AddCommand(festival.NewCreateSequenceCommand())
 	createCmd.AddCommand(festival.NewCreateTaskCommand())
 	createCmd.AddCommand(festival.NewCreateWorkflowCommand())
+	setCreateScopeFlagHints(createCmd)
 	rootCmd.AddCommand(createCmd)
 
 	scaffoldCmd := scaffoldcmd.NewScaffoldCommand()
@@ -452,4 +455,26 @@ func styledUsageTemplate() string {
 
 Use "{{.CommandPath}} [command] --help" for more information about a command.{{end}}
 `
+}
+
+// scopeFlagHints maps scoping flags users reach for onto the cwd-based
+// creation model, so unknown-flag errors teach instead of just rejecting.
+var scopeFlagHints = map[string]string{
+	"--phase":    "phases are created in the festival root; sequences are created inside a phase directory (cd 003_IMPLEMENT first)",
+	"--sequence": "tasks are created inside a sequence directory (cd into the sequence first, or pass --path)",
+	"--festival": "run this from inside the festival directory (fest go <festival>), or pass --path",
+}
+
+func setCreateScopeFlagHints(create *cobra.Command) {
+	for _, sub := range create.Commands() {
+		sub.SetFlagErrorFunc(func(cmd *cobra.Command, err error) error {
+			msg := err.Error()
+			for flag, hint := range scopeFlagHints {
+				if strings.Contains(msg, flag) && cmd.Flags().Lookup(strings.TrimPrefix(flag, "--")) == nil {
+					return festerrors.Validation(msg + "\nHint: " + hint)
+				}
+			}
+			return err
+		})
+	}
 }

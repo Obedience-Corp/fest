@@ -66,6 +66,14 @@ func NewRenumberer(options RenumberOptions) *Renumberer {
 	}
 }
 
+// Changes returns the change set built by the most recent insert or
+// renumber operation, letting callers report renames they triggered.
+func (r *Renumberer) Changes() []Change {
+	out := make([]Change, len(r.changes))
+	copy(out, r.changes)
+	return out
+}
+
 // RenumberPhases renumbers all phases starting from a given number
 func (r *Renumberer) RenumberPhases(ctx context.Context, festivalDir string, startFrom int) error {
 	if err := ctx.Err(); err != nil {
