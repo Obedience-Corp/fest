@@ -175,10 +175,13 @@ func runPromote(ctx context.Context, opts *promoteOptions, selector string) erro
 	festival, fromPicker, err := resolveFestivalForPromote(ctx, festivalsDir, cwd, selector, !opts.json)
 	if err != nil {
 		if opts.json {
-			return shared.EncodeJSON(os.Stdout, map[string]any{
+			if encErr := shared.EncodeJSON(os.Stdout, map[string]any{
 				"success": false,
 				"error":   err.Error(),
-			})
+			}); encErr != nil {
+				return encErr
+			}
+			return errors.ErrAlreadyPrinted
 		}
 		return err
 	}
@@ -202,6 +205,17 @@ func promoteCore(ctx context.Context, festival *show.FestivalInfo, confirm bool,
 		// Dungeon override: resolve the dungeon status
 		resolved := id.ResolveStatusPath(opts.dungeon)
 		if !strings.HasPrefix(resolved, "dungeon/") {
+			if opts.json {
+				if encErr := shared.EncodeJSON(os.Stdout, map[string]any{
+					"success": false,
+					"error":   fmt.Sprintf("invalid dungeon status %q", opts.dungeon),
+					"value":   opts.dungeon,
+					"hint":    "valid values: completed, archived, someday",
+				}); encErr != nil {
+					return "", encErr
+				}
+				return "", errors.ErrAlreadyPrinted
+			}
 			return "", errors.Validation("invalid dungeon status").
 				WithField("value", opts.dungeon).
 				WithField("hint", "valid values: completed, archived, someday")
