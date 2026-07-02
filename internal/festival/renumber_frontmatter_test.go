@@ -93,19 +93,3 @@ func TestRenumber_SequenceRenameRefreshesGoalAndChildren(t *testing.T) {
 		t.Errorf("task's own id/order should be untouched by a parent rename:\n%s", tk)
 	}
 }
-
-func TestRewriteFrontmatterFields_NoFrontmatterUntouched(t *testing.T) {
-	dir := t.TempDir()
-	path := filepath.Join(dir, "01_plain.md")
-	original := "# No frontmatter here\n\nfest_id: not-frontmatter\n"
-	if err := os.WriteFile(path, []byte(original), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := rewriteFrontmatterFields(path, map[string]string{"fest_id": "02_plain.md"}); err != nil {
-		t.Fatalf("rewrite: %v", err)
-	}
-	got, _ := os.ReadFile(path)
-	if string(got) != original {
-		t.Errorf("file without frontmatter was modified:\n%s", got)
-	}
-}

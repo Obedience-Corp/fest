@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/frontmatter"
 )
 
 // executeChanges applies the planned changes
@@ -175,7 +176,7 @@ func refreshRenamedMetadata(newPath string) error {
 	base := filepath.Base(newPath)
 
 	if m := taskParsePattern.FindStringSubmatch(base); m != nil {
-		return rewriteFrontmatterFields(newPath, map[string]string{
+		return frontmatter.UpdateFieldsInFile(newPath, map[string]string{
 			"fest_id":    base,
 			"fest_order": strings.TrimLeft(m[1], "0"),
 		})
@@ -200,7 +201,7 @@ func refreshRenamedMetadata(newPath string) error {
 
 	goalPath := filepath.Join(newPath, goalFile)
 	if _, statErr := os.Stat(goalPath); statErr == nil {
-		if err := rewriteFrontmatterFields(goalPath, map[string]string{
+		if err := frontmatter.UpdateFieldsInFile(goalPath, map[string]string{
 			"fest_id":    base,
 			"fest_order": number,
 		}); err != nil {
@@ -217,51 +218,12 @@ func refreshRenamedMetadata(newPath string) error {
 			if filepath.Base(child) == goalFile {
 				continue
 			}
-			if err := rewriteFrontmatterFields(child, map[string]string{
+			if err := frontmatter.UpdateFieldsInFile(child, map[string]string{
 				"fest_parent": base,
 			}); err != nil {
 				return err
 			}
 		}
-	}
-	return nil
-}
-
-// rewriteFrontmatterFields replaces the values of existing top-level keys
-// inside a file's frontmatter block, leaving every other byte alone. Keys
-// absent from the block are not added; files without frontmatter are
-// left untouched.
-func rewriteFrontmatterFields(path string, fields map[string]string) error {
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return errors.IO("Renumberer.readFrontmatter", err).WithField("path", path)
-	}
-	lines := strings.Split(string(content), "\n")
-	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
-		return nil
-	}
-	changed := false
-	for i := 1; i < len(lines); i++ {
-		trimmed := strings.TrimSpace(lines[i])
-		if trimmed == "---" {
-			break
-		}
-		for key, value := range fields {
-			if strings.HasPrefix(trimmed, key+":") {
-				lines[i] = key + ": " + value
-				changed = true
-			}
-		}
-	}
-	if !changed {
-		return nil
-	}
-	mode := os.FileMode(0644)
-	if info, statErr := os.Stat(path); statErr == nil {
-		mode = info.Mode()
-	}
-	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")), mode); err != nil {
-		return errors.IO("Renumberer.writeFrontmatter", err).WithField("path", path)
 	}
 	return nil
 }
