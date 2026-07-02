@@ -7,12 +7,16 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/Obedience-Corp/fest/internal/config"
+	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/id"
 	sc "github.com/Obedience-Corp/fest/internal/scaffold"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
 
@@ -152,8 +156,41 @@ func runFromPlan(ctx context.Context, opts *fromPlanOptions) error {
 		return emitError(opts, err)
 	}
 
+	if !opts.DryRun {
+		campaignRoot := filepath.Dir(festivalsRoot)
+		if werr := writeScaffoldFestYaml(festivalDir, campaignRoot, festivalID, destCategory, plan); werr != nil {
+			return emitError(opts, werr)
+		}
+		result.FilesCreated = append(result.FilesCreated, filepath.Join(festivalDir, config.FestivalConfigFileName))
+	}
+
 	// Emit result
 	return emitResult(opts, result, festivalID)
+}
+
+func writeScaffoldFestYaml(festivalDir, campaignRoot, festivalID, destCategory string, plan *sc.ParsedPlan) error {
+	now := time.Now().UTC()
+	cfg := config.DefaultFestivalConfig()
+	cfg.Metadata = config.FestivalMetadata{
+		ID:           festivalID,
+		UUID:         uuid.New().String(),
+		Name:         plan.FestivalName,
+		Goal:         plan.Goal,
+		FestivalType: "standard",
+		CreatedAt:    now,
+		StatusHistory: []config.StatusChange{
+			{
+				Status:    destCategory,
+				Timestamp: now,
+				Path:      festivalDir,
+				Notes:     "Festival scaffolded from plan",
+			},
+		},
+	}
+	if err := config.SaveFestivalConfig(festivalDir, campaignRoot, cfg); err != nil {
+		return errors.Wrap(err, "writing fest.yaml").WithField("path", filepath.Join(festivalDir, config.FestivalConfigFileName))
+	}
+	return nil
 }
 
 func emitResult(opts *fromPlanOptions, result *sc.RunResult, festivalID string) error {
