@@ -172,8 +172,21 @@ These festivals span Go, Rust, Python, and web projects - from simple CLI fixes 
 
 ## Installation
 
+fest ships bundled with camp as part of the [Festival packaging repo](https://github.com/Obedience-Corp/festival), which is the canonical, checksum-verified distributor for prebuilt binaries:
+
 ```bash
-# Install from source
+# macOS/Linux, via Homebrew
+brew install --cask Obedience-Corp/tap/festival
+
+# or via the Festival installer directly
+curl -fsSL https://raw.githubusercontent.com/Obedience-Corp/festival/main/install.sh | bash
+```
+
+See the [festival repo](https://github.com/Obedience-Corp/festival#install) for the full package list (npm, deb, rpm, apk, Arch) and published `checksums.txt`.
+
+To install fest on its own from source:
+
+```bash
 git clone https://github.com/Obedience-Corp/fest
 cd fest
 just install
@@ -184,6 +197,8 @@ Or with Go:
 ```bash
 go install github.com/Obedience-Corp/fest/cmd/fest@latest
 ```
+
+This repo's `install.sh` does not download or install a binary itself; running it prints the install paths above.
 
 ## Shell Integration (Recommended)
 

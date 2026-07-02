@@ -39,6 +39,21 @@ func TestLoadAll_MarketplaceFlagOn(t *testing.T) {
 	}
 }
 
+func TestLoadAll_MarketplaceDefaultOff(t *testing.T) {
+	cfg := t.TempDir()
+	t.Setenv("FEST_CONFIG_DIR", cfg)
+	t.Setenv("FEST_FEATURE_MARKETPLACE_EXTENSION_SOURCE", "")
+	writeExtension(t, MarketplaceExtensionsDir(), "demo")
+
+	l := NewExtensionLoader()
+	if err := l.LoadAll(""); err != nil {
+		t.Fatalf("LoadAll: %v", err)
+	}
+	if l.Get("demo") != nil {
+		t.Fatal("expected the marketplace path to be ignored by default")
+	}
+}
+
 func TestLoadAll_MarketplaceFlagOff(t *testing.T) {
 	cfg := t.TempDir()
 	t.Setenv("FEST_CONFIG_DIR", cfg)
