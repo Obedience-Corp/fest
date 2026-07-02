@@ -73,6 +73,10 @@ func (r *Renumberer) executeChanges() error {
 					WithField("from", change.OldPath).
 					WithField("to", change.NewPath)
 			}
+			if err := refreshRenamedMetadata(change.NewPath); err != nil {
+				fmt.Printf("Warning: renamed %s but could not refresh its frontmatter: %v\n",
+					filepath.Base(change.NewPath), err)
+			}
 			if r.options.Verbose {
 				fmt.Printf("Renamed: %s → %s\n", filepath.Base(change.OldPath), filepath.Base(change.NewPath))
 			}
@@ -158,5 +162,106 @@ func (r *Renumberer) createBackup() error {
 	// Implementation would create timestamped backup
 	// For now, just log
 	fmt.Println("Creating backup...")
+	return nil
+}
+
+// refreshRenamedMetadata keeps frontmatter consistent with a renumber
+// rename: a renamed task file gets its fest_id/fest_order updated; a
+// renamed sequence or phase directory gets its goal file's fest_id and
+// fest_order updated plus the fest_parent of its immediate children.
+// Rewrites are line-surgical so unknown frontmatter keys and formatting
+// survive untouched (the schema round-trip would drop unknown keys).
+func refreshRenamedMetadata(newPath string) error {
+	base := filepath.Base(newPath)
+
+	if m := taskParsePattern.FindStringSubmatch(base); m != nil {
+		return rewriteFrontmatterFields(newPath, map[string]string{
+			"fest_id":    base,
+			"fest_order": strings.TrimLeft(m[1], "0"),
+		})
+	}
+
+	info, err := os.Stat(newPath)
+	if err != nil || !info.IsDir() {
+		return err
+	}
+
+	var goalFile, number string
+	var childPatterns []string
+	if m := sequenceParsePattern.FindStringSubmatch(base); m != nil {
+		goalFile, number = "SEQUENCE_GOAL.md", strings.TrimLeft(m[1], "0")
+		childPatterns = []string{"*.md"}
+	} else if m := phaseParsePattern.FindStringSubmatch(base); m != nil {
+		goalFile, number = "PHASE_GOAL.md", strings.TrimLeft(m[1], "0")
+		childPatterns = []string{"*/SEQUENCE_GOAL.md"}
+	} else {
+		return nil
+	}
+
+	goalPath := filepath.Join(newPath, goalFile)
+	if _, statErr := os.Stat(goalPath); statErr == nil {
+		if err := rewriteFrontmatterFields(goalPath, map[string]string{
+			"fest_id":    base,
+			"fest_order": number,
+		}); err != nil {
+			return err
+		}
+	}
+
+	for _, pattern := range childPatterns {
+		children, globErr := filepath.Glob(filepath.Join(newPath, pattern))
+		if globErr != nil {
+			continue
+		}
+		for _, child := range children {
+			if filepath.Base(child) == goalFile {
+				continue
+			}
+			if err := rewriteFrontmatterFields(child, map[string]string{
+				"fest_parent": base,
+			}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// rewriteFrontmatterFields replaces the values of existing top-level keys
+// inside a file's frontmatter block, leaving every other byte alone. Keys
+// absent from the block are not added; files without frontmatter are
+// left untouched.
+func rewriteFrontmatterFields(path string, fields map[string]string) error {
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return errors.IO("Renumberer.readFrontmatter", err).WithField("path", path)
+	}
+	lines := strings.Split(string(content), "\n")
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+		return nil
+	}
+	changed := false
+	for i := 1; i < len(lines); i++ {
+		trimmed := strings.TrimSpace(lines[i])
+		if trimmed == "---" {
+			break
+		}
+		for key, value := range fields {
+			if strings.HasPrefix(trimmed, key+":") {
+				lines[i] = key + ": " + value
+				changed = true
+			}
+		}
+	}
+	if !changed {
+		return nil
+	}
+	mode := os.FileMode(0644)
+	if info, statErr := os.Stat(path); statErr == nil {
+		mode = info.Mode()
+	}
+	if err := os.WriteFile(path, []byte(strings.Join(lines, "\n")), mode); err != nil {
+		return errors.IO("Renumberer.writeFrontmatter", err).WithField("path", path)
+	}
 	return nil
 }
