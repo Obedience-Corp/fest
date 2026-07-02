@@ -159,7 +159,11 @@ func runNext(cmd *cobra.Command, args []string) error {
 	nextPhasePath := ""
 	nextPhaseType := ""
 	nextPhaseName := ""
-	if found, _, findErr := lifecycle.FindFirstIncompletePhase(ctx, festivalPath); findErr == nil && found != "" {
+	found, _, findErr := lifecycle.FindFirstIncompletePhase(ctx, festivalPath)
+	if findErr != nil {
+		return errors.Wrap(findErr, "resolving next incomplete phase")
+	}
+	if found != "" {
 		nextPhasePath = found
 		nextPhaseType = guidance.DetectPhaseType(found)
 		nextPhaseName = filepath.Base(found)
@@ -215,6 +219,9 @@ func runNext(cmd *cobra.Command, args []string) error {
 			if position == frontmatter.WorkflowPositionBefore {
 				// WORKFLOW.md exists with position=before - check if workflow is complete before routing
 				phaseName := filepath.Base(phasePath)
+				if handled, rerr := routeEarlierIncompleteWork(ctx, festivalPath, phaseName); handled {
+					return rerr
+				}
 				store := progress.NewStore(festivalPath)
 				if loadErr := store.Load(ctx); loadErr != nil {
 					return runWorkflowMode(ctx, festivalPath, phasePath)
@@ -275,21 +282,9 @@ func runNext(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Check if an earlier phase has incomplete after-workflow steps
-	// that should run before jumping to later phases
 	if result.Task != nil {
-		earlierWorkflow, ewErr := findEarlierIncompleteAfterWorkflow(ctx, festivalPath, result.Task.PhaseName)
-		if ewErr == nil && earlierWorkflow != "" {
-			return runWorkflowMode(ctx, festivalPath, earlierWorkflow)
-		}
-	}
-
-	// Check if an earlier phase has an incomplete phase gate (GATES.md)
-	// Phase gates run after all tasks and workflows in a phase are complete
-	if result.Task != nil {
-		earlierGate, egErr := findEarlierIncompletePhaseGate(ctx, festivalPath, result.Task.PhaseName)
-		if egErr == nil && earlierGate != "" {
-			return runPhaseGateMode(ctx, festivalPath, earlierGate)
+		if handled, rerr := routeEarlierIncompleteWork(ctx, festivalPath, result.Task.PhaseName); handled {
+			return rerr
 		}
 	}
 

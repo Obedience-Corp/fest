@@ -8,10 +8,29 @@ import (
 	"sort"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/progress"
 )
+
+func routeEarlierIncompleteWork(ctx context.Context, festivalPath, phaseName string) (bool, error) {
+	earlierWorkflow, ewErr := findEarlierIncompleteAfterWorkflow(ctx, festivalPath, phaseName)
+	if ewErr != nil {
+		return true, errors.Wrap(ewErr, "checking earlier incomplete after-workflow")
+	}
+	if earlierWorkflow != "" {
+		return true, runWorkflowMode(ctx, festivalPath, earlierWorkflow)
+	}
+	earlierGate, egErr := findEarlierIncompletePhaseGate(ctx, festivalPath, phaseName)
+	if egErr != nil {
+		return true, errors.Wrap(egErr, "checking earlier incomplete phase gate")
+	}
+	if earlierGate != "" {
+		return true, runPhaseGateMode(ctx, festivalPath, earlierGate)
+	}
+	return false, nil
+}
 
 // findSequencePath finds the sequence path from current directory
 func findSequencePath(cwd, festivalPath string) string {
