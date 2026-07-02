@@ -93,3 +93,48 @@ func TestRenumber_SequenceRenameRefreshesGoalAndChildren(t *testing.T) {
 		t.Errorf("task's own id/order should be untouched by a parent rename:\n%s", tk)
 	}
 }
+
+func TestRenumber_PhaseRenameRefreshesGoalAndChildren(t *testing.T) {
+	festivalDir := t.TempDir()
+	phaseDir := filepath.Join(festivalDir, "001_ALPHA")
+	seqDir := filepath.Join(phaseDir, "01_seq")
+	if err := os.MkdirAll(seqDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	phaseGoal := "---\nfest_type: phase\nfest_id: 001_ALPHA\nfest_order: 1\nfest_parent: onboarding-FE0001\n---\n\n# Phase Goal\n"
+	if err := os.WriteFile(filepath.Join(phaseDir, "PHASE_GOAL.md"), []byte(phaseGoal), 0644); err != nil {
+		t.Fatal(err)
+	}
+	seqGoal := "---\nfest_type: sequence\nfest_id: 01_seq\nfest_order: 1\nfest_parent: 001_ALPHA\n---\n\n# Sequence Goal\n"
+	if err := os.WriteFile(filepath.Join(seqDir, "SEQUENCE_GOAL.md"), []byte(seqGoal), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	ren := NewRenumberer(RenumberOptions{AutoApprove: true, Quiet: true})
+	if err := ren.InsertPhase(context.Background(), festivalDir, 0, "zero"); err != nil {
+		t.Fatalf("InsertPhase: %v", err)
+	}
+
+	movedGoal, err := os.ReadFile(filepath.Join(festivalDir, "002_ALPHA", "PHASE_GOAL.md"))
+	if err != nil {
+		t.Fatalf("moved phase goal missing: %v", err)
+	}
+	g := string(movedGoal)
+	for _, want := range []string{"fest_id: 002_ALPHA", "fest_order: 2", "fest_parent: onboarding-FE0001"} {
+		if !strings.Contains(g, want) {
+			t.Errorf("phase goal frontmatter missing %q:\n%s", want, g)
+		}
+	}
+
+	movedSeqGoal, err := os.ReadFile(filepath.Join(festivalDir, "002_ALPHA", "01_seq", "SEQUENCE_GOAL.md"))
+	if err != nil {
+		t.Fatalf("moved sequence goal missing: %v", err)
+	}
+	s := string(movedSeqGoal)
+	if !strings.Contains(s, "fest_parent: 002_ALPHA") {
+		t.Errorf("child sequence fest_parent not refreshed to new phase id:\n%s", s)
+	}
+	if !strings.Contains(s, "fest_id: 01_seq") || !strings.Contains(s, "fest_order: 1") {
+		t.Errorf("child sequence's own id/order should be untouched by a phase rename:\n%s", s)
+	}
+}

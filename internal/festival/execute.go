@@ -75,7 +75,7 @@ func (r *Renumberer) executeChanges() error {
 					WithField("to", change.NewPath)
 			}
 			if err := refreshRenamedMetadata(change.NewPath); err != nil {
-				fmt.Printf("Warning: renamed %s but could not refresh its frontmatter: %v\n",
+				fmt.Fprintf(os.Stderr, "Warning: renamed %s but could not refresh its frontmatter: %v\n",
 					filepath.Base(change.NewPath), err)
 			}
 			if r.options.Verbose {
