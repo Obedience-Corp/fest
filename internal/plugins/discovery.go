@@ -17,8 +17,8 @@ const (
 // DiscoveredPlugin represents a plugin found during discovery
 type DiscoveredPlugin struct {
 	Plugin
-	Source string // "manifest", "path", or path to manifest
-	Path   string // Full path to executable
+	Source string `json:"source"` // "manifest", "path", or path to manifest
+	Path   string `json:"path"`   // Full path to executable
 }
 
 // PluginDiscovery handles plugin discovery from multiple sources
