@@ -3,6 +3,7 @@ package navigation
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -30,47 +31,41 @@ func TestCollectPickerItems(t *testing.T) {
 
 	// 3 status dirs (active/, planning/, dungeon/completed/) + 4 festivals = 7
 	if len(items) != 7 {
-		names := make([]string, len(items))
-		for i, item := range items {
-			names[i] = item.Name
-		}
-		t.Errorf("got %d items %v, want 7", len(items), names)
+		t.Errorf("got %d items, want 7", len(items))
 	}
 
-	// Verify status directory entries
-	wantDirs := map[string]bool{
-		"[active]/":            false,
-		"[planning]/":          false,
-		"[dungeon/completed]/": false,
-	}
+	// The status label lives in Prefix; the festival name in Name (empty for a
+	// status directory). Reconstruct the combined label for lookups.
+	labels := make(map[string]string, len(items))
 	for _, item := range items {
-		if _, ok := wantDirs[item.Name]; ok {
-			wantDirs[item.Name] = true
+		label := item.Prefix
+		if item.Name != "" {
+			label = item.Prefix + " " + item.Name
 		}
+		labels[label] = item.Value
 	}
-	for name, found := range wantDirs {
-		if !found {
-			t.Errorf("missing directory entry: %s", name)
+
+	for _, dir := range []string{"[active]/", "[planning]/", "[dungeon/completed]/"} {
+		if _, ok := labels[dir]; !ok {
+			t.Errorf("missing directory entry: %s", dir)
 		}
 	}
 
-	// Verify festival entries have correct format and paths
 	wantFests := map[string]string{
 		"[active] deploy-DS0001":         filepath.Join(festivalsDir, "active", "deploy-DS0001"),
 		"[active] auth-AI0001":           filepath.Join(festivalsDir, "active", "auth-AI0001"),
 		"[planning] search-SR0001":       filepath.Join(festivalsDir, "planning", "search-SR0001"),
 		"[dungeon/completed] old-OL0001": filepath.Join(festivalsDir, "dungeon", "completed", "old-OL0001"),
 	}
-	for _, item := range items {
-		if expectedPath, ok := wantFests[item.Name]; ok {
-			if item.Value != expectedPath {
-				t.Errorf("item %q path = %q, want %q", item.Name, item.Value, expectedPath)
-			}
-			delete(wantFests, item.Name)
+	for label, wantPath := range wantFests {
+		gotPath, ok := labels[label]
+		if !ok {
+			t.Errorf("missing festival entry: %s", label)
+			continue
 		}
-	}
-	for name := range wantFests {
-		t.Errorf("missing festival entry: %s", name)
+		if gotPath != wantPath {
+			t.Errorf("item %q path = %q, want %q", label, gotPath, wantPath)
+		}
 	}
 }
 
@@ -84,8 +79,8 @@ func TestCollectPickerItems_EmptyWorkspace(t *testing.T) {
 	items := collectPickerItems(festivalsDir)
 
 	for _, item := range items {
-		if item.Name[len(item.Name)-1] != '/' {
-			t.Errorf("expected only directory entries in empty workspace, got %q", item.Name)
+		if !strings.HasSuffix(item.Prefix, "/") {
+			t.Errorf("expected only directory entries in empty workspace, got prefix %q name %q", item.Prefix, item.Name)
 		}
 	}
 }
@@ -106,7 +101,7 @@ func TestCollectPickerItems_SingleFestival(t *testing.T) {
 
 	festCount := 0
 	for _, item := range items {
-		if item.Name == "[active] only-fest-OF0001" {
+		if item.Prefix == "[active]" && item.Name == "only-fest-OF0001" {
 			festCount++
 		}
 	}
@@ -127,7 +122,7 @@ func TestCollectPickerItems_SkipsFiles(t *testing.T) {
 	items := collectPickerItems(festivalsDir)
 
 	for _, item := range items {
-		if item.Name == "[active] README.md" {
+		if item.Name == "README.md" {
 			t.Error("regular files should be skipped by collectPickerItems")
 		}
 	}

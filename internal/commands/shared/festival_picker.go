@@ -61,18 +61,31 @@ func festivalPickerItemsFromCandidates(candidates []FestivalPickCandidate) []pic
 	items := make([]picker.Item, 0, len(candidates))
 	for _, candidate := range candidates {
 		items = append(items, picker.Item{
-			Name:  festivalPickerItemName(candidate),
-			Value: candidate.Path,
+			Prefix:      festivalStatusLabel(candidate),
+			PrefixColor: ui.GetStatusColor(candidate.Status),
+			Name:        festivalPickerItemName(candidate),
+			Value:       candidate.Path,
 		})
 	}
 	return items
 }
 
-func festivalPickerItemName(candidate FestivalPickCandidate) string {
+// festivalStatusLabel is the status prefix shown (and colorized) before the
+// festival name, e.g. "[ready]" or "[active]/" for a status directory.
+func festivalStatusLabel(candidate FestivalPickCandidate) string {
 	if candidate.StatusDirectory {
 		return fmt.Sprintf("[%s]/", candidate.Status)
 	}
-	return fmt.Sprintf("[%s] %s", candidate.Status, candidate.Name)
+	return fmt.Sprintf("[%s]", candidate.Status)
+}
+
+// festivalPickerItemName is the matchable display name: the festival name, or
+// empty for a status directory whose label lives entirely in the prefix.
+func festivalPickerItemName(candidate FestivalPickCandidate) string {
+	if candidate.StatusDirectory {
+		return ""
+	}
+	return candidate.Name
 }
 
 // attachProgressDetails fills each item's Detail with a progress bar, computed

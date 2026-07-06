@@ -9,6 +9,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
+	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
@@ -38,34 +39,17 @@ func NewGoCompletionsCommand() *cobra.Command {
 	return cmd
 }
 
-// ANSI 256-color codes matching the fest dark palette (ui/palette.go)
+// ANSI codes for shortcut lines; status colors come from ui.StatusColorSequence
+// (the single theme-aware palette source).
 const (
-	ansiReset     = "\033[0m"
-	ansiDim       = "\033[2m"
-	ansiActive    = "\033[38;5;42m"  // bright green
-	ansiReady     = "\033[38;5;220m" // yellow
-	ansiPlanned   = "\033[38;5;33m"  // blue
-	ansiCompleted = "\033[38;5;205m" // magenta
-	ansiDungeon   = "\033[38;5;248m" // light grey
-	ansiShortcut  = "\033[38;5;214m" // orange
+	ansiReset    = "\033[0m"
+	ansiDim      = "\033[2m"
+	ansiShortcut = "\033[38;5;214m" // orange
 )
 
-// statusANSI returns the ANSI color escape for a status directory name
+// statusANSI returns the ANSI color escape for a status directory name.
 func statusANSI(status string) string {
-	switch status {
-	case "active":
-		return ansiActive
-	case "ready":
-		return ansiReady
-	case "planning":
-		return ansiPlanned
-	case "completed":
-		return ansiCompleted
-	case "dungeon", "dungeon/completed", "dungeon/archived", "dungeon/someday":
-		return ansiDungeon
-	default:
-		return ansiDim
-	}
+	return ui.StatusColorSequence(status)
 }
 
 func runGoCompletions(descriptions, color bool, statusFilter string) error {

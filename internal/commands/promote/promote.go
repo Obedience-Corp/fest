@@ -80,17 +80,22 @@ Use --dungeon to send a festival directly to a dungeon status:
 	cmd.Flags().BoolVar(&opts.noCommit, "no-commit", false, "skip auto-commit after promotion")
 	cmd.Flags().StringVar(&opts.dungeon, "dungeon", "", "send to dungeon status (completed, archived, someday)")
 
+	cmd.AddCommand(NewPromoteCompletionsCommand())
+
 	return cmd
 }
 
-// promotePickerOptions limits the picker and completion to promotable festivals.
+// promotePickerOptions limits the picker and completion to promotable festivals,
+// ordered active → ready → planning (then recency) to match fest go navigation.
 func promotePickerOptions() shared.FestivalPickerOptions {
 	return shared.FestivalPickerOptions{
-		PreferredStatuses: []string{"planning", "ready", "active"},
+		PreferredStatuses:        []string{"active", "ready", "planning"},
+		OrderByStatusThenRecency: true,
 	}
 }
 
-// completePromoteTarget provides shell completion for the festival selector.
+// completePromoteTarget provides shell completion for the festival selector,
+// ordered by status (active → ready → planning) rather than alphabetically.
 func completePromoteTarget(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
 	if len(args) > 0 {
 		return nil, cobra.ShellCompDirectiveNoFileComp
@@ -99,11 +104,49 @@ func completePromoteTarget(cmd *cobra.Command, args []string, toComplete string)
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	completions, err := shared.CompleteFestivalPickSelectors(cmd.Context(), cwd, toComplete, promotePickerOptions())
+	candidates, err := shared.ListFestivalPickCandidates(cmd.Context(), cwd, promotePickerOptions())
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
-	return completions, cobra.ShellCompDirectiveNoFileComp
+	return shared.OrderedSelectorNames(candidates, toComplete), cobra.ShellCompDirectiveNoFileComp
+}
+
+// NewPromoteCompletionsCommand creates the hidden subcommand that emits colorized,
+// status-ordered festival completions for the 'fest promote' shell widget, giving
+// promote the same tab-completion experience as fgo.
+func NewPromoteCompletionsCommand() *cobra.Command {
+	var color bool
+	cmd := &cobra.Command{
+		Use:    "completions",
+		Short:  "Output promote completion words for shell integration",
+		Hidden: true,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runPromoteCompletions(cmd.Context(), color)
+		},
+	}
+	cmd.Flags().BoolVar(&color, "color", false, "output value\\tcolorized_display for zsh compadd")
+	return cmd
+}
+
+func runPromoteCompletions(ctx context.Context, color bool) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil
+	}
+	candidates, err := shared.ListFestivalPickCandidates(ctx, cwd, promotePickerOptions())
+	if err != nil {
+		return nil
+	}
+	if color {
+		for _, line := range shared.ColorSelectorCompletions(candidates, "") {
+			fmt.Println(line)
+		}
+		return nil
+	}
+	for _, name := range shared.OrderedSelectorNames(candidates, "") {
+		fmt.Println(name)
+	}
+	return nil
 }
 
 // resolveFestivalForPromote resolves the festival to promote from an explicit

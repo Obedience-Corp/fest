@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 func TestPadRight(t *testing.T) {
@@ -29,6 +30,24 @@ func TestViewRendersDetailColumn(t *testing.T) {
 	}
 	if !strings.Contains(out, "alpha") || !strings.Contains(out, "bravo-longer") {
 		t.Fatalf("View should render item names, got:\n%s", out)
+	}
+}
+
+func TestViewRendersColoredPrefix(t *testing.T) {
+	r := lipgloss.NewRenderer(os.Stderr)
+	r.SetColorProfile(termenv.ANSI256)
+	items := []Item{
+		{Name: "my-festival", Value: "/f", Prefix: "[ready]", PrefixColor: lipgloss.Color("220")},
+	}
+	out := New(items, dummyScorer, r).View()
+	if !strings.Contains(out, "[ready]") {
+		t.Fatalf("View should render the prefix label, got:\n%s", out)
+	}
+	if !strings.Contains(out, "38;5;220") {
+		t.Fatalf("View should colorize the prefix with its PrefixColor (220), got:\n%q", out)
+	}
+	if !strings.Contains(out, "my-festival") {
+		t.Fatalf("View should render the item name, got:\n%s", out)
 	}
 }
 

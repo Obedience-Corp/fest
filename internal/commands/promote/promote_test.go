@@ -111,6 +111,26 @@ func TestNewPromoteCommand(t *testing.T) {
 	}
 }
 
+func TestPromoteHasColorizedCompletionsSubcommand(t *testing.T) {
+	cmd := NewPromoteCommand()
+	found := false
+	for _, sub := range cmd.Commands() {
+		if sub.Name() != "completions" {
+			continue
+		}
+		found = true
+		if !sub.Hidden {
+			t.Error("completions subcommand should be hidden")
+		}
+		if sub.Flags().Lookup("color") == nil {
+			t.Error("completions subcommand should expose --color")
+		}
+	}
+	if !found {
+		t.Fatal("expected hidden 'completions' subcommand for colorized promote completion")
+	}
+}
+
 func TestDungeonFlagValidation(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -354,10 +374,11 @@ func TestResolveFestivalForPromote_NoContextNonInteractive(t *testing.T) {
 func TestCompletePromoteTargetExcludesRitual(t *testing.T) {
 	root, _ := setupPromoteCampaign(t)
 
-	completions, err := shared.CompleteFestivalPickSelectors(t.Context(), root, "", promotePickerOptions())
+	candidates, err := shared.ListFestivalPickCandidates(t.Context(), root, promotePickerOptions())
 	if err != nil {
-		t.Fatalf("CompleteFestivalPickSelectors: %v", err)
+		t.Fatalf("ListFestivalPickCandidates: %v", err)
 	}
+	completions := shared.OrderedSelectorNames(candidates, "")
 
 	joined := strings.Join(completions, " ")
 	for _, want := range []string{"alpha-feature-FE0001", "beta-feature-FE0002", "gamma-feature-FE0003"} {
