@@ -52,6 +52,24 @@ func TestPromoteCompletionOrdersByStatusNotAlphabetical(t *testing.T) {
 	}
 }
 
+func TestPromoteCompletionKeepsStatusOrderWithTypedPrefix(t *testing.T) {
+	festivalsDir := t.TempDir()
+	writePromoteFestival(t, festivalsDir, "active", "zzz-feature-ZF0003")
+	writePromoteFestival(t, festivalsDir, "ready", "mmm-feature-MF0002")
+	writePromoteFestival(t, festivalsDir, "planning", "aaa-feature-AF0001")
+
+	candidates := CollectFestivalPickCandidates(festivalsDir, FestivalPickerOptions{
+		PreferredStatuses:        []string{"active", "ready", "planning"},
+		OrderByStatusThenRecency: true,
+	})
+
+	got := OrderedSelectorNames(candidates, "feature")
+	want := []string{"zzz-feature-ZF0003", "mmm-feature-MF0002", "aaa-feature-AF0001"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("typed-prefix completion order = %#v, want status order (not alphabetical) %#v", got, want)
+	}
+}
+
 func TestColorSelectorCompletionsFormat(t *testing.T) {
 	candidates := []FestivalPickCandidate{
 		{Name: "a-active-AA0001", Status: "active", Path: "/f/active/a-active-AA0001"},

@@ -374,10 +374,11 @@ func TestResolveFestivalForPromote_NoContextNonInteractive(t *testing.T) {
 func TestCompletePromoteTargetExcludesRitual(t *testing.T) {
 	root, _ := setupPromoteCampaign(t)
 
-	completions, err := shared.CompleteFestivalPickSelectors(t.Context(), root, "", promotePickerOptions())
+	candidates, err := shared.ListFestivalPickCandidates(t.Context(), root, promotePickerOptions())
 	if err != nil {
-		t.Fatalf("CompleteFestivalPickSelectors: %v", err)
+		t.Fatalf("ListFestivalPickCandidates: %v", err)
 	}
+	completions := shared.OrderedSelectorNames(candidates, "")
 
 	joined := strings.Join(completions, " ")
 	for _, want := range []string{"alpha-feature-FE0001", "beta-feature-FE0002", "gamma-feature-FE0003"} {

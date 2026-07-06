@@ -184,8 +184,9 @@ complete -F _fest_completions_bash fest
 
 if [[ -n "$ZSH_VERSION" ]]; then
     _fest_zsh() {
-        # Colorized, status-ordered completion for 'fest promote <TAB>' (parity with fgo)
-        if [[ "${words[2]}" == "promote" && $CURRENT -eq 3 ]]; then
+        # Colorized, status-ordered completion for 'fest promote <TAB>' (parity with fgo).
+        # Skip when completing a flag so the generic __complete path still offers flags.
+        if [[ "${words[2]}" == "promote" && $CURRENT -eq 3 && "${words[CURRENT]}" != -* ]]; then
             local -a pvals pdisplays
             local pval pdisplay
             while IFS=$'\t' read -r pval pdisplay; do

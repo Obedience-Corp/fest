@@ -43,21 +43,24 @@ func colorCompletionDisplay(value, status string) string {
 }
 
 // OrderedSelectorNames returns completion names from picker candidates while
-// preserving candidate order (no alphabetical sort). When toComplete is set it
-// fuzzy-filters, matching the behavior of the fest go completion.
+// preserving candidate order (active → ready → planning). When toComplete is set
+// it fuzzy-filters but keeps the status order among the matches, rather than
+// re-sorting them by fuzzy score.
 func OrderedSelectorNames(candidates []FestivalPickCandidate, toComplete string) []string {
 	selectors := selectorCandidatesFromPickCandidates(candidates, false)
-	if strings.TrimSpace(toComplete) == "" {
-		names := make([]string, 0, len(selectors))
-		for _, c := range selectors {
-			names = append(names, c.Name)
+	var matched map[string]bool
+	if strings.TrimSpace(toComplete) != "" {
+		matched = make(map[string]bool)
+		for _, m := range fuzzyMatchSelectorCandidates(toComplete, selectors) {
+			matched[m.Path] = true
 		}
-		return names
 	}
-	matches := fuzzyMatchSelectorCandidates(toComplete, selectors)
-	names := make([]string, 0, len(matches))
-	for _, m := range matches {
-		names = append(names, m.Name)
+	names := make([]string, 0, len(selectors))
+	for _, c := range selectors {
+		if matched != nil && !matched[c.Path] {
+			continue
+		}
+		names = append(names, c.Name)
 	}
 	return names
 }
