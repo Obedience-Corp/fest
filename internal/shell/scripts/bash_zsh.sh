@@ -1,0 +1,265 @@
+# fest shell integration - helper functions
+# Add to ~/.zshrc or ~/.bashrc:
+#   eval "$(fest shell-init zsh)"
+#
+# Provides: fgo (navigation), fls (listing)
+
+# Tab completion for fgo (position-aware: status dirs trigger filtered completions)
+_fgo_completions() {
+    local completions
+    if [[ ${COMP_CWORD} -eq 1 ]]; then
+        completions=$(command fest go completions 2>/dev/null)
+    elif [[ ${COMP_CWORD} -eq 2 ]]; then
+        case "${COMP_WORDS[1]}" in
+            active|planning|ready|ritual|completed|someday|archived|dungeon)
+                completions=$(command fest go completions --status "${COMP_WORDS[1]}" 2>/dev/null)
+                ;;
+        esac
+    fi
+    COMPREPLY=($(compgen -W "$completions" -- "${COMP_WORDS[COMP_CWORD]}"))
+}
+
+# Register completion (works for both bash and zsh with bashcompinit)
+complete -F _fgo_completions fgo
+
+# Zsh-specific: colorized completions using compadd -d for ANSI display strings
+if [[ -n "$ZSH_VERSION" ]]; then
+    _fgo_zsh() {
+        local -a vals displays
+        local line val display cmd_args
+
+        if (( CURRENT == 2 )); then
+            # First arg: show everything
+            cmd_args="--color"
+        elif (( CURRENT == 3 )); then
+            # Second arg: if first arg is a status dir, show its festivals
+            case "${words[2]}" in
+                active|planning|ready|ritual|completed|someday|archived|dungeon)
+                    cmd_args="--color --status ${words[2]}"
+                    ;;
+                *) return ;;
+            esac
+        else
+            return
+        fi
+
+        while IFS=$'\t' read -r val display; do
+            vals+=("$val")
+            displays+=("$display")
+        done < <(command fest go completions $cmd_args 2>/dev/null)
+        if (( ${#vals} )); then
+            compadd -V fgo -l -d displays -a vals
+        fi
+    }
+    compdef _fgo_zsh fgo 2>/dev/null
+fi
+
+# Tab completion for fls - complete status names and flags
+_fls_completions() {
+    local completions="active planning completed dungeon --json --all --help"
+    COMPREPLY=($(compgen -W "$completions" -- "${COMP_WORDS[COMP_CWORD]}"))
+}
+
+# Register completion
+complete -F _fls_completions fls
+
+# Zsh-specific: use compdef if available for fls
+if [[ -n "$ZSH_VERSION" ]]; then
+    _fls_zsh() {
+        local -a completions
+        completions=(
+            'active:List active festivals'
+            'planning:List planning festivals'
+            'completed:List completed festivals'
+            'dungeon:List dungeon festivals'
+            '--json:Output in JSON format'
+            '--all:Include empty status categories'
+            '--help:Show help for fest list'
+        )
+        _describe 'fls' completions
+    }
+    compdef _fls_zsh fls 2>/dev/null
+fi
+
+# Tab completion for the fest binary itself, delegating to cobra's hidden
+# __complete subcommand. Every cobra command on fest gets free tab completion,
+# including ValidArgsFunction-driven completions like 'fest ritual run <tab>'.
+_fest_completions_bash() {
+    local cur="${COMP_WORDS[COMP_CWORD]}"
+    local -a args=("${COMP_WORDS[@]:1:$COMP_CWORD-1}" "$cur")
+    local -a completions=()
+    local line
+    while IFS= read -r line; do
+        [[ -z "$line" || "$line" == ":"* ]] && continue
+        completions+=("${line%%$'\t'*}")
+    done < <(command fest __complete "${args[@]}" 2>/dev/null)
+    COMPREPLY=($(compgen -W "${completions[*]}" -- "$cur"))
+}
+complete -F _fest_completions_bash fest
+
+if [[ -n "$ZSH_VERSION" ]]; then
+    _fest_zsh() {
+        # Colorized, status-ordered completion for 'fest promote <TAB>' (parity with fgo).
+        # Skip when completing a flag so the generic __complete path still offers flags.
+        if [[ "${words[2]}" == "promote" && $CURRENT -eq 3 && "${words[CURRENT]}" != -* ]]; then
+            local -a pvals pdisplays
+            local pval pdisplay
+            while IFS=$'\t' read -r pval pdisplay; do
+                pvals+=("$pval")
+                pdisplays+=("$pdisplay")
+            done < <(command fest promote completions --color 2>/dev/null)
+            if (( ${#pvals} )); then
+                compadd -V promote -l -d pdisplays -a pvals
+                return
+            fi
+        fi
+        local -a vals
+        local line val
+        local -a args
+        # words[1] is "fest"; pass words[2..CURRENT] to __complete
+        args=("${(@)words[2,$CURRENT]}")
+        while IFS= read -r line; do
+            [[ -z "$line" || "$line" == ":"* ]] && continue
+            val="${line%%$'\t'*}"
+            vals+=("$val")
+        done < <(command fest __complete "${args[@]}" 2>/dev/null)
+        if (( ${#vals} )); then
+            compadd -a vals
+        fi
+    }
+    compdef _fest_zsh fest 2>/dev/null
+fi
+
+fgo() {
+    case "$1" in
+        --help|-h|help)
+            # Show help for fgo/fest go
+            command fest go --help
+            ;;
+        link)
+            # Context-aware linking (no cd needed, shows TUI if needed)
+            command fest go "$@"
+            ;;
+        unlink)
+            # Remove festival-project link (no cd needed)
+            command fest unlink
+            ;;
+        map|unmap)
+            # Pass through to fest go subcommands (no cd needed)
+            command fest go "$@"
+            ;;
+        list)
+            # Interactive list - select and navigate to destination
+            local dest
+            dest=$(command fest go list --interactive --print 2>/dev/null)
+            local exit_code=$?
+            if [[ $exit_code -eq 0 && -n "$dest" && -d "$dest" ]]; then
+                cd "$dest"
+            elif [[ $exit_code -ne 0 ]]; then
+                # Fall back to non-interactive list on error (e.g., no TUI, cancelled)
+                command fest go list
+            fi
+            ;;
+        project)
+            # Navigate to linked project
+            local dest
+            dest=$(command fest go project --print 2>&1)
+            local exit_code=$?
+            if [[ $exit_code -eq 0 && -n "$dest" && -d "$dest" ]]; then
+                cd "$dest"
+            else
+                echo "fgo: no project linked (use 'fest link <path>' from a festival)" >&2
+                return 1
+            fi
+            ;;
+        fest)
+            # Navigate back to festival from project
+            local dest
+            dest=$(command fest go fest --print 2>&1)
+            local exit_code=$?
+            if [[ $exit_code -eq 0 && -n "$dest" && -d "$dest" ]]; then
+                cd "$dest"
+            else
+                echo "fgo: not in a linked project" >&2
+                return 1
+            fi
+            ;;
+        -*)
+            # Shortcut navigation: strip leading dash and lookup
+            local name="${1#-}"
+            local dest
+            dest=$(command fest go shortcut "$name" --print 2>&1)
+            local exit_code=$?
+            if [[ $exit_code -eq 0 && -n "$dest" && -d "$dest" ]]; then
+                cd "$dest"
+            else
+                echo "fgo: shortcut not found: -$name" >&2
+                return 1
+            fi
+            ;;
+        *)
+            # Normal navigation (festival/phase/status directories)
+            # Note: Don't use 2>&1 - stderr must flow to terminal for TUI picker to render
+            local dest
+            if [[ -n "$2" && "$1" =~ ^(active|planning|ready|ritual|completed|someday|archived|dungeon)$ ]]; then
+                # Status dir + festival name: combine (e.g., active my-fest → active/my-fest)
+                dest=$(command fest go "$1/$2" --print)
+            else
+                dest=$(command fest go "$@" --print)
+            fi
+            local exit_code=$?
+            if [[ $exit_code -eq 0 && -n "$dest" && -d "$dest" ]]; then
+                cd "$dest"
+            else
+                # Error messages already went to stderr from the command
+                return $exit_code
+            fi
+            ;;
+    esac
+}
+
+# fls - shorthand for 'fest list'
+# Simple pass-through wrapper that calls fest list with all arguments
+fls() {
+    case "$1" in
+        --help|-h|help)
+            # Show fest list help
+            command fest list --help
+            ;;
+        *)
+            # Pass all arguments through to fest list
+            command fest list "$@"
+            ;;
+    esac
+}
+
+# Wrap fest binary so 'fest go' changes directory
+fest() {
+    case "$1" in
+        go|g)
+            shift
+            case "$1" in
+                --help|-h|help)
+                    command fest go --help
+                    ;;
+                link|unlink|map|unmap|move|completions)
+                    command fest go "$@"
+                    ;;
+                *)
+                    local dest
+                    if [ -n "$2" ] && echo "$1" | grep -qE '^(active|planning|ready|ritual|completed|someday|archived|dungeon)$'; then
+                        dest=$(command fest go "$1/$2" --print 2>/dev/null)
+                    else
+                        dest=$(command fest go "$@" --print 2>/dev/null)
+                    fi
+                    if [ -n "$dest" ] && [ -d "$dest" ]; then
+                        cd "$dest" || return 1
+                    fi
+                    ;;
+            esac
+            ;;
+        *)
+            command fest "$@"
+            ;;
+    esac
+}
