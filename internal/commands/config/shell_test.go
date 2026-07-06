@@ -127,3 +127,12 @@ func TestFishInitSyntax(t *testing.T) {
 		t.Error("fish init should use 'end' to close blocks")
 	}
 }
+
+func TestBashZshInitPromoteColorCompletion(t *testing.T) {
+	output := bashZshInit()
+	for _, want := range []string{"fest promote completions --color", "compadd -V promote"} {
+		if !strings.Contains(output, want) {
+			t.Errorf("bash/zsh init should contain %q for colorized promote completion", want)
+		}
+	}
+}

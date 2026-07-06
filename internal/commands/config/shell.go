@@ -184,6 +184,19 @@ complete -F _fest_completions_bash fest
 
 if [[ -n "$ZSH_VERSION" ]]; then
     _fest_zsh() {
+        # Colorized, status-ordered completion for 'fest promote <TAB>' (parity with fgo)
+        if [[ "${words[2]}" == "promote" && $CURRENT -eq 3 ]]; then
+            local -a pvals pdisplays
+            local pval pdisplay
+            while IFS=$'\t' read -r pval pdisplay; do
+                pvals+=("$pval")
+                pdisplays+=("$pdisplay")
+            done < <(command fest promote completions --color 2>/dev/null)
+            if (( ${#pvals} )); then
+                compadd -V promote -l -d pdisplays -a pvals
+                return
+            fi
+        fi
         local -a vals
         local line val
         local -a args
