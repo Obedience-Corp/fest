@@ -7,6 +7,7 @@
 package ui
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -128,6 +129,20 @@ func GetStatusColor(status string) lipgloss.TerminalColor {
 	default:
 		return lipgloss.Color("")
 	}
+}
+
+// StatusColorSequence returns the raw ANSI 256-color foreground escape for a
+// festival status, sourced from the active theme palette via GetStatusColor.
+// Unlike lipgloss styling it is emitted unconditionally, so colorized shell
+// completions render even when stdout is not a TTY. Palette entries are ANSI-256
+// indices; an unknown status falls back to dim.
+func StatusColorSequence(status string) string {
+	color, ok := GetStatusColor(status).(lipgloss.Color)
+	code := string(color)
+	if !ok || code == "" {
+		return "\x1b[2m"
+	}
+	return fmt.Sprintf("\x1b[38;5;%sm", code)
 }
 
 // GetStateColor returns the appropriate color for a workflow state string.

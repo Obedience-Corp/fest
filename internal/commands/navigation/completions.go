@@ -7,9 +7,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
+	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
@@ -39,8 +39,8 @@ func NewGoCompletionsCommand() *cobra.Command {
 	return cmd
 }
 
-// ANSI codes for shortcut lines; status colors come from shared.StatusColor
-// (the single palette source, matching ui/palette.go).
+// ANSI codes for shortcut lines; status colors come from ui.StatusColorSequence
+// (the single theme-aware palette source).
 const (
 	ansiReset    = "\033[0m"
 	ansiDim      = "\033[2m"
@@ -49,7 +49,7 @@ const (
 
 // statusANSI returns the ANSI color escape for a status directory name.
 func statusANSI(status string) string {
-	return shared.StatusColor(status)
+	return ui.StatusColorSequence(status)
 }
 
 func runGoCompletions(descriptions, color bool, statusFilter string) error {

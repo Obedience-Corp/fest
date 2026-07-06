@@ -18,22 +18,6 @@ func writePromoteFestival(t *testing.T, festivalsDir, status, name string) {
 	}
 }
 
-func TestStatusColor(t *testing.T) {
-	cases := map[string]string{
-		"active":            "\033[38;5;42m",
-		"ready":             "\033[38;5;220m",
-		"planning":          "\033[38;5;33m",
-		"completed":         "\033[38;5;205m",
-		"dungeon/completed": "\033[38;5;248m",
-		"mystery":           "\033[2m",
-	}
-	for status, want := range cases {
-		if got := StatusColor(status); got != want {
-			t.Errorf("StatusColor(%q) = %q, want %q", status, got, want)
-		}
-	}
-}
-
 func TestPromoteCompletionOrdersByStatusNotAlphabetical(t *testing.T) {
 	festivalsDir := t.TempDir()
 	writePromoteFestival(t, festivalsDir, "active", "zzz-active-ZA0001")

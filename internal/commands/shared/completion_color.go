@@ -1,45 +1,18 @@
 package shared
 
 import (
-	"fmt"
 	"strings"
+
+	"github.com/Obedience-Corp/fest/internal/ui"
 )
 
-// ANSI 256-color codes matching the fest dark palette (ui/palette.go). These are
-// emitted for shell completion display cells (zsh compadd -d), which lipgloss
-// styling does not reach.
-const (
-	ansiReset     = "\033[0m"
-	ansiDim       = "\033[2m"
-	ansiActive    = "\033[38;5;42m"  // bright green
-	ansiReady     = "\033[38;5;220m" // yellow
-	ansiPlanned   = "\033[38;5;33m"  // blue
-	ansiCompleted = "\033[38;5;205m" // magenta
-	ansiDungeon   = "\033[38;5;248m" // light grey
-)
-
-// StatusColor returns the ANSI color escape for a festival status directory name.
-func StatusColor(status string) string {
-	switch status {
-	case "active":
-		return ansiActive
-	case "ready":
-		return ansiReady
-	case "planning":
-		return ansiPlanned
-	case "completed":
-		return ansiCompleted
-	case "dungeon", "dungeon/completed", "dungeon/archived", "dungeon/someday":
-		return ansiDungeon
-	default:
-		return ansiDim
-	}
-}
+// ansiReset clears SGR attributes after a colorized completion cell.
+const ansiReset = "\x1b[0m"
 
 // colorCompletionDisplay renders the zsh compadd -d display cell for a completion:
-// the value followed by its colorized status.
+// the value followed by its status, colorized from the active theme palette.
 func colorCompletionDisplay(value, status string) string {
-	return fmt.Sprintf("%s %s%s%s", value, StatusColor(status), status, ansiReset)
+	return value + " " + ui.StatusColorSequence(status) + status + ansiReset
 }
 
 // OrderedSelectorNames returns completion names from picker candidates while
