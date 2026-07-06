@@ -219,3 +219,20 @@ func indexOf(values []string, target string) int {
 	}
 	return -1
 }
+
+func TestPickFestivalUnavailableWithoutFestivals(t *testing.T) {
+	path, outcome, err := PickFestival(t.Context(), t.TempDir(), FestivalPickerOptions{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if path != "" || outcome != FestivalPickUnavailable {
+		t.Fatalf("empty workspace: path=%q outcome=%d, want empty path and FestivalPickUnavailable", path, outcome)
+	}
+}
+
+func TestPickFestivalPathDelegatesToPickFestival(t *testing.T) {
+	path, err := PickFestivalPath(t.Context(), t.TempDir(), FestivalPickerOptions{})
+	if err != nil || path != "" {
+		t.Fatalf("PickFestivalPath on empty workspace = %q, %v; want empty, nil", path, err)
+	}
+}

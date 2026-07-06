@@ -149,6 +149,8 @@ func runPromoteCompletions(ctx context.Context, color bool) error {
 	return nil
 }
 
+var errPromoteCancelled = errors.New("promotion cancelled")
+
 // resolveFestivalForPromote resolves the festival to promote from an explicit
 // selector, the current directory, or an interactive picker. The returned bool
 // reports whether the festival was chosen from the picker.
@@ -167,13 +169,16 @@ func resolveFestivalForPromote(ctx context.Context, festivalsDir, cwd, selector 
 	}
 
 	if allowPicker && festivalsDir != "" {
-		picked, err := shared.PickFestivalPath(ctx, festivalsDir, promotePickerOptions())
+		picked, outcome, err := shared.PickFestival(ctx, festivalsDir, promotePickerOptions())
 		if err != nil {
 			return nil, false, err
 		}
-		if picked != "" {
+		switch outcome {
+		case shared.FestivalPicked:
 			festival, err := show.DetectCurrentFestival(ctx, picked, "")
 			return festival, true, err
+		case shared.FestivalPickCancelled:
+			return nil, false, errPromoteCancelled
 		}
 	}
 
@@ -217,6 +222,10 @@ func runPromote(ctx context.Context, opts *promoteOptions, selector string) erro
 
 	festival, fromPicker, err := resolveFestivalForPromote(ctx, festivalsDir, cwd, selector, !opts.json)
 	if err != nil {
+		if err == errPromoteCancelled {
+			fmt.Println(ui.Dim("Promotion cancelled"))
+			return nil
+		}
 		if opts.json {
 			if encErr := shared.EncodeJSON(os.Stdout, map[string]any{
 				"success": false,

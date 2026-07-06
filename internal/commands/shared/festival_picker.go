@@ -16,34 +16,46 @@ import (
 
 const progressDetailWorkers = 8
 
-// PickFestivalPath opens the shared festival picker and returns the selected path.
-func PickFestivalPath(ctx context.Context, festivalsDir string, opts FestivalPickerOptions) (string, error) {
+type FestivalPickOutcome int
+
+const (
+	FestivalPicked FestivalPickOutcome = iota
+	FestivalPickCancelled
+	FestivalPickUnavailable
+)
+
+func PickFestival(ctx context.Context, festivalsDir string, opts FestivalPickerOptions) (string, FestivalPickOutcome, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if err := ctx.Err(); err != nil {
-		return "", err
+		return "", FestivalPickUnavailable, err
 	}
 
 	if !term.IsTerminal(int(os.Stdin.Fd())) || !term.IsTerminal(int(os.Stderr.Fd())) {
-		return "", nil
+		return "", FestivalPickUnavailable, nil
 	}
 
 	items := FestivalPickerItems(festivalsDir, opts)
 	if len(items) == 0 {
-		return "", nil
+		return "", FestivalPickUnavailable, nil
 	}
 	attachProgressDetails(ctx, items)
 
 	selected, err := picker.Run(items, navigation.Score)
 	if err != nil {
-		return "", errors.Wrap(err, "running festival picker")
+		return "", FestivalPickUnavailable, errors.Wrap(err, "running festival picker")
 	}
 	if selected == nil {
-		return "", nil
+		return "", FestivalPickCancelled, nil
 	}
 
-	return selected.Value, nil
+	return selected.Value, FestivalPicked, nil
+}
+
+func PickFestivalPath(ctx context.Context, festivalsDir string, opts FestivalPickerOptions) (string, error) {
+	path, _, err := PickFestival(ctx, festivalsDir, opts)
+	return path, err
 }
 
 // FestivalPickerItems returns picker items for festival candidates.
