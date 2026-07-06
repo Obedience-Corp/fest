@@ -197,7 +197,7 @@ func TestValidateOrderingIntegration(t *testing.T) {
 		festivalPath := "/festivals/bad-start-festival"
 
 		cmds := [][]string{
-			{"mkdir", "-p", festivalPath + "/002_DESIGN"},  // Should start at 001
+			{"mkdir", "-p", festivalPath + "/002_DESIGN"}, // Should start at 001
 			{"mkdir", "-p", festivalPath + "/003_IMPLEMENT"},
 		}
 		for _, cmd := range cmds {

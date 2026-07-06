@@ -33,11 +33,11 @@ func NewExtensionLoader() *ExtensionLoader {
 
 // LoadAll loads extensions from all sources with proper precedence
 // (highest-priority last; whatever loads last wins):
-// 1. Project-local (.festival/extensions/)
-// 2. User config repo (festivals/.festival/extensions/)
-// 3. Installer-managed marketplace (~/.obey/fest/marketplace/extensions/), gated
-//    by the marketplace_extension_source_v1 feature
-// 4. Built-in (~/.obey/fest/festivals/.festival/extensions/)
+//  1. Project-local (.festival/extensions/)
+//  2. User config repo (festivals/.festival/extensions/)
+//  3. Installer-managed marketplace (~/.obey/fest/marketplace/extensions/), gated
+//     by the marketplace_extension_source_v1 feature
+//  4. Built-in (~/.obey/fest/festivals/.festival/extensions/)
 func (el *ExtensionLoader) LoadAll(festivalRoot string) error {
 	// Load built-in extensions first (lowest priority)
 	builtInPath := filepath.Join(config.ConfigDir(), "festivals", ".festival", ExtensionsDirName)

@@ -39,9 +39,9 @@ default:
     echo ""
     just --list --unsorted
 
-# Format Go code
+# Format Go code (whole-module scope, incl. build-tagged integration files)
 fmt:
-    go fmt ./...
+    gofmt -w .
 
 # Clean build artifacts with visual dashboard
 clean:

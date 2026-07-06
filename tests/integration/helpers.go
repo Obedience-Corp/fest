@@ -4,222 +4,222 @@
 package integration
 
 import (
- "bytes"
- "context"
- "fmt"
- "io"
- "os"
- "path/filepath"
- "strings"
- "testing"
- "time"
+	"bytes"
+	"context"
+	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
 
- "github.com/moby/moby/api/pkg/stdcopy"
- "github.com/stretchr/testify/require"
- "github.com/testcontainers/testcontainers-go"
- tcexec "github.com/testcontainers/testcontainers-go/exec"
- "github.com/testcontainers/testcontainers-go/wait"
+	"github.com/moby/moby/api/pkg/stdcopy"
+	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	tcexec "github.com/testcontainers/testcontainers-go/exec"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 // TestContainer wraps container operations for testing
 type TestContainer struct {
- container testcontainers.Container
- ctx       context.Context
- t         *testing.T
+	container testcontainers.Container
+	ctx       context.Context
+	t         *testing.T
 }
 
 // NewTestContainer creates a new Alpine container for testing fest
 func NewTestContainer(t *testing.T) (*TestContainer, error) {
- ctx := context.Background()
+	ctx := context.Background()
 
- // Get the absolute path to the Linux binary
- cwd, err := os.Getwd()
- if err != nil {
-  return nil, fmt.Errorf("failed to get working directory: %w", err)
- }
- festBinaryPath := filepath.Join(cwd, "../../bin/linux", "fest")
- festBinaryPath, err = filepath.Abs(festBinaryPath)
- if err != nil {
-  return nil, fmt.Errorf("failed to get absolute path: %w", err)
- }
+	// Get the absolute path to the Linux binary
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get working directory: %w", err)
+	}
+	festBinaryPath := filepath.Join(cwd, "../../bin/linux", "fest")
+	festBinaryPath, err = filepath.Abs(festBinaryPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get absolute path: %w", err)
+	}
 
- // Get path to templates (used by fest init)
- templatesPath := filepath.Join(cwd, "../../methodology/festivals/.festival")
- templatesPath, err = filepath.Abs(templatesPath)
- if err != nil {
-  return nil, fmt.Errorf("failed to get templates path: %w", err)
- }
+	// Get path to templates (used by fest init)
+	templatesPath := filepath.Join(cwd, "../../methodology/festivals/.festival")
+	templatesPath, err = filepath.Abs(templatesPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get templates path: %w", err)
+	}
 
- // Create Linux binary directory if it doesn't exist
- linuxBinDir := filepath.Dir(festBinaryPath)
- if err := os.MkdirAll(linuxBinDir, 0755); err != nil {
-  return nil, fmt.Errorf("failed to create linux bin directory: %w", err)
- }
+	// Create Linux binary directory if it doesn't exist
+	linuxBinDir := filepath.Dir(festBinaryPath)
+	if err := os.MkdirAll(linuxBinDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create linux bin directory: %w", err)
+	}
 
- // Check if binary exists
- if _, err := os.Stat(festBinaryPath); err != nil {
-  return nil, fmt.Errorf("fest binary not found at %s: %w - run 'just build test-binary' first", festBinaryPath, err)
- }
+	// Check if binary exists
+	if _, err := os.Stat(festBinaryPath); err != nil {
+		return nil, fmt.Errorf("fest binary not found at %s: %w - run 'just build test-binary' first", festBinaryPath, err)
+	}
 
- req := testcontainers.ContainerRequest{
-  Image:      "alpine:latest",
-  Cmd:        []string{"sleep", "3600"}, // Keep container running
-  WaitingFor: wait.ForExec([]string{"true"}).WithStartupTimeout(30 * time.Second),
-  AutoRemove: true,
-  Mounts: testcontainers.ContainerMounts{
-   {
-    Source:   testcontainers.GenericBindMountSource{HostPath: festBinaryPath},
-    Target:   "/fest",
-    ReadOnly: false,
-   },
-   {
-    // Mount templates so fest init can use them without network
-    Source:   testcontainers.GenericBindMountSource{HostPath: templatesPath},
-    Target:   "/root/.obey/fest/festivals/.festival",
-    ReadOnly: true,
-   },
-  },
- }
+	req := testcontainers.ContainerRequest{
+		Image:      "alpine:latest",
+		Cmd:        []string{"sleep", "3600"}, // Keep container running
+		WaitingFor: wait.ForExec([]string{"true"}).WithStartupTimeout(30 * time.Second),
+		AutoRemove: true,
+		Mounts: testcontainers.ContainerMounts{
+			{
+				Source:   testcontainers.GenericBindMountSource{HostPath: festBinaryPath},
+				Target:   "/fest",
+				ReadOnly: false,
+			},
+			{
+				// Mount templates so fest init can use them without network
+				Source:   testcontainers.GenericBindMountSource{HostPath: templatesPath},
+				Target:   "/root/.obey/fest/festivals/.festival",
+				ReadOnly: true,
+			},
+		},
+	}
 
- container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-  ContainerRequest: req,
-  Started:          true,
- })
- if err != nil {
-  return nil, fmt.Errorf("failed to start container: %w", err)
- }
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to start container: %w", err)
+	}
 
- // Make fest executable in container
- exitCode, output, err := container.Exec(ctx, []string{"chmod", "+x", "/fest"})
- if err != nil {
-  container.Terminate(ctx)
-  return nil, fmt.Errorf("failed to make fest executable: %w", err)
- }
- if exitCode != 0 {
-  outputBytes, _ := io.ReadAll(output)
-  container.Terminate(ctx)
-  return nil, fmt.Errorf("chmod failed with exit code %d, output: %s", exitCode, string(outputBytes))
- }
+	// Make fest executable in container
+	exitCode, output, err := container.Exec(ctx, []string{"chmod", "+x", "/fest"})
+	if err != nil {
+		container.Terminate(ctx)
+		return nil, fmt.Errorf("failed to make fest executable: %w", err)
+	}
+	if exitCode != 0 {
+		outputBytes, _ := io.ReadAll(output)
+		container.Terminate(ctx)
+		return nil, fmt.Errorf("chmod failed with exit code %d, output: %s", exitCode, string(outputBytes))
+	}
 
- return &TestContainer{
-  container: container,
-  ctx:       ctx,
-  t:         t,
- }, nil
+	return &TestContainer{
+		container: container,
+		ctx:       ctx,
+		t:         t,
+	}, nil
 }
 
 // RunFest executes the fest command in the container
 func (tc *TestContainer) RunFest(args ...string) (string, error) {
- cmd := append([]string{"/fest"}, args...)
+	cmd := append([]string{"/fest"}, args...)
 
- exitCode, reader, err := tc.container.Exec(tc.ctx, cmd)
- if err != nil {
-  return "", fmt.Errorf("failed to execute fest: %w", err)
- }
+	exitCode, reader, err := tc.container.Exec(tc.ctx, cmd)
+	if err != nil {
+		return "", fmt.Errorf("failed to execute fest: %w", err)
+	}
 
- // Demultiplex Docker stream
- var stdout, stderr bytes.Buffer
- if _, err := stdcopy.StdCopy(&stdout, &stderr, reader); err != nil {
-  return "", fmt.Errorf("failed to demultiplex output: %w", err)
- }
+	// Demultiplex Docker stream
+	var stdout, stderr bytes.Buffer
+	if _, err := stdcopy.StdCopy(&stdout, &stderr, reader); err != nil {
+		return "", fmt.Errorf("failed to demultiplex output: %w", err)
+	}
 
- output := stdout.String()
- if stderr.Len() > 0 {
-  output += stderr.String()
- }
+	output := stdout.String()
+	if stderr.Len() > 0 {
+		output += stderr.String()
+	}
 
- if exitCode != 0 {
-  return output, fmt.Errorf("fest exited with code %d: %s", exitCode, output)
- }
+	if exitCode != 0 {
+		return output, fmt.Errorf("fest exited with code %d: %s", exitCode, output)
+	}
 
- return output, nil
+	return output, nil
 }
 
 // RunFestInDir runs fest command from a specific directory
 func (tc *TestContainer) RunFestInDir(dir string, args ...string) (string, error) {
- // Use sh -c to change directory and run fest
- cmd := []string{"sh", "-c", "cd " + dir + " && /fest " + strings.Join(args, " ")}
+	// Use sh -c to change directory and run fest
+	cmd := []string{"sh", "-c", "cd " + dir + " && /fest " + strings.Join(args, " ")}
 
- exitCode, reader, err := tc.container.Exec(tc.ctx, cmd)
- if err != nil {
-  return "", fmt.Errorf("failed to execute fest in dir: %w", err)
- }
+	exitCode, reader, err := tc.container.Exec(tc.ctx, cmd)
+	if err != nil {
+		return "", fmt.Errorf("failed to execute fest in dir: %w", err)
+	}
 
- // Demultiplex Docker stream
- var stdout, stderr bytes.Buffer
- if _, err := stdcopy.StdCopy(&stdout, &stderr, reader); err != nil {
-  return "", fmt.Errorf("failed to demultiplex output: %w", err)
- }
+	// Demultiplex Docker stream
+	var stdout, stderr bytes.Buffer
+	if _, err := stdcopy.StdCopy(&stdout, &stderr, reader); err != nil {
+		return "", fmt.Errorf("failed to demultiplex output: %w", err)
+	}
 
- output := stdout.String()
- if stderr.Len() > 0 {
-  output += stderr.String()
- }
+	output := stdout.String()
+	if stderr.Len() > 0 {
+		output += stderr.String()
+	}
 
- // Return error on non-zero exit (like RunFest does)
- if exitCode != 0 {
-  return output, fmt.Errorf("fest exited with code %d: %s", exitCode, output)
- }
+	// Return error on non-zero exit (like RunFest does)
+	if exitCode != 0 {
+		return output, fmt.Errorf("fest exited with code %d: %s", exitCode, output)
+	}
 
- return output, nil
+	return output, nil
 }
 
 // RunFestTTY executes fest command in the container with a pseudo-TTY.
 func (tc *TestContainer) RunFestTTY(args ...string) (string, error) {
- cmd := append([]string{"/fest"}, args...)
+	cmd := append([]string{"/fest"}, args...)
 
- options := []tcexec.ProcessOption{
-  tcexec.ProcessOptionFunc(func(opts *tcexec.ProcessOptions) {
+	options := []tcexec.ProcessOption{
+		tcexec.ProcessOptionFunc(func(opts *tcexec.ProcessOptions) {
 			opts.ExecConfig.TTY = true
-   opts.ExecConfig.AttachStdin = true
-  }),
- }
+			opts.ExecConfig.AttachStdin = true
+		}),
+	}
 
- exitCode, reader, err := tc.container.Exec(tc.ctx, cmd, options...)
- if err != nil {
-  return "", fmt.Errorf("failed to execute fest in TTY: %w", err)
- }
+	exitCode, reader, err := tc.container.Exec(tc.ctx, cmd, options...)
+	if err != nil {
+		return "", fmt.Errorf("failed to execute fest in TTY: %w", err)
+	}
 
- outputBytes, err := io.ReadAll(reader)
- if err != nil {
-  return "", fmt.Errorf("failed to read TTY output: %w", err)
- }
- output := string(outputBytes)
+	outputBytes, err := io.ReadAll(reader)
+	if err != nil {
+		return "", fmt.Errorf("failed to read TTY output: %w", err)
+	}
+	output := string(outputBytes)
 
- if exitCode != 0 {
-  return output, fmt.Errorf("fest exited with code %d: %s", exitCode, output)
- }
+	if exitCode != 0 {
+		return output, fmt.Errorf("fest exited with code %d: %s", exitCode, output)
+	}
 
- return output, nil
+	return output, nil
 }
 
 // RunFestInDirTTY runs fest command from a specific directory with a pseudo-TTY.
 func (tc *TestContainer) RunFestInDirTTY(dir string, args ...string) (string, error) {
- cmd := []string{"sh", "-c", "cd " + dir + " && /fest " + strings.Join(args, " ")}
+	cmd := []string{"sh", "-c", "cd " + dir + " && /fest " + strings.Join(args, " ")}
 
- options := []tcexec.ProcessOption{
-  tcexec.ProcessOptionFunc(func(opts *tcexec.ProcessOptions) {
+	options := []tcexec.ProcessOption{
+		tcexec.ProcessOptionFunc(func(opts *tcexec.ProcessOptions) {
 			opts.ExecConfig.TTY = true
-   opts.ExecConfig.AttachStdin = true
-  }),
- }
+			opts.ExecConfig.AttachStdin = true
+		}),
+	}
 
- exitCode, reader, err := tc.container.Exec(tc.ctx, cmd, options...)
- if err != nil {
-  return "", fmt.Errorf("failed to execute fest in dir with TTY: %w", err)
- }
+	exitCode, reader, err := tc.container.Exec(tc.ctx, cmd, options...)
+	if err != nil {
+		return "", fmt.Errorf("failed to execute fest in dir with TTY: %w", err)
+	}
 
- outputBytes, err := io.ReadAll(reader)
- if err != nil {
-  return "", fmt.Errorf("failed to read TTY output: %w", err)
- }
- output := string(outputBytes)
+	outputBytes, err := io.ReadAll(reader)
+	if err != nil {
+		return "", fmt.Errorf("failed to read TTY output: %w", err)
+	}
+	output := string(outputBytes)
 
- if exitCode != 0 {
-  return output, fmt.Errorf("fest exited with code %d: %s", exitCode, output)
- }
+	if exitCode != 0 {
+		return output, fmt.Errorf("fest exited with code %d: %s", exitCode, output)
+	}
 
- return output, nil
+	return output, nil
 }
 
 // Exec runs an arbitrary shell command inside the container via `sh -c`.
@@ -270,417 +270,417 @@ func (tc *TestContainer) WriteFile(path, content string) error {
 // runCommand executes a command in the container
 // Returns output even on non-zero exit for test debugging
 func (tc *TestContainer) runCommand(cmd []string) (string, error) {
- exitCode, reader, err := tc.container.Exec(tc.ctx, cmd)
- if err != nil {
-  return "", fmt.Errorf("failed to execute command: %w", err)
- }
+	exitCode, reader, err := tc.container.Exec(tc.ctx, cmd)
+	if err != nil {
+		return "", fmt.Errorf("failed to execute command: %w", err)
+	}
 
- // Demultiplex Docker stream (removes the \x01 header bytes)
- var stdout, stderr bytes.Buffer
- if _, err := stdcopy.StdCopy(&stdout, &stderr, reader); err != nil {
-  return "", fmt.Errorf("failed to demultiplex output: %w", err)
- }
+	// Demultiplex Docker stream (removes the \x01 header bytes)
+	var stdout, stderr bytes.Buffer
+	if _, err := stdcopy.StdCopy(&stdout, &stderr, reader); err != nil {
+		return "", fmt.Errorf("failed to demultiplex output: %w", err)
+	}
 
- // Combine stdout and stderr
- output := stdout.String()
- if stderr.Len() > 0 {
-  output += stderr.String()
- }
+	// Combine stdout and stderr
+	output := stdout.String()
+	if stderr.Len() > 0 {
+		output += stderr.String()
+	}
 
- // Don't return error on non-zero exit - let tests check output
- if exitCode != 0 {
-  return output, nil
- }
+	// Don't return error on non-zero exit - let tests check output
+	if exitCode != 0 {
+		return output, nil
+	}
 
- return output, nil
+	return output, nil
 }
 
 // CopyToContainer copies a file to the container
 func (tc *TestContainer) CopyToContainer(sourcePath, targetPath string) error {
- fileContent, err := os.ReadFile(sourcePath)
- if err != nil {
-  return fmt.Errorf("failed to read source file: %w", err)
- }
+	fileContent, err := os.ReadFile(sourcePath)
+	if err != nil {
+		return fmt.Errorf("failed to read source file: %w", err)
+	}
 
- return tc.container.CopyToContainer(
-  tc.ctx,
-  fileContent,
-  targetPath,
-  0644,
- )
+	return tc.container.CopyToContainer(
+		tc.ctx,
+		fileContent,
+		targetPath,
+		0644,
+	)
 }
 
 // CopyDirToContainer copies a directory to the container
 func (tc *TestContainer) CopyDirToContainer(sourceDir, targetDir string) error {
- return filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
-  if err != nil {
-   return err
-  }
+	return filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 
-  relPath, err := filepath.Rel(sourceDir, path)
-  if err != nil {
-   return err
-  }
+		relPath, err := filepath.Rel(sourceDir, path)
+		if err != nil {
+			return err
+		}
 
-  targetPath := filepath.Join(targetDir, relPath)
+		targetPath := filepath.Join(targetDir, relPath)
 
-  if info.IsDir() {
-   // Create directory in container
-   exitCode, _, err := tc.container.Exec(tc.ctx, []string{"mkdir", "-p", targetPath})
-   if err != nil || exitCode != 0 {
-    return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
-   }
-   return nil
-  }
+		if info.IsDir() {
+			// Create directory in container
+			exitCode, _, err := tc.container.Exec(tc.ctx, []string{"mkdir", "-p", targetPath})
+			if err != nil || exitCode != 0 {
+				return fmt.Errorf("failed to create directory %s: %w", targetPath, err)
+			}
+			return nil
+		}
 
-  // Copy file
-  return tc.CopyToContainer(path, targetPath)
- })
+		// Copy file
+		return tc.CopyToContainer(path, targetPath)
+	})
 }
 
 // ListDirectory lists files in a container directory recursively
 func (tc *TestContainer) ListDirectory(path string) ([]string, error) {
- exitCode, reader, err := tc.container.Exec(tc.ctx, []string{"find", path, "-type", "f"})
- if err != nil {
-  return nil, fmt.Errorf("failed to list directory: %w", err)
- }
+	exitCode, reader, err := tc.container.Exec(tc.ctx, []string{"find", path, "-type", "f"})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list directory: %w", err)
+	}
 
- if exitCode != 0 {
-  return nil, fmt.Errorf("find command failed with exit code %d", exitCode)
- }
+	if exitCode != 0 {
+		return nil, fmt.Errorf("find command failed with exit code %d", exitCode)
+	}
 
- // Demultiplex Docker stream
- var stdout, stderr bytes.Buffer
- if _, err := stdcopy.StdCopy(&stdout, &stderr, reader); err != nil {
-  return nil, fmt.Errorf("failed to demultiplex output: %w", err)
- }
+	// Demultiplex Docker stream
+	var stdout, stderr bytes.Buffer
+	if _, err := stdcopy.StdCopy(&stdout, &stderr, reader); err != nil {
+		return nil, fmt.Errorf("failed to demultiplex output: %w", err)
+	}
 
- output := stdout.String()
+	output := stdout.String()
 
- lines := strings.Split(strings.TrimSpace(output), "\n")
- var files []string
- for _, line := range lines {
-  if line != "" && line != path {
-   files = append(files, line)
-  }
- }
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	var files []string
+	for _, line := range lines {
+		if line != "" && line != path {
+			files = append(files, line)
+		}
+	}
 
- return files, nil
+	return files, nil
 }
 
 // ReadFile reads a file from the container
 func (tc *TestContainer) ReadFile(path string) (string, error) {
- exitCode, reader, err := tc.container.Exec(tc.ctx, []string{"cat", path})
- if err != nil {
-  return "", fmt.Errorf("failed to read file: %w", err)
- }
+	exitCode, reader, err := tc.container.Exec(tc.ctx, []string{"cat", path})
+	if err != nil {
+		return "", fmt.Errorf("failed to read file: %w", err)
+	}
 
- // Demultiplex Docker stream
- var stdout, stderr bytes.Buffer
- if _, err := stdcopy.StdCopy(&stdout, &stderr, reader); err != nil {
-  return "", fmt.Errorf("failed to demultiplex output: %w", err)
- }
+	// Demultiplex Docker stream
+	var stdout, stderr bytes.Buffer
+	if _, err := stdcopy.StdCopy(&stdout, &stderr, reader); err != nil {
+		return "", fmt.Errorf("failed to demultiplex output: %w", err)
+	}
 
- output := stdout.String()
+	output := stdout.String()
 
- if exitCode != 0 {
-  return "", fmt.Errorf("cat command failed with exit code %d: %s", exitCode, output)
- }
+	if exitCode != 0 {
+		return "", fmt.Errorf("cat command failed with exit code %d: %s", exitCode, output)
+	}
 
- return output, nil
+	return output, nil
 }
 
 // CheckFileExists checks if a file exists in the container
 func (tc *TestContainer) CheckFileExists(path string) (bool, error) {
- exitCode, _, err := tc.container.Exec(tc.ctx, []string{"test", "-f", path})
- if err != nil {
-  return false, fmt.Errorf("failed to check file: %w", err)
- }
+	exitCode, _, err := tc.container.Exec(tc.ctx, []string{"test", "-f", path})
+	if err != nil {
+		return false, fmt.Errorf("failed to check file: %w", err)
+	}
 
- return exitCode == 0, nil
+	return exitCode == 0, nil
 }
 
 // CheckDirExists checks if a directory exists in the container
 func (tc *TestContainer) CheckDirExists(path string) (bool, error) {
- exitCode, _, err := tc.container.Exec(tc.ctx, []string{"test", "-d", path})
- if err != nil {
-  return false, fmt.Errorf("failed to check directory: %w", err)
- }
+	exitCode, _, err := tc.container.Exec(tc.ctx, []string{"test", "-d", path})
+	if err != nil {
+		return false, fmt.Errorf("failed to check directory: %w", err)
+	}
 
- return exitCode == 0, nil
+	return exitCode == 0, nil
 }
 
 // FileSystemState captures the state of a directory tree
 type FileSystemState struct {
- Directories []string          // directory paths
- Files       map[string]string // path -> content
+	Directories []string          // directory paths
+	Files       map[string]string // path -> content
 }
 
 // CaptureState captures the complete filesystem state in the container
 func (tc *TestContainer) CaptureState(rootPath string) (*FileSystemState, error) {
- state := &FileSystemState{
-  Files:       make(map[string]string),
-  Directories: []string{},
- }
+	state := &FileSystemState{
+		Files:       make(map[string]string),
+		Directories: []string{},
+	}
 
- // Find all directories
- exitCode, reader, err := tc.container.Exec(tc.ctx, []string{"find", rootPath, "-type", "d"})
- if err != nil {
-  return nil, fmt.Errorf("failed to find directories: %w", err)
- }
+	// Find all directories
+	exitCode, reader, err := tc.container.Exec(tc.ctx, []string{"find", rootPath, "-type", "d"})
+	if err != nil {
+		return nil, fmt.Errorf("failed to find directories: %w", err)
+	}
 
- if exitCode == 0 {
-  output, _ := io.ReadAll(reader)
-  for _, dir := range strings.Split(strings.TrimSpace(string(output)), "\n") {
-   if dir != "" && dir != rootPath {
-    relPath, _ := filepath.Rel(rootPath, dir)
-    if relPath != "." && relPath != "" {
-     state.Directories = append(state.Directories, relPath)
-    }
-   }
-  }
- }
+	if exitCode == 0 {
+		output, _ := io.ReadAll(reader)
+		for _, dir := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+			if dir != "" && dir != rootPath {
+				relPath, _ := filepath.Rel(rootPath, dir)
+				if relPath != "." && relPath != "" {
+					state.Directories = append(state.Directories, relPath)
+				}
+			}
+		}
+	}
 
- // Find all files and read their content
- files, err := tc.ListDirectory(rootPath)
- if err != nil {
-  return nil, err
- }
+	// Find all files and read their content
+	files, err := tc.ListDirectory(rootPath)
+	if err != nil {
+		return nil, err
+	}
 
- for _, file := range files {
-  content, err := tc.ReadFile(file)
-  if err != nil {
-   return nil, fmt.Errorf("failed to read file %s: %w", file, err)
-  }
+	for _, file := range files {
+		content, err := tc.ReadFile(file)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read file %s: %w", file, err)
+		}
 
-  relPath, _ := filepath.Rel(rootPath, file)
-  state.Files[relPath] = content
- }
+		relPath, _ := filepath.Rel(rootPath, file)
+		state.Files[relPath] = content
+	}
 
- return state, nil
+	return state, nil
 }
 
 // CountPhases counts the number of phases in a festival directory
 func (tc *TestContainer) CountPhases(festivalPath string) (int, error) {
- // First check what directories exist
- exitCode, reader, err := tc.container.Exec(tc.ctx, []string{
-  "sh", "-c",
-  fmt.Sprintf("find %s -maxdepth 1 -type d -name '[0-9][0-9][0-9]_*' | wc -l", festivalPath),
- })
- if err != nil {
-  return 0, fmt.Errorf("failed to count phases: %w", err)
- }
+	// First check what directories exist
+	exitCode, reader, err := tc.container.Exec(tc.ctx, []string{
+		"sh", "-c",
+		fmt.Sprintf("find %s -maxdepth 1 -type d -name '[0-9][0-9][0-9]_*' | wc -l", festivalPath),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to count phases: %w", err)
+	}
 
- if exitCode != 0 {
-  return 0, nil // No phases found
- }
+	if exitCode != 0 {
+		return 0, nil // No phases found
+	}
 
- output, _ := io.ReadAll(reader)
- count := 0
- fmt.Sscanf(strings.TrimSpace(string(output)), "%d", &count)
- return count, nil
+	output, _ := io.ReadAll(reader)
+	count := 0
+	fmt.Sscanf(strings.TrimSpace(string(output)), "%d", &count)
+	return count, nil
 }
 
 // CountSequences counts the number of sequences in a phase
 func (tc *TestContainer) CountSequences(phasePath string) (int, error) {
- exitCode, reader, err := tc.container.Exec(tc.ctx, []string{
-  "sh", "-c",
-  fmt.Sprintf("ls -d %s/[0-9][0-9]_* 2>/dev/null | wc -l", phasePath),
- })
- if err != nil {
-  return 0, fmt.Errorf("failed to count sequences: %w", err)
- }
+	exitCode, reader, err := tc.container.Exec(tc.ctx, []string{
+		"sh", "-c",
+		fmt.Sprintf("ls -d %s/[0-9][0-9]_* 2>/dev/null | wc -l", phasePath),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to count sequences: %w", err)
+	}
 
- if exitCode != 0 {
-  return 0, nil // No sequences found
- }
+	if exitCode != 0 {
+		return 0, nil // No sequences found
+	}
 
- output, _ := io.ReadAll(reader)
- count := 0
- fmt.Sscanf(strings.TrimSpace(string(output)), "%d", &count)
- return count, nil
+	output, _ := io.ReadAll(reader)
+	count := 0
+	fmt.Sscanf(strings.TrimSpace(string(output)), "%d", &count)
+	return count, nil
 }
 
 // CountTasks counts the number of tasks in a sequence
 func (tc *TestContainer) CountTasks(sequencePath string) (int, error) {
- exitCode, reader, err := tc.container.Exec(tc.ctx, []string{
-  "sh", "-c",
-  fmt.Sprintf("ls %s/[0-9][0-9]_*.md 2>/dev/null | wc -l", sequencePath),
- })
- if err != nil {
-  return 0, fmt.Errorf("failed to count tasks: %w", err)
- }
+	exitCode, reader, err := tc.container.Exec(tc.ctx, []string{
+		"sh", "-c",
+		fmt.Sprintf("ls %s/[0-9][0-9]_*.md 2>/dev/null | wc -l", sequencePath),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to count tasks: %w", err)
+	}
 
- if exitCode != 0 {
-  return 0, nil // No tasks found
- }
+	if exitCode != 0 {
+		return 0, nil // No tasks found
+	}
 
- output, _ := io.ReadAll(reader)
- count := 0
- fmt.Sscanf(strings.TrimSpace(string(output)), "%d", &count)
- return count, nil
+	output, _ := io.ReadAll(reader)
+	count := 0
+	fmt.Sscanf(strings.TrimSpace(string(output)), "%d", &count)
+	return count, nil
 }
 
 // VerifyParallelItems checks that parallel tasks/sequences with the same number exist
 func (tc *TestContainer) VerifyParallelItems(path string, prefix string) (int, error) {
- exitCode, reader, err := tc.container.Exec(tc.ctx, []string{
-  "sh", "-c",
-  fmt.Sprintf("ls %s/%s* 2>/dev/null | wc -l", path, prefix),
- })
- if err != nil {
-  return 0, fmt.Errorf("failed to verify parallel items: %w", err)
- }
+	exitCode, reader, err := tc.container.Exec(tc.ctx, []string{
+		"sh", "-c",
+		fmt.Sprintf("ls %s/%s* 2>/dev/null | wc -l", path, prefix),
+	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to verify parallel items: %w", err)
+	}
 
- if exitCode != 0 {
-  return 0, nil // No items found
- }
+	if exitCode != 0 {
+		return 0, nil // No items found
+	}
 
- output, _ := io.ReadAll(reader)
- count := 0
- fmt.Sscanf(strings.TrimSpace(string(output)), "%d", &count)
- return count, nil
+	output, _ := io.ReadAll(reader)
+	count := 0
+	fmt.Sscanf(strings.TrimSpace(string(output)), "%d", &count)
+	return count, nil
 }
 
 // VerifyStructure validates the directory structure is correct
 func (tc *TestContainer) VerifyStructure(festivalPath string) error {
- // Check if festival directory exists
- exists, err := tc.CheckDirExists(festivalPath)
- if err != nil {
-  return fmt.Errorf("failed to check festival directory: %w", err)
- }
- if !exists {
-  return fmt.Errorf("festival directory does not exist: %s", festivalPath)
- }
+	// Check if festival directory exists
+	exists, err := tc.CheckDirExists(festivalPath)
+	if err != nil {
+		return fmt.Errorf("failed to check festival directory: %w", err)
+	}
+	if !exists {
+		return fmt.Errorf("festival directory does not exist: %s", festivalPath)
+	}
 
- // Get all phases
- phaseCount, err := tc.CountPhases(festivalPath)
- if err != nil {
-  return fmt.Errorf("failed to count phases: %w", err)
- }
+	// Get all phases
+	phaseCount, err := tc.CountPhases(festivalPath)
+	if err != nil {
+		return fmt.Errorf("failed to count phases: %w", err)
+	}
 
- if phaseCount == 0 {
-  // Valid - empty festival
-  return nil
- }
+	if phaseCount == 0 {
+		// Valid - empty festival
+		return nil
+	}
 
- // Check that phases are sequentially numbered
- for i := 1; i <= phaseCount; i++ {
-  phasePattern := fmt.Sprintf("%s/%03d_*", festivalPath, i)
-  exitCode, _, err := tc.container.Exec(tc.ctx, []string{
-   "sh", "-c",
-   fmt.Sprintf("ls -d %s 2>/dev/null | head -1", phasePattern),
-  })
-  if err != nil || exitCode != 0 {
-   return fmt.Errorf("phase %03d not found or not sequential", i)
-  }
- }
+	// Check that phases are sequentially numbered
+	for i := 1; i <= phaseCount; i++ {
+		phasePattern := fmt.Sprintf("%s/%03d_*", festivalPath, i)
+		exitCode, _, err := tc.container.Exec(tc.ctx, []string{
+			"sh", "-c",
+			fmt.Sprintf("ls -d %s 2>/dev/null | head -1", phasePattern),
+		})
+		if err != nil || exitCode != 0 {
+			return fmt.Errorf("phase %03d not found or not sequential", i)
+		}
+	}
 
- return nil
+	return nil
 }
 
 // Cleanup terminates the container
 func (tc *TestContainer) Cleanup() {
- if tc.container != nil {
-  tc.container.Terminate(tc.ctx)
- }
+	if tc.container != nil {
+		tc.container.Terminate(tc.ctx)
+	}
 }
 
 // NewSharedContainer creates a test container for shared use across tests.
 // Unlike NewTestContainer, it doesn't require a *testing.T during creation.
 func NewSharedContainer() (*TestContainer, error) {
- ctx := context.Background()
+	ctx := context.Background()
 
- festBinary, err := buildFestBinaryShared()
- if err != nil {
-  return nil, fmt.Errorf("failed to build fest binary: %w", err)
- }
+	festBinary, err := buildFestBinaryShared()
+	if err != nil {
+		return nil, fmt.Errorf("failed to build fest binary: %w", err)
+	}
 
- // Get path to templates (used by fest init)
- templatesPath, err := buildTemplatesPathShared()
- if err != nil {
-  return nil, fmt.Errorf("failed to get templates path: %w", err)
- }
+	// Get path to templates (used by fest init)
+	templatesPath, err := buildTemplatesPathShared()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get templates path: %w", err)
+	}
 
- req := testcontainers.ContainerRequest{
-  Image:      "alpine:latest",
-  Cmd:        []string{"sleep", "3600"},
-  WaitingFor: wait.ForExec([]string{"true"}).WithStartupTimeout(30 * time.Second),
-  AutoRemove: true,
-  Mounts: testcontainers.ContainerMounts{
-   {
-    Source:   testcontainers.GenericBindMountSource{HostPath: festBinary},
-    Target:   "/fest",
-    ReadOnly: false,
-   },
-   {
-    // Mount templates so fest init can use them without network
-    Source:   testcontainers.GenericBindMountSource{HostPath: templatesPath},
-    Target:   "/root/.obey/fest/festivals/.festival",
-    ReadOnly: true,
-   },
-  },
- }
+	req := testcontainers.ContainerRequest{
+		Image:      "alpine:latest",
+		Cmd:        []string{"sleep", "3600"},
+		WaitingFor: wait.ForExec([]string{"true"}).WithStartupTimeout(30 * time.Second),
+		AutoRemove: true,
+		Mounts: testcontainers.ContainerMounts{
+			{
+				Source:   testcontainers.GenericBindMountSource{HostPath: festBinary},
+				Target:   "/fest",
+				ReadOnly: false,
+			},
+			{
+				// Mount templates so fest init can use them without network
+				Source:   testcontainers.GenericBindMountSource{HostPath: templatesPath},
+				Target:   "/root/.obey/fest/festivals/.festival",
+				ReadOnly: true,
+			},
+		},
+	}
 
- container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
-  ContainerRequest: req,
-  Started:          true,
- })
- if err != nil {
-  return nil, fmt.Errorf("failed to start container: %w", err)
- }
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
+		ContainerRequest: req,
+		Started:          true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to start container: %w", err)
+	}
 
- // Make binary executable
- exitCode, _, err := container.Exec(ctx, []string{"chmod", "+x", "/fest"})
- if err != nil || exitCode != 0 {
-  container.Terminate(ctx)
-  return nil, fmt.Errorf("failed to make binary executable: %w", err)
- }
+	// Make binary executable
+	exitCode, _, err := container.Exec(ctx, []string{"chmod", "+x", "/fest"})
+	if err != nil || exitCode != 0 {
+		container.Terminate(ctx)
+		return nil, fmt.Errorf("failed to make binary executable: %w", err)
+	}
 
- return &TestContainer{
-  container: container,
-  ctx:       ctx,
-  t:         nil,
- }, nil
+	return &TestContainer{
+		container: container,
+		ctx:       ctx,
+		t:         nil,
+	}, nil
 }
 
 // buildFestBinaryShared returns the path to the fest binary without testing.T
 func buildFestBinaryShared() (string, error) {
- cwd, err := os.Getwd()
- if err != nil {
-  return "", fmt.Errorf("failed to get working directory: %w", err)
- }
- festBinaryPath := filepath.Join(cwd, "../../bin/linux", "fest")
- festBinaryPath, err = filepath.Abs(festBinaryPath)
- if err != nil {
-  return "", fmt.Errorf("failed to get absolute path: %w", err)
- }
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get working directory: %w", err)
+	}
+	festBinaryPath := filepath.Join(cwd, "../../bin/linux", "fest")
+	festBinaryPath, err = filepath.Abs(festBinaryPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to get absolute path: %w", err)
+	}
 
- // Check if binary exists
- if _, err := os.Stat(festBinaryPath); err != nil {
-  return "", fmt.Errorf("fest binary not found at %s - run 'just build-linux' first: %w", festBinaryPath, err)
- }
+	// Check if binary exists
+	if _, err := os.Stat(festBinaryPath); err != nil {
+		return "", fmt.Errorf("fest binary not found at %s - run 'just build-linux' first: %w", festBinaryPath, err)
+	}
 
- return festBinaryPath, nil
+	return festBinaryPath, nil
 }
 
 // buildTemplatesPathShared returns the path to the templates directory without testing.T
 func buildTemplatesPathShared() (string, error) {
- cwd, err := os.Getwd()
- if err != nil {
-  return "", fmt.Errorf("failed to get working directory: %w", err)
- }
- templatesPath := filepath.Join(cwd, "../../methodology/festivals/.festival")
- templatesPath, err = filepath.Abs(templatesPath)
- if err != nil {
-  return "", fmt.Errorf("failed to get templates path: %w", err)
- }
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get working directory: %w", err)
+	}
+	templatesPath := filepath.Join(cwd, "../../methodology/festivals/.festival")
+	templatesPath, err = filepath.Abs(templatesPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to get templates path: %w", err)
+	}
 
- // Check if templates exist
- if _, err := os.Stat(templatesPath); err != nil {
-  return "", fmt.Errorf("templates not found at %s: %w", templatesPath, err)
- }
+	// Check if templates exist
+	if _, err := os.Stat(templatesPath); err != nil {
+		return "", fmt.Errorf("templates not found at %s: %w", templatesPath, err)
+	}
 
- return templatesPath, nil
+	return templatesPath, nil
 }
 
 // Reset clears container state between tests.
@@ -689,86 +689,86 @@ func buildTemplatesPathShared() (string, error) {
 // begins — required for consistency on macOS/Colima where Docker exec runs through
 // a virtualization layer (overlayfs in a Linux VM).
 func (tc *TestContainer) Reset() error {
- exitCode, _, err := tc.container.Exec(tc.ctx, []string{
-  "sh", "-c", "rm -rf /test /output /festivals /workspace /testproject /outer /tmp/* /repair-* /sysupdate-* 2>/dev/null; mkdir -p /test; sync",
- })
- if err != nil {
-  return fmt.Errorf("failed to reset container: %w", err)
- }
- if exitCode != 0 {
-  return fmt.Errorf("reset command failed with exit code %d", exitCode)
- }
- return nil
+	exitCode, _, err := tc.container.Exec(tc.ctx, []string{
+		"sh", "-c", "rm -rf /test /output /festivals /workspace /testproject /outer /tmp/* /repair-* /sysupdate-* 2>/dev/null; mkdir -p /test; sync",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to reset container: %w", err)
+	}
+	if exitCode != 0 {
+		return fmt.Errorf("reset command failed with exit code %d", exitCode)
+	}
+	return nil
 }
 
 // GetSharedContainer returns the shared container, resetting state first.
 // This should be called at the start of each test to ensure clean state.
 func GetSharedContainer(t *testing.T) *TestContainer {
- t.Helper()
- if sharedContainer == nil {
-  t.Fatal("shared container not initialized - TestMain not called?")
- }
+	t.Helper()
+	if sharedContainer == nil {
+		t.Fatal("shared container not initialized - TestMain not called?")
+	}
 
- if err := sharedContainer.Reset(); err != nil {
-  t.Fatalf("failed to reset container: %v", err)
- }
+	if err := sharedContainer.Reset(); err != nil {
+		t.Fatalf("failed to reset container: %v", err)
+	}
 
- return &TestContainer{
-  container: sharedContainer.container,
-  ctx:       sharedContainer.ctx,
-  t:         t,
- }
+	return &TestContainer{
+		container: sharedContainer.container,
+		ctx:       sharedContainer.ctx,
+		t:         t,
+	}
 }
 
 // ListDirectories lists directories in a path (sorted by name)
 func (tc *TestContainer) ListDirectories(path string) ([]string, error) {
- exitCode, reader, err := tc.container.Exec(tc.ctx, []string{
-  "sh", "-c",
-  fmt.Sprintf("ls -d %s/*/ 2>/dev/null | sort", path),
- })
- if err != nil {
-  return nil, fmt.Errorf("failed to list directories: %w", err)
- }
+	exitCode, reader, err := tc.container.Exec(tc.ctx, []string{
+		"sh", "-c",
+		fmt.Sprintf("ls -d %s/*/ 2>/dev/null | sort", path),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list directories: %w", err)
+	}
 
- if exitCode != 0 {
-  return nil, nil // No directories found
- }
+	if exitCode != 0 {
+		return nil, nil // No directories found
+	}
 
- output, err := io.ReadAll(reader)
- if err != nil {
-  return nil, fmt.Errorf("failed to read output: %w", err)
- }
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read output: %w", err)
+	}
 
- var dirs []string
- for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
-  if line != "" {
-   // Remove trailing slash and get base name
-   line = strings.TrimSuffix(line, "/")
-   dirs = append(dirs, filepath.Base(line))
-  }
- }
+	var dirs []string
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		if line != "" {
+			// Remove trailing slash and get base name
+			line = strings.TrimSuffix(line, "/")
+			dirs = append(dirs, filepath.Base(line))
+		}
+	}
 
- return dirs, nil
+	return dirs, nil
 }
 
 // ValidateSnapshot compares actual state with expected state
-func ValidateSnapshot(t *testing.T, actual, expected*FileSystemState) {
- // Check directories
- require.ElementsMatch(t, expected.Directories, actual.Directories, "directory structure mismatch")
+func ValidateSnapshot(t *testing.T, actual, expected *FileSystemState) {
+	// Check directories
+	require.ElementsMatch(t, expected.Directories, actual.Directories, "directory structure mismatch")
 
- // Check files
- require.Equal(t, len(expected.Files), len(actual.Files), "file count mismatch")
+	// Check files
+	require.Equal(t, len(expected.Files), len(actual.Files), "file count mismatch")
 
- for path, expectedContent := range expected.Files {
-  actualContent, exists := actual.Files[path]
-  require.True(t, exists, "missing file: %s", path)
-  require.Equal(t, expectedContent, actualContent, "content mismatch in file: %s", path)
- }
+	for path, expectedContent := range expected.Files {
+		actualContent, exists := actual.Files[path]
+		require.True(t, exists, "missing file: %s", path)
+		require.Equal(t, expectedContent, actualContent, "content mismatch in file: %s", path)
+	}
 }
 
 // CreateFestivalGoalFile creates a basic FESTIVAL_GOAL.md content
 func CreateFestivalGoalFile() string {
- return `---
+	return `---
 id: COMPLEX_TEST_FESTIVAL
 ---
 
@@ -794,7 +794,7 @@ Test the fest CLI with a complex, realistic festival structure including:
 
 // CreatePhaseGoalFile creates a PHASE_GOAL.md for a given phase
 func CreatePhaseGoalFile(phaseName string) string {
- return fmt.Sprintf(`---
+	return fmt.Sprintf(`---
 id: %s_PHASE
 ---
 
@@ -812,7 +812,7 @@ Multiple sequences with parallel execution paths.
 
 // CreateTaskFile creates a task markdown file
 func CreateTaskFile(taskName string) string {
- return fmt.Sprintf(`---
+	return fmt.Sprintf(`---
 id: %s
 ---
 
