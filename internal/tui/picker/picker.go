@@ -16,10 +16,12 @@ import (
 
 // Item represents a pickable item with a display name and value.
 type Item struct {
-	Name   string // Display name (used for matching)
-	Value  string // Return value (e.g., path)
-	Detail string // Optional trailing text shown after the name (not matched)
-	Score  int    // Match score for sorting
+	Name        string                 // Display name (used for matching)
+	Value       string                 // Return value (e.g., path)
+	Detail      string                 // Optional trailing text shown after the name (not matched)
+	Prefix      string                 // Optional leading label shown before the name (not matched)
+	PrefixColor lipgloss.TerminalColor // Optional foreground color for Prefix
+	Score       int                    // Match score for sorting
 }
 
 // Scorer is a function that scores a query against a target string.
@@ -48,6 +50,7 @@ type Model struct {
 	height      int
 	cancelled   bool
 	confirmed   bool
+	renderer    *lipgloss.Renderer
 
 	// Styles
 	promptStyle   lipgloss.Style
@@ -80,6 +83,7 @@ func New(items []Item, scorer Scorer, renderer *lipgloss.Renderer) Model {
 		filtered:   items,
 		input:      ti,
 		scorer:     scorer,
+		renderer:   renderer,
 		maxVisible: 10, // Fixed height like fzf --height
 
 		promptStyle:   renderer.NewStyle().Foreground(colorFocus).Bold(true),
@@ -263,14 +267,18 @@ func (m Model) View() string {
 		endIdx = len(m.filtered)
 	}
 
-	// Align trailing detail (e.g. progress bars) into a column when present.
-	nameWidth, showDetail := 0, false
+	// Align the optional prefix label and trailing detail (e.g. progress bars)
+	// into columns when present.
+	nameWidth, prefixWidth, showDetail := 0, 0, false
 	for _, it := range m.filtered {
 		if it.Detail != "" {
 			showDetail = true
 		}
 		if w := lipgloss.Width(it.Name); w > nameWidth {
 			nameWidth = w
+		}
+		if w := lipgloss.Width(it.Prefix); w > prefixWidth {
+			prefixWidth = w
 		}
 	}
 
@@ -281,11 +289,16 @@ func (m Model) View() string {
 			name = padRight(name, nameWidth)
 		}
 
-		// Cursor and item name
+		prefix := ""
+		if prefixWidth > 0 {
+			prefix = padRight(m.renderPrefix(item), prefixWidth) + " "
+		}
+
+		// Cursor, prefix label, and item name
 		if i == m.selected {
-			b.WriteString(m.cursorStyle.Render("▶ ") + m.selectedStyle.Render(name))
+			b.WriteString(m.cursorStyle.Render("▶ ") + prefix + m.selectedStyle.Render(name))
 		} else {
-			b.WriteString("  " + m.normalStyle.Render(name))
+			b.WriteString("  " + prefix + m.normalStyle.Render(name))
 		}
 		if showDetail && item.Detail != "" {
 			b.WriteString("  " + item.Detail)
@@ -304,6 +317,15 @@ func (m Model) View() string {
 	b.WriteString(help)
 
 	return b.String()
+}
+
+// renderPrefix colorizes an item's prefix label with its PrefixColor using the
+// picker's renderer, or returns the plain prefix when no color is set.
+func (m Model) renderPrefix(item Item) string {
+	if item.Prefix == "" || item.PrefixColor == nil || m.renderer == nil {
+		return item.Prefix
+	}
+	return m.renderer.NewStyle().Foreground(item.PrefixColor).Render(item.Prefix)
 }
 
 func padRight(s string, width int) string {

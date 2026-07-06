@@ -129,14 +129,17 @@ func TestFestivalPickerItemsPreserveStatusPathAndLabel(t *testing.T) {
 	if len(items) != 2 {
 		t.Fatalf("expected 2 picker items, got %d", len(items))
 	}
-	if items[0].Name != "[active] active-work-AW0001" {
-		t.Fatalf("festival item label = %q", items[0].Name)
+	if items[0].Prefix != "[active]" || items[0].Name != "active-work-AW0001" {
+		t.Fatalf("festival item = prefix %q name %q", items[0].Prefix, items[0].Name)
+	}
+	if items[0].PrefixColor == nil {
+		t.Error("festival item should carry a status PrefixColor for the picker")
 	}
 	if items[0].Value != "/campaign/festivals/active/active-work-AW0001" {
 		t.Fatalf("festival item value = %q", items[0].Value)
 	}
-	if items[1].Name != "[active]/" {
-		t.Fatalf("status item label = %q", items[1].Name)
+	if items[1].Prefix != "[active]/" || items[1].Name != "" {
+		t.Fatalf("status item = prefix %q name %q", items[1].Prefix, items[1].Name)
 	}
 	if items[1].Value != "/campaign/festivals/active" {
 		t.Fatalf("status item value = %q", items[1].Value)
