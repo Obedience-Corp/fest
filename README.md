@@ -337,7 +337,7 @@ fest [command] --help    # Detailed help for any command
 
 ## Configuration
 
-Config stored at `~/.config/fest/config.json`. See [docs/configuration.md](docs/configuration.md) for all options, or run `fest config show` to view.
+Config stored at `~/.obey/fest/config.json`. See [docs/configuration.md](docs/configuration.md) for all options, or run `fest config show` to view.
 
 ## Development
 

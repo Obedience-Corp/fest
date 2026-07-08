@@ -30,7 +30,7 @@ fest create festival [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output
@@ -39,3 +39,4 @@ fest create festival [flags]
 ### SEE ALSO
 
 * [fest create](fest_create.md)	 - Create festivals, phases, sequences, or tasks (TUI)
+

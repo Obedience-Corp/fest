@@ -144,7 +144,7 @@ func init() {
 		return scope.Resolve(cmd)
 	}
 	// Global flags
-	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "config file (default: ~/.config/fest/config.json)")
+	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "config file (default: ~/.obey/fest/config.json)")
 	rootCmd.PersistentFlags().BoolVar(&verbose, "verbose", false, "enable verbose output")
 	rootCmd.PersistentFlags().BoolVar(&noColor, "no-color", false, "disable colored output")
 	rootCmd.PersistentFlags().BoolVar(&debug, "debug", false, "enable debug logging")

@@ -28,7 +28,7 @@ fest feedback criteria add [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output
@@ -37,3 +37,4 @@ fest feedback criteria add [flags]
 ### SEE ALSO
 
 * [fest feedback criteria](fest_feedback_criteria.md)	 - Manage feedback criteria
+

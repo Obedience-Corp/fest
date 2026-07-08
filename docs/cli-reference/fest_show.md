@@ -43,7 +43,7 @@ fest show [status|festival-name] [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output
@@ -57,3 +57,4 @@ fest show [status|festival-name] [flags]
 * [fest show completed](fest_show_completed.md)	 - List completed festivals
 * [fest show dungeon](fest_show_dungeon.md)	 - List festivals in dungeon/ directory
 * [fest show planning](fest_show_planning.md)	 - List festivals in planning/ directory
+

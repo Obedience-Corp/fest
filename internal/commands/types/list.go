@@ -27,7 +27,7 @@ func newListCmd() *cobra.Command {
 		Long: `List all template types available at each festival level.
 
 Types are discovered from:
-  - Built-in templates (~/.config/fest/templates/)
+  - Built-in templates (~/.obey/fest/templates/)
   - Custom templates (.festival/templates/ in a festival)
 
 Examples:

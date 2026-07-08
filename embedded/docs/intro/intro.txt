@@ -2,8 +2,32 @@
                     FEST CLI - GETTING STARTED GUIDE
 ================================================================================
 
-Welcome to the Festival Methodology CLI! This guide will help you quickly
-become productive with fest commands.
+Welcome to the Festival Methodology CLI! This guide explains how the system
+works. Most of it describes the model your AI AGENTS operate in.
+
+WHO USES WHAT
+─────────────
+Most fest commands exist for AI AGENTS. They plan and run festivals with
+`fest next`, `fest create`, `fest validate`, and the workflow commands. As a
+HUMAN operator you rarely touch those directly.
+
+If you're a human, set this up once and you're done:
+
+  # 1. Shell helpers (adds `fgo` and `fls`). Add to ~/.zshrc (or ~/.bashrc):
+  eval "$(fest shell-init zsh)"          # use `bash` for bash
+
+  # 2. Tab completion. Add to ~/.zshrc (or ~/.bashrc):
+  source <(fest completion zsh)          # use `bash` for bash
+
+Then your day-to-day is four commands:
+
+  fls              Quick festival list           (wraps `fest list`)
+  fgo <name>       Jump into a festival directory (wraps `fest go`)
+  fest watch       Live view of a festival's in-progress state
+  fest show        Festival details (status, progress, node ref)
+
+The rest of this guide is the model your agents work in: useful background,
+not something you need to memorize to drive the system.
 
 WHAT IS FESTIVAL METHODOLOGY?
 ─────────────────────────────
@@ -17,15 +41,24 @@ for AI agent workflows. It organizes work into a 3-level hierarchy:
   • Sequence: Related group of tasks (e.g., "01_database_schema")
   • Task:     Individual work item (e.g., "01_create_users_table.md")
 
-Festivals live in a dedicated workspace directory (festivals/) that is
-separate from your project repositories:
-  festivals/
-  ├── .festival/    # Methodology resources and templates
-  ├── planning/     # Festivals being planned
-  ├── ready/        # Ready for execution
-  ├── active/       # Currently executing festivals
-  ├── ritual/       # Recurring festivals
-  └── dungeon/      # Final/non-active states (completed/, archived/, someday/)
+fest operates on a `festivals/` workspace. That workspace commonly lives inside
+a CAMPAIGN: a git-native workspace AND memory layer (managed by the `camp` CLI)
+that also holds your projects, intents, and cross-festival context.
+  <campaign>/
+  ├── .campaign/    # Campaign memory: intents, work items, config (via camp)
+  ├── projects/     # Your project repositories
+  └── festivals/    # Festival workspace (what fest manages)
+      ├── .festival/    # Methodology resources and templates
+      ├── planning/     # Festivals being planned
+      ├── ready/        # Ready for execution
+      ├── active/       # Currently executing festivals
+      ├── ritual/       # Recurring festivals
+      ├── chains/       # Linked/chained festival workflows
+      └── dungeon/      # Final/non-active states (completed/, archived/, someday/)
+
+fest also works standalone: `fest init` creates a bare `festivals/` workspace
+with no campaign required. A campaign just adds the surrounding workspace and
+durable memory when you want it.
 
 FESTIVAL TYPES
 ──────────────
@@ -80,29 +113,63 @@ NAVIGATION
   fest go <phase>           Jump to a phase directory
   fest list                 List all festivals with status
 
-WORKFLOW COMMANDS
-─────────────────
+THE FEST NEXT LOOP (how agents execute)
+───────────────────────────────────────
 
-  fest next                 Get next task with agent instructions
-  fest next --json          Machine-readable output for automation
-  fest task completed       Mark current task as complete
+A festival plan is a self-driving work loop, and `fest next` is the engine. It
+reads the festival structure, works out what to do next (respecting task
+dependencies and priority), and returns that step WITH the full task content and
+layered goals inline, so an agent has everything it needs to execute. It walks
+the whole plan for you: tasks, workflow steps, and the quality gates between
+phases.
 
-QUICK START WORKFLOW
-────────────────────
+The loop:
 
-  1. Navigate to an active festival:
-     fest go active/<festival-name>
+  fest next                 What to do now (full context inline)
+  # ...do the work...
+  fest task completed       Mark it done, then loop again
+  fest next                 Next step
+  # repeat until the festival is complete
 
-  2. Check festival structure:
-     fest validate
+  fest next --json          Same, machine-readable for automation
+  fest next --path          Just the next task's file path (for piping)
+  fest next --short         Task path plus a status line
 
-  3. Get your first task:
-     fest next
+Because `fest next` always hands the agent the current step in full, agents
+rarely need to load the whole methodology up front. Run the loop, read details
+just in time. This is why a well-formed festival behaves like a highly capable,
+long-running work loop rather than a static plan.
 
-  4. Work on the task, then mark complete:
-     fest task completed
+QUICK START
+───────────
 
-  5. Repeat steps 3-4 until festival complete
+  1. Enter a festival:        fest go active/<name>     (humans: fgo <name>)
+  2. Sanity-check structure:  fest validate
+  3. Run the loop:            fest next, do the work, fest task completed, repeat
+
+TRY IT: STANDALONE WORKFLOW (the simplest loop)
+───────────────────────────────────────────────
+
+The quickest way to feel the loop, no festival needed. In ANY directory:
+
+  fest create workflow demo    WORKFLOW.md + a tracked run
+  fest next                    First step, in full
+  fest workflow advance        Done, move to the next step
+  fest workflow runs           Run history
+
+Best for simpler, linear loops. For complex work, create a full festival: the
+default (standard) type scaffolds INGEST and PLANNING phases that walk an agent
+through breaking requirements down into a structured plan before implementation.
+Full detail: fest understand loop
+
+CUSTOMIZING TEMPLATES
+─────────────────────
+
+The scaffolds fest generates are yours to shape. Methodology templates live in
+`.festival/templates/` (festival, phase, sequence, task). Edit them to change
+what `fest create` produces, or add a custom type there (see `fest types`).
+Refresh the built-in set with `fest system update`. For repeatable per-festival
+snippets, `fest templates create/apply` manages `{{variable}}` templates.
 
 KEY PRINCIPLES
 ──────────────
@@ -118,8 +185,24 @@ KEY PRINCIPLES
     (applies to phases, sequences, and tasks)
   • SEQUENTIAL BY DEFAULT: Complete tasks in order within sequences
 
-For detailed methodology documentation:
-  fest understand methodology
+THE FESTIVAL STACK
+──────────────────
+fest ships as part of the Festival stack (camp + fest + festival). Install or
+update the whole stack with one of:
+  npm install -g @obedience-corp/festival
+  brew install --cask Obedience-Corp/tap/festival
+  yay -S festival-bin
+Refresh methodology templates in an existing workspace with: fest system update
+
+LEARN MORE (fest understand <topic>)
+────────────────────────────────────
+
+  methodology   Core principles           loop        The fest next loop
+  roles         Human vs agent split      planning    Goal into a structured plan
+  structure     3-level hierarchy         lifecycle   planning to active to done
+  tasks         Writing task files        chains      Dependencies between festivals
+  rules         Naming + required files   rituals     Recurring festivals
+  templates     Template variables        gates       Quality gates
 
 For all available commands:
   fest --help

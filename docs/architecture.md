@@ -166,7 +166,7 @@ commands/create_phase.go
    a. Retrieve config via ConfigFromContext(ctx)
    b. Use config values for behavior
 4. config.Load() (if needed):
-   a. Check $FEST_CONFIG_DIR or ~/.config/fest/
+   a. Check $FEST_CONFIG_DIR or ~/.obey/fest/
    b. Load config.json if exists
    c. Apply defaults for missing values
 ```
@@ -175,7 +175,7 @@ commands/create_phase.go
 
 1. CLI flags (highest)
 2. Environment variables (`FEST_CONFIG_DIR`)
-3. Config file (`~/.config/fest/config.json`)
+3. Config file (`~/.obey/fest/config.json`)
 4. Built-in defaults (lowest)
 
 ## Error Handling Strategy
