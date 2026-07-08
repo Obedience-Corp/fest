@@ -99,6 +99,7 @@ func TestUnderstandOutput_NoDeprecatedTerms(t *testing.T) {
 		"context":   func() { printContext() },
 		"nodeids":   func() { printNodeIDs() },
 		"templates": func() { printTemplates() },
+		"loop":      func() { printLoop() },
 	}
 
 	for name, fn := range outputs {
@@ -124,6 +125,7 @@ func TestEmbeddedDocs_LoadSuccessfully(t *testing.T) {
 		"templates.txt",
 		"context.txt",
 		"nodeids.txt",
+		"loop.txt",
 	}
 
 	for _, name := range docNames {

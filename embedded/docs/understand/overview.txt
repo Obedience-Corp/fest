@@ -157,4 +157,5 @@ More Information
   fest understand tasks          # Task conventions per phase type
   fest understand rules          # MANDATORY structure requirements
   fest understand templates      # Variables that save tokens
+  fest understand loop           # The fest next loop + standalone workflows
   fest types festival            # Discover festival types

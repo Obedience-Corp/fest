@@ -113,29 +113,63 @@ NAVIGATION
   fest go <phase>           Jump to a phase directory
   fest list                 List all festivals with status
 
-WORKFLOW COMMANDS
-─────────────────
+THE FEST NEXT LOOP (how agents execute)
+───────────────────────────────────────
 
-  fest next                 Get next task with agent instructions
-  fest next --json          Machine-readable output for automation
-  fest task completed       Mark current task as complete
+A festival plan is a self-driving work loop, and `fest next` is the engine. It
+reads the festival structure, works out what to do next (respecting task
+dependencies and priority), and returns that step WITH the full task content and
+layered goals inline, so an agent has everything it needs to execute. It walks
+the whole plan for you: tasks, workflow steps, and the quality gates between
+phases.
 
-QUICK START WORKFLOW
-────────────────────
+The loop:
 
-  1. Navigate to an active festival:
-     fest go active/<festival-name>
+  fest next                 What to do now (full context inline)
+  # ...do the work...
+  fest task completed       Mark it done, then loop again
+  fest next                 Next step
+  # repeat until the festival is complete
 
-  2. Check festival structure:
-     fest validate
+  fest next --json          Same, machine-readable for automation
+  fest next --path          Just the next task's file path (for piping)
+  fest next --short         Task path plus a status line
 
-  3. Get your first task:
-     fest next
+Because `fest next` always hands the agent the current step in full, agents
+rarely need to load the whole methodology up front. Run the loop, read details
+just in time. This is why a well-formed festival behaves like a highly capable,
+long-running work loop rather than a static plan.
 
-  4. Work on the task, then mark complete:
-     fest task completed
+QUICK START
+───────────
 
-  5. Repeat steps 3-4 until festival complete
+  1. Enter a festival:        fest go active/<name>     (humans: fgo <name>)
+  2. Sanity-check structure:  fest validate
+  3. Run the loop:            fest next, do the work, fest task completed, repeat
+
+TRY IT: STANDALONE WORKFLOW (the simplest loop)
+───────────────────────────────────────────────
+
+The quickest way to feel the loop, no festival needed. In ANY directory:
+
+  fest create workflow demo    WORKFLOW.md + a tracked run
+  fest next                    First step, in full
+  fest workflow advance        Done, move to the next step
+  fest workflow runs           Run history
+
+Best for simpler, linear loops. For complex work, create a full festival: the
+default (standard) type scaffolds INGEST and PLANNING phases that walk an agent
+through breaking requirements down into a structured plan before implementation.
+Full detail: fest understand loop
+
+CUSTOMIZING TEMPLATES
+─────────────────────
+
+The scaffolds fest generates are yours to shape. Methodology templates live in
+`.festival/templates/` (festival, phase, sequence, task). Edit them to change
+what `fest create` produces, or add a custom type there (see `fest types`).
+Refresh the built-in set with `fest system update`. For repeatable per-festival
+snippets, `fest templates create/apply` manages `{{variable}}` templates.
 
 KEY PRINCIPLES
 ──────────────
