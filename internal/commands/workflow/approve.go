@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -11,7 +12,10 @@ import (
 )
 
 func newApproveCmd() *cobra.Command {
-	return &cobra.Command{
+	var actor string
+	var summary string
+
+	cmd := &cobra.Command{
 		Use:   "approve",
 		Short: "Approve a blocking checkpoint",
 		Long: `Approve a blocking checkpoint and proceed to the next step.
@@ -26,12 +30,25 @@ After approval:
 			"scope": string(scope.Festival),
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runApprove(cmd.Context())
+			decision, err := normalizeDecision("approval", actor, summary, "")
+			if err != nil {
+				return err
+			}
+			return runApproveWithDecision(cmd.Context(), decision)
 		},
 	}
+
+	cmd.Flags().StringVar(&actor, "as", decisionActorUser, "decision actor: user or agent")
+	cmd.Flags().StringVar(&summary, "summary", "", "approval summary or rationale")
+
+	return cmd
 }
 
 func runApprove(ctx context.Context) error {
+	return runApproveWithDecision(ctx, wf.DecisionMetadata{Actor: decisionActorUser})
+}
+
+func runApproveWithDecision(ctx context.Context, decision wf.DecisionMetadata) error {
 	nav, err := getWorkflowNavigator(ctx)
 	if err != nil {
 		return err
@@ -67,10 +84,16 @@ func runApprove(ctx context.Context) error {
 	}
 
 	// Approve and advance
-	if err := nav.Approve(ctx); err != nil {
+	if err := nav.ApproveWithDecision(ctx, decision); err != nil {
 		return fmt.Errorf("approving checkpoint: %w", err)
 	}
 
 	fmt.Printf("%s Step %d: %s approved\n", ui.Success("✓"), currentStepNum, step.Name)
+	if decision.Actor != "" {
+		fmt.Printf("  %s: %s\n", ui.Label("Approved by"), decision.Actor)
+	}
+	if decision.Summary != "" {
+		fmt.Printf("  %s: %s\n", ui.Label("Summary"), decision.Summary)
+	}
 	return showNextStep(ctx, nav, steps)
 }
