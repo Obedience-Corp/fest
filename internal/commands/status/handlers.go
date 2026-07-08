@@ -68,13 +68,11 @@ func pickFestivalForDisplay(ctx context.Context, cwd string) (string, error) {
 	}
 	return shared.PickFestivalPath(ctx, festivalsDir, shared.FestivalPickerOptions{
 		IncludeStatusDirectories: false,
-		PreferredStatuses:        statusPickerStatuses,
-		FallbackStatuses:         statusPickerStatuses,
+		PreferredStatuses:        shared.WorkingFestivalPickerStatuses,
+		FallbackStatuses:         shared.WorkingFestivalPickerStatuses,
 		OrderByStatusThenRecency: true,
 	})
 }
-
-var statusPickerStatuses = []string{"active", "ready", "planning"}
 
 // statusHandler is the signature for status set handler functions.
 type statusHandler func(ctx context.Context, display *ui.UI, cwd, newStatus string, opts *statusOptions) error
