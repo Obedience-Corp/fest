@@ -299,24 +299,20 @@ func phaseGatePending(ctx context.Context, nav *wf.Navigator) bool {
 	if gctx == nil || gctx.PhasePath == "" {
 		return false
 	}
-	if _, err := os.Stat(filepath.Join(gctx.PhasePath, "GATES.md")); err != nil {
+	gatesPath := filepath.Join(gctx.PhasePath, "GATES.md")
+	if _, err := os.Stat(gatesPath); err != nil {
 		return false
 	}
-	gateNav, err := wf.NewNavigator(gctx, gctx.Mode)
-	if err != nil {
+	steps, err := wf.NewParser().Parse(ctx, gatesPath)
+	if err != nil || len(steps) == 0 {
 		return false
 	}
-	gateNav.SetDocFilename("GATES.md")
-	gateNav.SetStateKeyPrefix("gate:")
 	store := progress.NewStore(gctx.FestivalPath)
-	if err := store.Load(ctx); err == nil {
-		gateNav.SetStateStore(store)
+	if err := store.LoadReadOnly(ctx); err != nil {
+		return true
 	}
-	if err := gateNav.Initialize(ctx); err != nil {
-		return false
-	}
-	next, err := gateNav.GetNext(ctx)
-	return err == nil && next != nil
+	state, ok := store.GatePhaseState(filepath.Base(gctx.PhasePath))
+	return !ok || state == nil || !state.IsComplete()
 }
 
 // checkPhaseChaining checks if a completed phase should trigger creation of the next phase.
