@@ -8,8 +8,9 @@ questions, and handoff notes that persist between sessions.
 
 WHEN TO CREATE
 --------------
-Create the festival scaffold with `fest create festival` first, then fill
-`CONTEXT.md` before detailed planning. It should capture:
+Create the festival scaffold with `fest create festival` first, then create
+`CONTEXT.md` at the festival root before detailed planning (the scaffold does
+not generate it). It should capture:
 - Why this festival exists (problem being solved)
 - Key constraints and requirements
 - Initial assumptions being made
@@ -66,16 +67,14 @@ The `fest context` command reads CONTEXT.md and provides relevant context:
 
 This injects your decisions and notes into agent context automatically.
 
-TEMPLATE
---------
-Preferred path:
+CREATING THE FILE
+-----------------
+`fest create festival` scaffolds the festival tree (goal, overview, rules,
+phases) but does NOT generate CONTEXT.md. Author CONTEXT.md yourself at the
+festival root using the structure under "WHAT IT CAPTURES" above.
 
-  fest create festival --name "my-festival"  # Includes CONTEXT.md
-
-Recovery only, if an existing festival is missing CONTEXT.md:
-  festivals/.festival/templates/CONTEXT_TEMPLATE.md
-
-Do not hand-create a new festival tree when a `fest create` command exists.
+Do not hand-create the rest of the festival tree when a `fest create` command
+exists — CONTEXT.md is the one document you write by hand.
 
 WHY THIS MATTERS FOR AI AGENTS
 ------------------------------
@@ -91,6 +90,6 @@ With CONTEXT.md:
 - Humans can asynchronously answer questions
 - Festival purpose stays front and center
 
-TIP: After scaffolding the festival with `fest create festival`, fill in the
-"Why this festival exists" section in `CONTEXT.md` before doing other planning.
-This keeps agents focused.
+TIP: After scaffolding the festival with `fest create festival`, create
+CONTEXT.md and fill in the "Why this festival exists" section before doing other
+planning. This keeps agents focused.

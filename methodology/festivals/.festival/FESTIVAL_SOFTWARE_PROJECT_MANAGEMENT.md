@@ -21,6 +21,7 @@ Festival methodology is a **collaborative, step-oriented planning approach** bet
 7. **Context Preservation**: All decisions and rationale captured in CONTEXT.md to maintain continuity across sessions
 8. **Quality Gates**: Every implementation sequence includes verification steps to ensure goal progression
 9. **Extensible Methodology**: Extensions available for specialized needs like multi-system coordination
+10. **Campaign Context Layer**: Festivals run inside a campaign — a git-native workspace that is the durable context/memory layer (managed by the `camp` CLI). Festival is the execution layer on top of the campaign; `fest` operates on one festival within that larger context, not on an isolated `festivals/` directory
 
 ## Step-Based vs Time-Based Thinking
 

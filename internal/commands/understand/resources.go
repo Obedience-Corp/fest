@@ -14,7 +14,7 @@ func newUnderstandResourcesCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "resources",
 		Short: "What's in the .festival/ directory",
-		Long:  `List the templates, agents, and examples available in your .festival/ directory.`,
+		Long:  `List the templates, extensions, and examples available in your .festival/ directory.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			printResources(findDotFestivalDir())
 		},
@@ -54,15 +54,17 @@ func printResources(dotFestival string) {
 		}
 	}
 
-	// Show agents
-	fmt.Println("\nAgents (read when using that agent):")
+	// Show extensions (methodology pattern packs). Each extension is a
+	// directory under extensions/; details are available via
+	// `fest understand extensions` and `fest extension info <name>`.
+	fmt.Println("\nExtensions (methodology pattern packs):")
 	fmt.Println("-" + strings.Repeat("-", 49))
-	agentsDir := filepath.Join(dotFestival, "agents")
-	if entries, err := os.ReadDir(agentsDir); err == nil {
+	extensionsDir := filepath.Join(dotFestival, "extensions")
+	if entries, err := os.ReadDir(extensionsDir); err == nil {
 		for _, entry := range entries {
-			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") && entry.Name() != "INDEX.md" {
+			if entry.IsDir() {
 				name := entry.Name()
-				desc := getTemplateDescription(filepath.Join(agentsDir, name))
+				desc := getTemplateDescription(filepath.Join(extensionsDir, name, "extension.md"))
 				if desc != "" {
 					fmt.Printf("  %-35s %s\n", name, desc)
 				} else {

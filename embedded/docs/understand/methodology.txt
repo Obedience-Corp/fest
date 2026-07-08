@@ -128,3 +128,17 @@ Example planning phase:
   │   └── requirements.md
   └── decisions/
       └── architecture.md
+
+9. Campaign Context (Where Festivals Live)
+------------------------------------------
+
+Festivals do not stand alone. A festival lives inside a campaign — a
+git-native workspace that serves as the durable context and memory layer for a
+body of work:
+
+  campaign : memory      (context, intents, projects — managed by `camp`)
+  festival : execution   (this methodology, running on top of the campaign)
+
+`camp` manages the campaign (navigation, work items, intents); `fest` manages
+festivals within it. When you run fest you are operating on one festival inside
+a larger campaign context, not on an isolated festivals/ directory.

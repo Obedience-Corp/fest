@@ -17,15 +17,20 @@ for AI agent workflows. It organizes work into a 3-level hierarchy:
   • Sequence: Related group of tasks (e.g., "01_database_schema")
   • Task:     Individual work item (e.g., "01_create_users_table.md")
 
-Festivals live in a dedicated workspace directory (festivals/) that is
-separate from your project repositories:
-  festivals/
-  ├── .festival/    # Methodology resources and templates
-  ├── planning/     # Festivals being planned
-  ├── ready/        # Ready for execution
-  ├── active/       # Currently executing festivals
-  ├── ritual/       # Recurring festivals
-  └── dungeon/      # Final/non-active states (completed/, archived/, someday/)
+Festivals live inside a CAMPAIGN — a git-native workspace that is the durable
+context/memory layer for your work. The campaign is managed by the `camp` CLI;
+fest operates on the festivals/ tree within it:
+  <campaign>/
+  ├── .campaign/    # Campaign context: intents, work items, config (via camp)
+  ├── projects/     # Your project repositories
+  └── festivals/    # Festival workspace (what fest manages)
+      ├── .festival/    # Methodology resources and templates
+      ├── planning/     # Festivals being planned
+      ├── ready/        # Ready for execution
+      ├── active/       # Currently executing festivals
+      ├── ritual/       # Recurring festivals
+      ├── chains/       # Linked/chained festival workflows
+      └── dungeon/      # Final/non-active states (completed/, archived/, someday/)
 
 FESTIVAL TYPES
 ──────────────
@@ -117,6 +122,15 @@ KEY PRINCIPLES
   • PARALLEL NUMBERING: Nodes with the same number can run in parallel
     (applies to phases, sequences, and tasks)
   • SEQUENTIAL BY DEFAULT: Complete tasks in order within sequences
+
+THE FESTIVAL STACK
+──────────────────
+fest ships as part of the Festival stack (camp + fest + festival). Install or
+update the whole stack with one of:
+  npm install -g @obedience-corp/festival
+  brew install --cask Obedience-Corp/tap/festival
+  yay -S festival-bin
+Refresh methodology templates in an existing workspace with: fest system update
 
 For detailed methodology documentation:
   fest understand methodology
