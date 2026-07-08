@@ -26,6 +26,8 @@ type showOptions struct {
 	festival   string
 }
 
+var showPickFestival = shared.PickFestival
+
 // NewShowCommand creates the show command with all subcommands.
 func NewShowCommand() *cobra.Command {
 	opts := &showOptions{}
@@ -36,10 +38,11 @@ func NewShowCommand() *cobra.Command {
 		Long: `Display festival information by status or show details of a specific festival.
 
 When run inside a festival directory, shows the current festival's details.
+When run outside a festival in an interactive campaign workspace, opens a festival picker.
 When run with a status argument, lists all festivals with that status.
 
 SUBCOMMANDS:
-  fest show              Show current festival (detect from cwd)
+  fest show              Show current festival, or pick one from a campaign workspace
   fest show active       List festivals in active/ directory
   fest show planning     List festivals in planning/ directory
   fest show completed    List festivals in completed/ directory
@@ -219,14 +222,41 @@ func runShowCurrent(ctx context.Context, opts *showOptions) error {
 			if opts.json {
 				return emitShowErrorJSON("not in a festival directory or linked project")
 			}
+			picked, outcome, pickErr := pickFestivalForShow(ctx, cwd)
+			if pickErr != nil {
+				return pickErr
+			}
+			switch outcome {
+			case shared.FestivalPicked:
+				festival, err := DetectCurrentFestival(ctx, picked, campaignRoot)
+				if err != nil {
+					return err
+				}
+				return emitShowFestival(ctx, festival, opts, campaignRoot)
+			case shared.FestivalPickCancelled:
+				return nil
+			}
 			return errors.NotFound("festival").WithOp("show").
-				WithField("hint", "navigate to a festival directory, use 'fest link' to link a project, or specify a festival name")
+				WithHint("navigate to a festival directory, use 'fest link' to link a project, pass --festival <selector>, or run from a terminal in a campaign workspace to pick one")
 		}
 		return err
 	}
 
 	// Watch mode - continuously refresh display
 	return emitShowFestival(ctx, festival, opts, campaignRoot)
+}
+
+func pickFestivalForShow(ctx context.Context, cwd string) (string, shared.FestivalPickOutcome, error) {
+	festivalsDir, err := workspace.FindFestivals(cwd)
+	if err != nil || festivalsDir == "" {
+		return "", shared.FestivalPickUnavailable, nil
+	}
+	return showPickFestival(ctx, festivalsDir, shared.FestivalPickerOptions{
+		IncludeStatusDirectories: false,
+		PreferredStatuses:        shared.BrowseFestivalPickerStatuses,
+		FallbackStatuses:         shared.BrowseFestivalPickerStatuses,
+		OrderByStatusThenRecency: true,
+	})
 }
 
 func runShow(ctx context.Context, target string, opts *showOptions) error {
