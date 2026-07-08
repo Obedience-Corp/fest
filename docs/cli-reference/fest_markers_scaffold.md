@@ -10,7 +10,7 @@ This allows agents to fill marker values without manually typing hint strings,
 eliminating typos and reducing token usage.
 
 Examples:
-```
+```bash
   # Generate from built-in template
   fest markers scaffold --template task-simple
 

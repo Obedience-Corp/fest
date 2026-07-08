@@ -7,11 +7,12 @@ Display festival information
 Display festival information by status or show details of a specific festival.
 
 When run inside a festival directory, shows the current festival's details.
+When run outside a festival in an interactive campaign workspace, opens a festival picker.
 When run with a status argument, lists all festivals with that status.
 
 SUBCOMMANDS:
-```
-  fest show              Show current festival (detect from cwd)
+```bash
+  fest show              Show current festival, or pick one from a campaign workspace
   fest show active       List festivals in active/ directory
   fest show planning     List festivals in planning/ directory
   fest show completed    List festivals in completed/ directory
@@ -28,15 +29,15 @@ fest show [status|festival-name] [flags]
 ### Options
 
 ```
-      --collapsed    show collapsed tree with counters only
+      --collapsed         show collapsed tree with counters only
       --festival string   festival selector (name or ID) from within a campaign workspace
-      --goals        show goals for phases and sequences
-  -h, --help         help for show
-      --inprogress   expand only in-progress phases and sequences
-      --json         output in JSON format
-      --roadmap      show full execution roadmap with task statuses
-      --summary      show aggregate summary instead of tree view
-      --watch        continuously refresh display
+      --goals             show goals for phases and sequences
+  -h, --help              help for show
+      --inprogress        expand only in-progress phases and sequences
+      --json              output in JSON format
+      --roadmap           show full execution roadmap with task statuses
+      --summary           show aggregate summary instead of tree view
+      --watch             continuously refresh display
 ```
 
 ### Options inherited from parent commands

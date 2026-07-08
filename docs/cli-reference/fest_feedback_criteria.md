@@ -1,16 +1,11 @@
-## fest explore completed
+## fest feedback criteria
 
-Explore completed festivals
-
-```
-fest explore completed [flags]
-```
+Manage feedback criteria
 
 ### Options
 
 ```
-  -h, --help   help for completed
-      --json   Output as JSON
+  -h, --help   help for criteria
 ```
 
 ### Options inherited from parent commands
@@ -24,5 +19,6 @@ fest explore completed [flags]
 
 ### SEE ALSO
 
-* [fest explore](fest_explore.md)	 - Interactive festival explorer with hierarchy drilldown
+* [fest feedback](fest_feedback.md)	 - Manage structured feedback collection
+* [fest feedback criteria add](fest_feedback_criteria_add.md)	 - Add feedback criteria
 

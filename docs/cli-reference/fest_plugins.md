@@ -1,28 +1,30 @@
-## fest id
+## fest plugins
 
-Show the festival ID for the current context
+List discovered fest plugins
 
 ### Synopsis
 
-Display the festival ID for the current location.
+List fest plugins discovered from the active config repo manifest and PATH.
 
-Works from inside a festival directory or from a project linked to one.
-The ID is read from fest.yaml metadata, falling back to the directory name.
-
-Examples:
-```bash
-  fest id          # Print the festival ID (e.g., SR0001)
-  fest id --json   # Output as JSON with id, name, and path
-```
+Any executable named fest-<name> on PATH is a fest plugin and runs as
+"fest <name> [args...]". Plugins declared in the active user config repo
+manifest (plugins/manifest.yml) carry richer metadata such as summaries.
 
 ```
-fest id [flags]
+fest plugins [flags]
+```
+
+### Examples
+
+```
+  fest plugins
+  fest plugins --json
 ```
 
 ### Options
 
 ```
-  -h, --help   help for id
+  -h, --help   help for plugins
       --json   output as JSON
 ```
 
@@ -38,4 +40,3 @@ fest id [flags]
 ### SEE ALSO
 
 * [fest](fest.md)	 - Festival Methodology CLI - goal-oriented project management for AI agents
-

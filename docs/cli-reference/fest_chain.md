@@ -24,6 +24,7 @@ Create, validate, and track chains of dependent festivals.
 ### SEE ALSO
 
 * [fest](fest.md)	 - Festival Methodology CLI - goal-oriented project management for AI agents
+* [fest chain add](fest_chain_add.md)	 - Add a festival to a chain
 * [fest chain check](fest_chain_check.md)	 - Check if a festival is unblocked within its chain
 * [fest chain complete](fest_chain_complete.md)	 - Complete and archive a chain
 * [fest chain create](fest_chain_create.md)	 - Create a new festival chain

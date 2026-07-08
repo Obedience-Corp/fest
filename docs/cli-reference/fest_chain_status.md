@@ -2,8 +2,12 @@
 
 Show chain status and progress
 
+### Synopsis
+
+Show chain status and progress. The chain id is optional when it can be inferred from the current festival or linked project, or selected interactively in a terminal.
+
 ```
-fest chain status <chain-id> [flags]
+fest chain status [chain-id] [flags]
 ```
 
 ### Options

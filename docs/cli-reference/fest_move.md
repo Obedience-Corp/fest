@@ -13,7 +13,7 @@ current directory:
   - In linked project: moves TO festival
 
 Examples:
-```
+```bash
   # In project directory, move file to festival
   fest move ./analysis.md
 

@@ -12,7 +12,7 @@ tab completion for commands, flags, and arguments.
 SETUP:
 
   Bash:
-```
+```bash
     # Add to ~/.bashrc:
     source <(fest completion bash)
 
@@ -39,7 +39,7 @@ SETUP:
 CUSTOM COMPLETIONS:
 
 After setup, you can tab-complete:
-```
+```bash
   fest status act<TAB>     → fest status active/
   fest show pla<TAB>       → fest show plan
   fest create <TAB>        → festival, phase, sequence, task
