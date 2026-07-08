@@ -188,8 +188,6 @@ func runProgress(ctx context.Context, opts *progressOptions) error {
 	return showProgressOverview(ctx, mgr, loc, opts)
 }
 
-var progressPickerStatuses = []string{"active", "ready", "planning"}
-
 func pickFestivalForProgress(ctx context.Context, cwd string) (string, error) {
 	festivalsDir, err := workspace.FindFestivals(cwd)
 	if err != nil || festivalsDir == "" {
@@ -198,8 +196,8 @@ func pickFestivalForProgress(ctx context.Context, cwd string) (string, error) {
 	}
 	return shared.PickFestivalPath(ctx, festivalsDir, shared.FestivalPickerOptions{
 		IncludeStatusDirectories: false,
-		PreferredStatuses:        progressPickerStatuses,
-		FallbackStatuses:         progressPickerStatuses,
+		PreferredStatuses:        shared.WorkingFestivalPickerStatuses,
+		FallbackStatuses:         shared.WorkingFestivalPickerStatuses,
 		OrderByStatusThenRecency: true,
 	})
 }
