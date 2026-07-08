@@ -32,7 +32,7 @@ BATCH WORKFLOW (for agents):
   3. Apply:      fest wizard fill --batch-input markers.json
 
 EXAMPLES:
-```
+```bash
   # Interactive with buffer mode (default)
   fest wizard fill .
 
@@ -76,7 +76,7 @@ fest wizard fill [file-or-directory] [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

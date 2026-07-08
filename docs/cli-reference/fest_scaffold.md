@@ -11,7 +11,7 @@ generates the corresponding festival directory structure with phases, sequences,
 and tasks pre-populated from the plan.
 
 Examples:
-```
+```bash
   fest scaffold from-plan --plan path/to/STRUCTURE.md --name my-festival
   fest scaffold from-plan --plan STRUCTURE.md --dry-run
   fest scaffold from-plan --plan STRUCTURE.md --name my-fest --json
@@ -26,7 +26,7 @@ Examples:
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

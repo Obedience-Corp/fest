@@ -7,7 +7,7 @@ Show version information
 Show fest version, build information, and runtime details.
 
 Examples:
-```
+```bash
   fest version           Show full version info
   fest version --short   Show only version number
   fest version --json    Output as JSON
@@ -28,7 +28,7 @@ fest version [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

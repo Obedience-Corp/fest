@@ -8,17 +8,17 @@ Learn about Festival Methodology - a goal-oriented project management
 system designed for AI agent development workflows.
 
 START HERE if you're new to Festival Methodology:
-```
+```bash
   fest understand methodology    Core principles and philosophy
   fest understand structure      3-level hierarchy explained
   fest understand tasks          CRITICAL: When to create task files
 ```
 
 QUICK REFERENCE:
-```
+```bash
   fest understand checklist      Validation checklist before starting
   fest understand rules          Naming conventions for automation
-  fest understand workflow       Just-in-time reading pattern
+  fest understand workflow       Just-in-time reading + workflow/gates
 ```
 
 The understand command helps you grasp WHEN and WHY to use specific
@@ -40,7 +40,7 @@ fest understand [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output
@@ -53,6 +53,7 @@ fest understand [flags]
 * [fest understand context](fest_understand_context.md)	 - CONTEXT.md - session memory for AI agents (CREATE FIRST)
 * [fest understand extensions](fest_understand_extensions.md)	 - Show loaded extensions
 * [fest understand gates](fest_understand_gates.md)	 - Show quality gate configuration
+* [fest understand loop](fest_understand_loop.md)	 - The fest next loop: festivals and standalone WORKFLOW.md as work loops
 * [fest understand methodology](fest_understand_methodology.md)	 - Core principles - START HERE for new agents
 * [fest understand nodeids](fest_understand_nodeids.md)	 - Node reference system for code traceability
 * [fest understand plugins](fest_understand_plugins.md)	 - Show discovered plugins
@@ -61,5 +62,5 @@ fest understand [flags]
 * [fest understand structure](fest_understand_structure.md)	 - 3-level hierarchy: Festival → Phase → Sequence → Task
 * [fest understand tasks](fest_understand_tasks.md)	 - When and how to create task files (CRITICAL)
 * [fest understand templates](fest_understand_templates.md)	 - Template variables that save tokens
-* [fest understand workflow](fest_understand_workflow.md)	 - Just-in-time reading and execution patterns
+* [fest understand workflow](fest_understand_workflow.md)	 - Just-in-time reading plus workflow/gate execution
 

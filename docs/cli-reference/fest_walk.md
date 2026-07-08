@@ -1,0 +1,51 @@
+## fest walk
+
+Guided overview of a festival or workflow
+
+### Synopsis
+
+Display a guided orientation overview of a festival or workflow.
+
+For festivals, shows what the festival is, where it is, its current status
+and progress, the next task, blocked tasks, active quality gates, and any
+warnings. For standalone WORKFLOW.md files, shows workflow mode, run status,
+step progress, and the current step. This is a read-only orientation command;
+it never mutates festival or workflow state.
+
+Useful for quickly orienting inside a festival or standalone workflow before
+continuing work, especially for rituals where the template and active run are
+distinct.
+
+EXAMPLES:
+```bash
+  fest walk                      # Walk current festival or WORKFLOW.md from cwd
+  fest walk festivals/active/my-festival
+  fest walk path/to/workflow-dir
+  fest walk --json               # Machine-readable output
+```
+
+```
+fest walk [path] [flags]
+```
+
+### Options
+
+```
+      --from string   festival path (defaults to current directory)
+  -h, --help          help for walk
+      --json          output in JSON format
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+
+### SEE ALSO
+
+* [fest](fest.md)	 - Festival Methodology CLI - goal-oriented project management for AI agents
+
