@@ -920,6 +920,59 @@ func TestShowNextStep_WarnsWhenProgressManagerInitFails(t *testing.T) {
 	}
 }
 
+func TestShowNextStep_PendingGateMessage(t *testing.T) {
+	dir := setupWorkflowFestival(t)
+	phaseDir := filepath.Join(dir, "001_INGEST")
+	gatesMD := `---
+fest_type: phase_gate
+fest_id: 001_INGEST-GATE
+fest_parent: 001_INGEST
+---
+
+# Ingest Phase Gate
+
+## Step 1: VERIFY — Verify ingest complete
+
+**Question:** Was the ingest completed correctly?
+
+**Actions:**
+1. Verify outputs
+
+**Checkpoint:** APPROVAL REQUIRED
+`
+	if err := os.WriteFile(filepath.Join(phaseDir, "GATES.md"), []byte(gatesMD), 0o644); err != nil {
+		t.Fatalf("write GATES.md: %v", err)
+	}
+
+	nav := getNavigator(t, phaseDir)
+	ctx := context.Background()
+	if err := nav.Advance(ctx); err != nil {
+		t.Fatalf("first Advance: %v", err)
+	}
+	if err := nav.Advance(ctx); err != nil {
+		t.Fatalf("second Advance: %v", err)
+	}
+	if err := nav.Approve(ctx); err != nil {
+		t.Fatalf("Approve: %v", err)
+	}
+	if err := nav.Advance(ctx); err != nil && err != guidance.ErrAlreadyComplete {
+		if !nav.GetWorkflowState().IsComplete() {
+			t.Fatalf("third Advance: %v", err)
+		}
+	}
+
+	output := captureStdout(t, func() {
+		_ = showNextStep(ctx, nav, nav.GetSteps())
+	})
+
+	if !strings.Contains(output, "Workflow complete - phase gate next: run fest next") {
+		t.Fatalf("expected pending-gate completion message, got:\n%s", output)
+	}
+	if strings.Contains(output, "🎉 Workflow complete!") {
+		t.Fatalf("pending gate output should not use final completion message:\n%s", output)
+	}
+}
+
 // writeTaskCompleteEvent writes a task completion event to the progress JSONL file.
 func writeTaskCompleteEvent(t *testing.T, festivalPath, taskID string) {
 	t.Helper()

@@ -476,6 +476,38 @@ func TestNavigator_FormatInstructions_Complete(t *testing.T) {
 	}
 }
 
+func TestNavigator_FormatInstructions_CheckpointIncludesQuestionAndActions(t *testing.T) {
+	gctx := createTestGuidanceContext(t)
+	createTestWorkflow(t, gctx.FestivalPath)
+
+	nav, err := NewNavigator(gctx, guidance.ModeIngest)
+	if err != nil {
+		t.Fatalf("NewNavigator() error = %v", err)
+	}
+	if err := nav.Initialize(context.Background()); err != nil {
+		t.Fatalf("Initialize() error = %v", err)
+	}
+	if err := nav.Advance(context.Background()); err != nil {
+		t.Fatalf("Advance() error = %v", err)
+	}
+
+	instructions, err := nav.FormatInstructions(context.Background())
+	if err != nil {
+		t.Fatalf("FormatInstructions() error = %v", err)
+	}
+	for _, want := range []string{
+		"**Question:** Analyze findings.",
+		"**Actions to verify:**",
+		"Review notes",
+		"Synthesize",
+		"Approve and continue",
+	} {
+		if !strings.Contains(instructions, want) {
+			t.Fatalf("checkpoint instructions missing %q:\n%s", want, instructions)
+		}
+	}
+}
+
 func TestNavigator_FormatInstructions_NoSteps(t *testing.T) {
 	gctx := createTestGuidanceContext(t)
 
