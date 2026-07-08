@@ -86,6 +86,11 @@ func (s *Store) Init(ctx context.Context, criteria []string) (*Config, error) {
 		return nil, errors.Wrap(err, "context cancelled").WithOp("feedback.Init")
 	}
 
+	criteria, err := normalizeCriteria(criteria)
+	if err != nil {
+		return nil, err
+	}
+
 	// Create directories
 	if err := os.MkdirAll(s.observationsDir, 0755); err != nil {
 		return nil, errors.IO("creating feedback directory", err).WithField("path", s.feedbackDir)
@@ -112,6 +117,52 @@ func (s *Store) Init(ctx context.Context, criteria []string) (*Config, error) {
 	}
 	if err := os.WriteFile(configPath, data, 0644); err != nil {
 		return nil, errors.IO("writing config file", err).WithField("path", configPath)
+	}
+
+	return config, nil
+}
+
+// ReplaceCriteria replaces configured criteria while preserving observations.
+func (s *Store) ReplaceCriteria(ctx context.Context, criteria []string) (*Config, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, errors.Wrap(err, "context cancelled").WithOp("feedback.ReplaceCriteria")
+	}
+
+	return s.Init(ctx, criteria)
+}
+
+// AddCriteria appends criteria that are not already configured.
+func (s *Store) AddCriteria(ctx context.Context, criteria []string) (*Config, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, errors.Wrap(err, "context cancelled").WithOp("feedback.AddCriteria")
+	}
+
+	criteria, err := normalizeCriteria(criteria)
+	if err != nil {
+		return nil, err
+	}
+
+	config, err := s.LoadConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	seen := make(map[string]struct{}, len(config.Criteria))
+	for _, c := range config.Criteria {
+		seen[strings.ToLower(c.Name)] = struct{}{}
+	}
+
+	for _, name := range criteria {
+		key := strings.ToLower(name)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		config.Criteria = append(config.Criteria, Criteria{Name: name})
+		seen[key] = struct{}{}
+	}
+
+	if err := s.writeConfig(config); err != nil {
+		return nil, err
 	}
 
 	return config, nil
@@ -167,9 +218,11 @@ func (s *Store) AddObservation(ctx context.Context, obs *Observation) error {
 		for i, c := range config.Criteria {
 			names[i] = c.Name
 		}
+		available := strings.Join(names, ", ")
 		return errors.Validation("unknown criteria").
 			WithField("criteria", obs.Criteria).
-			WithField("available", strings.Join(names, ", "))
+			WithField("available", available).
+			WithHint("use one of: " + available)
 	}
 
 	// Generate ID
@@ -202,6 +255,42 @@ func (s *Store) AddObservation(ctx context.Context, obs *Observation) error {
 	}
 
 	return nil
+}
+
+func (s *Store) writeConfig(config *Config) error {
+	configPath := filepath.Join(s.feedbackDir, ConfigFile)
+	data, err := yamlutil.Marshal(config)
+	if err != nil {
+		return errors.Wrap(err, "marshaling config")
+	}
+	if err := os.MkdirAll(s.observationsDir, 0755); err != nil {
+		return errors.IO("creating feedback directory", err).WithField("path", s.feedbackDir)
+	}
+	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		return errors.IO("writing config file", err).WithField("path", configPath)
+	}
+	return nil
+}
+
+func normalizeCriteria(criteria []string) ([]string, error) {
+	normalized := make([]string, 0, len(criteria))
+	seen := make(map[string]struct{}, len(criteria))
+	for _, c := range criteria {
+		name := strings.TrimSpace(c)
+		if name == "" {
+			continue
+		}
+		key := strings.ToLower(name)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		normalized = append(normalized, name)
+		seen[key] = struct{}{}
+	}
+	if len(normalized) == 0 {
+		return nil, errors.Validation("at least one feedback criteria is required")
+	}
+	return normalized, nil
 }
 
 // ListObservations returns all observations, optionally filtered
