@@ -194,8 +194,15 @@ update the whole stack with one of:
   yay -S festival-bin
 Refresh methodology templates in an existing workspace with: fest system update
 
-For detailed methodology documentation:
-  fest understand methodology
+LEARN MORE (fest understand <topic>)
+────────────────────────────────────
+
+  methodology   Core principles           loop        The fest next loop
+  roles         Human vs agent split      planning    Goal into a structured plan
+  structure     3-level hierarchy         lifecycle   planning to active to done
+  tasks         Writing task files        chains      Dependencies between festivals
+  rules         Naming + required files   rituals     Recurring festivals
+  templates     Template variables        gates       Quality gates
 
 For all available commands:
   fest --help
