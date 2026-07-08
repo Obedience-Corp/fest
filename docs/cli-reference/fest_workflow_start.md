@@ -31,4 +31,3 @@ fest workflow start [flags]
 ### SEE ALSO
 
 * [fest workflow](fest_workflow.md)	 - Manage workflow-based phase execution
-
