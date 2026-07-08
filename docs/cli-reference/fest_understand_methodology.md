@@ -11,7 +11,7 @@ Covers goal-oriented development, requirements-driven implementation,
 and quality gates.
 
 After reading this, proceed to:
-```
+```bash
   fest understand structure   - Learn the 3-level hierarchy
   fest understand tasks       - Learn when to create task files
 ```
@@ -29,7 +29,7 @@ fest understand methodology [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

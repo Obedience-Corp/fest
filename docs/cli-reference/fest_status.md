@@ -10,14 +10,14 @@ When run without arguments, shows the status of the current entity based on
 your working directory location.
 
 EXAMPLES:
-```
+```bash
   fest status                                  # Status from current directory
   fest status ./festivals/active/my-festival   # Status for specific path
   fest status active/my-festival               # Relative to festivals/ root
 ```
 
 SUBCOMMANDS:
-```
+```bash
   fest status              Show current entity status
   fest status set <status> Change entity status
   fest status list         List entities by status
@@ -39,7 +39,7 @@ fest status [path] [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

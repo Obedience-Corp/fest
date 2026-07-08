@@ -1,0 +1,19 @@
+Ritual Festivals - Recurring Work
+=================================
+
+A ritual is a reusable festival template for recurring work: a weekly review, a
+release checklist, a routine audit. Ritual festivals live under festivals/ritual/
+and use the ritual festival type.
+
+Instead of re-planning the same work each time, define it once as a ritual, then
+spin up a fresh run whenever you need it.
+
+COMMANDS
+--------
+
+  fest create festival --type ritual --name "<name>"   Define a ritual
+  fest ritual run                                       Start a new run in active/
+
+Each `fest ritual run` copies the ritual into active/ as a fresh, executable
+festival, so the template stays clean and every run is tracked independently.
+Execute a run with the same `fest next` loop as any other festival.

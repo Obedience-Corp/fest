@@ -2,8 +2,12 @@
 
 Show chain status and progress
 
+### Synopsis
+
+Show chain status and progress. The chain id is optional when it can be inferred from the current festival or linked project, or selected interactively in a terminal.
+
 ```
-fest chain status <chain-id> [flags]
+fest chain status [chain-id] [flags]
 ```
 
 ### Options
@@ -15,7 +19,7 @@ fest chain status <chain-id> [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

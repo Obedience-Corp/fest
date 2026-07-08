@@ -1,0 +1,37 @@
+Human and Agent Roles - Who Does What
+=====================================
+
+CRITICAL: Festival Methodology is NOT about an AI pre-planning an entire project
+on its own. It is human-AI collaboration, and the two roles are distinct.
+
+HUMANS
+------
+  - Provide goals and requirements
+  - Define success criteria and constraints
+  - Make architectural and design decisions
+  - Review and approve agent-generated sequences
+  - Guide iteration and adaptation
+
+AGENTS
+------
+  - Identify the logical steps needed to reach the goal
+  - Structure requirements into executable sequences
+  - Write detailed task specs with completion criteria
+  - Execute implementation steps autonomously
+  - Document decisions and progress
+  - Ask for clarification when requirements are unclear
+
+THE PLANNING / IMPLEMENTATION BOUNDARY
+--------------------------------------
+
+This is the rule that keeps agents on track:
+
+  Planning steps (optional) produce clear requirements. They may happen before
+  the festival exists, as the festival's first phase, or as external docs.
+
+  Implementation steps can ONLY be created AFTER requirements are defined. Never
+  guess what to implement. Add implementation one logical step at a time, driven
+  by the requirements, not by a schedule.
+
+In practice: humans set direction and review, agents structure and execute, and
+no implementation sequence is created until its requirements exist.

@@ -21,8 +21,8 @@ Plugins are external executables that extend fest with new commands.
 
 Plugins are discovered from three sources (in priority order):
 
-1. **User manifest**: `~/.config/fest-repos/<active>/plugins/manifest.yml`
-2. **User bin directory**: `~/.config/fest-repos/<active>/plugins/bin/`
+1. **User manifest**: `~/.obey/fest/active/user/plugins/manifest.yml`
+2. **User bin directory**: `~/.obey/fest/active/user/plugins/bin/`
 3. **System PATH**: Any executable matching `fest-*`
 
 ### Naming Convention
@@ -131,13 +131,13 @@ mv fest-export-jira /usr/local/bin/
 Option B: Add to config repo
 
 ```bash
-mv fest-export-jira ~/.config/fest-repos/default/plugins/bin/
+mv fest-export-jira ~/.obey/fest/active/user/plugins/bin/
 ```
 
 #### Step 4: Add to Manifest (Optional)
 
 ```yaml
-# ~/.config/fest-repos/default/plugins/manifest.yml
+# ~/.obey/fest/active/user/plugins/manifest.yml
 version: 1
 plugins:
   - command: "export jira"
@@ -181,7 +181,7 @@ Extensions are loaded from three locations (in priority order):
 |----------|----------|-------------|
 | 1 (highest) | `.festival/extensions/` (project) | `project` |
 | 2 | User config repo `.festival/extensions/` | `user` |
-| 3 (lowest) | `~/.config/fest/festivals/.festival/extensions/` | `built-in` |
+| 3 (lowest) | `~/.obey/fest/festivals/.festival/extensions/` | `built-in` |
 
 Higher priority sources override extensions with the same name.
 

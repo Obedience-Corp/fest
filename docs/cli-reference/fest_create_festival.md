@@ -19,6 +19,8 @@ fest create festival [flags]
       --markers-file string   JSON file with REPLACE marker hint→value mappings
       --name string           Festival name (required)
   -p, --project string        Project directory path (auto-links to festival)
+      --seed string           Inline seed content written to the ingest phase input_specs/ (requires a type with an ingest phase)
+      --seed-file string      File whose contents seed the ingest phase input_specs/ (mutually exclusive with --seed)
       --skip-markers          Skip REPLACE marker processing
       --tags string           Comma-separated tags
       --type string           Festival type (standard, implementation, research, quick, ritual)
@@ -28,7 +30,7 @@ fest create festival [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

@@ -10,13 +10,13 @@ This command provides essential information for quickly becoming productive
 with Festival Methodology and the fest CLI commands.
 
 SUBCOMMANDS:
-```
+```bash
   fest intro             Show the getting started guide
   fest intro workflows   Show common workflow patterns
 ```
 
 After reading the intro, explore deeper with:
-```
+```bash
   fest understand methodology    Core principles and philosophy
   fest understand structure      3-level hierarchy explained
   fest understand tasks          When to create task files
@@ -35,7 +35,7 @@ fest intro [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

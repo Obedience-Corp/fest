@@ -14,7 +14,7 @@ Festival types define the workflow structure for different kinds of projects:
   - ritual: Simple repeating patterns
 
 Examples:
-```
+```bash
   fest types festival                    # List all festival types
   fest types festival list               # Same as above
   fest types festival standard           # Show details for standard type
@@ -38,7 +38,7 @@ fest types festival [type-name] [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

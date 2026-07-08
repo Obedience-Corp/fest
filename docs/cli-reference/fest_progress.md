@@ -10,13 +10,13 @@ When run without flags, shows an overview of festival progress.
 Use flags to update task progress, report blockers, or mark tasks complete.
 
 PROGRESS OVERVIEW:
-```
+```bash
   fest progress              Show festival progress summary
   fest progress --json       Output progress in JSON format
 ```
 
 TASK UPDATES:
-```
+```bash
   fest progress --task <id> --update 50%     Update task progress
   fest progress --task <id> --complete       Mark task as complete
   fest progress --task <id> --in-progress    Mark task as in progress
@@ -68,7 +68,7 @@ fest progress [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output
