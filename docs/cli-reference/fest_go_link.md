@@ -19,7 +19,7 @@ After linking:
   - 'fgo' in the project jumps to the festival
 
 Examples:
-```
+```bash
   # Inside a festival, link to project:
   fgo link /path/to/project
   fgo link .                    # Link to current directory (if not in festival)
@@ -35,13 +35,14 @@ fest go link [path] [flags]
 ### Options
 
 ```
-  -h, --help   help for link
+      --force   overwrite an existing active festival link
+  -h, --help    help for link
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

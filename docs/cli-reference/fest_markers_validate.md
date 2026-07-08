@@ -14,7 +14,7 @@ This command checks for:
 In strict mode (--strict), unknown markers cause validation to fail.
 
 Examples:
-```
+```bash
   # Validate against built-in template
   fest markers validate --file markers.json --template task-simple
 
@@ -42,7 +42,7 @@ fest markers validate [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --json            Output results as JSON
       --no-color        disable colored output

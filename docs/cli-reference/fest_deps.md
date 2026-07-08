@@ -10,7 +10,7 @@ Without arguments, shows the dependency graph for the current sequence.
 With a task name, shows dependencies for that specific task.
 
 Examples:
-```
+```bash
   fest deps                    # Show all deps in current sequence
   fest deps 02_implement       # Show deps for specific task
   fest deps --all              # Show all deps in festival
@@ -34,7 +34,7 @@ fest deps [task] [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

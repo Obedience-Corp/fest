@@ -14,7 +14,7 @@ This command:
 The migration is idempotent - running it multiple times is safe.
 
 Examples:
-```
+```bash
   fest migrate metadata                    # Migrate all festivals
   fest migrate metadata ./active/my-fest   # Migrate specific festival
   fest migrate metadata --dry-run          # Preview changes only
@@ -35,7 +35,7 @@ fest migrate metadata [path] [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
 ```

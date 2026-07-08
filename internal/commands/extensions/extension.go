@@ -23,8 +23,8 @@ func NewExtensionCommand() *cobra.Command {
 
 Extensions are loaded from three sources with the following precedence:
 1. Project-local: .festival/extensions/ (highest priority)
-2. User config: ~/.config/fest/active/festivals/.festival/extensions/
-3. Built-in: ~/.config/fest/festivals/.festival/extensions/ (lowest priority)
+2. User config: ~/.obey/fest/active/festivals/.festival/extensions/
+3. Built-in: ~/.obey/fest/festivals/.festival/extensions/ (lowest priority)
 
 Higher priority sources override lower ones when extensions have the same name.`,
 	}

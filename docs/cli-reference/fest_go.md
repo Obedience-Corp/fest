@@ -13,7 +13,7 @@ By default, outputs 'cd /path' for human-friendly display.
 Use --print to output just the bare path (for scripts, tools, and agents).
 
 SHELL INTEGRATION (recommended):
-```
+```bash
   # Add to ~/.zshrc or ~/.bashrc:
   eval "$(fest shell-init zsh)"
 ```
@@ -50,7 +50,7 @@ fest go [target] [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

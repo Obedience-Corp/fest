@@ -16,7 +16,7 @@ When run inside a project directory (non-festival):
 
 After linking, use 'fgo' to navigate between them.
 
-The link is stored centrally in ~/.config/fest/navigation.yaml.
+The link is stored centrally in ~/.obey/fest/navigation.yaml.
 Use 'fest links' to see all festival-project links.
 Use 'fest unlink' to remove the link for current festival.
 
@@ -37,15 +37,16 @@ fest link [path] [flags]
 ### Options
 
 ```
-  -h, --help   help for link
-      --json   output in JSON format
-      --show   show current link
+      --force   overwrite an existing active festival link
+  -h, --help    help for link
+      --json    output in JSON format
+      --show    show current link
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

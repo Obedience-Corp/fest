@@ -18,7 +18,7 @@ Depth levels:
   full      - + All decisions, dependency outputs
 
 Examples:
-```
+```bash
   fest context                    # Context for current location
   fest context --depth full       # Full context with all details
   fest context --task my_task     # Context for a specific task
@@ -43,7 +43,7 @@ fest context [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
 ```

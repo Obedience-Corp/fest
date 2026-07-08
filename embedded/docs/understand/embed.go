@@ -3,7 +3,7 @@ package understand
 
 import "embed"
 
-//go:embed overview.txt rules.txt templates.txt structure.txt methodology.txt workflow.txt tasks.txt context.txt nodeids.txt
+//go:embed overview.txt rules.txt templates.txt structure.txt methodology.txt workflow.txt tasks.txt context.txt nodeids.txt loop.txt lifecycle.txt roles.txt planning.txt chains.txt rituals.txt
 //go:embed scaffolds/*.txt
 var Content embed.FS
 

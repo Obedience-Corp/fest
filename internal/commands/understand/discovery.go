@@ -26,7 +26,7 @@ The default gates are: testing_and_verify, code_review, review_results_iterate, 
 
 Gates can be customized at multiple levels:
   1. Built-in defaults (always available)
-  2. User config repo (~/.config/fest/active/user/policies/gates/)
+  2. User config repo (~/.obey/fest/active/user/policies/gates/)
   3. Project-local (.festival/policies/gates/)
   4. Phase override (.fest.gates.yml in phase directory)`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -85,7 +85,7 @@ Customization
 -------------
 
 Create a custom policy in your config repo:
-  ~/.config/fest/active/user/policies/gates/custom.yml
+  ~/.obey/fest/active/user/policies/gates/custom.yml
 
 Or add phase-level overrides:
   <phase>/.fest.gates.yml
@@ -104,8 +104,8 @@ func newUnderstandPluginsCmd() *cobra.Command {
 		Long: `Show all plugins discovered from various sources.
 
 Plugins extend fest with additional commands. They are discovered from:
-  1. User config repo manifest (~/.config/fest/active/user/plugins/manifest.yml)
-  2. User config repo bin directory (~/.config/fest/active/user/plugins/bin/)
+  1. User config repo manifest (~/.obey/fest/active/user/plugins/manifest.yml)
+  2. User config repo bin directory (~/.obey/fest/active/user/plugins/bin/)
   3. System PATH (executables named fest-*)
 
 Plugin executables follow the naming convention:
@@ -151,8 +151,8 @@ Plugins extend fest with additional commands. Discovery sources:
 		fmt.Println("No plugins discovered.")
 		fmt.Print(`
 To add plugins:
-  1. Create manifest at ~/.config/fest/active/user/plugins/manifest.yml
-  2. Place executables in ~/.config/fest/active/user/plugins/bin/
+  1. Create manifest at ~/.obey/fest/active/user/plugins/manifest.yml
+  2. Place executables in ~/.obey/fest/active/user/plugins/bin/
   3. Add fest-* executables to your PATH
 
 See: fest help plugins
@@ -201,8 +201,8 @@ Extensions are workflow pattern packs containing templates, agents, and rules.
 They are loaded from three sources with the following precedence:
 
   1. Project-local: .festival/extensions/ (highest priority)
-  2. User config: ~/.config/fest/active/festivals/.festival/extensions/
-  3. Built-in: ~/.config/fest/festivals/.festival/extensions/ (lowest priority)
+  2. User config: ~/.obey/fest/active/festivals/.festival/extensions/
+  3. Built-in: ~/.obey/fest/festivals/.festival/extensions/ (lowest priority)
 
 Higher priority sources override lower ones when extensions have the same name.`,
 		RunE: func(cmd *cobra.Command, args []string) error {

@@ -10,7 +10,7 @@ This allows agents to fill marker values without manually typing hint strings,
 eliminating typos and reducing token usage.
 
 Examples:
-```
+```bash
   # Generate from built-in template
   fest markers scaffold --template task-simple
 
@@ -46,7 +46,7 @@ fest markers scaffold [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --json            Output results as JSON
       --no-color        disable colored output

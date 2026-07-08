@@ -10,7 +10,7 @@ Search commits by task ID, sequence, or phase. Uses git log with grep
 to find commits that contain festival references in their messages.
 
 Examples:
-```
+```bash
   fest commits                           # All commits for current festival
   fest commits --task FEST-a3b2c1        # Commits for specific task
   fest commits --sequence 01_foundation  # Commits for sequence
@@ -36,7 +36,7 @@ fest commits [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

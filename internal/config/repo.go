@@ -23,7 +23,7 @@ const (
 type ConfigRepo struct {
 	Name      string    `json:"name"`
 	Source    string    `json:"source"`     // git URL or local path
-	LocalPath string    `json:"local_path"` // ~/.config/fest/config-repos/<name>
+	LocalPath string    `json:"local_path"` // ~/.obey/fest/config-repos/<name>
 	IsGitRepo bool      `json:"is_git_repo"`
 	LastSync  time.Time `json:"last_sync,omitempty"`
 }

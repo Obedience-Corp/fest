@@ -38,7 +38,7 @@ func NewRegistry() *Registry {
 
 // DiscoverOptions configures type discovery behavior.
 type DiscoverOptions struct {
-	// BuiltInDir is the path to built-in templates (e.g., ~/.config/fest/templates).
+	// BuiltInDir is the path to built-in templates (e.g., ~/.obey/fest/templates).
 	BuiltInDir string
 	// CustomDir is the path to custom templates (e.g., .festival/templates/).
 	CustomDir string

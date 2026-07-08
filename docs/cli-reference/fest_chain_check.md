@@ -4,10 +4,10 @@ Check if a festival is unblocked within its chain
 
 ### Synopsis
 
-Quick check whether a specific festival's hard dependencies are met.
+Quick check whether a specific festival's hard dependencies are met. The festival ref or id is optional when it can be inferred from the current festival or linked project.
 
 ```
-fest chain check <ref-or-id> [flags]
+fest chain check [ref-or-id] [flags]
 ```
 
 ### Options
@@ -20,7 +20,7 @@ fest chain check <ref-or-id> [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

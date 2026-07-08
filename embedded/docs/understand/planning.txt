@@ -1,0 +1,52 @@
+Planning Process - Turning a Goal into a Plan
+=============================================
+
+Planning is how a goal becomes a structured, executable festival. The default
+(standard) festival type automates much of this by scaffolding INGEST and
+PLANNING phases that walk an agent through it.
+
+THE STEPS
+---------
+
+1. Define the goal
+   A concrete, outcome-focused objective. Anything from one ticket to a
+   company-wide vision.
+
+2. Break it down into systems and features
+   Systems are major components; features are specific functionality within
+   them.
+
+3. Plan the implementation approach
+   Identify the components to build, organize them into logical sequences
+   (responsibilities, expected behavior, error handling, integration), and have
+   stakeholders review.
+
+4. Write FESTIVAL_OVERVIEW.md
+   Goal, systems/features breakdown, success criteria.
+
+5. Define FESTIVAL_RULES.md
+   The quality standards and principles every step must follow.
+
+6. Organize work into phases
+   Group related sequences into phases. Choose phase types by need; phases can
+   be customized, repeated, or reordered.
+
+COMMON PHASE PATTERNS
+---------------------
+
+Phases are chosen by need, not a fixed template:
+
+  Implementation only:        001_IMPLEMENT
+  Research + implementation:  001_RESEARCH -> 002_IMPLEMENT
+  Standard with planning:     001_INGEST -> 002_PLAN -> 003_IMPLEMENT
+  Full lifecycle:             001_INGEST -> 002_PLAN -> 003_IMPLEMENT -> 004_VALIDATE
+  Research festival:          001_INGEST -> 002_RESEARCH -> 003_SYNTHESIZE
+
+Add custom phases (005_SECURITY_AUDIT, 006_PERFORMANCE) as needed.
+
+REMEMBER
+--------
+
+Planning produces requirements; implementation sequences come only after those
+requirements exist (see: fest understand roles). Use `fest create festival` and
+the standard type's planning phases rather than hand-building the tree.

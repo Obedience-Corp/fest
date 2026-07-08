@@ -10,6 +10,13 @@ These commands work with WORKFLOW.md files (step-by-step guidance for workflow p
 and GATES.md files (phase-level quality gates for all phase types). Use 'fest next'
 to see the current step, then these commands to advance.
 
+Creating a Workflow:
+  Use 'fest workflow create <name>' (an alias of 'fest create workflow') to
+  scaffold a brand-new standalone WORKFLOW.md outside a festival. It writes the
+  document, initializes .workflow/ runtime state, and starts a tracked run so
+  'fest next' works immediately. The init/start subcommands below operate on a
+  WORKFLOW.md that already exists.
+
 Workflow Steps:
   Workflows are defined in WORKFLOW.md files within phase directories.
   Each step has a goal, actions to complete, expected output, and an optional checkpoint.
@@ -22,12 +29,6 @@ Phase Gates:
 Checkpoints:
   Some steps require user approval before proceeding. Use 'fest workflow approve'
   to approve or 'fest workflow reject' to request revisions.
-
-  Approval auto mode is default-off. Use 'fest workflow approve --auto' only
-  when an operator has explicitly delegated the checkpoint decision to an
-  external judge command. The default judge command is 'ob judge'; if that
-  command is missing or returns invalid output, fest fails closed and leaves
-  the checkpoint unchanged.
 
 State:
   Progress is tracked in <festival>/.fest/progress_events.jsonl.
@@ -44,13 +45,13 @@ Auto-Routing:
   - GATES.md if workflow is complete/absent and phase work is done
 
 Examples:
-```
+```bash
+  fest workflow create my-review    # Scaffold a new standalone WORKFLOW.md
   fest workflow status              # Show workflow or gate progress
   fest workflow status --phase 001_INGEST  # Show specific phase
   fest workflow advance             # Complete current step and move to next
   fest workflow skip --reason "already completed externally" # Operator override
   fest workflow approve             # Approve a blocking checkpoint
-  fest workflow approve --auto      # Delegate to configured judge command
   fest workflow reject              # Reject checkpoint with feedback
   fest workflow reset               # Reset workflow or gate to step 1
   fest workflow show                # Display the current step details
@@ -66,7 +67,7 @@ Examples:
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output
@@ -77,8 +78,15 @@ Examples:
 * [fest](fest.md)	 - Festival Methodology CLI - goal-oriented project management for AI agents
 * [fest workflow advance](fest_workflow_advance.md)	 - Complete current step and move to next
 * [fest workflow approve](fest_workflow_approve.md)	 - Approve a blocking checkpoint
+* [fest workflow create](fest_workflow_create.md)	 - Scaffold a new standalone WORKFLOW.md (alias of 'fest create workflow')
+* [fest workflow init](fest_workflow_init.md)	 - Initialize standalone workflow runtime
 * [fest workflow reject](fest_workflow_reject.md)	 - Reject checkpoint with feedback
+* [fest workflow renumber](fest_workflow_renumber.md)	 - Renumber step headings in a WORKFLOW.md to a contiguous 1-indexed sequence
 * [fest workflow reset](fest_workflow_reset.md)	 - Reset workflow to step 1
+* [fest workflow runs](fest_workflow_runs.md)	 - List runs of a standalone workflow
 * [fest workflow show](fest_workflow_show.md)	 - Display current step details
 * [fest workflow skip](fest_workflow_skip.md)	 - Operator override: mark workflow steps as skipped/completed
+* [fest workflow start](fest_workflow_start.md)	 - Start a new run for a standalone workflow
 * [fest workflow status](fest_workflow_status.md)	 - Show workflow progress
+* [fest workflow validate](fest_workflow_validate.md)	 - Validate WORKFLOW.md step numbering
+

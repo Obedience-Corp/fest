@@ -33,16 +33,16 @@ fest workflow approve [flags]
 ### Options
 
 ```
-      --auto                         delegate this checkpoint decision to the configured approval judge command
-  -h, --help                         help for approve
-      --judge-command string         approval judge command used with --auto (default "ob judge")
-      --judge-timeout duration       maximum time to wait for the approval judge (default 2m0s)
+      --auto                     delegate this checkpoint decision to the configured approval judge command
+  -h, --help                     help for approve
+      --judge-command string     approval judge command used with --auto (default "ob judge")
+      --judge-timeout duration   maximum time to wait for the approval judge (default 2m0s)
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --phase string    specify phase directory (e.g., 001_INGEST)
@@ -52,3 +52,4 @@ fest workflow approve [flags]
 ### SEE ALSO
 
 * [fest workflow](fest_workflow.md)	 - Manage workflow-based phase execution
+

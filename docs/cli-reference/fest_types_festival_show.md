@@ -10,7 +10,7 @@ Shows the type's description, phase structure, auto-scaffolded phases,
 and manually-created phases.
 
 Examples:
-```
+```bash
   fest types festival show standard           # Show standard type details
   fest types festival show implementation     # Show implementation type
   fest types festival show standard --phases  # Show only phases
@@ -32,7 +32,7 @@ fest types festival show <type-name> [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

@@ -1,0 +1,84 @@
+The fest next Loop - How Festivals Execute
+==========================================
+
+A festival plan is a self-driving work loop, and `fest next` is the engine. It
+reads the structure, works out the next step (respecting task dependencies,
+priority, and quality gates), and returns it WITH the full task content and
+layered goals inline. The agent gets everything it needs to act, one step at a
+time.
+
+THE LOOP
+--------
+
+  fest next                 What to do now (full context inline)
+  # ...do the work...
+  fest task completed       Mark it done
+  fest next                 Next step
+  # repeat until the festival is complete
+
+fest next walks the whole plan for you:
+  - tasks in the current sequence, in dependency order
+  - the next incomplete task in the phase
+  - workflow steps in WORKFLOW.md phases (planning, ingest, research)
+  - quality gates before a phase transitions
+
+Output modes:
+  fest next                 Layered goals + full task content inline (default)
+  fest next --no-context    Minimal output
+  fest next --path          Just the next task's file path (for piping)
+  fest next --json          Machine-readable, for automation
+
+STANDALONE WORKFLOW LOOPS (the simplest way in)
+-----------------------------------------------
+
+You do not need a full festival to use the loop. A standalone WORKFLOW.md is the
+simplest way to experience `fest next`, and it is the right tool for simpler,
+mostly linear structured loops. `fest create workflow` scaffolds a single
+WORKFLOW.md in the current directory, initializes .workflow/ runtime state, and
+starts a tracked run, so `fest next` works immediately:
+
+  fest create workflow <name>    WORKFLOW.md + .workflow/ runtime + first run
+  fest next                      Current step, in full
+  # ...do the step...
+  fest workflow advance          Complete this step, move to the next
+  # repeat until the workflow is done
+
+  fest workflow status           Progress
+  fest workflow show             Current step details
+  fest workflow runs             Every run of this workflow (run tracking)
+  fest workflow start            Begin a fresh run
+  fest workflow reset            Back to step 1
+
+This turns any directory into a step-by-step, tracked execution loop. Inside a
+festival, WORKFLOW.md phases behave the same way; `fest create workflow` just
+makes the same primitive available standalone.
+
+COMPLEX WORK: FULL FESTIVALS
+----------------------------
+
+For larger efforts, create a full festival. The default festival type (standard)
+auto-scaffolds INGEST and PLANNING phases. These are a mostly-automated planning
+feature: they walk an agent through ingesting requirements and breaking them down
+into a properly structured plan (phases, sequences, task files) BEFORE any
+implementation. So the two entry points are:
+
+  simpler, linear work   ->  fest create workflow   (standalone WORKFLOW.md loop)
+  complex work           ->  fest create festival   (standard type: guided
+                             requirements breakdown + planning, then execution)
+
+Either way, execution is the same `fest next` loop.
+
+RUN TRACKING
+------------
+
+Standalone workflows record each run in .workflow/workflow.yaml: run id, status,
+start time, and completion time. `fest workflow runs` lists them, so you can
+re-run a workflow and keep a history of every pass.
+
+WHY THIS MATTERS
+----------------
+
+Because `fest next` always hands over the current step in full, agents rarely
+need to load the whole methodology up front. Run the loop, read details just in
+time. A well-formed festival (or standalone workflow) behaves like a highly
+capable, long-running work loop, not a static plan.

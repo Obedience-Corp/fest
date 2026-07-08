@@ -10,7 +10,7 @@ Feedback allows agents to record observations based on defined criteria
 for later aggregation and analysis.
 
 Examples:
-```
+```bash
   fest feedback init --criteria "Code quality" --criteria "Performance"
   fest feedback add --criteria "Code quality" --observation "Found duplication"
   fest feedback view
@@ -26,7 +26,7 @@ Examples:
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

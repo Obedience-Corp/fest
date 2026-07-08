@@ -4,19 +4,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-)
 
-func TestStatusPickerStatuses(t *testing.T) {
-	want := []string{"active", "ready", "planning"}
-	if len(statusPickerStatuses) != len(want) {
-		t.Fatalf("statusPickerStatuses length = %d, want %d", len(statusPickerStatuses), len(want))
-	}
-	for i, s := range want {
-		if statusPickerStatuses[i] != s {
-			t.Errorf("statusPickerStatuses[%d] = %q, want %q", i, statusPickerStatuses[i], s)
-		}
-	}
-}
+	"github.com/Obedience-Corp/fest/internal/commands/shared"
+)
 
 func TestPickFestivalForDisplay_NoCampaign(t *testing.T) {
 	dir := t.TempDir()
@@ -51,5 +41,11 @@ func TestPickFestivalForDisplay_EmptyFestivals(t *testing.T) {
 	}
 	if path != "" {
 		t.Errorf("expected empty path for empty festivals dir, got %q", path)
+	}
+}
+
+func TestPickFestivalForDisplay_UsesWorkingPickerStatuses(t *testing.T) {
+	if got, want := shared.WorkingFestivalPickerStatuses, []string{"active", "ready", "planning"}; len(got) != len(want) {
+		t.Fatalf("WorkingFestivalPickerStatuses length = %d, want %d", len(got), len(want))
 	}
 }

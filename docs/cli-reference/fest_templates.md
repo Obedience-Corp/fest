@@ -10,7 +10,7 @@ Agent templates use simple {{variable}} syntax for substitution.
 Templates are stored in .templates/ within the festival directory.
 
 Examples:
-```
+```bash
   fest templates create component_test
   fest templates apply component_test --vars '{"name": "UserService"}'
   fest templates list
@@ -25,7 +25,7 @@ Examples:
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

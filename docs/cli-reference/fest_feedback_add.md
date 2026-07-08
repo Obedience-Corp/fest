@@ -9,7 +9,7 @@ Add a feedback observation for a defined criteria.
 Use either flags or JSON input to add an observation.
 
 Examples:
-```
+```bash
   fest feedback add --criteria "Code quality" --observation "Found duplicate logic"
   fest feedback add --json '{"criteria": "Performance", "observation": "N+1 query"}'
   fest feedback add --criteria "Code quality" --observation "..." --severity high --suggestion "Refactor"
@@ -34,7 +34,7 @@ fest feedback add [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

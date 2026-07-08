@@ -7,11 +7,11 @@ List available template types
 List all template types available at each festival level.
 
 Types are discovered from:
-  - Built-in templates (~/.config/fest/templates/)
+  - Built-in templates (~/.obey/fest/templates/)
   - Custom templates (.festival/templates/ in a festival)
 
 Examples:
-```
+```bash
   fest types list                  # List all types grouped by level
   fest types list --level task     # List task-level types only
   fest types list --custom         # Show only custom types
@@ -36,7 +36,7 @@ fest types list [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

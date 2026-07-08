@@ -8,7 +8,7 @@ These flags are available on all commands:
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--config` | `~/.config/fest/config.json` | Config file path |
+| `--config` | `~/.obey/fest/config.json` | Config file path |
 | `--verbose` | `false` | Enable verbose output |
 | `--no-color` | `false` | Disable colored output |
 | `--debug` | `false` | Enable debug logging |
