@@ -2,8 +2,32 @@
                     FEST CLI - GETTING STARTED GUIDE
 ================================================================================
 
-Welcome to the Festival Methodology CLI! This guide will help you quickly
-become productive with fest commands.
+Welcome to the Festival Methodology CLI! This guide explains how the system
+works. Most of it describes the model your AI AGENTS operate in.
+
+WHO USES WHAT
+─────────────
+Most fest commands exist for AI AGENTS — they plan and run festivals with
+`fest next`, `fest create`, `fest validate`, and the workflow commands. As a
+HUMAN operator you rarely touch those directly.
+
+If you're a human, set this up once and you're done:
+
+  # 1. Shell helpers (adds `fgo` and `fls`) — add to ~/.zshrc (or ~/.bashrc):
+  eval "$(fest shell-init zsh)"          # use `bash` for bash
+
+  # 2. Tab completion — add to ~/.zshrc (or ~/.bashrc):
+  source <(fest completion zsh)          # use `bash` for bash
+
+Then your day-to-day is four commands:
+
+  fls              Quick festival list           (wraps `fest list`)
+  fgo <name>       Jump into a festival directory (wraps `fest go`)
+  fest watch       Live view of a festival's in-progress state
+  fest show        Festival details (status, progress, node ref)
+
+The rest of this guide is the model your agents work in — useful background,
+not something you need to memorize to drive the system.
 
 WHAT IS FESTIVAL METHODOLOGY?
 ─────────────────────────────
