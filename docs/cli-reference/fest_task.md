@@ -21,7 +21,7 @@ Task Resolution:
     - Bare filename: 01_design.md (searches for unique match)
 
 Examples:
-```
+```bash
   fest task show                          # Show current task details
   fest task show 01_design.md             # Show specific task
   fest task edit                          # Open current task in editor
@@ -39,7 +39,7 @@ Examples:
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

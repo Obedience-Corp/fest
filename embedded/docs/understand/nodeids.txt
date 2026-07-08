@@ -17,13 +17,13 @@ Node references follow this format:
 
 Components:
 
-  FestivalID   2 uppercase letters + 4 digits    GU0001
+  FestivalID   2 uppercase letters + 4 digits    MF0001
   Phase        P + 3 zero-padded digits          P002
   Sequence     S + 2 zero-padded digits          S01
   Task         T + 2 zero-padded digits          T03
 
-Full example: GU0001:P002.S01.T03
-  - Festival ID: GU0001 (Guild project, festival #1)
+Full example: MF0001:P002.S01.T03
+  - Festival ID: MF0001 (my-feature project, festival #1)
   - Phase 2
   - Sequence 1
   - Task 3
@@ -35,7 +35,7 @@ TODO Comments:
 
   Include node references in TODO comments to link code changes to festival tasks:
 
-    // TODO(GU0001:P002.S01.T03): Implement error handling for edge cases
+    // TODO(MF0001:P002.S01.T03): Implement error handling for edge cases
     func ProcessData(ctx context.Context, data []byte) error {
         // Implementation
     }
@@ -44,7 +44,7 @@ Code Comments:
 
   Reference the task that introduced or modified code:
 
-    // Added as part of GU0001:P002.S01.T03
+    // Added as part of MF0001:P002.S01.T03
     type DataProcessor struct {
         // ...
     }
@@ -54,7 +54,7 @@ Test File Headers:
   Include references in test file headers:
 
     // Package validation_test contains tests for input validation
-    // Added as part of GU0001:P002.S01.T01 (test-first development)
+    // Added as part of MF0001:P002.S01.T01 (test-first development)
     package validation_test
 
 Where to Find Your Current Reference
@@ -68,8 +68,8 @@ Use these fest commands to see your current node reference:
 
 Example output from fest show:
 
-  Festival: my-project_GU0001
-    ID: GU0001
+  Festival: my-project_MF0001
+    ID: MF0001
     Status: active
     Progress: 45.0%
 
@@ -87,7 +87,7 @@ Benefits
 3. Searchability
    Grep for node references to find all related changes:
 
-     grep -r "GU0001:P002" ./src
+     grep -r "MF0001:P002" ./src
 
 4. Accountability
    Clear record of what was done during each task, making code review
@@ -98,15 +98,15 @@ Searching for Node References
 
 Find all references to a specific festival:
 
-  grep -r "GU0001:" ./src
+  grep -r "MF0001:" ./src
 
 Find all references to a specific phase:
 
-  grep -r "GU0001:P002" ./src
+  grep -r "MF0001:P002" ./src
 
 Find all references to a specific task:
 
-  grep -r "GU0001:P002.S01.T03" ./src
+  grep -r "MF0001:P002.S01.T03" ./src
 
 Regex pattern for matching node references:
 
@@ -118,7 +118,7 @@ Legacy Festivals
 Festivals created before the node ID system won't have IDs. You can:
 
 1. Continue using them without IDs (backwards compatible)
-2. Run 'fest migrate' to add IDs to existing festivals (future feature)
+2. Run 'fest migrate' to add IDs and update formats on existing festivals
 
 When working with legacy festivals, fest commands will show:
 
@@ -131,6 +131,6 @@ Quick Reference
   JSON with ID:          fest context --json
   ID in validation:      fest validate
 
-  Example TODO:          // TODO(GU0001:P002.S01.T03): Description
-  Example comment:       // Added as part of GU0001:P002.S01.T03
+  Example TODO:          // TODO(MF0001:P002.S01.T03): Description
+  Example comment:       // Added as part of MF0001:P002.S01.T03
 

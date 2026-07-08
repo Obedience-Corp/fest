@@ -15,7 +15,7 @@ fest create [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output
@@ -28,5 +28,5 @@ fest create [flags]
 * [fest create phase](fest_create_phase.md)	 - Insert a new phase and render its goal file
 * [fest create sequence](fest_create_sequence.md)	 - Insert a new sequence and render its goal file
 * [fest create task](fest_create_task.md)	 - Insert a new task file in a sequence
-* [fest create workflow](fest_create_workflow.md)	 - Create a WORKFLOW.md for a phase from structured step definitions
+* [fest create workflow](fest_create_workflow.md)	 - Create a standalone or phase WORKFLOW.md from structured step definitions
 

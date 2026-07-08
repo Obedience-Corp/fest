@@ -10,13 +10,14 @@ fest chain list [flags]
 
 ```
   -h, --help            help for list
+      --json            emit structured JSON result
       --status string   filter by status (planning|active|completed)
 ```
 
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

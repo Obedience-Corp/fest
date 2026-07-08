@@ -35,7 +35,8 @@ REQUIRED FILES
 --------------
 
   Festival Root:
-    FESTIVAL_OVERVIEW.md    [REQUIRED] Project goal, scope, stakeholders
+    FESTIVAL_GOAL.md        [REQUIRED] Festival objective (WHAT to achieve)
+    FESTIVAL_OVERVIEW.md    [REQUIRED] Goal, scope, success criteria, stakeholders
     FESTIVAL_RULES.md       [REQUIRED] Quality standards and team rules
     TODO.md                 [Recommended] Progress tracking
     fest.yaml               [Optional] Quality gate configuration

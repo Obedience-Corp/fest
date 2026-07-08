@@ -9,7 +9,7 @@ View collected feedback observations.
 Filter by criteria or severity, or view a summary of all feedback.
 
 Examples:
-```
+```bash
   fest feedback view
   fest feedback view --criteria "Code quality"
   fest feedback view --severity high
@@ -34,7 +34,7 @@ fest feedback view [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

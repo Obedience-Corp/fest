@@ -7,7 +7,7 @@ This document describes all available configuration options for fest.
 fest stores its configuration at:
 
 ```
-~/.config/fest/config.json
+~/.obey/fest/config.json
 ```
 
 You can override this location by setting the `FEST_CONFIG_DIR` environment variable:
@@ -98,7 +98,7 @@ Controls local file paths for caching and backups.
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `cache_dir` | string | `"~/.config/fest/cache"` | Directory for cached template downloads |
+| `cache_dir` | string | `"~/.obey/fest/cache"` | Directory for cached template downloads |
 | `backup_dir` | string | `".fest-backup"` | Directory for file backups (relative to workspace) |
 | `checksum_file` | string | `".fest-checksums.json"` | File for tracking template checksums |
 
@@ -123,7 +123,7 @@ fest respects the following environment variables:
     "path": "methodology/festivals"
   },
   "local": {
-    "cache_dir": "/home/user/.config/fest/cache",
+    "cache_dir": "/home/user/.obey/fest/cache",
     "backup_dir": ".fest-backup",
     "checksum_file": ".fest-checksums.json"
   },

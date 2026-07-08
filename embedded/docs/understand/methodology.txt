@@ -128,3 +128,17 @@ Example planning phase:
   │   └── requirements.md
   └── decisions/
       └── architecture.md
+
+9. Campaign Context (Where Festivals Live)
+------------------------------------------
+
+fest operates on a `festivals/` workspace. That workspace commonly lives inside
+a campaign: a git-native workspace AND memory layer (managed by `camp`) that
+also holds projects, intents, and cross-festival context.
+
+  campaign : workspace + memory   (projects, intents, context; managed by `camp`)
+  festival : execution            (this methodology, running within the workspace)
+
+fest also works standalone: `fest init` creates a bare `festivals/` workspace,
+no campaign required. When a campaign is present, festivals gain its surrounding
+workspace and durable memory; when it isn't, fest runs fine on its own.

@@ -8,9 +8,9 @@ List festivals filtered by status.
 
 Works from anywhere - finds the festivals workspace automatically.
 
-STATUS can be: active, planning, completed, dungeon, dungeon/completed, dungeon/archived, dungeon/someday
+STATUS can be: active, ready, planning, ritual, completed, dungeon, dungeon/completed, dungeon/archived, dungeon/someday
 
-By default, shows only active and planning festivals.
+By default, shows active, ready, planning, and ritual festivals.
 Use --all to include completed and dungeon festivals.
 
 ```
@@ -20,7 +20,7 @@ fest list [status] [flags]
 ### Examples
 
 ```
-  fest list                                       # List active and planning festivals
+  fest list                                       # List active, ready, planning, and ritual festivals
   fest list --all                                  # List all festivals
   fest list --filter-project camp                  # Festivals linked to "camp" project
   fest list --since 2026-01-01                     # Festivals created since Jan 1
@@ -47,7 +47,7 @@ fest list [status] [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --verbose         enable verbose output

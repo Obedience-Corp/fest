@@ -1,0 +1,24 @@
+Festival Chains - Dependencies Between Festivals
+================================================
+
+A chain links festivals that depend on each other, so a downstream festival does
+not start until its upstream festivals are complete. Chains live under
+festivals/chains/.
+
+Use a chain when one body of work must finish before another can begin, and each
+is large enough to be its own festival.
+
+COMMANDS
+--------
+
+  fest chain create <name>       Create a new chain
+  fest chain add <festival>      Add a festival to a chain
+  fest chain list                List all chains
+  fest chain status              Show chain status and progress
+  fest chain graph               Visualize the dependency graph
+  fest chain check               Check whether a festival is unblocked
+  fest chain validate            Validate the chain
+  fest chain complete            Complete and archive the chain
+
+`fest chain check` is the gate: it tells an agent whether the current festival's
+upstream dependencies are satisfied yet.

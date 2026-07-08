@@ -103,9 +103,9 @@ WORKFLOW 6: NAVIGATION SHORTCUTS
   fest go my-festival
   fest go MF0001
 
-  # Create persistent shortcuts
-  fest link myproj ./festivals/active/my-project
-  fest go myproj
+  # Link the current festival to its project directory (run inside a festival;
+  # enables project-aware navigation via fgo)
+  fest link ./path/to/project
 
 ═══════════════════════════════════════════════════════════════════════════════
 WORKFLOW 7: QUERYING FESTIVAL DATA
@@ -117,9 +117,13 @@ WORKFLOW 7: QUERYING FESTIVAL DATA
   # Show detailed festival info
   fest show ./festivals/active/my-festival
 
-  # View context and dependencies
-  fest context --path ./001_PLANNING/01_design
-  fest deps --path ./current-task.md
+  # View context for the current location, or a specific task
+  fest context
+  fest context --task 01_design
+
+  # View dependencies for the current sequence, or a specific task
+  fest deps
+  fest deps 01_task
 
   # Parse task for structured data
   fest parse ./001_PLANNING/01_design/01_task.md
