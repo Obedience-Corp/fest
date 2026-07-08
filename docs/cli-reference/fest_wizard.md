@@ -10,7 +10,7 @@ SUBCOMMANDS:
   fill <file>    Interactively fill REPLACE markers in a file
 
 EXAMPLES:
-```
+```bash
   # Fill markers in a specific file
   fest wizard fill PHASE_GOAL.md
 

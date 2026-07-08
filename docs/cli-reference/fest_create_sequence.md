@@ -17,7 +17,7 @@ TEMPLATE VARIABLES (automatically set):
   {{ parent_phase_id }}      Parent phase ID
 
 EXAMPLES:
-```
+```bash
   # Create sequence in current phase
   fest create sequence --name "api endpoints" --json
 
@@ -26,7 +26,7 @@ EXAMPLES:
 ```
 
 NEXT STEPS after creating a sequence:
-```
+```bash
   # Add task files (required for implementation sequences)
   fest create task --name "design" --json
   fest create task --name "implement" --json

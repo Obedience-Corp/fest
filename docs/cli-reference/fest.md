@@ -8,7 +8,7 @@ fest manages Festival Methodology - a goal-oriented project management
 system designed for AI agent development workflows.
 
 GETTING STARTED (for AI agents):
-```
+```bash
   fest understand methodology    Learn core principles first
   fest understand structure      Understand the 3-level hierarchy
   fest understand tasks          Learn when/how to create task files
@@ -16,7 +16,7 @@ GETTING STARTED (for AI agents):
 ```
 
 COMMON WORKFLOWS:
-```
+```bash
   fest create festival           Create a new festival (interactive TUI)
   fest create phase/sequence     Add phases or sequences to existing festival
   fest validate --fix            Fix common structure issues automatically
@@ -24,7 +24,7 @@ COMMON WORKFLOWS:
 ```
 
 SYSTEM MAINTENANCE:
-```
+```bash
   fest system sync               Download latest templates from source
   fest system update             Update .festival/ methodology files
 ```
@@ -52,7 +52,6 @@ Run 'fest understand' to learn the methodology before executing tasks.
 * [fest context](fest_context.md)	 - Get context for the current location or task
 * [fest create](fest_create.md)	 - Create festivals, phases, sequences, or tasks (TUI)
 * [fest deps](fest_deps.md)	 - Show task dependencies
-* [fest explore](fest_explore.md)	 - Interactive festival explorer with hierarchy drilldown
 * [fest feedback](fest_feedback.md)	 - Manage structured feedback collection
 * [fest gates](fest_gates.md)	 - Manage quality gates - validation steps at sequence end
 * [fest go](fest_go.md)	 - Navigate to festivals/ - use 'fgo' after shell-init setup
@@ -69,6 +68,7 @@ Run 'fest understand' to learn the methodology before executing tasks.
 * [fest move](fest_move.md)	 - Move files between festival and linked project
 * [fest next](fest_next.md)	 - Find the next task to work on
 * [fest parse](fest_parse.md)	 - Parse festival documents into structured output
+* [fest plugins](fest_plugins.md)	 - List discovered fest plugins
 * [fest progress](fest_progress.md)	 - Track and display festival execution progress
 * [fest promote](fest_promote.md)	 - Promote a festival to the next lifecycle status
 * [fest remove](fest_remove.md)	 - Remove festival elements and renumber
@@ -91,6 +91,8 @@ Run 'fest understand' to learn the methodology before executing tasks.
 * [fest unlink](fest_unlink.md)	 - Remove festival-project link (context-aware)
 * [fest validate](fest_validate.md)	 - Check festival structure - find missing task files and issues
 * [fest version](fest_version.md)	 - Show version information
+* [fest walk](fest_walk.md)	 - Guided overview of a festival or workflow
+* [fest watch](fest_watch.md)	 - Watch a festival's in-progress work
 * [fest wizard](fest_wizard.md)	 - Interactive guidance and assistance for festival creation
 * [fest workflow](fest_workflow.md)	 - Manage workflow-based phase execution
 

@@ -32,7 +32,7 @@ BATCH WORKFLOW (for agents):
   3. Apply:      fest wizard fill --batch-input markers.json
 
 EXAMPLES:
-```
+```bash
   # Interactive with buffer mode (default)
   fest wizard fill .
 

@@ -8,17 +8,17 @@ Learn about Festival Methodology - a goal-oriented project management
 system designed for AI agent development workflows.
 
 START HERE if you're new to Festival Methodology:
-```
+```bash
   fest understand methodology    Core principles and philosophy
   fest understand structure      3-level hierarchy explained
   fest understand tasks          CRITICAL: When to create task files
 ```
 
 QUICK REFERENCE:
-```
+```bash
   fest understand checklist      Validation checklist before starting
   fest understand rules          Naming conventions for automation
-  fest understand workflow       Just-in-time reading pattern
+  fest understand workflow       Just-in-time reading + workflow/gates
 ```
 
 The understand command helps you grasp WHEN and WHY to use specific
@@ -61,5 +61,5 @@ fest understand [flags]
 * [fest understand structure](fest_understand_structure.md)	 - 3-level hierarchy: Festival → Phase → Sequence → Task
 * [fest understand tasks](fest_understand_tasks.md)	 - When and how to create task files (CRITICAL)
 * [fest understand templates](fest_understand_templates.md)	 - Template variables that save tokens
-* [fest understand workflow](fest_understand_workflow.md)	 - Just-in-time reading and execution patterns
+* [fest understand workflow](fest_understand_workflow.md)	 - Just-in-time reading plus workflow/gate execution
 

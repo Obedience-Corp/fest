@@ -1,35 +1,27 @@
-## fest create workflow
+## fest workflow create
 
-Create a standalone or phase WORKFLOW.md from structured step definitions
+Scaffold a new standalone WORKFLOW.md (alias of 'fest create workflow')
 
 ### Synopsis
 
-Generate a parseable WORKFLOW.md from prompts, inline JSON, or a steps file.
+Alias of 'fest create workflow'.
 
 Outside a festival phase, this creates WORKFLOW.md in the current directory,
-initializes .workflow/ runtime state, and starts a tracked run so fest next works
-immediately.
+initializes .workflow/ runtime state, and starts a tracked run so 'fest next'
+works immediately.
 
-Inside a festival phase, or when --path/--festival targets a phase, this writes
-the phase WORKFLOW.md without standalone runtime state.
+Unlike the other 'fest workflow' subcommands (init, start, show, advance), which
+operate on an existing WORKFLOW.md, this one scaffolds a brand-new document.
 
 Examples:
 ```bash
-  # Standalone workflow in the current directory
-  fest create workflow demo
-
-  # Standalone workflow from inline JSON (for agents)
-  fest create workflow demo --steps '{"title":"Review","steps":[...]}'
-
-  # Phase workflow from a steps file
-  fest create workflow --steps-file steps.json --position after
-
-  # Explicit phase path
-  fest create workflow --steps-file steps.json --path ./004_POLISH
+  fest workflow create demo
+  fest workflow create demo --steps '{"title":"Review","steps":[...]}'
+  fest workflow create demo --steps-file steps.json
 ```
 
 ```
-fest create workflow [flags]
+fest workflow create [name] [flags]
 ```
 
 ### Options
@@ -37,7 +29,7 @@ fest create workflow [flags]
 ```
       --agent               Strict agent mode (implies --json)
       --festival string     Festival root override
-  -h, --help                help for workflow
+  -h, --help                help for create
       --json                Emit JSON output
       --no-init             skip .workflow/ runtime init (advanced standalone mode)
       --path string         Phase directory path (festival mode) (default ".")
@@ -53,10 +45,11 @@ fest create workflow [flags]
       --config string   config file (default: ~/.config/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
+      --phase string    specify phase directory (e.g., 001_INGEST)
       --verbose         enable verbose output
 ```
 
 ### SEE ALSO
 
-* [fest create](fest_create.md)	 - Create festivals, phases, sequences, or tasks (TUI)
+* [fest workflow](fest_workflow.md)	 - Manage workflow-based phase execution
 

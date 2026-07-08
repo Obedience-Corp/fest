@@ -13,7 +13,7 @@ By default, outputs 'cd /path' for human-friendly display.
 Use --print to output just the bare path (for scripts, tools, and agents).
 
 SHELL INTEGRATION (recommended):
-```
+```bash
   # Add to ~/.zshrc or ~/.bashrc:
   eval "$(fest shell-init zsh)"
 ```
