@@ -117,8 +117,8 @@ func TestRunShowCurrent_PicksFestivalOutsideFestival(t *testing.T) {
 	if gotOptions.IncludeStatusDirectories {
 		t.Fatal("picker should not include status directories for show")
 	}
-	if strings.Join(gotOptions.PreferredStatuses, ",") != strings.Join(showPickerStatuses, ",") {
-		t.Fatalf("preferred statuses = %#v, want %#v", gotOptions.PreferredStatuses, showPickerStatuses)
+	if strings.Join(gotOptions.PreferredStatuses, ",") != strings.Join(shared.BrowseFestivalPickerStatuses, ",") {
+		t.Fatalf("preferred statuses = %#v, want %#v", gotOptions.PreferredStatuses, shared.BrowseFestivalPickerStatuses)
 	}
 	if !gotOptions.OrderByStatusThenRecency {
 		t.Fatal("picker should order candidates by status and recency")

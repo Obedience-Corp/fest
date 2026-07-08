@@ -246,8 +246,6 @@ func runShowCurrent(ctx context.Context, opts *showOptions) error {
 	return emitShowFestival(ctx, festival, opts, campaignRoot)
 }
 
-var showPickerStatuses = []string{"active", "ready", "planning", "ritual"}
-
 func pickFestivalForShow(ctx context.Context, cwd string) (string, shared.FestivalPickOutcome, error) {
 	festivalsDir, err := workspace.FindFestivals(cwd)
 	if err != nil || festivalsDir == "" {
@@ -255,8 +253,8 @@ func pickFestivalForShow(ctx context.Context, cwd string) (string, shared.Festiv
 	}
 	return showPickFestival(ctx, festivalsDir, shared.FestivalPickerOptions{
 		IncludeStatusDirectories: false,
-		PreferredStatuses:        showPickerStatuses,
-		FallbackStatuses:         showPickerStatuses,
+		PreferredStatuses:        shared.BrowseFestivalPickerStatuses,
+		FallbackStatuses:         shared.BrowseFestivalPickerStatuses,
 		OrderByStatusThenRecency: true,
 	})
 }
