@@ -74,7 +74,7 @@ phases) but does NOT generate CONTEXT.md. Author CONTEXT.md yourself at the
 festival root using the structure under "WHAT IT CAPTURES" above.
 
 Do not hand-create the rest of the festival tree when a `fest create` command
-exists — CONTEXT.md is the one document you write by hand.
+exists. CONTEXT.md is the one document you write by hand.
 
 WHY THIS MATTERS FOR AI AGENTS
 ------------------------------
