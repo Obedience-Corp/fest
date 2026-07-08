@@ -317,7 +317,13 @@ func (s *WorkflowState) Advance() error {
 
 // Approve approves a blocking checkpoint and advances to the next step.
 func (s *WorkflowState) Approve() error {
-	s.CompleteCurrentStep()
+	return s.ApproveWithFeedback("")
+}
+
+// ApproveWithFeedback approves a blocking checkpoint with durable audit text
+// and advances to the next step.
+func (s *WorkflowState) ApproveWithFeedback(feedback string) error {
+	s.MarkCurrentStep(StepStatusCompleted, feedback)
 	if s.CurrentStep < s.TotalSteps {
 		return s.Advance()
 	}

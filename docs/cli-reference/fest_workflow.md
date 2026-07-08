@@ -23,6 +23,12 @@ Checkpoints:
   Some steps require user approval before proceeding. Use 'fest workflow approve'
   to approve or 'fest workflow reject' to request revisions.
 
+  Approval auto mode is default-off. Use 'fest workflow approve --auto' only
+  when an operator has explicitly delegated the checkpoint decision to an
+  external judge command. The default judge command is 'ob judge'; if that
+  command is missing or returns invalid output, fest fails closed and leaves
+  the checkpoint unchanged.
+
 State:
   Progress is tracked in <festival>/.fest/progress_events.jsonl.
   Use 'fest workflow status' to view current progress.
@@ -44,6 +50,7 @@ Examples:
   fest workflow advance             # Complete current step and move to next
   fest workflow skip --reason "already completed externally" # Operator override
   fest workflow approve             # Approve a blocking checkpoint
+  fest workflow approve --auto      # Delegate to configured judge command
   fest workflow reject              # Reject checkpoint with feedback
   fest workflow reset               # Reset workflow or gate to step 1
   fest workflow show                # Display the current step details
@@ -75,4 +82,3 @@ Examples:
 * [fest workflow show](fest_workflow_show.md)	 - Display current step details
 * [fest workflow skip](fest_workflow_skip.md)	 - Operator override: mark workflow steps as skipped/completed
 * [fest workflow status](fest_workflow_status.md)	 - Show workflow progress
-

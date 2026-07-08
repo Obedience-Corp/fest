@@ -265,6 +265,12 @@ func (n *Navigator) GetContextFiles(ctx context.Context) ([]string, error) {
 
 // Approve approves a blocking checkpoint and advances.
 func (n *Navigator) Approve(ctx context.Context) error {
+	return n.ApproveWithFeedback(ctx, "")
+}
+
+// ApproveWithFeedback approves a blocking checkpoint with durable audit text
+// and advances.
+func (n *Navigator) ApproveWithFeedback(ctx context.Context, feedback string) error {
 	if err := n.EnsureInitialized(); err != nil {
 		return err
 	}
@@ -276,13 +282,13 @@ func (n *Navigator) Approve(ctx context.Context) error {
 	}
 
 	currentStep := n.workflowState.CurrentStep
-	if err := n.workflowState.Approve(); err != nil {
+	if err := n.workflowState.ApproveWithFeedback(feedback); err != nil {
 		return err
 	}
 
 	sk := n.stateKey()
 	if n.store != nil {
-		n.store.QueueWorkflowEvents(EmitStepDoneEvents(sk, currentStep))
+		n.store.QueueWorkflowEvents(EmitStepDoneWithFeedbackEvents(sk, currentStep, feedback))
 		if n.workflowState.CurrentStep > currentStep {
 			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
 			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, n.workflowState.CurrentStep))
