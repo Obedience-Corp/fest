@@ -1,0 +1,36 @@
+Festival Lifecycle - How Festivals Move
+=======================================
+
+Festivals progress through lifecycle directories under festivals/:
+
+  planning/    Being planned and designed
+  ready/       Planned and ready to execute
+  active/      Currently executing
+  ritual/      Recurring/repeatable festivals (ritual type)
+  dungeon/     Terminal states
+    completed/   Successfully finished
+    archived/    Preserved for reference
+    someday/     Deprioritized, may be revisited
+
+Flow: planning -> ready -> active -> dungeon/completed
+
+MOVING A FESTIVAL
+-----------------
+
+`fest promote` advances a festival one stage at a time:
+
+  planning -> ready     Festival goal must be defined
+  ready -> active       Ready to begin execution
+  active -> completed   All tasks must be completed
+
+  fest promote                       Advance the current festival one stage
+  fest promote <name>                Promote a specific festival (in a campaign)
+  fest promote --dungeon someday     Shelve for later
+  fest promote --dungeon archived    Archive for reference
+
+WHY IT MATTERS
+--------------
+
+The lifecycle directory IS the status. `fest list` and `fest watch` read it, so
+keeping a festival in the right stage keeps the board accurate for humans and
+agents alike.

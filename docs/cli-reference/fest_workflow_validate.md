@@ -25,7 +25,7 @@ fest workflow validate [path] [flags]
 ### Options inherited from parent commands
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
       --no-color        disable colored output
       --phase string    specify phase directory (e.g., 001_INGEST)
@@ -35,3 +35,4 @@ fest workflow validate [path] [flags]
 ### SEE ALSO
 
 * [fest workflow](fest_workflow.md)	 - Manage workflow-based phase execution
+

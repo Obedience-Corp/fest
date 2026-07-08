@@ -46,7 +46,7 @@ func newConfigAddCommand() *cobra.Command {
 		Short: "Add a configuration repository",
 		Long: `Add a configuration repository from a git URL or local path.
 
-For git repos, the repository will be cloned to ~/.config/fest/config-repos/<name>.
+For git repos, the repository will be cloned to ~/.obey/fest/config-repos/<name>.
 For local paths, a symlink will be created instead.`,
 		Example: `  fest config add myconfig https://github.com/user/fest-config
   fest config add local /path/to/my/config
@@ -152,7 +152,7 @@ func newConfigUseCommand() *cobra.Command {
 		Short: "Set active configuration repository",
 		Long: `Set a configuration repository as the active one.
 
-The active config repo is symlinked at ~/.config/fest/active and its
+The active config repo is symlinked at ~/.obey/fest/active and its
 contents are used for templates, policies, plugins, and extensions.`,
 		Example: `  fest config use myconfig
   fest config use work`,

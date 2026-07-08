@@ -26,7 +26,7 @@ func (pl *PolicyLoader) AddSearchPath(path string) {
 
 // LoadWithPrecedence loads a policy by name, checking sources in precedence order:
 // 1. Project-local (festival root)
-// 2. User config repo (~/.config/fest/active/user/policies/gates/)
+// 2. User config repo (~/.obey/fest/active/user/policies/gates/)
 // 3. Built-in default
 func (pl *PolicyLoader) LoadWithPrecedence(policyName string, festivalRoot string) (*GatePolicy, string, error) {
 	// Try project-local

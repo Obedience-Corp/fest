@@ -34,7 +34,7 @@ Run 'fest understand' to learn the methodology before executing tasks.
 ### Options
 
 ```
-      --config string   config file (default: ~/.config/fest/config.json)
+      --config string   config file (default: ~/.obey/fest/config.json)
       --debug           enable debug logging
   -h, --help            help for fest
       --no-color        disable colored output

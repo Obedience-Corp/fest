@@ -30,7 +30,7 @@ func NewConfigCommand() *cobra.Command {
 		Long: `Interactive TUI for managing fest configuration.
 
 Navigate to a setting to edit it. Changes are saved immediately.
-Configuration is stored in ~/.config/fest/config.json.
+Configuration is stored in ~/.obey/fest/config.json.
 
 Use arrow keys or j/k to navigate, Enter to select, Esc to exit.`,
 		Example: `  fest system config           # Open configuration TUI

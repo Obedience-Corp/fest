@@ -52,6 +52,12 @@ ensuring you see the current methodology design and any customizations.`,
 	cmd.AddCommand(newUnderstandContextCmd()) // Session memory - CREATE FIRST
 	cmd.AddCommand(newUnderstandNodeIDsCmd()) // Node reference system for traceability
 	cmd.AddCommand(newUnderstandWorkflowCmd())
+	cmd.AddCommand(newUnderstandLoopCmd())      // The fest next execution loop (+ standalone workflows)
+	cmd.AddCommand(newUnderstandRolesCmd())     // Human vs agent responsibilities
+	cmd.AddCommand(newUnderstandPlanningCmd())  // Goal -> structured plan
+	cmd.AddCommand(newUnderstandLifecycleCmd()) // planning -> ready -> active -> dungeon
+	cmd.AddCommand(newUnderstandChainsCmd())    // Dependencies between festivals
+	cmd.AddCommand(newUnderstandRitualsCmd())   // Recurring festivals
 	cmd.AddCommand(newUnderstandTemplatesCmd())
 	cmd.AddCommand(newUnderstandResourcesCmd())
 
