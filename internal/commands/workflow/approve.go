@@ -105,7 +105,8 @@ Auto approval:
 		},
 	}
 
-	cmd.Flags().StringVar(&actor, "as", decisionActorUser, "decision actor (user; agent decisions require --auto with a configured judge)")
+	cmd.Flags().StringVar(&actor, "as", decisionActorUser, "deprecated: manual approvals are always recorded as the user; agent decisions require --auto with a configured judge")
+	_ = cmd.Flags().MarkHidden("as")
 	cmd.Flags().StringVar(&summary, "summary", "", "approval summary or rationale")
 	cmd.Flags().BoolVar(&opts.Auto, "auto", false, "delegate this checkpoint decision to the configured approval judge command")
 	cmd.Flags().StringVar(&opts.JudgeCommand, "judge-command", opts.JudgeCommand, "approval judge command for --auto (overrides the .festival/config.yaml hooks.approval_judge.command hook)")

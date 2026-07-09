@@ -59,7 +59,8 @@ Examples:
 
 	cmd.Flags().StringVarP(&reason, "reason", "r", "", "reason for rejection (required)")
 	cmd.Flags().StringVar(&remediationPhase, "remediation-phase", "", "link a remediation phase for a failed gate (e.g. 005_FIX_PR_302)")
-	cmd.Flags().StringVar(&actor, "as", decisionActorUser, "decision actor (user; agent decisions require 'fest workflow approve --auto' with a configured judge)")
+	cmd.Flags().StringVar(&actor, "as", decisionActorUser, "deprecated: manual rejections are always recorded as the user; agent decisions require 'fest workflow approve --auto' with a configured judge")
+	_ = cmd.Flags().MarkHidden("as")
 	cmd.Flags().StringVar(&summary, "summary", "", "decision summary or rationale")
 	_ = cmd.MarkFlagRequired("reason")
 
