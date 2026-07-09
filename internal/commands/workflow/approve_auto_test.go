@@ -4,6 +4,7 @@ import (
 	"context"
 	stderrors "errors"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -222,5 +223,83 @@ func TestRunApprovalJudgeCommandDefaultEmptyCommand(t *testing.T) {
 	var execErr *exec.Error
 	if stderrors.As(err, &execErr) {
 		t.Fatalf("empty command should be validation, got exec error: %v", err)
+	}
+}
+
+func TestRunApproveAuto_ApproveAdvancesAndRecordsAudit(t *testing.T) {
+	dir := setupWorkflowFestival(t)
+	phaseDir := filepath.Join(dir, "001_INGEST")
+	nav := getNavigator(t, phaseDir)
+	ctx := context.Background()
+
+	// Advance past step 1 (no checkpoint) to the blocking checkpoint at step 2.
+	if err := nav.Advance(ctx); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	steps := nav.GetSteps()
+	if !steps[1].Checkpoint.IsBlocking() {
+		t.Fatalf("fixture step 2 must be a blocking checkpoint")
+	}
+
+	withApprovalJudgeRunner(t, func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
+		return []byte(`{"schema_version":"fest.approval.judge/v1","decision":"approve","reason":"evidence complete"}`), nil
+	})
+
+	out := captureStdout(t, func() {
+		if err := runApproveAuto(ctx, nav, 2, steps[1], approvalJudgeOptions{JudgeCommand: "fake judge", Timeout: time.Second}); err != nil {
+			t.Fatalf("runApproveAuto: %v", err)
+		}
+	})
+	if !strings.Contains(out, "auto-approved") {
+		t.Fatalf("output missing auto-approved: %q", out)
+	}
+
+	state := nav.GetWorkflowState()
+	if state.CurrentStep != 3 {
+		t.Fatalf("current step = %d, want 3 (advanced past approved checkpoint)", state.CurrentStep)
+	}
+	step2 := state.GetStepState(2)
+	if step2 == nil || step2.Status != wf.StepStatusCompleted {
+		t.Fatalf("step 2 status = %+v, want completed", step2)
+	}
+	if !strings.Contains(step2.Feedback, "decision=approve") {
+		t.Fatalf("step 2 feedback missing judge audit: %q", step2.Feedback)
+	}
+}
+
+func TestRunApproveAuto_RejectBlocksStepWithAudit(t *testing.T) {
+	dir := setupWorkflowFestival(t)
+	phaseDir := filepath.Join(dir, "001_INGEST")
+	nav := getNavigator(t, phaseDir)
+	ctx := context.Background()
+
+	if err := nav.Advance(ctx); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	steps := nav.GetSteps()
+
+	withApprovalJudgeRunner(t, func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
+		return []byte(`{"schema_version":"fest.approval.judge/v1","decision":"reject","reason":"missing acceptance proof"}`), nil
+	})
+
+	out := captureStdout(t, func() {
+		if err := runApproveAuto(ctx, nav, 2, steps[1], approvalJudgeOptions{JudgeCommand: "fake judge", Timeout: time.Second}); err != nil {
+			t.Fatalf("runApproveAuto: %v", err)
+		}
+	})
+	if !strings.Contains(out, "auto-rejected") {
+		t.Fatalf("output missing auto-rejected: %q", out)
+	}
+
+	state := nav.GetWorkflowState()
+	step2 := state.GetStepState(2)
+	if step2 == nil || step2.Status != wf.StepStatusBlocked {
+		t.Fatalf("step 2 status = %+v, want blocked", step2)
+	}
+	if !strings.Contains(step2.Feedback, "decision=reject") {
+		t.Fatalf("step 2 feedback missing judge audit: %q", step2.Feedback)
+	}
+	if state.CurrentStep != 2 {
+		t.Fatalf("current step = %d, want 2 (stays on blocked step)", state.CurrentStep)
 	}
 }
