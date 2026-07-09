@@ -33,4 +33,3 @@ fest index tree [flags]
 ### SEE ALSO
 
 * [fest index](fest_index.md)	 - Manage festival indices
-

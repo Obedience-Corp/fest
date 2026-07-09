@@ -39,4 +39,3 @@ Use subcommands to list markers or fill them interactively.
 * [fest markers next](fest_markers_next.md)	 - Show the next file with unfilled markers
 * [fest markers scaffold](fest_markers_scaffold.md)	 - Generate marker JSON from template
 * [fest markers validate](fest_markers_validate.md)	 - Validate marker JSON against template
-

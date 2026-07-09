@@ -43,4 +43,3 @@ through the festival creation process step by step.
 
 * [fest](fest.md)	 - Festival Methodology CLI - goal-oriented project management for AI agents
 * [fest wizard fill](fest_wizard_fill.md)	 - Interactively fill REPLACE markers in festival files
-

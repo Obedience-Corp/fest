@@ -36,4 +36,3 @@ Examples:
 
 * [fest](fest.md)	 - Festival Methodology CLI - goal-oriented project management for AI agents
 * [fest scaffold from-plan](fest_scaffold_from-plan.md)	 - Generate festival structure from a plan document
-

@@ -52,6 +52,8 @@ type approvalJudgeRunner func(ctx context.Context, command string, stdin []byte)
 var runApprovalJudgeCommand approvalJudgeRunner = runApprovalJudgeCommandDefault
 
 func newApproveCmd() *cobra.Command {
+	var actor string
+	var summary string
 	opts := approvalJudgeOptions{
 		Timeout: 2 * time.Minute,
 	}
@@ -88,22 +90,37 @@ Auto approval:
 			"scope": string(scope.Festival),
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runApproveWithOptions(cmd.Context(), opts)
+			if opts.Auto {
+				return runApproveWithOptions(cmd.Context(), wf.DecisionMetadata{}, opts)
+			}
+			decision, err := normalizeDecision("approval", actor, summary, "")
+			if err != nil {
+				return err
+			}
+			return runApproveWithDecision(cmd.Context(), decision)
 		},
 	}
 
+	cmd.Flags().StringVar(&actor, "as", decisionActorUser, "decision actor: user or agent")
+	cmd.Flags().StringVar(&summary, "summary", "", "approval summary or rationale")
 	cmd.Flags().BoolVar(&opts.Auto, "auto", false, "delegate this checkpoint decision to the configured approval judge command")
 	cmd.Flags().StringVar(&opts.JudgeCommand, "judge-command", opts.JudgeCommand, "approval judge command for --auto (overrides the .festival/config.yaml hooks.approval_judge.command hook)")
 	cmd.Flags().DurationVar(&opts.Timeout, "judge-timeout", opts.Timeout, "maximum time to wait for the approval judge")
+	cmd.MarkFlagsMutuallyExclusive("auto", "as")
+	cmd.MarkFlagsMutuallyExclusive("auto", "summary")
 
 	return cmd
 }
 
 func runApprove(ctx context.Context) error {
-	return runApproveWithOptions(ctx, approvalJudgeOptions{})
+	return runApproveWithDecision(ctx, wf.DecisionMetadata{Actor: decisionActorUser})
 }
 
-func runApproveWithOptions(ctx context.Context, opts approvalJudgeOptions) error {
+func runApproveWithDecision(ctx context.Context, decision wf.DecisionMetadata) error {
+	return runApproveWithOptions(ctx, decision, approvalJudgeOptions{})
+}
+
+func runApproveWithOptions(ctx context.Context, decision wf.DecisionMetadata, opts approvalJudgeOptions) error {
 	nav, err := getWorkflowNavigator(ctx)
 	if err != nil {
 		return err
@@ -128,14 +145,18 @@ func runApproveWithOptions(ctx context.Context, opts approvalJudgeOptions) error
 	// Get current step info
 	currentStepNum := state.CurrentStep
 	if currentStepNum < 1 || currentStepNum > len(steps) {
-		return fmt.Errorf("invalid workflow state: current step %d out of range", currentStepNum)
+		return festerrors.Validation("invalid workflow state").
+			WithField("current_step", currentStepNum).
+			WithField("total_steps", len(steps))
 	}
 
 	step := steps[currentStepNum-1]
 
 	// Verify this is a checkpoint step
 	if !step.Checkpoint.IsBlocking() {
-		return fmt.Errorf("step %d does not have a blocking checkpoint\n\nUse 'fest workflow advance' for regular steps", currentStepNum)
+		return festerrors.Validation("step does not have a blocking checkpoint").
+			WithField("step", currentStepNum).
+			WithHint("Use 'fest workflow advance' for regular steps")
 	}
 
 	if opts.Auto {
@@ -148,11 +169,17 @@ func runApproveWithOptions(ctx context.Context, opts approvalJudgeOptions) error
 	}
 
 	// Approve and advance
-	if err := nav.Approve(ctx); err != nil {
-		return fmt.Errorf("approving checkpoint: %w", err)
+	if err := nav.ApproveWithDecision(ctx, decision); err != nil {
+		return festerrors.Wrap(err, "approving checkpoint")
 	}
 
 	fmt.Printf("%s Step %d: %s approved\n", ui.Success("✓"), currentStepNum, step.Name)
+	if decision.Actor != "" {
+		fmt.Printf("  %s: %s\n", ui.Label("Approved by"), decision.Actor)
+	}
+	if decision.Summary != "" {
+		fmt.Printf("  %s: %s\n", ui.Label("Summary"), decision.Summary)
+	}
 	return showNextStep(ctx, nav, steps)
 }
 
@@ -201,16 +228,18 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 		return err
 	}
 
+	judgeDecision := wf.DecisionMetadata{Actor: decisionActorAgent, Summary: decision.Reason}
+
 	switch decision.Decision {
 	case "approve":
-		if err := nav.ApproveWithFeedback(ctx, audit); err != nil {
-			return fmt.Errorf("approving checkpoint from judge decision: %w", err)
+		if err := nav.ApproveWithAudit(ctx, audit, judgeDecision); err != nil {
+			return festerrors.Wrap(err, "approving checkpoint from judge decision")
 		}
 		fmt.Printf("%s Step %d: %s auto-approved\n", ui.Success("✓"), currentStepNum, step.Name)
 		fmt.Printf("  %s: %s\n", ui.Label("Reason"), decision.Reason)
 		return showNextStep(ctx, nav, nav.GetSteps())
 	case "reject":
-		if err := nav.Reject(ctx, audit); err != nil {
+		if err := nav.RejectWithDecision(ctx, audit, judgeDecision); err != nil {
 			return festerrors.Wrap(err, "recording judge rejection")
 		}
 		fmt.Printf("%s Step %d: %s auto-rejected\n", ui.Warning("⚠"), currentStepNum, step.Name)

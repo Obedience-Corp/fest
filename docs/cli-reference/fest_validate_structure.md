@@ -33,4 +33,3 @@ fest validate structure [festival-path] [flags]
 ### SEE ALSO
 
 * [fest validate](fest_validate.md)	 - Check festival structure - find missing task files and issues
-

@@ -12,6 +12,7 @@ for later aggregation and analysis.
 Examples:
 ```bash
   fest feedback init --criteria "Code quality" --criteria "Performance"
+  fest feedback criteria add --criteria "Onboarding friction, especially copied commands"
   fest feedback add --criteria "Code quality" --observation "Found duplication"
   fest feedback view
   fest feedback export --format markdown
@@ -36,7 +37,7 @@ Examples:
 
 * [fest](fest.md)	 - Festival Methodology CLI - goal-oriented project management for AI agents
 * [fest feedback add](fest_feedback_add.md)	 - Add a feedback observation
+* [fest feedback criteria](fest_feedback_criteria.md)	 - Manage feedback criteria
 * [fest feedback export](fest_feedback_export.md)	 - Export collected feedback
 * [fest feedback init](fest_feedback_init.md)	 - Initialize feedback collection
 * [fest feedback view](fest_feedback_view.md)	 - View collected feedback
-

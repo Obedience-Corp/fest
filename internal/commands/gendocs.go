@@ -144,6 +144,10 @@ func fenceExamplesInDir(dir string) error {
 			return err
 		}
 		result := fenceExamples(string(data))
+		// Normalize to a single trailing newline. Cobra's GenMarkdownTree emits
+		// a trailing blank line on some pages, which makes `just docs`
+		// non-idempotent and trips the git diff --check whitespace gate.
+		result = strings.TrimRight(result, "\n") + "\n"
 		if result != string(data) {
 			if err := os.WriteFile(path, []byte(result), 0644); err != nil {
 				return err
@@ -315,7 +319,7 @@ func combineSingleFile(dir, name string) error {
 		parts = append(parts, stripSeeAlso(string(data)))
 	}
 
-	combined := strings.Join(parts, "\n---\n\n")
+	combined := strings.TrimRight(strings.Join(parts, "\n---\n\n"), "\n") + "\n"
 	outPath := filepath.Join(dir, name+"-reference.md")
 	if err := os.WriteFile(outPath, []byte(combined), 0644); err != nil {
 		return err

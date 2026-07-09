@@ -25,12 +25,14 @@ for later aggregation and analysis.
 
 Examples:
   fest feedback init --criteria "Code quality" --criteria "Performance"
+  fest feedback criteria add --criteria "Onboarding friction, especially copied commands"
   fest feedback add --criteria "Code quality" --observation "Found duplication"
   fest feedback view
   fest feedback export --format markdown`,
 	}
 
 	cmd.AddCommand(newInitCmd())
+	cmd.AddCommand(newCriteriaCmd())
 	cmd.AddCommand(newAddCmd())
 	cmd.AddCommand(newViewCmd())
 	cmd.AddCommand(newExportCmd())
@@ -40,6 +42,7 @@ Examples:
 
 func newInitCmd() *cobra.Command {
 	var criteria []string
+	var force bool
 
 	cmd := &cobra.Command{
 		Use:   "init",
@@ -51,19 +54,21 @@ configuration for the specified criteria.
 
 Examples:
   fest feedback init --criteria "Code quality observations"
-  fest feedback init --criteria "Performance concerns" --criteria "Methodology suggestions"`,
+  fest feedback init --criteria "Performance concerns" --criteria "Methodology suggestions"
+  fest feedback init --force --criteria "Usability" --criteria "Release blockers"`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runInit(cmd.Context(), criteria)
+			return runInit(cmd.Context(), criteria, force)
 		},
 	}
 
-	cmd.Flags().StringSliceVar(&criteria, "criteria", nil, "feedback criteria (required)")
+	cmd.Flags().StringArrayVar(&criteria, "criteria", nil, "feedback criteria (required, repeatable)")
+	cmd.Flags().BoolVar(&force, "force", false, "replace existing criteria while preserving observations")
 	_ = cmd.MarkFlagRequired("criteria")
 
 	return cmd
 }
 
-func runInit(ctx context.Context, criteria []string) error {
+func runInit(ctx context.Context, criteria []string, force bool) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return errors.IO("getting current directory", err)
@@ -78,8 +83,27 @@ func runInit(ctx context.Context, criteria []string) error {
 	store := feedback.NewStore(festivalPath)
 
 	if store.IsInitialized() {
-		return errors.Validation("feedback already initialized").
-			WithField("hint", "run 'fest feedback view' to see existing feedback")
+		if !force {
+			config, err := store.LoadConfig(ctx)
+			if err != nil {
+				return err
+			}
+			display := ui.New(shared.IsNoColor(), shared.IsVerbose())
+			display.Info("Feedback collection already initialized")
+			printCriteria(config.Criteria)
+			fmt.Printf("\nAdd criteria: fest feedback criteria add --criteria \"...\"\n")
+			fmt.Printf("Replace criteria: fest feedback init --force --criteria \"...\"\n")
+			return nil
+		}
+
+		config, err := store.ReplaceCriteria(ctx, criteria)
+		if err != nil {
+			return err
+		}
+		display := ui.New(shared.IsNoColor(), shared.IsVerbose())
+		display.Success("Replaced feedback criteria")
+		printCriteria(config.Criteria)
+		return nil
 	}
 
 	config, err := store.Init(ctx, criteria)
@@ -89,13 +113,76 @@ func runInit(ctx context.Context, criteria []string) error {
 
 	display := ui.New(shared.IsNoColor(), shared.IsVerbose())
 	display.Success("Initialized feedback collection")
-	fmt.Printf("\nCriteria:\n")
-	for _, c := range config.Criteria {
-		fmt.Printf("  - %s\n", c.Name)
-	}
+	printCriteria(config.Criteria)
 	fmt.Printf("\nAdd feedback: fest feedback add --criteria \"...\" --observation \"...\"\n")
 
 	return nil
+}
+
+func newCriteriaCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "criteria",
+		Short: "Manage feedback criteria",
+	}
+
+	cmd.AddCommand(newCriteriaAddCmd())
+	return cmd
+}
+
+func newCriteriaAddCmd() *cobra.Command {
+	var criteria []string
+
+	cmd := &cobra.Command{
+		Use:   "add",
+		Short: "Add feedback criteria",
+		Long: `Add criteria to existing feedback collection.
+
+Each --criteria value is treated literally, so commas are preserved.
+
+Examples:
+  fest feedback criteria add --criteria "Onboarding friction, especially copied commands"
+  fest feedback criteria add --criteria "Performance" --criteria "Documentation gaps"`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runCriteriaAdd(cmd.Context(), criteria)
+		},
+	}
+
+	cmd.Flags().StringArrayVar(&criteria, "criteria", nil, "feedback criteria to add (required, repeatable)")
+	_ = cmd.MarkFlagRequired("criteria")
+
+	return cmd
+}
+
+func runCriteriaAdd(ctx context.Context, criteria []string) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return errors.IO("getting current directory", err)
+	}
+
+	festivalPath, err := shared.ResolveFestivalPath(cwd, "")
+	if err != nil {
+		return errors.Wrap(err, "detecting festival").
+			WithField("hint", "run from within a festival directory")
+	}
+
+	store := feedback.NewStore(festivalPath)
+	config, err := store.AddCriteria(ctx, criteria)
+	if err != nil {
+		return err
+	}
+
+	display := ui.New(shared.IsNoColor(), shared.IsVerbose())
+	display.Success("Updated feedback criteria")
+	printCriteria(config.Criteria)
+
+	return nil
+}
+
+func printCriteria(criteria []feedback.Criteria) {
+	fmt.Printf("\nCriteria:\n")
+	for _, c := range criteria {
+		fmt.Printf("  - %s\n", c.Name)
+	}
 }
 
 func newAddCmd() *cobra.Command {

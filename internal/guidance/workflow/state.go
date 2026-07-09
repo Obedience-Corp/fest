@@ -45,6 +45,14 @@ type WorkflowEvent struct {
 	TotalSteps       int
 	Feedback         string
 	RemediationPhase string
+	DecisionActor    string
+	DecisionSummary  string
+}
+
+// DecisionMetadata records who made a checkpoint decision and the rationale.
+type DecisionMetadata struct {
+	Actor   string
+	Summary string
 }
 
 // StepState tracks the state of a single workflow step.
@@ -67,6 +75,15 @@ type StepState struct {
 	// RemediationPhase is the linked phase name for a step in
 	// StepStatusFailedRemediation. Empty for any other status.
 	RemediationPhase string `yaml:"remediation_phase,omitempty" json:"remediation_phase,omitempty"`
+
+	// DecisionActor identifies who made the checkpoint decision.
+	DecisionActor string `yaml:"decision_actor,omitempty" json:"decision_actor,omitempty"`
+
+	// DecisionSummary records the decision rationale or approval summary.
+	DecisionSummary string `yaml:"decision_summary,omitempty" json:"decision_summary,omitempty"`
+
+	// DecisionAt is when the checkpoint decision was recorded.
+	DecisionAt *time.Time `yaml:"decision_at,omitempty" json:"decision_at,omitempty"`
 }
 
 // FestivalWorkflowState contains workflow state for all phases in a festival.
@@ -317,13 +334,19 @@ func (s *WorkflowState) Advance() error {
 
 // Approve approves a blocking checkpoint and advances to the next step.
 func (s *WorkflowState) Approve() error {
-	return s.ApproveWithFeedback("")
+	return s.ApproveWithAudit("", DecisionMetadata{})
 }
 
-// ApproveWithFeedback approves a blocking checkpoint with durable audit text
-// and advances to the next step.
-func (s *WorkflowState) ApproveWithFeedback(feedback string) error {
+// ApproveWithDecision approves a blocking checkpoint with decision metadata.
+func (s *WorkflowState) ApproveWithDecision(decision DecisionMetadata) error {
+	return s.ApproveWithAudit("", decision)
+}
+
+// ApproveWithAudit approves a blocking checkpoint, recording durable audit
+// text and decision metadata, then advances to the next step.
+func (s *WorkflowState) ApproveWithAudit(feedback string, decision DecisionMetadata) error {
 	s.MarkCurrentStep(StepStatusCompleted, feedback)
+	s.recordDecision(s.CurrentStep, decision)
 	if s.CurrentStep < s.TotalSteps {
 		return s.Advance()
 	}
@@ -332,10 +355,16 @@ func (s *WorkflowState) ApproveWithFeedback(feedback string) error {
 
 // Reject rejects the current step with feedback and marks it as blocked.
 func (s *WorkflowState) Reject(feedback string) {
+	s.RejectWithDecision(feedback, DecisionMetadata{})
+}
+
+// RejectWithDecision rejects the current step with feedback and decision metadata.
+func (s *WorkflowState) RejectWithDecision(feedback string, decision DecisionMetadata) {
 	state := s.GetOrCreateStepState(s.CurrentStep)
 	state.Status = StepStatusBlocked
 	state.Feedback = feedback
 	state.RemediationPhase = ""
+	s.recordDecision(s.CurrentStep, decision)
 }
 
 // RejectWithRemediation records a non-passing gate decision with a linked
@@ -343,10 +372,27 @@ func (s *WorkflowState) Reject(feedback string) {
 // non-terminal so the gate must be re-evaluated after the remediation phase
 // completes.
 func (s *WorkflowState) RejectWithRemediation(feedback, remediationPhase string) {
+	s.RejectWithRemediationDecision(feedback, remediationPhase, DecisionMetadata{})
+}
+
+// RejectWithRemediationDecision records a non-passing gate decision with metadata.
+func (s *WorkflowState) RejectWithRemediationDecision(feedback, remediationPhase string, decision DecisionMetadata) {
 	state := s.GetOrCreateStepState(s.CurrentStep)
 	state.Status = StepStatusFailedRemediation
 	state.Feedback = feedback
 	state.RemediationPhase = remediationPhase
+	s.recordDecision(s.CurrentStep, decision)
+}
+
+func (s *WorkflowState) recordDecision(step int, decision DecisionMetadata) {
+	if decision.Actor == "" && decision.Summary == "" {
+		return
+	}
+	state := s.GetOrCreateStepState(step)
+	state.DecisionActor = decision.Actor
+	state.DecisionSummary = decision.Summary
+	now := time.Now().UTC()
+	state.DecisionAt = &now
 }
 
 // ClearFailedRemediation transitions the current step out of the failed
@@ -360,6 +406,9 @@ func (s *WorkflowState) ClearFailedRemediation() {
 	}
 	state.Status = StepStatusInProgress
 	state.RemediationPhase = ""
+	state.DecisionActor = ""
+	state.DecisionSummary = ""
+	state.DecisionAt = nil
 }
 
 // Reset resets the workflow to step 1 and clears all step states.
@@ -370,6 +419,9 @@ func (s *WorkflowState) Reset() {
 		state.StartedAt = nil
 		state.CompletedAt = nil
 		state.Feedback = ""
+		state.DecisionActor = ""
+		state.DecisionSummary = ""
+		state.DecisionAt = nil
 	}
 	s.UpdatedAt = time.Now().UTC()
 }
@@ -453,11 +505,18 @@ func EmitStepDoneEvents(phaseName string, step int) []WorkflowEvent {
 
 // EmitStepDoneWithFeedbackEvents generates completion events with optional note metadata.
 func EmitStepDoneWithFeedbackEvents(phaseName string, step int, feedback string) []WorkflowEvent {
+	return EmitStepDoneWithDecisionEvents(phaseName, step, feedback, DecisionMetadata{})
+}
+
+// EmitStepDoneWithDecisionEvents generates completion events with decision metadata.
+func EmitStepDoneWithDecisionEvents(phaseName string, step int, feedback string, decision DecisionMetadata) []WorkflowEvent {
 	return []WorkflowEvent{{
-		EventType: "wf_step_done",
-		Phase:     phaseName,
-		Step:      step,
-		Feedback:  feedback,
+		EventType:       "wf_step_done",
+		Phase:           phaseName,
+		Step:            step,
+		Feedback:        feedback,
+		DecisionActor:   decision.Actor,
+		DecisionSummary: decision.Summary,
 	}}
 }
 
@@ -473,23 +532,37 @@ func EmitStepSkipEvents(phaseName string, step int, feedback string) []WorkflowE
 
 // EmitStepBlockEvents generates events for blocking a step.
 func EmitStepBlockEvents(phaseName string, step int, feedback string) []WorkflowEvent {
+	return EmitStepBlockWithDecisionEvents(phaseName, step, feedback, DecisionMetadata{})
+}
+
+// EmitStepBlockWithDecisionEvents generates blocking events with decision metadata.
+func EmitStepBlockWithDecisionEvents(phaseName string, step int, feedback string, decision DecisionMetadata) []WorkflowEvent {
 	return []WorkflowEvent{{
-		EventType: "wf_step_block",
-		Phase:     phaseName,
-		Step:      step,
-		Feedback:  feedback,
+		EventType:       "wf_step_block",
+		Phase:           phaseName,
+		Step:            step,
+		Feedback:        feedback,
+		DecisionActor:   decision.Actor,
+		DecisionSummary: decision.Summary,
 	}}
 }
 
 // EmitStepFailRemediationEvents generates events for marking a step as
 // failed with a linked remediation phase.
 func EmitStepFailRemediationEvents(phaseName string, step int, feedback, remediationPhase string) []WorkflowEvent {
+	return EmitStepFailRemediationWithDecisionEvents(phaseName, step, feedback, remediationPhase, DecisionMetadata{})
+}
+
+// EmitStepFailRemediationWithDecisionEvents generates failed-remediation events with decision metadata.
+func EmitStepFailRemediationWithDecisionEvents(phaseName string, step int, feedback, remediationPhase string, decision DecisionMetadata) []WorkflowEvent {
 	return []WorkflowEvent{{
 		EventType:        "wf_step_fail_remediation",
 		Phase:            phaseName,
 		Step:             step,
 		Feedback:         feedback,
 		RemediationPhase: remediationPhase,
+		DecisionActor:    decision.Actor,
+		DecisionSummary:  decision.Summary,
 	}}
 }
 

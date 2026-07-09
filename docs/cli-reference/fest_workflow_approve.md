@@ -37,10 +37,12 @@ fest workflow approve [flags]
 ### Options
 
 ```
+      --as string                decision actor: user or agent (default "user")
       --auto                     delegate this checkpoint decision to the configured approval judge command
   -h, --help                     help for approve
       --judge-command string     approval judge command for --auto (overrides the .festival/config.yaml hooks.approval_judge.command hook)
       --judge-timeout duration   maximum time to wait for the approval judge (default 2m0s)
+      --summary string           approval summary or rationale
 ```
 
 ### Options inherited from parent commands

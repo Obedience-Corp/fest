@@ -49,4 +49,3 @@ fest scaffold from-plan [flags]
 ### SEE ALSO
 
 * [fest scaffold](fest_scaffold.md)	 - Generate festival structures from plans
-

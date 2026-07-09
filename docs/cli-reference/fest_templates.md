@@ -37,4 +37,3 @@ Examples:
 * [fest templates apply](fest_templates_apply.md)	 - Apply a template with variables
 * [fest templates create](fest_templates_create.md)	 - Create a new template
 * [fest templates list](fest_templates_list.md)	 - List available templates
-

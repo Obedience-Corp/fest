@@ -47,4 +47,3 @@ fest renumber sequence [flags]
 ### SEE ALSO
 
 * [fest renumber](fest_renumber.md)	 - Renumber festival elements
-

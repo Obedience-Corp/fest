@@ -63,7 +63,9 @@ Approval Auto Mode
 
 Manual approval is the default. `fest workflow approve --auto` is an explicit
 operator delegation to an external judge command, not an inferred agent
-permission. The default judge command is `ob judge`.
+permission. There is no default judge command: configure one with the
+`hooks.approval_judge.command` hook in `.festival/config.yaml` or pass
+`--judge-command`; otherwise `--auto` fails closed.
 
 The judge command receives JSON on stdin using schema
 `fest.approval.judge/v1` and must return JSON on stdout with decision
