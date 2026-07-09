@@ -2695,10 +2695,11 @@ List festivals filtered by status.
 
 Works from anywhere - finds the festivals workspace automatically.
 
-STATUS can be: active, ready, planning, ritual, completed, dungeon, dungeon/completed, dungeon/archived, dungeon/someday
+STATUS can be: active, ready, planning, ritual, completed, all,
+dungeon, dungeon/completed, dungeon/archived, dungeon/someday
 
 By default, shows active, ready, planning, and ritual festivals.
-Use --all to include completed and dungeon festivals.
+Use 'fest list all' (or --all) to include completed and dungeon festivals.
 
 ```
 fest list [status] [flags]
@@ -2707,12 +2708,13 @@ fest list [status] [flags]
 ### Examples
 
 ```
-  fest list                                       # List active, ready, planning, and ritual festivals
-  fest list --all                                  # List all festivals
+  fest list                                        # Active, ready, planning, ritual festivals
+  fest list active                                 # Only active festivals
+  fest list all                                    # Every festival grouped by status
+  fest list dungeon/completed                      # Completed festivals in the dungeon
   fest list --filter-project camp                  # Festivals linked to "camp" project
-  fest list --since 2026-01-01                     # Festivals created since Jan 1
+  fest list active --sort progress                 # Active festivals, most complete first
   fest list --since 2026-01-01 --until 2026-02-01  # Created in January 2026
-  fest list --filter-project fest --status active   # Active festivals for "fest" project
   fest list --json                                 # Output in JSON format
 ```
 
@@ -4469,26 +4471,31 @@ Display festival information
 
 ### Synopsis
 
-Display festival information by status or show details of a specific festival.
+Display festival information for a single festival.
 
 When run inside a festival directory, shows the current festival's details.
-When run outside a festival in an interactive campaign workspace, opens a festival picker.
-When run with a status argument, lists all festivals with that status.
+When run outside a festival in an interactive campaign workspace, opens a
+cyclable view; use ←/→ to move between festivals and q/Ctrl+C to exit.
 
-SUBCOMMANDS:
 ```bash
-  fest show              Show current festival, or pick one from a campaign workspace
-  fest show active       List festivals in active/ directory
-  fest show planning     List festivals in planning/ directory
-  fest show completed    List festivals in completed/ directory
-  fest show dungeon      List festivals in dungeon/ directory
-  fest show all          List all festivals grouped by status
-  fest show <name>       Show details of a specific festival by name
+  fest show                        Show current festival, or cycle festivals in a workspace
+  fest show <name>                 Show details of a specific festival by name
   fest show --festival <selector>  Show a festival by explicit selector (campaign workspace)
 ```
 
+To list festivals by status, use 'fest list' (e.g. 'fest list active',
+'fest list all', 'fest list dungeon/completed').
+
 ```
-fest show [status|festival-name] [flags]
+fest show [festival-name] [flags]
+```
+
+### Examples
+
+```
+  fest show
+  fest show launch-readiness
+  fest show --festival LR0001
 ```
 
 ### Options
@@ -4503,138 +4510,6 @@ fest show [status|festival-name] [flags]
       --roadmap           show full execution roadmap with task statuses
       --summary           show aggregate summary instead of tree view
       --watch             continuously refresh display
-```
-
-### Options inherited from parent commands
-
-```
-      --config string   config file (default: ~/.obey/fest/config.json)
-      --debug           enable debug logging
-      --no-color        disable colored output
-      --verbose         enable verbose output
-```
----
-
-## fest show active
-
-List festivals in active/ directory
-
-```
-fest show active [flags]
-```
-
-### Options
-
-```
-  -h, --help   help for active
-      --json   output in JSON format
-```
-
-### Options inherited from parent commands
-
-```
-      --config string   config file (default: ~/.obey/fest/config.json)
-      --debug           enable debug logging
-      --no-color        disable colored output
-      --verbose         enable verbose output
-```
----
-
-## fest show all
-
-List all festivals grouped by status
-
-```
-fest show all [flags]
-```
-
-### Options
-
-```
-  -h, --help   help for all
-      --json   output in JSON format
-```
-
-### Options inherited from parent commands
-
-```
-      --config string   config file (default: ~/.obey/fest/config.json)
-      --debug           enable debug logging
-      --no-color        disable colored output
-      --verbose         enable verbose output
-```
----
-
-## fest show completed
-
-List completed festivals
-
-```
-fest show completed [flags]
-```
-
-### Options
-
-```
-  -h, --help   help for completed
-      --json   output in JSON format
-```
-
-### Options inherited from parent commands
-
-```
-      --config string   config file (default: ~/.obey/fest/config.json)
-      --debug           enable debug logging
-      --no-color        disable colored output
-      --verbose         enable verbose output
-```
----
-
-## fest show dungeon
-
-List festivals in dungeon/ directory
-
-### Synopsis
-
-List festivals in dungeon/ directory.
-
-Optionally specify a substatus: completed, archived, someday.
-Without a substatus, lists all dungeon festivals.
-
-```
-fest show dungeon [substatus] [flags]
-```
-
-### Options
-
-```
-  -h, --help   help for dungeon
-      --json   output in JSON format
-```
-
-### Options inherited from parent commands
-
-```
-      --config string   config file (default: ~/.obey/fest/config.json)
-      --debug           enable debug logging
-      --no-color        disable colored output
-      --verbose         enable verbose output
-```
----
-
-## fest show planning
-
-List festivals in planning/ directory
-
-```
-fest show planning [flags]
-```
-
-### Options
-
-```
-  -h, --help   help for planning
-      --json   output in JSON format
 ```
 
 ### Options inherited from parent commands
@@ -5713,6 +5588,34 @@ fest understand [flags]
 ```
 ---
 
+## fest understand chains
+
+Chains: dependencies between festivals
+
+### Synopsis
+
+Link festivals so a downstream festival waits for its upstream dependencies, via fest chain.
+
+```
+fest understand chains [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for chains
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
 ## fest understand checklist
 
 Quick festival validation checklist
@@ -5859,6 +5762,34 @@ fest understand gates [flags]
 ```
 ---
 
+## fest understand lifecycle
+
+Festival lifecycle: planning -> ready -> active -> dungeon
+
+### Synopsis
+
+How festivals move through lifecycle directories, and how fest promote advances them.
+
+```
+fest understand lifecycle [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for lifecycle
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
 ## fest understand loop
 
 The fest next loop: festivals and standalone WORKFLOW.md as work loops
@@ -5962,6 +5893,34 @@ fest understand nodeids [flags]
 ```
 ---
 
+## fest understand planning
+
+The planning process: turning a goal into a structured plan
+
+### Synopsis
+
+How a goal becomes a festival: define, break down, organize into phases, plus common phase patterns.
+
+```
+fest understand planning [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for planning
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
 ## fest understand plugins
 
 Show discovered plugins
@@ -6016,6 +5975,62 @@ fest understand resources [flags]
 
 ```
   -h, --help   help for resources
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
+## fest understand rituals
+
+Ritual festivals: reusable templates for recurring work
+
+### Synopsis
+
+Define recurring work once as a ritual, then spin up fresh runs with fest ritual run.
+
+```
+fest understand rituals [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for rituals
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
+## fest understand roles
+
+Human vs agent responsibilities and the planning/implementation boundary
+
+### Synopsis
+
+Who does what in the human-AI collaboration, and the rule that implementation steps only follow defined requirements.
+
+```
+fest understand roles [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for roles
 ```
 
 ### Options inherited from parent commands
