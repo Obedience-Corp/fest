@@ -7100,7 +7100,9 @@ fest workflow approve [flags]
 ### Options
 
 ```
-  -h, --help   help for approve
+      --as string        decision actor: user or agent (default "user")
+  -h, --help             help for approve
+      --summary string   approval summary or rationale
 ```
 
 ### Options inherited from parent commands
@@ -7231,6 +7233,7 @@ Examples:
 ```bash
   fest workflow reject --reason "needs revision"
   fest workflow reject --reason "PR not ready" --remediation-phase 005_FIX_PR_302
+  fest workflow reject --as agent --reason "missing acceptance proof"
 ```
 
 ```
@@ -7240,9 +7243,11 @@ fest workflow reject [flags]
 ### Options
 
 ```
+      --as string                  decision actor: user or agent (default "user")
   -h, --help                       help for reject
   -r, --reason string              reason for rejection (required)
       --remediation-phase string   link a remediation phase for a failed gate (e.g. 005_FIX_PR_302)
+      --summary string             decision summary or rationale
 ```
 
 ### Options inherited from parent commands

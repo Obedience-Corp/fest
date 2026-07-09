@@ -8,6 +8,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
+	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -17,6 +18,8 @@ import (
 func newRejectCmd() *cobra.Command {
 	var reason string
 	var remediationPhase string
+	var actor string
+	var summary string
 
 	cmd := &cobra.Command{
 		Use:   "reject",
@@ -36,7 +39,8 @@ Failed gates with remediation:
 
 Examples:
   fest workflow reject --reason "needs revision"
-  fest workflow reject --reason "PR not ready" --remediation-phase 005_FIX_PR_302`,
+  fest workflow reject --reason "PR not ready" --remediation-phase 005_FIX_PR_302
+  fest workflow reject --as agent --reason "missing acceptance proof"`,
 		Annotations: map[string]string{
 			"scope": string(scope.Festival),
 		},
@@ -45,12 +49,18 @@ Examples:
 				return festerrors.Validation("--reason is required").
 					WithHint("Usage: fest workflow reject --reason \"your feedback here\"")
 			}
-			return runRejectWithRemediation(cmd.Context(), reason, remediationPhase)
+			decision, err := normalizeDecision("rejection", actor, summary, reason)
+			if err != nil {
+				return err
+			}
+			return runRejectWithRemediationDecision(cmd.Context(), reason, remediationPhase, decision)
 		},
 	}
 
 	cmd.Flags().StringVarP(&reason, "reason", "r", "", "reason for rejection (required)")
 	cmd.Flags().StringVar(&remediationPhase, "remediation-phase", "", "link a remediation phase for a failed gate (e.g. 005_FIX_PR_302)")
+	cmd.Flags().StringVar(&actor, "as", decisionActorUser, "decision actor: user or agent")
+	cmd.Flags().StringVar(&summary, "summary", "", "decision summary or rationale")
 	_ = cmd.MarkFlagRequired("reason")
 
 	return cmd
@@ -61,6 +71,10 @@ func runReject(ctx context.Context, reason string) error {
 }
 
 func runRejectWithRemediation(ctx context.Context, reason, remediationPhase string) error {
+	return runRejectWithRemediationDecision(ctx, reason, remediationPhase, wf.DecisionMetadata{Actor: decisionActorUser})
+}
+
+func runRejectWithRemediationDecision(ctx context.Context, reason, remediationPhase string, decision wf.DecisionMetadata) error {
 	nav, err := getWorkflowNavigator(ctx)
 	if err != nil {
 		return err
@@ -104,7 +118,7 @@ func runRejectWithRemediation(ctx context.Context, reason, remediationPhase stri
 		if err := validateRemediationPhase(nav.Ctx.FestivalPath, remediationPhase); err != nil {
 			return err
 		}
-		if err := nav.RejectWithRemediation(ctx, reason, remediationPhase); err != nil {
+		if err := nav.RejectWithRemediationDecision(ctx, reason, remediationPhase, decision); err != nil {
 			return festerrors.Wrap(err, "recording failed gate with remediation")
 		}
 		fmt.Printf("%s Step %d: %s failed with remediation\n", ui.Warning("⚠"), currentStepNum, step.Name)
@@ -115,12 +129,18 @@ func runRejectWithRemediation(ctx context.Context, reason, remediationPhase stri
 		return nil
 	}
 
-	if err := nav.Reject(ctx, reason); err != nil {
+	if err := nav.RejectWithDecision(ctx, reason, decision); err != nil {
 		return festerrors.Wrap(err, "rejecting checkpoint")
 	}
 
 	fmt.Printf("%s Step %d: %s rejected\n", ui.Warning("⚠"), currentStepNum, step.Name)
 	fmt.Printf("  %s: %s\n\n", ui.Label("Feedback"), reason)
+	if decision.Actor != "" {
+		fmt.Printf("  %s: %s\n", ui.Label("Rejected by"), decision.Actor)
+	}
+	if decision.Summary != "" && decision.Summary != reason {
+		fmt.Printf("  %s: %s\n", ui.Label("Summary"), decision.Summary)
+	}
 	fmt.Println("The step is now blocked. Address the feedback and revise the work.")
 	fmt.Println("When ready, run " + ui.Accent("fest workflow advance") + " to resubmit.")
 
