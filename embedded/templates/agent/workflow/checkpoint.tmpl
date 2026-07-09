@@ -36,6 +36,15 @@ Step {{.StepNumber}}: {{.StepName}}
 
 This step requires explicit user confirmation before proceeding.
 
+{{- if .Goal}}
+**Question:** {{.Goal}}
+
+{{- end}}
+{{- if .Actions}}
+**Actions to verify:**
+{{range .Actions}}- {{.}}
+{{end}}
+{{end}}
 **What you should do:**
 1. Present your work to the user
 2. Summarize what you've completed
