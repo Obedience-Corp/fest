@@ -43,4 +43,3 @@ fest feedback view [flags]
 ### SEE ALSO
 
 * [fest feedback](fest_feedback.md)	 - Manage structured feedback collection
-

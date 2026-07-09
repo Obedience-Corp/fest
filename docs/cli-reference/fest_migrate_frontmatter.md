@@ -41,4 +41,3 @@ fest migrate frontmatter [flags]
 ### SEE ALSO
 
 * [fest migrate](fest_migrate.md)	 - Migrate festival documents
-

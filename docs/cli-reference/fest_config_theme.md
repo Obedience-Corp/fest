@@ -35,4 +35,3 @@ Use 'fest config theme test' to preview all themes on your terminal.
 * [fest config theme set](fest_config_theme_set.md)	 - Set the TUI theme
 * [fest config theme show](fest_config_theme_show.md)	 - Show current theme setting
 * [fest config theme test](fest_config_theme_test.md)	 - Preview all themes side by side
-

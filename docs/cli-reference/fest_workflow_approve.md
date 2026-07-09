@@ -36,4 +36,3 @@ fest workflow approve [flags]
 ### SEE ALSO
 
 * [fest workflow](fest_workflow.md)	 - Manage workflow-based phase execution
-

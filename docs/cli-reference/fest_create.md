@@ -29,4 +29,3 @@ fest create [flags]
 * [fest create sequence](fest_create_sequence.md)	 - Insert a new sequence and render its goal file
 * [fest create task](fest_create_task.md)	 - Insert a new task file in a sequence
 * [fest create workflow](fest_create_workflow.md)	 - Create a standalone or phase WORKFLOW.md from structured step definitions
-
