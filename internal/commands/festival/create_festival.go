@@ -645,11 +645,16 @@ func autoScaffoldPhases(ctx context.Context, cfg *createConfig, created []string
 	var autoPhasesCreated []string
 	autoPhases := cfg.festivalType.GetAutoPhases()
 	for i, phaseSpec := range autoPhases {
+		phaseContext := ""
+		if cfg.seedRequested && phaseSpec.Type == "ingest" {
+			phaseContext = "Seeded input is available in input_specs/seed.md and should be transformed into structured output specs for planning."
+		}
 		phaseOpts := &CreatePhaseOptions{
 			After:       i,
 			Name:        phaseSpec.Name,
 			PhaseType:   mapPhaseSpecType(phaseSpec.Type),
 			Description: phaseSpec.Description,
+			Context:     phaseContext,
 			Path:        cfg.destDir,
 			SkipMarkers: cfg.skipMarkers,
 			JSONOutput:  false,

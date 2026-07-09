@@ -34,7 +34,7 @@ func setupFestivalTemplatesWithMarkers(t *testing.T, festivalsDir string) {
 	}
 
 	// GOAL.md with festival-level markers that should be auto-filled
-	goalContent := "# Festival Goal\n\n**Name:** {{.festival_name}}\n**Goal:** {{.festival_goal}}\n"
+	goalContent := "# Festival Goal\n\n**Name:** {{.festival_name}}\n**Goal:** [REPLACE: One sentence describing what this festival accomplishes]\n"
 	_ = os.WriteFile(filepath.Join(festivalTemplatesDir, "GOAL.md"), []byte(goalContent), 0644)
 
 	// OVERVIEW.md with festival name marker
@@ -47,7 +47,7 @@ func setupFestivalTemplatesWithMarkers(t *testing.T, festivalsDir string) {
 
 	// Phase templates with type-specific "Primary Goal" markers
 	phaseTemplates := map[string]string{
-		"ingest":         "# Phase Goal: {{.phase_name}}\n\n**Primary Goal:** [REPLACE: What this ingest phase will transform and why]\n",
+		"ingest":         "# Phase Goal: {{.phase_name}}\n\n**Primary Goal:** [REPLACE: What this ingest phase will transform and why]\n\n**Context:** [REPLACE: Where the input came from and how the structured output will be used]\n",
 		"planning":       "# Phase Goal: {{.phase_name}}\n\n**Primary Goal:** [REPLACE: What this planning phase needs to figure out or decide]\n",
 		"implementation": "# Phase Goal: {{.phase_name}}\n\n**Primary Goal:** [REPLACE: What this implementation phase must deliver]\n",
 		"research":       "# Phase Goal: {{.phase_name}}\n\n**Primary Goal:** [REPLACE: What question or problem this research aims to answer]\n",
@@ -187,6 +187,9 @@ func TestCreateFestivalZeroMarkers(t *testing.T) {
 				Type:       tt.festType,
 				Dest:       "planning",
 				JSONOutput: true,
+			}
+			if tt.festType != "implementation" {
+				opts.Seed = "Seeded workitem context"
 			}
 
 			err := RunCreateFestival(context.Background(), opts)
