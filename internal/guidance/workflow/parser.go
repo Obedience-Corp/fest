@@ -21,8 +21,8 @@ var (
 	// actionsRe matches the actions section
 	actionsRe = regexp.MustCompile(`(?s)\*\*Actions:\*\*\s*(.+?)(?:\n\n|\n\*\*)`)
 
-	// actionItemRe matches individual action items (numbered list)
-	actionItemRe = regexp.MustCompile(`(?m)^\s*\d+\.\s+(.+)$`)
+	// actionItemRe matches top-level numbered action items.
+	actionItemRe = regexp.MustCompile(`^\s*\d+\.\s+(.+)$`)
 
 	// outputRe matches the output section
 	outputRe = regexp.MustCompile(`(?s)\*\*Output:\*\*\s*(.+?)(?:\n\n|\n\*\*|$)`)
@@ -99,13 +99,7 @@ func (p *Parser) ParseContent(ctx context.Context, content string) ([]WorkflowSt
 
 		// Extract actions
 		if actionsMatch := actionsRe.FindStringSubmatch(section); len(actionsMatch) > 1 {
-			actionItems := actionItemRe.FindAllStringSubmatch(actionsMatch[1], -1)
-			step.Actions = make([]string, 0, len(actionItems))
-			for _, item := range actionItems {
-				if len(item) > 1 {
-					step.Actions = append(step.Actions, strings.TrimSpace(item[1]))
-				}
-			}
+			step.Actions = parseActionItems(actionsMatch[1])
 		}
 
 		// Extract output
@@ -120,6 +114,36 @@ func (p *Parser) ParseContent(ctx context.Context, content string) ([]WorkflowSt
 	}
 
 	return steps, nil
+}
+
+func parseActionItems(actionsBlock string) []string {
+	var actions []string
+	var current []string
+
+	flush := func() {
+		if len(current) == 0 {
+			return
+		}
+		actions = append(actions, strings.TrimSpace(strings.Join(current, "\n")))
+		current = nil
+	}
+
+	for _, rawLine := range strings.Split(actionsBlock, "\n") {
+		line := strings.TrimRight(rawLine, " \t\r")
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if match := actionItemRe.FindStringSubmatch(line); len(match) > 1 {
+			flush()
+			current = append(current, strings.TrimSpace(match[1]))
+			continue
+		}
+		if len(current) > 0 {
+			current = append(current, line)
+		}
+	}
+	flush()
+	return actions
 }
 
 // parseCheckpoint determines the checkpoint type from the section content.

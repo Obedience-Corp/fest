@@ -93,6 +93,8 @@ func (n *Navigator) formatCheckpoint(step WorkflowStep) (string, error) {
 		"InstructionHeader": guidance.InstructionHeader,
 		"StepNumber":        step.Number,
 		"StepName":          step.Name,
+		"Goal":              step.Goal,
+		"Actions":           step.Actions,
 	}
 
 	return agent.Render("workflow/checkpoint", data)

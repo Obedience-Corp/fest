@@ -37,4 +37,3 @@ fest feedback criteria add [flags]
 ### SEE ALSO
 
 * [fest feedback criteria](fest_feedback_criteria.md)	 - Manage feedback criteria
-

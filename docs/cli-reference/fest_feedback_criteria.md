@@ -21,4 +21,3 @@ Manage feedback criteria
 
 * [fest feedback](fest_feedback.md)	 - Manage structured feedback collection
 * [fest feedback criteria add](fest_feedback_criteria_add.md)	 - Add feedback criteria
-
