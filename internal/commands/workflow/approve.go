@@ -228,8 +228,17 @@ Or pass --judge-command <cmd> for a one-off.`)
 }
 
 func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, step wf.WorkflowStep, opts approvalJudgeOptions) error {
+	// Record the judge invocation before running it so watchers can render
+	// the waiting-on-judge state and a hung or crashed judge leaves a trace.
+	if err := nav.BeginJudge(ctx, opts.JudgeCommand); err != nil {
+		return festerrors.Wrap(err, "recording judge start")
+	}
+
 	decision, audit, err := judgeApproval(ctx, nav, step, opts)
 	if err != nil {
+		if recErr := nav.RecordJudgeOutcome(ctx, wf.JudgeFailed, err.Error()); recErr != nil {
+			fmt.Printf("%s failed to record judge outcome: %v\n", ui.Warning("⚠"), recErr)
+		}
 		return err
 	}
 
@@ -237,6 +246,9 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 
 	switch decision.Decision {
 	case "approve":
+		if err := nav.RecordJudgeOutcome(ctx, wf.JudgeApproved, decision.Reason); err != nil {
+			return festerrors.Wrap(err, "recording judge outcome")
+		}
 		if err := nav.ApproveWithAudit(ctx, audit, judgeDecision); err != nil {
 			return festerrors.Wrap(err, "approving checkpoint from judge decision")
 		}
@@ -244,6 +256,9 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 		fmt.Printf("  %s: %s\n", ui.Label("Reason"), decision.Reason)
 		return showNextStep(ctx, nav, nav.GetSteps())
 	case "reject":
+		if err := nav.RecordJudgeOutcome(ctx, wf.JudgeRejected, decision.Reason); err != nil {
+			return festerrors.Wrap(err, "recording judge outcome")
+		}
 		if err := nav.RejectWithDecision(ctx, audit, judgeDecision); err != nil {
 			return festerrors.Wrap(err, "recording judge rejection")
 		}

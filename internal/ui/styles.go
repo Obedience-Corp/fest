@@ -66,6 +66,7 @@ var (
 var (
 	PendingColor    = lipgloss.Color("250") // Light grey - not yet started (updated from 245)
 	InProgressColor = lipgloss.Color("220") // Yellow/amber - actively being worked
+	JudgeColor      = lipgloss.Color("135") // Purple - checkpoint waiting on a delegated judge
 	BlockedColor    = lipgloss.Color("196") // Red - blocked/waiting
 )
 

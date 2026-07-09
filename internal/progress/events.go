@@ -43,6 +43,14 @@ const (
 	// EventWorkflowStepRecheck records that the operator is re-entering a
 	// previously failed remediation step for re-evaluation.
 	EventWorkflowStepRecheck EventType = "wf_step_recheck"
+
+	// EventWorkflowJudgeStarted records that a delegated approval judge run
+	// was invoked on a blocking checkpoint via 'fest workflow approve --auto'.
+	EventWorkflowJudgeStarted EventType = "wf_judge_started"
+
+	// EventWorkflowJudgeReturned records how a delegated judge run ended:
+	// approved, rejected, or failed (timeout, missing command, bad verdict).
+	EventWorkflowJudgeReturned EventType = "wf_judge_returned"
 )
 
 // ProgressEvent represents a single progress event in JSONL format.
@@ -66,6 +74,9 @@ type ProgressEvent struct {
 	RemediationPhase string `json:"remediation_phase,omitempty"`
 	DecisionActor    string `json:"decision_actor,omitempty"`
 	DecisionSummary  string `json:"decision_summary,omitempty"`
+	JudgeStatus      string `json:"judge_status,omitempty"`
+	JudgeCommand     string `json:"judge_command,omitempty"`
+	JudgeDetail      string `json:"judge_detail,omitempty"`
 }
 
 // loadFromEvents reads the JSONL file and materializes current state.
@@ -391,7 +402,27 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 				ss.DecisionActor = ""
 				ss.DecisionSummary = ""
 				ss.DecisionAt = nil
+				ss.Judge = nil
 			}
+
+		case EventWorkflowJudgeStarted:
+			ss := phaseState.GetOrCreateStepState(e.Step)
+			ts := e.Timestamp
+			ss.Judge = &wf.JudgeState{
+				Status:    wf.JudgeRunning,
+				Command:   e.JudgeCommand,
+				StartedAt: &ts,
+			}
+
+		case EventWorkflowJudgeReturned:
+			ss := phaseState.GetOrCreateStepState(e.Step)
+			if ss.Judge == nil {
+				ss.Judge = &wf.JudgeState{}
+			}
+			ts := e.Timestamp
+			ss.Judge.Status = e.JudgeStatus
+			ss.Judge.Detail = e.JudgeDetail
+			ss.Judge.FinishedAt = &ts
 
 		case EventWorkflowAdvance:
 			phaseState.CurrentStep = e.Step

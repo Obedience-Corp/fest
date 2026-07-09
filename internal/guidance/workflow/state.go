@@ -47,12 +47,45 @@ type WorkflowEvent struct {
 	RemediationPhase string
 	DecisionActor    string
 	DecisionSummary  string
+	JudgeStatus      string
+	JudgeCommand     string
+	JudgeDetail      string
 }
 
 // DecisionMetadata records who made a checkpoint decision and the rationale.
 type DecisionMetadata struct {
 	Actor   string
 	Summary string
+}
+
+// Judge lifecycle status values recorded on StepState.Judge.
+const (
+	JudgeRunning  = "running"
+	JudgeApproved = "approved"
+	JudgeRejected = "rejected"
+	JudgeFailed   = "failed"
+)
+
+// JudgeState tracks the lifecycle of a delegated approval judge run for a
+// blocking checkpoint. It is persisted (and event-sourced) so concurrent
+// watchers like 'fest show --watch' can render a waiting-on-judge indicator
+// while the judge command runs, and so timeouts or judge crashes leave a
+// durable failed record instead of vanishing.
+type JudgeState struct {
+	// Status is one of running, approved, rejected, failed.
+	Status string `yaml:"status" json:"status"`
+
+	// Command is the judge command that was invoked.
+	Command string `yaml:"command,omitempty" json:"command,omitempty"`
+
+	// Detail carries the judge reason (approved/rejected) or the error text (failed).
+	Detail string `yaml:"detail,omitempty" json:"detail,omitempty"`
+
+	// StartedAt is when the judge command was invoked.
+	StartedAt *time.Time `yaml:"started_at,omitempty" json:"started_at,omitempty"`
+
+	// FinishedAt is when the judge outcome was recorded.
+	FinishedAt *time.Time `yaml:"finished_at,omitempty" json:"finished_at,omitempty"`
 }
 
 // StepState tracks the state of a single workflow step.
@@ -84,6 +117,10 @@ type StepState struct {
 
 	// DecisionAt is when the checkpoint decision was recorded.
 	DecisionAt *time.Time `yaml:"decision_at,omitempty" json:"decision_at,omitempty"`
+
+	// Judge tracks the delegated approval judge run for this checkpoint, when
+	// one was invoked via 'fest workflow approve --auto'.
+	Judge *JudgeState `yaml:"judge,omitempty" json:"judge,omitempty"`
 }
 
 // FestivalWorkflowState contains workflow state for all phases in a festival.
@@ -299,6 +336,29 @@ func (s *WorkflowState) StartCurrentStep() {
 		now := time.Now().UTC()
 		state.StartedAt = &now
 	}
+}
+
+// BeginJudge records a delegated judge run starting on the current step.
+func (s *WorkflowState) BeginJudge(command string, at time.Time) {
+	state := s.GetOrCreateStepState(s.CurrentStep)
+	started := at
+	state.Judge = &JudgeState{
+		Status:    JudgeRunning,
+		Command:   command,
+		StartedAt: &started,
+	}
+}
+
+// RecordJudgeOutcome records how the current step's judge run ended.
+func (s *WorkflowState) RecordJudgeOutcome(status, detail string, at time.Time) {
+	state := s.GetOrCreateStepState(s.CurrentStep)
+	if state.Judge == nil {
+		state.Judge = &JudgeState{}
+	}
+	finished := at
+	state.Judge.Status = status
+	state.Judge.Detail = detail
+	state.Judge.FinishedAt = &finished
 }
 
 // CompleteCurrentStep marks the current step as completed.
@@ -590,5 +650,30 @@ func EmitResetEvents(phaseName string) []WorkflowEvent {
 	return []WorkflowEvent{{
 		EventType: "wf_reset",
 		Phase:     phaseName,
+	}}
+}
+
+// EmitJudgeStartedEvents generates events for a delegated judge run starting
+// on a blocking checkpoint.
+func EmitJudgeStartedEvents(phaseName string, step int, command string) []WorkflowEvent {
+	return []WorkflowEvent{{
+		EventType:    "wf_judge_started",
+		Phase:        phaseName,
+		Step:         step,
+		JudgeStatus:  JudgeRunning,
+		JudgeCommand: command,
+	}}
+}
+
+// EmitJudgeReturnedEvents generates events recording how a delegated judge
+// run ended: approved, rejected, or failed (timeout, missing command,
+// malformed verdict).
+func EmitJudgeReturnedEvents(phaseName string, step int, status, detail string) []WorkflowEvent {
+	return []WorkflowEvent{{
+		EventType:   "wf_judge_returned",
+		Phase:       phaseName,
+		Step:        step,
+		JudgeStatus: status,
+		JudgeDetail: detail,
 	}}
 }

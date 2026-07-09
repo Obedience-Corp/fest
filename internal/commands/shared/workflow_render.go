@@ -24,6 +24,13 @@ type WorkflowStepView struct {
 	HasCheckpoint bool
 	Goal          string
 	Feedback      string
+	Judge         *wf.JudgeState
+}
+
+// JudgeWaiting reports whether this step is currently waiting on a delegated
+// approval judge: the judge run started and no outcome has been recorded.
+func (v WorkflowStepView) JudgeWaiting() bool {
+	return v.Judge != nil && v.Judge.Status == wf.JudgeRunning
 }
 
 // WorkflowStepIcon returns the styled icon for a step status.
@@ -51,6 +58,9 @@ func RenderWorkflowStepLine(step WorkflowStepView, compact bool) string {
 	var sb strings.Builder
 
 	icon := WorkflowStepIcon(step.Status)
+	if step.JudgeWaiting() {
+		icon = ui.ColoredText("⚖", ui.JudgeColor)
+	}
 
 	// Current marker
 	marker := "  "
@@ -69,6 +79,9 @@ func RenderWorkflowStepLine(step WorkflowStepView, compact bool) string {
 	if step.HasCheckpoint {
 		checkpoint = ui.Warning(" [checkpoint]")
 	}
+	if step.JudgeWaiting() {
+		checkpoint += ui.ColoredText(" [waiting on judge]", ui.JudgeColor)
+	}
 
 	fmt.Fprintf(&sb, "%s%s Step %d: %s%s\n",
 		marker, icon, step.Number, stepName, checkpoint)
@@ -84,6 +97,21 @@ func RenderWorkflowStepLine(step WorkflowStepView, compact bool) string {
 			fmt.Fprintf(&sb, "     %s: %s\n", ui.Error("Feedback"), step.Feedback)
 		case wf.StepStatusSkipped, wf.StepStatusCompleted:
 			fmt.Fprintf(&sb, "     %s: %s\n", ui.Warning("Note"), step.Feedback)
+		}
+	}
+
+	if !compact && step.Judge != nil {
+		switch step.Judge.Status {
+		case wf.JudgeRunning:
+			started := ""
+			if step.Judge.StartedAt != nil {
+				started = " since " + step.Judge.StartedAt.Local().Format("15:04:05")
+			}
+			fmt.Fprintf(&sb, "     %s\n", ui.ColoredText(fmt.Sprintf("Waiting on judge (%s)%s", step.Judge.Command, started), ui.JudgeColor))
+		case wf.JudgeFailed:
+			fmt.Fprintf(&sb, "     %s: %s\n", ui.Error("Judge failed (fails closed)"), step.Judge.Detail)
+		case wf.JudgeApproved, wf.JudgeRejected:
+			fmt.Fprintf(&sb, "     %s: %s\n", ui.Dim("Judge "+step.Judge.Status), step.Judge.Detail)
 		}
 	}
 
@@ -147,9 +175,11 @@ func LoadWorkflowStepsForPhase(ctx context.Context, festivalPath, phasePath stri
 		stepState := state.GetStepState(step.Number)
 		status := wf.StepStatusPending
 		feedback := ""
+		var judge *wf.JudgeState
 		if stepState != nil {
 			status = stepState.Status
 			feedback = stepState.Feedback
+			judge = stepState.Judge
 		}
 
 		views[i] = WorkflowStepView{
@@ -160,6 +190,7 @@ func LoadWorkflowStepsForPhase(ctx context.Context, festivalPath, phasePath stri
 			HasCheckpoint: step.HasCheckpoint(),
 			Goal:          step.Goal,
 			Feedback:      feedback,
+			Judge:         judge,
 		}
 	}
 
@@ -241,9 +272,11 @@ func LoadGateStepsForPhase(ctx context.Context, festivalPath, phasePath string) 
 		stepState := state.GetStepState(step.Number)
 		status := wf.StepStatusPending
 		feedback := ""
+		var judge *wf.JudgeState
 		if stepState != nil {
 			status = stepState.Status
 			feedback = stepState.Feedback
+			judge = stepState.Judge
 		}
 
 		views[i] = WorkflowStepView{
@@ -254,6 +287,7 @@ func LoadGateStepsForPhase(ctx context.Context, festivalPath, phasePath string) 
 			HasCheckpoint: step.HasCheckpoint(),
 			Goal:          step.Goal,
 			Feedback:      feedback,
+			Judge:         judge,
 		}
 	}
 
