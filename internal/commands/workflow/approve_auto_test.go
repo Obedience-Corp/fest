@@ -229,7 +229,7 @@ func TestEvaluateApprovalJudge_EmptyReasonFailsClosed(t *testing.T) {
 	}
 }
 
-func TestWorkflowStateApproveWithFeedbackRecordsAudit(t *testing.T) {
+func TestWorkflowStateApproveWithAuditRecordsAuditAndDecision(t *testing.T) {
 	state := wf.NewWorkflowState(2)
 	state.Initialize([]wf.WorkflowStep{
 		{Number: 1, Name: "VERIFY"},
@@ -237,8 +237,9 @@ func TestWorkflowStateApproveWithFeedbackRecordsAudit(t *testing.T) {
 	})
 
 	audit := `approval auto mode: schema_version=fest.approval.judge/v1 judge_command="fake judge" decision=approve reason="ok"`
-	if err := state.ApproveWithFeedback(audit); err != nil {
-		t.Fatalf("ApproveWithFeedback: %v", err)
+	decision := wf.DecisionMetadata{Actor: "agent", Summary: "ok"}
+	if err := state.ApproveWithAudit(audit, decision); err != nil {
+		t.Fatalf("ApproveWithAudit: %v", err)
 	}
 
 	step := state.GetStepState(1)
@@ -250,6 +251,15 @@ func TestWorkflowStateApproveWithFeedbackRecordsAudit(t *testing.T) {
 	}
 	if step.Feedback != audit {
 		t.Fatalf("feedback = %q, want audit", step.Feedback)
+	}
+	if step.DecisionActor != "agent" {
+		t.Fatalf("decision actor = %q, want agent", step.DecisionActor)
+	}
+	if step.DecisionSummary != "ok" {
+		t.Fatalf("decision summary = %q, want ok", step.DecisionSummary)
+	}
+	if step.DecisionAt == nil {
+		t.Fatal("decision timestamp missing")
 	}
 	if state.CurrentStep != 2 {
 		t.Fatalf("current step = %d, want 2", state.CurrentStep)
