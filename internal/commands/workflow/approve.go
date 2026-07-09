@@ -268,9 +268,18 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 		fmt.Println("When ready, run " + ui.Accent("fest workflow advance") + " to resubmit.")
 		return nil
 	default:
-		return festerrors.Validation("approval judge returned unsupported decision").
+		// Unreachable today: parseApprovalJudgeResponse already rejects any
+		// decision outside {approve, reject} (that path records JudgeFailed via
+		// the error branch above). Kept fail-closed so the judge lifecycle is
+		// still resolved rather than left "running" if that validation is ever
+		// relaxed.
+		unsupported := festerrors.Validation("approval judge returned unsupported decision").
 			WithField("decision", decision.Decision).
 			WithHint("allowed decisions are approve and reject")
+		if recErr := nav.RecordJudgeOutcome(ctx, wf.JudgeFailed, unsupported.Error()); recErr != nil {
+			fmt.Printf("%s failed to record judge outcome: %v\n", ui.Warning("⚠"), recErr)
+		}
+		return unsupported
 	}
 }
 

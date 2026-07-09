@@ -482,6 +482,7 @@ func (s *WorkflowState) Reset() {
 		state.DecisionActor = ""
 		state.DecisionSummary = ""
 		state.DecisionAt = nil
+		state.Judge = nil
 	}
 	s.UpdatedAt = time.Now().UTC()
 }

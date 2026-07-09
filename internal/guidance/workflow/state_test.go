@@ -362,6 +362,10 @@ func TestWorkflowState_Reset(t *testing.T) {
 	state.CompleteCurrentStep()
 	state.CurrentStep = 3
 
+	// A delegated judge run recorded on a step must not survive a reset,
+	// otherwise ghost waiting/outcome UI persists after the workflow is reset.
+	state.Steps[2].Judge = &JudgeState{Status: JudgeRunning, Command: "ob judge"}
+
 	state.Reset()
 
 	if state.CurrentStep != 1 {
@@ -380,6 +384,9 @@ func TestWorkflowState_Reset(t *testing.T) {
 		}
 		if step.Feedback != "" {
 			t.Errorf("Steps[%d].Feedback should be empty", i)
+		}
+		if step.Judge != nil {
+			t.Errorf("Steps[%d].Judge should be nil after reset", i)
 		}
 	}
 }

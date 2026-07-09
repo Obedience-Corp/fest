@@ -49,6 +49,33 @@ func TestMaterializeWorkflowState_SkippedAndCompleted(t *testing.T) {
 	}
 }
 
+func TestMaterializeWorkflowState_ResetClearsJudge(t *testing.T) {
+	now := time.Now().UTC()
+	events := []ProgressEvent{
+		{Timestamp: now, Event: EventWorkflowInit, Phase: "001_INGEST", TotalSteps: 2},
+		{Timestamp: now.Add(1 * time.Second), Event: EventWorkflowJudgeStarted, Phase: "001_INGEST", Step: 1, JudgeCommand: "ob judge"},
+		{Timestamp: now.Add(2 * time.Second), Event: EventWorkflowJudgeReturned, Phase: "001_INGEST", Step: 1, JudgeStatus: wf.JudgeApproved, JudgeDetail: "evidence complete"},
+		{Timestamp: now.Add(3 * time.Second), Event: EventWorkflowReset, Phase: "001_INGEST"},
+	}
+
+	state := materializeWorkflowState(events)
+	phaseState, ok := state.Phases["001_INGEST"]
+	if !ok {
+		t.Fatal("expected phase state for 001_INGEST")
+	}
+
+	step1 := phaseState.GetStepState(1)
+	if step1 == nil {
+		t.Fatal("expected step 1 state")
+	}
+	if step1.Judge != nil {
+		t.Fatalf("step 1 Judge should be nil after reset, got %+v", step1.Judge)
+	}
+	if step1.Status != wf.StepStatusPending {
+		t.Fatalf("step 1 status = %s, want %s after reset", step1.Status, wf.StepStatusPending)
+	}
+}
+
 func TestGenerateWorkflowEventsFromYAML_EmitsStepSkip(t *testing.T) {
 	now := time.Now().UTC()
 	phaseState := wf.NewWorkflowState(2)

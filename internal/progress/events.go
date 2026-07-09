@@ -437,6 +437,7 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 				ss.DecisionActor = ""
 				ss.DecisionSummary = ""
 				ss.DecisionAt = nil
+				ss.Judge = nil
 			}
 		}
 
