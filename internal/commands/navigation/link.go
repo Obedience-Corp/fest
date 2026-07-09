@@ -92,7 +92,7 @@ func runLink(ctx context.Context, targetPath string, opts *linkOptions) error {
 			}
 			projectDir = absPath
 		}
-		return linkProjectToFestival(projectDir, opts.force)
+		return linkProjectToFestival(ctx, projectDir, opts.force)
 	}
 
 	// Inside a festival - detect location for festival metadata
@@ -137,25 +137,19 @@ func runLink(ctx context.Context, targetPath string, opts *linkOptions) error {
 		}
 	}
 
-	// Load navigation state
-	nav, err := navigation.LoadNavigation()
-	if err != nil {
-		return errors.Wrap(err, "loading navigation state")
-	}
-
 	// Create link with festival path for reverse navigation
 	festivalName := loc.Festival.Name
 	festivalPath := loc.Festival.Path
 
-	if _, err := guardProjectConflict(nav, festivalName, absPath, opts.force); err != nil {
+	var evicted string
+	if err := navigation.Update(ctx, func(nav *navigation.Navigation) error {
+		if _, err := guardProjectConflict(nav, festivalName, absPath, opts.force); err != nil {
+			return err
+		}
+		evicted = nav.SetLinkWithPath(festivalName, absPath, festivalPath)
+		return nil
+	}); err != nil {
 		return err
-	}
-
-	evicted := nav.SetLinkWithPath(festivalName, absPath, festivalPath)
-
-	// Save navigation state
-	if err := nav.Save(); err != nil {
-		return errors.Wrap(err, "saving navigation state")
 	}
 
 	// Output result
@@ -316,13 +310,12 @@ func runUnlink(ctx context.Context, jsonOutput bool) error {
 		}
 	}
 
-	removed := nav.RemoveLink(festivalName)
-
-	if removed {
-		// Save navigation state
-		if err := nav.Save(); err != nil {
-			return errors.Wrap(err, "saving navigation state")
-		}
+	var removed bool
+	if err := navigation.Update(ctx, func(nav *navigation.Navigation) error {
+		removed = nav.RemoveLink(festivalName)
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	if jsonOutput {

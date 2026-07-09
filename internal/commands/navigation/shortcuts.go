@@ -53,7 +53,7 @@ Usage with fgo:
 			if len(args) > 1 {
 				path = args[1]
 			}
-			return runGoMap(name, path, jsonOutput)
+			return runGoMap(cmd.Context(), name, path, jsonOutput)
 		},
 	}
 
@@ -62,7 +62,7 @@ Usage with fgo:
 	return cmd
 }
 
-func runGoMap(name, path string, jsonOutput bool) error {
+func runGoMap(ctx context.Context, name, path string, jsonOutput bool) error {
 	// Validate shortcut name
 	if !isValidShortcutName(name) {
 		return errors.Validation("invalid shortcut name").
@@ -97,19 +97,11 @@ func runGoMap(name, path string, jsonOutput bool) error {
 		return errors.Validation("path must be a directory").WithField("path", absPath)
 	}
 
-	// Load navigation state
-	nav, err := navigation.LoadNavigation()
-	if err != nil {
-		return errors.Wrap(err, "loading navigation state")
-	}
-
-	// Create shortcut
-	nav.Shortcuts[name] = absPath
-	nav.UpdatedAt = time.Now().UTC()
-
-	// Save navigation state
-	if err := nav.Save(); err != nil {
-		return errors.Wrap(err, "saving navigation state")
+	if err := navigation.Update(ctx, func(nav *navigation.Navigation) error {
+		nav.Shortcuts[name] = absPath
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	// Output result
@@ -145,7 +137,7 @@ func NewGoUnmapCommand() *cobra.Command {
   fest go unmap api   # Remove shortcut 'api'`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runGoUnmap(args[0], jsonOutput)
+			return runGoUnmap(cmd.Context(), args[0], jsonOutput)
 		},
 	}
 
@@ -154,24 +146,14 @@ func NewGoUnmapCommand() *cobra.Command {
 	return cmd
 }
 
-func runGoUnmap(name string, jsonOutput bool) error {
-	// Load navigation state
-	nav, err := navigation.LoadNavigation()
-	if err != nil {
-		return errors.Wrap(err, "loading navigation state")
-	}
-
-	// Check if shortcut exists
-	_, exists := nav.Shortcuts[name]
-
-	if exists {
+func runGoUnmap(ctx context.Context, name string, jsonOutput bool) error {
+	var exists bool
+	if err := navigation.Update(ctx, func(nav *navigation.Navigation) error {
+		_, exists = nav.Shortcuts[name]
 		delete(nav.Shortcuts, name)
-		nav.UpdatedAt = time.Now().UTC()
-
-		// Save navigation state
-		if err := nav.Save(); err != nil {
-			return errors.Wrap(err, "saving navigation state")
-		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	// Output result

@@ -154,11 +154,67 @@ func (n *Navigation) Save() error {
 		return errors.IO("creating config directory", err).WithField("path", configDir)
 	}
 
-	if err := os.WriteFile(navPath, data, 0644); err != nil {
-		return errors.IO("writing navigation file", err).WithField("path", navPath)
+	// Write atomically (temp + rename) so readers and crashed writers never
+	// observe a partially written navigation file.
+	tmp, err := os.CreateTemp(configDir, NavigationFileName+".tmp-*")
+	if err != nil {
+		return errors.IO("creating temp navigation file", err).WithField("path", configDir)
+	}
+	tmpPath := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+		return errors.IO("writing navigation file", err).WithField("path", tmpPath)
+	}
+	if err := tmp.Close(); err != nil {
+		_ = os.Remove(tmpPath)
+		return errors.IO("closing navigation file", err).WithField("path", tmpPath)
+	}
+	if err := os.Chmod(tmpPath, 0644); err != nil {
+		_ = os.Remove(tmpPath)
+		return errors.IO("setting navigation file permissions", err).WithField("path", tmpPath)
+	}
+	if err := os.Rename(tmpPath, navPath); err != nil {
+		_ = os.Remove(tmpPath)
+		return errors.IO("replacing navigation file", err).WithField("path", navPath)
 	}
 
 	return nil
+}
+
+// Update atomically applies fn to the on-disk navigation state. It takes an
+// exclusive advisory lock, loads the freshest state, applies fn, and saves,
+// so concurrent fest processes cannot clobber each other's link changes
+// (last-writer-wins lost updates). fn returning an error aborts without
+// saving. Never save a Navigation loaded outside Update: stale in-memory
+// snapshots are exactly the lost-update bug this prevents.
+func Update(ctx context.Context, fn func(*Navigation) error) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled").WithOp("navigation.Update")
+	}
+
+	navPath, err := NavigationPath()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(navPath), 0755); err != nil {
+		return errors.IO("creating navigation directory", err).WithField("path", filepath.Dir(navPath))
+	}
+
+	release, err := lockNavigationFile(navPath + ".lock")
+	if err != nil {
+		return errors.IO("locking navigation file", err).WithField("path", navPath+".lock")
+	}
+	defer release()
+
+	nav, err := LoadNavigation()
+	if err != nil {
+		return err
+	}
+	if err := fn(nav); err != nil {
+		return err
+	}
+	return nav.Save()
 }
 
 // SetLink creates or updates a bidirectional festival-to-project link.

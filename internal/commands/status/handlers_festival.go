@@ -355,7 +355,7 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 	}
 
 	// Update navigation links after successful move
-	linkAction := UpdateNavigationAfterMove(festival.Name, newStatus, newPath)
+	linkAction := UpdateNavigationAfterMove(ctx, festival.Name, newStatus, newPath)
 
 	// Auto-commit the status change unless --no-commit was specified
 	var commitHash string
@@ -382,34 +382,35 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 // On completion, the link is removed (project freed). On other transitions, the
 // festival path is updated so the link stays accurate.
 // Returns a human-readable description of the action taken, or empty string.
-func UpdateNavigationAfterMove(festivalName, newStatus, newPath string) string {
-	nav, err := navigation.LoadNavigation()
+func UpdateNavigationAfterMove(ctx context.Context, festivalName, newStatus, newPath string) string {
+	action := ""
+	err := navigation.Update(ctx, func(nav *navigation.Navigation) error {
+		link, linked := nav.GetLink(festivalName)
+		if !linked {
+			return nil
+		}
+
+		// Terminal statuses (anything under dungeon/) should unlink the project
+		resolvedStatus := id.ResolveStatusPath(newStatus)
+		if strings.HasPrefix(resolvedStatus, "dungeon/") {
+			nav.RemoveLink(festivalName)
+			action = fmt.Sprintf("unlinked project %s", link.Path)
+			return nil
+		}
+
+		// Non-terminal transition: update the festival path in the link
+		nav.SetLinkWithPath(festivalName, link.Path, newPath)
+		action = "link path updated"
+		return nil
+	})
 	if err != nil {
+		if action != "" {
+			return fmt.Sprintf("warning: could not save link update: %v", err)
+		}
 		// Navigation not available (no campaign context, etc.) - skip silently
 		return ""
 	}
-
-	link, linked := nav.GetLink(festivalName)
-	if !linked {
-		return ""
-	}
-
-	// Terminal statuses (anything under dungeon/) should unlink the project
-	resolvedStatus := id.ResolveStatusPath(newStatus)
-	if strings.HasPrefix(resolvedStatus, "dungeon/") {
-		nav.RemoveLink(festivalName)
-		if saveErr := nav.Save(); saveErr != nil {
-			return fmt.Sprintf("warning: could not unlink project: %v", saveErr)
-		}
-		return fmt.Sprintf("unlinked project %s", link.Path)
-	}
-
-	// Non-terminal transition: update the festival path in the link
-	nav.SetLinkWithPath(festivalName, link.Path, newPath)
-	if saveErr := nav.Save(); saveErr != nil {
-		return fmt.Sprintf("warning: could not update link path: %v", saveErr)
-	}
-	return "link path updated"
+	return action
 }
 
 // emitFestivalMoveSuccess outputs success message after moving a festival.
