@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/scope"
@@ -73,19 +74,23 @@ func runApproveWithDecision(ctx context.Context, decision wf.DecisionMetadata) e
 	// Get current step info
 	currentStepNum := state.CurrentStep
 	if currentStepNum < 1 || currentStepNum > len(steps) {
-		return fmt.Errorf("invalid workflow state: current step %d out of range", currentStepNum)
+		return festerrors.Validation("invalid workflow state").
+			WithField("current_step", currentStepNum).
+			WithField("total_steps", len(steps))
 	}
 
 	step := steps[currentStepNum-1]
 
 	// Verify this is a checkpoint step
 	if !step.Checkpoint.IsBlocking() {
-		return fmt.Errorf("step %d does not have a blocking checkpoint\n\nUse 'fest workflow advance' for regular steps", currentStepNum)
+		return festerrors.Validation("step does not have a blocking checkpoint").
+			WithField("step", currentStepNum).
+			WithHint("Use 'fest workflow advance' for regular steps")
 	}
 
 	// Approve and advance
 	if err := nav.ApproveWithDecision(ctx, decision); err != nil {
-		return fmt.Errorf("approving checkpoint: %w", err)
+		return festerrors.Wrap(err, "approving checkpoint")
 	}
 
 	fmt.Printf("%s Step %d: %s approved\n", ui.Success("✓"), currentStepNum, step.Name)

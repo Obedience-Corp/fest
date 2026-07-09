@@ -510,6 +510,22 @@ func generateWorkflowEventsFromYAML(state *wf.FestivalWorkflowState) []ProgressE
 					DecisionActor:   ss.DecisionActor,
 					DecisionSummary: ss.DecisionSummary,
 				})
+
+			case wf.StepStatusFailedRemediation:
+				ts := initTS.Add(time.Duration(i) * time.Second)
+				if ss.StartedAt != nil {
+					ts = ss.StartedAt.Add(time.Second)
+				}
+				events = append(events, ProgressEvent{
+					Timestamp:        ts,
+					Event:            EventWorkflowStepFailRemediation,
+					Phase:            phaseName,
+					Step:             i,
+					Feedback:         ss.Feedback,
+					RemediationPhase: ss.RemediationPhase,
+					DecisionActor:    ss.DecisionActor,
+					DecisionSummary:  ss.DecisionSummary,
+				})
 			}
 		}
 
