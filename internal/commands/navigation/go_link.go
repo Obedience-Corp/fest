@@ -27,7 +27,36 @@ var (
 	pathStyle     = lipgloss.NewStyle().Foreground(ui.MetadataColor)
 )
 
-const linkForceHint = "use 'fest link --force' to override, or run 'fest unlink' from the active festival first"
+const linkForceHint = "use 'fest link --force' to relink the project to this festival, or run 'fest unlink' from the linked festival first"
+
+// guardProjectConflict blocks relinking a project that is already linked to a
+// different festival unless force is set. A project holds exactly one festival
+// link; before this guard, a second link silently evicted the first (the
+// "promote dropped my link" reports were this eviction, not promote). It
+// returns the existing festival's name on a permitted takeover so callers can
+// report the eviction.
+func guardProjectConflict(nav *navigation.Navigation, festivalName, projectPath string, force bool) (string, error) {
+	existing, existingFestivalPath, hasConflict := nav.ProjectConflict(festivalName, projectPath)
+	if !hasConflict {
+		return "", nil
+	}
+	if !force {
+		return "", festErrors.Validation("project is already linked to festival " + existing).
+			WithField("existing_festival", existing).
+			WithField("existing_festival_path", existingFestivalPath).
+			WithField("project", projectPath).
+			WithHint(linkForceHint)
+	}
+	return existing, nil
+}
+
+// reportLinkEviction prints the takeover an accepted --force link performed.
+func reportLinkEviction(evicted string) {
+	if evicted == "" {
+		return
+	}
+	fmt.Printf("%s %s\n", ui.Label("Replaced link"), ui.Dim("project was linked to "+evicted))
+}
 
 // NewGoLinkCommand creates the context-aware link subcommand for fest go
 func NewGoLinkCommand() *cobra.Command {
@@ -67,7 +96,7 @@ Examples:
 		},
 	}
 
-	cmd.Flags().BoolVar(&force, "force", false, "overwrite an existing active festival link")
+	cmd.Flags().BoolVar(&force, "force", false, "relink a project already linked to another festival")
 
 	return cmd
 }
@@ -80,7 +109,7 @@ func runGoLink(ctx context.Context, targetPath string, force bool) error {
 
 	// Detect context: are we inside a festival?
 	if isInsideFestival(cwd) {
-		return linkFestivalToProject(ctx, cwd, targetPath)
+		return linkFestivalToProject(ctx, cwd, targetPath, force)
 	}
 
 	// We're in a project directory, show festival picker
@@ -121,7 +150,7 @@ func isInsideFestival(path string) bool {
 }
 
 // linkFestivalToProject links the current festival to a project directory
-func linkFestivalToProject(ctx context.Context, cwd, targetPath string) error {
+func linkFestivalToProject(ctx context.Context, cwd, targetPath string, force bool) error {
 	// Detect current festival
 	loc, err := show.DetectCurrentLocation(ctx, cwd)
 	if err != nil || loc == nil || loc.Festival == nil || loc.Festival.Name == "" {
@@ -171,17 +200,12 @@ func linkFestivalToProject(ctx context.Context, cwd, targetPath string) error {
 	// Get the festival path for reverse navigation
 	festivalPath := loc.Festival.Path
 
-	if existing, existingFestivalPath, hasConflict := nav.ProjectConflict(festivalName, projectPath); hasConflict {
-		if isActiveFestivalPath(existingFestivalPath) {
-			return festErrors.Validation("project is already linked to an active festival").
-				WithField("existing_festival", existing).
-				WithField("project", projectPath).
-				WithField("hint", linkForceHint)
-		}
+	if _, err := guardProjectConflict(nav, festivalName, projectPath, force); err != nil {
+		return err
 	}
 
 	// Set the bidirectional link with festival path
-	nav.SetLinkWithPath(festivalName, projectPath, festivalPath)
+	evicted := nav.SetLinkWithPath(festivalName, projectPath, festivalPath)
 
 	// Save
 	if err := nav.Save(); err != nil {
@@ -191,6 +215,7 @@ func linkFestivalToProject(ctx context.Context, cwd, targetPath string) error {
 	fmt.Println(ui.H1("Link Created"))
 	fmt.Printf("%s %s\n", ui.Label("Festival"), ui.Value(festivalName, ui.FestivalColor))
 	fmt.Printf("%s %s\n", ui.Label("Project"), ui.Dim(projectPath))
+	reportLinkEviction(evicted)
 	fmt.Println()
 	fmt.Println(ui.Dim("Use 'fgo' to navigate between them."))
 
@@ -273,19 +298,12 @@ func linkProjectToFestival(cwd string, force bool) error {
 		return festErrors.Wrap(err, "loading navigation state")
 	}
 
-	if !force {
-		if existing, existingFestivalPath, hasConflict := nav.ProjectConflict(selectedFestival, absPath); hasConflict {
-			if isActiveFestivalPath(existingFestivalPath) {
-				return festErrors.Validation("project is already linked to an active festival").
-					WithField("existing_festival", existing).
-					WithField("project", absPath).
-					WithField("hint", linkForceHint)
-			}
-		}
+	if _, err := guardProjectConflict(nav, selectedFestival, absPath, force); err != nil {
+		return err
 	}
 
 	// Set the bidirectional link with festival path
-	nav.SetLinkWithPath(selectedFestival, absPath, festivalPath)
+	evicted := nav.SetLinkWithPath(selectedFestival, absPath, festivalPath)
 
 	// Save
 	if err := nav.Save(); err != nil {
@@ -295,6 +313,7 @@ func linkProjectToFestival(cwd string, force bool) error {
 	fmt.Println(ui.H1("Link Created"))
 	fmt.Printf("%s %s\n", ui.Label("Festival"), ui.Value(selectedFestival, ui.FestivalColor))
 	fmt.Printf("%s %s\n", ui.Label("Project"), ui.Dim(absPath))
+	reportLinkEviction(evicted)
 	fmt.Println()
 	fmt.Println(ui.Dim("Use 'fgo' to navigate between them."))
 

@@ -161,21 +161,27 @@ func (n *Navigation) Save() error {
 	return nil
 }
 
-// SetLink creates or updates a bidirectional festival-to-project link
-func (n *Navigation) SetLink(festivalName, projectPath string) {
-	n.SetLinkWithPath(festivalName, projectPath, "")
+// SetLink creates or updates a bidirectional festival-to-project link.
+// It returns the name of any festival whose link to the project was evicted.
+func (n *Navigation) SetLink(festivalName, projectPath string) string {
+	return n.SetLinkWithPath(festivalName, projectPath, "")
 }
 
-// SetLinkWithPath creates or updates a bidirectional festival-to-project link with festival path
-func (n *Navigation) SetLinkWithPath(festivalName, projectPath, festivalPath string) {
+// SetLinkWithPath creates or updates a bidirectional festival-to-project link
+// with festival path. A project can only be linked to one festival at a time:
+// if the project was linked to a different festival, that link is replaced and
+// the evicted festival's name is returned so callers can surface the takeover
+// instead of dropping it silently.
+func (n *Navigation) SetLinkWithPath(festivalName, projectPath, festivalPath string) (evicted string) {
 	// Remove old reverse link if this festival was linked elsewhere
 	if oldLink, ok := n.Links[festivalName]; ok {
 		delete(n.ProjectLinks, oldLink.Path)
 	}
 
 	// Remove old link if this project was linked to another festival
-	if oldFestival, ok := n.ProjectLinks[projectPath]; ok {
+	if oldFestival, ok := n.ProjectLinks[projectPath]; ok && oldFestival != festivalName {
 		delete(n.Links, oldFestival)
+		evicted = oldFestival
 	}
 
 	// Set forward link: festival -> project
@@ -187,6 +193,7 @@ func (n *Navigation) SetLinkWithPath(festivalName, projectPath, festivalPath str
 
 	// Set reverse link: project -> festival
 	n.ProjectLinks[projectPath] = festivalName
+	return evicted
 }
 
 // ProjectConflict returns information about a conflicting project link, if one exists.

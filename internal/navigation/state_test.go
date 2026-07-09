@@ -699,3 +699,30 @@ func TestNavigation_ProjectConflict_LegacyLinkTreatedAsActive(t *testing.T) {
 		t.Errorf("ProjectConflict() existingFestivalPath should be empty for legacy link (no festival path stored), got %q", existingFestivalPath)
 	}
 }
+
+func TestNavigation_SetLinkWithPathReturnsEvicted(t *testing.T) {
+	n := &Navigation{
+		Version:      1,
+		Links:        make(map[string]*Link),
+		ProjectLinks: make(map[string]string),
+	}
+
+	if evicted := n.SetLinkWithPath("fest-a", "/projects/camp", "/festivals/planning/fest-a"); evicted != "" {
+		t.Fatalf("first link evicted = %q, want empty", evicted)
+	}
+
+	if evicted := n.SetLinkWithPath("fest-a", "/projects/camp", "/festivals/ready/fest-a"); evicted != "" {
+		t.Fatalf("same-festival relink evicted = %q, want empty", evicted)
+	}
+
+	evicted := n.SetLinkWithPath("fest-b", "/projects/camp", "/festivals/planning/fest-b")
+	if evicted != "fest-a" {
+		t.Fatalf("takeover evicted = %q, want fest-a", evicted)
+	}
+	if _, ok := n.GetLink("fest-a"); ok {
+		t.Fatal("evicted festival should no longer have a link")
+	}
+	if got := n.GetLinkedFestival("/projects/camp"); got != "fest-b" {
+		t.Fatalf("project linked to %q, want fest-b", got)
+	}
+}

@@ -66,7 +66,7 @@ Use 'fest unlink' to remove the link for current festival.`,
 
 	cmd.Flags().BoolVar(&opts.showLink, "show", false, "show current link")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "output in JSON format")
-	cmd.Flags().BoolVar(&opts.force, "force", false, "overwrite an existing active festival link")
+	cmd.Flags().BoolVar(&opts.force, "force", false, "relink a project already linked to another festival")
 
 	return cmd
 }
@@ -100,7 +100,7 @@ func runLink(ctx context.Context, targetPath string, opts *linkOptions) error {
 
 	// Inside a festival - if no path provided, use the TUI prompt from go_link
 	if targetPath == "" {
-		return linkFestivalToProject(ctx, cwd, "")
+		return linkFestivalToProject(ctx, cwd, "", opts.force)
 	}
 
 	// Resolve target path
@@ -147,18 +147,11 @@ func runLink(ctx context.Context, targetPath string, opts *linkOptions) error {
 	festivalName := loc.Festival.Name
 	festivalPath := loc.Festival.Path
 
-	if !opts.force {
-		if existing, existingFestivalPath, hasConflict := nav.ProjectConflict(festivalName, absPath); hasConflict {
-			if isActiveFestivalPath(existingFestivalPath) {
-				return errors.Validation("project is already linked to an active festival").
-					WithField("existing_festival", existing).
-					WithField("project", absPath).
-					WithField("hint", "use --force to override, or run 'fest unlink' from the active festival first")
-			}
-		}
+	if _, err := guardProjectConflict(nav, festivalName, absPath, opts.force); err != nil {
+		return err
 	}
 
-	nav.SetLinkWithPath(festivalName, absPath, festivalPath)
+	evicted := nav.SetLinkWithPath(festivalName, absPath, festivalPath)
 
 	// Save navigation state
 	if err := nav.Save(); err != nil {
@@ -173,6 +166,9 @@ func runLink(ctx context.Context, targetPath string, opts *linkOptions) error {
 			"project":   absPath,
 			"linked_at": time.Now().UTC().Format(time.RFC3339),
 		}
+		if evicted != "" {
+			result["replaced_festival"] = evicted
+		}
 		if err := shared.EncodeJSON(os.Stdout, result); err != nil {
 			return errors.Wrap(err, "encoding JSON output")
 		}
@@ -180,6 +176,7 @@ func runLink(ctx context.Context, targetPath string, opts *linkOptions) error {
 		fmt.Println(ui.H1("Festival Link"))
 		fmt.Printf("%s %s\n", ui.Label("Festival"), ui.Value(festivalName, ui.FestivalColor))
 		fmt.Printf("%s %s\n", ui.Label("Project"), ui.Dim(absPath))
+		reportLinkEviction(evicted)
 		fmt.Println()
 		fmt.Println(ui.Dim("Use 'fgo project' to navigate to the project (after shell-init setup)"))
 		fmt.Println(ui.Dim("Use 'fest link --show' to view this link"))
@@ -451,14 +448,4 @@ func findFestivalStatus(festivalsDir, festivalName string) string {
 		}
 	}
 	return ""
-}
-
-// isActiveFestivalPath reports whether the stored festival path is inside the active/ directory.
-// A festival path of "" means the link predates festival-path tracking; treat it as active
-// to be safe (prefer the existing link when uncertain).
-func isActiveFestivalPath(festivalPath string) bool {
-	if festivalPath == "" {
-		return true
-	}
-	return filepath.Base(filepath.Dir(festivalPath)) == "active"
 }
