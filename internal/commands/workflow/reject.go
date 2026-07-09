@@ -40,7 +40,7 @@ Failed gates with remediation:
 Examples:
   fest workflow reject --reason "needs revision"
   fest workflow reject --reason "PR not ready" --remediation-phase 005_FIX_PR_302
-  fest workflow reject --as agent --reason "missing acceptance proof"`,
+  fest workflow reject --reason "missing acceptance proof" --summary "reviewed the diff against the task spec"`,
 		Annotations: map[string]string{
 			"scope": string(scope.Festival),
 		},
@@ -49,7 +49,7 @@ Examples:
 				return festerrors.Validation("--reason is required").
 					WithHint("Usage: fest workflow reject --reason \"your feedback here\"")
 			}
-			decision, err := normalizeDecision("rejection", actor, summary, reason)
+			decision, err := normalizeDecision("rejection", actor, summary)
 			if err != nil {
 				return err
 			}
@@ -59,7 +59,7 @@ Examples:
 
 	cmd.Flags().StringVarP(&reason, "reason", "r", "", "reason for rejection (required)")
 	cmd.Flags().StringVar(&remediationPhase, "remediation-phase", "", "link a remediation phase for a failed gate (e.g. 005_FIX_PR_302)")
-	cmd.Flags().StringVar(&actor, "as", decisionActorUser, "decision actor: user or agent")
+	cmd.Flags().StringVar(&actor, "as", decisionActorUser, "decision actor (user; agent decisions require 'fest workflow approve --auto' with a configured judge)")
 	cmd.Flags().StringVar(&summary, "summary", "", "decision summary or rationale")
 	_ = cmd.MarkFlagRequired("reason")
 
