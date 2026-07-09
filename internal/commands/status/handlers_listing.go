@@ -42,7 +42,7 @@ func runFestivalListing(ctx context.Context, festivalsRoot, filterStatus string,
 			fmt.Println(show.FormatFestivalList(filterStatus, festivals))
 		}
 	} else {
-		fmt.Println("Use 'fest show all' to see all festivals grouped by status")
+		fmt.Println("Use 'fest list --all' to see all festivals grouped by status")
 	}
 
 	return nil

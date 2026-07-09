@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 )
 
@@ -82,49 +81,6 @@ func TestRunShowBySelector_RequiresCampaignWorkspace(t *testing.T) {
 	}
 }
 
-func TestRunShowCurrent_PicksFestivalOutsideFestival(t *testing.T) {
-	campaignRoot, festivalDir := makeShowPickerCampaign(t)
-	projectDir := filepath.Join(campaignRoot, "projects", "app", "src")
-	if err := os.MkdirAll(projectDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	restoreCWD := chdirForShowTest(t, projectDir)
-	defer restoreCWD()
-
-	origPicker := showPickFestival
-	defer func() { showPickFestival = origPicker }()
-
-	var gotFestivalsDir string
-	var gotOptions shared.FestivalPickerOptions
-	showPickFestival = func(_ context.Context, festivalsDir string, opts shared.FestivalPickerOptions) (string, shared.FestivalPickOutcome, error) {
-		gotFestivalsDir = festivalsDir
-		gotOptions = opts
-		return festivalDir, shared.FestivalPicked, nil
-	}
-
-	output := captureShowStdout(t, func() error {
-		return runShowCurrent(context.Background(), &showOptions{summary: true})
-	})
-
-	if !strings.Contains(output, "launch-readiness-LR0001") {
-		t.Fatalf("output missing selected festival name:\n%s", output)
-	}
-	wantFestivalsDir := filepath.Join(campaignRoot, "festivals")
-	if !sameShowTestPath(t, gotFestivalsDir, wantFestivalsDir) {
-		t.Fatalf("picker festivalsDir = %q, want %q", gotFestivalsDir, wantFestivalsDir)
-	}
-	if gotOptions.IncludeStatusDirectories {
-		t.Fatal("picker should not include status directories for show")
-	}
-	if strings.Join(gotOptions.PreferredStatuses, ",") != strings.Join(shared.BrowseFestivalPickerStatuses, ",") {
-		t.Fatalf("preferred statuses = %#v, want %#v", gotOptions.PreferredStatuses, shared.BrowseFestivalPickerStatuses)
-	}
-	if !gotOptions.OrderByStatusThenRecency {
-		t.Fatal("picker should order candidates by status and recency")
-	}
-}
-
 func TestRunShowCurrent_JSONDoesNotPromptOutsideFestival(t *testing.T) {
 	campaignRoot, _ := makeShowPickerCampaign(t)
 	projectDir := filepath.Join(campaignRoot, "projects", "app")
@@ -134,13 +90,6 @@ func TestRunShowCurrent_JSONDoesNotPromptOutsideFestival(t *testing.T) {
 
 	restoreCWD := chdirForShowTest(t, projectDir)
 	defer restoreCWD()
-
-	origPicker := showPickFestival
-	defer func() { showPickFestival = origPicker }()
-	showPickFestival = func(context.Context, string, shared.FestivalPickerOptions) (string, shared.FestivalPickOutcome, error) {
-		t.Fatal("JSON show should not invoke interactive picker")
-		return "", shared.FestivalPickUnavailable, nil
-	}
 
 	output, err := captureShowStdoutAllowError(t, func() error {
 		return runShowCurrent(context.Background(), &showOptions{json: true})
@@ -153,7 +102,7 @@ func TestRunShowCurrent_JSONDoesNotPromptOutsideFestival(t *testing.T) {
 	}
 }
 
-func TestRunShowCurrent_PickerCancelledExitsCleanly(t *testing.T) {
+func TestRunShowCurrent_NonTerminalOutsideFestivalReturnsHint(t *testing.T) {
 	campaignRoot, _ := makeShowPickerCampaign(t)
 	projectDir := filepath.Join(campaignRoot, "projects", "app")
 	if err := os.MkdirAll(projectDir, 0755); err != nil {
@@ -163,36 +112,8 @@ func TestRunShowCurrent_PickerCancelledExitsCleanly(t *testing.T) {
 	restoreCWD := chdirForShowTest(t, projectDir)
 	defer restoreCWD()
 
-	origPicker := showPickFestival
-	defer func() { showPickFestival = origPicker }()
-	showPickFestival = func(context.Context, string, shared.FestivalPickerOptions) (string, shared.FestivalPickOutcome, error) {
-		return "", shared.FestivalPickCancelled, nil
-	}
-
-	output := captureShowStdout(t, func() error {
-		return runShowCurrent(context.Background(), &showOptions{})
-	})
-	if strings.TrimSpace(output) != "" {
-		t.Fatalf("cancelled picker should not emit output, got:\n%s", output)
-	}
-}
-
-func TestRunShowCurrent_PickerUnavailableReturnsActionableHint(t *testing.T) {
-	campaignRoot, _ := makeShowPickerCampaign(t)
-	projectDir := filepath.Join(campaignRoot, "projects", "app")
-	if err := os.MkdirAll(projectDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	restoreCWD := chdirForShowTest(t, projectDir)
-	defer restoreCWD()
-
-	origPicker := showPickFestival
-	defer func() { showPickFestival = origPicker }()
-	showPickFestival = func(context.Context, string, shared.FestivalPickerOptions) (string, shared.FestivalPickOutcome, error) {
-		return "", shared.FestivalPickUnavailable, nil
-	}
-
+	// go test runs without a controlling tty, so bare `fest show` outside a
+	// festival cannot enter the cycle and must return the actionable hint.
 	err := runShowCurrent(context.Background(), &showOptions{})
 	if err == nil {
 		t.Fatal("expected not found error, got nil")
@@ -360,20 +281,6 @@ func chdirForShowTest(t *testing.T, dir string) func() {
 			t.Fatal(err)
 		}
 	}
-}
-
-func sameShowTestPath(t *testing.T, got, want string) bool {
-	t.Helper()
-
-	gotInfo, err := os.Stat(got)
-	if err != nil {
-		t.Fatal(err)
-	}
-	wantInfo, err := os.Stat(want)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return os.SameFile(gotInfo, wantInfo)
 }
 
 func makeShowJSONFestival(t *testing.T) string {

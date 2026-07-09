@@ -1,7 +1,6 @@
 package show
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -9,60 +8,44 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 )
 
-func TestPickFestivalForShow_NoCampaignReturnsUnavailable(t *testing.T) {
-	dir := t.TempDir()
-	path, outcome, err := pickFestivalForShow(context.Background(), dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+func TestBrowseFestivalPickerStatuses_Order(t *testing.T) {
+	want := []string{"active", "ready", "planning", "ritual"}
+	got := shared.BrowseFestivalPickerStatuses
+	if len(got) != len(want) {
+		t.Fatalf("BrowseFestivalPickerStatuses = %v, want %v", got, want)
 	}
-	if outcome != shared.FestivalPickUnavailable {
-		t.Fatalf("outcome = %v, want unavailable", outcome)
-	}
-	if path != "" {
-		t.Fatalf("path = %q, want empty", path)
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("BrowseFestivalPickerStatuses[%d] = %q, want %q", i, got[i], want[i])
+		}
 	}
 }
 
-func TestPickFestivalForShow_NoFestivalsMarkerReturnsUnavailable(t *testing.T) {
-	dir := t.TempDir()
-	festivals := filepath.Join(dir, "festivals")
-	if err := os.MkdirAll(festivals, 0o755); err != nil {
+func TestBrowseCycleTargets_EmptyFestivalsReturnsNone(t *testing.T) {
+	festivalsDir := filepath.Join(t.TempDir(), "festivals")
+	if err := os.MkdirAll(filepath.Join(festivalsDir, ".festival"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if paths := browseCycleTargets(festivalsDir); len(paths) != 0 {
+		t.Fatalf("expected no cycle targets in empty workspace, got %v", paths)
+	}
+}
+
+func TestBrowseCycleTargets_ReturnsBrowseableFestival(t *testing.T) {
+	festivalsDir := filepath.Join(t.TempDir(), "festivals")
+	festivalDir := filepath.Join(festivalsDir, "active", "launch-readiness-LR0001")
+	if err := os.MkdirAll(festivalDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(festivalDir, FestivalGoalFile), []byte("# Goal\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	path, outcome, err := pickFestivalForShow(context.Background(), dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	paths := browseCycleTargets(festivalsDir)
+	if len(paths) != 1 {
+		t.Fatalf("expected one cycle target, got %v", paths)
 	}
-	if outcome != shared.FestivalPickUnavailable {
-		t.Fatalf("outcome = %v, want unavailable", outcome)
-	}
-	if path != "" {
-		t.Fatalf("path = %q, want empty", path)
-	}
-}
-
-func TestPickFestivalForShow_UsesBrowsePickerStatuses(t *testing.T) {
-	if got, want := shared.BrowseFestivalPickerStatuses, []string{"active", "ready", "planning", "ritual"}; len(got) != len(want) {
-		t.Fatalf("BrowseFestivalPickerStatuses length = %d, want %d", len(got), len(want))
-	}
-}
-
-func TestPickFestivalForShow_EmptyFestivalsReturnsUnavailable(t *testing.T) {
-	dir := t.TempDir()
-	dotFestival := filepath.Join(dir, "festivals", ".festival")
-	if err := os.MkdirAll(dotFestival, 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	path, outcome, err := pickFestivalForShow(context.Background(), dir)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if outcome != shared.FestivalPickUnavailable {
-		t.Fatalf("outcome = %v, want unavailable", outcome)
-	}
-	if path != "" {
-		t.Fatalf("path = %q, want empty", path)
+	if filepath.Base(paths[0]) != "launch-readiness-LR0001" {
+		t.Fatalf("cycle target = %q, want the active festival directory", paths[0])
 	}
 }

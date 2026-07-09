@@ -82,7 +82,7 @@ func (s *standaloneWatchSession) render(ctx context.Context, polling bool) error
 
 	clearScreen(os.Stdout)
 	fmt.Print(formatStandaloneWorkflowProgress(info, standaloneRenderOptionsFromWatch(s.opts)))
-	printWatchFooter(os.Stdout, polling, false, false)
+	printWatchFooter(os.Stdout, polling, false, false, false)
 	s.addWatchPaths(info)
 	return nil
 }

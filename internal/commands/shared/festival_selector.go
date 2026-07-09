@@ -96,7 +96,7 @@ func ResolveFestivalSelector(ctx context.Context, cwd, selector string) (string,
 	if len(matches) == 0 {
 		return "", errors.NotFound("festival").
 			WithField("selector", selector).
-			WithHint("Run 'fest show all' to see available festivals")
+			WithHint("Run 'fest list --all' to see available festivals")
 	}
 
 	if len(matches) == 1 || isUnambiguousSelectorMatch(matches) {

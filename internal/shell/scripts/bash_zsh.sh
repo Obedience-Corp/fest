@@ -55,8 +55,9 @@ if [[ -n "$ZSH_VERSION" ]]; then
 fi
 
 # Tab completion for fls - complete status names and flags
+# Status vocabulary mirrors id.StatusDirectories (+ dungeon, all); keep in sync.
 _fls_completions() {
-    local completions="active planning completed dungeon --json --all --help"
+    local completions="active ready planning ritual completed dungeon all --json --all --help"
     COMPREPLY=($(compgen -W "$completions" -- "${COMP_WORDS[COMP_CWORD]}"))
 }
 
@@ -67,13 +68,17 @@ complete -F _fls_completions fls
 if [[ -n "$ZSH_VERSION" ]]; then
     _fls_zsh() {
         local -a completions
+        # Status vocabulary mirrors id.StatusDirectories (+ dungeon, all); keep in sync.
         completions=(
-            'active:List active festivals'
-            'planning:List planning festivals'
-            'completed:List completed festivals'
-            'dungeon:List dungeon festivals'
+            'active:Festivals currently in progress'
+            'ready:Festivals prepared and awaiting execution'
+            'planning:Festivals being designed'
+            'ritual:Recurring or special festivals'
+            'completed:Successfully finished festivals'
+            'dungeon:All shelved festivals'
+            'all:Every festival grouped by status'
             '--json:Output in JSON format'
-            '--all:Include empty status categories'
+            '--all:Include completed and dungeon festivals'
             '--help:Show help for fest list'
         )
         _describe 'fls' completions
@@ -110,6 +115,29 @@ if [[ -n "$ZSH_VERSION" ]]; then
             done < <(command fest promote completions --color 2>/dev/null)
             if (( ${#pvals} )); then
                 compadd -V promote -l -d pdisplays -a pvals
+                return
+            fi
+        fi
+        # 'fest show <TAB>': empty prefix opens the festival picker TUI and inserts
+        # the chosen festival; a non-empty prefix gets colorized menu completion.
+        if [[ "${words[2]}" == "show" && $CURRENT -eq 3 && "${words[CURRENT]}" != -* ]]; then
+            if [[ -z "${words[CURRENT]}" && -e /dev/tty ]]; then
+                local picked
+                picked=$(command fest show pick </dev/tty 2>/dev/tty)
+                if [[ -n "$picked" ]]; then
+                    compadd -U -- "$picked"
+                    return
+                fi
+                # Cancelled or unavailable: fall through to menu completion below.
+            fi
+            local -a svals sdisplays
+            local sval sdisplay
+            while IFS=$'\t' read -r sval sdisplay; do
+                svals+=("$sval")
+                sdisplays+=("$sdisplay")
+            done < <(command fest show completions --color 2>/dev/null)
+            if (( ${#svals} )); then
+                compadd -V show -l -d sdisplays -a svals
                 return
             fi
         fi

@@ -140,33 +140,6 @@ func TestWatchCommandCycleStartsAtCurrentFestival(t *testing.T) {
 	}
 }
 
-func TestClassifyCycleKey(t *testing.T) {
-	cases := []struct {
-		name string
-		in   []byte
-		want cycleDirection
-		ok   bool
-	}{
-		{"ctrl_c", []byte{0x03}, cycleQuit, true},
-		{"right_arrow", []byte{0x1b, '[', 'C'}, cycleNext, true},
-		{"left_arrow", []byte{0x1b, '[', 'D'}, cyclePrev, true},
-		{"lower_p_promotes", []byte{'p'}, cyclePromote, true},
-		{"upper_p_promotes", []byte{'P'}, cyclePromote, true},
-		{"up_arrow_ignored", []byte{0x1b, '[', 'A'}, cycleNone, false},
-		{"plain_char", []byte{'x'}, cycleNone, false},
-		{"short_escape", []byte{0x1b, '['}, cycleNone, false},
-		{"empty", nil, cycleNone, false},
-	}
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			got, ok := classifyCycleKey(tc.in)
-			if got != tc.want || ok != tc.ok {
-				t.Errorf("classifyCycleKey(%v) = (%v, %v), want (%v, %v)", tc.in, got, ok, tc.want, tc.ok)
-			}
-		})
-	}
-}
-
 func TestDefaultListCycleTargets_NoCampaign(t *testing.T) {
 	dir := t.TempDir()
 	paths, err := defaultListCycleTargets(t.Context(), dir)

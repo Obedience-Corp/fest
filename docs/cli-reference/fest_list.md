@@ -8,10 +8,11 @@ List festivals filtered by status.
 
 Works from anywhere - finds the festivals workspace automatically.
 
-STATUS can be: active, ready, planning, ritual, completed, dungeon, dungeon/completed, dungeon/archived, dungeon/someday
+STATUS can be: active, ready, planning, ritual, completed, all,
+dungeon, dungeon/completed, dungeon/archived, dungeon/someday
 
 By default, shows active, ready, planning, and ritual festivals.
-Use --all to include completed and dungeon festivals.
+Use 'fest list all' (or --all) to include completed and dungeon festivals.
 
 ```
 fest list [status] [flags]
@@ -20,12 +21,13 @@ fest list [status] [flags]
 ### Examples
 
 ```
-  fest list                                       # List active, ready, planning, and ritual festivals
-  fest list --all                                  # List all festivals
+  fest list                                        # Active, ready, planning, ritual festivals
+  fest list active                                 # Only active festivals
+  fest list all                                    # Every festival grouped by status
+  fest list dungeon/completed                      # Completed festivals in the dungeon
   fest list --filter-project camp                  # Festivals linked to "camp" project
-  fest list --since 2026-01-01                     # Festivals created since Jan 1
+  fest list active --sort progress                 # Active festivals, most complete first
   fest list --since 2026-01-01 --until 2026-02-01  # Created in January 2026
-  fest list --filter-project fest --status active   # Active festivals for "fest" project
   fest list --json                                 # Output in JSON format
 ```
 

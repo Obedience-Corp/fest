@@ -117,7 +117,7 @@ func TestCRLFWriter_PreservesPartialWriteCount(t *testing.T) {
 
 func TestPrintWatchFooter_CycleModeEmitsCRLF(t *testing.T) {
 	var buf bytes.Buffer
-	printWatchFooter(crlfWriter{w: &buf}, false, true, true)
+	printWatchFooter(crlfWriter{w: &buf}, false, true, true, true)
 
 	out := buf.String()
 	if !strings.Contains(out, "\r\n") {
@@ -133,23 +133,30 @@ func TestPrintWatchFooter_PromoteHint(t *testing.T) {
 		name        string
 		cycleHint   bool
 		cycling     bool
+		promoteHint bool
 		wantPromote bool
 		wantCycle   bool
+		wantQExit   bool
 	}{
-		{"raw_single", true, false, true, false},
-		{"raw_multi", true, true, true, true},
-		{"non_raw", false, false, false, false},
+		{"watch_raw_single", true, false, true, true, false, false},
+		{"watch_raw_multi", true, true, true, true, true, false},
+		{"show_raw_single", true, false, false, false, false, true},
+		{"show_raw_multi", true, true, false, false, true, true},
+		{"non_raw", false, false, false, false, false, false},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			printWatchFooter(&buf, false, tc.cycleHint, tc.cycling)
+			printWatchFooter(&buf, false, tc.cycleHint, tc.cycling, tc.promoteHint)
 			out := buf.String()
 			if got := strings.Contains(out, "p promote"); got != tc.wantPromote {
 				t.Errorf("promote hint present = %v, want %v (footer %q)", got, tc.wantPromote, out)
 			}
 			if got := strings.Contains(out, "cycle"); got != tc.wantCycle {
 				t.Errorf("cycle hint present = %v, want %v (footer %q)", got, tc.wantCycle, out)
+			}
+			if got := strings.Contains(out, "q/Ctrl+C exit"); got != tc.wantQExit {
+				t.Errorf("q/Ctrl+C exit hint present = %v, want %v (footer %q)", got, tc.wantQExit, out)
 			}
 			if !tc.cycleHint && !strings.Contains(out, "Press Ctrl+C to exit") {
 				t.Errorf("non-raw footer should keep the plain exit hint, got %q", out)
