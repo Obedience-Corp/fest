@@ -5713,6 +5713,34 @@ fest understand [flags]
 ```
 ---
 
+## fest understand chains
+
+Chains: dependencies between festivals
+
+### Synopsis
+
+Link festivals so a downstream festival waits for its upstream dependencies, via fest chain.
+
+```
+fest understand chains [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for chains
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
 ## fest understand checklist
 
 Quick festival validation checklist
@@ -5859,6 +5887,34 @@ fest understand gates [flags]
 ```
 ---
 
+## fest understand lifecycle
+
+Festival lifecycle: planning -> ready -> active -> dungeon
+
+### Synopsis
+
+How festivals move through lifecycle directories, and how fest promote advances them.
+
+```
+fest understand lifecycle [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for lifecycle
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
 ## fest understand loop
 
 The fest next loop: festivals and standalone WORKFLOW.md as work loops
@@ -5962,6 +6018,34 @@ fest understand nodeids [flags]
 ```
 ---
 
+## fest understand planning
+
+The planning process: turning a goal into a structured plan
+
+### Synopsis
+
+How a goal becomes a festival: define, break down, organize into phases, plus common phase patterns.
+
+```
+fest understand planning [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for planning
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
 ## fest understand plugins
 
 Show discovered plugins
@@ -6016,6 +6100,62 @@ fest understand resources [flags]
 
 ```
   -h, --help   help for resources
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
+## fest understand rituals
+
+Ritual festivals: reusable templates for recurring work
+
+### Synopsis
+
+Define recurring work once as a ritual, then spin up fresh runs with fest ritual run.
+
+```
+fest understand rituals [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for rituals
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
+## fest understand roles
+
+Human vs agent responsibilities and the planning/implementation boundary
+
+### Synopsis
+
+Who does what in the human-AI collaboration, and the rule that implementation steps only follow defined requirements.
+
+```
+fest understand roles [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for roles
 ```
 
 ### Options inherited from parent commands
