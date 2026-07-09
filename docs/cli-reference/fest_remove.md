@@ -33,4 +33,3 @@ for all following elements in the hierarchy.
 * [fest remove phase](fest_remove_phase.md)	 - Remove a phase and renumber subsequent phases
 * [fest remove sequence](fest_remove_sequence.md)	 - Remove a sequence and renumber subsequent sequences
 * [fest remove task](fest_remove_task.md)	 - Remove a task and renumber subsequent tasks
-

@@ -45,4 +45,3 @@ fest intro [flags]
 
 * [fest](fest.md)	 - Festival Methodology CLI - goal-oriented project management for AI agents
 * [fest intro workflows](fest_intro_workflows.md)	 - Common fest workflow patterns
-

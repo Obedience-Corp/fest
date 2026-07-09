@@ -43,4 +43,3 @@ fest reorder phase <from> <to> [festival-dir] [flags]
 ### SEE ALSO
 
 * [fest reorder](fest_reorder.md)	 - Reorder festival elements
-

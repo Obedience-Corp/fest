@@ -41,4 +41,3 @@ fest system repair [flags]
 ### SEE ALSO
 
 * [fest system](fest_system.md)	 - Manage fest tool configuration and templates
-

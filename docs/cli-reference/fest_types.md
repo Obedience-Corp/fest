@@ -38,4 +38,3 @@ Examples:
 * [fest types festival](fest_types_festival.md)	 - Discover festival types
 * [fest types list](fest_types_list.md)	 - List available template types
 * [fest types show](fest_types_show.md)	 - Show details about a template type
-

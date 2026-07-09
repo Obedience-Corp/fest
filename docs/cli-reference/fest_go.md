@@ -66,4 +66,3 @@ fest go [target] [flags]
 * [fest go move](fest_go_move.md)	 - Move files between festival and linked project
 * [fest go project](fest_go_project.md)	 - Navigate to linked project directory
 * [fest go unmap](fest_go_unmap.md)	 - Remove a navigation shortcut
-

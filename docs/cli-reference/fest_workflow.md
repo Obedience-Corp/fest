@@ -89,4 +89,3 @@ Examples:
 * [fest workflow start](fest_workflow_start.md)	 - Start a new run for a standalone workflow
 * [fest workflow status](fest_workflow_status.md)	 - Show workflow progress
 * [fest workflow validate](fest_workflow_validate.md)	 - Validate WORKFLOW.md step numbering
-

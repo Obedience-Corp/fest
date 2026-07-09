@@ -39,4 +39,3 @@ fest markers next [flags]
 ### SEE ALSO
 
 * [fest markers](fest_markers.md)	 - Manage template markers in festival files
-

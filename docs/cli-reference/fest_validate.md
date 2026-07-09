@@ -50,4 +50,3 @@ fest validate [festival-path] [flags]
 * [fest validate quality-gates](fest_validate_quality-gates.md)	 - Validate quality gates exist
 * [fest validate structure](fest_validate_structure.md)	 - Validate naming conventions and hierarchy
 * [fest validate tasks](fest_validate_tasks.md)	 - Validate task files exist (CRITICAL)
-

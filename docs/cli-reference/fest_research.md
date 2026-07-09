@@ -36,4 +36,3 @@ Available Commands:
 * [fest research create](fest_research_create.md)	 - Create a new research document from template
 * [fest research link](fest_research_link.md)	 - Link research findings to implementation phases/tasks
 * [fest research summary](fest_research_summary.md)	 - Generate summary/index of research documents
-

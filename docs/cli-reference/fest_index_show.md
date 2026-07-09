@@ -29,4 +29,3 @@ fest index show [festival-path] [flags]
 ### SEE ALSO
 
 * [fest index](fest_index.md)	 - Manage festival indices
-
