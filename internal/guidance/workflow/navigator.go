@@ -265,6 +265,17 @@ func (n *Navigator) GetContextFiles(ctx context.Context) ([]string, error) {
 
 // Approve approves a blocking checkpoint and advances.
 func (n *Navigator) Approve(ctx context.Context) error {
+	return n.ApproveWithAudit(ctx, "", DecisionMetadata{})
+}
+
+// ApproveWithDecision approves a blocking checkpoint and records decision metadata.
+func (n *Navigator) ApproveWithDecision(ctx context.Context, decision DecisionMetadata) error {
+	return n.ApproveWithAudit(ctx, "", decision)
+}
+
+// ApproveWithAudit approves a blocking checkpoint, recording durable audit
+// text and decision metadata, then advances.
+func (n *Navigator) ApproveWithAudit(ctx context.Context, feedback string, decision DecisionMetadata) error {
 	if err := n.EnsureInitialized(); err != nil {
 		return err
 	}
@@ -276,13 +287,13 @@ func (n *Navigator) Approve(ctx context.Context) error {
 	}
 
 	currentStep := n.workflowState.CurrentStep
-	if err := n.workflowState.Approve(); err != nil {
+	if err := n.workflowState.ApproveWithAudit(feedback, decision); err != nil {
 		return err
 	}
 
 	sk := n.stateKey()
 	if n.store != nil {
-		n.store.QueueWorkflowEvents(EmitStepDoneEvents(sk, currentStep))
+		n.store.QueueWorkflowEvents(EmitStepDoneWithDecisionEvents(sk, currentStep, feedback, decision))
 		if n.workflowState.CurrentStep > currentStep {
 			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
 			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, n.workflowState.CurrentStep))
@@ -294,6 +305,11 @@ func (n *Navigator) Approve(ctx context.Context) error {
 
 // Reject rejects the current step with feedback.
 func (n *Navigator) Reject(ctx context.Context, reason string) error {
+	return n.RejectWithDecision(ctx, reason, DecisionMetadata{})
+}
+
+// RejectWithDecision rejects the current step with feedback and decision metadata.
+func (n *Navigator) RejectWithDecision(ctx context.Context, reason string, decision DecisionMetadata) error {
 	if err := n.EnsureInitialized(); err != nil {
 		return err
 	}
@@ -304,11 +320,11 @@ func (n *Navigator) Reject(ctx context.Context, reason string) error {
 		}
 	}
 
-	n.workflowState.Reject(reason)
+	n.workflowState.RejectWithDecision(reason, decision)
 
 	sk := n.stateKey()
 	if n.store != nil {
-		n.store.QueueWorkflowEvents(EmitStepBlockEvents(sk, n.workflowState.CurrentStep, reason))
+		n.store.QueueWorkflowEvents(EmitStepBlockWithDecisionEvents(sk, n.workflowState.CurrentStep, reason, decision))
 		return n.store.SaveEvents(ctx)
 	}
 	return n.workflowState.Save(ctx, n.festivalPath, sk)
@@ -319,6 +335,11 @@ func (n *Navigator) Reject(ctx context.Context, reason string) error {
 // silently complete past a real failure; the gate must be re-evaluated once
 // the remediation phase finishes.
 func (n *Navigator) RejectWithRemediation(ctx context.Context, reason, remediationPhase string) error {
+	return n.RejectWithRemediationDecision(ctx, reason, remediationPhase, DecisionMetadata{})
+}
+
+// RejectWithRemediationDecision records a failed gate with decision metadata.
+func (n *Navigator) RejectWithRemediationDecision(ctx context.Context, reason, remediationPhase string, decision DecisionMetadata) error {
 	if err := n.EnsureInitialized(); err != nil {
 		return err
 	}
@@ -329,11 +350,11 @@ func (n *Navigator) RejectWithRemediation(ctx context.Context, reason, remediati
 		}
 	}
 
-	n.workflowState.RejectWithRemediation(reason, remediationPhase)
+	n.workflowState.RejectWithRemediationDecision(reason, remediationPhase, decision)
 
 	sk := n.stateKey()
 	if n.store != nil {
-		n.store.QueueWorkflowEvents(EmitStepFailRemediationEvents(sk, n.workflowState.CurrentStep, reason, remediationPhase))
+		n.store.QueueWorkflowEvents(EmitStepFailRemediationWithDecisionEvents(sk, n.workflowState.CurrentStep, reason, remediationPhase, decision))
 		return n.store.SaveEvents(ctx)
 	}
 	return n.workflowState.Save(ctx, n.festivalPath, sk)

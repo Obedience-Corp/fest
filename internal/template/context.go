@@ -26,6 +26,7 @@ type Context struct {
 	PhaseType      string // "planning", "implementation", "review", "non_coding_action", "research"
 	PhaseStructure string // "freeform" or "structured"
 	PhaseObjective string
+	PhaseContext   string
 
 	// Sequence-level variables
 	SequenceNumber       int
@@ -112,6 +113,11 @@ func (c *Context) SetPhaseStructure(structure string) {
 // SetPhaseObjective sets the phase objective
 func (c *Context) SetPhaseObjective(objective string) {
 	c.PhaseObjective = objective
+}
+
+// SetPhaseContext sets context about phase inputs and how outputs will be used.
+func (c *Context) SetPhaseContext(phaseContext string) {
+	c.PhaseContext = phaseContext
 }
 
 // SetSequence sets sequence-level variables
@@ -203,6 +209,7 @@ func (c *Context) ToTemplateData() map[string]interface{} {
 		"phase_type":      c.PhaseType,
 		"phase_structure": c.PhaseStructure,
 		"phase_objective": c.PhaseObjective,
+		"phase_context":   c.PhaseContext,
 
 		// Sequence-level
 		"sequence_number":       c.SequenceNumber,
@@ -331,6 +338,7 @@ func (c *Context) ToReplacementMap() map[string]string {
 		m["[REPLACE: Festival goal]"] = c.FestivalGoal
 		m["[REPLACE: festival_goal]"] = c.FestivalGoal
 		m["[REPLACE: Festival Goal]"] = c.FestivalGoal
+		m["[REPLACE: One sentence describing what this festival accomplishes]"] = c.FestivalGoal
 	}
 
 	// Phase-level replacements
@@ -394,6 +402,9 @@ func (c *Context) ToReplacementMap() map[string]string {
 		m["[REPLACE: What this ingest phase will transform and why]"] = c.PhaseObjective
 		m["[REPLACE: What question or problem this research aims to answer]"] = c.PhaseObjective
 		m["[REPLACE: What this review phase validates or approves]"] = c.PhaseObjective
+	}
+	if c.PhaseContext != "" {
+		m["[REPLACE: Where the input came from and how the structured output will be used]"] = c.PhaseContext
 	}
 
 	// Parent/structure replacements

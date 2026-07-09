@@ -26,4 +26,3 @@ fest task blocked [task] [flags]
 ### SEE ALSO
 
 * [fest task](fest_task.md)	 - Manage task status (show, edit, complete, block, reset)
-

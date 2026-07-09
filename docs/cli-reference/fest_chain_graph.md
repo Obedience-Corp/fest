@@ -30,4 +30,3 @@ fest chain graph [chain-id] [flags]
 ### SEE ALSO
 
 * [fest chain](fest_chain.md)	 - Manage festival chains (inter-festival dependencies)
-

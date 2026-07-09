@@ -68,4 +68,3 @@ fest understand [flags]
 * [fest understand tasks](fest_understand_tasks.md)	 - When and how to create task files (CRITICAL)
 * [fest understand templates](fest_understand_templates.md)	 - Template variables that save tokens
 * [fest understand workflow](fest_understand_workflow.md)	 - Just-in-time reading plus workflow/gate execution
-

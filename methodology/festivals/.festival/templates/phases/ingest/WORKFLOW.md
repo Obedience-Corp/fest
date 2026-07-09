@@ -15,10 +15,11 @@ This document guides the agent through the ingest phase. Follow these steps in o
 **Goal:** Ensure every piece of requirement material the user already has is present in `input_specs/` before any reading or analysis begins.
 
 **Actions:**
-1. Ask the user (or check the festival context) what requirement artifacts exist: intents, notes, structured specs, prior planning text, chat history summaries, docs, screenshots, or any other relevant material
-2. Copy or transcribe each artifact into `input_specs/` — one file per source, named descriptively (e.g., `intent-original.md`, `prior-design-notes.md`, `user-chat-summary.md`)
-3. If the user seeded content at festival creation time, confirm it is present in `input_specs/` and correctly named
-4. List the files now in `input_specs/` and confirm with the user that nothing is missing before proceeding
+1. If `input_specs/` already contains structured seed material from an explore/design workitem, verify it covers the extraction targets and reference those source docs instead of re-deriving them from scratch
+2. Ask the user (or check the festival context) what requirement artifacts exist: intents, notes, structured specs, prior planning text, chat history summaries, docs, screenshots, or any other relevant material
+3. Copy or transcribe each artifact into `input_specs/` — one file per source, named descriptively (e.g., `intent-original.md`, `prior-design-notes.md`, `user-chat-summary.md`)
+4. If the user seeded content at festival creation time, confirm it is present in `input_specs/` and correctly named
+5. List the files now in `input_specs/` and confirm with the user that nothing is missing before proceeding
 
 **Output:** All available requirement artifacts present in `input_specs/`
 
@@ -33,8 +34,9 @@ This document guides the agent through the ingest phase. Follow these steps in o
 **Actions:**
 1. List all files in `input_specs/`
 2. Read each file completely — do not skim
-3. Identify: What is the user trying to accomplish? What problem are they solving?
-4. Note any questions or ambiguities
+3. If the inputs are already structured, verify coverage against `output_specs/` targets and carry forward source references rather than rewriting equivalent content
+4. Identify: What is the user trying to accomplish? What problem are they solving?
+5. Note any questions or ambiguities
 
 **Output:** Mental model of the user's intent (no document yet)
 

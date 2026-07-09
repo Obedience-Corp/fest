@@ -64,6 +64,8 @@ type ProgressEvent struct {
 	TotalSteps       int    `json:"total_steps,omitempty"`
 	Feedback         string `json:"feedback,omitempty"`
 	RemediationPhase string `json:"remediation_phase,omitempty"`
+	DecisionActor    string `json:"decision_actor,omitempty"`
+	DecisionSummary  string `json:"decision_summary,omitempty"`
 }
 
 // loadFromEvents reads the JSONL file and materializes current state.
@@ -359,6 +361,7 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 			ts := e.Timestamp
 			ss.CompletedAt = &ts
 			ss.Feedback = e.Feedback
+			recordDecision(ss, e)
 
 		case EventWorkflowStepSkip:
 			ss := phaseState.GetOrCreateStepState(e.Step)
@@ -371,18 +374,23 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 			ss := phaseState.GetOrCreateStepState(e.Step)
 			ss.Status = wf.StepStatusBlocked
 			ss.Feedback = e.Feedback
+			recordDecision(ss, e)
 
 		case EventWorkflowStepFailRemediation:
 			ss := phaseState.GetOrCreateStepState(e.Step)
 			ss.Status = wf.StepStatusFailedRemediation
 			ss.Feedback = e.Feedback
 			ss.RemediationPhase = e.RemediationPhase
+			recordDecision(ss, e)
 
 		case EventWorkflowStepRecheck:
 			ss := phaseState.GetOrCreateStepState(e.Step)
 			if ss.Status == wf.StepStatusFailedRemediation {
 				ss.Status = wf.StepStatusInProgress
 				ss.RemediationPhase = ""
+				ss.DecisionActor = ""
+				ss.DecisionSummary = ""
+				ss.DecisionAt = nil
 			}
 
 		case EventWorkflowAdvance:
@@ -395,6 +403,9 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 				ss.StartedAt = nil
 				ss.CompletedAt = nil
 				ss.Feedback = ""
+				ss.DecisionActor = ""
+				ss.DecisionSummary = ""
+				ss.DecisionAt = nil
 			}
 		}
 
@@ -403,6 +414,16 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 	}
 
 	return state
+}
+
+func recordDecision(ss *wf.StepState, e ProgressEvent) {
+	if e.DecisionActor == "" && e.DecisionSummary == "" {
+		return
+	}
+	ss.DecisionActor = e.DecisionActor
+	ss.DecisionSummary = e.DecisionSummary
+	ts := e.Timestamp
+	ss.DecisionAt = &ts
 }
 
 // generateWorkflowEventsFromYAML converts a FestivalWorkflowState (from YAML) into
@@ -453,11 +474,13 @@ func generateWorkflowEventsFromYAML(state *wf.FestivalWorkflowState) []ProgressE
 					ts = *ss.CompletedAt
 				}
 				events = append(events, ProgressEvent{
-					Timestamp: ts,
-					Event:     EventWorkflowStepDone,
-					Phase:     phaseName,
-					Step:      i,
-					Feedback:  ss.Feedback,
+					Timestamp:       ts,
+					Event:           EventWorkflowStepDone,
+					Phase:           phaseName,
+					Step:            i,
+					Feedback:        ss.Feedback,
+					DecisionActor:   ss.DecisionActor,
+					DecisionSummary: ss.DecisionSummary,
 				})
 
 			case wf.StepStatusSkipped:
@@ -479,11 +502,29 @@ func generateWorkflowEventsFromYAML(state *wf.FestivalWorkflowState) []ProgressE
 					ts = ss.StartedAt.Add(time.Second)
 				}
 				events = append(events, ProgressEvent{
-					Timestamp: ts,
-					Event:     EventWorkflowStepBlock,
-					Phase:     phaseName,
-					Step:      i,
-					Feedback:  ss.Feedback,
+					Timestamp:       ts,
+					Event:           EventWorkflowStepBlock,
+					Phase:           phaseName,
+					Step:            i,
+					Feedback:        ss.Feedback,
+					DecisionActor:   ss.DecisionActor,
+					DecisionSummary: ss.DecisionSummary,
+				})
+
+			case wf.StepStatusFailedRemediation:
+				ts := initTS.Add(time.Duration(i) * time.Second)
+				if ss.StartedAt != nil {
+					ts = ss.StartedAt.Add(time.Second)
+				}
+				events = append(events, ProgressEvent{
+					Timestamp:        ts,
+					Event:            EventWorkflowStepFailRemediation,
+					Phase:            phaseName,
+					Step:             i,
+					Feedback:         ss.Feedback,
+					RemediationPhase: ss.RemediationPhase,
+					DecisionActor:    ss.DecisionActor,
+					DecisionSummary:  ss.DecisionSummary,
 				})
 			}
 		}

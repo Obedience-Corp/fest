@@ -53,9 +53,27 @@ Common commands:
   fest workflow show
   fest workflow advance
   fest workflow approve
+  fest workflow approve --auto
   fest workflow reject --reason "..."
   fest workflow reset
   fest workflow skip --reason "already completed externally"
+
+Approval Auto Mode
+------------------
+
+Manual approval is the default. `fest workflow approve --auto` is an explicit
+operator delegation to an external judge command, not an inferred agent
+permission. There is no default judge command: configure one with the
+`hooks.approval_judge.command` hook in `.festival/config.yaml` or pass
+`--judge-command`; otherwise `--auto` fails closed.
+
+The judge command receives JSON on stdin using schema
+`fest.approval.judge/v1` and must return JSON on stdout with decision
+`approve` or `reject` plus a non-empty reason. Missing commands, timeouts,
+non-zero exits, malformed JSON, unknown decisions, and empty reasons fail
+closed: fest does not approve the checkpoint and leaves the workflow state
+unchanged except for valid reject decisions, which block the step with the
+judge reason in the audit text.
 
 Auto-Routing Rules
 ------------------

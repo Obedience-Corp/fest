@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -182,6 +183,41 @@ func TestParser_ParseContent_StepDetails(t *testing.T) {
 
 	if step.Checkpoint != CheckpointUserApproval {
 		t.Errorf("Step.Checkpoint = %v, want CheckpointUserApproval", step.Checkpoint)
+	}
+}
+
+func TestParser_ParseContent_NestedActions(t *testing.T) {
+	content := `## Step 1: DECOMPOSE — Break Down Goals
+
+**Goal:** Transform requirements into structure.
+
+**Actions:**
+1. Identify the Festival Goal
+2. Break into Phase Goals:
+   - What planning phases are needed?
+   - What implementation phases are needed?
+3. Document the hierarchy
+
+**Output:** Structure
+
+**Checkpoint:** None`
+
+	parser := NewParser()
+	steps, err := parser.ParseContent(context.Background(), content)
+	if err != nil {
+		t.Fatalf("ParseContent() error = %v", err)
+	}
+	if len(steps) != 1 {
+		t.Fatalf("got %d steps, want 1", len(steps))
+	}
+	if len(steps[0].Actions) != 3 {
+		t.Fatalf("got %d actions, want 3: %#v", len(steps[0].Actions), steps[0].Actions)
+	}
+	action := steps[0].Actions[1]
+	if !strings.Contains(action, "Break into Phase Goals:") ||
+		!strings.Contains(action, "- What planning phases are needed?") ||
+		!strings.Contains(action, "- What implementation phases are needed?") {
+		t.Fatalf("nested action detail was not preserved:\n%s", action)
 	}
 }
 

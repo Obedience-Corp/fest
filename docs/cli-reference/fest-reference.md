@@ -1342,6 +1342,7 @@ for later aggregation and analysis.
 Examples:
 ```bash
   fest feedback init --criteria "Code quality" --criteria "Performance"
+  fest feedback criteria add --criteria "Onboarding friction, especially copied commands"
   fest feedback add --criteria "Code quality" --observation "Found duplication"
   fest feedback view
   fest feedback export --format markdown
@@ -1394,6 +1395,63 @@ fest feedback add [flags]
       --severity string      severity: low, medium, high
       --suggestion string    suggested action
       --task string          related task path
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
+## fest feedback criteria
+
+Manage feedback criteria
+
+### Options
+
+```
+  -h, --help   help for criteria
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
+## fest feedback criteria add
+
+Add feedback criteria
+
+### Synopsis
+
+Add criteria to existing feedback collection.
+
+Each --criteria value is treated literally, so commas are preserved.
+
+Examples:
+```bash
+  fest feedback criteria add --criteria "Onboarding friction, especially copied commands"
+  fest feedback criteria add --criteria "Performance" --criteria "Documentation gaps"
+```
+
+```
+fest feedback criteria add [flags]
+```
+
+### Options
+
+```
+      --criteria stringArray   feedback criteria to add (required, repeatable)
+  -h, --help                   help for add
 ```
 
 ### Options inherited from parent commands
@@ -1459,6 +1517,7 @@ Examples:
 ```bash
   fest feedback init --criteria "Code quality observations"
   fest feedback init --criteria "Performance concerns" --criteria "Methodology suggestions"
+  fest feedback init --force --criteria "Usability" --criteria "Release blockers"
 ```
 
 ```
@@ -1468,8 +1527,9 @@ fest feedback init [flags]
 ### Options
 
 ```
-      --criteria strings   feedback criteria (required)
-  -h, --help               help for init
+      --criteria stringArray   feedback criteria (required, repeatable)
+      --force                  replace existing criteria while preserving observations
+  -h, --help                   help for init
 ```
 
 ### Options inherited from parent commands
@@ -6908,6 +6968,23 @@ After approval:
   - The current step is marked as approved
   - The workflow advances to the next step
 
+Auto approval:
+  Manual approval is the default. Use --auto only when an operator has explicitly
+  delegated this checkpoint decision to an external judge command.
+
+  The judge command receives JSON on stdin using schema fest.approval.judge/v1
+  and must return JSON on stdout with decision "approve" or "reject" and a
+  reason. Missing commands, timeouts, non-zero exits, malformed JSON, unknown
+  decisions, and empty reasons fail closed and do not approve the checkpoint.
+
+  The judge command is resolved as: --judge-command flag, else the
+  hooks.approval_judge.command hook in .festival/config.yaml. If neither is
+  set, --auto fails closed and leaves the checkpoint unchanged.
+
+      hooks:
+        approval_judge:
+          command: ob judge
+
 ```
 fest workflow approve [flags]
 ```
@@ -6915,7 +6992,12 @@ fest workflow approve [flags]
 ### Options
 
 ```
-  -h, --help   help for approve
+      --as string                decision actor: user or agent (default "user")
+      --auto                     delegate this checkpoint decision to the configured approval judge command
+  -h, --help                     help for approve
+      --judge-command string     approval judge command for --auto (overrides the .festival/config.yaml hooks.approval_judge.command hook)
+      --judge-timeout duration   maximum time to wait for the approval judge (default 2m0s)
+      --summary string           approval summary or rationale
 ```
 
 ### Options inherited from parent commands
@@ -7046,6 +7128,7 @@ Examples:
 ```bash
   fest workflow reject --reason "needs revision"
   fest workflow reject --reason "PR not ready" --remediation-phase 005_FIX_PR_302
+  fest workflow reject --as agent --reason "missing acceptance proof"
 ```
 
 ```
@@ -7055,9 +7138,11 @@ fest workflow reject [flags]
 ### Options
 
 ```
+      --as string                  decision actor: user or agent (default "user")
   -h, --help                       help for reject
   -r, --reason string              reason for rejection (required)
       --remediation-phase string   link a remediation phase for a failed gate (e.g. 005_FIX_PR_302)
+      --summary string             decision summary or rationale
 ```
 
 ### Options inherited from parent commands

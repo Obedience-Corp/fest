@@ -48,4 +48,3 @@ fest reorder task <from> <to> [flags]
 ### SEE ALSO
 
 * [fest reorder](fest_reorder.md)	 - Reorder festival elements
-

@@ -19,10 +19,12 @@ EXAMPLE OUTPUT:
 
   **User commands:**
   - Approve and continue: fest workflow approve
+  - Delegated judge:      fest workflow approve --auto
   - Reject with feedback:  fest workflow reject --reason "..."
 
   ───────────────────────────────────────────────────────────────────────────────
-  Cannot advance until user approves.
+  Cannot advance until user approves or an explicitly delegated judge returns a
+  valid approve decision.
   ═══════════════════════════════════════════════════════════════════════════════
 */}}
 {{- if .InstructionHeader}}
@@ -36,6 +38,15 @@ Step {{.StepNumber}}: {{.StepName}}
 
 This step requires explicit user confirmation before proceeding.
 
+{{- if .Goal}}
+**Question:** {{.Goal}}
+
+{{- end}}
+{{- if .Actions}}
+**Actions to verify:**
+{{range .Actions}}- {{.}}
+{{end}}
+{{end}}
 **What you should do:**
 1. Present your work to the user
 2. Summarize what you've completed
@@ -44,8 +55,10 @@ This step requires explicit user confirmation before proceeding.
 
 **User commands:**
 - Approve and continue: fest workflow approve
+- Delegated judge:      fest workflow approve --auto
 - Reject with feedback:  fest workflow reject --reason "..."
 
 ───────────────────────────────────────────────────────────────────────────────
-Cannot advance until user approves.
+Cannot advance until user approves or an explicitly delegated judge returns a valid approve decision.
+Auto mode is default-off and fails closed if the judge command is missing or invalid.
 ═══════════════════════════════════════════════════════════════════════════════

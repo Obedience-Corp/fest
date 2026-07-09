@@ -41,4 +41,3 @@ fest config theme set <theme> [flags]
 ### SEE ALSO
 
 * [fest config theme](fest_config_theme.md)	 - Manage TUI color theme
-

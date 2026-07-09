@@ -45,4 +45,3 @@ fest types list [flags]
 ### SEE ALSO
 
 * [fest types](fest_types.md)	 - Discover and explore template types
-

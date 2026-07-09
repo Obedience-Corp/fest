@@ -87,6 +87,59 @@ func TestGenerateWorkflowEventsFromYAML_EmitsStepSkip(t *testing.T) {
 	}
 }
 
+func TestGenerateWorkflowEventsFromYAML_EmitsFailRemediation(t *testing.T) {
+	now := time.Now().UTC()
+	phaseState := wf.NewWorkflowState(1)
+	phaseState.CreatedAt = now
+	phaseState.UpdatedAt = now.Add(2 * time.Second)
+	phaseState.CurrentStep = 1
+	phaseState.Steps[1] = &wf.StepState{
+		Number:           1,
+		Status:           wf.StepStatusFailedRemediation,
+		StartedAt:        ptrTime(now.Add(1 * time.Second)),
+		Feedback:         "PR not ready",
+		RemediationPhase: "005_FIX_PR_302",
+		DecisionActor:    "agent",
+		DecisionSummary:  "missing acceptance proof",
+	}
+
+	state := wf.NewFestivalWorkflowState()
+	state.CreatedAt = now
+	state.UpdatedAt = now.Add(2 * time.Second)
+	state.Phases["gate:001_REVIEW"] = phaseState
+
+	events := generateWorkflowEventsFromYAML(state)
+
+	var fail *ProgressEvent
+	for i := range events {
+		if events[i].Event == EventWorkflowStepFailRemediation && events[i].Phase == "gate:001_REVIEW" && events[i].Step == 1 {
+			fail = &events[i]
+			break
+		}
+	}
+	if fail == nil {
+		t.Fatal("expected wf_step_fail_remediation event in generated workflow events")
+	}
+	if fail.RemediationPhase != "005_FIX_PR_302" {
+		t.Errorf("RemediationPhase = %q, want 005_FIX_PR_302", fail.RemediationPhase)
+	}
+	if fail.DecisionActor != "agent" || fail.DecisionSummary != "missing acceptance proof" {
+		t.Errorf("decision metadata not preserved: actor=%q summary=%q", fail.DecisionActor, fail.DecisionSummary)
+	}
+
+	round := materializeWorkflowState(events)
+	rehydrated := round.Phases["gate:001_REVIEW"].GetStepState(1)
+	if rehydrated == nil {
+		t.Fatal("step 1 missing after round-trip")
+	}
+	if rehydrated.Status != wf.StepStatusFailedRemediation {
+		t.Errorf("round-trip Status = %v, want %v", rehydrated.Status, wf.StepStatusFailedRemediation)
+	}
+	if rehydrated.RemediationPhase != "005_FIX_PR_302" {
+		t.Errorf("round-trip RemediationPhase = %q, want 005_FIX_PR_302", rehydrated.RemediationPhase)
+	}
+}
+
 func ptrTime(t time.Time) *time.Time {
 	return &t
 }

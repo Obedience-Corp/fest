@@ -76,4 +76,3 @@ fest status set <status> [flags]
 ### SEE ALSO
 
 * [fest status](fest_status.md)	 - Manage and query festival entity statuses
-

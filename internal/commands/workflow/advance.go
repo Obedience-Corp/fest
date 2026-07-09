@@ -247,7 +247,11 @@ func showNextStep(ctx context.Context, nav *wf.Navigator, steps []wf.WorkflowSte
 
 	if state.IsComplete() {
 		fmt.Println()
-		fmt.Println(ui.Success("🎉 Workflow complete!"))
+		if phaseGatePending(ctx, nav) {
+			fmt.Println(ui.Success("✓ Workflow complete - phase gate next: run fest next"))
+		} else {
+			fmt.Println(ui.Success("🎉 Workflow complete!"))
+		}
 		fmt.Println()
 
 		// Propagate phase completion to PHASE_GOAL.md frontmatter
@@ -288,6 +292,27 @@ func showNextStep(ctx context.Context, nav *wf.Navigator, steps []wf.WorkflowSte
 	fmt.Println("Run " + ui.Accent("fest next") + " for step details.")
 
 	return nil
+}
+
+func phaseGatePending(ctx context.Context, nav *wf.Navigator) bool {
+	gctx := nav.GetContext()
+	if gctx == nil || gctx.PhasePath == "" {
+		return false
+	}
+	gatesPath := filepath.Join(gctx.PhasePath, "GATES.md")
+	if _, err := os.Stat(gatesPath); err != nil {
+		return false
+	}
+	steps, err := wf.NewParser().Parse(ctx, gatesPath)
+	if err != nil || len(steps) == 0 {
+		return false
+	}
+	store := progress.NewStore(gctx.FestivalPath)
+	if err := store.LoadReadOnly(ctx); err != nil {
+		return true
+	}
+	state, ok := store.GatePhaseState(filepath.Base(gctx.PhasePath))
+	return !ok || state == nil || !state.IsComplete()
 }
 
 // checkPhaseChaining checks if a completed phase should trigger creation of the next phase.

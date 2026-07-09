@@ -25,6 +25,7 @@ type CreatePhaseOptions struct {
 	Name        string
 	PhaseType   string
 	Description string // Phase objective/description (auto-fills Primary Goal marker)
+	Context     string // Phase context (auto-fills Context marker)
 	Path        string
 	Festival    string // --festival: path to festival root (overrides --path)
 	VarsFile    string
@@ -271,6 +272,9 @@ func buildPhaseTemplateContext(absPath, festivalPath string, opts *CreatePhaseOp
 	tmplCtx.SetPhase(newNumber, opts.Name, opts.PhaseType)
 	if opts.Description != "" {
 		tmplCtx.SetPhaseObjective(opts.Description)
+	}
+	if opts.Context != "" {
+		tmplCtx.SetPhaseContext(opts.Context)
 	}
 	tmplCtx.ComputeStructureVariables()
 	for k, v := range vars {

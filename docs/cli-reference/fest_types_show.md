@@ -41,4 +41,3 @@ fest types show <type-name> [flags]
 ### SEE ALSO
 
 * [fest types](fest_types.md)	 - Discover and explore template types
-

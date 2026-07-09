@@ -36,4 +36,3 @@ fest intro workflows [flags]
 ### SEE ALSO
 
 * [fest intro](fest_intro.md)	 - Getting started guide for fest CLI and common workflows
-
