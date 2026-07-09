@@ -1,16 +1,11 @@
-## fest show active
+## fest feedback criteria
 
-List festivals in active/ directory
-
-```
-fest show active [flags]
-```
+Manage feedback criteria
 
 ### Options
 
 ```
-  -h, --help   help for active
-      --json   output in JSON format
+  -h, --help   help for criteria
 ```
 
 ### Options inherited from parent commands
@@ -24,4 +19,5 @@ fest show active [flags]
 
 ### SEE ALSO
 
-* [fest show](fest_show.md)	 - Display festival information
+* [fest feedback](fest_feedback.md)	 - Manage structured feedback collection
+* [fest feedback criteria add](fest_feedback_criteria_add.md)	 - Add feedback criteria

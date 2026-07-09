@@ -51,4 +51,3 @@ fest status [path] [flags]
 * [fest status history](fest_status_history.md)	 - View status change history
 * [fest status list](fest_status_list.md)	 - List entities by status
 * [fest status set](fest_status_set.md)	 - Change entity status
-

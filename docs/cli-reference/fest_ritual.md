@@ -21,4 +21,3 @@ Manage repeatable ritual festivals
 
 * [fest](fest.md)	 - Festival Methodology CLI - goal-oriented project management for AI agents
 * [fest ritual run](fest_ritual_run.md)	 - Create a new run of a ritual festival in active/
-

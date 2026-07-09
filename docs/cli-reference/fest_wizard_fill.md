@@ -85,4 +85,3 @@ fest wizard fill [file-or-directory] [flags]
 ### SEE ALSO
 
 * [fest wizard](fest_wizard.md)	 - Interactive guidance and assistance for festival creation
-

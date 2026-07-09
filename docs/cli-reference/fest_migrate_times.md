@@ -49,4 +49,3 @@ fest migrate times [path] [flags]
 ### SEE ALSO
 
 * [fest migrate](fest_migrate.md)	 - Migrate festival documents
-

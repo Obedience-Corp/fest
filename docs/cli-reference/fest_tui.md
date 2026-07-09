@@ -24,4 +24,3 @@ fest tui [flags]
 ### SEE ALSO
 
 * [fest](fest.md)	 - Festival Methodology CLI - goal-oriented project management for AI agents
-

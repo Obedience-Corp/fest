@@ -52,4 +52,3 @@ fest system update [path] [flags]
 ### SEE ALSO
 
 * [fest system](fest_system.md)	 - Manage fest tool configuration and templates
-

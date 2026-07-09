@@ -35,4 +35,3 @@ fest ritual run <ritual-name-or-id> [flags]
 ### SEE ALSO
 
 * [fest ritual](fest_ritual.md)	 - Manage repeatable ritual festivals
-

@@ -34,4 +34,3 @@ that override or extend the built-in fest methodology resources.
 * [fest config sync](fest_config_sync.md)	 - Sync configuration repository
 * [fest config theme](fest_config_theme.md)	 - Manage TUI color theme
 * [fest config use](fest_config_use.md)	 - Set active configuration repository
-

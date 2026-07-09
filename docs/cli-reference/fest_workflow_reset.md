@@ -33,4 +33,3 @@ fest workflow reset [flags]
 ### SEE ALSO
 
 * [fest workflow](fest_workflow.md)	 - Manage workflow-based phase execution
-

@@ -35,4 +35,3 @@ Available Commands:
 * [fest gates apply](fest_gates_apply.md)	 - Apply quality gates to sequences
 * [fest gates remove](fest_gates_remove.md)	 - Remove quality gate files from sequences
 * [fest gates show](fest_gates_show.md)	 - Show effective gate policy
-

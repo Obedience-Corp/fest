@@ -47,4 +47,3 @@ fest research create [flags]
 ### SEE ALSO
 
 * [fest research](fest_research.md)	 - Manage research phase documents
-

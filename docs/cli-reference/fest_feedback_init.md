@@ -13,6 +13,7 @@ Examples:
 ```bash
   fest feedback init --criteria "Code quality observations"
   fest feedback init --criteria "Performance concerns" --criteria "Methodology suggestions"
+  fest feedback init --force --criteria "Usability" --criteria "Release blockers"
 ```
 
 ```
@@ -22,8 +23,9 @@ fest feedback init [flags]
 ### Options
 
 ```
-      --criteria strings   feedback criteria (required)
-  -h, --help               help for init
+      --criteria stringArray   feedback criteria (required, repeatable)
+      --force                  replace existing criteria while preserving observations
+  -h, --help                   help for init
 ```
 
 ### Options inherited from parent commands
@@ -38,4 +40,3 @@ fest feedback init [flags]
 ### SEE ALSO
 
 * [fest feedback](fest_feedback.md)	 - Manage structured feedback collection
-

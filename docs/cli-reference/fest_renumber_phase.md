@@ -43,4 +43,3 @@ fest renumber phase [festival-dir] [flags]
 ### SEE ALSO
 
 * [fest renumber](fest_renumber.md)	 - Renumber festival elements
-

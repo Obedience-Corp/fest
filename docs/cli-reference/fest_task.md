@@ -53,4 +53,3 @@ Examples:
 * [fest task edit](fest_task_edit.md)	 - Open the current task in your editor
 * [fest task reset](fest_task_reset.md)	 - Reset a task to pending (requires confirmation)
 * [fest task show](fest_task_show.md)	 - Show task details and status
-

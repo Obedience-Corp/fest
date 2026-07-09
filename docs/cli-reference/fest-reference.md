@@ -1342,6 +1342,7 @@ for later aggregation and analysis.
 Examples:
 ```bash
   fest feedback init --criteria "Code quality" --criteria "Performance"
+  fest feedback criteria add --criteria "Onboarding friction, especially copied commands"
   fest feedback add --criteria "Code quality" --observation "Found duplication"
   fest feedback view
   fest feedback export --format markdown
@@ -1394,6 +1395,63 @@ fest feedback add [flags]
       --severity string      severity: low, medium, high
       --suggestion string    suggested action
       --task string          related task path
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
+## fest feedback criteria
+
+Manage feedback criteria
+
+### Options
+
+```
+  -h, --help   help for criteria
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
+## fest feedback criteria add
+
+Add feedback criteria
+
+### Synopsis
+
+Add criteria to existing feedback collection.
+
+Each --criteria value is treated literally, so commas are preserved.
+
+Examples:
+```bash
+  fest feedback criteria add --criteria "Onboarding friction, especially copied commands"
+  fest feedback criteria add --criteria "Performance" --criteria "Documentation gaps"
+```
+
+```
+fest feedback criteria add [flags]
+```
+
+### Options
+
+```
+      --criteria stringArray   feedback criteria to add (required, repeatable)
+  -h, --help                   help for add
 ```
 
 ### Options inherited from parent commands
@@ -1459,6 +1517,7 @@ Examples:
 ```bash
   fest feedback init --criteria "Code quality observations"
   fest feedback init --criteria "Performance concerns" --criteria "Methodology suggestions"
+  fest feedback init --force --criteria "Usability" --criteria "Release blockers"
 ```
 
 ```
@@ -1468,8 +1527,9 @@ fest feedback init [flags]
 ### Options
 
 ```
-      --criteria strings   feedback criteria (required)
-  -h, --help               help for init
+      --criteria stringArray   feedback criteria (required, repeatable)
+      --force                  replace existing criteria while preserving observations
+  -h, --help                   help for init
 ```
 
 ### Options inherited from parent commands
