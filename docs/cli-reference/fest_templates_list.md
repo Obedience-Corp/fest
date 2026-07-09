@@ -31,4 +31,3 @@ fest templates list [flags]
 ### SEE ALSO
 
 * [fest templates](fest_templates.md)	 - Manage agent-created templates within a festival
-

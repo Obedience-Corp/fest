@@ -37,4 +37,3 @@ fest understand tasks [flags]
 ### SEE ALSO
 
 * [fest understand](fest_understand.md)	 - Learn methodology FIRST - run before executing festival tasks
-

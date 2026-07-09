@@ -43,4 +43,3 @@ Examples:
 * [fest migrate frontmatter](fest_migrate_frontmatter.md)	 - Add YAML frontmatter to existing documents
 * [fest migrate metadata](fest_migrate_metadata.md)	 - Add metadata to existing festivals
 * [fest migrate times](fest_migrate_times.md)	 - Populate time tracking data from file modification times
-

@@ -71,4 +71,3 @@ fest create sequence [flags]
 ### SEE ALSO
 
 * [fest create](fest_create.md)	 - Create festivals, phases, sequences, or tasks (TUI)
-

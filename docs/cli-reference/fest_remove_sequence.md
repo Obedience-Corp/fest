@@ -45,4 +45,3 @@ fest remove sequence [sequence-number|sequence-name] [flags]
 ### SEE ALSO
 
 * [fest remove](fest_remove.md)	 - Remove festival elements and renumber
-

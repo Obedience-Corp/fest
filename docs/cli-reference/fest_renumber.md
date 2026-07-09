@@ -34,4 +34,3 @@ removed, or reordered in the festival hierarchy.
 * [fest renumber phase](fest_renumber_phase.md)	 - Renumber phases in a festival
 * [fest renumber sequence](fest_renumber_sequence.md)	 - Renumber sequences within a phase
 * [fest renumber task](fest_renumber_task.md)	 - Renumber tasks within a sequence
-

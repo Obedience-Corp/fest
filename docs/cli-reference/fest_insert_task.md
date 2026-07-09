@@ -43,4 +43,3 @@ fest insert task [flags]
 ### SEE ALSO
 
 * [fest insert](fest_insert.md)	 - Insert new festival elements
-

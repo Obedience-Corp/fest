@@ -41,4 +41,3 @@ fest remove phase [phase-number|phase-path] [flags]
 ### SEE ALSO
 
 * [fest remove](fest_remove.md)	 - Remove festival elements and renumber
-

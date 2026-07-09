@@ -95,4 +95,3 @@ Run 'fest understand' to learn the methodology before executing tasks.
 * [fest watch](fest_watch.md)	 - Watch a festival's in-progress work
 * [fest wizard](fest_wizard.md)	 - Interactive guidance and assistance for festival creation
 * [fest workflow](fest_workflow.md)	 - Manage workflow-based phase execution
-

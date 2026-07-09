@@ -36,4 +36,3 @@ fest go unmap <name> [flags]
 ### SEE ALSO
 
 * [fest go](fest_go.md)	 - Navigate to festivals/ - use 'fgo' after shell-init setup
-

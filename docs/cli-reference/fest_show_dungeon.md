@@ -32,4 +32,3 @@ fest show dungeon [substatus] [flags]
 ### SEE ALSO
 
 * [fest show](fest_show.md)	 - Display festival information
-

@@ -34,4 +34,3 @@ accordingly to maintain proper ordering.
 * [fest reorder phase](fest_reorder_phase.md)	 - Reorder phases in a festival
 * [fest reorder sequence](fest_reorder_sequence.md)	 - Reorder sequences within a phase
 * [fest reorder task](fest_reorder_task.md)	 - Reorder tasks within a sequence
-

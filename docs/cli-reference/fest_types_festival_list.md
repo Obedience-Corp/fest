@@ -37,4 +37,3 @@ fest types festival list [flags]
 ### SEE ALSO
 
 * [fest types festival](fest_types_festival.md)	 - Discover festival types
-

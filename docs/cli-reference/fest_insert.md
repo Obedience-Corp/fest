@@ -32,4 +32,3 @@ following elements to maintain proper ordering.
 * [fest insert phase](fest_insert_phase.md)	 - Insert a new phase
 * [fest insert sequence](fest_insert_sequence.md)	 - Insert a new sequence within a phase
 * [fest insert task](fest_insert_task.md)	 - Insert a new task within a sequence
-

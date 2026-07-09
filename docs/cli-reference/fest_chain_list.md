@@ -26,4 +26,3 @@ fest chain list [flags]
 ### SEE ALSO
 
 * [fest chain](fest_chain.md)	 - Manage festival chains (inter-festival dependencies)
-

@@ -37,4 +37,3 @@ fest config sync [name] [flags]
 ### SEE ALSO
 
 * [fest config](fest_config.md)	 - Manage fest configuration repositories
-

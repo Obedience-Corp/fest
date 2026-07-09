@@ -50,4 +50,3 @@ fest renumber task [flags]
 ### SEE ALSO
 
 * [fest renumber](fest_renumber.md)	 - Renumber festival elements
-

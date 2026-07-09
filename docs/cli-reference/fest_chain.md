@@ -32,4 +32,3 @@ Create, validate, and track chains of dependent festivals.
 * [fest chain list](fest_chain_list.md)	 - List all festival chains
 * [fest chain status](fest_chain_status.md)	 - Show chain status and progress
 * [fest chain validate](fest_chain_validate.md)	 - Validate a festival chain
-

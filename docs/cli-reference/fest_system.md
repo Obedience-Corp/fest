@@ -37,4 +37,3 @@ Available subcommands:
 * [fest system repair](fest_system_repair.md)	 - Fix festival directory layout issues
 * [fest system sync](fest_system_sync.md)	 - System: Download latest fest templates from GitHub
 * [fest system update](fest_system_update.md)	 - System: Update fest methodology files from templates
-

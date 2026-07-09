@@ -34,4 +34,3 @@ For workspace-wide indexing (Guild v3), use the 'tree' subcommand.
 * [fest index tree](fest_index_tree.md)	 - Generate workspace-wide tree index
 * [fest index validate](fest_index_validate.md)	 - Validate festival index against filesystem
 * [fest index write](fest_index_write.md)	 - Generate festival index
-

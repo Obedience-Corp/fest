@@ -39,4 +39,3 @@ Examples:
 * [fest feedback export](fest_feedback_export.md)	 - Export collected feedback
 * [fest feedback init](fest_feedback_init.md)	 - Initialize feedback collection
 * [fest feedback view](fest_feedback_view.md)	 - View collected feedback
-

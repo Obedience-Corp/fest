@@ -61,4 +61,3 @@ fest gates apply [flags]
 ### SEE ALSO
 
 * [fest gates](fest_gates.md)	 - Manage quality gates - validation steps at sequence end
-
