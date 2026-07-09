@@ -6972,6 +6972,10 @@ Auto approval:
   Manual approval is the default. Use --auto only when an operator has explicitly
   delegated this checkpoint decision to an external judge command.
 
+  Agents must not clear checkpoints themselves: --as agent is rejected. An
+  agent-actor decision is recorded only when the operator delegates via --auto
+  and the judge returns a verdict.
+
   The judge command receives JSON on stdin using schema fest.approval.judge/v1
   and must return JSON on stdout with decision "approve" or "reject" and a
   reason. Missing commands, timeouts, non-zero exits, malformed JSON, unknown
@@ -6992,7 +6996,7 @@ fest workflow approve [flags]
 ### Options
 
 ```
-      --as string                decision actor: user or agent (default "user")
+      --as string                decision actor (user; agent decisions require --auto with a configured judge) (default "user")
       --auto                     delegate this checkpoint decision to the configured approval judge command
   -h, --help                     help for approve
       --judge-command string     approval judge command for --auto (overrides the .festival/config.yaml hooks.approval_judge.command hook)
@@ -7128,7 +7132,7 @@ Examples:
 ```bash
   fest workflow reject --reason "needs revision"
   fest workflow reject --reason "PR not ready" --remediation-phase 005_FIX_PR_302
-  fest workflow reject --as agent --reason "missing acceptance proof"
+  fest workflow reject --reason "missing acceptance proof" --summary "reviewed the diff against the task spec"
 ```
 
 ```
@@ -7138,7 +7142,7 @@ fest workflow reject [flags]
 ### Options
 
 ```
-      --as string                  decision actor: user or agent (default "user")
+      --as string                  decision actor (user; agent decisions require 'fest workflow approve --auto' with a configured judge) (default "user")
   -h, --help                       help for reject
   -r, --reason string              reason for rejection (required)
       --remediation-phase string   link a remediation phase for a failed gate (e.g. 005_FIX_PR_302)
