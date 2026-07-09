@@ -6996,7 +6996,6 @@ fest workflow approve [flags]
 ### Options
 
 ```
-      --as string                decision actor (user; agent decisions require --auto with a configured judge) (default "user")
       --auto                     delegate this checkpoint decision to the configured approval judge command
   -h, --help                     help for approve
       --judge-command string     approval judge command for --auto (overrides the .festival/config.yaml hooks.approval_judge.command hook)
@@ -7142,7 +7141,6 @@ fest workflow reject [flags]
 ### Options
 
 ```
-      --as string                  decision actor (user; agent decisions require 'fest workflow approve --auto' with a configured judge) (default "user")
   -h, --help                       help for reject
   -r, --reason string              reason for rejection (required)
       --remediation-phase string   link a remediation phase for a failed gate (e.g. 005_FIX_PR_302)

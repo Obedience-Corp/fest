@@ -31,7 +31,6 @@ fest workflow reject [flags]
 ### Options
 
 ```
-      --as string                  decision actor (user; agent decisions require 'fest workflow approve --auto' with a configured judge) (default "user")
   -h, --help                       help for reject
   -r, --reason string              reason for rejection (required)
       --remediation-phase string   link a remediation phase for a failed gate (e.g. 005_FIX_PR_302)

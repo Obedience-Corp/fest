@@ -41,7 +41,6 @@ fest workflow approve [flags]
 ### Options
 
 ```
-      --as string                decision actor (user; agent decisions require --auto with a configured judge) (default "user")
       --auto                     delegate this checkpoint decision to the configured approval judge command
   -h, --help                     help for approve
       --judge-command string     approval judge command for --auto (overrides the .festival/config.yaml hooks.approval_judge.command hook)
