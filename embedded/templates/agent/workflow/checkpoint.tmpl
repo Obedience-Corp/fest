@@ -1,31 +1,28 @@
 {{/*
 TEMPLATE: workflow/checkpoint.tmpl
-PURPOSE: Shown when a step requires user approval
+PURPOSE: Shown when a step requires approval. Rendering is judge-aware:
+when the operator configured hooks.approval_judge.command the agent is
+instructed to run the delegated judge; otherwise the agent must stop and
+hand off to the operator, and --auto is not advertised.
 
-EXAMPLE OUTPUT:
+EXAMPLE OUTPUT (no judge configured):
   ═══════════════════════════════════════════════════════════════════════════════
                       BLOCKING CHECKPOINT
   ═══════════════════════════════════════════════════════════════════════════════
 
   Step 2: ANALYZE — Process the data
 
-  This step requires explicit user confirmation before proceeding.
+  This step requires explicit operator confirmation before proceeding.
 
   **What you should do:**
   1. Present your work to the user
   2. Summarize what you've completed
   3. Highlight any questions or decisions
-  4. Wait for user response
+  4. Wait for the user's response — do not run the approval commands yourself
 
-  **User commands:**
+  **Operator commands:**
   - Approve and continue: fest workflow approve
-  - Delegated judge:      fest workflow approve --auto
-  - Reject with feedback:  fest workflow reject --reason "..."
-
-  ───────────────────────────────────────────────────────────────────────────────
-  Cannot advance until user approves or an explicitly delegated judge returns a
-  valid approve decision.
-  ═══════════════════════════════════════════════════════════════════════════════
+  - Reject with feedback: fest workflow reject --reason "..."
 */}}
 {{- if .InstructionHeader}}
 {{.InstructionHeader}}
@@ -36,29 +33,51 @@ EXAMPLE OUTPUT:
 
 Step {{.StepNumber}}: {{.StepName}}
 
-This step requires explicit user confirmation before proceeding.
-
 {{- if .Goal}}
-**Question:** {{.Goal}}
 
+**Question:** {{.Goal}}
 {{- end}}
 {{- if .Actions}}
+
 **Actions to verify:**
 {{range .Actions}}- {{.}}
 {{end}}
-{{end}}
+{{- end}}
+{{- if .JudgeConfigured}}
+
+This checkpoint is delegated: the operator configured an approval judge
+(hooks.approval_judge.command).
+
+**What you should do:**
+1. Run: fest workflow approve --auto
+2. Wait for it to return. The command blocks until the judge answers and fails
+   closed on timeout or judge errors, leaving the checkpoint unchanged.
+3. Approved: run fest next to continue.
+4. Rejected: address the recorded feedback, then run fest workflow advance to
+   resubmit.
+
+**Operator commands:**
+- Manual approve: fest workflow approve
+- Reject with feedback: fest workflow reject --reason "..."
+{{- else}}
+
+This step requires explicit operator confirmation before proceeding.
+
 **What you should do:**
 1. Present your work to the user
 2. Summarize what you've completed
 3. Highlight any questions or decisions
-4. Wait for user response
+4. Wait for the user's response — do not run the approval commands yourself
 
-**User commands:**
+**Operator commands:**
 - Approve and continue: fest workflow approve
-- Delegated judge:      fest workflow approve --auto
-- Reject with feedback:  fest workflow reject --reason "..."
+- Reject with feedback: fest workflow reject --reason "..."
+- Delegate this decision: configure hooks.approval_judge.command, then
+  fest workflow approve --auto
+{{- end}}
 
 ───────────────────────────────────────────────────────────────────────────────
-Cannot advance until user approves or an explicitly delegated judge returns a valid approve decision.
-Auto mode is default-off and fails closed if the judge command is missing or invalid.
+Cannot advance until the operator approves or an explicitly delegated judge
+returns a valid approve decision. Auto mode fails closed if the judge command
+is missing or invalid.
 ═══════════════════════════════════════════════════════════════════════════════
