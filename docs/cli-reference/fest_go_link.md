@@ -35,7 +35,7 @@ fest go link [path] [flags]
 ### Options
 
 ```
-      --force   overwrite an existing active festival link
+      --force   relink a project already linked to another festival
   -h, --help    help for link
 ```
 

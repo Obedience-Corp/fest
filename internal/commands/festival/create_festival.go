@@ -271,6 +271,7 @@ type createResult struct {
 	autoPhasesCreated []string
 	projectPath       string
 	projectLinked     bool
+	linkSkipReason    string
 	markersFilled     int
 	markersTotal      int
 	allMarkers        []map[string]any
@@ -600,6 +601,16 @@ func resolveProjectLink(cfg *createConfig, festConfig *config.FestivalConfig, re
 
 	nav, navErr := navigation.LoadNavigation()
 	if navErr == nil {
+		// A project holds one festival link at a time. Creating a festival must
+		// never silently evict another festival's link; skip and tell the user.
+		if existing, _, hasConflict := nav.ProjectConflict(cfg.dirName, resolved); hasConflict {
+			res.linkSkipReason = "already linked to " + existing
+			if !cfg.opts.JSONOutput {
+				cfg.display.Warning("Project is already linked to festival %s; link not changed", existing)
+				cfg.display.Info("Run 'fest link --force %s' from this festival to take over the link", resolved)
+			}
+			return
+		}
 		nav.SetLinkWithPath(cfg.dirName, resolved, cfg.destDir)
 		if saveErr := nav.Save(); saveErr == nil {
 			res.projectLinked = true
@@ -888,6 +899,8 @@ func emitCreateOutput(cfg *createConfig, res *createResult) error {
 	if res.projectPath != "" {
 		if res.projectLinked {
 			cfg.display.Success("Project path: %s (linked)", displayPath(res.projectPath))
+		} else if res.linkSkipReason != "" {
+			cfg.display.Info("Project path: %s (not linked - %s)", displayPath(res.projectPath), res.linkSkipReason)
 		} else {
 			cfg.display.Info("Project path: %s (not linked - path doesn't exist yet)", displayPath(res.projectPath))
 		}

@@ -346,51 +346,80 @@ func TestResolveFestivalPath(t *testing.T) {
 	}
 }
 
-func TestIsActiveFestivalPath_ImmediateParentOnly(t *testing.T) {
+func TestGuardProjectConflict(t *testing.T) {
+	projectPath := "/campaign/projects/camp"
+
 	tests := []struct {
-		name         string
-		festivalPath string
-		want         bool
+		name             string
+		existingFestival string
+		existingPath     string
+		force            bool
+		wantErr          bool
+		wantEvictable    string
 	}{
 		{
-			"active festival",
-			"/campaign/festivals/active/my-fest",
-			true,
+			name: "no existing link permits linking",
 		},
 		{
-			"planning festival",
-			"/campaign/festivals/planning/my-fest",
-			false,
+			name:             "active festival link blocks without force",
+			existingFestival: "active-fest-AF0001",
+			existingPath:     "/campaign/festivals/active/active-fest-AF0001",
+			wantErr:          true,
 		},
 		{
-			"dungeon completed",
-			"/campaign/festivals/dungeon/completed/my-fest",
-			false,
+			name:             "planning festival link blocks without force",
+			existingFestival: "planning-fest-PF0001",
+			existingPath:     "/campaign/festivals/planning/planning-fest-PF0001",
+			wantErr:          true,
 		},
 		{
-			"empty path treated as active",
-			"",
-			true,
+			name:             "legacy link without festival path blocks without force",
+			existingFestival: "legacy-fest-LF0001",
+			wantErr:          true,
 		},
 		{
-			"workspace under ancestor dir named active is not misclassified",
-			"/home/active/campaign/festivals/planning/my-fest",
-			false,
-		},
-		{
-			"deep active path with active ancestor dir not misclassified",
-			"/home/active/projects/active/campaign/festivals/planning/my-fest",
-			false,
+			name:             "force permits takeover and names the evicted festival",
+			existingFestival: "planning-fest-PF0001",
+			existingPath:     "/campaign/festivals/planning/planning-fest-PF0001",
+			force:            true,
+			wantEvictable:    "planning-fest-PF0001",
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := isActiveFestivalPath(tc.festivalPath)
-			if got != tc.want {
-				t.Errorf("isActiveFestivalPath(%q) = %v, want %v", tc.festivalPath, got, tc.want)
+			n := newTestNav()
+			if tc.existingFestival != "" {
+				n.SetLinkWithPath(tc.existingFestival, projectPath, tc.existingPath)
+			}
+
+			existing, err := guardProjectConflict(n, "new-fest-NF0001", projectPath, tc.force)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("guardProjectConflict() error = nil, want conflict error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("guardProjectConflict() error: %v", err)
+			}
+			if existing != tc.wantEvictable {
+				t.Fatalf("guardProjectConflict() existing = %q, want %q", existing, tc.wantEvictable)
 			}
 		})
+	}
+}
+
+func TestGuardProjectConflict_SameFestivalRelinks(t *testing.T) {
+	n := newTestNav()
+	n.SetLinkWithPath("my-fest-MF0001", "/campaign/projects/camp", "/campaign/festivals/planning/my-fest-MF0001")
+
+	existing, err := guardProjectConflict(n, "my-fest-MF0001", "/campaign/projects/camp", false)
+	if err != nil {
+		t.Fatalf("relinking the same festival should not conflict: %v", err)
+	}
+	if existing != "" {
+		t.Fatalf("existing = %q, want empty for same-festival relink", existing)
 	}
 }
 
@@ -419,32 +448,25 @@ func TestLinkProjectToFestival_HijackGuardBlocks(t *testing.T) {
 	n := newTestNav()
 	n.SetLinkWithPath("active-fest-AF0001", projectPath, activeFestPath)
 
-	existing, existingFestivalPath, hasConflict := n.ProjectConflict("planning-fest-PF0001", projectPath)
-	if !hasConflict {
-		t.Fatal("ProjectConflict() should detect conflict: project already linked to a different festival")
-	}
-	if existing != "active-fest-AF0001" {
-		t.Errorf("ProjectConflict() existing = %q, want %q", existing, "active-fest-AF0001")
-	}
-	if !isActiveFestivalPath(existingFestivalPath) {
-		t.Errorf("isActiveFestivalPath(%q) = false; guard should block re-link to planning festival", existingFestivalPath)
+	if _, err := guardProjectConflict(n, "planning-fest-PF0001", projectPath, false); err == nil {
+		t.Fatal("guardProjectConflict() should block re-linking a project held by another festival")
 	}
 
 	n2 := newTestNav()
 	n2.SetLinkWithPath("active-fest-AF0001", projectPath, activeFestPath)
-	n2.SetLinkWithPath("planning-fest-PF0001", projectPath, planningFestPath)
+	evicted := n2.SetLinkWithPath("planning-fest-PF0001", projectPath, planningFestPath)
 
+	if evicted != "active-fest-AF0001" {
+		t.Errorf("SetLinkWithPath() evicted = %q, want active-fest-AF0001 so callers can report the takeover", evicted)
+	}
 	link, ok := n2.GetLink("active-fest-AF0001")
 	if ok && link.Path == projectPath {
-		t.Error("without guard, SetLinkWithPath silently re-points project away from active festival — this is the hijack bug #201 fixes")
+		t.Error("SetLinkWithPath must re-point the project to exactly one festival")
 	}
 
 	n3 := newTestNav()
 	n3.SetLinkWithPath("active-fest-AF0001", filepath.Join(tmpDir, "projects", "other"), activeFestPath)
-	_, _, hasConflict = n3.ProjectConflict("planning-fest-PF0001", projectPath)
-	if hasConflict {
+	if _, _, hasConflict := n3.ProjectConflict("planning-fest-PF0001", projectPath); hasConflict {
 		t.Error("ProjectConflict() should not report conflict when project is not yet linked")
 	}
-
-	_ = planningFestPath
 }
