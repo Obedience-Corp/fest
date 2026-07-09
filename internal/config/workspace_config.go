@@ -96,12 +96,33 @@ func SaveWorkspaceConfig(festivalsRoot string, cfg *WorkspaceConfig) error {
 		return errors.Wrap(err, "marshaling workspace config")
 	}
 
+	// Surface the hooks option as a discoverable commented block when none is
+	// configured, so users can opt into approve --auto without reading docs.
+	if (cfg.Hooks == HooksConfig{}) {
+		data = append(data, commentedHooksPlaceholder()...)
+	}
+
 	// Write file
 	if err := os.WriteFile(configPath, data, filePermissions); err != nil {
 		return errors.IO("writing workspace config", err).WithField("path", configPath)
 	}
 
 	return nil
+}
+
+// commentedHooksPlaceholder returns a commented-out hooks block appended to
+// .festival/config.yaml when no hooks are configured. fest reads this config
+// directly, so the hook works without the camp CLI. The example command is
+// generic: any tool that speaks the fest.approval.judge/v1 protocol works.
+func commentedHooksPlaceholder() []byte {
+	return []byte(`
+# hooks:
+#   approval_judge:
+#     # Command run by 'fest workflow approve --auto'. It receives the approval
+#     # request as JSON on stdin and must print a JSON verdict on stdout
+#     # (schema fest.approval.judge/v1). Any tool works; 'ob judge' is one example.
+#     command: ob judge
+`)
 }
 
 // DefaultWorkspaceConfig returns the default workspace configuration

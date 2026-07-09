@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -23,6 +24,30 @@ func TestLoadWorkspaceConfig_ParsesApprovalJudgeHook(t *testing.T) {
 	}
 	if cfg.Hooks.ApprovalJudge.Command != "ob judge" {
 		t.Fatalf("approval_judge command = %q, want %q", cfg.Hooks.ApprovalJudge.Command, "ob judge")
+	}
+}
+
+func TestSaveWorkspaceConfig_WritesCommentedHooksPlaceholder(t *testing.T) {
+	root := t.TempDir()
+	if err := SaveWorkspaceConfig(root, DefaultWorkspaceConfig()); err != nil {
+		t.Fatalf("SaveWorkspaceConfig: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, DotFestivalDir, WorkspaceConfigFileName))
+	if err != nil {
+		t.Fatalf("read config: %v", err)
+	}
+	s := string(data)
+	if !strings.Contains(s, "# hooks:") || !strings.Contains(s, "command: ob judge") {
+		t.Fatalf("expected commented hooks placeholder, got:\n%s", s)
+	}
+
+	// The commented block must not parse into active hooks.
+	loaded, err := LoadWorkspaceConfig(root)
+	if err != nil {
+		t.Fatalf("LoadWorkspaceConfig: %v", err)
+	}
+	if (loaded.Hooks != HooksConfig{}) {
+		t.Fatalf("commented placeholder should not parse into hooks, got %+v", loaded.Hooks)
 	}
 }
 

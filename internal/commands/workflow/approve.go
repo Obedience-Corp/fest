@@ -175,9 +175,24 @@ func resolveApprovalJudgeCommand(ctx context.Context, flagValue string) (string,
 		}
 	}
 
-	return "", festerrors.Validation("no approval judge command configured").
-		WithHint("set hooks.approval_judge.command in .festival/config.yaml, or pass --judge-command; " +
-			"the command receives the request as JSON on stdin and must return a JSON verdict on stdout")
+	return "", festerrors.Validation("approval judge command is not configured").
+		WithHint(`--auto delegates this checkpoint to an approval judge command, but none is configured.
+
+Configure a command in .festival/config.yaml. It receives the approval request
+as JSON on stdin and must print a JSON verdict on stdout (schema
+fest.approval.judge/v1):
+
+hooks:
+  approval_judge:
+    command: <your-approval-judge-tool>
+
+Example (using the obey CLI):
+
+hooks:
+  approval_judge:
+    command: ob judge
+
+Or pass --judge-command <cmd> for a one-off.`)
 }
 
 func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, step wf.WorkflowStep, opts approvalJudgeOptions) error {
