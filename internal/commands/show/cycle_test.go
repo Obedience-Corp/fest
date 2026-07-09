@@ -27,7 +27,11 @@ func TestClassifyCycleKey(t *testing.T) {
 		{"registered_p_dispatches_extra", []byte{'p'}, extra, CycleExtra, 'p', true},
 		{"registered_q_dispatches_extra", []byte{'q'}, extra, CycleExtra, 'q', true},
 		{"unregistered_p_ignored", []byte{'p'}, nil, CycleNone, 0, false},
-		{"up_arrow_ignored", []byte{0x1b, '[', 'A'}, extra, CycleNone, 0, false},
+		{"up_arrow_scrolls_up", []byte{0x1b, '[', 'A'}, extra, CycleScrollUp, 0, true},
+		{"down_arrow_scrolls_down", []byte{0x1b, '[', 'B'}, extra, CycleScrollDown, 0, true},
+		{"space_pages_down", []byte{' '}, extra, CyclePageDown, 0, true},
+		{"b_pages_up", []byte{'b'}, extra, CyclePageUp, 0, true},
+		{"registered_key_wins_over_page_up", []byte{'b'}, map[byte]ExtraKeyHandler{'b': noopExtraKey}, CycleExtra, 'b', true},
 		{"plain_char", []byte{'x'}, extra, CycleNone, 0, false},
 		{"short_escape", []byte{0x1b, '['}, extra, CycleNone, 0, false},
 		{"empty", nil, extra, CycleNone, 0, false},
@@ -46,7 +50,7 @@ func TestClassifyCycleKey(t *testing.T) {
 func TestRunCycle_EmptyPaths(t *testing.T) {
 	err := RunCycle(t.Context(), nil, 0, CycleOptions{
 		Detect: func(context.Context, string) (*FestivalInfo, error) { return &FestivalInfo{}, nil },
-		Render: func(context.Context, *FestivalInfo, bool) error { return nil },
+		Render: func(context.Context, *FestivalInfo, bool, *FrameState) error { return nil },
 	})
 	if err == nil {
 		t.Fatal("expected error for empty path list")
@@ -72,7 +76,7 @@ func TestRunCycle_NonTerminalRendersStartIndexOnce(t *testing.T) {
 		Detect: func(_ context.Context, path string) (*FestivalInfo, error) {
 			return &FestivalInfo{Path: path}, nil
 		},
-		Render: func(_ context.Context, festival *FestivalInfo, cycling bool) error {
+		Render: func(_ context.Context, festival *FestivalInfo, cycling bool, _ *FrameState) error {
 			rendered = festival.Path
 			renderCount++
 			if cycling {
@@ -100,7 +104,7 @@ func TestRunCycle_NonTerminalPrefersRenderFallback(t *testing.T) {
 		Detect: func(_ context.Context, path string) (*FestivalInfo, error) {
 			return &FestivalInfo{Path: path}, nil
 		},
-		Render: func(context.Context, *FestivalInfo, bool) error {
+		Render: func(context.Context, *FestivalInfo, bool, *FrameState) error {
 			t.Error("cycle renderer must not run outside raw mode when a fallback is set")
 			return nil
 		},
@@ -123,7 +127,7 @@ func TestRunCycle_NonTerminalPrefersRenderFallback(t *testing.T) {
 func TestRunCycle_NonTerminalDetectNilReturnsNotFound(t *testing.T) {
 	err := RunCycle(t.Context(), []string{"/festivals/active/gone-FS0001"}, 0, CycleOptions{
 		Detect: func(context.Context, string) (*FestivalInfo, error) { return nil, nil },
-		Render: func(context.Context, *FestivalInfo, bool) error {
+		Render: func(context.Context, *FestivalInfo, bool, *FrameState) error {
 			t.Fatal("render must not run when the start festival is missing")
 			return nil
 		},

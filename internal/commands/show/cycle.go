@@ -23,6 +23,14 @@ const (
 	CycleQuit
 	// CycleExtra dispatches a caller-registered ExtraKeys handler.
 	CycleExtra
+	// CycleScrollUp moves the content viewport up one line.
+	CycleScrollUp
+	// CycleScrollDown moves the content viewport down one line.
+	CycleScrollDown
+	// CyclePageUp moves the content viewport up one page.
+	CyclePageUp
+	// CyclePageDown moves the content viewport down one page.
+	CyclePageDown
 )
 
 // ExtraKeyHandler runs a custom action for a caller-registered key (e.g. watch's
@@ -41,7 +49,7 @@ type ExtraKeyHandler func(ctx context.Context, festival *FestivalInfo, rawState 
 // non-interactive consumers.
 type CycleOptions struct {
 	Detect         func(ctx context.Context, path string) (*FestivalInfo, error)
-	Render         func(ctx context.Context, festival *FestivalInfo, cycling bool) error
+	Render         func(ctx context.Context, festival *FestivalInfo, cycling bool, frame *FrameState) error
 	RenderFallback func(ctx context.Context, festival *FestivalInfo) error
 	ExtraKeys      map[byte]ExtraKeyHandler
 }
@@ -74,6 +82,7 @@ func RunCycle(ctx context.Context, paths []string, startIndex int, opts CycleOpt
 	cycling := len(paths) > 1
 	index := startIndex
 	staleSince := -1
+	frame := NewFrameState()
 	for {
 		if ctx.Err() != nil {
 			return nil
@@ -106,13 +115,35 @@ func RunCycle(ctx context.Context, paths []string, startIndex int, opts CycleOpt
 		}
 		staleSince = -1
 
+		frame.Reset()
 		renderCtx, cancelRender := context.WithCancel(ctx)
 		renderDone := make(chan error, 1)
 		go func() {
-			renderDone <- opts.Render(renderCtx, festival, cycling)
+			renderDone <- opts.Render(renderCtx, festival, cycling, frame)
 		}()
 
-		action, key := readCycleAction(ctx, os.Stdin, opts.ExtraKeys)
+		var action CycleAction
+		var key byte
+		for {
+			action, key = readCycleAction(ctx, os.Stdin, opts.ExtraKeys)
+			// Scroll keys adjust the live viewport without ending the render
+			// session, so the file watcher stays attached while scrolling.
+			switch action {
+			case CycleScrollUp:
+				frame.ScrollLines(-1)
+				continue
+			case CycleScrollDown:
+				frame.ScrollLines(1)
+				continue
+			case CyclePageUp:
+				frame.ScrollPages(-1)
+				continue
+			case CyclePageDown:
+				frame.ScrollPages(1)
+				continue
+			}
+			break
+		}
 		cancelRender()
 		renderErr := <-renderDone
 		if renderErr != nil && renderCtx.Err() == nil {
@@ -156,11 +187,13 @@ func renderCycleFrameOnce(ctx context.Context, path string, opts CycleOptions) e
 	if opts.RenderFallback != nil {
 		return opts.RenderFallback(ctx, festival)
 	}
-	return opts.Render(ctx, festival, false)
+	return opts.Render(ctx, festival, false, nil)
 }
 
-// classifyCycleKey maps a raw key sequence to a cycle action. Ctrl+C quits and
-// arrow keys move; any byte registered in extraKeys dispatches its handler.
+// classifyCycleKey maps a raw key sequence to a cycle action. Ctrl+C quits,
+// left/right arrows cycle festivals, up/down arrows scroll the viewport by
+// line, space and b page down/up; any byte registered in extraKeys dispatches
+// its handler (registered keys win over the built-in scroll keys).
 func classifyCycleKey(b []byte, extraKeys map[byte]ExtraKeyHandler) (CycleAction, byte, bool) {
 	if len(b) == 0 {
 		return CycleNone, 0, false
@@ -171,8 +204,18 @@ func classifyCycleKey(b []byte, extraKeys map[byte]ExtraKeyHandler) (CycleAction
 	if _, ok := extraKeys[b[0]]; ok {
 		return CycleExtra, b[0], true
 	}
+	switch b[0] {
+	case ' ':
+		return CyclePageDown, 0, true
+	case 'b', 'B':
+		return CyclePageUp, 0, true
+	}
 	if len(b) >= 3 && b[0] == 0x1b && b[1] == '[' {
 		switch b[2] {
+		case 'A':
+			return CycleScrollUp, 0, true
+		case 'B':
+			return CycleScrollDown, 0, true
 		case 'C':
 			return CycleNext, 0, true
 		case 'D':

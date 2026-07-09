@@ -267,8 +267,10 @@ func runShowCycle(ctx context.Context, cwd string, opts *showOptions, campaignRo
 		Detect: func(ctx context.Context, path string) (*FestivalInfo, error) {
 			return DetectCurrentFestival(ctx, path, campaignRoot)
 		},
-		Render: func(ctx context.Context, festival *FestivalInfo, cycling bool) error {
-			return WatchFestival(ctx, festival, showCycleWatchOptions(opts, cycling))
+		Render: func(ctx context.Context, festival *FestivalInfo, cycling bool, frame *FrameState) error {
+			watchOpts := showCycleWatchOptions(opts, cycling)
+			watchOpts.Frame = frame
+			return WatchFestival(ctx, festival, watchOpts)
 		},
 		RenderFallback: func(_ context.Context, festival *FestivalInfo) error {
 			return emitFestivalText(festival, opts, campaignRoot)
@@ -381,7 +383,7 @@ func runShowBySelector(ctx context.Context, selector string, opts *showOptions) 
 func emitShowFestival(ctx context.Context, festival *FestivalInfo, opts *showOptions, campaignRoot string) error {
 	// Watch mode - continuously refresh display
 	if opts.watch {
-		return runWatchMode(ctx, festival, opts, false, false, false)
+		return runWatchMode(ctx, festival, opts, false, false, false, nil)
 	}
 
 	// Roadmap mode - full execution plan

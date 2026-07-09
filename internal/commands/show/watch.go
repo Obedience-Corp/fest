@@ -8,12 +8,15 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/watch"
+	"golang.org/x/term"
 )
 
 // crlfWriter translates a bare "\n" into "\r\n" before writing. The watch cycle
@@ -96,6 +99,9 @@ type WatchOptions struct {
 	// shown (watch); when false the footer advertises "q/Ctrl+C" exit instead
 	// (show's cycle has no promote affordance).
 	CyclePromote bool
+	// Frame, when set by the cycle engine, enables viewport scrolling of the
+	// rendered content (up/down arrows, space/b). Nil outside cycle mode.
+	Frame *FrameState
 }
 
 // WatchFestival watches a festival using the existing show watch renderer.
@@ -109,12 +115,145 @@ func WatchFestival(ctx context.Context, festival *FestivalInfo, opts WatchOption
 		goals:      opts.Goals,
 		collapsed:  opts.Collapsed,
 		inProgress: opts.InProgress,
-	}, opts.CycleHint, opts.Cycling, opts.CyclePromote)
+	}, opts.CycleHint, opts.Cycling, opts.CyclePromote, opts.Frame)
+}
+
+// watchFrameSession draws watch frames, applying the cycle viewport when a
+// FrameState is attached. Content is cached so scroll-triggered redraws never
+// rebuild the festival tree.
+type watchFrameSession struct {
+	mu          sync.Mutex
+	out         io.Writer
+	frame       *FrameState
+	cycleHint   bool
+	cycling     bool
+	promoteHint bool
+	polling     bool
+	content     string
+	// height returns the terminal row count; overridden in tests.
+	height func() int
+}
+
+func newWatchFrameSession(out io.Writer, frame *FrameState, cycleHint, cycling, promoteHint, polling bool) *watchFrameSession {
+	return &watchFrameSession{
+		out:         out,
+		frame:       frame,
+		cycleHint:   cycleHint,
+		cycling:     cycling,
+		promoteHint: promoteHint,
+		polling:     polling,
+		height:      terminalRows,
+	}
+}
+
+func terminalRows() int {
+	_, rows, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil || rows <= 0 {
+		return 0
+	}
+	return rows
+}
+
+// setContent replaces the cached frame content and draws it.
+func (s *watchFrameSession) setContent(content string) {
+	s.mu.Lock()
+	s.content = content
+	s.mu.Unlock()
+	s.draw()
+}
+
+// draw paints the cached content, sliced to the scroll viewport when a frame
+// is attached and the terminal size is known.
+func (s *watchFrameSession) draw() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	clearScreen(s.out)
+	rows := s.height()
+	if s.frame == nil || rows <= footerRows {
+		_, _ = fmt.Fprint(s.out, s.content)
+		s.printFooter(0, 0, 0, false)
+		return
+	}
+
+	lines := strings.Split(strings.TrimRight(s.content, "\n"), "\n")
+	visible, from, to, total, overflow := s.frame.Viewport(lines, rows-footerRows)
+	_, _ = fmt.Fprintln(s.out, strings.Join(visible, "\n"))
+	s.printFooter(from, to, total, overflow)
+}
+
+// footerRows is the screen space reserved for the footer (blank line + hint).
+const footerRows = 2
+
+func (s *watchFrameSession) printFooter(from, to, total int, overflow bool) {
+	_, _ = fmt.Fprintln(s.out)
+	suffix := "Watching for changes"
+	if s.polling {
+		suffix = "Polling for changes"
+	}
+	if !s.cycleHint {
+		_, _ = fmt.Fprintln(s.out, ui.Dim("Press Ctrl+C to exit • "+suffix))
+		return
+	}
+	hint := "Ctrl+C exit • "
+	if !s.promoteHint {
+		hint = "q/Ctrl+C exit • "
+	}
+	if s.cycling {
+		hint += "← → cycle • "
+	}
+	if s.promoteHint {
+		hint += "p promote • "
+	}
+	if overflow {
+		hint += fmt.Sprintf("↑↓/spc/b scroll (%d-%d/%d) • ", from, to, total)
+	}
+	hint += suffix
+	_, _ = fmt.Fprintln(s.out, ui.Dim(hint))
+}
+
+// render rebuilds the festival content and draws a fresh frame.
+func (s *watchFrameSession) render(ctx context.Context, festival *FestivalInfo, opts *showOptions) error {
+	var buf bytes.Buffer
+	if err := renderFestivalView(ctx, festival, opts, &buf); err != nil {
+		return err
+	}
+	s.setContent(buf.String())
+	return nil
+}
+
+// drainRedraw repaints the cached content whenever the cycle key loop scrolls,
+// until ctx ends. No-op when no frame is attached.
+func (s *watchFrameSession) drainRedraw(ctx context.Context) {
+	if s.frame == nil {
+		return
+	}
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-s.frame.Redraw():
+				s.draw()
+			}
+		}
+	}()
+}
+
+// printWatchFooter prints the plain (non-cycle) watch footer. Used by views
+// that never run inside the cycle key loop, e.g. standalone workflow watch.
+func printWatchFooter(out io.Writer, polling bool) {
+	_, _ = fmt.Fprintln(out)
+	suffix := "Watching for changes"
+	if polling {
+		suffix = "Polling for changes"
+	}
+	_, _ = fmt.Fprintln(out, ui.Dim("Press Ctrl+C to exit • "+suffix))
 }
 
 // runWatchMode watches for file changes and refreshes the festival display.
 // Falls back to polling if file watching is not available.
-func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions, cycleHint bool, cycling bool, promoteHint bool) error {
+func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions, cycleHint bool, cycling bool, promoteHint bool, frame *FrameState) error {
 	out := watchWriter(cycleHint)
 	errOut := watchErrWriter(cycleHint)
 
@@ -128,11 +267,10 @@ func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions
 		stateDir,
 	}
 
-	clearScreen(out)
-	if err := renderFestivalView(ctx, festival, opts, out); err != nil {
+	session := newWatchFrameSession(out, frame, cycleHint, cycling, promoteHint, false)
+	if err := session.render(ctx, festival, opts); err != nil {
 		return err
 	}
-	printWatchFooter(out, false, cycleHint, cycling, promoteHint)
 
 	w, err := watch.New(watch.Config{
 		Paths:    watchPaths,
@@ -141,38 +279,37 @@ func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions
 			_, _ = fmt.Fprintf(errOut, "%s file watch error: %v\n", ui.Warning("Warning:"), err)
 		},
 	}, func() {
-		clearScreen(out)
 		refreshed, err := DetectCurrentFestival(ctx, festival.Path, "")
 		if err == nil && refreshed != nil {
 			festival = refreshed
 		}
-		if err := renderFestivalView(ctx, festival, opts, out); err != nil {
+		if err := session.render(ctx, festival, opts); err != nil {
 			_, _ = fmt.Fprintf(errOut, "%s could not refresh festival view: %v\n", ui.Warning("Warning:"), err)
 		}
-		printWatchFooter(out, false, cycleHint, cycling, promoteHint)
 	})
 
 	if err != nil {
 		_, _ = fmt.Fprintf(errOut, "File watching unavailable (%v), using polling fallback\n", err)
-		return runPollingMode(ctx, festival, opts, cycleHint, cycling, promoteHint)
+		return runPollingMode(ctx, festival, opts, cycleHint, cycling, promoteHint, frame)
 	}
 	defer func() { _ = w.Close() }()
 
+	session.drainRedraw(ctx)
 	return w.Watch(ctx)
 }
 
 // runPollingMode continuously refreshes the festival display at the specified interval.
 // Used as a fallback when file watching is not available.
-func runPollingMode(ctx context.Context, festival *FestivalInfo, opts *showOptions, cycleHint bool, cycling bool, promoteHint bool) error {
+func runPollingMode(ctx context.Context, festival *FestivalInfo, opts *showOptions, cycleHint bool, cycling bool, promoteHint bool, frame *FrameState) error {
 	ticker := time.NewTicker(pollingInterval)
 	defer ticker.Stop()
 
 	out := watchWriter(cycleHint)
-	clearScreen(out)
-	if err := renderFestivalView(ctx, festival, opts, out); err != nil {
+	session := newWatchFrameSession(out, frame, cycleHint, cycling, promoteHint, true)
+	if err := session.render(ctx, festival, opts); err != nil {
 		return err
 	}
-	printWatchFooter(out, true, cycleHint, cycling, promoteHint)
+	session.drainRedraw(ctx)
 
 	for {
 		select {
@@ -180,17 +317,14 @@ func runPollingMode(ctx context.Context, festival *FestivalInfo, opts *showOptio
 			_, _ = fmt.Fprintln(out)
 			return nil
 		case <-ticker.C:
-			clearScreen(out)
-
 			refreshed, err := DetectCurrentFestival(ctx, festival.Path, "")
 			if err == nil && refreshed != nil {
 				festival = refreshed
 			}
 
-			if err := renderFestivalView(ctx, festival, opts, out); err != nil {
+			if err := session.render(ctx, festival, opts); err != nil {
 				return err
 			}
-			printWatchFooter(out, true, cycleHint, cycling, promoteHint)
 		}
 	}
 }
@@ -256,29 +390,3 @@ func clearScreen(out io.Writer) {
 	_, _ = fmt.Fprint(out, "\033[H\033[2J")
 }
 
-// printWatchFooter prints the watch mode footer with exit instructions. In cycle
-// mode the promote hint is shown only when promoteHint is set (watch); otherwise
-// the footer advertises "q/Ctrl+C" exit (show's cycle).
-func printWatchFooter(out io.Writer, polling bool, cycleHint bool, cycling bool, promoteHint bool) {
-	_, _ = fmt.Fprintln(out)
-	suffix := "Watching for changes"
-	if polling {
-		suffix = "Polling for changes"
-	}
-	if !cycleHint {
-		_, _ = fmt.Fprintln(out, ui.Dim("Press Ctrl+C to exit • "+suffix))
-		return
-	}
-	hint := "Ctrl+C exit • "
-	if !promoteHint {
-		hint = "q/Ctrl+C exit • "
-	}
-	if cycling {
-		hint += "← → cycle • "
-	}
-	if promoteHint {
-		hint += "p promote • "
-	}
-	hint += suffix
-	_, _ = fmt.Fprintln(out, ui.Dim(hint))
-}
