@@ -20,6 +20,23 @@ const (
 type WorkspaceConfig struct {
 	Version string      `yaml:"version"`
 	Agent   AgentConfig `yaml:"agent"`
+	Hooks   HooksConfig `yaml:"hooks,omitempty"`
+}
+
+// HooksConfig holds optional workspace-level command hooks configured in
+// .festival/config.yaml. fest reads these directly so it stays usable on its
+// own, without the camp CLI.
+type HooksConfig struct {
+	// ApprovalJudge configures the command run by `fest workflow approve --auto`.
+	ApprovalJudge ApprovalJudgeHookConfig `yaml:"approval_judge,omitempty"`
+}
+
+// ApprovalJudgeHookConfig configures an external approval judge command. The
+// command receives the approval request as JSON on stdin and must emit a JSON
+// verdict on stdout (schema fest.approval.judge/v1).
+type ApprovalJudgeHookConfig struct {
+	// Command is executed as configured (e.g. "ob judge").
+	Command string `yaml:"command,omitempty"`
 }
 
 // AgentConfig controls AI agent behavior for the workspace

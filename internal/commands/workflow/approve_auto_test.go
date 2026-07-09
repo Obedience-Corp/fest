@@ -9,7 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Obedience-Corp/fest/internal/config"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/scope"
 )
 
 func withApprovalJudgeRunner(t *testing.T, runner approvalJudgeRunner) {
@@ -51,8 +53,47 @@ func TestApproveCommandManualModeDefaultOff(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetString(judge-command): %v", err)
 	}
-	if judgeCommand != "ob judge" {
-		t.Fatalf("judge-command = %q, want %q", judgeCommand, "ob judge")
+	if judgeCommand != "" {
+		t.Fatalf("judge-command default = %q, want empty (resolved from hook or flag)", judgeCommand)
+	}
+}
+
+func TestResolveApprovalJudgeCommand(t *testing.T) {
+	festivalsRoot := t.TempDir()
+	cfg := config.DefaultWorkspaceConfig()
+	cfg.Hooks.ApprovalJudge.Command = "my-judge --strict"
+	if err := config.SaveWorkspaceConfig(festivalsRoot, cfg); err != nil {
+		t.Fatalf("SaveWorkspaceConfig: %v", err)
+	}
+	wsCtx := scope.WithWorkspace(context.Background(), &scope.WorkspaceInfo{FestivalsPath: festivalsRoot})
+
+	// Flag wins over the hook (and is trimmed).
+	got, err := resolveApprovalJudgeCommand(wsCtx, "  flag-judge  ")
+	if err != nil {
+		t.Fatalf("flag precedence: %v", err)
+	}
+	if got != "flag-judge" {
+		t.Fatalf("flag precedence = %q, want flag-judge", got)
+	}
+
+	// Hook is used when no flag is passed.
+	got, err = resolveApprovalJudgeCommand(wsCtx, "")
+	if err != nil {
+		t.Fatalf("hook resolution: %v", err)
+	}
+	if got != "my-judge --strict" {
+		t.Fatalf("hook resolution = %q, want %q", got, "my-judge --strict")
+	}
+
+	// Fails closed when the workspace has no configured hook.
+	emptyCtx := scope.WithWorkspace(context.Background(), &scope.WorkspaceInfo{FestivalsPath: t.TempDir()})
+	if _, err := resolveApprovalJudgeCommand(emptyCtx, ""); err == nil {
+		t.Fatal("expected fail-closed error when no judge is configured")
+	}
+
+	// Fails closed when there is no workspace in context.
+	if _, err := resolveApprovalJudgeCommand(context.Background(), ""); err == nil {
+		t.Fatal("expected fail-closed error when no workspace is resolvable")
 	}
 }
 

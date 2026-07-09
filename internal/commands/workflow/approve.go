@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Obedience-Corp/fest/internal/config"
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/lifecycle"
@@ -52,8 +53,7 @@ var runApprovalJudgeCommand approvalJudgeRunner = runApprovalJudgeCommandDefault
 
 func newApproveCmd() *cobra.Command {
 	opts := approvalJudgeOptions{
-		JudgeCommand: "ob judge",
-		Timeout:      2 * time.Minute,
+		Timeout: 2 * time.Minute,
 	}
 
 	cmd := &cobra.Command{
@@ -77,9 +77,13 @@ Auto approval:
   reason. Missing commands, timeouts, non-zero exits, malformed JSON, unknown
   decisions, and empty reasons fail closed and do not approve the checkpoint.
 
-  The default judge command is "ob judge". If that command is not installed in
-  your Obedience environment, --auto reports the missing dependency and leaves
-  the checkpoint unchanged.`,
+  The judge command is resolved as: --judge-command flag, else the
+  hooks.approval_judge.command hook in .festival/config.yaml. If neither is
+  set, --auto fails closed and leaves the checkpoint unchanged.
+
+      hooks:
+        approval_judge:
+          command: ob judge`,
 		Annotations: map[string]string{
 			"scope": string(scope.Festival),
 		},
@@ -89,7 +93,7 @@ Auto approval:
 	}
 
 	cmd.Flags().BoolVar(&opts.Auto, "auto", false, "delegate this checkpoint decision to the configured approval judge command")
-	cmd.Flags().StringVar(&opts.JudgeCommand, "judge-command", opts.JudgeCommand, "approval judge command used with --auto")
+	cmd.Flags().StringVar(&opts.JudgeCommand, "judge-command", opts.JudgeCommand, "approval judge command for --auto (overrides the .festival/config.yaml hooks.approval_judge.command hook)")
 	cmd.Flags().DurationVar(&opts.Timeout, "judge-timeout", opts.Timeout, "maximum time to wait for the approval judge")
 
 	return cmd
@@ -135,6 +139,11 @@ func runApproveWithOptions(ctx context.Context, opts approvalJudgeOptions) error
 	}
 
 	if opts.Auto {
+		judgeCommand, err := resolveApprovalJudgeCommand(ctx, opts.JudgeCommand)
+		if err != nil {
+			return err
+		}
+		opts.JudgeCommand = judgeCommand
 		return runApproveAuto(ctx, nav, currentStepNum, step, opts)
 	}
 
@@ -145,6 +154,30 @@ func runApproveWithOptions(ctx context.Context, opts approvalJudgeOptions) error
 
 	fmt.Printf("%s Step %d: %s approved\n", ui.Success("✓"), currentStepNum, step.Name)
 	return showNextStep(ctx, nav, steps)
+}
+
+// resolveApprovalJudgeCommand resolves the command used for --auto approval.
+// Precedence: the --judge-command flag, then the hooks.approval_judge.command
+// hook in .festival/config.yaml. It fails closed when neither is set so no
+// checkpoint is delegated to an unconfigured (or assumed) command.
+func resolveApprovalJudgeCommand(ctx context.Context, flagValue string) (string, error) {
+	if cmd := strings.TrimSpace(flagValue); cmd != "" {
+		return cmd, nil
+	}
+
+	if ws, ok := scope.WorkspaceFrom(ctx); ok && ws != nil && ws.FestivalsPath != "" {
+		cfg, err := config.LoadWorkspaceConfig(ws.FestivalsPath)
+		if err != nil {
+			return "", festerrors.Wrap(err, "loading approval judge hook")
+		}
+		if cmd := strings.TrimSpace(cfg.Hooks.ApprovalJudge.Command); cmd != "" {
+			return cmd, nil
+		}
+	}
+
+	return "", festerrors.Validation("no approval judge command configured").
+		WithHint("set hooks.approval_judge.command in .festival/config.yaml, or pass --judge-command; " +
+			"the command receives the request as JSON on stdin and must return a JSON verdict on stdout")
 }
 
 func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, step wf.WorkflowStep, opts approvalJudgeOptions) error {
@@ -178,9 +211,6 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 }
 
 func judgeApproval(ctx context.Context, nav *wf.Navigator, step wf.WorkflowStep, opts approvalJudgeOptions) (*approvalJudgeResponse, string, error) {
-	if opts.JudgeCommand == "" {
-		opts.JudgeCommand = "ob judge"
-	}
 	if opts.Timeout <= 0 {
 		opts.Timeout = 2 * time.Minute
 	}
@@ -205,9 +235,6 @@ func judgeApproval(ctx context.Context, nav *wf.Navigator, step wf.WorkflowStep,
 }
 
 func evaluateApprovalJudge(ctx context.Context, req approvalJudgeRequest, opts approvalJudgeOptions) (*approvalJudgeResponse, string, error) {
-	if opts.JudgeCommand == "" {
-		opts.JudgeCommand = "ob judge"
-	}
 	if opts.Timeout <= 0 {
 		opts.Timeout = 2 * time.Minute
 	}

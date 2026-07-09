@@ -7042,9 +7042,13 @@ Auto approval:
   reason. Missing commands, timeouts, non-zero exits, malformed JSON, unknown
   decisions, and empty reasons fail closed and do not approve the checkpoint.
 
-  The default judge command is "ob judge". If that command is not installed in
-  your Obedience environment, --auto reports the missing dependency and leaves
-  the checkpoint unchanged.
+  The judge command is resolved as: --judge-command flag, else the
+  hooks.approval_judge.command hook in .festival/config.yaml. If neither is
+  set, --auto fails closed and leaves the checkpoint unchanged.
+
+      hooks:
+        approval_judge:
+          command: ob judge
 
 ```
 fest workflow approve [flags]
@@ -7055,7 +7059,7 @@ fest workflow approve [flags]
 ```
       --auto                     delegate this checkpoint decision to the configured approval judge command
   -h, --help                     help for approve
-      --judge-command string     approval judge command used with --auto (default "ob judge")
+      --judge-command string     approval judge command for --auto (overrides the .festival/config.yaml hooks.approval_judge.command hook)
       --judge-timeout duration   maximum time to wait for the approval judge (default 2m0s)
 ```
 
