@@ -334,12 +334,18 @@ func (s *WorkflowState) Advance() error {
 
 // Approve approves a blocking checkpoint and advances to the next step.
 func (s *WorkflowState) Approve() error {
-	return s.ApproveWithDecision(DecisionMetadata{})
+	return s.ApproveWithAudit("", DecisionMetadata{})
 }
 
 // ApproveWithDecision approves a blocking checkpoint with decision metadata.
 func (s *WorkflowState) ApproveWithDecision(decision DecisionMetadata) error {
-	s.CompleteCurrentStep()
+	return s.ApproveWithAudit("", decision)
+}
+
+// ApproveWithAudit approves a blocking checkpoint, recording durable audit
+// text and decision metadata, then advances to the next step.
+func (s *WorkflowState) ApproveWithAudit(feedback string, decision DecisionMetadata) error {
+	s.MarkCurrentStep(StepStatusCompleted, feedback)
 	s.recordDecision(s.CurrentStep, decision)
 	if s.CurrentStep < s.TotalSteps {
 		return s.Advance()

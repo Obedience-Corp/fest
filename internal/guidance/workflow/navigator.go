@@ -265,11 +265,17 @@ func (n *Navigator) GetContextFiles(ctx context.Context) ([]string, error) {
 
 // Approve approves a blocking checkpoint and advances.
 func (n *Navigator) Approve(ctx context.Context) error {
-	return n.ApproveWithDecision(ctx, DecisionMetadata{})
+	return n.ApproveWithAudit(ctx, "", DecisionMetadata{})
 }
 
 // ApproveWithDecision approves a blocking checkpoint and records decision metadata.
 func (n *Navigator) ApproveWithDecision(ctx context.Context, decision DecisionMetadata) error {
+	return n.ApproveWithAudit(ctx, "", decision)
+}
+
+// ApproveWithAudit approves a blocking checkpoint, recording durable audit
+// text and decision metadata, then advances.
+func (n *Navigator) ApproveWithAudit(ctx context.Context, feedback string, decision DecisionMetadata) error {
 	if err := n.EnsureInitialized(); err != nil {
 		return err
 	}
@@ -281,13 +287,13 @@ func (n *Navigator) ApproveWithDecision(ctx context.Context, decision DecisionMe
 	}
 
 	currentStep := n.workflowState.CurrentStep
-	if err := n.workflowState.ApproveWithDecision(decision); err != nil {
+	if err := n.workflowState.ApproveWithAudit(feedback, decision); err != nil {
 		return err
 	}
 
 	sk := n.stateKey()
 	if n.store != nil {
-		n.store.QueueWorkflowEvents(EmitStepDoneWithDecisionEvents(sk, currentStep, "", decision))
+		n.store.QueueWorkflowEvents(EmitStepDoneWithDecisionEvents(sk, currentStep, feedback, decision))
 		if n.workflowState.CurrentStep > currentStep {
 			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
 			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, n.workflowState.CurrentStep))
