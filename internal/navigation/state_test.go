@@ -1,9 +1,12 @@
 package navigation
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -724,5 +727,103 @@ func TestNavigation_SetLinkWithPathReturnsEvicted(t *testing.T) {
 	}
 	if got := n.GetLinkedFestival("/projects/camp"); got != "fest-b" {
 		t.Fatalf("project linked to %q, want fest-b", got)
+	}
+}
+
+func TestNavigation_UpdateConcurrentWritersPreserveAllLinks(t *testing.T) {
+	setupTestCampaign(t)
+
+	const writers = 12
+	ctx := context.Background()
+	var wg sync.WaitGroup
+	errs := make(chan error, writers)
+	for i := 0; i < writers; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			name := fmt.Sprintf("fest-%02d", i)
+			errs <- Update(ctx, func(nav *Navigation) error {
+				nav.SetLinkWithPath(name, "/projects/"+name, "/festivals/planning/"+name)
+				return nil
+			})
+		}(i)
+	}
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		if err != nil {
+			t.Fatalf("Update() error: %v", err)
+		}
+	}
+
+	nav, err := LoadNavigation()
+	if err != nil {
+		t.Fatalf("LoadNavigation() error: %v", err)
+	}
+	if len(nav.Links) != writers {
+		t.Fatalf("links = %d, want %d (lost update: concurrent writers clobbered each other)", len(nav.Links), writers)
+	}
+}
+
+func TestNavigation_UpdateErrAbortsSave(t *testing.T) {
+	setupTestCampaign(t)
+	ctx := context.Background()
+
+	if err := Update(ctx, func(nav *Navigation) error {
+		nav.SetLink("keep-me", "/projects/keep")
+		return nil
+	}); err != nil {
+		t.Fatalf("seed Update() error: %v", err)
+	}
+
+	wantErr := fmt.Errorf("boom")
+	err := Update(ctx, func(nav *Navigation) error {
+		nav.RemoveLink("keep-me")
+		return wantErr
+	})
+	if err == nil {
+		t.Fatal("Update() error = nil, want fn error")
+	}
+
+	nav, err := LoadNavigation()
+	if err != nil {
+		t.Fatalf("LoadNavigation() error: %v", err)
+	}
+	if _, ok := nav.GetLink("keep-me"); !ok {
+		t.Fatal("failed Update must not persist its mutations")
+	}
+}
+
+func TestNavigation_UpdateContextCancelled(t *testing.T) {
+	setupTestCampaign(t)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	if err := Update(ctx, func(nav *Navigation) error {
+		nav.SetLink("nope", "/projects/nope")
+		return nil
+	}); err == nil {
+		t.Fatal("Update() with cancelled context should error")
+	}
+}
+
+func TestNavigation_SaveLeavesNoTempFiles(t *testing.T) {
+	root := setupTestCampaign(t)
+
+	if err := Update(context.Background(), func(nav *Navigation) error {
+		nav.SetLink("fest-a", "/projects/a")
+		return nil
+	}); err != nil {
+		t.Fatalf("Update() error: %v", err)
+	}
+
+	entries, err := os.ReadDir(filepath.Join(root, ".campaign", "fest"))
+	if err != nil {
+		t.Fatalf("ReadDir() error: %v", err)
+	}
+	for _, e := range entries {
+		if strings.Contains(e.Name(), ".tmp-") {
+			t.Fatalf("temp file left behind: %s", e.Name())
+		}
 	}
 }

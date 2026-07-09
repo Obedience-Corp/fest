@@ -555,7 +555,7 @@ func writeFestYaml(ctx context.Context, cfg *createConfig) (*createResult, error
 	res := &createResult{festConfig: festConfig}
 
 	if cfg.opts.Project != "" {
-		resolveProjectLink(cfg, festConfig, res)
+		resolveProjectLink(ctx, cfg, festConfig, res)
 	}
 
 	if cfg.festivalType != nil {
@@ -578,7 +578,7 @@ func writeFestYaml(ctx context.Context, cfg *createConfig) (*createResult, error
 }
 
 // resolveProjectLink resolves and optionally links a project path for the festival.
-func resolveProjectLink(cfg *createConfig, festConfig *config.FestivalConfig, res *createResult) {
+func resolveProjectLink(ctx context.Context, cfg *createConfig, festConfig *config.FestivalConfig, res *createResult) {
 	workspaceRoot := filepath.Dir(cfg.festivalsRoot)
 	resolved, err := ResolveProjectPath(cfg.opts.Project, workspaceRoot)
 	if err != nil {
@@ -599,8 +599,7 @@ func resolveProjectLink(cfg *createConfig, festConfig *config.FestivalConfig, re
 		return
 	}
 
-	nav, navErr := navigation.LoadNavigation()
-	if navErr == nil {
+	updateErr := navigation.Update(ctx, func(nav *navigation.Navigation) error {
 		// A project holds one festival link at a time. Creating a festival must
 		// never silently evict another festival's link; skip and tell the user.
 		if existing, _, hasConflict := nav.ProjectConflict(cfg.dirName, resolved); hasConflict {
@@ -609,15 +608,18 @@ func resolveProjectLink(cfg *createConfig, festConfig *config.FestivalConfig, re
 				cfg.display.Warning("Project is already linked to festival %s; link not changed", existing)
 				cfg.display.Info("Run 'fest link --force %s' from this festival to take over the link", resolved)
 			}
-			return
+			return nil
 		}
 		nav.SetLinkWithPath(cfg.dirName, resolved, cfg.destDir)
-		if saveErr := nav.Save(); saveErr == nil {
-			res.projectLinked = true
-			if !cfg.opts.JSONOutput {
-				cfg.display.Success("Linked to project: %s", resolved)
-			}
-		}
+		res.projectLinked = true
+		return nil
+	})
+	if updateErr != nil {
+		res.projectLinked = false
+		return
+	}
+	if res.projectLinked && !cfg.opts.JSONOutput {
+		cfg.display.Success("Linked to project: %s", resolved)
 	}
 }
 
@@ -1051,13 +1053,11 @@ func rollbackCreatedFestival(ctx context.Context, cfg *createConfig, res *create
 	var failures []string
 
 	if res != nil && res.projectLinked {
-		nav, err := navigation.LoadNavigation()
-		if err != nil {
+		if err := navigation.Update(ctx, func(nav *navigation.Navigation) error {
+			nav.RemoveLink(cfg.dirName)
+			return nil
+		}); err != nil {
 			failures = append(failures, fmt.Sprintf("removing navigation link: %v", err))
-		} else if nav.RemoveLink(cfg.dirName) {
-			if err := nav.Save(); err != nil {
-				failures = append(failures, fmt.Sprintf("saving navigation rollback: %v", err))
-			}
 		}
 	}
 

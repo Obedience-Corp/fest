@@ -365,7 +365,7 @@ func promoteCore(ctx context.Context, festival *show.FestivalInfo, confirm bool,
 	}
 
 	// Update navigation links after successful move
-	linkAction := status.UpdateNavigationAfterMove(festival.Name, nextStatus, newPath)
+	linkAction := status.UpdateNavigationAfterMove(ctx, festival.Name, nextStatus, newPath)
 
 	// Auto-commit the status change unless --no-commit was specified
 	var commitHash string

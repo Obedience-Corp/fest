@@ -113,7 +113,7 @@ func runGoLink(ctx context.Context, targetPath string, force bool) error {
 	}
 
 	// We're in a project directory, show festival picker
-	return linkProjectToFestival(cwd, force)
+	return linkProjectToFestival(ctx, cwd, force)
 }
 
 // isInsideFestival checks if the path is within a festivals/ directory
@@ -191,25 +191,18 @@ func linkFestivalToProject(ctx context.Context, cwd, targetPath string, force bo
 		projectPath = selectedPath
 	}
 
-	// Load navigation state
-	nav, err := navigation.LoadNavigation()
-	if err != nil {
-		return festErrors.Wrap(err, "loading navigation state")
-	}
-
 	// Get the festival path for reverse navigation
 	festivalPath := loc.Festival.Path
 
-	if _, err := guardProjectConflict(nav, festivalName, projectPath, force); err != nil {
+	var evicted string
+	if err := navigation.Update(ctx, func(nav *navigation.Navigation) error {
+		if _, err := guardProjectConflict(nav, festivalName, projectPath, force); err != nil {
+			return err
+		}
+		evicted = nav.SetLinkWithPath(festivalName, projectPath, festivalPath)
+		return nil
+	}); err != nil {
 		return err
-	}
-
-	// Set the bidirectional link with festival path
-	evicted := nav.SetLinkWithPath(festivalName, projectPath, festivalPath)
-
-	// Save
-	if err := nav.Save(); err != nil {
-		return festErrors.Wrap(err, "saving navigation state")
 	}
 
 	fmt.Println(ui.H1("Link Created"))
@@ -223,7 +216,7 @@ func linkFestivalToProject(ctx context.Context, cwd, targetPath string, force bo
 }
 
 // linkProjectToFestival shows a picker to select a festival to link
-func linkProjectToFestival(cwd string, force bool) error {
+func linkProjectToFestival(ctx context.Context, cwd string, force bool) error {
 	absPath, err := filepath.Abs(cwd)
 	if err != nil {
 		return festErrors.Wrap(err, "resolving current directory")
@@ -292,22 +285,15 @@ func linkProjectToFestival(cwd string, force bool) error {
 		}
 	}
 
-	// Load navigation state
-	nav, err := navigation.LoadNavigation()
-	if err != nil {
-		return festErrors.Wrap(err, "loading navigation state")
-	}
-
-	if _, err := guardProjectConflict(nav, selectedFestival, absPath, force); err != nil {
+	var evicted string
+	if err := navigation.Update(ctx, func(nav *navigation.Navigation) error {
+		if _, err := guardProjectConflict(nav, selectedFestival, absPath, force); err != nil {
+			return err
+		}
+		evicted = nav.SetLinkWithPath(selectedFestival, absPath, festivalPath)
+		return nil
+	}); err != nil {
 		return err
-	}
-
-	// Set the bidirectional link with festival path
-	evicted := nav.SetLinkWithPath(selectedFestival, absPath, festivalPath)
-
-	// Save
-	if err := nav.Save(); err != nil {
-		return festErrors.Wrap(err, "saving navigation state")
 	}
 
 	fmt.Println(ui.H1("Link Created"))
