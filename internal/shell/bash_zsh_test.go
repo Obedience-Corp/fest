@@ -43,6 +43,40 @@ func TestBashZshScriptPromoteColorCompletion(t *testing.T) {
 	}
 }
 
+func TestBashZshScriptShowPickerCompletion(t *testing.T) {
+	out, err := Generate("zsh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"fest show pick",
+		"fest show completions --color",
+		"compadd -V show",
+		"compadd -U",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("bash/zsh script should contain %q for the fest show <tab> widget", want)
+		}
+	}
+}
+
+func TestBashZshScriptFlsStatusVocabulary(t *testing.T) {
+	out, err := Generate("zsh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"active ready planning ritual completed dungeon all",
+		"'ready:",
+		"'ritual:",
+		"'all:",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("fls completion should advertise the refreshed status vocabulary %q", want)
+		}
+	}
+}
+
 func TestBashZshScriptSyntax(t *testing.T) {
 	out, err := Generate("zsh")
 	if err != nil {

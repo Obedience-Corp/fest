@@ -233,7 +233,7 @@ func FindFestivalByName(ctx context.Context, festivalsDir, name, campaignRoot st
 	}
 
 	return nil, errors.NotFound("festival").WithField("name", name).
-		WithHint("Run 'fest show all' to see available festivals")
+		WithHint("Run 'fest list --all' to see available festivals")
 }
 
 // ListFestivalsByStatus returns all festivals in a given status directory.

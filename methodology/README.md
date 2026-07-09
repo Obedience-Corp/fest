@@ -408,8 +408,8 @@ For workflow phases, `fest next` detects the phase type and returns the current 
 fest show                    # Current festival details (from cwd)
 fest show --roadmap          # Full execution roadmap with task statuses
 fest show --watch            # Continuously refresh display
-fest show active             # List all active festivals
-fest show all                # All festivals grouped by status
+fest list active             # List all active festivals
+fest list all                # All festivals grouped by status
 fest status                  # Festival status overview
 fest progress                # Execution progress tracking
 ```

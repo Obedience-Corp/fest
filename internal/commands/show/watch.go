@@ -92,6 +92,10 @@ type WatchOptions struct {
 	InProgress bool
 	CycleHint  bool
 	Cycling    bool
+	// CyclePromote controls the cycle footer: when true the "p promote" hint is
+	// shown (watch); when false the footer advertises "q/Ctrl+C" exit instead
+	// (show's cycle has no promote affordance).
+	CyclePromote bool
 }
 
 // WatchFestival watches a festival using the existing show watch renderer.
@@ -105,12 +109,12 @@ func WatchFestival(ctx context.Context, festival *FestivalInfo, opts WatchOption
 		goals:      opts.Goals,
 		collapsed:  opts.Collapsed,
 		inProgress: opts.InProgress,
-	}, opts.CycleHint, opts.Cycling)
+	}, opts.CycleHint, opts.Cycling, opts.CyclePromote)
 }
 
 // runWatchMode watches for file changes and refreshes the festival display.
 // Falls back to polling if file watching is not available.
-func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions, cycleHint bool, cycling bool) error {
+func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions, cycleHint bool, cycling bool, promoteHint bool) error {
 	out := watchWriter(cycleHint)
 	errOut := watchErrWriter(cycleHint)
 
@@ -128,7 +132,7 @@ func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions
 	if err := renderFestivalView(ctx, festival, opts, out); err != nil {
 		return err
 	}
-	printWatchFooter(out, false, cycleHint, cycling)
+	printWatchFooter(out, false, cycleHint, cycling, promoteHint)
 
 	w, err := watch.New(watch.Config{
 		Paths:    watchPaths,
@@ -145,12 +149,12 @@ func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions
 		if err := renderFestivalView(ctx, festival, opts, out); err != nil {
 			_, _ = fmt.Fprintf(errOut, "%s could not refresh festival view: %v\n", ui.Warning("Warning:"), err)
 		}
-		printWatchFooter(out, false, cycleHint, cycling)
+		printWatchFooter(out, false, cycleHint, cycling, promoteHint)
 	})
 
 	if err != nil {
 		_, _ = fmt.Fprintf(errOut, "File watching unavailable (%v), using polling fallback\n", err)
-		return runPollingMode(ctx, festival, opts, cycleHint, cycling)
+		return runPollingMode(ctx, festival, opts, cycleHint, cycling, promoteHint)
 	}
 	defer func() { _ = w.Close() }()
 
@@ -159,7 +163,7 @@ func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions
 
 // runPollingMode continuously refreshes the festival display at the specified interval.
 // Used as a fallback when file watching is not available.
-func runPollingMode(ctx context.Context, festival *FestivalInfo, opts *showOptions, cycleHint bool, cycling bool) error {
+func runPollingMode(ctx context.Context, festival *FestivalInfo, opts *showOptions, cycleHint bool, cycling bool, promoteHint bool) error {
 	ticker := time.NewTicker(pollingInterval)
 	defer ticker.Stop()
 
@@ -168,7 +172,7 @@ func runPollingMode(ctx context.Context, festival *FestivalInfo, opts *showOptio
 	if err := renderFestivalView(ctx, festival, opts, out); err != nil {
 		return err
 	}
-	printWatchFooter(out, true, cycleHint, cycling)
+	printWatchFooter(out, true, cycleHint, cycling, promoteHint)
 
 	for {
 		select {
@@ -186,7 +190,7 @@ func runPollingMode(ctx context.Context, festival *FestivalInfo, opts *showOptio
 			if err := renderFestivalView(ctx, festival, opts, out); err != nil {
 				return err
 			}
-			printWatchFooter(out, true, cycleHint, cycling)
+			printWatchFooter(out, true, cycleHint, cycling, promoteHint)
 		}
 	}
 }
@@ -252,8 +256,10 @@ func clearScreen(out io.Writer) {
 	_, _ = fmt.Fprint(out, "\033[H\033[2J")
 }
 
-// printWatchFooter prints the watch mode footer with exit instructions.
-func printWatchFooter(out io.Writer, polling bool, cycleHint bool, cycling bool) {
+// printWatchFooter prints the watch mode footer with exit instructions. In cycle
+// mode the promote hint is shown only when promoteHint is set (watch); otherwise
+// the footer advertises "q/Ctrl+C" exit (show's cycle).
+func printWatchFooter(out io.Writer, polling bool, cycleHint bool, cycling bool, promoteHint bool) {
 	_, _ = fmt.Fprintln(out)
 	suffix := "Watching for changes"
 	if polling {
@@ -264,9 +270,15 @@ func printWatchFooter(out io.Writer, polling bool, cycleHint bool, cycling bool)
 		return
 	}
 	hint := "Ctrl+C exit • "
+	if !promoteHint {
+		hint = "q/Ctrl+C exit • "
+	}
 	if cycling {
 		hint += "← → cycle • "
 	}
-	hint += "p promote • " + suffix
+	if promoteHint {
+		hint += "p promote • "
+	}
+	hint += suffix
 	_, _ = fmt.Fprintln(out, ui.Dim(hint))
 }

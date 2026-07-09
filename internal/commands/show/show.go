@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -13,6 +14,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 type showOptions struct {
@@ -26,34 +28,33 @@ type showOptions struct {
 	festival   string
 }
 
-var showPickFestival = shared.PickFestival
-
 // NewShowCommand creates the show command with all subcommands.
 func NewShowCommand() *cobra.Command {
 	opts := &showOptions{}
 
 	cmd := &cobra.Command{
-		Use:   "show [status|festival-name]",
+		Use:   "show [festival-name]",
 		Short: "Display festival information",
-		Long: `Display festival information by status or show details of a specific festival.
+		Long: `Display festival information for a single festival.
 
 When run inside a festival directory, shows the current festival's details.
-When run outside a festival in an interactive campaign workspace, opens a festival picker.
-When run with a status argument, lists all festivals with that status.
+When run outside a festival in an interactive campaign workspace, opens a
+cyclable view; use ←/→ to move between festivals and q/Ctrl+C to exit.
 
-SUBCOMMANDS:
-  fest show              Show current festival, or pick one from a campaign workspace
-  fest show active       List festivals in active/ directory
-  fest show planning     List festivals in planning/ directory
-  fest show completed    List festivals in completed/ directory
-  fest show dungeon      List festivals in dungeon/ directory
-  fest show all          List all festivals grouped by status
-  fest show <name>       Show details of a specific festival by name
-  fest show --festival <selector>  Show a festival by explicit selector (campaign workspace)`,
+  fest show                        Show current festival, or cycle festivals in a workspace
+  fest show <name>                 Show details of a specific festival by name
+  fest show --festival <selector>  Show a festival by explicit selector (campaign workspace)
+
+To list festivals by status, use 'fest list' (e.g. 'fest list active',
+'fest list all', 'fest list dungeon/completed').`,
+		Example: `  fest show
+  fest show launch-readiness
+  fest show --festival LR0001`,
 		Annotations: map[string]string{
 			"scope": string(scope.Global),
 		},
-		Args: cobra.MaximumNArgs(1),
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeShowFestivalSelector,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if opts.festival != "" && len(args) > 0 {
 				return errors.Validation("cannot use positional target with --festival")
@@ -80,20 +81,28 @@ SUBCOMMANDS:
 	cmd.Flags().StringVar(&opts.festival, "festival", "", "festival selector (name or ID) from within a campaign workspace")
 	_ = cmd.RegisterFlagCompletionFunc("festival", completeShowFestivalSelector)
 
-	// Add subcommands for status directories
+	// Hidden, deprecated status aliases: the listing surface now lives on
+	// `fest list <status>`. They keep working (fest has production users) but no
+	// longer occupy the tab-completion surface, which is reserved for festivals.
 	cmd.AddCommand(newShowActiveCommand(opts))
 	cmd.AddCommand(newShowPlannedCommand(opts))
 	cmd.AddCommand(newShowCompletedCommand(opts))
 	cmd.AddCommand(newShowDungeonCommand(opts))
 	cmd.AddCommand(newShowAllCommand(opts))
 
+	// Hidden helpers backing the zsh `fest show <tab>` widget.
+	cmd.AddCommand(newShowCompletionsCommand())
+	cmd.AddCommand(newShowPickCommand())
+
 	return cmd
 }
 
 func newShowActiveCommand(opts *showOptions) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "active",
-		Short: "List festivals in active/ directory",
+		Use:        "active",
+		Short:      "List festivals in active/ directory",
+		Hidden:     true,
+		Deprecated: "use 'fest list active' instead",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runShowStatus(cmd.Context(), "active", opts)
 		},
@@ -104,8 +113,10 @@ func newShowActiveCommand(opts *showOptions) *cobra.Command {
 
 func newShowPlannedCommand(opts *showOptions) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "planning",
-		Short: "List festivals in planning/ directory",
+		Use:        "planning",
+		Short:      "List festivals in planning/ directory",
+		Hidden:     true,
+		Deprecated: "use 'fest list planning' instead",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runShowStatus(cmd.Context(), "planning", opts)
 		},
@@ -116,8 +127,10 @@ func newShowPlannedCommand(opts *showOptions) *cobra.Command {
 
 func newShowCompletedCommand(opts *showOptions) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "completed",
-		Short: "List completed festivals",
+		Use:        "completed",
+		Short:      "List completed festivals",
+		Hidden:     true,
+		Deprecated: "use 'fest list completed' instead",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runShowStatus(cmd.Context(), "dungeon/completed", opts)
 		},
@@ -134,7 +147,9 @@ func newShowDungeonCommand(opts *showOptions) *cobra.Command {
 
 Optionally specify a substatus: completed, archived, someday.
 Without a substatus, lists all dungeon festivals.`,
-		Args: cobra.MaximumNArgs(1),
+		Hidden:     true,
+		Deprecated: "use 'fest list dungeon' instead",
+		Args:       cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return runShowStatus(cmd.Context(), "dungeon/"+args[0], opts)
@@ -181,8 +196,10 @@ func runShowDungeon(ctx context.Context, opts *showOptions) error {
 
 func newShowAllCommand(opts *showOptions) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "all",
-		Short: "List all festivals grouped by status",
+		Use:        "all",
+		Short:      "List all festivals grouped by status",
+		Hidden:     true,
+		Deprecated: "use 'fest list all' instead",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runShowAll(cmd.Context(), opts)
 		},
@@ -222,22 +239,7 @@ func runShowCurrent(ctx context.Context, opts *showOptions) error {
 			if opts.json {
 				return emitShowErrorJSON("not in a festival directory or linked project")
 			}
-			picked, outcome, pickErr := pickFestivalForShow(ctx, cwd)
-			if pickErr != nil {
-				return pickErr
-			}
-			switch outcome {
-			case shared.FestivalPicked:
-				festival, err := DetectCurrentFestival(ctx, picked, campaignRoot)
-				if err != nil {
-					return err
-				}
-				return emitShowFestival(ctx, festival, opts, campaignRoot)
-			case shared.FestivalPickCancelled:
-				return nil
-			}
-			return errors.NotFound("festival").WithOp("show").
-				WithHint("navigate to a festival directory, use 'fest link' to link a project, pass --festival <selector>, or run from a terminal in a campaign workspace to pick one")
+			return runShowCycle(ctx, cwd, opts, campaignRoot)
 		}
 		return err
 	}
@@ -246,17 +248,79 @@ func runShowCurrent(ctx context.Context, opts *showOptions) error {
 	return emitShowFestival(ctx, festival, opts, campaignRoot)
 }
 
-func pickFestivalForShow(ctx context.Context, cwd string) (string, shared.FestivalPickOutcome, error) {
+// runShowCycle enters the arrow-key cycle over browseable festivals when bare
+// `fest show` is run outside any festival in an interactive terminal. Outside a
+// terminal, or when no festivals exist, it returns the standard not-found hint.
+func runShowCycle(ctx context.Context, cwd string, opts *showOptions, campaignRoot string) error {
 	festivalsDir, err := workspace.FindFestivals(cwd)
 	if err != nil || festivalsDir == "" {
-		return "", shared.FestivalPickUnavailable, nil
+		return notInFestivalError()
 	}
-	return showPickFestival(ctx, festivalsDir, shared.FestivalPickerOptions{
+	if !term.IsTerminal(int(os.Stdin.Fd())) {
+		return notInFestivalError()
+	}
+	paths := browseCycleTargets(festivalsDir)
+	if len(paths) == 0 {
+		return notInFestivalError()
+	}
+	return RunCycle(ctx, paths, 0, CycleOptions{
+		Detect: func(ctx context.Context, path string) (*FestivalInfo, error) {
+			return DetectCurrentFestival(ctx, path, campaignRoot)
+		},
+		Render: func(ctx context.Context, festival *FestivalInfo, cycling bool) error {
+			return WatchFestival(ctx, festival, showCycleWatchOptions(opts, cycling))
+		},
+		RenderFallback: func(_ context.Context, festival *FestivalInfo) error {
+			return emitFestivalText(festival, opts, campaignRoot)
+		},
+		ExtraKeys: showCycleExtraKeys(),
+	})
+}
+
+// browseCycleTargets returns the festival directories cycled by bare `fest show`,
+// ordered by status (active, ready, planning, ritual) then recency.
+func browseCycleTargets(festivalsDir string) []string {
+	items := shared.FestivalPickerItems(festivalsDir, shared.FestivalPickerOptions{
 		IncludeStatusDirectories: false,
 		PreferredStatuses:        shared.BrowseFestivalPickerStatuses,
 		FallbackStatuses:         shared.BrowseFestivalPickerStatuses,
 		OrderByStatusThenRecency: true,
 	})
+	paths := make([]string, 0, len(items))
+	for _, item := range items {
+		if item.Value != "" {
+			paths = append(paths, item.Value)
+		}
+	}
+	return paths
+}
+
+// showCycleWatchOptions renders each cycle frame with show's display flags
+// (default full tree, not watch's in-progress view) and no promote hint.
+func showCycleWatchOptions(opts *showOptions, cycling bool) WatchOptions {
+	return WatchOptions{
+		Summary:      opts.summary,
+		Goals:        opts.goals,
+		Collapsed:    opts.collapsed,
+		InProgress:   opts.inProgress,
+		CycleHint:    true,
+		Cycling:      cycling,
+		CyclePromote: false,
+	}
+}
+
+// showCycleExtraKeys adds q/Q as quit keys for show's cycle. Promote is
+// deliberately absent so the engine stays free of the promote package.
+func showCycleExtraKeys() map[byte]ExtraKeyHandler {
+	quit := func(context.Context, *FestivalInfo, *term.State) (string, bool) {
+		return "", false
+	}
+	return map[byte]ExtraKeyHandler{'q': quit, 'Q': quit}
+}
+
+func notInFestivalError() error {
+	return errors.NotFound("festival").WithOp("show").
+		WithHint("navigate to a festival directory, use 'fest link' to link a project, pass --festival <selector>, or run from a terminal in a campaign workspace to cycle festivals")
 }
 
 func runShow(ctx context.Context, target string, opts *showOptions) error {
@@ -317,7 +381,7 @@ func runShowBySelector(ctx context.Context, selector string, opts *showOptions) 
 func emitShowFestival(ctx context.Context, festival *FestivalInfo, opts *showOptions, campaignRoot string) error {
 	// Watch mode - continuously refresh display
 	if opts.watch {
-		return runWatchMode(ctx, festival, opts, false, false)
+		return runWatchMode(ctx, festival, opts, false, false, false)
 	}
 
 	// Roadmap mode - full execution plan
@@ -394,7 +458,10 @@ func runShowAll(ctx context.Context, opts *showOptions) error {
 	return emitAllFestivalsText(allFestivals, statusOrder)
 }
 
-func completeShowFestivalSelector(_ *cobra.Command, _ []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+func completeShowFestivalSelector(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, cobra.ShellCompDirectiveNoFileComp
@@ -405,6 +472,107 @@ func completeShowFestivalSelector(_ *cobra.Command, _ []string, toComplete strin
 		return nil, cobra.ShellCompDirectiveNoFileComp
 	}
 	return selectors, cobra.ShellCompDirectiveNoFileComp
+}
+
+// showPickerOptions is the candidate set for `fest show completions` and
+// `fest show pick`: browseable festivals ordered by status then recency, matching
+// the bare-`fest show` cycle.
+func showPickerOptions() shared.FestivalPickerOptions {
+	return shared.FestivalPickerOptions{
+		IncludeStatusDirectories: false,
+		PreferredStatuses:        shared.BrowseFestivalPickerStatuses,
+		FallbackStatuses:         shared.BrowseFestivalPickerStatuses,
+		OrderByStatusThenRecency: true,
+	}
+}
+
+// newShowCompletionsCommand creates the hidden subcommand that emits colorized,
+// status-ordered festival completions for the zsh `fest show <tab>` widget,
+// mirroring `fest promote completions --color`.
+func newShowCompletionsCommand() *cobra.Command {
+	var color bool
+	cmd := &cobra.Command{
+		Use:    "completions",
+		Short:  "Output show completion words for shell integration",
+		Hidden: true,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runShowCompletions(cmd.Context(), color)
+		},
+	}
+	cmd.Flags().BoolVar(&color, "color", false, "output value\\tcolorized_display for zsh compadd")
+	return cmd
+}
+
+func runShowCompletions(ctx context.Context, color bool) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil
+	}
+	candidates, err := shared.ListFestivalPickCandidates(ctx, cwd, showPickerOptions())
+	if err != nil {
+		return nil
+	}
+	if color {
+		for _, line := range shared.ColorSelectorCompletions(candidates, "") {
+			fmt.Println(line)
+		}
+		return nil
+	}
+	for _, name := range shared.OrderedSelectorNames(candidates, "") {
+		fmt.Println(name)
+	}
+	return nil
+}
+
+// newShowPickCommand creates the hidden subcommand backing the zsh tab widget: it
+// runs the festival picker TUI (rendered on the tty) and prints the picked
+// festival's directory name to stdout. --print-path emits the absolute path
+// instead. Outside a terminal it exits non-zero with a hint and empty stdout; a
+// cancelled pick exits 0 with empty stdout.
+func newShowPickCommand() *cobra.Command {
+	var printPath bool
+	cmd := &cobra.Command{
+		Use:    "pick",
+		Short:  "Pick a festival interactively and print its name",
+		Hidden: true,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return runShowPick(cmd.Context(), printPath)
+		},
+	}
+	cmd.Flags().BoolVar(&printPath, "print-path", false, "print the festival's absolute path instead of its name")
+	return cmd
+}
+
+func runShowPick(ctx context.Context, printPath bool) error {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return errors.IO("getting current directory", err)
+	}
+
+	festivalsDir, err := workspace.FindFestivals(cwd)
+	if err != nil || festivalsDir == "" {
+		return errors.NotFound("festivals directory").
+			WithHint("run from a campaign workspace with a festivals/ directory")
+	}
+
+	picked, outcome, err := shared.PickFestival(ctx, festivalsDir, showPickerOptions())
+	if err != nil {
+		return err
+	}
+	switch outcome {
+	case shared.FestivalPicked:
+		if printPath {
+			fmt.Println(picked)
+			return nil
+		}
+		fmt.Println(filepath.Base(picked))
+		return nil
+	case shared.FestivalPickCancelled:
+		return nil
+	default:
+		return errors.NotFound("festival").WithOp("show pick").
+			WithHint("run from an interactive terminal in a campaign workspace to pick a festival")
+	}
 }
 
 // toDisplayFestival returns a copy of FestivalInfo with campaign-relative paths for serialization.

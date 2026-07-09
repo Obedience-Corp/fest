@@ -29,6 +29,59 @@ var validStatuses = func() []string {
 // defaultStatuses shown without --all flag.
 var defaultStatuses = id.PrimaryStatusDirs
 
+// statusCompletionDescriptions annotates the list status vocabulary for shell
+// completion. The vocabulary itself is derived from id.PrimaryStatusDirs and
+// id.StatusDirectories (see listStatusCompletions) so the two cannot drift; this
+// map only supplies human-readable descriptions.
+var statusCompletionDescriptions = map[string]string{
+	"active":            "Festivals currently in progress",
+	"ready":             "Festivals prepared and awaiting execution",
+	"planning":          "Festivals being designed",
+	"ritual":            "Recurring or special festivals",
+	"completed":         "Successfully finished festivals",
+	"dungeon":           "All shelved festivals (completed, archived, someday)",
+	"dungeon/completed": "Completed festivals bucketed by date",
+	"dungeon/archived":  "Festivals shelved but preserved",
+	"dungeon/someday":   "Festivals deprioritized for later",
+	"all":               "Every festival grouped by status",
+}
+
+// listStatusCompletions returns the ordered status vocabulary offered by tab
+// completion. Values are sourced from id.PrimaryStatusDirs and
+// id.StatusDirectories plus the "completed"/"dungeon" shorthands and the "all"
+// alias, so no second hardcoded status list can drift from the id package.
+func listStatusCompletions() []string {
+	values := make([]string, 0, len(id.PrimaryStatusDirs)+len(id.StatusDirectories)+3)
+	values = append(values, id.PrimaryStatusDirs...)
+	values = append(values, "completed", "dungeon")
+	for _, s := range id.StatusDirectories {
+		if strings.HasPrefix(s, "dungeon/") {
+			values = append(values, s)
+		}
+	}
+	return append(values, "all")
+}
+
+// completeListStatus provides tab completion for the first positional status
+// argument, offering the status vocabulary with descriptions.
+func completeListStatus(_ *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+	if len(args) > 0 {
+		return nil, cobra.ShellCompDirectiveNoFileComp
+	}
+	out := make([]string, 0, len(statusCompletionDescriptions))
+	for _, v := range listStatusCompletions() {
+		if toComplete != "" && !strings.HasPrefix(v, toComplete) {
+			continue
+		}
+		if desc := statusCompletionDescriptions[v]; desc != "" {
+			out = append(out, v+"\t"+desc)
+		} else {
+			out = append(out, v)
+		}
+	}
+	return out, cobra.ShellCompDirectiveNoFileComp
+}
+
 type listOptions struct {
 	json          bool
 	all           bool
@@ -52,22 +105,30 @@ func NewListCommand() *cobra.Command {
 
 Works from anywhere - finds the festivals workspace automatically.
 
-STATUS can be: active, ready, planning, ritual, completed, dungeon, dungeon/completed, dungeon/archived, dungeon/someday
+STATUS can be: active, ready, planning, ritual, completed, all,
+dungeon, dungeon/completed, dungeon/archived, dungeon/someday
 
 By default, shows active, ready, planning, and ritual festivals.
-Use --all to include completed and dungeon festivals.`,
-		Example: `  fest list                                       # List active, ready, planning, and ritual festivals
-  fest list --all                                  # List all festivals
+Use 'fest list all' (or --all) to include completed and dungeon festivals.`,
+		Example: `  fest list                                        # Active, ready, planning, ritual festivals
+  fest list active                                 # Only active festivals
+  fest list all                                    # Every festival grouped by status
+  fest list dungeon/completed                      # Completed festivals in the dungeon
   fest list --filter-project camp                  # Festivals linked to "camp" project
-  fest list --since 2026-01-01                     # Festivals created since Jan 1
+  fest list active --sort progress                 # Active festivals, most complete first
   fest list --since 2026-01-01 --until 2026-02-01  # Created in January 2026
-  fest list --filter-project fest --status active   # Active festivals for "fest" project
   fest list --json                                 # Output in JSON format`,
-		Args: cobra.MaximumNArgs(1),
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeListStatus,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			status := opts.status
 			if len(args) > 0 {
 				status = strings.ToLower(args[0])
+			}
+			if status == "all" {
+				// `fest list all` is an alias for `fest list --all`.
+				opts.all = true
+				status = ""
 			}
 			if status != "" {
 				status = id.ResolveStatusPath(status)

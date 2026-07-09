@@ -24,7 +24,7 @@ const (
 
 // Standard hints for common error scenarios.
 const (
-	HintFestivalNotFound      = "Navigate to a festival directory or run 'fest show all' to see available festivals"
+	HintFestivalNotFound      = "Navigate to a festival directory or run 'fest list --all' to see available festivals"
 	HintPhaseNotFound         = "Run 'fest status list --type phase' to see available phases"
 	HintSequenceNotFound      = "Run 'fest status list --type sequence' to see available sequences"
 	HintCreateFestival        = "Run 'fest create festival' or 'fest tui' to create a new festival"

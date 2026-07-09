@@ -1,6 +1,6 @@
 //go:build unix
 
-package watch
+package show
 
 import (
 	"context"
@@ -9,12 +9,12 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func readCycleKey(ctx context.Context, f *os.File) cycleDirection {
+func readCycleAction(ctx context.Context, f *os.File, extraKeys map[byte]ExtraKeyHandler) (CycleAction, byte) {
 	fd := int(f.Fd())
 
 	var pipe [2]int
 	if err := unix.Pipe(pipe[:]); err != nil {
-		return readCycleKeyBlocking(ctx, f)
+		return readCycleActionBlocking(ctx, f, extraKeys)
 	}
 	readEnd, writeEnd := pipe[0], pipe[1]
 	defer func() { _ = unix.Close(readEnd) }()
@@ -33,7 +33,7 @@ func readCycleKey(ctx context.Context, f *os.File) cycleDirection {
 	fds := make([]unix.PollFd, 2)
 	for {
 		if ctx.Err() != nil {
-			return cycleQuit
+			return CycleQuit, 0
 		}
 		fds[0] = unix.PollFd{Fd: int32(fd), Events: unix.POLLIN}
 		fds[1] = unix.PollFd{Fd: int32(readEnd), Events: unix.POLLIN}
@@ -41,10 +41,10 @@ func readCycleKey(ctx context.Context, f *os.File) cycleDirection {
 			if err == unix.EINTR {
 				continue
 			}
-			return cycleQuit
+			return CycleQuit, 0
 		}
 		if fds[1].Revents != 0 {
-			return cycleQuit
+			return CycleQuit, 0
 		}
 		if fds[0].Revents&unix.POLLIN != 0 {
 			n, err := unix.Read(fd, buf)
@@ -52,42 +52,46 @@ func readCycleKey(ctx context.Context, f *os.File) cycleDirection {
 				if err == unix.EINTR {
 					continue
 				}
-				return cycleQuit
+				return CycleQuit, 0
 			}
 			if n == 0 {
-				return cycleQuit
+				return CycleQuit, 0
 			}
-			if dir, ok := classifyCycleKey(buf[:n]); ok {
-				return dir
+			if action, key, ok := classifyCycleKey(buf[:n], extraKeys); ok {
+				return action, key
 			}
 			continue
 		}
 		if fds[0].Revents&(unix.POLLHUP|unix.POLLERR|unix.POLLNVAL) != 0 {
-			return cycleQuit
+			return CycleQuit, 0
 		}
 	}
 }
 
-func readCycleKeyBlocking(ctx context.Context, f *os.File) cycleDirection {
-	keyCh := make(chan cycleDirection, 1)
+func readCycleActionBlocking(ctx context.Context, f *os.File, extraKeys map[byte]ExtraKeyHandler) (CycleAction, byte) {
+	type keyResult struct {
+		action CycleAction
+		key    byte
+	}
+	keyCh := make(chan keyResult, 1)
 	go func() {
 		buf := make([]byte, 3)
 		for {
 			n, err := f.Read(buf)
 			if err != nil || n == 0 {
-				keyCh <- cycleQuit
+				keyCh <- keyResult{CycleQuit, 0}
 				return
 			}
-			if dir, ok := classifyCycleKey(buf[:n]); ok {
-				keyCh <- dir
+			if action, key, ok := classifyCycleKey(buf[:n], extraKeys); ok {
+				keyCh <- keyResult{action, key}
 				return
 			}
 		}
 	}()
 	select {
-	case dir := <-keyCh:
-		return dir
+	case r := <-keyCh:
+		return r.action, r.key
 	case <-ctx.Done():
-		return cycleQuit
+		return CycleQuit, 0
 	}
 }
