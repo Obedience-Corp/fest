@@ -117,7 +117,8 @@ func TestCRLFWriter_PreservesPartialWriteCount(t *testing.T) {
 
 func TestPrintWatchFooter_CycleModeEmitsCRLF(t *testing.T) {
 	var buf bytes.Buffer
-	printWatchFooter(crlfWriter{w: &buf}, false, true, true, true)
+	session := newWatchFrameSession(crlfWriter{w: &buf}, nil, true, true, true, false)
+	session.printFooter(0, 0, 0, false)
 
 	out := buf.String()
 	if !strings.Contains(out, "\r\n") {
@@ -147,7 +148,8 @@ func TestPrintWatchFooter_PromoteHint(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var buf bytes.Buffer
-			printWatchFooter(&buf, false, tc.cycleHint, tc.cycling, tc.promoteHint)
+			session := newWatchFrameSession(&buf, nil, tc.cycleHint, tc.cycling, tc.promoteHint, false)
+			session.printFooter(0, 0, 0, false)
 			out := buf.String()
 			if got := strings.Contains(out, "p promote"); got != tc.wantPromote {
 				t.Errorf("promote hint present = %v, want %v (footer %q)", got, tc.wantPromote, out)

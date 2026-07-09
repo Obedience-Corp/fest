@@ -23,8 +23,10 @@ func runWatchCycle(ctx context.Context, paths []string, startIndex int, opts opt
 	}
 	return show.RunCycle(ctx, paths, startIndex, show.CycleOptions{
 		Detect: deps.detectFestival,
-		Render: func(ctx context.Context, festival *show.FestivalInfo, cycling bool) error {
-			return deps.watch(ctx, festival, cycleWatchOptions(opts, cycling))
+		Render: func(ctx context.Context, festival *show.FestivalInfo, cycling bool, frame *show.FrameState) error {
+			watchOpts := cycleWatchOptions(opts, cycling)
+			watchOpts.Frame = frame
+			return deps.watch(ctx, festival, watchOpts)
 		},
 		RenderFallback: func(ctx context.Context, festival *show.FestivalInfo) error {
 			return deps.watch(ctx, festival, showWatchOptions(opts))
