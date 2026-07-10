@@ -69,6 +69,7 @@ func TestFormatCheckpoint_JudgeConfigured(t *testing.T) {
 
 func TestApprovalJudgeConfigured_NilAndMissing(t *testing.T) {
 	nav := &Navigator{}
+	//nolint:staticcheck // formatCheckpoint tolerates a nil context by design; verify the guard.
 	if nav.approvalJudgeConfigured(nil) {
 		t.Error("nil context should report no judge")
 	}

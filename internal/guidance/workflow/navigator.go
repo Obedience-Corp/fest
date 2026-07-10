@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"time"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -261,6 +262,43 @@ func (n *Navigator) GetContextFiles(ctx context.Context) ([]string, error) {
 	}
 
 	return n.getContextFiles(), nil
+}
+
+// BeginJudge durably records that a delegated approval judge run started on
+// the current step, before the judge command executes, so concurrent watchers
+// (fest show --watch, fest progress) can render the waiting-on-judge state
+// and a crashed or timed-out judge still leaves a trace.
+func (n *Navigator) BeginJudge(ctx context.Context, command string) error {
+	return n.recordJudge(ctx, EmitJudgeStartedEvents(n.stateKey(), n.workflowState.CurrentStep, command), func(at time.Time) {
+		n.workflowState.BeginJudge(command, at)
+	})
+}
+
+// RecordJudgeOutcome durably records how the judge run ended: JudgeApproved,
+// JudgeRejected, or JudgeFailed with the reason or error text in detail.
+func (n *Navigator) RecordJudgeOutcome(ctx context.Context, status, detail string) error {
+	return n.recordJudge(ctx, EmitJudgeReturnedEvents(n.stateKey(), n.workflowState.CurrentStep, status, detail), func(at time.Time) {
+		n.workflowState.RecordJudgeOutcome(status, detail, at)
+	})
+}
+
+func (n *Navigator) recordJudge(ctx context.Context, events []WorkflowEvent, apply func(at time.Time)) error {
+	if err := n.EnsureInitialized(); err != nil {
+		return err
+	}
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+
+	apply(time.Now().UTC())
+
+	if n.store != nil {
+		n.store.QueueWorkflowEvents(events)
+		return n.store.SaveEvents(ctx)
+	}
+	return n.workflowState.Save(ctx, n.festivalPath, n.stateKey())
 }
 
 // Approve approves a blocking checkpoint and advances.

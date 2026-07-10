@@ -626,6 +626,9 @@ func (s *Store) QueueWorkflowEvents(events []wf.WorkflowEvent) {
 			RemediationPhase: we.RemediationPhase,
 			DecisionActor:    we.DecisionActor,
 			DecisionSummary:  we.DecisionSummary,
+			JudgeStatus:      we.JudgeStatus,
+			JudgeCommand:     we.JudgeCommand,
+			JudgeDetail:      we.JudgeDetail,
 		}
 		s.pendingEvents = append(s.pendingEvents, pe)
 	}
