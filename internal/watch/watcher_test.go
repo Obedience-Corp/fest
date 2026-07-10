@@ -194,27 +194,20 @@ func TestWatcher_Debouncing(t *testing.T) {
 }
 
 func TestWatcher_MaxWaitFiresDuringSustainedChanges(t *testing.T) {
-	tmpDir := t.TempDir()
-	tmpFile := filepath.Join(tmpDir, "test.txt")
-	if err := os.WriteFile(tmpFile, []byte("initial"), 0644); err != nil {
-		t.Fatalf("failed to create temp file: %v", err)
-	}
-
 	var callCount atomic.Int32
 
 	cfg := Config{
-		Paths:    []string{tmpFile},
 		Debounce: 100 * time.Millisecond,
 		MaxWait:  250 * time.Millisecond,
 	}
 
-	w, err := New(cfg, func() {
-		callCount.Add(1)
-	})
-	if err != nil {
-		t.Fatalf("New() error = %v", err)
+	w := &Watcher{
+		config: cfg,
+		onChange: func() {
+			callCount.Add(1)
+		},
 	}
-	defer func() { _ = w.Close() }()
+	defer w.cancelPendingTimer()
 
 	// Sustained events every 20ms reset the trailing debounce timer forever;
 	// only the MaxWait cap lets the callback fire while the storm is running.
