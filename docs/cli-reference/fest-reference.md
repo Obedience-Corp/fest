@@ -5329,30 +5329,6 @@ fest templates list [flags]
 ```
 ---
 
-## fest tui
-
-Interactive UI (Charm) for festival creation and editing
-
-```
-fest tui [flags]
-```
-
-### Options
-
-```
-  -h, --help   help for tui
-```
-
-### Options inherited from parent commands
-
-```
-      --config string   config file (default: ~/.obey/fest/config.json)
-      --debug           enable debug logging
-      --no-color        disable colored output
-      --verbose         enable verbose output
-```
----
-
 ## fest types
 
 Discover and explore template types
