@@ -68,7 +68,7 @@ func TestGetSuggestedCommands(t *testing.T) {
 		{
 			name:         "nil location - generic suggestions",
 			location:     nil,
-			wantContains: []string{"fest tui", "fest list --all"},
+			wantContains: []string{"fest create festival", "fest list --all"},
 		},
 		{
 			name: "festival location",
