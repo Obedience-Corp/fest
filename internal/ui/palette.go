@@ -65,12 +65,17 @@ func InitPalette(ctx context.Context) {
 		switch cfg.TUI.Theme {
 		case "light":
 			currentPalette = lightPalette()
+			lipgloss.SetHasDarkBackground(false)
 		case "dark":
 			currentPalette = defaultDarkPalette()
+			lipgloss.SetHasDarkBackground(true)
 		case "high-contrast":
 			currentPalette = highContrastPalette()
+			lipgloss.SetHasDarkBackground(true)
 		default:
-			// "adaptive" or unknown - use dark as safe default
+			// "adaptive" or unknown - use dark as safe default and keep the
+			// background seeded by bginit (COLORFGBG or dark); querying the
+			// terminal here would reintroduce the OSC 11 startup stall.
 			currentPalette = defaultDarkPalette()
 		}
 		paletteInit = true

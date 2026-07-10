@@ -26,6 +26,26 @@ func TestCycleWatchOptionsSetsCycleHint(t *testing.T) {
 	}
 }
 
+func TestWatchCycleExtraKeysRegistersPromoteAndQuit(t *testing.T) {
+	keys := watchCycleExtraKeys()
+
+	for _, key := range []byte{'p', 'P', 'q', 'Q'} {
+		if keys[key] == nil {
+			t.Errorf("expected handler registered for %q", key)
+		}
+	}
+
+	for _, key := range []byte{'q', 'Q'} {
+		newPath, cont := keys[key](t.Context(), nil, nil)
+		if cont {
+			t.Errorf("%q handler should end the cycle, got cont=true", key)
+		}
+		if newPath != "" {
+			t.Errorf("%q handler should not move the festival, got path %q", key, newPath)
+		}
+	}
+}
+
 func TestRunWatchCycle_EmptyPaths(t *testing.T) {
 	err := runWatchCycle(t.Context(), nil, 0, options{}, commandDeps{
 		detectFestival: func(context.Context, string) (*show.FestivalInfo, error) {

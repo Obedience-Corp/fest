@@ -139,8 +139,8 @@ func TestPrintWatchFooter_PromoteHint(t *testing.T) {
 		wantCycle   bool
 		wantQExit   bool
 	}{
-		{"watch_raw_single", true, false, true, true, false, false},
-		{"watch_raw_multi", true, true, true, true, true, false},
+		{"watch_raw_single", true, false, true, true, false, true},
+		{"watch_raw_multi", true, true, true, true, true, true},
 		{"show_raw_single", true, false, false, false, false, true},
 		{"show_raw_multi", true, true, false, false, true, true},
 		{"non_raw", false, false, false, false, false, false},
