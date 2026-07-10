@@ -160,6 +160,25 @@ func TestEvaluateApprovalJudge_MissingCommandFailsClosed(t *testing.T) {
 	}
 }
 
+// Judge evaluations can run long; a default deadline would kill them
+// mid-inference. Zero timeout must mean no deadline on the judge context.
+func TestEvaluateApprovalJudge_ZeroTimeoutMeansNoDeadline(t *testing.T) {
+	var hadDeadline bool
+	withApprovalJudgeRunner(t, func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
+		_, hadDeadline = ctx.Deadline()
+		return []byte(`{"schema_version":"fest.approval.judge/v1","decision":"approve","reason":"ok"}`), nil
+	})
+
+	if _, _, err := evaluateApprovalJudge(context.Background(), approvalJudgeRequest{}, approvalJudgeOptions{
+		JudgeCommand: "fake judge",
+	}); err != nil {
+		t.Fatalf("evaluateApprovalJudge: %v", err)
+	}
+	if hadDeadline {
+		t.Fatal("zero judge timeout must not impose a deadline")
+	}
+}
+
 func TestEvaluateApprovalJudge_TimeoutFailsClosed(t *testing.T) {
 	withApprovalJudgeRunner(t, func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
 		<-ctx.Done()
