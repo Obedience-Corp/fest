@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -54,9 +55,7 @@ var runApprovalJudgeCommand approvalJudgeRunner = runApprovalJudgeCommandDefault
 func newApproveCmd() *cobra.Command {
 	var actor string
 	var summary string
-	opts := approvalJudgeOptions{
-		Timeout: 2 * time.Minute,
-	}
+	opts := approvalJudgeOptions{}
 
 	cmd := &cobra.Command{
 		Use:   "approve",
@@ -110,7 +109,7 @@ Auto approval:
 	cmd.Flags().StringVar(&summary, "summary", "", "approval summary or rationale")
 	cmd.Flags().BoolVar(&opts.Auto, "auto", false, "delegate this checkpoint decision to the configured approval judge command")
 	cmd.Flags().StringVar(&opts.JudgeCommand, "judge-command", opts.JudgeCommand, "approval judge command for --auto (overrides the .festival/config.yaml hooks.approval_judge.command hook)")
-	cmd.Flags().DurationVar(&opts.Timeout, "judge-timeout", opts.Timeout, "maximum time to wait for the approval judge")
+	cmd.Flags().DurationVar(&opts.Timeout, "judge-timeout", opts.Timeout, "maximum time to wait for the approval judge (0 waits until it returns)")
 	cmd.MarkFlagsMutuallyExclusive("auto", "as")
 	cmd.MarkFlagsMutuallyExclusive("auto", "summary")
 
@@ -284,10 +283,6 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 }
 
 func judgeApproval(ctx context.Context, nav *wf.Navigator, step wf.WorkflowStep, opts approvalJudgeOptions) (*approvalJudgeResponse, string, error) {
-	if opts.Timeout <= 0 {
-		opts.Timeout = 2 * time.Minute
-	}
-
 	req := approvalJudgeRequest{
 		SchemaVersion: approvalJudgeSchemaVersion,
 		FestivalPath:  nav.Ctx.FestivalPath,
@@ -308,24 +303,28 @@ func judgeApproval(ctx context.Context, nav *wf.Navigator, step wf.WorkflowStep,
 }
 
 func evaluateApprovalJudge(ctx context.Context, req approvalJudgeRequest, opts approvalJudgeOptions) (*approvalJudgeResponse, string, error) {
-	if opts.Timeout <= 0 {
-		opts.Timeout = 2 * time.Minute
-	}
-
 	stdin, err := json.Marshal(req)
 	if err != nil {
 		return nil, "", festerrors.Wrap(err, "encoding approval judge request")
 	}
 
-	judgeCtx, cancel := context.WithTimeout(ctx, opts.Timeout)
+	// No default deadline: judge evaluations can legitimately run long, and
+	// killing one mid-inference wastes the run. --judge-timeout opts into a
+	// bound; the judge remains observable while it runs (wf_judge_started,
+	// waiting-on-judge indicator).
+	judgeCtx := ctx
+	cancel := context.CancelFunc(func() {})
+	if opts.Timeout > 0 {
+		judgeCtx, cancel = context.WithTimeout(ctx, opts.Timeout)
+	}
 	defer cancel()
 
 	out, err := runApprovalJudgeCommand(judgeCtx, opts.JudgeCommand, append(stdin, '\n'))
 	if err != nil {
-		if judgeCtx.Err() != nil {
+		if errors.Is(judgeCtx.Err(), context.DeadlineExceeded) {
 			return nil, "", festerrors.Wrap(judgeCtx.Err(), "approval judge timed out").
 				WithField("judge_command", opts.JudgeCommand).
-				WithHint("the checkpoint was not approved; rerun manually or use a working judge command")
+				WithHint("the checkpoint was not approved; rerun manually or raise --judge-timeout")
 		}
 		return nil, "", festerrors.Wrap(err, "approval judge failed").
 			WithField("judge_command", opts.JudgeCommand).
