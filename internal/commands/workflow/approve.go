@@ -74,6 +74,10 @@ Auto approval:
   Manual approval is the default. Use --auto only when an operator has explicitly
   delegated this checkpoint decision to an external judge command.
 
+  Agents must not clear checkpoints themselves: --as agent is rejected. An
+  agent-actor decision is recorded only when the operator delegates via --auto
+  and the judge returns a verdict.
+
   The judge command receives JSON on stdin using schema fest.approval.judge/v1
   and must return JSON on stdout with decision "approve" or "reject" and a
   reason. Missing commands, timeouts, non-zero exits, malformed JSON, unknown
@@ -93,7 +97,7 @@ Auto approval:
 			if opts.Auto {
 				return runApproveWithOptions(cmd.Context(), wf.DecisionMetadata{}, opts)
 			}
-			decision, err := normalizeDecision("approval", actor, summary, "")
+			decision, err := normalizeDecision("approval", actor, summary)
 			if err != nil {
 				return err
 			}
@@ -101,7 +105,8 @@ Auto approval:
 		},
 	}
 
-	cmd.Flags().StringVar(&actor, "as", decisionActorUser, "decision actor: user or agent")
+	cmd.Flags().StringVar(&actor, "as", decisionActorUser, "deprecated: manual approvals are always recorded as the user; agent decisions require --auto with a configured judge")
+	_ = cmd.Flags().MarkHidden("as")
 	cmd.Flags().StringVar(&summary, "summary", "", "approval summary or rationale")
 	cmd.Flags().BoolVar(&opts.Auto, "auto", false, "delegate this checkpoint decision to the configured approval judge command")
 	cmd.Flags().StringVar(&opts.JudgeCommand, "judge-command", opts.JudgeCommand, "approval judge command for --auto (overrides the .festival/config.yaml hooks.approval_judge.command hook)")

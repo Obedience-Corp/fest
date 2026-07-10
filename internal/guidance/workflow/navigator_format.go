@@ -5,7 +5,9 @@ import (
 	"strings"
 
 	"github.com/Obedience-Corp/fest/embedded/templates/agent"
+	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/guidance"
+	"github.com/Obedience-Corp/fest/internal/scope"
 )
 
 // FormatInstructions generates agent-friendly workflow instructions using templates.
@@ -41,10 +43,10 @@ func (n *Navigator) FormatInstructions(ctx context.Context) (string, error) {
 	// Check if this is a blocking step that's currently in progress (awaiting user action)
 	// A blocking checkpoint means the user needs to approve before advancing
 	if step.Checkpoint.IsBlocking() && stepState.Status == StepStatusInProgress {
-		return n.formatCheckpoint(step)
+		return n.formatCheckpoint(ctx, step)
 	}
 
-	return n.formatStep(step, stepState)
+	return n.formatStep(ctx, step, stepState)
 }
 
 // displayPhaseType returns the uppercased phase type for use in rendered headers.
@@ -88,20 +90,40 @@ func (n *Navigator) formatComplete() string {
 }
 
 // formatCheckpoint renders the checkpoint template for blocking steps.
-func (n *Navigator) formatCheckpoint(step WorkflowStep) (string, error) {
+func (n *Navigator) formatCheckpoint(ctx context.Context, step WorkflowStep) (string, error) {
 	data := map[string]any{
 		"InstructionHeader": guidance.InstructionHeader,
 		"StepNumber":        step.Number,
 		"StepName":          step.Name,
 		"Goal":              step.Goal,
 		"Actions":           step.Actions,
+		"JudgeConfigured":   n.approvalJudgeConfigured(ctx),
 	}
 
 	return agent.Render("workflow/checkpoint", data)
 }
 
+// approvalJudgeConfigured reports whether the operator has delegated blocking
+// checkpoints to an approval judge via hooks.approval_judge.command. Guidance
+// only advertises 'fest workflow approve --auto' when this returns true, so
+// agents are never handed a delegation affordance the operator did not set up.
+func (n *Navigator) approvalJudgeConfigured(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	ws, ok := scope.WorkspaceFrom(ctx)
+	if !ok || ws == nil || ws.FestivalsPath == "" {
+		return false
+	}
+	cfg, err := config.LoadWorkspaceConfig(ws.FestivalsPath)
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(cfg.Hooks.ApprovalJudge.Command) != ""
+}
+
 // formatStep renders the step template for the current workflow step.
-func (n *Navigator) formatStep(step WorkflowStep, stepState *StepState) (string, error) {
+func (n *Navigator) formatStep(ctx context.Context, step WorkflowStep, stepState *StepState) (string, error) {
 	status := string(stepState.Status)
 	feedback := stepState.Feedback
 
@@ -126,6 +148,7 @@ func (n *Navigator) formatStep(step WorkflowStep, stepState *StepState) (string,
 		"Feedback":          feedback,
 		"CurrentStep":       n.workflowState.CurrentStep,
 		"IsGate":            isGate,
+		"JudgeConfigured":   n.approvalJudgeConfigured(ctx),
 	}
 
 	return agent.Render("workflow/step", data)
