@@ -20,3 +20,15 @@ func TestRegisterStable_ExploreCommandNotRegistered(t *testing.T) {
 		}
 	}
 }
+
+func TestRegisterStable_TuiCommandNotRegistered(t *testing.T) {
+	root := &cobra.Command{Use: "test"}
+
+	release.Register(root)
+
+	for _, cmd := range root.Commands() {
+		if cmd.Name() == "tui" {
+			t.Fatal("tui command should not be registered in stable profile")
+		}
+	}
+}

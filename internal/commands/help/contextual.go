@@ -86,7 +86,6 @@ type CommandSuggestion struct {
 
 func genericSuggestions() []CommandSuggestion {
 	return []CommandSuggestion{
-		{"fest tui", "Interactive festival management"},
 		{"fest list --all", "List all available festivals"},
 		{"fest create festival", "Create a new festival"},
 		{"fest understand", "Learn about Festival Methodology"},

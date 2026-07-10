@@ -341,12 +341,6 @@ func init() {
 	pluginsCmd.GroupID = "system"
 	rootCmd.AddCommand(pluginsCmd)
 
-	if shared.NewTUICommand != nil {
-		tuiCmd := shared.NewTUICommand()
-		tuiCmd.GroupID = "creation"
-		rootCmd.AddCommand(tuiCmd)
-	}
-
 	// Gates policy management (part of learning/validation)
 	gatesCmd := gates.NewGatesCommand()
 	gatesCmd.GroupID = "learning"

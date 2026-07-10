@@ -28,7 +28,7 @@ func init() {
 func NewTUICommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tui",
-		Short: "Interactive UI (Charm) for festival creation and editing",
+		Short: "Interactive UI (Charm) for creating festivals, phases, sequences, and tasks",
 		Annotations: map[string]string{
 			"agent_allowed": "false",
 			"agent_reason":  "Full interactive Charm TUI",
