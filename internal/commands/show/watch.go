@@ -195,10 +195,7 @@ func (s *watchFrameSession) printFooter(from, to, total int, overflow bool) {
 		_, _ = fmt.Fprintln(s.out, ui.Dim("Press Ctrl+C to exit • "+suffix))
 		return
 	}
-	hint := "Ctrl+C exit • "
-	if !s.promoteHint {
-		hint = "q/Ctrl+C exit • "
-	}
+	hint := "q/Ctrl+C exit • "
 	if s.cycling {
 		hint += "← → cycle • "
 	}
@@ -275,6 +272,7 @@ func runWatchMode(ctx context.Context, festival *FestivalInfo, opts *showOptions
 	w, err := watch.New(watch.Config{
 		Paths:    watchPaths,
 		Debounce: 100 * time.Millisecond,
+		MaxWait:  watch.DefaultMaxWait,
 		OnError: func(err error) {
 			_, _ = fmt.Fprintf(errOut, "%s file watch error: %v\n", ui.Warning("Warning:"), err)
 		},

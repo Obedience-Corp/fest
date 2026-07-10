@@ -28,6 +28,7 @@ func runStandaloneWatchMode(ctx context.Context, startDir string, opts WatchOpti
 	session := &standaloneWatchSession{startDir: startDir, opts: opts}
 	w, err := filewatch.New(filewatch.Config{
 		Debounce: filewatch.DefaultDebounce,
+		MaxWait:  filewatch.DefaultMaxWait,
 		OnError:  session.reportWatchError,
 	}, func() {
 		session.renderOrWarn(ctx, false)

@@ -31,11 +31,22 @@ func runWatchCycle(ctx context.Context, paths []string, startIndex int, opts opt
 		RenderFallback: func(ctx context.Context, festival *show.FestivalInfo) error {
 			return deps.watch(ctx, festival, showWatchOptions(opts))
 		},
-		ExtraKeys: map[byte]show.ExtraKeyHandler{
-			'p': promoteFromWatch,
-			'P': promoteFromWatch,
-		},
+		ExtraKeys: watchCycleExtraKeys(),
 	})
+}
+
+// watchCycleExtraKeys registers watch's cycle keys: p promotes and q quits,
+// matching show's cycle so the watch view is not Ctrl+C-only.
+func watchCycleExtraKeys() map[byte]show.ExtraKeyHandler {
+	quit := func(context.Context, *show.FestivalInfo, *term.State) (string, bool) {
+		return "", false
+	}
+	return map[byte]show.ExtraKeyHandler{
+		'p': promoteFromWatch,
+		'P': promoteFromWatch,
+		'q': quit,
+		'Q': quit,
+	}
 }
 
 // promoteFromWatch runs the fest promote flow outside raw mode and returns the

@@ -45,6 +45,7 @@ func runWatchMode(ctx context.Context, mgr *progress.Manager, loc *show.Location
 	w, err := watch.New(watch.Config{
 		Paths:    watchPaths,
 		Debounce: 100 * time.Millisecond,
+		MaxWait:  watch.DefaultMaxWait,
 		OnError: func(err error) {
 			fmt.Fprintf(os.Stderr, "%s file watch error: %v\n", ui.Warning("Warning:"), err)
 		},

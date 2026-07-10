@@ -13,6 +13,10 @@ import (
 // DefaultDebounce is the default debounce duration for file changes.
 const DefaultDebounce = 100 * time.Millisecond
 
+// DefaultMaxWait is the default cap on debounce coalescing for live display
+// refreshers, keeping views current during sustained write storms.
+const DefaultMaxWait = 500 * time.Millisecond
+
 // Config configures the file watcher behavior.
 type Config struct {
 	// Paths lists files and directories to watch.
@@ -23,6 +27,12 @@ type Config struct {
 	// This coalesces rapid changes (e.g., editor save patterns) into a single event.
 	// Defaults to DefaultDebounce if zero.
 	Debounce time.Duration
+
+	// MaxWait caps how long coalescing can defer the callback. The trailing
+	// debounce timer resets on every event, so sustained writes arriving
+	// faster than Debounce would otherwise starve the callback until the
+	// storm ends. Zero means no cap.
+	MaxWait time.Duration
 
 	// FallbackPoll is the polling interval to use if fsnotify fails.
 	// If zero, no fallback is used and errors are returned.
@@ -38,10 +48,11 @@ type Watcher struct {
 	onChange func()
 	watcher  *fsnotify.Watcher
 
-	mu      sync.Mutex
-	timer   *time.Timer
-	pending bool
-	watched map[string]struct{}
+	mu           sync.Mutex
+	timer        *time.Timer
+	pending      bool
+	firstPending time.Time
+	watched      map[string]struct{}
 }
 
 // ErrNoWatchablePaths is returned when none of the specified paths can be watched.
@@ -151,7 +162,8 @@ func (w *Watcher) removePath(path string) {
 }
 
 // scheduleCallback schedules the onChange callback after the debounce period.
-// Multiple calls within the debounce period are coalesced into a single callback.
+// Multiple calls within the debounce period are coalesced into a single
+// callback, but never deferred past MaxWait since the first pending event.
 func (w *Watcher) scheduleCallback() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -161,8 +173,21 @@ func (w *Watcher) scheduleCallback() {
 		w.timer.Stop()
 	}
 
+	if !w.pending {
+		w.firstPending = time.Now()
+	}
 	w.pending = true
-	w.timer = time.AfterFunc(w.config.Debounce, func() {
+
+	delay := w.config.Debounce
+	if w.config.MaxWait > 0 {
+		if remaining := w.config.MaxWait - time.Since(w.firstPending); remaining < delay {
+			delay = remaining
+		}
+		if delay < 0 {
+			delay = 0
+		}
+	}
+	w.timer = time.AfterFunc(delay, func() {
 		w.mu.Lock()
 		w.pending = false
 		w.timer = nil

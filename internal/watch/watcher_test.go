@@ -193,6 +193,49 @@ func TestWatcher_Debouncing(t *testing.T) {
 	cancel()
 }
 
+func TestWatcher_MaxWaitFiresDuringSustainedChanges(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "test.txt")
+	if err := os.WriteFile(tmpFile, []byte("initial"), 0644); err != nil {
+		t.Fatalf("failed to create temp file: %v", err)
+	}
+
+	var callCount atomic.Int32
+
+	cfg := Config{
+		Paths:    []string{tmpFile},
+		Debounce: 100 * time.Millisecond,
+		MaxWait:  250 * time.Millisecond,
+	}
+
+	w, err := New(cfg, func() {
+		callCount.Add(1)
+	})
+	if err != nil {
+		t.Fatalf("New() error = %v", err)
+	}
+	defer func() { _ = w.Close() }()
+
+	// Sustained events every 20ms reset the trailing debounce timer forever;
+	// only the MaxWait cap lets the callback fire while the storm is running.
+	storm := 700 * time.Millisecond
+	deadline := time.Now().Add(storm)
+	for time.Now().Before(deadline) {
+		w.scheduleCallback()
+		time.Sleep(20 * time.Millisecond)
+	}
+	duringStorm := callCount.Load()
+
+	if duringStorm < 1 {
+		t.Errorf("expected at least 1 callback during a %v storm with MaxWait=%v, got %d", storm, cfg.MaxWait, duringStorm)
+	}
+
+	time.Sleep(300 * time.Millisecond)
+	if total := callCount.Load(); total <= duringStorm {
+		t.Errorf("expected a trailing callback after the storm, got %d during and %d total", duringStorm, total)
+	}
+}
+
 func TestWatcher_WatchDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 
