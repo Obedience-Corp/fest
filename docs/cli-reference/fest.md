@@ -46,7 +46,6 @@ Run 'fest understand' to learn the methodology before executing tasks.
 * [fest apply](fest_apply.md)	 - Apply a local template to a destination file (copy or render)
 * [fest chain](fest_chain.md)	 - Manage festival chains (inter-festival dependencies)
 * [fest commit](fest_commit.md)	 - Create git commit with task reference
-* [fest commits](fest_commits.md)	 - Query commits by festival element
 * [fest completion](fest_completion.md)	 - Generate shell completion scripts
 * [fest config](fest_config.md)	 - Manage fest configuration repositories
 * [fest context](fest_context.md)	 - Get context for the current location or task
