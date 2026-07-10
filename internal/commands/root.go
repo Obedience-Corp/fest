@@ -356,10 +356,6 @@ func init() {
 	commitCmd.GroupID = "workflow"
 	rootCmd.AddCommand(commitCmd)
 
-	commitsCmd := commitcmd.NewCommitsCommand()
-	commitsCmd.GroupID = "query"
-	rootCmd.AddCommand(commitsCmd)
-
 	// Parse command for structured output
 	parseCmd := parsecmd.NewParseCommand()
 	parseCmd.GroupID = "query"

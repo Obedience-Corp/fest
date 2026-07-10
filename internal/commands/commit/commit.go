@@ -286,7 +286,7 @@ func outputResult(result *CommitResult) error {
 		if result.Success {
 			fmt.Println(ui.H1("Commit"))
 			fmt.Printf("%s %s\n", ui.Label("Hash"), ui.Value(result.Hash))
-			fmt.Printf("%s %s\n", ui.Label("Message"), highlightTaskRefs(result.Message))
+			fmt.Printf("%s %s\n", ui.Label("Message"), result.Message)
 			if result.TaskRef != "" {
 				fmt.Printf("%s %s\n", ui.Label("Task"), ui.Value(result.TaskRef, ui.TaskColor))
 			}
