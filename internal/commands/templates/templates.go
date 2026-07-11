@@ -26,6 +26,8 @@ Examples:
   fest templates create component_test
   fest templates apply component_test --vars '{"name": "UserService"}'
   fest templates list`,
+		Hidden:     true,
+		Deprecated: "unused; use 'fest create' with '.festival/templates' for reusable scaffolding",
 	}
 
 	cmd.AddCommand(newCreateCmd())
@@ -54,7 +56,9 @@ Example template content:
   ## Test Cases
   - {{test_case_1}}
   - {{test_case_2}}`,
-		Args: cobra.ExactArgs(1),
+		Args:       cobra.ExactArgs(1),
+		Hidden:     true,
+		Deprecated: "unused; use 'fest create' with '.festival/templates' for reusable scaffolding",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runCreate(cmd.Context(), args[0], fromFile)
 		},
@@ -136,7 +140,9 @@ Variables can be provided as:
 Examples:
   fest templates apply component_test --vars '{"name": "UserService"}'
   fest templates apply api_endpoint -o ./api.md --vars @vars.json`,
-		Args: cobra.ExactArgs(1),
+		Args:       cobra.ExactArgs(1),
+		Hidden:     true,
+		Deprecated: "unused; use 'fest create' with '.festival/templates' for reusable scaffolding",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runApply(cmd.Context(), args[0], varsJSON, output, preview)
 		},
@@ -209,6 +215,8 @@ func newListCmd() *cobra.Command {
 		Long: `List all agent templates available in the current festival.
 
 Templates are stored in .templates/ within the festival directory.`,
+		Hidden:     true,
+		Deprecated: "unused; use 'fest create' with '.festival/templates' for reusable scaffolding",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runList(cmd.Context(), jsonOutput)
 		},

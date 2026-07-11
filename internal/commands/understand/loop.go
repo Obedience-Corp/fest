@@ -17,6 +17,8 @@ fest next is the engine that walks an agent through a festival (or a standalone
 WORKFLOW.md) one step at a time, with full context inline. Covers the loop, the
 simplest standalone entry point (fest create workflow, anywhere, with run
 tracking), and when to reach for a full festival instead.`,
+		Hidden:     true,
+		Deprecated: "unused; run 'fest understand' for the current methodology overview",
 		Run: func(cmd *cobra.Command, args []string) {
 			printLoop()
 		},

@@ -126,6 +126,3 @@ Edit these to change what `fest create` produces. Add a custom type by dropping 
 new template in the matching directory (see `fest types`). Pull the latest
 built-in templates with `fest system sync`, then apply them with
 `fest system update`.
-
-For repeatable, per-festival snippets, `fest templates create/apply` manages
-`{{variable}}` templates stored in `.templates/` inside the festival.

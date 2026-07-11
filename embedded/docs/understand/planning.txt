@@ -48,5 +48,5 @@ REMEMBER
 --------
 
 Planning produces requirements; implementation sequences come only after those
-requirements exist (see: fest understand roles). Use `fest create festival` and
-the standard type's planning phases rather than hand-building the tree.
+requirements exist. Use `fest create festival` and the standard type's
+planning phases rather than hand-building the tree.

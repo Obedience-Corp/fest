@@ -24,7 +24,8 @@ func NewIndexCommand() *cobra.Command {
 The index file (.festival/index.json) provides a machine-readable representation
 of the festival structure, including phases, sequences, and tasks.
 
-For workspace-wide indexing (Guild v3), use the 'tree' subcommand.`,
+All subcommands are unused and deprecated; the festival index is not part
+of the supported workflow.`,
 	}
 
 	cmd.AddCommand(newIndexWriteCommand())
@@ -47,7 +48,9 @@ func newIndexWriteCommand() *cobra.Command {
 
 The index is written to .festival/index.json within the festival directory.
 Use --output to write to a different location.`,
-		Args: cobra.MaximumNArgs(1),
+		Args:       cobra.MaximumNArgs(1),
+		Hidden:     true,
+		Deprecated: "unused; the festival index is not part of the supported workflow",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			festivalRoot, err := resolveFestivalRoot(args)
 			if err != nil {
@@ -108,7 +111,9 @@ Reports:
 - Entries in index that don't exist on disk (missing)
 - Files on disk that aren't in the index (extra)
 - Missing goal files (warnings)`,
-		Args: cobra.MaximumNArgs(1),
+		Args:       cobra.MaximumNArgs(1),
+		Hidden:     true,
+		Deprecated: "unused; the festival index is not part of the supported workflow",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			festivalRoot, err := resolveFestivalRoot(args)
 			if err != nil {
@@ -178,10 +183,12 @@ func newIndexShowCommand() *cobra.Command {
 	var showJSON bool
 
 	cmd := &cobra.Command{
-		Use:   "show [festival-path]",
-		Short: "Show festival index contents",
-		Long:  `Display the contents of the festival index file.`,
-		Args:  cobra.MaximumNArgs(1),
+		Use:        "show [festival-path]",
+		Short:      "Show festival index contents",
+		Long:       `Display the contents of the festival index file.`,
+		Args:       cobra.MaximumNArgs(1),
+		Hidden:     true,
+		Deprecated: "unused; the festival index is not part of the supported workflow",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			festivalRoot, err := resolveFestivalRoot(args)
 			if err != nil {
@@ -260,6 +267,8 @@ func newIndexTreeCommand() *cobra.Command {
 
 The tree index groups festivals by status (planning, active, completed, dungeon)
 and provides a complete hierarchical view for Guild v3 integration.`,
+		Hidden:     true,
+		Deprecated: "unused; the festival index is not part of the supported workflow",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {
@@ -340,6 +349,8 @@ func newIndexDiffCommand() *cobra.Command {
 
 This is useful for tracking progress over time or detecting changes
 since the last sync.`,
+		Hidden:     true,
+		Deprecated: "unused; the festival index is not part of the supported workflow",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if oldPath == "" {
 				return errors.Validation("--old flag is required")

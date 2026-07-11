@@ -12,9 +12,11 @@ import (
 
 func newUnderstandResourcesCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "resources",
-		Short: "What's in the .festival/ directory",
-		Long:  `List the templates, extensions, and examples available in your .festival/ directory.`,
+		Use:        "resources",
+		Short:      "What's in the .festival/ directory",
+		Long:       `List the templates, extensions, and examples available in your .festival/ directory.`,
+		Hidden:     true,
+		Deprecated: "unused; run 'fest understand' for the current methodology overview",
 		Run: func(cmd *cobra.Command, args []string) {
 			printResources(findDotFestivalDir())
 		},

@@ -97,7 +97,6 @@ PLANNING a new festival:
 0. Create the festival scaffold FIRST with `fest create festival`
 1. Fill CONTEXT.md FIRST within that scaffold - capture why this festival exists
    This prevents losing focus on the festival's purpose.
-   See: fest understand context
 2. Add phases, sequences, and tasks with `fest create`
 3. When a phase uses WORKFLOW.md or GATES.md, use `fest next` and
    `fest workflow` instead of manually tracking step progress

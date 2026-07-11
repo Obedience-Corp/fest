@@ -160,7 +160,6 @@ The quickest way to feel the loop, no festival needed. In ANY directory:
 Best for simpler, linear loops. For complex work, create a full festival: the
 default (standard) type scaffolds INGEST and PLANNING phases that walk an agent
 through breaking requirements down into a structured plan before implementation.
-Full detail: fest understand loop
 
 CUSTOMIZING TEMPLATES
 ─────────────────────
@@ -168,8 +167,7 @@ CUSTOMIZING TEMPLATES
 The scaffolds fest generates are yours to shape. Methodology templates live in
 `.festival/templates/` (festival, phase, sequence, task). Edit them to change
 what `fest create` produces, or add a custom type there (see `fest types`).
-Refresh the built-in set with `fest system update`. For repeatable per-festival
-snippets, `fest templates create/apply` manages `{{variable}}` templates.
+Refresh the built-in set with `fest system update`.
 
 KEY PRINCIPLES
 ──────────────
@@ -197,12 +195,12 @@ Refresh methodology templates in an existing workspace with: fest system update
 LEARN MORE (fest understand <topic>)
 ────────────────────────────────────
 
-  methodology   Core principles           loop        The fest next loop
-  roles         Human vs agent split      planning    Goal into a structured plan
-  structure     3-level hierarchy         lifecycle   planning to active to done
-  tasks         Writing task files        chains      Dependencies between festivals
-  rules         Naming + required files   rituals     Recurring festivals
-  templates     Template variables        gates       Quality gates
+  methodology   Core principles
+  structure     3-level hierarchy
+  tasks         Writing task files
+  rules         Naming + required files
+  templates     Template variables
+  gates         Quality gates
 
 For all available commands:
   fest --help

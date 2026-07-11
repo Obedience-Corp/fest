@@ -157,10 +157,4 @@ More Information
   fest understand tasks          # Task conventions per phase type
   fest understand rules          # MANDATORY structure requirements
   fest understand templates      # Variables that save tokens
-  fest understand loop           # The fest next loop + standalone workflows
-  fest understand planning       # Turning a goal into a structured plan
-  fest understand roles          # Human vs agent responsibilities
-  fest understand lifecycle      # planning -> ready -> active -> dungeon
-  fest understand chains         # Dependencies between festivals
-  fest understand rituals        # Recurring festivals
   fest types festival            # Discover festival types

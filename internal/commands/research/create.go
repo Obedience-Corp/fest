@@ -50,6 +50,8 @@ Available document types:
   fest research create --type comparison --title "Database Selection"
   fest research create --type analysis --title "Performance Baseline"
   fest research create --type specification --title "User API Design"`,
+		Hidden:     true,
+		Deprecated: "unused; research phases now use 'fest create phase --type research'",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runResearchCreate(cmd.Context(), cmd, docType, title, path, jsonOutput)
 		},

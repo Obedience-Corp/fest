@@ -30,6 +30,8 @@ Available themes:
   high-contrast Pure white + bright colors (works on any background)
 
 Use 'fest config theme test' to preview all themes on your terminal.`,
+		Hidden:     true,
+		Deprecated: "unused; the theme subsystem is not final",
 	}
 
 	cmd.AddCommand(newThemeShowCommand())
@@ -41,9 +43,11 @@ Use 'fest config theme test' to preview all themes on your terminal.`,
 
 func newThemeShowCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "show",
-		Short: "Show current theme setting",
-		Args:  cobra.NoArgs,
+		Use:        "show",
+		Short:      "Show current theme setting",
+		Args:       cobra.NoArgs,
+		Hidden:     true,
+		Deprecated: "unused; the theme subsystem is not final",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runThemeShow(cmd.Context())
 		},
@@ -81,7 +85,9 @@ Available themes:
   high-contrast Pure white + bright colors (works on any background)`,
 		Example: `  fest config theme set high-contrast
   fest config theme set dark`,
-		Args: cobra.ExactArgs(1),
+		Args:       cobra.ExactArgs(1),
+		Hidden:     true,
+		Deprecated: "unused; the theme subsystem is not final",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runThemeSet(cmd.Context(), args[0])
 		},
@@ -121,7 +127,9 @@ func newThemeTestCommand() *cobra.Command {
 
 This displays sample TUI elements with each theme so you can compare
 how they look on your current terminal background color.`,
-		Args: cobra.NoArgs,
+		Args:       cobra.NoArgs,
+		Hidden:     true,
+		Deprecated: "unused; the theme subsystem is not final",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runThemeTest(cmd.Context())
 		},

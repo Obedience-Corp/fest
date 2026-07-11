@@ -32,7 +32,9 @@ it also adds a reference in the target documents.`,
 		Example: `  fest research link api-auth.md --phase 002_IMPLEMENT
   fest research link db-choice.md --sequence 002_IMPLEMENT/01_core
   fest research link spec.md --task 002_IMPLEMENT/01_core/03_design.md --bidirectional`,
-		Args: cobra.ExactArgs(1),
+		Args:       cobra.ExactArgs(1),
+		Hidden:     true,
+		Deprecated: "unused; research phases now use 'fest create phase --type research'",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runResearchLink(cmd.Context(), cmd, args[0], phases, sequences, tasks, bidirectional, unlink, jsonOutput)
 		},

@@ -19,6 +19,8 @@ Available Commands:
   create    Create a new research document from template
   summary   Generate summary/index of research documents
   link      Link research findings to implementation phases`,
+		Hidden:     true,
+		Deprecated: "unused; research phases now use 'fest create phase --type research'",
 	}
 
 	cmd.AddCommand(newResearchCreateCmd())
