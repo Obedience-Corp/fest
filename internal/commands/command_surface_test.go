@@ -32,6 +32,7 @@ func TestCollectVisibleCommandPathsExcludesHiddenCommands(t *testing.T) {
 		"fest index show",
 		"fest index tree",
 		"fest index diff",
+		"fest index",
 		"fest config theme",
 		"fest config theme show",
 		"fest config theme set",
@@ -39,7 +40,6 @@ func TestCollectVisibleCommandPathsExcludesHiddenCommands(t *testing.T) {
 		"fest understand chains",
 		"fest understand context",
 		"fest understand lifecycle",
-		"fest understand loop",
 		"fest understand nodeids",
 		"fest understand planning",
 		"fest understand resources",
@@ -52,10 +52,10 @@ func TestCollectVisibleCommandPathsExcludesHiddenCommands(t *testing.T) {
 	}
 }
 
-func TestCollectVisibleCommandPathsKeepsIndexParentAndHotUnderstandChildren(t *testing.T) {
+func TestCollectVisibleCommandPathsKeepsHotUnderstandChildren(t *testing.T) {
 	paths := collectVisibleCommandPaths(rootCmd)
 	for _, wantPath := range []string{
-		"fest index",
+		"fest understand loop",
 		"fest understand tasks",
 		"fest understand structure",
 		"fest understand rules",

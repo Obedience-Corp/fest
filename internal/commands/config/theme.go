@@ -31,7 +31,7 @@ Available themes:
 
 Use 'fest config theme test' to preview all themes on your terminal.`,
 		Hidden:     true,
-		Deprecated: "unused; the theme subsystem is not final",
+		Deprecated: "theme customization is not supported; use the default theme",
 	}
 
 	cmd.AddCommand(newThemeShowCommand())
@@ -47,7 +47,7 @@ func newThemeShowCommand() *cobra.Command {
 		Short:      "Show current theme setting",
 		Args:       cobra.NoArgs,
 		Hidden:     true,
-		Deprecated: "unused; the theme subsystem is not final",
+		Deprecated: "theme customization is not supported; use the default theme",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runThemeShow(cmd.Context())
 		},
@@ -87,7 +87,7 @@ Available themes:
   fest config theme set dark`,
 		Args:       cobra.ExactArgs(1),
 		Hidden:     true,
-		Deprecated: "unused; the theme subsystem is not final",
+		Deprecated: "theme customization is not supported; use the default theme",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runThemeSet(cmd.Context(), args[0])
 		},
@@ -129,7 +129,7 @@ This displays sample TUI elements with each theme so you can compare
 how they look on your current terminal background color.`,
 		Args:       cobra.NoArgs,
 		Hidden:     true,
-		Deprecated: "unused; the theme subsystem is not final",
+		Deprecated: "theme customization is not supported; use the default theme",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runThemeTest(cmd.Context())
 		},

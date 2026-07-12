@@ -138,7 +138,7 @@ blockers, and handoff notes between AI sessions.
 CREATE CONTEXT.md FIRST when planning a new festival. It captures WHY
 the festival exists and prevents agents from losing focus on purpose.`,
 		Hidden:     true,
-		Deprecated: "unused; run 'fest understand' for the current methodology overview",
+		Deprecated: "run 'fest understand' for the current methodology overview",
 		Run: func(cmd *cobra.Command, args []string) {
 			printContext()
 		},
@@ -160,7 +160,7 @@ specific festival tasks.
 Node references like GU0001:P002.S01.T03 create a clear audit trail
 connecting code comments to planning documents.`,
 		Hidden:     true,
-		Deprecated: "unused; run 'fest understand' for the current methodology overview",
+		Deprecated: "run 'fest understand' for the current methodology overview",
 		Run: func(cmd *cobra.Command, args []string) {
 			printNodeIDs()
 		},

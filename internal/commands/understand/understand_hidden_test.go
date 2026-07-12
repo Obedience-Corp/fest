@@ -7,7 +7,6 @@ func TestUnderstandDeadChildrenHiddenAndDeprecated(t *testing.T) {
 		"chains":    false,
 		"context":   false,
 		"lifecycle": false,
-		"loop":      false,
 		"nodeids":   false,
 		"planning":  false,
 		"resources": false,
@@ -41,6 +40,7 @@ func TestUnderstandHotChildrenStayVisible(t *testing.T) {
 		"structure": false,
 		"rules":     false,
 		"templates": false,
+		"loop":      false,
 	}
 
 	cmd := NewUnderstandCommand()

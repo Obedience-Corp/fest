@@ -16,7 +16,7 @@ func newUnderstandResourcesCmd() *cobra.Command {
 		Short:      "What's in the .festival/ directory",
 		Long:       `List the templates, extensions, and examples available in your .festival/ directory.`,
 		Hidden:     true,
-		Deprecated: "unused; run 'fest understand' for the current methodology overview",
+		Deprecated: "run 'fest understand' for the current methodology overview",
 		Run: func(cmd *cobra.Command, args []string) {
 			printResources(findDotFestivalDir())
 		},

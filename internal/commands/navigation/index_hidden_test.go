@@ -2,13 +2,13 @@ package navigation
 
 import "testing"
 
-func TestIndexChildrenHiddenAndDeprecatedParentVisible(t *testing.T) {
+func TestIndexTreeHiddenAndDeprecated(t *testing.T) {
 	cmd := NewIndexCommand()
-	if cmd.Hidden {
-		t.Error("index parent command should stay visible")
+	if !cmd.Hidden {
+		t.Error("index parent command should be hidden")
 	}
-	if cmd.Deprecated != "" {
-		t.Error("index parent command should not itself be marked deprecated")
+	if cmd.Deprecated == "" {
+		t.Error("index parent command should be marked deprecated")
 	}
 
 	wantChildren := map[string]bool{

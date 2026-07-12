@@ -20,7 +20,7 @@ Available Commands:
   summary   Generate summary/index of research documents
   link      Link research findings to implementation phases`,
 		Hidden:     true,
-		Deprecated: "unused; research phases now use 'fest create phase --type research'",
+		Deprecated: "use 'fest create phase --type research' instead",
 	}
 
 	cmd.AddCommand(newResearchCreateCmd())

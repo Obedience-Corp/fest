@@ -61,7 +61,7 @@ research documents with their metadata.`,
   fest research summary --festival
   fest research summary --format json --output research_index.json`,
 		Hidden:     true,
-		Deprecated: "unused; research phases now use 'fest create phase --type research'",
+		Deprecated: "use 'fest create phase --type research' instead",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runResearchSummary(cmd.Context(), cmd, phase, festival, output, format, jsonOutput)
 		},

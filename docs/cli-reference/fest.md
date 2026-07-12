@@ -55,7 +55,6 @@ Run 'fest understand' to learn the methodology before executing tasks.
 * [fest gates](fest_gates.md)	 - Manage quality gates - validation steps at sequence end
 * [fest go](fest_go.md)	 - Navigate to festivals/ - use 'fgo' after shell-init setup
 * [fest id](fest_id.md)	 - Show the festival ID for the current context
-* [fest index](fest_index.md)	 - Manage festival indices
 * [fest init](fest_init.md)	 - Initialize a new festival directory structure
 * [fest insert](fest_insert.md)	 - Insert new festival elements
 * [fest intro](fest_intro.md)	 - Getting started guide for fest CLI and common workflows
@@ -73,7 +72,6 @@ Run 'fest understand' to learn the methodology before executing tasks.
 * [fest remove](fest_remove.md)	 - Remove festival elements and renumber
 * [fest renumber](fest_renumber.md)	 - Renumber festival elements
 * [fest reorder](fest_reorder.md)	 - Reorder festival elements
-* [fest research](fest_research.md)	 - Manage research phase documents
 * [fest ritual](fest_ritual.md)	 - Manage repeatable ritual festivals
 * [fest rules](fest_rules.md)	 - Display festival rules for the current festival
 * [fest scaffold](fest_scaffold.md)	 - Generate festival structures from plans
@@ -83,7 +81,6 @@ Run 'fest understand' to learn the methodology before executing tasks.
 * [fest status](fest_status.md)	 - Manage and query festival entity statuses
 * [fest system](fest_system.md)	 - Manage fest tool configuration and templates
 * [fest task](fest_task.md)	 - Manage task status (show, edit, complete, block, reset)
-* [fest templates](fest_templates.md)	 - Manage agent-created templates within a festival
 * [fest types](fest_types.md)	 - Discover and explore template types
 * [fest understand](fest_understand.md)	 - Learn methodology FIRST - run before executing festival tasks
 * [fest unlink](fest_unlink.md)	 - Remove festival-project link (context-aware)
