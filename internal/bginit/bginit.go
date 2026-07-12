@@ -10,16 +10,20 @@
 //
 // Seeding an explicit value makes lipgloss skip the terminal query entirely.
 // This package must initialize before bubbletea, so it may only import
-// lipgloss (never bubbletea or huh, directly or transitively), and cmd/fest
-// must import it alongside internal/commands: its path sorts before
-// internal/commands, so gofmt keeps it first and the compiler records its
-// inittask ahead of the bubbletea subtree.
+// lipgloss (never bubbletea, huh, or glamour, directly or transitively).
+// internal/commands blank-imports it at the top of its import block: the
+// bginit path sorts ahead of every bubbletea-linked import there, so gofmt
+// keeps it first and the compiler records its inittask ahead of the bubbletea
+// subtree. Every binary built on internal/commands inherits the seed, and
+// depgraph_test.go enforces the no-bubbletea import rule structurally.
 //
-// The seed mirrors termenv's own non-query fallback: the last field of
-// COLORFGBG is the background ANSI color, and a missing or unparsable value
-// means dark, matching the CLI palette's existing "adaptive falls back to
-// dark" behavior. An explicit theme choice refines this later via
-// ui.InitPalette.
+// The seed approximates termenv's own non-query fallback: the last field of
+// COLORFGBG is the background ANSI color, and a missing, unparsable, or
+// out-of-range value means dark, matching the CLI palette's existing
+// "adaptive falls back to dark" behavior. It intentionally diverges from
+// termenv for ANSI 8 (#808080), which termenv's luminance math reads as
+// light; bginit keeps 8 dark as the safer readability default. An explicit
+// theme choice refines this later via ui.InitPalette.
 package bginit
 
 import (
@@ -43,5 +47,11 @@ func backgroundIsDark(colorFGBG string) bool {
 	if err != nil {
 		return true
 	}
-	return bg >= 0 && bg <= 8 && bg != 7
+	// Anything outside the 0..15 ANSI range is unknown; default to dark.
+	if bg < 0 || bg > 15 {
+		return true
+	}
+	// Dark backgrounds are ANSI 0..6 and 8; 7 and bright 9..15 read light.
+	// Treating 8 as dark diverges from termenv on purpose (see package doc).
+	return bg <= 8 && bg != 7
 }
