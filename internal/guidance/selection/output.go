@@ -503,7 +503,7 @@ func buildTaskContentSection(taskPath string) string {
 	sb.WriteString("\n")
 	sb.WriteString(ui.Dim(strings.Repeat("─", 60)))
 	sb.WriteString("\n")
-	sb.WriteString(mdrender.Render(body))
+	sb.WriteString(mdrender.Render(body, mdrender.WithStyle(ui.MarkdownStyle())))
 	sb.WriteString("\n")
 	sb.WriteString(ui.Dim(strings.Repeat("─", 60)))
 	sb.WriteString("\n")
@@ -598,7 +598,7 @@ func buildFullTaskContentSection(taskPath string) string {
 
 	var sb strings.Builder
 	sb.WriteString("\n## Task Document\n\n")
-	sb.WriteString(mdrender.Render(body))
+	sb.WriteString(mdrender.Render(body, mdrender.WithStyle(ui.MarkdownStyle())))
 	sb.WriteString("\n")
 	return sb.String()
 }
@@ -902,7 +902,7 @@ func buildGateSection(task *TaskInfo) string {
 	}
 
 	if content != "" {
-		data.GateContent = mdrender.Render(content)
+		data.GateContent = mdrender.Render(content, mdrender.WithStyle(ui.MarkdownStyle()))
 	} else {
 		data.FallbackMessage = ui.Dim("Gate file could not be read. Run `fest gates` to evaluate gate criteria.")
 	}

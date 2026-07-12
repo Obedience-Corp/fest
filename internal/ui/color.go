@@ -13,3 +13,16 @@ func SetNoColor(noColor bool) {
 	}
 	lipgloss.SetColorProfile(termenv.EnvColorProfile())
 }
+
+// MarkdownStyle returns an explicit glamour style ("dark" or "light") for
+// markdown rendering, chosen from lipgloss's cached background value.
+//
+// This never queries the terminal: internal/bginit seeds the background before
+// any render, so the "auto" style (which would send OSC 11 / DSR probes and
+// stall on ptys that never answer) is avoided entirely.
+func MarkdownStyle() string {
+	if lipgloss.HasDarkBackground() {
+		return "dark"
+	}
+	return "light"
+}
