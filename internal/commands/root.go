@@ -6,6 +6,8 @@ import (
 	"os"
 	"strings"
 
+	// bginit must initialize before the bubbletea subtree below; its path sorts first here so gofmt keeps it.
+	_ "github.com/Obedience-Corp/fest/internal/bginit"
 	chaincmd "github.com/Obedience-Corp/fest/internal/commands/chain"
 	commitcmd "github.com/Obedience-Corp/fest/internal/commands/commit"
 	"github.com/Obedience-Corp/fest/internal/commands/config"
