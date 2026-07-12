@@ -31,7 +31,7 @@ func NewParseCommand() *cobra.Command {
 		Long: `Parse festival documents into structured JSON or YAML output.
 
 This command walks the festival hierarchy and produces structured output
-suitable for external tool integration (e.g., Guild v3, visualization tools).
+suitable for external tool integration (e.g. visualization tools, editors).
 
 Examples:
   fest parse                         # Parse current festival as JSON
