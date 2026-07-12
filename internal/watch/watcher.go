@@ -53,6 +53,21 @@ type Watcher struct {
 	pending      bool
 	firstPending time.Time
 	watched      map[string]struct{}
+	// gen is bumped on every (re)schedule and on cancel. Each debounce timer
+	// captures the value live when it was scheduled and re-checks it under mu
+	// before firing. A timer whose Stop() lost the race (it already fired while
+	// scheduleCallback held mu) would otherwise run its stale func, clobber the
+	// live timer handle with nil, and fire a second time; the generation check
+	// makes that stale func a no-op so only the newest schedule ever fires.
+	gen uint64
+
+	// dispatchMu serializes onChange invocations so renders never overlap, even
+	// when MaxWait fires callbacks mid-storm faster than a slow render completes.
+	// stopped is set under dispatchMu by cancelPendingTimer: once that returns,
+	// no onChange is in flight and none can start, so nothing fires after Close
+	// or Watch return.
+	dispatchMu sync.Mutex
+	stopped    bool
 }
 
 // ErrNoWatchablePaths is returned when none of the specified paths can be watched.
@@ -187,26 +202,55 @@ func (w *Watcher) scheduleCallback() {
 			delay = 0
 		}
 	}
-	w.timer = time.AfterFunc(delay, func() {
-		w.mu.Lock()
-		w.pending = false
-		w.timer = nil
-		w.mu.Unlock()
 
-		w.onChange()
+	w.gen++
+	gen := w.gen
+	w.timer = time.AfterFunc(delay, func() {
+		w.dispatch(gen)
 	})
 }
 
-// cancelPendingTimer cancels any pending debounced callback.
+// dispatch runs the onChange callback for a scheduled timer generation.
+// A timer whose generation was superseded (by a newer schedule or by a cancel)
+// is a no-op, so the newest schedule owns the callback and stale timers can
+// neither double-fire nor clobber the live timer handle. Invocations are
+// serialized through dispatchMu so onChange never overlaps itself, and the
+// stopped gate prevents any callback after cancelPendingTimer has returned.
+func (w *Watcher) dispatch(gen uint64) {
+	w.mu.Lock()
+	if w.gen != gen {
+		w.mu.Unlock()
+		return
+	}
+	w.pending = false
+	w.timer = nil
+	w.mu.Unlock()
+
+	w.dispatchMu.Lock()
+	defer w.dispatchMu.Unlock()
+	if w.stopped {
+		return
+	}
+	w.onChange()
+}
+
+// cancelPendingTimer cancels any pending debounced callback and permanently
+// disables further dispatch. Bumping gen neutralizes any timer whose Stop()
+// lost the race, and setting stopped under dispatchMu (which waits for any
+// in-flight onChange to finish) guarantees no callback fires after this returns.
 func (w *Watcher) cancelPendingTimer() {
 	w.mu.Lock()
-	defer w.mu.Unlock()
-
 	if w.timer != nil {
 		w.timer.Stop()
 		w.timer = nil
 		w.pending = false
 	}
+	w.gen++
+	w.mu.Unlock()
+
+	w.dispatchMu.Lock()
+	w.stopped = true
+	w.dispatchMu.Unlock()
 }
 
 // Close releases all resources associated with the watcher.
