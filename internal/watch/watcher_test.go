@@ -229,6 +229,92 @@ func TestWatcher_MaxWaitFiresDuringSustainedChanges(t *testing.T) {
 	}
 }
 
+func TestWatcher_OnChangeNeverOverlaps(t *testing.T) {
+	var inFlight atomic.Int32
+	var maxInFlight atomic.Int32
+	// plainCounter is deliberately unsynchronized: if two onChange calls ever
+	// overlap, the read-modify-write races and -race fails the test.
+	var plainCounter int
+
+	cfg := Config{
+		Debounce: 5 * time.Millisecond,
+		MaxWait:  10 * time.Millisecond,
+	}
+
+	w := &Watcher{config: cfg}
+	w.onChange = func() {
+		n := inFlight.Add(1)
+		for {
+			m := maxInFlight.Load()
+			if n <= m || maxInFlight.CompareAndSwap(m, n) {
+				break
+			}
+		}
+		plainCounter++
+		// Render slower than the fire cadence so a following timer fires while
+		// this callback is still running, exercising the serialization path.
+		time.Sleep(15 * time.Millisecond)
+		inFlight.Add(-1)
+	}
+
+	// Sustained events reset the trailing debounce forever; MaxWait keeps firing
+	// callbacks mid-storm, so without serialization these would overlap.
+	storm := 400 * time.Millisecond
+	deadline := time.Now().Add(storm)
+	for time.Now().Before(deadline) {
+		w.scheduleCallback()
+		time.Sleep(2 * time.Millisecond)
+	}
+
+	// cancelPendingTimer waits on dispatchMu for any in-flight onChange and
+	// neutralizes pending timers, so once it returns no callback runs or will
+	// run. That release/acquire also orders every onChange write to plainCounter
+	// before the reads below, keeping the canary honest under -race.
+	w.cancelPendingTimer()
+
+	if got := maxInFlight.Load(); got > 1 {
+		t.Fatalf("onChange overlapped: max concurrent invocations = %d, want <= 1", got)
+	}
+	if plainCounter == 0 {
+		t.Fatal("expected at least one onChange during the storm, got none")
+	}
+}
+
+func TestWatcher_DispatchIgnoresStaleGeneration(t *testing.T) {
+	var calls atomic.Int32
+
+	// Debounce is long enough that no AfterFunc timer fires on its own; the test
+	// drives dispatch directly to exercise the generation guard deterministically.
+	w := &Watcher{
+		config:   Config{Debounce: time.Hour},
+		onChange: func() { calls.Add(1) },
+	}
+
+	w.scheduleCallback() // gen == 1
+	w.scheduleCallback() // gen == 2, supersedes gen 1
+
+	// A stale timer func from generation 1 must be inert.
+	w.dispatch(1)
+	if got := calls.Load(); got != 0 {
+		t.Fatalf("stale dispatch fired onChange: calls = %d, want 0", got)
+	}
+
+	// The current generation dispatches exactly once.
+	w.dispatch(2)
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("current dispatch: calls = %d, want 1", got)
+	}
+
+	// After cancel, even a formerly-current generation is inert (gen bumped and
+	// stopped set), so no callback can fire once the watcher is torn down.
+	w.scheduleCallback()   // gen == 3
+	w.cancelPendingTimer() // gen == 4, stopped == true
+	w.dispatch(3)
+	if got := calls.Load(); got != 1 {
+		t.Fatalf("post-cancel dispatch fired onChange: calls = %d, want 1", got)
+	}
+}
+
 func TestWatcher_WatchDirectory(t *testing.T) {
 	tmpDir := t.TempDir()
 
