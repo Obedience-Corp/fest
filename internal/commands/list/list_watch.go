@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/id"
@@ -17,19 +18,19 @@ const listPollingInterval = 2 * time.Second
 
 // runListWatch continuously refreshes the multi-festival list board.
 // It does not cycle between festivals (that behavior stays on fest watch).
+//
+// Filesystem events and the 2s progress ticker both paint through one mutex so
+// clear+write frames never interleave on stdout.
 func runListWatch(ctx context.Context, festivalsDir, filterStatus string, opts *listOptions, campaignRoot string) error {
-	render := func(polling bool) error {
-		clearListScreen()
-		content, err := formatListBoard(ctx, festivalsDir, filterStatus, opts, campaignRoot)
-		if err != nil {
-			return err
-		}
-		fmt.Print(content)
-		printListWatchFooter(polling, festivalsDir)
-		return nil
+	var renderMu sync.Mutex
+	// Hybrid path always polls for deep progress updates; footer reflects that.
+	paint := func() error {
+		renderMu.Lock()
+		defer renderMu.Unlock()
+		return renderListFrame(ctx, festivalsDir, filterStatus, opts, campaignRoot, true)
 	}
 
-	if err := render(false); err != nil {
+	if err := paint(); err != nil {
 		return err
 	}
 
@@ -42,7 +43,7 @@ func runListWatch(ctx context.Context, festivalsDir, filterStatus string, opts *
 			fmt.Fprintf(os.Stderr, "%s file watch error: %v\n", ui.Warning("Warning:"), err)
 		},
 	}, func() {
-		if err := render(false); err != nil {
+		if err := paint(); err != nil {
 			fmt.Fprintf(os.Stderr, "%s could not refresh list view: %v\n", ui.Warning("Warning:"), err)
 		}
 	})
@@ -74,7 +75,7 @@ func runListWatch(ctx context.Context, festivalsDir, filterStatus string, opts *
 			fmt.Println()
 			return nil
 		case <-ticker.C:
-			if err := render(false); err != nil {
+			if err := paint(); err != nil {
 				fmt.Fprintf(os.Stderr, "%s could not refresh list view: %v\n", ui.Warning("Warning:"), err)
 			}
 		}

@@ -395,269 +395,53 @@ func applyFilters(festivals []*show.FestivalInfo, opts *listOptions) ([]*show.Fe
 var dungeonSubstatuses = []string{"dungeon/completed", "dungeon/archived", "dungeon/someday"}
 
 func listDungeon(ctx context.Context, festivalsDir string, opts *listOptions, campaignRoot string) error {
-	result := make(map[string]interface{})
-	var totalCount int
-	allFestivals := make(map[string][]*show.FestivalInfo)
-	var allFestivalsList []*show.FestivalInfo
-
-	order := make([]string, 0, len(dungeonSubstatuses))
-	for _, status := range dungeonSubstatuses {
-		festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status, campaignRoot)
-		if err != nil {
-			continue
-		}
-		festivals, err = applyFilters(festivals, opts)
-		if err != nil {
-			return err
-		}
-		if len(festivals) > 0 {
-			// Default dungeon listings order by bucket date (newest first);
-			// explicit --sort or --alpha still wins.
-			if opts.sortBy == "" && !opts.alpha {
-				sortByStatusDate(festivals)
-			} else {
-				applySorting(festivals, opts.sortBy, opts.alpha)
-			}
-			allFestivals[status] = festivals
-			order = append(order, status)
-			totalCount += len(festivals)
-			allFestivalsList = append(allFestivalsList, festivals...)
-		}
+	board, err := collectDungeonBoard(ctx, festivalsDir, opts, campaignRoot)
+	if err != nil {
+		return err
 	}
-
-	var progressMap map[string]*progress.FestivalProgress
-	if opts.progress {
-		progressMap = fetchProgressForFestivals(ctx, allFestivalsList)
-	}
-
 	if opts.json {
-		for status, festivals := range allFestivals {
-			result[status] = festivalsToMapWithProgress(festivals, progressMap)
+		result := make(map[string]interface{}, len(board.Festivals)+1)
+		for status, festivals := range board.Festivals {
+			result[status] = festivalsToMapWithProgress(festivals, board.Progress)
 		}
-		result["total"] = totalCount
+		result["total"] = board.Total
 		return outputJSON(result)
 	}
-
-	fmt.Print(formatDungeonHuman(allFestivals, order, progressMap, totalCount, opts.progress))
+	fmt.Print(formatDungeonHuman(board.Festivals, board.Order, board.Progress, board.Total, opts.progress))
 	return nil
 }
 
 func listByStatus(ctx context.Context, festivalsDir, status string, opts *listOptions, campaignRoot string) error {
-	festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status, campaignRoot)
+	board, err := collectStatusBoard(ctx, festivalsDir, status, opts, campaignRoot)
 	if err != nil {
 		return err
 	}
-
-	festivals, err = applyFilters(festivals, opts)
-	if err != nil {
-		return err
-	}
-
-	// Dungeon listings default to newest bucket date first; explicit sort
-	// flags still take precedence.
-	if opts.sortBy == "" && !opts.alpha && strings.HasPrefix(status, "dungeon/") {
-		sortByStatusDate(festivals)
-	} else {
-		applySorting(festivals, opts.sortBy, opts.alpha)
-	}
-
-	// Fetch detailed progress if requested
-	var progressMap map[string]*progress.FestivalProgress
-	if opts.progress {
-		progressMap = fetchProgressForFestivals(ctx, festivals)
-	}
-
 	if opts.json {
 		return outputJSON(map[string]interface{}{
 			"status":    status,
-			"count":     len(festivals),
-			"festivals": festivalsToMapWithProgress(festivals, progressMap),
+			"count":     len(board.Festivals),
+			"festivals": festivalsToMapWithProgress(board.Festivals, board.Progress),
 		})
 	}
-
-	fmt.Print(formatStatusHuman(status, festivals, progressMap, opts.progress))
+	fmt.Print(formatStatusHuman(status, board.Festivals, board.Progress, opts.progress))
 	return nil
 }
 
 func listAll(ctx context.Context, festivalsDir string, opts *listOptions, campaignRoot string) error {
-	result := make(map[string]interface{})
-	var totalCount int
-	allFestivals := make(map[string][]*show.FestivalInfo)
-
-	// Use all statuses if --all flag, otherwise just active/planning
-	statuses := defaultStatuses
-	if opts.all {
-		statuses = validStatuses
+	board, err := collectAllBoard(ctx, festivalsDir, opts, campaignRoot)
+	if err != nil {
+		return err
 	}
-
-	statusOrder := make([]string, 0, len(statuses))
-	var allFestivalsList []*show.FestivalInfo
-
-	for _, status := range statuses {
-		festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status, campaignRoot)
-		if err != nil {
-			continue
-		}
-		festivals, err = applyFilters(festivals, opts)
-		if err != nil {
-			return err
-		}
-		if len(festivals) > 0 {
-			applySorting(festivals, opts.sortBy, opts.alpha)
-			allFestivals[status] = festivals
-			statusOrder = append(statusOrder, status)
-			totalCount += len(festivals)
-			allFestivalsList = append(allFestivalsList, festivals...)
-		}
-	}
-
-	// Fetch detailed progress if requested
-	var progressMap map[string]*progress.FestivalProgress
-	if opts.progress {
-		progressMap = fetchProgressForFestivals(ctx, allFestivalsList)
-	}
-
 	if opts.json {
-		for status, festivals := range allFestivals {
-			result[status] = festivalsToMapWithProgress(festivals, progressMap)
+		result := make(map[string]interface{}, len(board.Festivals)+1)
+		for status, festivals := range board.Festivals {
+			result[status] = festivalsToMapWithProgress(festivals, board.Progress)
 		}
-		result["total"] = totalCount
+		result["total"] = board.Total
 		return outputJSON(result)
 	}
-
-	fmt.Print(formatAllHuman(allFestivals, statusOrder, progressMap, totalCount, opts.progress))
+	fmt.Print(formatAllHuman(board.Festivals, board.Order, board.Progress, board.Total, opts.progress))
 	return nil
-}
-
-// formatListBoard builds the human-readable list board for the current filters.
-// Used by one-shot list (via list*) and by --watch refresh frames.
-func formatListBoard(ctx context.Context, festivalsDir, filterStatus string, opts *listOptions, campaignRoot string) (string, error) {
-	if filterStatus != "" {
-		if filterStatus == "dungeon" {
-			return formatDungeonBoard(ctx, festivalsDir, opts, campaignRoot)
-		}
-		return formatStatusBoard(ctx, festivalsDir, filterStatus, opts, campaignRoot)
-	}
-	return formatAllBoard(ctx, festivalsDir, opts, campaignRoot)
-}
-
-func formatDungeonBoard(ctx context.Context, festivalsDir string, opts *listOptions, campaignRoot string) (string, error) {
-	var totalCount int
-	allFestivals := make(map[string][]*show.FestivalInfo)
-	order := make([]string, 0, len(dungeonSubstatuses))
-	var allFestivalsList []*show.FestivalInfo
-
-	for _, status := range dungeonSubstatuses {
-		festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status, campaignRoot)
-		if err != nil {
-			continue
-		}
-		festivals, err = applyFilters(festivals, opts)
-		if err != nil {
-			return "", err
-		}
-		if len(festivals) > 0 {
-			if opts.sortBy == "" && !opts.alpha {
-				sortByStatusDate(festivals)
-			} else {
-				applySorting(festivals, opts.sortBy, opts.alpha)
-			}
-			allFestivals[status] = festivals
-			order = append(order, status)
-			totalCount += len(festivals)
-			allFestivalsList = append(allFestivalsList, festivals...)
-		}
-	}
-
-	var progressMap map[string]*progress.FestivalProgress
-	if opts.progress {
-		progressMap = fetchProgressForFestivals(ctx, allFestivalsList)
-	}
-	return formatDungeonHuman(allFestivals, order, progressMap, totalCount, opts.progress), nil
-}
-
-func formatStatusBoard(ctx context.Context, festivalsDir, status string, opts *listOptions, campaignRoot string) (string, error) {
-	festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status, campaignRoot)
-	if err != nil {
-		return "", err
-	}
-	festivals, err = applyFilters(festivals, opts)
-	if err != nil {
-		return "", err
-	}
-	if opts.sortBy == "" && !opts.alpha && strings.HasPrefix(status, "dungeon/") {
-		sortByStatusDate(festivals)
-	} else {
-		applySorting(festivals, opts.sortBy, opts.alpha)
-	}
-	var progressMap map[string]*progress.FestivalProgress
-	if opts.progress {
-		progressMap = fetchProgressForFestivals(ctx, festivals)
-	}
-	return formatStatusHuman(status, festivals, progressMap, opts.progress), nil
-}
-
-func formatAllBoard(ctx context.Context, festivalsDir string, opts *listOptions, campaignRoot string) (string, error) {
-	var totalCount int
-	allFestivals := make(map[string][]*show.FestivalInfo)
-	statuses := defaultStatuses
-	if opts.all {
-		statuses = validStatuses
-	}
-	statusOrder := make([]string, 0, len(statuses))
-	var allFestivalsList []*show.FestivalInfo
-
-	for _, status := range statuses {
-		festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status, campaignRoot)
-		if err != nil {
-			continue
-		}
-		festivals, err = applyFilters(festivals, opts)
-		if err != nil {
-			return "", err
-		}
-		if len(festivals) > 0 {
-			applySorting(festivals, opts.sortBy, opts.alpha)
-			allFestivals[status] = festivals
-			statusOrder = append(statusOrder, status)
-			totalCount += len(festivals)
-			allFestivalsList = append(allFestivalsList, festivals...)
-		}
-	}
-
-	var progressMap map[string]*progress.FestivalProgress
-	if opts.progress {
-		progressMap = fetchProgressForFestivals(ctx, allFestivalsList)
-	}
-	return formatAllHuman(allFestivals, statusOrder, progressMap, totalCount, opts.progress), nil
-}
-
-func formatDungeonHuman(allFestivals map[string][]*show.FestivalInfo, order []string, progressMap map[string]*progress.FestivalProgress, totalCount int, withProgress bool) string {
-	if totalCount == 0 {
-		return ui.Warning("No festivals in dungeon.") + "\n"
-	}
-	if withProgress {
-		return show.FormatAllFestivalsWithProgress(allFestivals, order, progressMap)
-	}
-	return show.FormatAllFestivals(allFestivals, order)
-}
-
-func formatStatusHuman(status string, festivals []*show.FestivalInfo, progressMap map[string]*progress.FestivalProgress, withProgress bool) string {
-	if withProgress {
-		return show.FormatFestivalListWithProgress(status, festivals, progressMap)
-	}
-	return show.FormatFestivalList(status, festivals)
-}
-
-func formatAllHuman(allFestivals map[string][]*show.FestivalInfo, statusOrder []string, progressMap map[string]*progress.FestivalProgress, totalCount int, withProgress bool) string {
-	if totalCount == 0 {
-		return ui.Warning("No festivals found.") + "\n" +
-			ui.Info("Create a festival with: fest create festival") + "\n"
-	}
-	if withProgress {
-		return show.FormatAllFestivalsWithProgress(allFestivals, statusOrder, progressMap)
-	}
-	return show.FormatAllFestivals(allFestivals, statusOrder)
 }
 
 func festivalsToMap(festivals []*show.FestivalInfo) []map[string]interface{} {
@@ -748,3 +532,32 @@ func festivalsToMapWithProgress(festivals []*show.FestivalInfo, progressMap map[
 	}
 	return result
 }
+
+func formatDungeonHuman(allFestivals map[string][]*show.FestivalInfo, order []string, progressMap map[string]*progress.FestivalProgress, totalCount int, withProgress bool) string {
+	if totalCount == 0 {
+		return ui.Warning("No festivals in dungeon.") + "\n"
+	}
+	if withProgress {
+		return show.FormatAllFestivalsWithProgress(allFestivals, order, progressMap)
+	}
+	return show.FormatAllFestivals(allFestivals, order)
+}
+
+func formatStatusHuman(status string, festivals []*show.FestivalInfo, progressMap map[string]*progress.FestivalProgress, withProgress bool) string {
+	if withProgress {
+		return show.FormatFestivalListWithProgress(status, festivals, progressMap)
+	}
+	return show.FormatFestivalList(status, festivals)
+}
+
+func formatAllHuman(allFestivals map[string][]*show.FestivalInfo, statusOrder []string, progressMap map[string]*progress.FestivalProgress, totalCount int, withProgress bool) string {
+	if totalCount == 0 {
+		return ui.Warning("No festivals found.") + "\n" +
+			ui.Info("Create a festival with: fest create festival") + "\n"
+	}
+	if withProgress {
+		return show.FormatAllFestivalsWithProgress(allFestivals, statusOrder, progressMap)
+	}
+	return show.FormatAllFestivals(allFestivals, statusOrder)
+}
+
