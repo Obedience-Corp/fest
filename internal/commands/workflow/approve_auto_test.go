@@ -315,8 +315,11 @@ func TestRunApproveAuto_ApproveAdvancesAndRecordsAudit(t *testing.T) {
 		return []byte(`{"schema_version":"fest.approval.judge/v1","decision":"approve","reason":"evidence complete"}`), nil
 	})
 
+	// Wait:true = in-process verdict path (mocked runner). Default --auto is async.
 	out := captureStdout(t, func() {
-		if err := runApproveAuto(ctx, nav, 2, steps[1], approvalJudgeOptions{JudgeCommand: "fake judge", Timeout: time.Second}); err != nil {
+		if err := runApproveAuto(ctx, nav, 2, steps[1], approvalJudgeOptions{
+			JudgeCommand: "fake judge", Timeout: time.Second, Wait: true,
+		}); err != nil {
 			t.Fatalf("runApproveAuto: %v", err)
 		}
 	})
@@ -353,7 +356,9 @@ func TestRunApproveAuto_RejectBlocksStepWithAudit(t *testing.T) {
 	})
 
 	out := captureStdout(t, func() {
-		if err := runApproveAuto(ctx, nav, 2, steps[1], approvalJudgeOptions{JudgeCommand: "fake judge", Timeout: time.Second}); err != nil {
+		if err := runApproveAuto(ctx, nav, 2, steps[1], approvalJudgeOptions{
+			JudgeCommand: "fake judge", Timeout: time.Second, Wait: true,
+		}); err != nil {
 			t.Fatalf("runApproveAuto: %v", err)
 		}
 	})

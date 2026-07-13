@@ -149,6 +149,37 @@ func runShow(ctx context.Context, stepNum int) error {
 		sb.WriteString("\n\n")
 	}
 
+	// Delegated judge lifecycle (purple waiting-on-judge while running).
+	if stepState != nil && stepState.Judge != nil {
+		sb.WriteString(ui.Label("Judge: "))
+		switch stepState.Judge.Status {
+		case wf.JudgeRunning:
+			detail := stepState.Judge.Command
+			if stepState.Judge.Pid > 0 {
+				detail = fmt.Sprintf("%s (pid %d)", detail, stepState.Judge.Pid)
+			}
+			if stepState.Judge.StartedAt != nil {
+				detail = fmt.Sprintf("%s since %s", detail, stepState.Judge.StartedAt.Local().Format("15:04:05"))
+			}
+			sb.WriteString(ui.ColoredText("waiting — "+detail, ui.JudgeColor))
+		case wf.JudgeFailed:
+			sb.WriteString(ui.Error("failed (fails closed)"))
+			if stepState.Judge.Detail != "" {
+				sb.WriteString("\n  ")
+				sb.WriteString(stepState.Judge.Detail)
+			}
+		case wf.JudgeApproved, wf.JudgeRejected:
+			sb.WriteString(ui.Dim(stepState.Judge.Status))
+			if stepState.Judge.Detail != "" {
+				sb.WriteString("\n  ")
+				sb.WriteString(stepState.Judge.Detail)
+			}
+		default:
+			sb.WriteString(stepState.Judge.Status)
+		}
+		sb.WriteString("\n\n")
+	}
+
 	// Show feedback/note metadata for blocked and skipped/completed-with-note states.
 	if stepState != nil && stepState.Feedback != "" {
 		label := ui.Error("Rejection Feedback:")
@@ -163,8 +194,13 @@ func runShow(ctx context.Context, stepNum int) error {
 
 	// Navigation hint
 	if isCurrent {
+		waitingOnJudge := stepState != nil && stepState.Judge != nil &&
+			stepState.Judge.Status == wf.JudgeRunning
 		sb.WriteString(ui.Dim("When complete: "))
-		if step.Checkpoint.IsBlocking() {
+		if waitingOnJudge {
+			sb.WriteString(ui.Accent("fest next"))
+			sb.WriteString(ui.Dim(" after the judge returns"))
+		} else if step.Checkpoint.IsBlocking() {
 			sb.WriteString(ui.Accent("fest workflow approve"))
 		} else {
 			sb.WriteString(ui.Accent("fest workflow advance"))

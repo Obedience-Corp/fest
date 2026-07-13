@@ -92,6 +92,12 @@ func (n *Navigator) formatComplete() string {
 
 // formatCheckpoint renders the checkpoint template for blocking steps.
 func (n *Navigator) formatCheckpoint(ctx context.Context, step WorkflowStep) (string, error) {
+	judgeWaiting := false
+	if n.workflowState != nil {
+		if ss := n.workflowState.GetStepState(step.Number); ss != nil && ss.Judge != nil {
+			judgeWaiting = ss.Judge.Status == JudgeRunning
+		}
+	}
 	data := map[string]any{
 		"InstructionHeader": guidance.InstructionHeader,
 		"StepNumber":        step.Number,
@@ -99,6 +105,7 @@ func (n *Navigator) formatCheckpoint(ctx context.Context, step WorkflowStep) (st
 		"Goal":              step.Goal,
 		"Actions":           step.Actions,
 		"JudgeConfigured":   n.approvalJudgeConfigured(ctx),
+		"JudgeWaiting":      judgeWaiting,
 	}
 
 	return agent.Render("workflow/checkpoint", data)
