@@ -54,6 +54,13 @@ func (n *Navigator) SetStateStore(store StateStore) {
 	n.store = store
 }
 
+// HasStateStore reports whether workflow state is backed by an injected event
+// store instead of the legacy YAML state file. Reloading must preserve this
+// persistence mode so injected navigators do not silently change backends.
+func (n *Navigator) HasStateStore() bool {
+	return n.store != nil
+}
+
 // SetDocFilename overrides the document filename to parse (default: "WORKFLOW.md").
 // Use "GATES.md" for phase-level gates.
 func (n *Navigator) SetDocFilename(name string) {

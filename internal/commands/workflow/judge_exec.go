@@ -45,7 +45,7 @@ type judgeExecPayload struct {
 // waiting-on-judge state in the meantime.
 func launchApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, step wf.WorkflowStep, opts approvalJudgeOptions) error {
 	return withJudgeStepLock(ctx, nav.Ctx.PhasePath, currentStepNum, func() error {
-		fresh, err := getWorkflowNavigator(ctx)
+		fresh, err := reloadWorkflowNavigator(ctx, nav)
 		if err != nil {
 			return err
 		}
@@ -297,7 +297,7 @@ func runJudgeExec(ctx context.Context, payloadPath string) error {
 	if payload.StepNumber < 1 || payload.StepNumber > len(steps) {
 		err := festerrors.Validation("judge-exec payload step out of range").
 			WithField("step", fmt.Sprintf("%d", payload.StepNumber))
-		if recErr := recordJudgeFailureIfOwned(ctx, nav.Ctx.PhasePath, payload, err.Error()); recErr != nil {
+		if recErr := recordJudgeFailureIfOwned(ctx, nav, payload, err.Error()); recErr != nil {
 			fmt.Printf("%s failed to record judge outcome: %v\n", ui.Warning("⚠"), recErr)
 		}
 		return err
@@ -306,14 +306,14 @@ func runJudgeExec(ctx context.Context, payloadPath string) error {
 
 	decision, audit, err := judgeApproval(ctx, nav, step, opts)
 	if err != nil {
-		if recErr := recordJudgeFailureIfOwned(ctx, nav.Ctx.PhasePath, payload, err.Error()); recErr != nil {
+		if recErr := recordJudgeFailureIfOwned(ctx, nav, payload, err.Error()); recErr != nil {
 			fmt.Printf("%s failed to record judge outcome: %v\n", ui.Warning("⚠"), recErr)
 		}
 		return err
 	}
 
 	return withJudgeStepLock(ctx, nav.Ctx.PhasePath, payload.StepNumber, func() error {
-		fresh, err := getWorkflowNavigator(ctx)
+		fresh, err := reloadWorkflowNavigator(ctx, nav)
 		if err != nil {
 			return err
 		}
@@ -331,11 +331,11 @@ func runJudgeExec(ctx context.Context, payloadPath string) error {
 
 func waitForJudgeClaim(ctx context.Context, payload judgeExecPayload) (*wf.Navigator, bool, error) {
 	deadline := time.Now().Add(judgeClaimTimeout)
+	nav, err := getWorkflowNavigator(ctx)
+	if err != nil {
+		return nil, false, err
+	}
 	for {
-		nav, err := getWorkflowNavigator(ctx)
-		if err != nil {
-			return nil, false, err
-		}
 		state := nav.GetWorkflowState()
 		ss := state.GetStepState(payload.StepNumber)
 		if state.CurrentStep != payload.StepNumber || ss == nil || ss.Judge == nil ||
@@ -347,7 +347,7 @@ func waitForJudgeClaim(ctx context.Context, payload judgeExecPayload) (*wf.Navig
 		}
 		if ss.Judge.Pid != 0 || time.Now().After(deadline) {
 			detail := "judge runner never received its durable PID claim"
-			if err := recordUnclaimedJudgeFailure(ctx, nav.Ctx.PhasePath, payload, detail); err != nil {
+			if err := recordUnclaimedJudgeFailure(ctx, nav, payload, detail); err != nil {
 				return nil, false, err
 			}
 			return nav, false, nil
@@ -357,12 +357,16 @@ func waitForJudgeClaim(ctx context.Context, payload judgeExecPayload) (*wf.Navig
 			return nil, false, ctx.Err()
 		case <-time.After(judgeLockPoll):
 		}
+		nav, err = reloadWorkflowNavigator(ctx, nav)
+		if err != nil {
+			return nil, false, err
+		}
 	}
 }
 
-func recordUnclaimedJudgeFailure(ctx context.Context, phasePath string, payload judgeExecPayload, detail string) error {
-	return withJudgeStepLock(ctx, phasePath, payload.StepNumber, func() error {
-		fresh, err := getWorkflowNavigator(ctx)
+func recordUnclaimedJudgeFailure(ctx context.Context, nav *wf.Navigator, payload judgeExecPayload, detail string) error {
+	return withJudgeStepLock(ctx, nav.Ctx.PhasePath, payload.StepNumber, func() error {
+		fresh, err := reloadWorkflowNavigator(ctx, nav)
 		if err != nil {
 			return err
 		}
@@ -375,9 +379,9 @@ func recordUnclaimedJudgeFailure(ctx context.Context, phasePath string, payload 
 	})
 }
 
-func recordJudgeFailureIfOwned(ctx context.Context, phasePath string, payload judgeExecPayload, detail string) error {
-	return withJudgeStepLock(ctx, phasePath, payload.StepNumber, func() error {
-		fresh, err := getWorkflowNavigator(ctx)
+func recordJudgeFailureIfOwned(ctx context.Context, nav *wf.Navigator, payload judgeExecPayload, detail string) error {
+	return withJudgeStepLock(ctx, nav.Ctx.PhasePath, payload.StepNumber, func() error {
+		fresh, err := reloadWorkflowNavigator(ctx, nav)
 		if err != nil {
 			return err
 		}

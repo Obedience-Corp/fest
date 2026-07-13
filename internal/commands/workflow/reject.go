@@ -111,7 +111,7 @@ func runRejectWithRemediationDecision(ctx context.Context, reason, remediationPh
 	}
 
 	return withJudgeStepLock(ctx, nav.Ctx.PhasePath, currentStepNum, func() error {
-		fresh, err := getWorkflowNavigator(ctx)
+		fresh, err := reloadWorkflowNavigator(ctx, nav)
 		if err != nil {
 			return err
 		}

@@ -73,7 +73,7 @@ func runReset(ctx context.Context, force bool) error {
 
 	currentStep := state.CurrentStep
 	if err := withJudgeStepLock(ctx, nav.Ctx.PhasePath, currentStep, func() error {
-		fresh, err := getWorkflowNavigator(ctx)
+		fresh, err := reloadWorkflowNavigator(ctx, nav)
 		if err != nil {
 			return err
 		}

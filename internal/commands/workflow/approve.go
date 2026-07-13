@@ -182,7 +182,7 @@ func runApproveWithOptions(ctx context.Context, decision wf.DecisionMetadata, op
 	}
 
 	return withJudgeStepLock(ctx, nav.Ctx.PhasePath, currentStepNum, func() error {
-		fresh, err := getWorkflowNavigator(ctx)
+		fresh, err := reloadWorkflowNavigator(ctx, nav)
 		if err != nil {
 			return err
 		}
@@ -359,7 +359,7 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 		return err
 	}
 	err = withJudgeStepLock(ctx, nav.Ctx.PhasePath, currentStepNum, func() error {
-		fresh, err := getWorkflowNavigator(ctx)
+		fresh, err := reloadWorkflowNavigator(ctx, nav)
 		if err != nil {
 			return err
 		}
@@ -382,7 +382,7 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 
 	decision, audit, err := judgeApproval(ctx, nav, step, opts)
 	if err != nil {
-		if recErr := recordJudgeFailureIfOwned(ctx, nav.Ctx.PhasePath, judgeExecPayload{
+		if recErr := recordJudgeFailureIfOwned(ctx, nav, judgeExecPayload{
 			StepNumber: currentStepNum, RunID: runID,
 		}, err.Error()); recErr != nil {
 			fmt.Printf("%s failed to record judge outcome: %v\n", ui.Warning("⚠"), recErr)
@@ -391,7 +391,7 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 	}
 
 	return withJudgeStepLock(ctx, nav.Ctx.PhasePath, currentStepNum, func() error {
-		fresh, err := getWorkflowNavigator(ctx)
+		fresh, err := reloadWorkflowNavigator(ctx, nav)
 		if err != nil {
 			return err
 		}

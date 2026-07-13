@@ -259,6 +259,43 @@ func getWorkflowNavigator(ctx context.Context) (*wf.Navigator, error) {
 	return nav, nil
 }
 
+// reloadWorkflowNavigator rebuilds a navigator from an already-resolved
+// workflow context. Mutating commands use this after acquiring a step lock so
+// they observe durable state without re-resolving the festival or phase from
+// ambient process state such as the current working directory or --phase.
+func reloadWorkflowNavigator(ctx context.Context, current *wf.Navigator) (*wf.Navigator, error) {
+	if current == nil || current.Ctx == nil {
+		return nil, fmt.Errorf("reloading workflow navigator: resolved context is unavailable")
+	}
+
+	gctx := *current.Ctx
+	nav, err := wf.NewNavigator(&gctx, gctx.Mode)
+	if err != nil {
+		return nil, fmt.Errorf("creating navigator: %w", err)
+	}
+	if current.IsGate() {
+		nav.SetDocFilename("GATES.md")
+		nav.SetStateKeyPrefix("gate:")
+	}
+
+	if current.HasStateStore() {
+		store := progress.NewStore(gctx.FestivalPath)
+		if err := store.Load(ctx); err != nil {
+			return nil, fmt.Errorf("loading progress store: %w", err)
+		}
+		nav.SetStateStore(store)
+	}
+	if err := nav.Initialize(ctx); err != nil {
+		return nil, fmt.Errorf("initializing navigator: %w", err)
+	}
+
+	// Preserve the injected navigator's identity so callers that retain it
+	// (notably fest next and in-process approval flows) observe every state
+	// transition applied after the reload.
+	*current = *nav
+	return current, nil
+}
+
 // resolveNavigationMode determines whether workflow commands should target WORKFLOW.md or GATES.md.
 // Returns the document filename, state key prefix, and an optional not-ready message.
 // Returns empty filename if phase has neither document or if gate is not yet eligible.
