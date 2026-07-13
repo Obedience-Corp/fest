@@ -70,12 +70,13 @@ After approval:
   - The workflow advances to the next step
 
 Auto approval:
-  Manual approval is the default. Use --auto only when an operator has explicitly
-  delegated this checkpoint decision to an external judge command.
+  Configuring hooks.approval_judge.command is the operator opt-in that
+  delegates blocking checkpoints away from human review. With that hook set,
+  fest next auto-invokes the judge on blocking WORKFLOW.md / GATES.md steps.
 
-  Agents must not clear checkpoints themselves: --as agent is rejected. An
-  agent-actor decision is recorded only when the operator delegates via --auto
-  and the judge returns a verdict.
+  Use --auto to re-run the judge explicitly (for example after a reject or a
+  failed judge invocation). Agents must not clear checkpoints with --as agent;
+  agent-actor decisions are recorded only via the judge path.
 
   The judge command receives JSON on stdin using schema fest.approval.judge/v1
   and must return JSON on stdout with decision "approve" or "reject" and a
@@ -164,7 +165,7 @@ func runApproveWithOptions(ctx context.Context, decision wf.DecisionMetadata, op
 	}
 
 	if opts.Auto {
-		judgeCommand, err := resolveApprovalJudgeCommand(ctx, opts.JudgeCommand)
+		judgeCommand, err := resolveApprovalJudgeCommandFor(ctx, nav, opts.JudgeCommand)
 		if err != nil {
 			return err
 		}
@@ -189,9 +190,14 @@ func runApproveWithOptions(ctx context.Context, decision wf.DecisionMetadata, op
 
 // resolveApprovalJudgeCommand resolves the command used for --auto approval.
 // Precedence: the --judge-command flag, then the hooks.approval_judge.command
-// hook in .festival/config.yaml. It fails closed when neither is set so no
-// checkpoint is delegated to an unconfigured (or assumed) command.
+// hook in .festival/config.yaml (via workspace context or navigator festival
+// path). It fails closed when neither is set so no checkpoint is delegated to
+// an unconfigured (or assumed) command.
 func resolveApprovalJudgeCommand(ctx context.Context, flagValue string) (string, error) {
+	return resolveApprovalJudgeCommandFor(ctx, nil, flagValue)
+}
+
+func resolveApprovalJudgeCommandFor(ctx context.Context, nav *wf.Navigator, flagValue string) (string, error) {
 	if cmd := strings.TrimSpace(flagValue); cmd != "" {
 		return cmd, nil
 	}
@@ -202,6 +208,14 @@ func resolveApprovalJudgeCommand(ctx context.Context, flagValue string) (string,
 			return "", festerrors.Wrap(err, "loading approval judge hook")
 		}
 		if cmd := strings.TrimSpace(cfg.Hooks.ApprovalJudge.Command); cmd != "" {
+			return cmd, nil
+		}
+	}
+
+	// fest next is scope.Global and never injects workspace; fall back to the
+	// navigator's festival path (same recovery as ApprovalJudgeCommand).
+	if nav != nil {
+		if cmd := strings.TrimSpace(nav.ApprovalJudgeCommand(ctx)); cmd != "" {
 			return cmd, nil
 		}
 	}
@@ -224,6 +238,80 @@ hooks:
     command: ob judge
 
 Or pass --judge-command <cmd> for a one-off.`)
+}
+
+// AutoDelegateBlockingCheckpoints runs the configured approval judge for each
+// consecutive blocking checkpoint while a judge is configured.
+//
+// This is the fest next integration path: configuring hooks.approval_judge is
+// an operator opt-in to skip human pings on GATES.md / WORKFLOW.md checkpoints.
+// When no judge is configured, this is a no-op and the caller formats the
+// manual checkpoint instructions.
+//
+// Fail-closed: judge errors leave the checkpoint unchanged and return the
+// error. Reject verdicts are recorded by runApproveAuto and return nil so the
+// agent can address feedback.
+func AutoDelegateBlockingCheckpoints(ctx context.Context, nav *wf.Navigator) error {
+	if nav == nil {
+		return nil
+	}
+	if err := nav.EnsureInitialized(); err != nil {
+		return err
+	}
+
+	// Cap iterations so a misbehaving state machine cannot loop forever.
+	const maxAutoSteps = 32
+	for i := 0; i < maxAutoSteps; i++ {
+		state := nav.GetWorkflowState()
+		steps := nav.GetSteps()
+		if state == nil || state.IsComplete() || len(steps) == 0 {
+			return nil
+		}
+		current := state.CurrentStep
+		if current < 1 || current > len(steps) {
+			return nil
+		}
+		step := steps[current-1]
+		stepState := state.GetStepState(current)
+		// Pending or in_progress blocking checkpoints are eligible. fest next
+		// often lands here before GetNext promotes pending → in_progress.
+		if stepState == nil || !step.Checkpoint.IsBlocking() {
+			return nil
+		}
+		switch stepState.Status {
+		case wf.StepStatusInProgress, wf.StepStatusPending:
+			// eligible
+		default:
+			return nil
+		}
+
+		judgeCommand, err := resolveApprovalJudgeCommandFor(ctx, nav, "")
+		if err != nil {
+			// No judge configured — leave checkpoint for manual / agent instruction path.
+			return nil
+		}
+
+		fmt.Printf("%s Checkpoint delegated to approval judge (%s)\n", ui.Info("→"), judgeCommand)
+		fmt.Printf("  Step %d: %s\n", current, step.Name)
+
+		opts := approvalJudgeOptions{Auto: true, JudgeCommand: judgeCommand}
+		if err := runApproveAuto(ctx, nav, current, step, opts); err != nil {
+			return err
+		}
+
+		// Reject or fail-closed leave state non-progressing; stop so the
+		// caller can render the blocked checkpoint / next instructions.
+		nextState := nav.GetWorkflowState()
+		if nextState == nil || nextState.IsComplete() {
+			return nil
+		}
+		if nextState.CurrentStep == current {
+			return nil
+		}
+		// Approved and advanced — continue if the next step is also a
+		// delegated blocking checkpoint.
+	}
+	return nil
 }
 
 func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, step wf.WorkflowStep, opts approvalJudgeOptions) error {

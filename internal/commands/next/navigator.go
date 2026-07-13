@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	wfcmd "github.com/Obedience-Corp/fest/internal/commands/workflow"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
@@ -127,6 +128,14 @@ func runWorkflowModeWithStore(ctx context.Context, festivalPath, phasePath strin
 		return errors.Wrap(err, "initializing workflow navigator")
 	}
 
+	// Operator opt-in via hooks.approval_judge: auto-run the judge on
+	// consecutive blocking checkpoints so fest next does not wait for a human.
+	if wfNav, ok := nav.(*wf.Navigator); ok {
+		if err := wfcmd.AutoDelegateBlockingCheckpoints(ctx, wfNav); err != nil {
+			return err
+		}
+	}
+
 	// Check if we got a valid next step
 	nextStep, err := nav.GetNext(ctx)
 	if err != nil {
@@ -205,6 +214,14 @@ func runPhaseGateMode(ctx context.Context, festivalPath, phasePath string) error
 	// Initialize the navigator
 	if err := nav.Initialize(ctx); err != nil {
 		return errors.Wrap(err, "initializing phase gate navigator")
+	}
+
+	// Operator opt-in via hooks.approval_judge: auto-run the judge on
+	// consecutive blocking gate steps so fest next does not wait for a human.
+	if wfNav, ok := nav.(*wf.Navigator); ok {
+		if err := wfcmd.AutoDelegateBlockingCheckpoints(ctx, wfNav); err != nil {
+			return err
+		}
 	}
 
 	// Check if we got a valid next step

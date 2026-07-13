@@ -8,6 +8,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/scope"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 // FormatInstructions generates agent-friendly workflow instructions using templates.
@@ -104,22 +105,60 @@ func (n *Navigator) formatCheckpoint(ctx context.Context, step WorkflowStep) (st
 }
 
 // approvalJudgeConfigured reports whether the operator has delegated blocking
-// checkpoints to an approval judge via hooks.approval_judge.command. Guidance
-// only advertises 'fest workflow approve --auto' when this returns true, so
-// agents are never handed a delegation affordance the operator did not set up.
+// checkpoints to an approval judge via hooks.approval_judge.command.
+//
+// Detection must not depend solely on scope.WorkspaceFrom(ctx): fest next uses
+// scope.Global and never injects workspace into context, so WorkspaceFrom is
+// empty even when .festival/config.yaml configures the judge. Fall back to
+// resolving the festivals root from the navigator's festival path.
 func (n *Navigator) approvalJudgeConfigured(ctx context.Context) bool {
-	if ctx == nil {
-		return false
+	return strings.TrimSpace(n.ApprovalJudgeCommand(ctx)) != ""
+}
+
+// ApprovalJudgeCommand returns hooks.approval_judge.command when configured.
+// Empty string means no judge is configured (manual approval path).
+func (n *Navigator) ApprovalJudgeCommand(ctx context.Context) string {
+	festivalsRoot := n.festivalsRoot(ctx)
+	if festivalsRoot == "" {
+		return ""
 	}
-	ws, ok := scope.WorkspaceFrom(ctx)
-	if !ok || ws == nil || ws.FestivalsPath == "" {
-		return false
+	cfg, err := config.LoadWorkspaceConfig(festivalsRoot)
+	if err != nil || cfg == nil {
+		return ""
 	}
-	cfg, err := config.LoadWorkspaceConfig(ws.FestivalsPath)
+	return strings.TrimSpace(cfg.Hooks.ApprovalJudge.Command)
+}
+
+// festivalsRoot resolves the campaigns festivals/ directory used for
+// .festival/config.yaml lookup.
+func (n *Navigator) festivalsRoot(ctx context.Context) string {
+	if ctx != nil {
+		if ws, ok := scope.WorkspaceFrom(ctx); ok && ws != nil && ws.FestivalsPath != "" {
+			return ws.FestivalsPath
+		}
+	}
+	// fest next is scope.Global and does not inject workspace; recover from
+	// the festival path the navigator already resolved.
+	start := ""
+	if n != nil && n.BaseNavigator != nil && n.Ctx != nil {
+		if n.Ctx.FestivalPath != "" {
+			start = n.Ctx.FestivalPath
+		} else if n.Ctx.PhasePath != "" {
+			start = n.Ctx.PhasePath
+		}
+	}
+	if start == "" {
+		return ""
+	}
+	lookupCtx := ctx
+	if lookupCtx == nil {
+		lookupCtx = context.Background()
+	}
+	ws, err := workspace.FindWorkspace(lookupCtx, start)
 	if err != nil {
-		return false
+		return ""
 	}
-	return strings.TrimSpace(cfg.Hooks.ApprovalJudge.Command) != ""
+	return ws.FestivalsPath
 }
 
 // formatStep renders the step template for the current workflow step.

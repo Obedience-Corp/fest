@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Obedience-Corp/fest/internal/config"
+	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/scope"
 )
 
@@ -56,7 +57,8 @@ func TestFormatCheckpoint_JudgeConfigured(t *testing.T) {
 
 	for _, want := range []string{
 		"This checkpoint is delegated",
-		"Run: fest workflow approve --auto",
+		"fest next` auto-invokes the judge",
+		"fest workflow approve --auto",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("checkpoint output missing %q:\n%s", want, out)
@@ -79,5 +81,37 @@ func TestApprovalJudgeConfigured_NilAndMissing(t *testing.T) {
 	ctx := scope.WithWorkspace(context.Background(), &scope.WorkspaceInfo{FestivalsPath: t.TempDir()})
 	if nav.approvalJudgeConfigured(ctx) {
 		t.Error("workspace without a configured judge should report no judge")
+	}
+}
+
+func TestApprovalJudgeConfigured_FromFestivalPathWithoutWorkspaceCtx(t *testing.T) {
+	// Mirrors fest next: scope.Global so WorkspaceFrom is empty, but the
+	// navigator knows the festival path under festivals/.
+	root := t.TempDir()
+	festivalsRoot := filepath.Join(root, "festivals")
+	festivalPath := filepath.Join(festivalsRoot, "active", "example-fest")
+	if err := os.MkdirAll(festivalPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	dotFestival := filepath.Join(festivalsRoot, config.DotFestivalDir)
+	if err := os.MkdirAll(dotFestival, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfgYAML := "version: \"1.0\"\nhooks:\n  approval_judge:\n    command: ob judge\n"
+	if err := os.WriteFile(filepath.Join(dotFestival, config.WorkspaceConfigFileName), []byte(cfgYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	gctx := &guidance.GuidanceContext{FestivalPath: festivalPath}
+	nav, err := NewNavigator(gctx, guidance.ModeWorkflow)
+	if err != nil {
+		t.Fatalf("NewNavigator: %v", err)
+	}
+
+	if !nav.approvalJudgeConfigured(context.Background()) {
+		t.Fatal("judge should be detected from festival path without WorkspaceFrom")
+	}
+	if got := nav.ApprovalJudgeCommand(context.Background()); got != "ob judge" {
+		t.Fatalf("ApprovalJudgeCommand = %q, want %q", got, "ob judge")
 	}
 }
