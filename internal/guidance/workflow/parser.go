@@ -29,6 +29,15 @@ var (
 
 	// checkpointRe matches the checkpoint section
 	checkpointRe = regexp.MustCompile(`(?s)\*\*Checkpoint:\*\*\s*(.+?)(?:\n\n|---|\n##|$)`)
+
+	// checkpointClassRe matches an explicit checkpoint class annotation.
+	checkpointClassRe = regexp.MustCompile(`(?i)\*\*Checkpoint class:\*\*\s*(\S+)`)
+
+	// evidenceRe matches an explicit evidence list for approval judging.
+	evidenceRe = regexp.MustCompile(`(?s)\*\*Evidence:\*\*\s*(.+?)(?:\n\n|\n\*\*|---|\n##|$)`)
+
+	// evidenceItemRe matches bullet evidence paths.
+	evidenceItemRe = regexp.MustCompile(`(?m)^\s*[-*]\s+(\S+)\s*$`)
 )
 
 // Parser parses WORKFLOW.md files and extracts steps.
@@ -108,7 +117,9 @@ func (p *Parser) ParseContent(ctx context.Context, content string) ([]WorkflowSt
 		}
 
 		// Extract checkpoint
-		step.Checkpoint = p.parseCheckpoint(section)
+		step.Checkpoint, step.CheckpointText = p.parseCheckpoint(section)
+		step.CheckpointClass = p.parseCheckpointClass(section)
+		step.EvidencePaths = p.parseEvidencePaths(section)
 
 		steps = append(steps, step)
 	}
@@ -147,35 +158,160 @@ func parseActionItems(actionsBlock string) []string {
 }
 
 // parseCheckpoint determines the checkpoint type from the section content.
-func (p *Parser) parseCheckpoint(section string) CheckpointType {
+// The second return is the raw checkpoint text (trimmed).
+func (p *Parser) parseCheckpoint(section string) (CheckpointType, string) {
 	checkpointMatch := checkpointRe.FindStringSubmatch(section)
 	if len(checkpointMatch) < 2 {
-		return CheckpointNone
+		return CheckpointNone, ""
 	}
 
-	checkpointText := strings.ToUpper(strings.TrimSpace(checkpointMatch[1]))
+	raw := strings.TrimSpace(checkpointMatch[1])
+	// Keep only the first line for display/heuristics; body may include more.
+	if i := strings.IndexByte(raw, '\n'); i >= 0 {
+		raw = strings.TrimSpace(raw[:i])
+	}
+	checkpointText := strings.ToUpper(raw)
 
 	switch {
 	case strings.Contains(checkpointText, "APPROVAL REQUIRED") ||
 		strings.Contains(checkpointText, "USER APPROVAL"):
-		return CheckpointUserApproval
+		return CheckpointUserApproval, raw
 
 	case strings.Contains(checkpointText, "DOCUMENTATION"):
-		return CheckpointDocumentation
+		return CheckpointDocumentation, raw
 
 	case strings.Contains(checkpointText, "VERIFICATION") ||
 		strings.Contains(checkpointText, "VERIFY"):
-		return CheckpointVerification
+		return CheckpointVerification, raw
 
 	case strings.Contains(checkpointText, "NONE"):
-		return CheckpointNone
+		return CheckpointNone, raw
 
 	default:
 		// If there's checkpoint text that's not "None", treat as needing attention
 		if len(checkpointText) > 0 && !strings.HasPrefix(checkpointText, "NONE") {
-			return CheckpointVerification
+			return CheckpointVerification, raw
 		}
-		return CheckpointNone
+		return CheckpointNone, raw
+	}
+}
+
+func (p *Parser) parseCheckpointClass(section string) CheckpointClass {
+	m := checkpointClassRe.FindStringSubmatch(section)
+	if len(m) < 2 {
+		return CheckpointClassUnspecified
+	}
+	switch strings.ToLower(strings.TrimSpace(m[1])) {
+	case string(CheckpointClassArtifactReview), "artifact", "review":
+		return CheckpointClassArtifactReview
+	case string(CheckpointClassOperatorAttestation), "operator", "attestation", "user":
+		return CheckpointClassOperatorAttestation
+	default:
+		return CheckpointClassUnspecified
+	}
+}
+
+func (p *Parser) parseEvidencePaths(section string) []string {
+	m := evidenceRe.FindStringSubmatch(section)
+	if len(m) < 2 {
+		return nil
+	}
+	var paths []string
+	for _, item := range evidenceItemRe.FindAllStringSubmatch(m[1], -1) {
+		if len(item) < 2 {
+			continue
+		}
+		path := strings.TrimSpace(item[1])
+		if path == "" {
+			continue
+		}
+		paths = append(paths, path)
+	}
+	return paths
+}
+
+// ClassifyCheckpoint resolves the checkpoint class for a step.
+// Explicit annotations win; otherwise heuristics inspect name/goal/checkpoint text.
+//
+// PRESENT / "wait for user response" steps remain artifact_review: the judge
+// reviews the presentation pack. Phrases that ask whether the user already
+// validated/approved are operator_attestation and cannot be auto-judged.
+func ClassifyCheckpoint(step WorkflowStep) CheckpointClass {
+	if step.CheckpointClass == CheckpointClassArtifactReview ||
+		step.CheckpointClass == CheckpointClassOperatorAttestation {
+		return step.CheckpointClass
+	}
+	blob := strings.ToLower(strings.Join([]string{
+		step.Name,
+		step.Goal,
+		step.CheckpointText,
+		step.Output,
+	}, "\n"))
+
+	// Operator-attestation: the checkpoint asserts human acceptance already happened.
+	attestationHints := []string{
+		"did the user",
+		"user has approved",
+		"user validated",
+		"user validate the",
+		"confirm user validated",
+		"confirm the user reviewed and approved",
+		"explicitly approve the plan",
+		"did the user explicitly approve",
+	}
+	for _, h := range attestationHints {
+		if strings.Contains(blob, h) {
+			return CheckpointClassOperatorAttestation
+		}
+	}
+	return CheckpointClassArtifactReview
+}
+
+// IsPresentationStep reports whether the step is a PRESENT-style deliverable review.
+func IsPresentationStep(step WorkflowStep) bool {
+	name := strings.ToUpper(strings.TrimSpace(step.Name))
+	if strings.Contains(name, "PRESENT") {
+		return true
+	}
+	blob := strings.ToLower(step.CheckpointText + " " + step.Goal + " " + step.Output)
+	return strings.Contains(blob, "summary presented") ||
+		strings.Contains(blob, "presentation") ||
+		strings.Contains(blob, "present to user")
+}
+
+// DefaultEvidencePaths returns conventional phase-relative evidence paths for a step.
+func DefaultEvidencePaths(step WorkflowStep) []string {
+	if len(step.EvidencePaths) > 0 {
+		return append([]string(nil), step.EvidencePaths...)
+	}
+	if IsPresentationStep(step) {
+		return []string{
+			"output_specs/PRESENTATION.md",
+			"output_specs/purpose.md",
+			"output_specs/requirements.md",
+			"output_specs/constraints.md",
+			"output_specs/context.md",
+		}
+	}
+	name := strings.ToUpper(step.Name)
+	switch {
+	case strings.Contains(name, "PHASE GOAL") || strings.Contains(name, "GOAL"):
+		return []string{
+			"PHASE_GOAL.md",
+			"output_specs/purpose.md",
+			"output_specs/requirements.md",
+			"output_specs/constraints.md",
+			"output_specs/context.md",
+			"output_specs/PRESENTATION.md",
+		}
+	case strings.Contains(name, "COMPLETE"):
+		return []string{
+			"output_specs/context.md",
+			"output_specs/requirements.md",
+			"output_specs/PRESENTATION.md",
+		}
+	default:
+		return nil
 	}
 }
 

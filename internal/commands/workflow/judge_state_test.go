@@ -22,9 +22,9 @@ func TestRunApproveAuto_RecordsJudgeLifecycle(t *testing.T) {
 	}
 	steps := nav.GetSteps()
 
-	withApprovalJudgeRunner(t, func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
+	withApprovalJudgeRunner(t, judgeRunner(func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
 		return []byte(`{"schema_version":"fest.approval.judge/v1","decision":"approve","reason":"evidence complete"}`), nil
-	})
+	}))
 
 	_ = captureStdout(t, func() {
 		if err := runApproveAuto(ctx, nav, 2, steps[1], approvalJudgeOptions{JudgeCommand: "fake judge", Timeout: time.Second}); err != nil {
@@ -66,9 +66,9 @@ func TestRunApproveAuto_JudgeFailureLeavesDurableTrace(t *testing.T) {
 	}
 	steps := nav.GetSteps()
 
-	withApprovalJudgeRunner(t, func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
+	withApprovalJudgeRunner(t, judgeRunner(func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
 		return nil, festerrors.Validation("judge exploded")
-	})
+	}))
 
 	err := runApproveAuto(ctx, nav, 2, steps[1], approvalJudgeOptions{JudgeCommand: "fake judge", Timeout: time.Second})
 	if err == nil {
