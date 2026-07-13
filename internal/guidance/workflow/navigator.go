@@ -268,17 +268,17 @@ func (n *Navigator) GetContextFiles(ctx context.Context) ([]string, error) {
 // the current step, before the judge command executes, so concurrent watchers
 // (fest show --watch, fest progress) can render the waiting-on-judge state
 // and a crashed or timed-out judge still leaves a trace.
-func (n *Navigator) BeginJudge(ctx context.Context, command string) error {
-	return n.recordJudge(ctx, EmitJudgeStartedEvents(n.stateKey(), n.workflowState.CurrentStep, command), func(at time.Time) {
-		n.workflowState.BeginJudge(command, at)
+func (n *Navigator) BeginJudge(ctx context.Context, step int, command string, pid int) error {
+	return n.recordJudge(ctx, EmitJudgeStartedEvents(n.stateKey(), step, command, pid), func(at time.Time) {
+		n.workflowState.BeginJudge(step, command, pid, at)
 	})
 }
 
 // RecordJudgeOutcome durably records how the judge run ended: JudgeApproved,
 // JudgeRejected, or JudgeFailed with the reason or error text in detail.
-func (n *Navigator) RecordJudgeOutcome(ctx context.Context, status, detail string) error {
-	return n.recordJudge(ctx, EmitJudgeReturnedEvents(n.stateKey(), n.workflowState.CurrentStep, status, detail), func(at time.Time) {
-		n.workflowState.RecordJudgeOutcome(status, detail, at)
+func (n *Navigator) RecordJudgeOutcome(ctx context.Context, step int, status, detail string) error {
+	return n.recordJudge(ctx, EmitJudgeReturnedEvents(n.stateKey(), step, status, detail), func(at time.Time) {
+		n.workflowState.RecordJudgeOutcome(step, status, detail, at)
 	})
 }
 

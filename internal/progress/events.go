@@ -77,6 +77,7 @@ type ProgressEvent struct {
 	JudgeStatus      string `json:"judge_status,omitempty"`
 	JudgeCommand     string `json:"judge_command,omitempty"`
 	JudgeDetail      string `json:"judge_detail,omitempty"`
+	JudgePid         int    `json:"judge_pid,omitempty"`
 }
 
 // loadFromEvents reads the JSONL file and materializes current state.
@@ -412,6 +413,7 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 				Status:    wf.JudgeRunning,
 				Command:   e.JudgeCommand,
 				StartedAt: &ts,
+				Pid:       e.JudgePid,
 			}
 
 		case EventWorkflowJudgeReturned:

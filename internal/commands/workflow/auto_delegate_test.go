@@ -4,7 +4,6 @@ import (
 	"context"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/Obedience-Corp/fest/internal/config"
@@ -78,7 +77,7 @@ func TestAutoDelegateBlockingCheckpoints_NoJudgeIsNoop(t *testing.T) {
 	}
 }
 
-func TestAutoDelegateBlockingCheckpoints_AutoApprovesWhenJudgeConfigured(t *testing.T) {
+func TestAutoDelegateBlockingCheckpoints_LaunchesJudgeWhenConfigured(t *testing.T) {
 	festivalPath, phasePath, festivalsRoot := writeGateFestival(t)
 	cfg := config.DefaultWorkspaceConfig()
 	cfg.Hooks.ApprovalJudge.Command = "fake-judge"
@@ -86,14 +85,17 @@ func TestAutoDelegateBlockingCheckpoints_AutoApprovesWhenJudgeConfigured(t *test
 		t.Fatal(err)
 	}
 
-	withApprovalJudgeRunner(t, func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
-		if command != "fake-judge" {
-			t.Fatalf("command = %q", command)
+	// fest next auto-delegate is fire-and-forget: mock launch, never spawn.
+	var launchedPayload string
+	withMockedJudgeLaunch(t, func(payloadPath, phaseDir, logPath string) (int, error) {
+		launchedPayload = payloadPath
+		if phaseDir != phasePath {
+			t.Fatalf("phaseDir = %q, want %q", phaseDir, phasePath)
 		}
-		if !strings.Contains(string(stdin), `"document":"GATES.md"`) {
-			t.Fatalf("stdin missing GATES.md document: %s", stdin)
+		if logPath == "" {
+			t.Fatal("expected judge log path")
 		}
-		return []byte(`{"schema_version":"fest.approval.judge/v1","decision":"approve","reason":"phase goal satisfied"}`), nil
+		return 4242, nil
 	})
 
 	gctx := &guidance.GuidanceContext{
@@ -121,8 +123,28 @@ func TestAutoDelegateBlockingCheckpoints_AutoApprovesWhenJudgeConfigured(t *test
 	if err := AutoDelegateBlockingCheckpoints(context.Background(), nav); err != nil {
 		t.Fatalf("AutoDelegateBlockingCheckpoints: %v", err)
 	}
-	// Single-step gate: approve completes the workflow.
-	if !nav.GetWorkflowState().IsComplete() {
-		t.Fatalf("expected gate complete after auto-approve, state=%+v", nav.GetWorkflowState())
+	// Async: checkpoint stays open; durable "running" record for show/watch.
+	state := nav.GetWorkflowState()
+	if state.IsComplete() {
+		t.Fatal("async launch must not complete the gate before the verdict")
+	}
+	if state.CurrentStep != 1 {
+		t.Fatalf("current step = %d, want 1 (still waiting on judge)", state.CurrentStep)
+	}
+	judge := state.GetStepState(1).Judge
+	if judge == nil || judge.Status != wf.JudgeRunning {
+		t.Fatalf("judge state = %+v, want running", judge)
+	}
+	if judge.Pid != 4242 {
+		t.Fatalf("judge pid = %d, want 4242", judge.Pid)
+	}
+	if judge.Command != "fake-judge" {
+		t.Fatalf("judge command = %q, want fake-judge", judge.Command)
+	}
+	if launchedPayload == "" {
+		t.Fatal("expected launchJudgeProcess to be called with a payload path")
+	}
+	if _, err := os.Stat(launchedPayload); err != nil {
+		t.Fatalf("payload file missing: %v", err)
 	}
 }

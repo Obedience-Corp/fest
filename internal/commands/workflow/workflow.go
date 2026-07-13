@@ -78,6 +78,7 @@ Examples:
 		newAdvanceCmd(),
 		newSkipCmd(),
 		newApproveCmd(),
+		newJudgeExecCmd(),
 		newRejectCmd(),
 		newResetCmd(),
 		newShowCmd(),
