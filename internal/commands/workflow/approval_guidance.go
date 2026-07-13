@@ -10,7 +10,11 @@ import (
 )
 
 func approvalRecoveryLines(ctx context.Context, step wf.WorkflowStep) []string {
-	configured, err := approvalJudgeConfigured(ctx)
+	return approvalRecoveryLinesFor(ctx, nil, step)
+}
+
+func approvalRecoveryLinesFor(ctx context.Context, nav *wf.Navigator, step wf.WorkflowStep) []string {
+	configured, err := approvalJudgeConfiguredFor(ctx, nav)
 	if err != nil {
 		return []string{
 			fmt.Sprintf("Approval judge configuration is invalid: %v", err),
@@ -34,12 +38,12 @@ func approvalRecoveryLines(ctx context.Context, step wf.WorkflowStep) []string {
 	}
 }
 
-func approvalRecoveryText(ctx context.Context, step wf.WorkflowStep) string {
-	return strings.Join(approvalRecoveryLines(ctx, step), "\n")
+func approvalRecoveryTextFor(ctx context.Context, nav *wf.Navigator, step wf.WorkflowStep) string {
+	return strings.Join(approvalRecoveryLinesFor(ctx, nav, step), "\n")
 }
 
-func printApprovalRecovery(ctx context.Context, step wf.WorkflowStep) {
-	for _, line := range approvalRecoveryLines(ctx, step) {
+func printApprovalRecoveryFor(ctx context.Context, nav *wf.Navigator, step wf.WorkflowStep) {
+	for _, line := range approvalRecoveryLinesFor(ctx, nav, step) {
 		fmt.Println(line)
 	}
 }

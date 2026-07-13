@@ -110,6 +110,21 @@ func runRejectWithRemediationDecision(ctx context.Context, reason, remediationPh
 			WithHint("Reject is only for checkpoint steps")
 	}
 
+	return withJudgeStepLock(ctx, nav.Ctx.PhasePath, currentStepNum, func() error {
+		fresh, err := reloadWorkflowNavigator(ctx, nav)
+		if err != nil {
+			return err
+		}
+		if fresh.GetWorkflowState().CurrentStep != currentStepNum {
+			return festerrors.Validation("checkpoint changed before rejection").
+				WithField("expected_step", currentStepNum).
+				WithField("current_step", fresh.GetWorkflowState().CurrentStep)
+		}
+		return applyRejectDecision(ctx, fresh, currentStepNum, step, reason, remediationPhase, decision)
+	})
+}
+
+func applyRejectDecision(ctx context.Context, nav *wf.Navigator, currentStepNum int, step wf.WorkflowStep, reason, remediationPhase string, decision wf.DecisionMetadata) error {
 	if remediationPhase != "" {
 		if !nav.IsGate() {
 			return festerrors.Validation("--remediation-phase is only valid for phase gates").
@@ -143,7 +158,7 @@ func runRejectWithRemediationDecision(ctx context.Context, reason, remediationPh
 		fmt.Printf("  %s: %s\n", ui.Label("Summary"), decision.Summary)
 	}
 	fmt.Println("The step is now blocked. Address the feedback and revise the work.")
-	printApprovalRecovery(ctx, step)
+	printApprovalRecoveryFor(ctx, nav, step)
 
 	return nil
 }

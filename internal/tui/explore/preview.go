@@ -5,7 +5,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/charmbracelet/glamour"
+	"github.com/charmbracelet/glamour/styles"
 )
 
 // mdRenderer caches a glamour renderer and its configured width.
@@ -26,8 +28,12 @@ func (r *mdRenderer) render(content string, width int) string {
 	}
 
 	if r.renderer == nil || r.width != width {
+		styleConfig := styles.DarkStyleConfig
+		if ui.MarkdownStyle() == "light" {
+			styleConfig = styles.LightStyleConfig
+		}
 		renderer, err := glamour.NewTermRenderer(
-			glamour.WithAutoStyle(),
+			glamour.WithStyles(styleConfig),
 			glamour.WithWordWrap(width-4),
 		)
 		if err != nil {

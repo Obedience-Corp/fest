@@ -76,4 +76,5 @@ ln -s /outside/presentation.md "` + phasePath + `/output_specs/PRESENTATION.md"
 	)
 	require.Error(t, err, "out-of-phase evidence symlink must fail readiness")
 	require.Contains(t, strings.ToLower(output), "escapes the phase directory")
+	require.NotContains(t, output, "Judge launched", "readiness must fail before detached judge launch")
 }

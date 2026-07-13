@@ -71,7 +71,14 @@ func runReset(ctx context.Context, force bool) error {
 		}
 	}
 
-	if err := nav.Reset(ctx); err != nil {
+	currentStep := state.CurrentStep
+	if err := withJudgeStepLock(ctx, nav.Ctx.PhasePath, currentStep, func() error {
+		fresh, err := reloadWorkflowNavigator(ctx, nav)
+		if err != nil {
+			return err
+		}
+		return fresh.Reset(ctx)
+	}); err != nil {
 		return fmt.Errorf("resetting workflow: %w", err)
 	}
 

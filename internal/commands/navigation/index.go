@@ -19,12 +19,12 @@ func NewIndexCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "index",
 		Short: "Manage festival indices",
-		Long: `Generate and validate festival indices for Guild integration.
+		Long: `Generate and validate festival indices.
 
 The index file (.festival/index.json) provides a machine-readable representation
 of the festival structure, including phases, sequences, and tasks.
 
-For workspace-wide indexing (Guild v3), use the 'tree' subcommand.`,
+For workspace-wide indexing, use the 'tree' subcommand.`,
 	}
 
 	cmd.AddCommand(newIndexWriteCommand())
@@ -259,7 +259,7 @@ func newIndexTreeCommand() *cobra.Command {
 		Long: `Generate a tree index of all festivals in the workspace.
 
 The tree index groups festivals by status (planning, active, completed, dungeon)
-and provides a complete hierarchical view for Guild v3 integration.`,
+and provides a complete hierarchical view for external tool integration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cwd, err := os.Getwd()
 			if err != nil {

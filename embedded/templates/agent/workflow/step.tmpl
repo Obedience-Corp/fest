@@ -61,7 +61,7 @@ Address the feedback and try again.
 {{else if .IsBlocking}}
 When work is complete, submit for review:
   fest workflow advance
-{{if .JudgeConfigured}}
+{{if and .JudgeConfigured (not .OperatorAttestation)}}
 This checkpoint is delegated to the operator-configured approval judge. After
 advancing, run:
   fest workflow approve --auto

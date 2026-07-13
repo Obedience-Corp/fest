@@ -50,6 +50,8 @@ type WorkflowEvent struct {
 	JudgeStatus      string
 	JudgeCommand     string
 	JudgeDetail      string
+	JudgePid         int
+	JudgeRunID       string
 }
 
 // DecisionMetadata records who made a checkpoint decision and the rationale.
@@ -64,6 +66,7 @@ const (
 	JudgeApproved = "approved"
 	JudgeRejected = "rejected"
 	JudgeFailed   = "failed"
+	JudgeCanceled = "canceled"
 )
 
 // JudgeState tracks the lifecycle of a delegated approval judge run for a
@@ -83,6 +86,14 @@ type JudgeState struct {
 
 	// StartedAt is when the judge command was invoked.
 	StartedAt *time.Time `yaml:"started_at,omitempty" json:"started_at,omitempty"`
+
+	// Pid is the process id of the detached judge runner, used to detect a
+	// stale running record after a crash so the judge can be relaunched.
+	Pid int `yaml:"pid,omitempty" json:"pid,omitempty"`
+
+	// RunID uniquely identifies one delegated evaluation. Detached runners
+	// must still own this ID before they may update or decide the checkpoint.
+	RunID string `yaml:"run_id,omitempty" json:"run_id,omitempty"`
 
 	// FinishedAt is when the judge outcome was recorded.
 	FinishedAt *time.Time `yaml:"finished_at,omitempty" json:"finished_at,omitempty"`
@@ -338,20 +349,50 @@ func (s *WorkflowState) StartCurrentStep() {
 	}
 }
 
-// BeginJudge records a delegated judge run starting on the current step.
-func (s *WorkflowState) BeginJudge(command string, at time.Time) {
-	state := s.GetOrCreateStepState(s.CurrentStep)
+// BeginJudge records a delegated judge run starting on a step.
+func (s *WorkflowState) BeginJudge(step int, command, runID string, pid int, at time.Time) {
+	state := s.GetOrCreateStepState(step)
 	started := at
 	state.Judge = &JudgeState{
 		Status:    JudgeRunning,
 		Command:   command,
 		StartedAt: &started,
+		Pid:       pid,
+		RunID:     runID,
 	}
 }
 
-// RecordJudgeOutcome records how the current step's judge run ended.
-func (s *WorkflowState) RecordJudgeOutcome(status, detail string, at time.Time) {
-	state := s.GetOrCreateStepState(s.CurrentStep)
+// ClaimJudge records the detached runner PID only while the supplied run still
+// owns the checkpoint. Repeating the same claim is idempotent.
+func (s *WorkflowState) ClaimJudge(step int, runID string, pid int) bool {
+	state := s.GetStepState(step)
+	if state == nil || state.Judge == nil || state.Judge.Status != JudgeRunning ||
+		state.Judge.RunID != runID {
+		return false
+	}
+	if state.Judge.Pid != 0 && state.Judge.Pid != pid {
+		return false
+	}
+	state.Judge.Pid = pid
+	return true
+}
+
+// JudgeOwned reports whether a running judge still owns the current decision.
+func (s *WorkflowState) JudgeOwned(step int, runID string) bool {
+	state := s.GetStepState(step)
+	return state != nil && state.Judge != nil && state.Judge.Status == JudgeRunning &&
+		state.Judge.RunID == runID && s.CurrentStep == step &&
+		(state.Status == StepStatusPending || state.Status == StepStatusInProgress)
+}
+
+// RecordJudgeOutcome records how an owned judge run ended. It returns false
+// without changing state when a manual decision, reset, or newer run has
+// superseded the caller.
+func (s *WorkflowState) RecordJudgeOutcome(step int, runID, status, detail string, at time.Time) bool {
+	if runID != "" && !s.JudgeOwned(step, runID) {
+		return false
+	}
+	state := s.GetOrCreateStepState(step)
 	if state.Judge == nil {
 		state.Judge = &JudgeState{}
 	}
@@ -359,6 +400,7 @@ func (s *WorkflowState) RecordJudgeOutcome(status, detail string, at time.Time) 
 	state.Judge.Status = status
 	state.Judge.Detail = detail
 	state.Judge.FinishedAt = &finished
+	return true
 }
 
 // CompleteCurrentStep marks the current step as completed.
@@ -405,6 +447,7 @@ func (s *WorkflowState) ApproveWithDecision(decision DecisionMetadata) error {
 // ApproveWithAudit approves a blocking checkpoint, recording durable audit
 // text and decision metadata, then advances to the next step.
 func (s *WorkflowState) ApproveWithAudit(feedback string, decision DecisionMetadata) error {
+	s.cancelCurrentJudge("superseded by manual approval")
 	s.MarkCurrentStep(StepStatusCompleted, feedback)
 	s.recordDecision(s.CurrentStep, decision)
 	if s.CurrentStep < s.TotalSteps {
@@ -421,6 +464,7 @@ func (s *WorkflowState) Reject(feedback string) {
 // RejectWithDecision rejects the current step with feedback and decision metadata.
 func (s *WorkflowState) RejectWithDecision(feedback string, decision DecisionMetadata) {
 	state := s.GetOrCreateStepState(s.CurrentStep)
+	s.cancelCurrentJudge("superseded by manual rejection")
 	state.Status = StepStatusBlocked
 	state.Feedback = feedback
 	state.RemediationPhase = ""
@@ -438,10 +482,22 @@ func (s *WorkflowState) RejectWithRemediation(feedback, remediationPhase string)
 // RejectWithRemediationDecision records a non-passing gate decision with metadata.
 func (s *WorkflowState) RejectWithRemediationDecision(feedback, remediationPhase string, decision DecisionMetadata) {
 	state := s.GetOrCreateStepState(s.CurrentStep)
+	s.cancelCurrentJudge("superseded by manual remediation decision")
 	state.Status = StepStatusFailedRemediation
 	state.Feedback = feedback
 	state.RemediationPhase = remediationPhase
 	s.recordDecision(s.CurrentStep, decision)
+}
+
+func (s *WorkflowState) cancelCurrentJudge(detail string) {
+	state := s.GetOrCreateStepState(s.CurrentStep)
+	if state.Judge == nil || state.Judge.Status != JudgeRunning {
+		return
+	}
+	now := time.Now().UTC()
+	state.Judge.Status = JudgeCanceled
+	state.Judge.Detail = detail
+	state.Judge.FinishedAt = &now
 }
 
 func (s *WorkflowState) recordDecision(step int, decision DecisionMetadata) {
@@ -656,25 +712,40 @@ func EmitResetEvents(phaseName string) []WorkflowEvent {
 
 // EmitJudgeStartedEvents generates events for a delegated judge run starting
 // on a blocking checkpoint.
-func EmitJudgeStartedEvents(phaseName string, step int, command string) []WorkflowEvent {
+func EmitJudgeStartedEvents(phaseName string, step int, command, runID string, pid int) []WorkflowEvent {
 	return []WorkflowEvent{{
 		EventType:    "wf_judge_started",
 		Phase:        phaseName,
 		Step:         step,
 		JudgeStatus:  JudgeRunning,
 		JudgeCommand: command,
+		JudgePid:     pid,
+		JudgeRunID:   runID,
+	}}
+}
+
+// EmitJudgeClaimedEvents binds a durable judge lease to the detached process
+// that may evaluate it.
+func EmitJudgeClaimedEvents(phaseName string, step int, runID string, pid int) []WorkflowEvent {
+	return []WorkflowEvent{{
+		EventType:  "wf_judge_claimed",
+		Phase:      phaseName,
+		Step:       step,
+		JudgePid:   pid,
+		JudgeRunID: runID,
 	}}
 }
 
 // EmitJudgeReturnedEvents generates events recording how a delegated judge
 // run ended: approved, rejected, or failed (timeout, missing command,
 // malformed verdict).
-func EmitJudgeReturnedEvents(phaseName string, step int, status, detail string) []WorkflowEvent {
+func EmitJudgeReturnedEvents(phaseName string, step int, runID, status, detail string) []WorkflowEvent {
 	return []WorkflowEvent{{
 		EventType:   "wf_judge_returned",
 		Phase:       phaseName,
 		Step:        step,
 		JudgeStatus: status,
 		JudgeDetail: detail,
+		JudgeRunID:  runID,
 	}}
 }

@@ -48,6 +48,10 @@ const (
 	// was invoked on a blocking checkpoint via 'fest workflow approve --auto'.
 	EventWorkflowJudgeStarted EventType = "wf_judge_started"
 
+	// EventWorkflowJudgeClaimed binds a started judge run to the detached PID
+	// that is allowed to evaluate it.
+	EventWorkflowJudgeClaimed EventType = "wf_judge_claimed"
+
 	// EventWorkflowJudgeReturned records how a delegated judge run ended:
 	// approved, rejected, or failed (timeout, missing command, bad verdict).
 	EventWorkflowJudgeReturned EventType = "wf_judge_returned"
@@ -77,6 +81,8 @@ type ProgressEvent struct {
 	JudgeStatus      string `json:"judge_status,omitempty"`
 	JudgeCommand     string `json:"judge_command,omitempty"`
 	JudgeDetail      string `json:"judge_detail,omitempty"`
+	JudgePid         int    `json:"judge_pid,omitempty"`
+	JudgeRunID       string `json:"judge_run_id,omitempty"`
 }
 
 // loadFromEvents reads the JSONL file and materializes current state.
@@ -412,12 +418,27 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 				Status:    wf.JudgeRunning,
 				Command:   e.JudgeCommand,
 				StartedAt: &ts,
+				Pid:       e.JudgePid,
+				RunID:     e.JudgeRunID,
+			}
+
+		case EventWorkflowJudgeClaimed:
+			ss := phaseState.GetOrCreateStepState(e.Step)
+			if ss.Judge != nil && ss.Judge.Status == wf.JudgeRunning &&
+				ss.Judge.RunID == e.JudgeRunID {
+				ss.Judge.Pid = e.JudgePid
 			}
 
 		case EventWorkflowJudgeReturned:
 			ss := phaseState.GetOrCreateStepState(e.Step)
 			if ss.Judge == nil {
 				ss.Judge = &wf.JudgeState{}
+			}
+			// Run IDs make late events from superseded detached processes inert.
+			// Empty IDs remain compatible with events written before leases existed.
+			if e.JudgeRunID != "" && (ss.Judge.Status != wf.JudgeRunning ||
+				ss.Judge.RunID != e.JudgeRunID) {
+				continue
 			}
 			ts := e.Timestamp
 			ss.Judge.Status = e.JudgeStatus

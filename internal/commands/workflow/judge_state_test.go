@@ -26,8 +26,12 @@ func TestRunApproveAuto_RecordsJudgeLifecycle(t *testing.T) {
 		return []byte(`{"schema_version":"fest.approval.judge/v1","decision":"approve","reason":"evidence complete"}`), nil
 	}))
 
+	// Wait:true exercises the in-process path with a mocked judge runner.
+	// Default async launch must never run under go test (see launchJudgeProcessDefault).
 	_ = captureStdout(t, func() {
-		if err := runApproveAuto(ctx, nav, 2, steps[1], approvalJudgeOptions{JudgeCommand: "fake judge", Timeout: time.Second}); err != nil {
+		if err := runApproveAuto(ctx, nav, 2, steps[1], approvalJudgeOptions{
+			JudgeCommand: "fake judge", Timeout: time.Second, Wait: true,
+		}); err != nil {
 			t.Fatalf("runApproveAuto: %v", err)
 		}
 	})
@@ -70,7 +74,9 @@ func TestRunApproveAuto_JudgeFailureLeavesDurableTrace(t *testing.T) {
 		return nil, festerrors.Validation("judge exploded")
 	}))
 
-	err := runApproveAuto(ctx, nav, 2, steps[1], approvalJudgeOptions{JudgeCommand: "fake judge", Timeout: time.Second})
+	err := runApproveAuto(ctx, nav, 2, steps[1], approvalJudgeOptions{
+		JudgeCommand: "fake judge", Timeout: time.Second, Wait: true,
+	})
 	if err == nil {
 		t.Fatal("runApproveAuto should fail when the judge fails")
 	}

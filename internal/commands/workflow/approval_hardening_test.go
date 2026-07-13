@@ -170,22 +170,36 @@ func TestResolveManualApprovalDecision_JudgeConfiguredRequiresTTY(t *testing.T) 
 	}
 }
 
-func TestResolveManualApprovalDecision_PriorJudgeRejectRequiresTTYWithoutHook(t *testing.T) {
+func TestResolveManualApprovalDecision_DurableJudgeRejectRequiresTTYWithoutHook(t *testing.T) {
 	orig := stdinIsInteractiveFn
 	stdinIsInteractiveFn = func() bool { return false }
 	t.Cleanup(func() { stdinIsInteractiveFn = orig })
 
-	blocked := &wf.StepState{
-		Status:        wf.StepStatusBlocked,
-		DecisionActor: decisionActorAgent,
-		Judge:         &wf.JudgeState{Status: wf.JudgeRejected},
+	tests := []struct {
+		name    string
+		command string
+	}{
+		{name: "one-off judge command", command: "custom-judge --strict"},
+		{name: "workspace hook removed after rejection", command: "ob judge"},
 	}
-	_, err := resolveManualApprovalDecision(
-		wf.DecisionMetadata{Actor: decisionActorUser},
-		false, false, false, blocked, 4, "PRESENT",
-	)
-	if err == nil || !strings.Contains(err.Error(), "interactive operator TTY") {
-		t.Fatalf("prior reject without current hook must remain protected: %v", err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			blocked := &wf.StepState{
+				Status:        wf.StepStatusBlocked,
+				DecisionActor: decisionActorAgent,
+				Judge: &wf.JudgeState{
+					Status:  wf.JudgeRejected,
+					Command: tt.command,
+				},
+			}
+			_, err := resolveManualApprovalDecision(
+				wf.DecisionMetadata{Actor: decisionActorUser},
+				false, false, false, blocked, 4, "PRESENT",
+			)
+			if err == nil || !strings.Contains(err.Error(), "interactive operator TTY") {
+				t.Fatalf("durable reject without current hook must remain protected: %v", err)
+			}
+		})
 	}
 }
 

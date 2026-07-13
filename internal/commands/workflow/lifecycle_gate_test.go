@@ -19,9 +19,7 @@ func TestWorkflowGate_BlocksImplPhaseInPlanningFestival(t *testing.T) {
 	festDir := setupImplWorkflowFestival(t, "planning")
 	ctx := scope.WithFestival(context.Background(), festDir)
 	t.Setenv("PWD", festDir)
-	if err := os.Chdir(festDir); err != nil {
-		t.Fatalf("chdir festival: %v", err)
-	}
+	t.Chdir(festDir)
 
 	cases := []struct {
 		name string
@@ -48,9 +46,7 @@ func TestWorkflowGate_BlocksImplPhaseInPlanningFestival(t *testing.T) {
 func TestWorkflowGate_AllowsImplPhaseInActiveFestival(t *testing.T) {
 	festDir := setupImplWorkflowFestival(t, "active")
 	ctx := scope.WithFestival(context.Background(), festDir)
-	if err := os.Chdir(festDir); err != nil {
-		t.Fatalf("chdir festival: %v", err)
-	}
+	t.Chdir(festDir)
 
 	// runAdvance against an empty workflow state should not be blocked by
 	// the lifecycle gate. (It may fail later for other reasons; we only

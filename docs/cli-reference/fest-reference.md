@@ -2131,12 +2131,12 @@ Manage festival indices
 
 ### Synopsis
 
-Generate and validate festival indices for Guild integration.
+Generate and validate festival indices.
 
 The index file (.festival/index.json) provides a machine-readable representation
 of the festival structure, including phases, sequences, and tasks.
 
-For workspace-wide indexing (Guild v3), use the 'tree' subcommand.
+For workspace-wide indexing, use the 'tree' subcommand.
 
 ### Options
 
@@ -2225,7 +2225,7 @@ Generate workspace-wide tree index
 Generate a tree index of all festivals in the workspace.
 
 The tree index groups festivals by status (planning, active, completed, dungeon)
-and provides a complete hierarchical view for Guild v3 integration.
+and provides a complete hierarchical view for external tool integration.
 
 ```
 fest index tree [flags]
@@ -2716,6 +2716,9 @@ dungeon, dungeon/completed, dungeon/archived, dungeon/someday
 By default, shows active, ready, planning, and ritual festivals.
 Use 'fest list all' (or --all) to include completed and dungeon festivals.
 
+Use --watch to continuously refresh the multi-festival status board in place
+(similar to fest watch, but without cycling between festivals). Ctrl+C to quit.
+
 ```
 fest list [status] [flags]
 ```
@@ -2731,6 +2734,8 @@ fest list [status] [flags]
   fest list active --sort progress                 # Active festivals, most complete first
   fest list --since 2026-01-01 --until 2026-02-01  # Created in January 2026
   fest list --json                                 # Output in JSON format
+  fest list --watch                                # Live multi-festival status board
+  fest list active --watch                         # Watch only active festivals
 ```
 
 ### Options
@@ -2746,6 +2751,7 @@ fest list [status] [flags]
       --sort string             sort by: date|status|progress|name|created|updated
       --status string           filter by status: active|planning|completed|dungeon
       --until string            show festivals created on or before this date (YYYY-MM-DD or RFC3339)
+  -w, --watch                   continuously refresh the list in place until Ctrl+C
 ```
 
 ### Options inherited from parent commands
@@ -3309,7 +3315,7 @@ Parse festival documents into structured output
 Parse festival documents into structured JSON or YAML output.
 
 This command walks the festival hierarchy and produces structured output
-suitable for external tool integration (e.g., Guild v3, visualization tools).
+suitable for external tool integration (e.g. visualization tools, editors).
 
 Examples:
 ```bash
@@ -6900,12 +6906,29 @@ After approval:
   - The workflow advances to the next step
 
 Auto approval:
-  Manual approval is the default. Use --auto only when an operator has explicitly
-  delegated this checkpoint decision to an external judge command.
+  Configuring hooks.approval_judge.command is the operator opt-in that
+  delegates blocking checkpoints away from human review. With that hook set,
+```bash
+  fest next auto-invokes the judge on blocking WORKFLOW.md / GATES.md steps.
 
-  Agents must not clear checkpoints themselves: --as agent is rejected. An
-  agent-actor decision is recorded only when the operator delegates via --auto
-  and the judge returns a verdict.
+  Use --auto to re-run the judge explicitly (for example after a reject or a
+  failed judge invocation). Agents must not clear checkpoints with --as agent;
+  agent-actor decisions are recorded only via the judge path.
+
+  Checkpoint classes:
+    artifact_review         — deliverables can be auto-judged when evidence is ready
+    operator_attestation    — human must approve; --auto is refused and plain
+                              manual approval requires an interactive TTY
+
+  Presentation-like steps require non-empty evidence (e.g. output_specs/PRESENTATION.md)
+  before the judge is invoked. Missing evidence blocks deterministically without a model call.
+
+  After a judge reject, re-submit with: fest workflow approve --auto
+  Operator override (interactive TTY, or --override-judge --summary "..."):
+  records decision_actor=user_override.
+
+  When an approval judge is configured, non-interactive manual approve is refused
+  so agents cannot mint decision_actor=user. Use a real terminal and type APPROVE.
 
   The judge command receives JSON on stdin using schema fest.approval.judge/v1
   and must return JSON on stdout with decision "approve" or "reject" and a
@@ -6920,6 +6943,12 @@ Auto approval:
         approval_judge:
           command: ob judge
 
+  By default --auto launches the judge in the background and returns
+  immediately; the checkpoint stays blocked until the verdict lands, and
+  'fest show' renders the waiting-on-judge state while it runs. Use --wait
+  to block until the judge returns instead.
+```
+
 ```
 fest workflow approve [flags]
 ```
@@ -6931,7 +6960,9 @@ fest workflow approve [flags]
   -h, --help                     help for approve
       --judge-command string     approval judge command for --auto (overrides the .festival/config.yaml hooks.approval_judge.command hook)
       --judge-timeout duration   maximum time to wait for the approval judge (0 waits until it returns)
-      --summary string           approval summary or rationale
+      --override-judge           operator override of a judge/readiness reject (requires --summary; for non-interactive use)
+      --summary string           approval summary or rationale (required with --override-judge)
+      --wait                     block until the judge returns instead of launching it in the background
 ```
 
 ### Options inherited from parent commands
@@ -7331,6 +7362,9 @@ Shows:
   - Remaining steps
   - Checkpoint status if applicable
 
+Use --json for a stable machine-readable snapshot (schema fest.workflow.status/v1)
+that consumers can read without parsing the human-readable output.
+
 ```
 fest workflow status [flags]
 ```
@@ -7339,6 +7373,7 @@ fest workflow status [flags]
 
 ```
   -h, --help   help for status
+      --json   output as JSON
 ```
 
 ### Options inherited from parent commands

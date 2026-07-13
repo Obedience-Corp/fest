@@ -61,11 +61,18 @@ Common commands:
 Approval Auto Mode
 ------------------
 
-Manual approval is the default. `fest workflow approve --auto` is an explicit
-operator delegation to an external judge command, not an inferred agent
-permission. There is no default judge command: configure one with the
-`hooks.approval_judge.command` hook in `.festival/config.yaml` or pass
-`--judge-command`; otherwise `--auto` fails closed.
+Configuring `hooks.approval_judge.command` in `.festival/config.yaml` is the
+operator opt-in that delegates blocking checkpoints (WORKFLOW.md and GATES.md)
+away from human pings.
+
+When that hook is set:
+
+  • `fest next` auto-invokes the judge on each consecutive blocking checkpoint
+    and continues after approve (or stops after reject / fail-closed errors).
+  • `fest workflow approve --auto` remains available for an explicit re-run.
+
+There is no default judge command: without the hook (or `--judge-command`),
+approval stays manual and fails closed for `--auto`.
 
 The judge command receives JSON on stdin using schema
 `fest.approval.judge/v1` and must return JSON on stdout with decision
