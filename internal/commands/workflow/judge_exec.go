@@ -316,6 +316,36 @@ func runJudgeExec(ctx context.Context, payloadPath string) error {
 		return err
 	}
 	step := steps[payload.StepNumber-1]
+	if err := checkAutoJudgePreflight(nav.Ctx.PhasePath, step); err != nil {
+		reason := formatReadinessBlockReason(err)
+		applied := false
+		recordErr := withJudgeStepLock(ctx, nav.Ctx.PhasePath, payload.StepNumber, func() error {
+			fresh, reloadErr := reloadWorkflowNavigator(ctx, nav)
+			if reloadErr != nil {
+				return reloadErr
+			}
+			decision := &approvalJudgeResponse{Decision: "reject", Reason: reason}
+			var applyErr error
+			applied, applyErr = applyApproveAutoVerdict(
+				ctx,
+				fresh,
+				payload.StepNumber,
+				step,
+				payload.RunID,
+				decision,
+				"detached approval judge preflight rejected: "+reason,
+			)
+			return applyErr
+		})
+		if recordErr != nil {
+			return recordErr
+		}
+		if !applied {
+			return nil
+		}
+		return festerrors.Validation(reason).
+			WithHint("the judge was not invoked; fix the checkpoint class or evidence before resubmitting")
+	}
 
 	decision, audit, err := judgeApproval(ctx, nav, step, opts)
 	if err != nil {

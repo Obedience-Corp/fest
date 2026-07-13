@@ -478,6 +478,13 @@ func prepareAutoJudgeReadiness(ctx context.Context, nav *wf.Navigator, currentSt
 	return nil
 }
 
+func checkAutoJudgePreflight(phasePath string, step wf.WorkflowStep) error {
+	if err := checkAutoJudgeAllowed(step); err != nil {
+		return err
+	}
+	return checkApprovalReadiness(phasePath, step)
+}
+
 func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, step wf.WorkflowStep, opts approvalJudgeOptions) error {
 	if !opts.Wait {
 		return launchApproveAuto(ctx, nav, currentStepNum, step, opts)
@@ -500,12 +507,12 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 			return festerrors.Validation("checkpoint changed before approval judge started")
 		}
 		step = freshSteps[currentStepNum-1]
-		if err := prepareAutoJudgeReadiness(ctx, fresh, currentStepNum, step); err != nil {
-			return err
-		}
 		if ss := fresh.GetWorkflowState().GetStepState(currentStepNum); ss != nil && ss.Judge != nil &&
 			ss.Judge.Status == wf.JudgeRunning && judgeLeaseActive(ss.Judge) {
 			return judgeAlreadyRunningError(ss.Judge)
+		}
+		if err := prepareAutoJudgeReadiness(ctx, fresh, currentStepNum, step); err != nil {
+			return err
 		}
 		if err := fresh.BeginJudge(ctx, currentStepNum, opts.JudgeCommand, runID, os.Getpid()); err != nil {
 			return festerrors.Wrap(err, "recording judge start")
