@@ -4,12 +4,12 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
@@ -182,27 +182,14 @@ func withJudgeStepLock(ctx context.Context, phasePath string, step int, fn func(
 		return festerrors.IO("creating judge lock directory", err).WithField("path", lockDir)
 	}
 	lockPath := filepath.Join(lockDir, fmt.Sprintf("judge-step-%d.lock", step))
-	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o600)
+	release, err := acquireJudgeStepLock(ctx, lockPath)
 	if err != nil {
-		return festerrors.IO("opening judge step lock", err).WithField("path", lockPath)
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return festerrors.Wrap(err, "waiting for judge step lock").WithField("path", lockPath)
+		}
+		return festerrors.IO("acquiring judge step lock", err).WithField("path", lockPath)
 	}
-	defer func() { _ = lockFile.Close() }()
-
-	for {
-		err = syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
-		if err == nil {
-			break
-		}
-		if err != syscall.EWOULDBLOCK && err != syscall.EAGAIN {
-			return festerrors.IO("acquiring judge step lock", err).WithField("path", lockPath)
-		}
-		select {
-		case <-ctx.Done():
-			return festerrors.Wrap(ctx.Err(), "waiting for judge step lock")
-		case <-time.After(judgeLockPoll):
-		}
-	}
-	defer func() { _ = syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN) }()
+	defer release()
 	return fn()
 }
 
@@ -215,11 +202,12 @@ func launchJudgeProcessDefault(payloadPath, phaseDir, logPath string) (int, erro
 	// them with "workflow judge-exec ..." does NOT run the hidden command —
 	// it re-enters the test harness, re-runs every Test*, and each auto-approve
 	// test detaches another child → process storm / machine freeze.
-	// Tests must mock launchJudgeProcess; production always uses the fest binary.
+	// Host tests exercise this refusal only; real launches run in the container
+	// integration harness. Production always uses the fest binary.
 	if looksLikeGoTestBinary(exe) {
 		return 0, festerrors.Validation("refusing to detach judge-exec from a go test binary").
 			WithField("executable", exe).
-			WithHint("tests must mock launchJudgeProcess; never call the default launcher under go test")
+			WithHint("real judge launches must run in the container integration harness, never under go test")
 	}
 
 	logFile, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
@@ -232,8 +220,7 @@ func launchJudgeProcessDefault(payloadPath, phaseDir, logPath string) (int, erro
 	cmd.Dir = phaseDir
 	cmd.Stdout = logFile
 	cmd.Stderr = logFile
-	// New session so the runner outlives the parent fest process (fire-and-forget).
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	configureDetachedJudgeProcess(cmd)
 	if err := cmd.Start(); err != nil {
 		return 0, festerrors.Wrap(err, "starting judge runner")
 	}
@@ -249,20 +236,6 @@ func launchJudgeProcessDefault(payloadPath, phaseDir, logPath string) (int, erro
 func looksLikeGoTestBinary(exe string) bool {
 	base := filepath.Base(exe)
 	return strings.HasSuffix(base, ".test") || strings.HasSuffix(base, ".test.exe")
-}
-
-// judgeProcessAlive reports whether the recorded judge runner pid is still
-// running, so a stale running record from a crashed runner does not block
-// relaunching the judge forever.
-func judgeProcessAlive(pid int) bool {
-	if pid <= 0 {
-		return false
-	}
-	proc, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	return proc.Signal(syscall.Signal(0)) == nil
 }
 
 func newJudgeExecCmd() *cobra.Command {
