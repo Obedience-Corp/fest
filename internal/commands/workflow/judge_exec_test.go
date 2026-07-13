@@ -1,5 +1,17 @@
 package workflow
 
+// Host unit tests for the async judge path.
+//
+// RULE: never call launchJudgeProcessDefault in a way that can re-exec a real
+// fest binary or leave detached children on the host. The only allowed use of
+// the default launcher under go test is the refusal test
+// (TestLaunchJudgeProcessDefault_RefusesGoTestBinary), which asserts that
+// go-test binaries are rejected before Start.
+//
+// Real process launch, Setsid detach, judge-exec re-exec, waiting-on-judge
+// visibility while a child is alive, and orphan cleanup belong in
+// tests/integration/async_judge_test.go (container harness).
+
 import (
 	"context"
 	"encoding/json"
@@ -14,9 +26,12 @@ import (
 
 // withMockedJudgeLaunch installs a fake launchJudgeProcess for the duration of
 // the test. Production code must never detach under go test — this is the
-// only safe way to exercise the async --auto path in unit tests.
+// only safe way to exercise the async --auto path in unit tests on the host.
 func withMockedJudgeLaunch(t *testing.T, fn func(payloadPath, phaseDir, logPath string) (int, error)) {
 	t.Helper()
+	if fn == nil {
+		t.Fatal("withMockedJudgeLaunch requires a mock; real launches must use the container integration harness")
+	}
 	orig := launchJudgeProcess
 	launchJudgeProcess = fn
 	t.Cleanup(func() { launchJudgeProcess = orig })

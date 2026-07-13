@@ -1,5 +1,8 @@
 package workflow
 
+// Host unit tests mock launchJudgeProcess. Real fest next → detached judge
+// re-exec coverage lives in tests/integration/async_judge_test.go.
+
 import (
 	"context"
 	"os"
