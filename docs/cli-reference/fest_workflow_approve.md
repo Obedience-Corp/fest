@@ -6,6 +6,10 @@ Approve a blocking checkpoint
 
 Approve a blocking checkpoint and proceed to the next step.
 
+When hooks.approval_judge.command is configured, fest next auto-invokes the
+judge on blocking WORKFLOW.md / GATES.md checkpoints. --auto remains the
+explicit re-run path after a reject or failed judge call.
+
 Some workflow steps require explicit user approval before proceeding.
 This is typically used for review gates or major decision points.
 

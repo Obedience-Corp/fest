@@ -46,10 +46,12 @@ Step {{.StepNumber}}: {{.StepName}}
 {{- if .JudgeConfigured}}
 
 This checkpoint is delegated: the operator configured an approval judge
-(hooks.approval_judge.command).
+(hooks.approval_judge.command). `fest next` auto-invokes the judge when it
+lands on a blocking checkpoint; you should not wait for a human.
 
 **What you should do:**
-1. Run: fest workflow approve --auto
+1. If you are reading this after `fest next` without an auto-verdict, run:
+   fest workflow approve --auto
 2. Wait for it to return. The command blocks until the judge answers and fails
    closed on timeout or judge errors, leaving the checkpoint unchanged.
 3. Approved: run fest next to continue.
