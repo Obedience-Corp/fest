@@ -50,6 +50,7 @@ type WorkflowEvent struct {
 	JudgeStatus      string
 	JudgeCommand     string
 	JudgeDetail      string
+	JudgePid         int
 }
 
 // DecisionMetadata records who made a checkpoint decision and the rationale.
@@ -83,6 +84,10 @@ type JudgeState struct {
 
 	// StartedAt is when the judge command was invoked.
 	StartedAt *time.Time `yaml:"started_at,omitempty" json:"started_at,omitempty"`
+
+	// Pid is the process id of the detached judge runner, used to detect a
+	// stale running record after a crash so the judge can be relaunched.
+	Pid int `yaml:"pid,omitempty" json:"pid,omitempty"`
 
 	// FinishedAt is when the judge outcome was recorded.
 	FinishedAt *time.Time `yaml:"finished_at,omitempty" json:"finished_at,omitempty"`
@@ -338,20 +343,24 @@ func (s *WorkflowState) StartCurrentStep() {
 	}
 }
 
-// BeginJudge records a delegated judge run starting on the current step.
-func (s *WorkflowState) BeginJudge(command string, at time.Time) {
-	state := s.GetOrCreateStepState(s.CurrentStep)
+// BeginJudge records a delegated judge run starting on a step.
+func (s *WorkflowState) BeginJudge(step int, command string, pid int, at time.Time) {
+	state := s.GetOrCreateStepState(step)
 	started := at
 	state.Judge = &JudgeState{
 		Status:    JudgeRunning,
 		Command:   command,
 		StartedAt: &started,
+		Pid:       pid,
 	}
 }
 
-// RecordJudgeOutcome records how the current step's judge run ended.
-func (s *WorkflowState) RecordJudgeOutcome(status, detail string, at time.Time) {
-	state := s.GetOrCreateStepState(s.CurrentStep)
+// RecordJudgeOutcome records how a step's judge run ended. The step is
+// explicit because the detached judge runner may finish after the workflow
+// has moved on; the outcome must land on the step that was judged, never on
+// whatever step is current at completion time.
+func (s *WorkflowState) RecordJudgeOutcome(step int, status, detail string, at time.Time) {
+	state := s.GetOrCreateStepState(step)
 	if state.Judge == nil {
 		state.Judge = &JudgeState{}
 	}
@@ -656,13 +665,14 @@ func EmitResetEvents(phaseName string) []WorkflowEvent {
 
 // EmitJudgeStartedEvents generates events for a delegated judge run starting
 // on a blocking checkpoint.
-func EmitJudgeStartedEvents(phaseName string, step int, command string) []WorkflowEvent {
+func EmitJudgeStartedEvents(phaseName string, step int, command string, pid int) []WorkflowEvent {
 	return []WorkflowEvent{{
 		EventType:    "wf_judge_started",
 		Phase:        phaseName,
 		Step:         step,
 		JudgeStatus:  JudgeRunning,
 		JudgeCommand: command,
+		JudgePid:     pid,
 	}}
 }
 
