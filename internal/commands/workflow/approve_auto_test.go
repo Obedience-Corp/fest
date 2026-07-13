@@ -23,6 +23,13 @@ func withApprovalJudgeRunner(t *testing.T, runner approvalJudgeRunner) {
 	})
 }
 
+// wrap legacy test runners that ignore dir.
+func judgeRunner(fn func(ctx context.Context, command string, stdin []byte) ([]byte, error)) approvalJudgeRunner {
+	return func(ctx context.Context, command string, stdin []byte, dir string) ([]byte, error) {
+		return fn(ctx, command, stdin)
+	}
+}
+
 func testApprovalJudgeRequest() approvalJudgeRequest {
 	return approvalJudgeRequest{
 		SchemaVersion: approvalJudgeSchemaVersion,
@@ -98,7 +105,7 @@ func TestResolveApprovalJudgeCommand(t *testing.T) {
 }
 
 func TestEvaluateApprovalJudge_ApproveDecision(t *testing.T) {
-	withApprovalJudgeRunner(t, func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
+	withApprovalJudgeRunner(t, judgeRunner(func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
 		if command != "fake judge" {
 			t.Fatalf("command = %q", command)
 		}
@@ -106,7 +113,7 @@ func TestEvaluateApprovalJudge_ApproveDecision(t *testing.T) {
 			t.Fatalf("stdin missing schema: %s", stdin)
 		}
 		return []byte(`{"schema_version":"fest.approval.judge/v1","decision":"approve","reason":"evidence satisfies the checklist","confidence":0.92,"followups":[]}`), nil
-	})
+	}))
 
 	decision, audit, err := evaluateApprovalJudge(context.Background(), testApprovalJudgeRequest(), approvalJudgeOptions{
 		JudgeCommand: "fake judge",
@@ -124,9 +131,9 @@ func TestEvaluateApprovalJudge_ApproveDecision(t *testing.T) {
 }
 
 func TestEvaluateApprovalJudge_RejectDecision(t *testing.T) {
-	withApprovalJudgeRunner(t, func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
+	withApprovalJudgeRunner(t, judgeRunner(func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
 		return []byte(`{"schema_version":"fest.approval.judge/v1","decision":"reject","reason":"missing test evidence"}`), nil
-	})
+	}))
 
 	decision, audit, err := evaluateApprovalJudge(context.Background(), testApprovalJudgeRequest(), approvalJudgeOptions{
 		JudgeCommand: "fake judge",
@@ -144,9 +151,9 @@ func TestEvaluateApprovalJudge_RejectDecision(t *testing.T) {
 }
 
 func TestEvaluateApprovalJudge_MissingCommandFailsClosed(t *testing.T) {
-	withApprovalJudgeRunner(t, func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
+	withApprovalJudgeRunner(t, judgeRunner(func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
 		return nil, exec.ErrNotFound
-	})
+	}))
 
 	_, _, err := evaluateApprovalJudge(context.Background(), testApprovalJudgeRequest(), approvalJudgeOptions{
 		JudgeCommand: "ob judge",
@@ -164,10 +171,10 @@ func TestEvaluateApprovalJudge_MissingCommandFailsClosed(t *testing.T) {
 // mid-inference. Zero timeout must mean no deadline on the judge context.
 func TestEvaluateApprovalJudge_ZeroTimeoutMeansNoDeadline(t *testing.T) {
 	var hadDeadline bool
-	withApprovalJudgeRunner(t, func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
+	withApprovalJudgeRunner(t, judgeRunner(func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
 		_, hadDeadline = ctx.Deadline()
 		return []byte(`{"schema_version":"fest.approval.judge/v1","decision":"approve","reason":"ok"}`), nil
-	})
+	}))
 
 	if _, _, err := evaluateApprovalJudge(context.Background(), approvalJudgeRequest{}, approvalJudgeOptions{
 		JudgeCommand: "fake judge",
@@ -180,10 +187,10 @@ func TestEvaluateApprovalJudge_ZeroTimeoutMeansNoDeadline(t *testing.T) {
 }
 
 func TestEvaluateApprovalJudge_TimeoutFailsClosed(t *testing.T) {
-	withApprovalJudgeRunner(t, func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
+	withApprovalJudgeRunner(t, judgeRunner(func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
 		<-ctx.Done()
 		return nil, ctx.Err()
-	})
+	}))
 
 	_, _, err := evaluateApprovalJudge(context.Background(), testApprovalJudgeRequest(), approvalJudgeOptions{
 		JudgeCommand: "slow judge",
@@ -198,9 +205,9 @@ func TestEvaluateApprovalJudge_TimeoutFailsClosed(t *testing.T) {
 }
 
 func TestEvaluateApprovalJudge_MalformedJSONFailsClosed(t *testing.T) {
-	withApprovalJudgeRunner(t, func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
+	withApprovalJudgeRunner(t, judgeRunner(func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
 		return []byte(`not json`), nil
-	})
+	}))
 
 	_, _, err := evaluateApprovalJudge(context.Background(), testApprovalJudgeRequest(), approvalJudgeOptions{
 		JudgeCommand: "fake judge",
@@ -215,9 +222,9 @@ func TestEvaluateApprovalJudge_MalformedJSONFailsClosed(t *testing.T) {
 }
 
 func TestEvaluateApprovalJudge_UnknownDecisionFailsClosed(t *testing.T) {
-	withApprovalJudgeRunner(t, func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
+	withApprovalJudgeRunner(t, judgeRunner(func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
 		return []byte(`{"schema_version":"fest.approval.judge/v1","decision":"maybe","reason":"uncertain"}`), nil
-	})
+	}))
 
 	_, _, err := evaluateApprovalJudge(context.Background(), testApprovalJudgeRequest(), approvalJudgeOptions{
 		JudgeCommand: "fake judge",
@@ -232,9 +239,9 @@ func TestEvaluateApprovalJudge_UnknownDecisionFailsClosed(t *testing.T) {
 }
 
 func TestEvaluateApprovalJudge_EmptyReasonFailsClosed(t *testing.T) {
-	withApprovalJudgeRunner(t, func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
+	withApprovalJudgeRunner(t, judgeRunner(func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
 		return []byte(`{"schema_version":"fest.approval.judge/v1","decision":"approve","reason":" "}`), nil
-	})
+	}))
 
 	_, _, err := evaluateApprovalJudge(context.Background(), testApprovalJudgeRequest(), approvalJudgeOptions{
 		JudgeCommand: "fake judge",
@@ -286,7 +293,7 @@ func TestWorkflowStateApproveWithAuditRecordsAuditAndDecision(t *testing.T) {
 }
 
 func TestRunApprovalJudgeCommandDefaultEmptyCommand(t *testing.T) {
-	_, err := runApprovalJudgeCommandDefault(context.Background(), " ", nil)
+	_, err := runApprovalJudgeCommandDefault(context.Background(), " ", nil, "")
 	if err == nil {
 		t.Fatal("expected empty command error")
 	}
@@ -311,9 +318,9 @@ func TestRunApproveAuto_ApproveAdvancesAndRecordsAudit(t *testing.T) {
 		t.Fatalf("fixture step 2 must be a blocking checkpoint")
 	}
 
-	withApprovalJudgeRunner(t, func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
+	withApprovalJudgeRunner(t, judgeRunner(func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
 		return []byte(`{"schema_version":"fest.approval.judge/v1","decision":"approve","reason":"evidence complete"}`), nil
-	})
+	}))
 
 	// Wait:true = in-process verdict path (mocked runner). Default --auto is async.
 	out := captureStdout(t, func() {
@@ -351,9 +358,9 @@ func TestRunApproveAuto_RejectBlocksStepWithAudit(t *testing.T) {
 	}
 	steps := nav.GetSteps()
 
-	withApprovalJudgeRunner(t, func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
+	withApprovalJudgeRunner(t, judgeRunner(func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
 		return []byte(`{"schema_version":"fest.approval.judge/v1","decision":"reject","reason":"missing acceptance proof"}`), nil
-	})
+	}))
 
 	out := captureStdout(t, func() {
 		if err := runApproveAuto(ctx, nav, 2, steps[1], approvalJudgeOptions{

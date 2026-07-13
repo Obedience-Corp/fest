@@ -99,13 +99,14 @@ func (n *Navigator) formatCheckpoint(ctx context.Context, step WorkflowStep) (st
 		}
 	}
 	data := map[string]any{
-		"InstructionHeader": guidance.InstructionHeader,
-		"StepNumber":        step.Number,
-		"StepName":          step.Name,
-		"Goal":              step.Goal,
-		"Actions":           step.Actions,
-		"JudgeConfigured":   n.approvalJudgeConfigured(ctx),
-		"JudgeWaiting":      judgeWaiting,
+		"InstructionHeader":   guidance.InstructionHeader,
+		"StepNumber":          step.Number,
+		"StepName":            step.Name,
+		"Goal":                step.Goal,
+		"Actions":             step.Actions,
+		"JudgeConfigured":     n.approvalJudgeConfigured(ctx),
+		"JudgeWaiting":        judgeWaiting,
+		"OperatorAttestation": ClassifyCheckpoint(step) == CheckpointClassOperatorAttestation,
 	}
 
 	return agent.Render("workflow/checkpoint", data)
@@ -180,21 +181,22 @@ func (n *Navigator) formatStep(ctx context.Context, step WorkflowStep, stepState
 	}
 
 	data := map[string]any{
-		"InstructionHeader": guidance.InstructionHeader,
-		"PhaseType":         phaseType,
-		"PhaseName":         n.Ctx.PhaseName,
-		"StepNumber":        step.Number,
-		"TotalSteps":        n.workflowState.TotalSteps,
-		"StepName":          step.Name,
-		"Goal":              step.Goal,
-		"Actions":           step.Actions,
-		"Output":            step.Output,
-		"IsBlocking":        step.Checkpoint.IsBlocking(),
-		"Status":            status,
-		"Feedback":          feedback,
-		"CurrentStep":       n.workflowState.CurrentStep,
-		"IsGate":            isGate,
-		"JudgeConfigured":   n.approvalJudgeConfigured(ctx),
+		"InstructionHeader":   guidance.InstructionHeader,
+		"PhaseType":           phaseType,
+		"PhaseName":           n.Ctx.PhaseName,
+		"StepNumber":          step.Number,
+		"TotalSteps":          n.workflowState.TotalSteps,
+		"StepName":            step.Name,
+		"Goal":                step.Goal,
+		"Actions":             step.Actions,
+		"Output":              step.Output,
+		"IsBlocking":          step.Checkpoint.IsBlocking(),
+		"Status":              status,
+		"Feedback":            feedback,
+		"CurrentStep":         n.workflowState.CurrentStep,
+		"IsGate":              isGate,
+		"JudgeConfigured":     n.approvalJudgeConfigured(ctx),
+		"OperatorAttestation": ClassifyCheckpoint(step) == CheckpointClassOperatorAttestation,
 	}
 
 	return agent.Render("workflow/step", data)

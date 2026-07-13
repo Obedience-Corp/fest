@@ -65,6 +65,14 @@ func launchApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum in
 				return festerrors.Wrap(err, "recording stale judge failure")
 			}
 		}
+		freshSteps := fresh.GetSteps()
+		if currentStepNum < 1 || currentStepNum > len(freshSteps) {
+			return festerrors.Validation("checkpoint changed before approval judge launch")
+		}
+		step = freshSteps[currentStepNum-1]
+		if err := prepareAutoJudgeReadiness(ctx, fresh, currentStepNum, step); err != nil {
+			return err
+		}
 
 		runID, err := newJudgeRunID()
 		if err != nil {
@@ -135,7 +143,7 @@ func launchApproveAutoLocked(ctx context.Context, nav *wf.Navigator, currentStep
 	fmt.Println("  The checkpoint stays blocked until the verdict lands.")
 	fmt.Printf("  Watch progress: %s\n", ui.Accent("fest show"))
 	fmt.Printf("  After it returns, run %s — approved continues the workflow;\n", ui.Accent("fest next"))
-	fmt.Printf("  rejected records feedback to address, then %s to resubmit.\n", ui.Accent("fest workflow advance"))
+	fmt.Println("  rejected records feedback and the valid recovery routes to use next.")
 	return nil
 }
 
@@ -275,7 +283,11 @@ func runJudgeExec(ctx context.Context, payloadPath string) error {
 			WithField("payload", payloadPath)
 	}
 
-	opts := approvalJudgeOptions{Auto: true, Wait: true, JudgeCommand: payload.JudgeCommand}
+	opts := approvalJudgeOptions{
+		Auto:         true,
+		Wait:         true,
+		JudgeCommand: payload.JudgeCommand,
+	}
 	if payload.Timeout != "" {
 		timeout, err := time.ParseDuration(payload.Timeout)
 		if err != nil {
@@ -293,6 +305,7 @@ func runJudgeExec(ctx context.Context, payloadPath string) error {
 	if !owned {
 		return nil
 	}
+	opts.WorkDir = nav.Ctx.FestivalPath
 	steps := nav.GetSteps()
 	if payload.StepNumber < 1 || payload.StepNumber > len(steps) {
 		err := festerrors.Validation("judge-exec payload step out of range").
@@ -303,6 +316,36 @@ func runJudgeExec(ctx context.Context, payloadPath string) error {
 		return err
 	}
 	step := steps[payload.StepNumber-1]
+	if err := checkAutoJudgePreflight(nav.Ctx.PhasePath, step); err != nil {
+		reason := formatReadinessBlockReason(err)
+		applied := false
+		recordErr := withJudgeStepLock(ctx, nav.Ctx.PhasePath, payload.StepNumber, func() error {
+			fresh, reloadErr := reloadWorkflowNavigator(ctx, nav)
+			if reloadErr != nil {
+				return reloadErr
+			}
+			decision := &approvalJudgeResponse{Decision: "reject", Reason: reason}
+			var applyErr error
+			applied, applyErr = applyApproveAutoVerdict(
+				ctx,
+				fresh,
+				payload.StepNumber,
+				step,
+				payload.RunID,
+				decision,
+				"detached approval judge preflight rejected: "+reason,
+			)
+			return applyErr
+		})
+		if recordErr != nil {
+			return recordErr
+		}
+		if !applied {
+			return nil
+		}
+		return festerrors.Validation(reason).
+			WithHint("the judge was not invoked; fix the checkpoint class or evidence before resubmitting")
+	}
 
 	decision, audit, err := judgeApproval(ctx, nav, step, opts)
 	if err != nil {

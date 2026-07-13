@@ -210,6 +210,23 @@ func TestAsyncJudge_NextAutoDelegatesFireAndForget(t *testing.T) {
 	assertNoOrphanJudgeExec(t, container)
 }
 
+func TestAsyncJudge_NextLeavesOperatorAttestationForHuman(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+	container := GetSharedContainer(t)
+	setupAsyncJudgeFestivalAtStep(t, container, "instant-approve", true)
+
+	_, err := container.Exec("sh", "-c", "sed -i 's/artifact_review/operator_attestation/' "+asyncJudgePhase+"/WORKFLOW.md")
+	require.NoError(t, err)
+
+	out, nextErr := container.RunFestInDir(asyncJudgePhase, "next")
+	combined := out + errString(nextErr)
+	require.NotContains(t, combined, "Judge launched", combined)
+	require.Contains(t, strings.ToLower(combined), "operator", combined)
+	assertNoOrphanJudgeExec(t, container)
+}
+
 // --- helpers ---
 
 func errString(err error) string {
@@ -238,11 +255,15 @@ func setupAsyncJudgeFestivalAtStep(t *testing.T, container *TestContainer, judge
 
 	judgeCmd := asyncJudgeBinDir + "/" + judgeKind
 	// Advance to checkpoint step when it is step 2.
-	checkpointStep1 := `**Checkpoint:** APPROVAL REQUIRED — Wait for user`
+	checkpointStep1 := `**Checkpoint class:** artifact_review
+
+**Checkpoint:** APPROVAL REQUIRED — Wait for user`
 	checkpointStep2 := `**Checkpoint:** None`
 	if !checkpointFirst {
 		checkpointStep1 = `**Checkpoint:** None`
-		checkpointStep2 = `**Checkpoint:** APPROVAL REQUIRED — Wait for user`
+		checkpointStep2 = `**Checkpoint class:** artifact_review
+
+**Checkpoint:** APPROVAL REQUIRED — Wait for user`
 	}
 
 	script := fmt.Sprintf(`

@@ -196,13 +196,16 @@ func runShow(ctx context.Context, stepNum int) error {
 	if isCurrent {
 		waitingOnJudge := stepState != nil && stepState.Judge != nil &&
 			stepState.Judge.Status == wf.JudgeRunning
-		sb.WriteString(ui.Dim("When complete: "))
+		if step.Checkpoint.IsBlocking() && !waitingOnJudge {
+			sb.WriteString(ui.Dim("Approval routes:\n  "))
+			sb.WriteString(strings.Join(approvalRecoveryLinesFor(ctx, nav, step), "\n  "))
+		} else {
+			sb.WriteString(ui.Dim("When complete: "))
+		}
 		if waitingOnJudge {
 			sb.WriteString(ui.Accent("fest next"))
 			sb.WriteString(ui.Dim(" after the judge returns"))
-		} else if step.Checkpoint.IsBlocking() {
-			sb.WriteString(ui.Accent("fest workflow approve"))
-		} else {
+		} else if !step.Checkpoint.IsBlocking() {
 			sb.WriteString(ui.Accent("fest workflow advance"))
 		}
 		sb.WriteString("\n")

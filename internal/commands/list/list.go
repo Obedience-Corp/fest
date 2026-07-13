@@ -560,4 +560,3 @@ func formatAllHuman(allFestivals map[string][]*show.FestivalInfo, statusOrder []
 	}
 	return show.FormatAllFestivals(allFestivals, statusOrder)
 }
-

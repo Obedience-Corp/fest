@@ -55,14 +55,14 @@ loop.
 2. When the judge returns, run `fest next` again:
    - Approved: the workflow continues.
    - Rejected: address the recorded feedback, then
-     `fest workflow advance` to resubmit.
+     `fest workflow approve --auto` to resubmit.
 3. Do **not** run `fest workflow approve --auto` again while the judge is
    running (duplicate launch is refused).
 
 **Operator commands:**
 - Watch: fest workflow status / fest show
 - Manual override: fest workflow approve / fest workflow reject --reason "..."
-{{- else if .JudgeConfigured}}
+{{- else if and .JudgeConfigured (not .OperatorAttestation)}}
 
 This checkpoint is delegated: the operator configured an approval judge
 (hooks.approval_judge.command). `fest next` auto-invokes the judge when it
@@ -77,7 +77,7 @@ lands on a blocking checkpoint; you should not wait for a human.
    `fest workflow status` / `fest show` render purple waiting-on-judge.
 3. After the judge returns, run fest next:
    - Approved: continue.
-   - Rejected: address the recorded feedback, then fest workflow advance to
+   - Rejected: address the recorded feedback, then fest workflow approve --auto to
      resubmit.
 4. Auto mode fails closed on judge errors (checkpoint unchanged).
 
@@ -98,8 +98,12 @@ This step requires explicit operator confirmation before proceeding.
 **Operator commands:**
 - Approve and continue: fest workflow approve
 - Reject with feedback: fest workflow reject --reason "..."
+{{- if .OperatorAttestation}}
+- This checkpoint requires human attestation and cannot be delegated to a judge.
+{{- else}}
 - Delegate this decision: configure hooks.approval_judge.command, then
   fest workflow approve --auto
+{{- end}}
 {{- end}}
 
 ───────────────────────────────────────────────────────────────────────────────

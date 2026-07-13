@@ -219,14 +219,14 @@ func runAdvance(ctx context.Context) error {
 		if stepState.Feedback != "" {
 			feedback = fmt.Sprintf(": %s", stepState.Feedback)
 		}
-		return fmt.Errorf("step %d is blocked%s\n\nAddress the feedback and try again, or use 'fest workflow reset' to start over", currentStepNum, feedback)
+		return fmt.Errorf("step %d is blocked%s\n\nAddress the feedback, then choose a valid approval route:\n%s\nOr use 'fest workflow reset' to start the phase workflow over", currentStepNum, feedback, approvalRecoveryTextFor(ctx, nav, step))
 	}
 
 	// Check for blocking checkpoint
 	if step.Checkpoint.IsBlocking() {
 		fmt.Printf("%s Step %d: %s — work complete\n", ui.Success("✓"), currentStepNum, step.Name)
-		fmt.Printf("%s CHECKPOINT: Awaiting user approval\n\n", ui.Warning("⚠"))
-		fmt.Println("When ready to approve: " + ui.Accent("fest workflow approve"))
+		fmt.Printf("%s CHECKPOINT: Awaiting approval\n\n", ui.Warning("⚠"))
+		printApprovalRecoveryFor(ctx, nav, step)
 		fmt.Println("To reject with feedback: " + ui.Accent("fest workflow reject --reason \"...\""))
 		return nil
 	}

@@ -4,12 +4,12 @@ Manage festival indices
 
 ### Synopsis
 
-Generate and validate festival indices for Guild integration.
+Generate and validate festival indices.
 
 The index file (.festival/index.json) provides a machine-readable representation
 of the festival structure, including phases, sequences, and tasks.
 
-For workspace-wide indexing (Guild v3), use the 'tree' subcommand.
+For workspace-wide indexing, use the 'tree' subcommand.
 
 ### Options
 

@@ -65,6 +65,39 @@ const (
 	CheckpointVerification CheckpointType = "verification"
 )
 
+// CheckpointClass separates artifact review (auto-judgeable) from operator
+// attestation (human-only). See fest workflow approve --auto hardening.
+type CheckpointClass string
+
+const (
+	// CheckpointClassUnspecified means the class was not set on the step and
+	// should be resolved via ClassifyCheckpoint.
+	CheckpointClassUnspecified CheckpointClass = ""
+
+	// CheckpointClassArtifactReview means deliverables can answer the checkpoint
+	// from packaged evidence; approve --auto is allowed when ready.
+	CheckpointClassArtifactReview CheckpointClass = "artifact_review"
+
+	// CheckpointClassOperatorAttestation means a human must affirm intent or
+	// acceptance; approve --auto is refused.
+	CheckpointClassOperatorAttestation CheckpointClass = "operator_attestation"
+)
+
+// String returns the checkpoint class string.
+func (c CheckpointClass) String() string {
+	return string(c)
+}
+
+// IsValid reports whether c is a known checkpoint class (including empty).
+func (c CheckpointClass) IsValid() bool {
+	switch c {
+	case CheckpointClassUnspecified, CheckpointClassArtifactReview, CheckpointClassOperatorAttestation:
+		return true
+	default:
+		return false
+	}
+}
+
 // String returns the string representation of the checkpoint type.
 func (c CheckpointType) String() string {
 	return string(c)
@@ -104,6 +137,16 @@ type WorkflowStep struct {
 
 	// Checkpoint is the type of checkpoint required (if any).
 	Checkpoint CheckpointType `json:"checkpoint,omitempty" yaml:"checkpoint,omitempty"`
+
+	// CheckpointText is the raw checkpoint line from WORKFLOW.md / GATES.md.
+	CheckpointText string `json:"checkpoint_text,omitempty" yaml:"checkpoint_text,omitempty"`
+
+	// CheckpointClass is the explicit class when annotated on the step.
+	// Empty means resolve via ClassifyCheckpoint.
+	CheckpointClass CheckpointClass `json:"checkpoint_class,omitempty" yaml:"checkpoint_class,omitempty"`
+
+	// EvidencePaths are phase-relative deliverable paths listed under **Evidence:**.
+	EvidencePaths []string `json:"evidence_paths,omitempty" yaml:"evidence_paths,omitempty"`
 }
 
 // HasCheckpoint returns true if this step has a checkpoint.

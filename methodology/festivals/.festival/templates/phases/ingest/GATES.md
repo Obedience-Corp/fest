@@ -19,6 +19,8 @@ This gate verifies the ingest phase achieved its goal and produced approved stru
 2. Verify the structured output faithfully represents the original input meaning
 3. Confirm interpretive decisions are documented and justified
 
+**Checkpoint class:** artifact_review
+
 **Checkpoint:** APPROVAL REQUIRED — Confirm ingest goal is met
 
 ---
@@ -32,6 +34,8 @@ This gate verifies the ingest phase achieved its goal and produced approved stru
 2. Verify no inputs were overlooked or partially processed
 3. Check that ambiguities and questions were noted
 
+**Checkpoint class:** artifact_review
+
 **Checkpoint:** APPROVAL REQUIRED — Confirm all inputs processed
 
 ---
@@ -44,6 +48,8 @@ This gate verifies the ingest phase achieved its goal and produced approved stru
 1. Confirm the user reviewed and approved the output specifications
 2. Verify any user corrections were incorporated
 3. Check that requirements are clear enough for downstream planning
+
+**Checkpoint class:** operator_attestation
 
 **Checkpoint:** APPROVAL REQUIRED — Confirm user validated output
 

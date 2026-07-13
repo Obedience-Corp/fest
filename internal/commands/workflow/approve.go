@@ -17,16 +17,20 @@ import (
 	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
 const approvalJudgeSchemaVersion = "fest.approval.judge/v1"
 
 type approvalJudgeOptions struct {
-	Auto         bool
-	JudgeCommand string
-	Timeout      time.Duration
-	Wait         bool
+	Auto          bool
+	JudgeCommand  string
+	Timeout       time.Duration
+	WorkDir       string // festival path; set as judge process cwd
+	OverrideJudge bool
+	Summary       string // manual path summary (also used with --override-judge)
+	Wait          bool
 }
 
 type approvalJudgeRequest struct {
@@ -50,13 +54,12 @@ type approvalJudgeResponse struct {
 	Followups     []string `json:"followups,omitempty"`
 }
 
-type approvalJudgeRunner func(ctx context.Context, command string, stdin []byte) ([]byte, error)
+type approvalJudgeRunner func(ctx context.Context, command string, stdin []byte, dir string) ([]byte, error)
 
 var runApprovalJudgeCommand approvalJudgeRunner = runApprovalJudgeCommandDefault
 
 func newApproveCmd() *cobra.Command {
 	var actor string
-	var summary string
 	opts := approvalJudgeOptions{}
 
 	cmd := &cobra.Command{
@@ -79,6 +82,21 @@ Auto approval:
   Use --auto to re-run the judge explicitly (for example after a reject or a
   failed judge invocation). Agents must not clear checkpoints with --as agent;
   agent-actor decisions are recorded only via the judge path.
+
+  Checkpoint classes:
+    artifact_review         — deliverables can be auto-judged when evidence is ready
+    operator_attestation    — human must approve; --auto is refused and plain
+                              manual approval requires an interactive TTY
+
+  Presentation-like steps require non-empty evidence (e.g. output_specs/PRESENTATION.md)
+  before the judge is invoked. Missing evidence blocks deterministically without a model call.
+
+  After a judge reject, re-submit with: fest workflow approve --auto
+  Operator override (interactive TTY, or --override-judge --summary "..."):
+  records decision_actor=user_override.
+
+  When an approval judge is configured, non-interactive manual approve is refused
+  so agents cannot mint decision_actor=user. Use a real terminal and type APPROVE.
 
   The judge command receives JSON on stdin using schema fest.approval.judge/v1
   and must return JSON on stdout with decision "approve" or "reject" and a
@@ -104,23 +122,25 @@ Auto approval:
 			if opts.Auto {
 				return runApproveWithOptions(cmd.Context(), wf.DecisionMetadata{}, opts)
 			}
-			decision, err := normalizeDecision("approval", actor, summary)
+			decision, err := normalizeDecision("approval", actor, opts.Summary)
 			if err != nil {
 				return err
 			}
-			return runApproveWithDecision(cmd.Context(), decision)
+			return runApproveWithOptions(cmd.Context(), decision, opts)
 		},
 	}
 
 	cmd.Flags().StringVar(&actor, "as", decisionActorUser, "deprecated: manual approvals are always recorded as the user; agent decisions require --auto with a configured judge")
 	_ = cmd.Flags().MarkHidden("as")
-	cmd.Flags().StringVar(&summary, "summary", "", "approval summary or rationale")
+	cmd.Flags().StringVar(&opts.Summary, "summary", "", "approval summary or rationale (required with --override-judge)")
 	cmd.Flags().BoolVar(&opts.Auto, "auto", false, "delegate this checkpoint decision to the configured approval judge command")
 	cmd.Flags().StringVar(&opts.JudgeCommand, "judge-command", opts.JudgeCommand, "approval judge command for --auto (overrides the .festival/config.yaml hooks.approval_judge.command hook)")
 	cmd.Flags().DurationVar(&opts.Timeout, "judge-timeout", opts.Timeout, "maximum time to wait for the approval judge (0 waits until it returns)")
+	cmd.Flags().BoolVar(&opts.OverrideJudge, "override-judge", false, "operator override of a judge/readiness reject (requires --summary; for non-interactive use)")
 	cmd.Flags().BoolVar(&opts.Wait, "wait", false, "block until the judge returns instead of launching it in the background")
 	cmd.MarkFlagsMutuallyExclusive("auto", "as")
 	cmd.MarkFlagsMutuallyExclusive("auto", "summary")
+	cmd.MarkFlagsMutuallyExclusive("auto", "override-judge")
 
 	return cmd
 }
@@ -178,6 +198,7 @@ func runApproveWithOptions(ctx context.Context, decision wf.DecisionMetadata, op
 			return err
 		}
 		opts.JudgeCommand = judgeCommand
+		opts.WorkDir = nav.Ctx.FestivalPath
 		return runApproveAuto(ctx, nav, currentStepNum, step, opts)
 	}
 
@@ -192,11 +213,32 @@ func runApproveWithOptions(ctx context.Context, decision wf.DecisionMetadata, op
 				WithField("expected_step", currentStepNum).
 				WithField("current_step", freshState.CurrentStep)
 		}
+		freshSteps := fresh.GetSteps()
+		if currentStepNum < 1 || currentStepNum > len(freshSteps) {
+			return festerrors.Validation("checkpoint changed before approval")
+		}
+		freshStep := freshSteps[currentStepNum-1]
+		judgeConfigured, err := approvalJudgeConfiguredFor(ctx, fresh)
+		if err != nil {
+			return err
+		}
+		decision, err = resolveManualApprovalDecision(
+			decision,
+			judgeConfigured,
+			wf.ClassifyCheckpoint(freshStep) == wf.CheckpointClassOperatorAttestation,
+			opts.OverrideJudge,
+			freshState.GetCurrentStepState(),
+			currentStepNum,
+			freshStep.Name,
+		)
+		if err != nil {
+			return err
+		}
 		if err := fresh.ApproveWithDecision(ctx, decision); err != nil {
 			return festerrors.Wrap(err, "approving checkpoint")
 		}
 
-		fmt.Printf("%s Step %d: %s approved\n", ui.Success("✓"), currentStepNum, step.Name)
+		fmt.Printf("%s Step %d: %s approved\n", ui.Success("✓"), currentStepNum, freshStep.Name)
 		if decision.Actor != "" {
 			fmt.Printf("  %s: %s\n", ui.Label("Approved by"), decision.Actor)
 		}
@@ -205,6 +247,58 @@ func runApproveWithOptions(ctx context.Context, decision wf.DecisionMetadata, op
 		}
 		return showNextStep(ctx, fresh, fresh.GetSteps())
 	})
+}
+
+type workspaceConfigLoader func(string) (*config.WorkspaceConfig, error)
+
+func approvalJudgeConfiguredFor(ctx context.Context, nav *wf.Navigator) (bool, error) {
+	festivalsRoot, err := approvalJudgeFestivalsRoot(ctx, nav)
+	if err != nil {
+		return false, err
+	}
+	if festivalsRoot == "" {
+		return false, nil
+	}
+	cfg, err := config.LoadWorkspaceConfig(festivalsRoot)
+	if err != nil {
+		return false, festerrors.Wrap(err, "loading approval judge authority configuration")
+	}
+	if cfg == nil {
+		return false, festerrors.Validation("approval judge authority configuration is empty")
+	}
+	return strings.TrimSpace(cfg.Hooks.ApprovalJudge.Command) != "", nil
+}
+
+func approvalJudgeFestivalsRoot(ctx context.Context, nav *wf.Navigator) (string, error) {
+	if ws, ok := scope.WorkspaceFrom(ctx); ok && ws != nil && strings.TrimSpace(ws.FestivalsPath) != "" {
+		return ws.FestivalsPath, nil
+	}
+	if nav == nil || nav.Ctx == nil || strings.TrimSpace(nav.Ctx.FestivalPath) == "" {
+		return "", nil
+	}
+	ws, err := workspace.FindWorkspace(ctx, nav.Ctx.FestivalPath)
+	if err != nil {
+		if errors.Is(err, workspace.ErrNoWorkspace) || errors.Is(err, workspace.ErrNoCampaign) {
+			return "", nil
+		}
+		return "", festerrors.Wrap(err, "resolving approval judge authority configuration")
+	}
+	return ws.FestivalsPath, nil
+}
+
+func approvalJudgeConfiguredWithLoader(ctx context.Context, load workspaceConfigLoader) (bool, error) {
+	ws, ok := scope.WorkspaceFrom(ctx)
+	if !ok || ws == nil || strings.TrimSpace(ws.FestivalsPath) == "" {
+		return false, nil
+	}
+	cfg, err := load(ws.FestivalsPath)
+	if err != nil {
+		return false, festerrors.Wrap(err, "loading approval judge authority configuration")
+	}
+	if cfg == nil {
+		return false, festerrors.Validation("approval judge authority configuration is empty")
+	}
+	return strings.TrimSpace(cfg.Hooks.ApprovalJudge.Command) != "", nil
 }
 
 // resolveApprovalJudgeCommand resolves the command used for --auto approval.
@@ -221,20 +315,19 @@ func resolveApprovalJudgeCommandFor(ctx context.Context, nav *wf.Navigator, flag
 		return cmd, nil
 	}
 
-	if ws, ok := scope.WorkspaceFrom(ctx); ok && ws != nil && ws.FestivalsPath != "" {
-		cfg, err := config.LoadWorkspaceConfig(ws.FestivalsPath)
+	festivalsRoot, err := approvalJudgeFestivalsRoot(ctx, nav)
+	if err != nil {
+		return "", err
+	}
+	if festivalsRoot != "" {
+		cfg, err := config.LoadWorkspaceConfig(festivalsRoot)
 		if err != nil {
 			return "", festerrors.Wrap(err, "loading approval judge hook")
 		}
-		if cmd := strings.TrimSpace(cfg.Hooks.ApprovalJudge.Command); cmd != "" {
-			return cmd, nil
+		if cfg == nil {
+			return "", festerrors.Validation("approval judge authority configuration is empty")
 		}
-	}
-
-	// fest next is scope.Global and never injects workspace; fall back to the
-	// navigator's festival path (same recovery as ApprovalJudgeCommand).
-	if nav != nil {
-		if cmd := strings.TrimSpace(nav.ApprovalJudgeCommand(ctx)); cmd != "" {
+		if cmd := strings.TrimSpace(cfg.Hooks.ApprovalJudge.Command); cmd != "" {
 			return cmd, nil
 		}
 	}
@@ -291,6 +384,11 @@ func AutoDelegateBlockingCheckpoints(ctx context.Context, nav *wf.Navigator) err
 			return nil
 		}
 		step := steps[current-1]
+		if wf.ClassifyCheckpoint(step) == wf.CheckpointClassOperatorAttestation {
+			// Operator attestations are intentionally never delegated. Leave the
+			// checkpoint untouched so fest next renders the human approval path.
+			return nil
+		}
 		stepState := state.GetStepState(current)
 		// Pending or in_progress blocking checkpoints are eligible. fest next
 		// often lands here before GetNext promotes pending → in_progress.
@@ -304,10 +402,17 @@ func AutoDelegateBlockingCheckpoints(ctx context.Context, nav *wf.Navigator) err
 			return nil
 		}
 
-		judgeCommand, err := resolveApprovalJudgeCommandFor(ctx, nav, "")
+		judgeConfigured, err := approvalJudgeConfiguredFor(ctx, nav)
 		if err != nil {
+			return err
+		}
+		if !judgeConfigured {
 			// No judge configured — leave checkpoint for manual / agent instruction path.
 			return nil
+		}
+		judgeCommand, err := resolveApprovalJudgeCommandFor(ctx, nav, "")
+		if err != nil {
+			return err
 		}
 
 		// fest next must not error while a prior fire-and-forget judge is still
@@ -349,6 +454,37 @@ func AutoDelegateBlockingCheckpoints(ctx context.Context, nav *wf.Navigator) err
 	return nil
 }
 
+// prepareAutoJudgeReadiness runs deterministic authorization and evidence
+// checks while the caller holds the step lock. Readiness failures are recorded
+// durably as agent decisions before any judge process is launched.
+func prepareAutoJudgeReadiness(ctx context.Context, nav *wf.Navigator, currentStepNum int, step wf.WorkflowStep) error {
+	if err := checkAutoJudgeAllowed(step); err != nil {
+		return err
+	}
+	if err := checkApprovalReadiness(nav.Ctx.PhasePath, step); err != nil {
+		reason := formatReadinessBlockReason(err)
+		if recErr := nav.RejectWithDecision(ctx, reason, wf.DecisionMetadata{
+			Actor:   decisionActorAgent,
+			Summary: reason,
+		}); recErr != nil {
+			return festerrors.Wrap(recErr, "recording readiness rejection")
+		}
+		fmt.Printf("%s Step %d: %s blocked (readiness)\n", ui.Warning("⚠"), currentStepNum, step.Name)
+		fmt.Printf("  %s: %s\n\n", ui.Label("Reason"), reason)
+		printApprovalRecoveryFor(ctx, nav, step)
+		return festerrors.Validation(reason).
+			WithHint("fix the evidence, then use one of the approval routes shown above")
+	}
+	return nil
+}
+
+func checkAutoJudgePreflight(phasePath string, step wf.WorkflowStep) error {
+	if err := checkAutoJudgeAllowed(step); err != nil {
+		return err
+	}
+	return checkApprovalReadiness(phasePath, step)
+}
+
 func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, step wf.WorkflowStep, opts approvalJudgeOptions) error {
 	if !opts.Wait {
 		return launchApproveAuto(ctx, nav, currentStepNum, step, opts)
@@ -366,9 +502,17 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 		if fresh.GetWorkflowState().CurrentStep != currentStepNum {
 			return festerrors.Validation("checkpoint changed before approval judge started")
 		}
+		freshSteps := fresh.GetSteps()
+		if currentStepNum < 1 || currentStepNum > len(freshSteps) {
+			return festerrors.Validation("checkpoint changed before approval judge started")
+		}
+		step = freshSteps[currentStepNum-1]
 		if ss := fresh.GetWorkflowState().GetStepState(currentStepNum); ss != nil && ss.Judge != nil &&
 			ss.Judge.Status == wf.JudgeRunning && judgeLeaseActive(ss.Judge) {
 			return judgeAlreadyRunningError(ss.Judge)
+		}
+		if err := prepareAutoJudgeReadiness(ctx, fresh, currentStepNum, step); err != nil {
+			return err
 		}
 		if err := fresh.BeginJudge(ctx, currentStepNum, opts.JudgeCommand, runID, os.Getpid()); err != nil {
 			return festerrors.Wrap(err, "recording judge start")
@@ -426,7 +570,7 @@ func applyApproveAutoVerdict(ctx context.Context, nav *wf.Navigator, currentStep
 		fmt.Printf("%s Step %d: %s auto-rejected\n", ui.Warning("⚠"), currentStepNum, step.Name)
 		fmt.Printf("  %s: %s\n\n", ui.Label("Reason"), decision.Reason)
 		fmt.Println("The step is now blocked. Address the feedback and revise the work.")
-		fmt.Println("When ready, run " + ui.Accent("fest workflow advance") + " to resubmit.")
+		printApprovalRecoveryFor(ctx, nav, step)
 		return true, nil
 	default:
 		// Unreachable today: parseApprovalJudgeResponse already rejects any
@@ -460,6 +604,10 @@ func judgeApproval(ctx context.Context, nav *wf.Navigator, step wf.WorkflowStep,
 	if nav.IsGate() {
 		req.Document = "GATES.md"
 	}
+	// Prefer human checkpoint text when available for the judge rubric.
+	if text := strings.TrimSpace(step.CheckpointText); text != "" {
+		req.Checkpoint = text
+	}
 
 	return evaluateApprovalJudge(ctx, req, opts)
 }
@@ -481,7 +629,7 @@ func evaluateApprovalJudge(ctx context.Context, req approvalJudgeRequest, opts a
 	}
 	defer cancel()
 
-	out, err := runApprovalJudgeCommand(judgeCtx, opts.JudgeCommand, append(stdin, '\n'))
+	out, err := runApprovalJudgeCommand(judgeCtx, opts.JudgeCommand, append(stdin, '\n'), opts.WorkDir)
 	if err != nil {
 		if errors.Is(judgeCtx.Err(), context.DeadlineExceeded) {
 			return nil, "", festerrors.Wrap(judgeCtx.Err(), "approval judge timed out").
@@ -490,7 +638,7 @@ func evaluateApprovalJudge(ctx context.Context, req approvalJudgeRequest, opts a
 		}
 		return nil, "", festerrors.Wrap(err, "approval judge failed").
 			WithField("judge_command", opts.JudgeCommand).
-			WithHint("the checkpoint was not approved; install the judge command or run 'fest workflow approve' manually")
+			WithHint("the checkpoint was not approved; install the judge command or run 'fest workflow approve' interactively")
 	}
 
 	decision, err := parseApprovalJudgeResponse(out)
@@ -502,12 +650,15 @@ func evaluateApprovalJudge(ctx context.Context, req approvalJudgeRequest, opts a
 	return decision, audit, nil
 }
 
-func runApprovalJudgeCommandDefault(ctx context.Context, command string, stdin []byte) ([]byte, error) {
+func runApprovalJudgeCommandDefault(ctx context.Context, command string, stdin []byte, dir string) ([]byte, error) {
 	fields := strings.Fields(command)
 	if len(fields) == 0 {
 		return nil, festerrors.Validation("approval judge command is empty")
 	}
 	cmd := exec.CommandContext(ctx, fields[0], fields[1:]...)
+	if dir != "" {
+		cmd.Dir = dir
+	}
 	cmd.Stdin = bytes.NewReader(stdin)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

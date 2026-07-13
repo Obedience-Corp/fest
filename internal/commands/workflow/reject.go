@@ -158,7 +158,7 @@ func applyRejectDecision(ctx context.Context, nav *wf.Navigator, currentStepNum 
 		fmt.Printf("  %s: %s\n", ui.Label("Summary"), decision.Summary)
 	}
 	fmt.Println("The step is now blocked. Address the feedback and revise the work.")
-	fmt.Println("When ready, run " + ui.Accent("fest workflow advance") + " to resubmit.")
+	printApprovalRecoveryFor(ctx, nav, step)
 
 	return nil
 }
