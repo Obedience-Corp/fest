@@ -299,6 +299,22 @@ func AutoDelegateBlockingCheckpoints(ctx context.Context, nav *wf.Navigator) err
 			return nil
 		}
 
+		// fest next must not error while a prior fire-and-forget judge is still
+		// alive — report waiting-on-judge and leave the checkpoint blocked.
+		if stepState.Judge != nil && stepState.Judge.Status == wf.JudgeRunning &&
+			judgeProcessAlive(stepState.Judge.Pid) {
+			cmd := stepState.Judge.Command
+			if cmd == "" {
+				cmd = judgeCommand
+			}
+			fmt.Printf("%s Approval judge still running: %s (pid %d)\n",
+				ui.Value("⚖", ui.JudgeColor), cmd, stepState.Judge.Pid)
+			fmt.Println("  Checkpoint stays blocked until the verdict lands.")
+			fmt.Printf("  Watch progress: %s\n", ui.Accent("fest workflow status"))
+			fmt.Printf("  After it returns, run %s again.\n", ui.Accent("fest next"))
+			return nil
+		}
+
 		fmt.Printf("%s Checkpoint delegated to approval judge (%s)\n", ui.Info("→"), judgeCommand)
 		fmt.Printf("  Step %d: %s\n", current, step.Name)
 
