@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -20,6 +21,11 @@ import (
 
 const judgeExecPayloadSchema = "fest.approval.judge-exec/v1"
 
+const (
+	judgeClaimTimeout = 5 * time.Second
+	judgeLockPoll     = 25 * time.Millisecond
+)
+
 // judgeExecPayload is the handoff from 'fest workflow approve --auto' to the
 // detached judge-exec runner. The runner rebuilds the judge request from live
 // workflow state; the payload only pins which checkpoint was delegated and
@@ -30,23 +36,51 @@ type judgeExecPayload struct {
 	StepName      string `json:"step_name"`
 	JudgeCommand  string `json:"judge_command"`
 	Timeout       string `json:"timeout,omitempty"`
+	RunID         string `json:"run_id"`
 }
-
-// launchJudgeProcess is a seam for tests; production detaches a judge-exec
-// child so approve --auto returns immediately instead of blocking on a
-// potentially long-running judge evaluation.
-var launchJudgeProcess = launchJudgeProcessDefault
 
 // launchApproveAuto starts the judge in the background and returns. The
 // checkpoint stays blocked until the detached runner applies the verdict
 // through the same fail-closed path as --wait; watchers render the
 // waiting-on-judge state in the meantime.
 func launchApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, step wf.WorkflowStep, opts approvalJudgeOptions) error {
+	return withJudgeStepLock(ctx, nav.Ctx.PhasePath, currentStepNum, func() error {
+		fresh, err := getWorkflowNavigator(ctx)
+		if err != nil {
+			return err
+		}
+		state := fresh.GetWorkflowState()
+		if state.CurrentStep != currentStepNum {
+			return festerrors.Validation("checkpoint changed before approval judge launch").
+				WithField("expected_step", currentStepNum).
+				WithField("current_step", state.CurrentStep)
+		}
+		if ss := state.GetStepState(currentStepNum); ss != nil && ss.Judge != nil &&
+			ss.Judge.Status == wf.JudgeRunning {
+			if judgeLeaseActive(ss.Judge) {
+				return judgeAlreadyRunningError(ss.Judge)
+			}
+			if _, err := fresh.RecordJudgeOutcome(ctx, currentStepNum, ss.Judge.RunID, wf.JudgeFailed,
+				"detached judge process exited before recording a verdict"); err != nil {
+				return festerrors.Wrap(err, "recording stale judge failure")
+			}
+		}
+
+		runID, err := newJudgeRunID()
+		if err != nil {
+			return err
+		}
+		return launchApproveAutoLocked(ctx, fresh, currentStepNum, step, opts, runID)
+	})
+}
+
+func launchApproveAutoLocked(ctx context.Context, nav *wf.Navigator, currentStepNum int, step wf.WorkflowStep, opts approvalJudgeOptions, runID string) error {
 	payload := judgeExecPayload{
 		SchemaVersion: judgeExecPayloadSchema,
 		StepNumber:    currentStepNum,
 		StepName:      step.Name,
 		JudgeCommand:  opts.JudgeCommand,
+		RunID:         runID,
 	}
 	if opts.Timeout > 0 {
 		payload.Timeout = opts.Timeout.String()
@@ -56,7 +90,7 @@ func launchApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum in
 	if err := os.MkdirAll(festDir, 0o755); err != nil {
 		return festerrors.IO("creating .fest directory for judge handoff", err).WithField("path", festDir)
 	}
-	payloadPath := filepath.Join(festDir, fmt.Sprintf("judge-step-%d.json", currentStepNum))
+	payloadPath := filepath.Join(festDir, fmt.Sprintf("judge-step-%d-%s.json", currentStepNum, runID))
 	data, err := json.Marshal(payload)
 	if err != nil {
 		return festerrors.Wrap(err, "encoding judge-exec payload")
@@ -65,14 +99,36 @@ func launchApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum in
 		return festerrors.IO("writing judge-exec payload", err).WithField("path", payloadPath)
 	}
 
-	pid, err := launchJudgeProcess(payloadPath, nav.Ctx.PhasePath, filepath.Join(festDir, "judge.log"))
+	// Persist the run lease before starting a child. The child will not evaluate
+	// until the parent durably claims this lease with its PID.
+	if err := nav.BeginJudge(ctx, currentStepNum, opts.JudgeCommand, runID, 0); err != nil {
+		_ = os.Remove(payloadPath)
+		return festerrors.Wrap(err, "recording judge lease")
+	}
+
+	pid, err := launchJudgeProcessDefault(payloadPath, nav.Ctx.PhasePath, filepath.Join(festDir, "judge.log"))
 	if err != nil {
+		_, recErr := nav.RecordJudgeOutcome(ctx, currentStepNum, runID, wf.JudgeFailed, err.Error())
+		_ = os.Remove(payloadPath)
+		if recErr != nil {
+			return festerrors.Wrap(recErr, "recording judge launch failure")
+		}
 		return festerrors.Wrap(err, "launching approval judge").
 			WithHint("the checkpoint was not approved; fix the judge command or run 'fest workflow approve' manually")
 	}
 
-	if err := nav.BeginJudge(ctx, currentStepNum, opts.JudgeCommand, pid); err != nil {
-		return festerrors.Wrap(err, "recording judge start")
+	claimed, err := nav.ClaimJudge(ctx, currentStepNum, runID, pid)
+	if err != nil || !claimed {
+		_ = terminateJudgeProcess(pid)
+		detail := "judge process was terminated because its durable PID claim failed"
+		_, recErr := nav.RecordJudgeOutcome(ctx, currentStepNum, runID, wf.JudgeFailed, detail)
+		if err != nil {
+			return festerrors.Wrap(err, "claiming judge process")
+		}
+		if recErr != nil {
+			return festerrors.Wrap(recErr, "recording judge claim failure")
+		}
+		return festerrors.Validation("approval judge lease was superseded before launch completed")
 	}
 
 	fmt.Printf("%s Judge launched: %s (pid %d)\n", ui.Value("⚖", ui.JudgeColor), opts.JudgeCommand, pid)
@@ -81,6 +137,73 @@ func launchApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum in
 	fmt.Printf("  After it returns, run %s — approved continues the workflow;\n", ui.Accent("fest next"))
 	fmt.Printf("  rejected records feedback to address, then %s to resubmit.\n", ui.Accent("fest workflow advance"))
 	return nil
+}
+
+func newJudgeRunID() (string, error) {
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", festerrors.Wrap(err, "generating approval judge run id")
+	}
+	return fmt.Sprintf("%x", raw[:]), nil
+}
+
+func judgeAlreadyRunningError(judge *wf.JudgeState) error {
+	return festerrors.Validation("an approval judge is already evaluating this checkpoint").
+		WithField("judge_command", judge.Command).
+		WithField("pid", fmt.Sprintf("%d", judge.Pid)).
+		WithField("run_id", judge.RunID).
+		WithHint("the checkpoint unblocks when the judge returns; watch it with 'fest show' and re-run 'fest next' afterwards")
+}
+
+func judgeLeaseActive(judge *wf.JudgeState) bool {
+	if judge == nil || judge.Status != wf.JudgeRunning {
+		return false
+	}
+	if judge.Pid > 0 {
+		return judgeProcessAlive(judge.Pid)
+	}
+	return judge.StartedAt != nil && time.Since(*judge.StartedAt) < 2*judgeClaimTimeout
+}
+
+func terminateJudgeProcess(pid int) error {
+	if pid <= 0 {
+		return nil
+	}
+	proc, err := os.FindProcess(pid)
+	if err != nil {
+		return err
+	}
+	return proc.Kill()
+}
+
+func withJudgeStepLock(ctx context.Context, phasePath string, step int, fn func() error) error {
+	lockDir := filepath.Join(phasePath, ".fest")
+	if err := os.MkdirAll(lockDir, 0o755); err != nil {
+		return festerrors.IO("creating judge lock directory", err).WithField("path", lockDir)
+	}
+	lockPath := filepath.Join(lockDir, fmt.Sprintf("judge-step-%d.lock", step))
+	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0o600)
+	if err != nil {
+		return festerrors.IO("opening judge step lock", err).WithField("path", lockPath)
+	}
+	defer func() { _ = lockFile.Close() }()
+
+	for {
+		err = syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+		if err == nil {
+			break
+		}
+		if err != syscall.EWOULDBLOCK && err != syscall.EAGAIN {
+			return festerrors.IO("acquiring judge step lock", err).WithField("path", lockPath)
+		}
+		select {
+		case <-ctx.Done():
+			return festerrors.Wrap(ctx.Err(), "waiting for judge step lock")
+		case <-time.After(judgeLockPoll):
+		}
+	}
+	defer func() { _ = syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN) }()
+	return fn()
 }
 
 func launchJudgeProcessDefault(payloadPath, phaseDir, logPath string) (int, error) {
@@ -174,6 +297,10 @@ func runJudgeExec(ctx context.Context, payloadPath string) error {
 		return festerrors.Validation("unsupported judge-exec payload schema").
 			WithField("schema_version", payload.SchemaVersion)
 	}
+	if payload.RunID == "" {
+		return festerrors.Validation("judge-exec payload is missing run ownership").
+			WithField("payload", payloadPath)
+	}
 
 	opts := approvalJudgeOptions{Auto: true, Wait: true, JudgeCommand: payload.JudgeCommand}
 	if payload.Timeout != "" {
@@ -186,42 +313,102 @@ func runJudgeExec(ctx context.Context, payloadPath string) error {
 
 	defer func() { _ = os.Remove(payloadPath) }()
 
-	nav, err := getWorkflowNavigator(ctx)
+	nav, owned, err := waitForJudgeClaim(ctx, payload)
 	if err != nil {
 		return err
 	}
-	state := nav.GetWorkflowState()
-	if state.CurrentStep != payload.StepNumber {
-		return nav.RecordJudgeOutcome(ctx, payload.StepNumber, wf.JudgeFailed,
-			fmt.Sprintf("checkpoint moved before the judge ran (workflow now on step %d); verdict not applied", state.CurrentStep))
+	if !owned {
+		return nil
 	}
 	steps := nav.GetSteps()
 	if payload.StepNumber < 1 || payload.StepNumber > len(steps) {
-		return festerrors.Validation("judge-exec payload step out of range").
+		err := festerrors.Validation("judge-exec payload step out of range").
 			WithField("step", fmt.Sprintf("%d", payload.StepNumber))
+		if recErr := recordJudgeFailureIfOwned(ctx, nav.Ctx.PhasePath, payload, err.Error()); recErr != nil {
+			fmt.Printf("%s failed to record judge outcome: %v\n", ui.Warning("⚠"), recErr)
+		}
+		return err
 	}
 	step := steps[payload.StepNumber-1]
 
 	decision, audit, err := judgeApproval(ctx, nav, step, opts)
 	if err != nil {
-		if recErr := nav.RecordJudgeOutcome(ctx, payload.StepNumber, wf.JudgeFailed, err.Error()); recErr != nil {
+		if recErr := recordJudgeFailureIfOwned(ctx, nav.Ctx.PhasePath, payload, err.Error()); recErr != nil {
 			fmt.Printf("%s failed to record judge outcome: %v\n", ui.Warning("⚠"), recErr)
 		}
 		return err
 	}
 
-	// The judge may have run for a long time; re-read durable state and only
-	// apply the verdict if the delegated checkpoint is still the current one
-	// (an operator may have approved or reset it manually in the meantime).
-	fresh, err := getWorkflowNavigator(ctx)
-	if err != nil {
-		return err
-	}
-	if fresh.GetWorkflowState().CurrentStep != payload.StepNumber {
-		return fresh.RecordJudgeOutcome(ctx, payload.StepNumber, wf.JudgeFailed,
-			fmt.Sprintf("checkpoint changed while the judge was running (workflow now on step %d); verdict %q discarded",
-				fresh.GetWorkflowState().CurrentStep, decision.Decision))
-	}
+	return withJudgeStepLock(ctx, nav.Ctx.PhasePath, payload.StepNumber, func() error {
+		fresh, err := getWorkflowNavigator(ctx)
+		if err != nil {
+			return err
+		}
+		applied, err := applyApproveAutoVerdict(ctx, fresh, payload.StepNumber, step, payload.RunID, decision, audit)
+		if err != nil {
+			return err
+		}
+		if !applied {
+			fmt.Printf("%s judge run %s was superseded; verdict %q discarded\n",
+				ui.Warning("⚠"), payload.RunID, decision.Decision)
+		}
+		return nil
+	})
+}
 
-	return applyApproveAutoVerdict(ctx, fresh, payload.StepNumber, step, decision, audit)
+func waitForJudgeClaim(ctx context.Context, payload judgeExecPayload) (*wf.Navigator, bool, error) {
+	deadline := time.Now().Add(judgeClaimTimeout)
+	for {
+		nav, err := getWorkflowNavigator(ctx)
+		if err != nil {
+			return nil, false, err
+		}
+		state := nav.GetWorkflowState()
+		ss := state.GetStepState(payload.StepNumber)
+		if state.CurrentStep != payload.StepNumber || ss == nil || ss.Judge == nil ||
+			ss.Judge.Status != wf.JudgeRunning || ss.Judge.RunID != payload.RunID {
+			return nav, false, nil
+		}
+		if ss.Judge.Pid == os.Getpid() {
+			return nav, true, nil
+		}
+		if ss.Judge.Pid != 0 || time.Now().After(deadline) {
+			detail := "judge runner never received its durable PID claim"
+			if err := recordUnclaimedJudgeFailure(ctx, nav.Ctx.PhasePath, payload, detail); err != nil {
+				return nil, false, err
+			}
+			return nav, false, nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil, false, ctx.Err()
+		case <-time.After(judgeLockPoll):
+		}
+	}
+}
+
+func recordUnclaimedJudgeFailure(ctx context.Context, phasePath string, payload judgeExecPayload, detail string) error {
+	return withJudgeStepLock(ctx, phasePath, payload.StepNumber, func() error {
+		fresh, err := getWorkflowNavigator(ctx)
+		if err != nil {
+			return err
+		}
+		ss := fresh.GetWorkflowState().GetStepState(payload.StepNumber)
+		if ss == nil || ss.Judge == nil || ss.Judge.RunID != payload.RunID || ss.Judge.Pid != 0 {
+			return nil
+		}
+		_, err = fresh.RecordJudgeOutcome(ctx, payload.StepNumber, payload.RunID, wf.JudgeFailed, detail)
+		return err
+	})
+}
+
+func recordJudgeFailureIfOwned(ctx context.Context, phasePath string, payload judgeExecPayload, detail string) error {
+	return withJudgeStepLock(ctx, phasePath, payload.StepNumber, func() error {
+		fresh, err := getWorkflowNavigator(ctx)
+		if err != nil {
+			return err
+		}
+		_, err = fresh.RecordJudgeOutcome(ctx, payload.StepNumber, payload.RunID, wf.JudgeFailed, detail)
+		return err
+	})
 }

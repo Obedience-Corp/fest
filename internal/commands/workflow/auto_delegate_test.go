@@ -1,15 +1,11 @@
 package workflow
 
-// Host unit tests mock launchJudgeProcess. Real fest next → detached judge
-// re-exec coverage lives in tests/integration/async_judge_test.go.
-
 import (
 	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/progress"
@@ -77,77 +73,5 @@ func TestAutoDelegateBlockingCheckpoints_NoJudgeIsNoop(t *testing.T) {
 	// Still on step 1 awaiting human.
 	if nav.GetWorkflowState().CurrentStep != 1 {
 		t.Fatalf("current step = %d, want 1", nav.GetWorkflowState().CurrentStep)
-	}
-}
-
-func TestAutoDelegateBlockingCheckpoints_LaunchesJudgeWhenConfigured(t *testing.T) {
-	festivalPath, phasePath, festivalsRoot := writeGateFestival(t)
-	cfg := config.DefaultWorkspaceConfig()
-	cfg.Hooks.ApprovalJudge.Command = "fake-judge"
-	if err := config.SaveWorkspaceConfig(festivalsRoot, cfg); err != nil {
-		t.Fatal(err)
-	}
-
-	// fest next auto-delegate is fire-and-forget: mock launch, never spawn.
-	var launchedPayload string
-	withMockedJudgeLaunch(t, func(payloadPath, phaseDir, logPath string) (int, error) {
-		launchedPayload = payloadPath
-		if phaseDir != phasePath {
-			t.Fatalf("phaseDir = %q, want %q", phaseDir, phasePath)
-		}
-		if logPath == "" {
-			t.Fatal("expected judge log path")
-		}
-		return 4242, nil
-	})
-
-	gctx := &guidance.GuidanceContext{
-		FestivalPath: festivalPath,
-		PhasePath:    phasePath,
-		PhaseName:    "001_IMPLEMENT",
-		Mode:         guidance.ModeWorkflow,
-	}
-	nav, err := wf.NewNavigator(gctx, guidance.ModeWorkflow)
-	if err != nil {
-		t.Fatal(err)
-	}
-	nav.SetDocFilename("GATES.md")
-	nav.SetStateKeyPrefix("gate:")
-	store := progress.NewStore(festivalPath)
-	if err := store.Load(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	nav.SetStateStore(store)
-	if err := nav.Initialize(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-
-	// No workspace in context — same as fest next scope.Global.
-	if err := AutoDelegateBlockingCheckpoints(context.Background(), nav); err != nil {
-		t.Fatalf("AutoDelegateBlockingCheckpoints: %v", err)
-	}
-	// Async: checkpoint stays open; durable "running" record for show/watch.
-	state := nav.GetWorkflowState()
-	if state.IsComplete() {
-		t.Fatal("async launch must not complete the gate before the verdict")
-	}
-	if state.CurrentStep != 1 {
-		t.Fatalf("current step = %d, want 1 (still waiting on judge)", state.CurrentStep)
-	}
-	judge := state.GetStepState(1).Judge
-	if judge == nil || judge.Status != wf.JudgeRunning {
-		t.Fatalf("judge state = %+v, want running", judge)
-	}
-	if judge.Pid != 4242 {
-		t.Fatalf("judge pid = %d, want 4242", judge.Pid)
-	}
-	if judge.Command != "fake-judge" {
-		t.Fatalf("judge command = %q, want fake-judge", judge.Command)
-	}
-	if launchedPayload == "" {
-		t.Fatal("expected launchJudgeProcess to be called with a payload path")
-	}
-	if _, err := os.Stat(launchedPayload); err != nil {
-		t.Fatalf("payload file missing: %v", err)
 	}
 }

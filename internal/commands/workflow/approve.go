@@ -181,19 +181,30 @@ func runApproveWithOptions(ctx context.Context, decision wf.DecisionMetadata, op
 		return runApproveAuto(ctx, nav, currentStepNum, step, opts)
 	}
 
-	// Approve and advance
-	if err := nav.ApproveWithDecision(ctx, decision); err != nil {
-		return festerrors.Wrap(err, "approving checkpoint")
-	}
+	return withJudgeStepLock(ctx, nav.Ctx.PhasePath, currentStepNum, func() error {
+		fresh, err := getWorkflowNavigator(ctx)
+		if err != nil {
+			return err
+		}
+		freshState := fresh.GetWorkflowState()
+		if freshState.CurrentStep != currentStepNum {
+			return festerrors.Validation("checkpoint changed before approval").
+				WithField("expected_step", currentStepNum).
+				WithField("current_step", freshState.CurrentStep)
+		}
+		if err := fresh.ApproveWithDecision(ctx, decision); err != nil {
+			return festerrors.Wrap(err, "approving checkpoint")
+		}
 
-	fmt.Printf("%s Step %d: %s approved\n", ui.Success("✓"), currentStepNum, step.Name)
-	if decision.Actor != "" {
-		fmt.Printf("  %s: %s\n", ui.Label("Approved by"), decision.Actor)
-	}
-	if decision.Summary != "" {
-		fmt.Printf("  %s: %s\n", ui.Label("Summary"), decision.Summary)
-	}
-	return showNextStep(ctx, nav, steps)
+		fmt.Printf("%s Step %d: %s approved\n", ui.Success("✓"), currentStepNum, step.Name)
+		if decision.Actor != "" {
+			fmt.Printf("  %s: %s\n", ui.Label("Approved by"), decision.Actor)
+		}
+		if decision.Summary != "" {
+			fmt.Printf("  %s: %s\n", ui.Label("Summary"), decision.Summary)
+		}
+		return showNextStep(ctx, fresh, fresh.GetSteps())
+	})
 }
 
 // resolveApprovalJudgeCommand resolves the command used for --auto approval.
@@ -302,7 +313,7 @@ func AutoDelegateBlockingCheckpoints(ctx context.Context, nav *wf.Navigator) err
 		// fest next must not error while a prior fire-and-forget judge is still
 		// alive — report waiting-on-judge and leave the checkpoint blocked.
 		if stepState.Judge != nil && stepState.Judge.Status == wf.JudgeRunning &&
-			judgeProcessAlive(stepState.Judge.Pid) {
+			judgeLeaseActive(stepState.Judge) {
 			cmd := stepState.Judge.Command
 			if cmd == "" {
 				cmd = judgeCommand
@@ -339,65 +350,84 @@ func AutoDelegateBlockingCheckpoints(ctx context.Context, nav *wf.Navigator) err
 }
 
 func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, step wf.WorkflowStep, opts approvalJudgeOptions) error {
-	// A judge may already be evaluating this checkpoint from a prior --auto.
-	// Refuse a duplicate launch while it is alive; a running record whose
-	// process died (crash, reboot) is stale and may be relaunched.
-	if ss := nav.GetWorkflowState().GetStepState(currentStepNum); ss != nil && ss.Judge != nil &&
-		ss.Judge.Status == wf.JudgeRunning && judgeProcessAlive(ss.Judge.Pid) {
-		return festerrors.Validation("an approval judge is already evaluating this checkpoint").
-			WithField("judge_command", ss.Judge.Command).
-			WithField("pid", fmt.Sprintf("%d", ss.Judge.Pid)).
-			WithHint("the checkpoint unblocks when the judge returns; watch it with 'fest show' and re-run 'fest next' afterwards")
-	}
-
 	if !opts.Wait {
 		return launchApproveAuto(ctx, nav, currentStepNum, step, opts)
 	}
 
-	// --wait: run the judge in-process and block until the verdict lands.
-	// Record the judge invocation before running it so watchers can render
-	// the waiting-on-judge state and a hung or crashed judge leaves a trace.
-	if err := nav.BeginJudge(ctx, currentStepNum, opts.JudgeCommand, os.Getpid()); err != nil {
-		return festerrors.Wrap(err, "recording judge start")
+	runID, err := newJudgeRunID()
+	if err != nil {
+		return err
+	}
+	err = withJudgeStepLock(ctx, nav.Ctx.PhasePath, currentStepNum, func() error {
+		fresh, err := getWorkflowNavigator(ctx)
+		if err != nil {
+			return err
+		}
+		if fresh.GetWorkflowState().CurrentStep != currentStepNum {
+			return festerrors.Validation("checkpoint changed before approval judge started")
+		}
+		if ss := fresh.GetWorkflowState().GetStepState(currentStepNum); ss != nil && ss.Judge != nil &&
+			ss.Judge.Status == wf.JudgeRunning && judgeLeaseActive(ss.Judge) {
+			return judgeAlreadyRunningError(ss.Judge)
+		}
+		if err := fresh.BeginJudge(ctx, currentStepNum, opts.JudgeCommand, runID, os.Getpid()); err != nil {
+			return festerrors.Wrap(err, "recording judge start")
+		}
+		nav = fresh
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	decision, audit, err := judgeApproval(ctx, nav, step, opts)
 	if err != nil {
-		if recErr := nav.RecordJudgeOutcome(ctx, currentStepNum, wf.JudgeFailed, err.Error()); recErr != nil {
+		if recErr := recordJudgeFailureIfOwned(ctx, nav.Ctx.PhasePath, judgeExecPayload{
+			StepNumber: currentStepNum, RunID: runID,
+		}, err.Error()); recErr != nil {
 			fmt.Printf("%s failed to record judge outcome: %v\n", ui.Warning("⚠"), recErr)
 		}
 		return err
 	}
 
-	return applyApproveAutoVerdict(ctx, nav, currentStepNum, step, decision, audit)
+	return withJudgeStepLock(ctx, nav.Ctx.PhasePath, currentStepNum, func() error {
+		fresh, err := getWorkflowNavigator(ctx)
+		if err != nil {
+			return err
+		}
+		_, err = applyApproveAutoVerdict(ctx, fresh, currentStepNum, step, runID, decision, audit)
+		return err
+	})
 }
 
-func applyApproveAutoVerdict(ctx context.Context, nav *wf.Navigator, currentStepNum int, step wf.WorkflowStep, decision *approvalJudgeResponse, audit string) error {
+func applyApproveAutoVerdict(ctx context.Context, nav *wf.Navigator, currentStepNum int, step wf.WorkflowStep, runID string, decision *approvalJudgeResponse, audit string) (bool, error) {
 	judgeDecision := wf.DecisionMetadata{Actor: decisionActorAgent, Summary: decision.Reason}
 
 	switch decision.Decision {
 	case "approve":
-		if err := nav.RecordJudgeOutcome(ctx, currentStepNum, wf.JudgeApproved, decision.Reason); err != nil {
-			return festerrors.Wrap(err, "recording judge outcome")
+		applied, err := nav.ApplyJudgeApproval(ctx, currentStepNum, runID, audit, judgeDecision)
+		if err != nil {
+			return false, festerrors.Wrap(err, "approving checkpoint from judge decision")
 		}
-		if err := nav.ApproveWithAudit(ctx, audit, judgeDecision); err != nil {
-			return festerrors.Wrap(err, "approving checkpoint from judge decision")
+		if !applied {
+			return false, nil
 		}
 		fmt.Printf("%s Step %d: %s auto-approved\n", ui.Success("✓"), currentStepNum, step.Name)
 		fmt.Printf("  %s: %s\n", ui.Label("Reason"), decision.Reason)
-		return showNextStep(ctx, nav, nav.GetSteps())
+		return true, showNextStep(ctx, nav, nav.GetSteps())
 	case "reject":
-		if err := nav.RecordJudgeOutcome(ctx, currentStepNum, wf.JudgeRejected, decision.Reason); err != nil {
-			return festerrors.Wrap(err, "recording judge outcome")
+		applied, err := nav.ApplyJudgeRejection(ctx, currentStepNum, runID, audit, judgeDecision)
+		if err != nil {
+			return false, festerrors.Wrap(err, "recording judge rejection")
 		}
-		if err := nav.RejectWithDecision(ctx, audit, judgeDecision); err != nil {
-			return festerrors.Wrap(err, "recording judge rejection")
+		if !applied {
+			return false, nil
 		}
 		fmt.Printf("%s Step %d: %s auto-rejected\n", ui.Warning("⚠"), currentStepNum, step.Name)
 		fmt.Printf("  %s: %s\n\n", ui.Label("Reason"), decision.Reason)
 		fmt.Println("The step is now blocked. Address the feedback and revise the work.")
 		fmt.Println("When ready, run " + ui.Accent("fest workflow advance") + " to resubmit.")
-		return nil
+		return true, nil
 	default:
 		// Unreachable today: parseApprovalJudgeResponse already rejects any
 		// decision outside {approve, reject} (that path records JudgeFailed via
@@ -407,10 +437,10 @@ func applyApproveAutoVerdict(ctx context.Context, nav *wf.Navigator, currentStep
 		unsupported := festerrors.Validation("approval judge returned unsupported decision").
 			WithField("decision", decision.Decision).
 			WithHint("allowed decisions are approve and reject")
-		if recErr := nav.RecordJudgeOutcome(ctx, currentStepNum, wf.JudgeFailed, unsupported.Error()); recErr != nil {
+		if _, recErr := nav.RecordJudgeOutcome(ctx, currentStepNum, runID, wf.JudgeFailed, unsupported.Error()); recErr != nil {
 			fmt.Printf("%s failed to record judge outcome: %v\n", ui.Warning("⚠"), recErr)
 		}
-		return unsupported
+		return false, unsupported
 	}
 }
 

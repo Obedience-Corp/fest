@@ -51,7 +51,70 @@ func TestAsyncJudge_ApproveAutoFireAndForgetCompletes(t *testing.T) {
 	require.Contains(t, jsonOut, `"judge_status": "approved"`,
 		"expected approved judge outcome: %s", jsonOut)
 
+	// The durable lease and PID claim must precede the verdict even when the
+	// judge answers immediately. This is the fast-child interleaving contract.
+	events, err := container.ReadFile(asyncJudgeFestival + "/.fest/progress_events.jsonl")
+	require.NoError(t, err)
+	startedAt := strings.Index(events, `"event":"wf_judge_started"`)
+	claimedAt := strings.Index(events, `"event":"wf_judge_claimed"`)
+	returnedAt := strings.Index(events, `"event":"wf_judge_returned"`)
+	require.GreaterOrEqual(t, startedAt, 0, "missing judge start event: %s", events)
+	require.Greater(t, claimedAt, startedAt, "PID claim must follow durable lease: %s", events)
+	require.Greater(t, returnedAt, claimedAt, "verdict must follow PID claim: %s", events)
+
 	// No leftover judge-exec children from the detached path.
+	assertNoOrphanJudgeExec(t, container)
+}
+
+func TestAsyncJudge_ConcurrentLaunchCreatesSingleRunner(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+	container := GetSharedContainer(t)
+	setupAsyncJudgeFestival(t, container, "slow-approve")
+
+	out, err := container.Exec("sh", "-c", `
+cd `+asyncJudgePhase+`
+/fest workflow approve --auto >/tmp/judge-a.out 2>&1 & a=$!
+/fest workflow approve --auto >/tmp/judge-b.out 2>&1 & b=$!
+wait "$a"; sa=$?
+wait "$b"; sb=$?
+printf 'status-a=%s\nstatus-b=%s\n' "$sa" "$sb"
+cat /tmp/judge-a.out /tmp/judge-b.out
+`)
+	require.NoError(t, err, out)
+	require.True(t,
+		strings.Contains(out, "status-a=0\nstatus-b=1") || strings.Contains(out, "status-a=1\nstatus-b=0"),
+		"exactly one concurrent launch must succeed: %s", out)
+	require.Equal(t, 1, strings.Count(out, "Judge launched"), "only one detached runner may launch: %s", out)
+	require.Contains(t, strings.ToLower(out), "already evaluating", out)
+
+	waitForJudgeSettled(t, container, 20*time.Second)
+	assertNoOrphanJudgeExec(t, container)
+}
+
+func TestAsyncJudge_ManualRejectSupersedesRunningVerdict(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping integration test in short mode")
+	}
+	container := GetSharedContainer(t)
+	setupAsyncJudgeFestival(t, container, "slow-approve")
+
+	out, err := container.RunFestInDir(asyncJudgePhase, "workflow", "approve", "--auto")
+	require.NoError(t, err, out)
+	require.Contains(t, out, "Judge launched")
+
+	rejectOut, err := container.RunFestInDir(asyncJudgePhase, "workflow", "reject", "--reason", "operator-override")
+	require.NoError(t, err, rejectOut)
+	require.Contains(t, rejectOut, "operator-override")
+
+	waitForJudgeSettled(t, container, 20*time.Second)
+	jsonOut, err := container.RunFestInDir(asyncJudgePhase, "workflow", "status", "--json")
+	require.NoError(t, err, jsonOut)
+	require.Contains(t, jsonOut, `"status": "blocked"`, "manual rejection must remain authoritative: %s", jsonOut)
+	require.Contains(t, jsonOut, `"feedback": "operator-override"`, jsonOut)
+	require.Contains(t, jsonOut, `"judge_status": "canceled"`, jsonOut)
+	require.NotContains(t, jsonOut, `"judge_status": "approved"`, "stale approval overwrote operator decision: %s", jsonOut)
 	assertNoOrphanJudgeExec(t, container)
 }
 
@@ -330,11 +393,13 @@ func waitForJudgeSettled(t *testing.T, container *TestContainer, timeout time.Du
 		out, err := container.RunFestInDir(asyncJudgePhase, "workflow", "status", "--json")
 		last = out + errString(err)
 		if err == nil && !strings.Contains(out, `"waiting_on_judge": true`) {
-			// Either finished (no waiting flag) or never started — acceptable once launch completed.
+			// A canceled run may still be winding down after an operator override;
+			// do not return until its detached process has actually exited.
+			canceled := strings.Contains(out, `"judge_status": "canceled"`)
 			if strings.Contains(out, `"judge_status": "approved"`) ||
 				strings.Contains(out, `"judge_status": "failed"`) ||
 				strings.Contains(out, `"judge_status": "rejected"`) ||
-				!strings.Contains(out, `"judge_status": "running"`) {
+				(!canceled && !strings.Contains(out, `"judge_status": "running"`)) {
 				return
 			}
 		}

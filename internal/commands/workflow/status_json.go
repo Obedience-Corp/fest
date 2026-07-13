@@ -46,6 +46,7 @@ type workflowStatusStepJSON struct {
 	JudgeStatus    string `json:"judge_status,omitempty"`
 	JudgeCommand   string `json:"judge_command,omitempty"`
 	JudgePid       int    `json:"judge_pid,omitempty"`
+	JudgeRunID     string `json:"judge_run_id,omitempty"`
 	JudgeDetail    string `json:"judge_detail,omitempty"`
 }
 
@@ -103,6 +104,7 @@ func collectWorkflowStatus(nav *wf.Navigator) workflowStatusJSON {
 				entry.JudgeStatus = stepState.Judge.Status
 				entry.JudgeCommand = stepState.Judge.Command
 				entry.JudgePid = stepState.Judge.Pid
+				entry.JudgeRunID = stepState.Judge.RunID
 				entry.JudgeDetail = stepState.Judge.Detail
 				entry.WaitingOnJudge = stepState.Judge.Status == wf.JudgeRunning
 			}

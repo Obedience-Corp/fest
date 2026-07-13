@@ -2,10 +2,10 @@ package workflow
 
 import (
 	"context"
-	"time"
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/guidance"
@@ -268,21 +268,36 @@ func (n *Navigator) GetContextFiles(ctx context.Context) ([]string, error) {
 // the current step, before the judge command executes, so concurrent watchers
 // (fest show --watch, fest progress) can render the waiting-on-judge state
 // and a crashed or timed-out judge still leaves a trace.
-func (n *Navigator) BeginJudge(ctx context.Context, step int, command string, pid int) error {
-	return n.recordJudge(ctx, EmitJudgeStartedEvents(n.stateKey(), step, command, pid), func(at time.Time) {
-		n.workflowState.BeginJudge(step, command, pid, at)
+func (n *Navigator) BeginJudge(ctx context.Context, step int, command, runID string, pid int) error {
+	return n.recordJudge(ctx, EmitJudgeStartedEvents(n.stateKey(), step, command, runID, pid), func(at time.Time) bool {
+		n.workflowState.BeginJudge(step, command, runID, pid, at)
+		return true
 	})
+}
+
+// ClaimJudge binds a previously persisted run lease to its detached process.
+// It returns false when another transition superseded the run first.
+func (n *Navigator) ClaimJudge(ctx context.Context, step int, runID string, pid int) (bool, error) {
+	claimed := false
+	err := n.recordJudge(ctx, EmitJudgeClaimedEvents(n.stateKey(), step, runID, pid), func(_ time.Time) bool {
+		claimed = n.workflowState.ClaimJudge(step, runID, pid)
+		return claimed
+	})
+	return claimed, err
 }
 
 // RecordJudgeOutcome durably records how the judge run ended: JudgeApproved,
 // JudgeRejected, or JudgeFailed with the reason or error text in detail.
-func (n *Navigator) RecordJudgeOutcome(ctx context.Context, step int, status, detail string) error {
-	return n.recordJudge(ctx, EmitJudgeReturnedEvents(n.stateKey(), step, status, detail), func(at time.Time) {
-		n.workflowState.RecordJudgeOutcome(step, status, detail, at)
+func (n *Navigator) RecordJudgeOutcome(ctx context.Context, step int, runID, status, detail string) (bool, error) {
+	recorded := false
+	err := n.recordJudge(ctx, EmitJudgeReturnedEvents(n.stateKey(), step, runID, status, detail), func(at time.Time) bool {
+		recorded = n.workflowState.RecordJudgeOutcome(step, runID, status, detail, at)
+		return recorded
 	})
+	return recorded, err
 }
 
-func (n *Navigator) recordJudge(ctx context.Context, events []WorkflowEvent, apply func(at time.Time)) error {
+func (n *Navigator) recordJudge(ctx context.Context, events []WorkflowEvent, apply func(at time.Time) bool) error {
 	if err := n.EnsureInitialized(); err != nil {
 		return err
 	}
@@ -292,7 +307,9 @@ func (n *Navigator) recordJudge(ctx context.Context, events []WorkflowEvent, app
 		}
 	}
 
-	apply(time.Now().UTC())
+	if !apply(time.Now().UTC()) {
+		return nil
+	}
 
 	if n.store != nil {
 		n.store.QueueWorkflowEvents(events)
@@ -325,12 +342,16 @@ func (n *Navigator) ApproveWithAudit(ctx context.Context, feedback string, decis
 	}
 
 	currentStep := n.workflowState.CurrentStep
+	judgeRunID := runningJudgeRunID(n.workflowState.GetStepState(currentStep))
 	if err := n.workflowState.ApproveWithAudit(feedback, decision); err != nil {
 		return err
 	}
 
 	sk := n.stateKey()
 	if n.store != nil {
+		if judgeRunID != "" {
+			n.store.QueueWorkflowEvents(EmitJudgeReturnedEvents(sk, currentStep, judgeRunID, JudgeCanceled, "superseded by manual approval"))
+		}
 		n.store.QueueWorkflowEvents(EmitStepDoneWithDecisionEvents(sk, currentStep, feedback, decision))
 		if n.workflowState.CurrentStep > currentStep {
 			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
@@ -358,11 +379,16 @@ func (n *Navigator) RejectWithDecision(ctx context.Context, reason string, decis
 		}
 	}
 
+	currentStep := n.workflowState.CurrentStep
+	judgeRunID := runningJudgeRunID(n.workflowState.GetStepState(currentStep))
 	n.workflowState.RejectWithDecision(reason, decision)
 
 	sk := n.stateKey()
 	if n.store != nil {
-		n.store.QueueWorkflowEvents(EmitStepBlockWithDecisionEvents(sk, n.workflowState.CurrentStep, reason, decision))
+		if judgeRunID != "" {
+			n.store.QueueWorkflowEvents(EmitJudgeReturnedEvents(sk, currentStep, judgeRunID, JudgeCanceled, "superseded by manual rejection"))
+		}
+		n.store.QueueWorkflowEvents(EmitStepBlockWithDecisionEvents(sk, currentStep, reason, decision))
 		return n.store.SaveEvents(ctx)
 	}
 	return n.workflowState.Save(ctx, n.festivalPath, sk)
@@ -388,14 +414,80 @@ func (n *Navigator) RejectWithRemediationDecision(ctx context.Context, reason, r
 		}
 	}
 
+	currentStep := n.workflowState.CurrentStep
+	judgeRunID := runningJudgeRunID(n.workflowState.GetStepState(currentStep))
 	n.workflowState.RejectWithRemediationDecision(reason, remediationPhase, decision)
 
 	sk := n.stateKey()
 	if n.store != nil {
-		n.store.QueueWorkflowEvents(EmitStepFailRemediationWithDecisionEvents(sk, n.workflowState.CurrentStep, reason, remediationPhase, decision))
+		if judgeRunID != "" {
+			n.store.QueueWorkflowEvents(EmitJudgeReturnedEvents(sk, currentStep, judgeRunID, JudgeCanceled, "superseded by manual remediation decision"))
+		}
+		n.store.QueueWorkflowEvents(EmitStepFailRemediationWithDecisionEvents(sk, currentStep, reason, remediationPhase, decision))
 		return n.store.SaveEvents(ctx)
 	}
 	return n.workflowState.Save(ctx, n.festivalPath, sk)
+}
+
+func runningJudgeRunID(state *StepState) string {
+	if state == nil || state.Judge == nil || state.Judge.Status != JudgeRunning {
+		return ""
+	}
+	return state.Judge.RunID
+}
+
+// ApplyJudgeApproval atomically records an owned verdict and advances the
+// checkpoint. The caller must hold the checkpoint's cross-process lock.
+func (n *Navigator) ApplyJudgeApproval(ctx context.Context, step int, runID, audit string, decision DecisionMetadata) (bool, error) {
+	if err := n.EnsureInitialized(); err != nil {
+		return false, err
+	}
+	if !n.workflowState.JudgeOwned(step, runID) {
+		return false, nil
+	}
+	now := time.Now().UTC()
+	if !n.workflowState.RecordJudgeOutcome(step, runID, JudgeApproved, decision.Summary, now) {
+		return false, nil
+	}
+	if err := n.workflowState.ApproveWithAudit(audit, decision); err != nil {
+		return false, err
+	}
+
+	sk := n.stateKey()
+	if n.store != nil {
+		n.store.QueueWorkflowEvents(EmitJudgeReturnedEvents(sk, step, runID, JudgeApproved, decision.Summary))
+		n.store.QueueWorkflowEvents(EmitStepDoneWithDecisionEvents(sk, step, audit, decision))
+		if n.workflowState.CurrentStep > step {
+			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
+			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, n.workflowState.CurrentStep))
+		}
+		return true, n.store.SaveEvents(ctx)
+	}
+	return true, n.workflowState.Save(ctx, n.festivalPath, sk)
+}
+
+// ApplyJudgeRejection atomically records an owned verdict and blocks the
+// checkpoint. The caller must hold the checkpoint's cross-process lock.
+func (n *Navigator) ApplyJudgeRejection(ctx context.Context, step int, runID, audit string, decision DecisionMetadata) (bool, error) {
+	if err := n.EnsureInitialized(); err != nil {
+		return false, err
+	}
+	if !n.workflowState.JudgeOwned(step, runID) {
+		return false, nil
+	}
+	now := time.Now().UTC()
+	if !n.workflowState.RecordJudgeOutcome(step, runID, JudgeRejected, decision.Summary, now) {
+		return false, nil
+	}
+	n.workflowState.RejectWithDecision(audit, decision)
+
+	sk := n.stateKey()
+	if n.store != nil {
+		n.store.QueueWorkflowEvents(EmitJudgeReturnedEvents(sk, step, runID, JudgeRejected, decision.Summary))
+		n.store.QueueWorkflowEvents(EmitStepBlockWithDecisionEvents(sk, step, audit, decision))
+		return true, n.store.SaveEvents(ctx)
+	}
+	return true, n.workflowState.Save(ctx, n.festivalPath, sk)
 }
 
 // Recheck transitions the current step out of failed_with_remediation back

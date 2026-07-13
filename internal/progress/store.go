@@ -630,6 +630,7 @@ func (s *Store) QueueWorkflowEvents(events []wf.WorkflowEvent) {
 			JudgeCommand:     we.JudgeCommand,
 			JudgeDetail:      we.JudgeDetail,
 			JudgePid:         we.JudgePid,
+			JudgeRunID:       we.JudgeRunID,
 		}
 		s.pendingEvents = append(s.pendingEvents, pe)
 	}

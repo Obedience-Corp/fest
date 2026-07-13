@@ -76,6 +76,24 @@ func TestMaterializeWorkflowState_ResetClearsJudge(t *testing.T) {
 	}
 }
 
+func TestMaterializeWorkflowState_IgnoresSupersededJudgeEvents(t *testing.T) {
+	now := time.Now().UTC()
+	events := []ProgressEvent{
+		{Timestamp: now, Event: EventWorkflowInit, Phase: "001_INGEST", TotalSteps: 1},
+		{Timestamp: now.Add(time.Second), Event: EventWorkflowJudgeStarted, Phase: "001_INGEST", Step: 1, JudgeCommand: "old", JudgeRunID: "run-old"},
+		{Timestamp: now.Add(2 * time.Second), Event: EventWorkflowJudgeClaimed, Phase: "001_INGEST", Step: 1, JudgePid: 100, JudgeRunID: "run-old"},
+		{Timestamp: now.Add(3 * time.Second), Event: EventWorkflowJudgeStarted, Phase: "001_INGEST", Step: 1, JudgeCommand: "new", JudgeRunID: "run-new"},
+		{Timestamp: now.Add(4 * time.Second), Event: EventWorkflowJudgeClaimed, Phase: "001_INGEST", Step: 1, JudgePid: 200, JudgeRunID: "run-new"},
+		{Timestamp: now.Add(5 * time.Second), Event: EventWorkflowJudgeReturned, Phase: "001_INGEST", Step: 1, JudgeStatus: wf.JudgeApproved, JudgeDetail: "stale", JudgeRunID: "run-old"},
+	}
+
+	state := materializeWorkflowState(events).Phases["001_INGEST"]
+	judge := state.GetStepState(1).Judge
+	if judge == nil || judge.Status != wf.JudgeRunning || judge.RunID != "run-new" || judge.Pid != 200 {
+		t.Fatalf("stale event changed active lease: %+v", judge)
+	}
+}
+
 func TestGenerateWorkflowEventsFromYAML_EmitsStepSkip(t *testing.T) {
 	now := time.Now().UTC()
 	phaseState := wf.NewWorkflowState(2)

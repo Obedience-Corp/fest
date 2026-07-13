@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestNewWorkflowState(t *testing.T) {
@@ -346,6 +347,22 @@ func TestWorkflowState_Reject(t *testing.T) {
 
 	if current.Feedback != "needs more detail" {
 		t.Errorf("Feedback = %q, want 'needs more detail'", current.Feedback)
+	}
+}
+
+func TestWorkflowState_RejectCancelsRunningJudge(t *testing.T) {
+	state := NewWorkflowState(1)
+	state.StartCurrentStep()
+	state.BeginJudge(1, "ob judge", "run-1", 42, time.Now().UTC())
+
+	state.Reject("operator override")
+
+	judge := state.GetStepState(1).Judge
+	if judge == nil || judge.Status != JudgeCanceled || judge.RunID != "run-1" {
+		t.Fatalf("manual rejection did not cancel judge lease: %+v", judge)
+	}
+	if state.JudgeOwned(1, "run-1") {
+		t.Fatal("canceled judge must not retain decision ownership")
 	}
 }
 
