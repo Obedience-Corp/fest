@@ -2,12 +2,13 @@ package workflow
 
 import (
 	"context"
-	"os"
-	"path/filepath"
+	"errors"
 	"strings"
 	"testing"
 
+	"github.com/Obedience-Corp/fest/internal/config"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/scope"
 )
 
 func TestCheckAutoJudgeAllowed_OperatorAttestation(t *testing.T) {
@@ -28,13 +29,14 @@ func TestCheckAutoJudgeAllowed_OperatorAttestation(t *testing.T) {
 }
 
 func TestCheckApprovalReadiness_PresentMissingPresentation(t *testing.T) {
-	phase := t.TempDir()
 	step := wf.WorkflowStep{
 		Number:     4,
 		Name:       "PRESENT",
 		Checkpoint: wf.CheckpointUserApproval,
 	}
-	err := checkApprovalReadiness(phase, step)
+	err := checkApprovalReadinessWithInspector("/phase", step, func(_, _ string) (bool, error) {
+		return false, nil
+	})
 	if err == nil {
 		t.Fatal("expected readiness failure")
 	}
@@ -44,33 +46,96 @@ func TestCheckApprovalReadiness_PresentMissingPresentation(t *testing.T) {
 }
 
 func TestCheckApprovalReadiness_PresentWithFiles(t *testing.T) {
-	phase := t.TempDir()
-	specs := filepath.Join(phase, "output_specs")
-	if err := os.MkdirAll(specs, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	for _, name := range []string{"PRESENTATION.md", "purpose.md", "requirements.md", "constraints.md", "context.md"} {
-		if err := os.WriteFile(filepath.Join(specs, name), []byte("# ok\n"), 0o644); err != nil {
-			t.Fatal(err)
-		}
-	}
 	step := wf.WorkflowStep{
 		Number:     4,
 		Name:       "PRESENT",
 		Checkpoint: wf.CheckpointUserApproval,
 	}
-	if err := checkApprovalReadiness(phase, step); err != nil {
+	inspect := func(_, path string) (bool, error) {
+		return path == "output_specs/PRESENTATION.md", nil
+	}
+	if err := checkApprovalReadinessWithInspector("/phase", step, inspect); err != nil {
 		t.Fatalf("checkApprovalReadiness: %v", err)
+	}
+}
+
+func TestCheckApprovalReadiness_PresentAcceptsExplicitEvidencePack(t *testing.T) {
+	step := wf.WorkflowStep{
+		Number:        4,
+		Name:          "PRESENT",
+		Checkpoint:    wf.CheckpointUserApproval,
+		EvidencePaths: []string{"output_specs/review.md", "output_specs/demo.txt"},
+	}
+	if err := checkApprovalReadinessWithInspector("/phase", step, func(_, _ string) (bool, error) {
+		return true, nil
+	}); err != nil {
+		t.Fatalf("explicit evidence pack should satisfy readiness: %v", err)
+	}
+}
+
+func TestCheckApprovalReadiness_ExplicitEvidenceRequiresEveryFile(t *testing.T) {
+	step := wf.WorkflowStep{
+		Number:        4,
+		Name:          "PRESENT",
+		Checkpoint:    wf.CheckpointUserApproval,
+		EvidencePaths: []string{"output_specs/review.md", "output_specs/missing.md"},
+	}
+	err := checkApprovalReadinessWithInspector("/phase", step, func(_, path string) (bool, error) {
+		return path != "output_specs/missing.md", nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "listed evidence") {
+		t.Fatalf("missing explicit evidence error = %v", err)
+	}
+}
+
+func TestCheckApprovalReadiness_InspectorErrorFailsClosed(t *testing.T) {
+	step := wf.WorkflowStep{
+		Number:          2,
+		Name:            "REVIEW",
+		Checkpoint:      wf.CheckpointUserApproval,
+		CheckpointClass: wf.CheckpointClassArtifactReview,
+		EvidencePaths:   []string{"output_specs/review.md"},
+	}
+	err := checkApprovalReadinessWithInspector("/phase", step, func(_, _ string) (bool, error) {
+		return false, errors.New("containment failed")
+	})
+	if err == nil || !strings.Contains(err.Error(), "containment failed") {
+		t.Fatalf("inspector error = %v", err)
+	}
+}
+
+func TestCheckApprovalReadiness_InvalidEvidencePathsFailClosed(t *testing.T) {
+	for _, path := range []string{"../outside.md", "/absolute/outside.md", "."} {
+		t.Run(path, func(t *testing.T) {
+			step := wf.WorkflowStep{
+				Number:          2,
+				Name:            "REVIEW",
+				Checkpoint:      wf.CheckpointUserApproval,
+				CheckpointClass: wf.CheckpointClassArtifactReview,
+				EvidencePaths:   []string{path},
+			}
+			err := checkApprovalReadinessWithInspector("/phase", step, func(_, _ string) (bool, error) {
+				t.Fatal("invalid path must fail before inspection")
+				return false, nil
+			})
+			if err == nil || !strings.Contains(err.Error(), "invalid evidence path") {
+				t.Fatalf("invalid path %q error = %v", path, err)
+			}
+		})
 	}
 }
 
 func TestCheckApprovalReadiness_NonPresentSkips(t *testing.T) {
 	step := wf.WorkflowStep{
-		Number:     2,
-		Name:       "ANALYZE",
-		Checkpoint: wf.CheckpointUserApproval,
+		Number:          2,
+		Name:            "ANALYZE",
+		Checkpoint:      wf.CheckpointUserApproval,
+		CheckpointClass: wf.CheckpointClassArtifactReview,
 	}
-	if err := checkApprovalReadiness(t.TempDir(), step); err != nil {
+	if err := checkApprovalReadinessWithInspector("/phase", step, func(_, _ string) (bool, error) {
+		t.Fatal("non-presentation step without explicit evidence must not inspect files")
+		return false, nil
+	}); err != nil {
 		t.Fatalf("non-present step should skip readiness file checks: %v", err)
 	}
 }
@@ -78,7 +143,7 @@ func TestCheckApprovalReadiness_NonPresentSkips(t *testing.T) {
 func TestResolveManualApprovalDecision_NoJudgeHookAllowsNonTTY(t *testing.T) {
 	decision, err := resolveManualApprovalDecision(
 		wf.DecisionMetadata{Actor: decisionActorUser, Summary: "ok"},
-		false, false, nil, 1, "TEST",
+		false, false, false, nil, 1, "TEST",
 	)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -95,13 +160,77 @@ func TestResolveManualApprovalDecision_JudgeConfiguredRequiresTTY(t *testing.T) 
 
 	_, err := resolveManualApprovalDecision(
 		wf.DecisionMetadata{Actor: decisionActorUser},
-		true, false, nil, 4, "PRESENT",
+		true, false, false, nil, 4, "PRESENT",
 	)
 	if err == nil {
 		t.Fatal("expected non-TTY refusal when judge configured")
 	}
 	if !strings.Contains(err.Error(), "interactive operator TTY") {
 		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestResolveManualApprovalDecision_PriorJudgeRejectRequiresTTYWithoutHook(t *testing.T) {
+	orig := stdinIsInteractiveFn
+	stdinIsInteractiveFn = func() bool { return false }
+	t.Cleanup(func() { stdinIsInteractiveFn = orig })
+
+	blocked := &wf.StepState{
+		Status:        wf.StepStatusBlocked,
+		DecisionActor: decisionActorAgent,
+		Judge:         &wf.JudgeState{Status: wf.JudgeRejected},
+	}
+	_, err := resolveManualApprovalDecision(
+		wf.DecisionMetadata{Actor: decisionActorUser},
+		false, false, false, blocked, 4, "PRESENT",
+	)
+	if err == nil || !strings.Contains(err.Error(), "interactive operator TTY") {
+		t.Fatalf("prior reject without current hook must remain protected: %v", err)
+	}
+}
+
+func TestResolveManualApprovalDecision_OperatorAttestationRequiresTTYWithoutHook(t *testing.T) {
+	orig := stdinIsInteractiveFn
+	stdinIsInteractiveFn = func() bool { return false }
+	t.Cleanup(func() { stdinIsInteractiveFn = orig })
+
+	_, err := resolveManualApprovalDecision(
+		wf.DecisionMetadata{Actor: decisionActorUser},
+		false, true, false, nil, 3, "SIGN-OFF",
+	)
+	if err == nil || !strings.Contains(err.Error(), "interactive operator TTY") {
+		t.Fatalf("operator attestation without hook must require a human TTY: %v", err)
+	}
+}
+
+func TestApprovalJudgeConfigured_ConfigLoadFailureFailsClosed(t *testing.T) {
+	ctx := scope.WithWorkspace(context.Background(), &scope.WorkspaceInfo{FestivalsPath: "/festivals"})
+	configured, err := approvalJudgeConfiguredWithLoader(ctx, func(string) (*config.WorkspaceConfig, error) {
+		return nil, errors.New("malformed yaml")
+	})
+	if err == nil || !strings.Contains(err.Error(), "malformed yaml") {
+		t.Fatalf("config load error = %v", err)
+	}
+	if configured {
+		t.Fatal("configuration load failure must not report a configured judge")
+	}
+}
+
+func TestApprovalRecoveryLines_OnlySuggestValidRoutesWithoutJudge(t *testing.T) {
+	operatorLines := approvalRecoveryLines(context.Background(), wf.WorkflowStep{
+		CheckpointClass: wf.CheckpointClassOperatorAttestation,
+	})
+	operatorText := strings.Join(operatorLines, "\n")
+	if strings.Contains(operatorText, "--auto") || !strings.Contains(operatorText, "Human attestation") {
+		t.Fatalf("operator guidance = %q", operatorText)
+	}
+
+	artifactLines := approvalRecoveryLines(context.Background(), wf.WorkflowStep{
+		CheckpointClass: wf.CheckpointClassArtifactReview,
+	})
+	artifactText := strings.Join(artifactLines, "\n")
+	if strings.Contains(artifactText, "approve --auto") || !strings.Contains(artifactText, "configure") {
+		t.Fatalf("unconfigured artifact guidance = %q", artifactText)
 	}
 }
 
@@ -118,7 +247,7 @@ func TestResolveManualApprovalDecision_OverrideJudge(t *testing.T) {
 	}
 	decision, err := resolveManualApprovalDecision(
 		wf.DecisionMetadata{Summary: "I reviewed output_specs and accept them as written"},
-		true, true, blocked, 4, "PRESENT",
+		true, false, true, blocked, 4, "PRESENT",
 	)
 	if err != nil {
 		t.Fatalf("override: %v", err)
@@ -131,7 +260,7 @@ func TestResolveManualApprovalDecision_OverrideJudge(t *testing.T) {
 func TestResolveManualApprovalDecision_OverrideRequiresSummary(t *testing.T) {
 	_, err := resolveManualApprovalDecision(
 		wf.DecisionMetadata{Summary: "short"},
-		true, true, nil, 1, "TEST",
+		true, false, true, nil, 1, "TEST",
 	)
 	if err == nil {
 		t.Fatal("expected short summary rejection")
@@ -154,7 +283,7 @@ func TestResolveManualApprovalDecision_InteractiveConfirm(t *testing.T) {
 	}
 	decision, err := resolveManualApprovalDecision(
 		wf.DecisionMetadata{},
-		true, false, blocked, 4, "PRESENT",
+		true, false, false, blocked, 4, "PRESENT",
 	)
 	if err != nil {
 		t.Fatalf("interactive: %v", err)

@@ -28,6 +28,7 @@ type approvalJudgeOptions struct {
 	WorkDir       string // festival path; set as judge process cwd
 	OverrideJudge bool
 	Summary       string // manual path summary (also used with --override-judge)
+	OneOffJudge   bool   // judge command came from --judge-command, not workspace config
 }
 
 type approvalJudgeRequest struct {
@@ -81,7 +82,8 @@ Auto approval:
 
   Checkpoint classes:
     artifact_review         — deliverables can be auto-judged when evidence is ready
-    operator_attestation    — human must approve; --auto is refused
+    operator_attestation    — human must approve; --auto is refused and plain
+                              manual approval requires an interactive TTY
 
   Presentation-like steps require non-empty evidence (e.g. output_specs/PRESENTATION.md)
   before the judge is invoked. Missing evidence blocks deterministically without a model call.
@@ -183,6 +185,7 @@ func runApproveWithOptions(ctx context.Context, decision wf.DecisionMetadata, op
 	}
 
 	if opts.Auto {
+		opts.OneOffJudge = strings.TrimSpace(opts.JudgeCommand) != ""
 		judgeCommand, err := resolveApprovalJudgeCommand(ctx, opts.JudgeCommand)
 		if err != nil {
 			return err
@@ -192,8 +195,12 @@ func runApproveWithOptions(ctx context.Context, decision wf.DecisionMetadata, op
 		return runApproveAuto(ctx, nav, currentStepNum, step, opts)
 	}
 
-	judgeConfigured := approvalJudgeConfigured(ctx)
-	decision, err = resolveManualApprovalDecision(decision, judgeConfigured, opts.OverrideJudge, stepState, currentStepNum, step.Name)
+	judgeConfigured, err := approvalJudgeConfigured(ctx)
+	if err != nil {
+		return err
+	}
+	operatorAttestation := wf.ClassifyCheckpoint(step) == wf.CheckpointClassOperatorAttestation
+	decision, err = resolveManualApprovalDecision(decision, judgeConfigured, operatorAttestation, opts.OverrideJudge, stepState, currentStepNum, step.Name)
 	if err != nil {
 		return err
 	}
@@ -213,11 +220,28 @@ func runApproveWithOptions(ctx context.Context, decision wf.DecisionMetadata, op
 	return showNextStep(ctx, nav, steps)
 }
 
-// approvalJudgeConfigured reports whether the workspace has a judge hook
-// (flag-less resolution). Used to decide whether manual approve needs a TTY.
-func approvalJudgeConfigured(ctx context.Context) bool {
-	cmd, err := resolveApprovalJudgeCommand(ctx, "")
-	return err == nil && strings.TrimSpace(cmd) != ""
+type workspaceConfigLoader func(string) (*config.WorkspaceConfig, error)
+
+// approvalJudgeConfigured reports whether the workspace has a judge hook.
+// Missing workspace/hook is a normal false result; unreadable or malformed
+// authority configuration is an error so manual approval fails closed.
+func approvalJudgeConfigured(ctx context.Context) (bool, error) {
+	return approvalJudgeConfiguredWithLoader(ctx, config.LoadWorkspaceConfig)
+}
+
+func approvalJudgeConfiguredWithLoader(ctx context.Context, load workspaceConfigLoader) (bool, error) {
+	ws, ok := scope.WorkspaceFrom(ctx)
+	if !ok || ws == nil || strings.TrimSpace(ws.FestivalsPath) == "" {
+		return false, nil
+	}
+	cfg, err := load(ws.FestivalsPath)
+	if err != nil {
+		return false, festerrors.Wrap(err, "loading approval judge authority configuration")
+	}
+	if cfg == nil {
+		return false, festerrors.Validation("approval judge authority configuration is empty")
+	}
+	return strings.TrimSpace(cfg.Hooks.ApprovalJudge.Command) != "", nil
 }
 
 // resolveApprovalJudgeCommand resolves the command used for --auto approval.
@@ -276,7 +300,7 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 		}
 		fmt.Printf("%s Step %d: %s blocked (readiness)\n", ui.Warning("⚠"), currentStepNum, step.Name)
 		fmt.Printf("  %s: %s\n\n", ui.Label("Reason"), reason)
-		printResubmitHints()
+		printResubmitHints(opts)
 		// Return nil so scripts see a clean block like judge reject; the step
 		// is blocked. Callers that need fail-closed exit codes can check status.
 		// Prefer non-zero so agents notice:
@@ -321,7 +345,7 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 		}
 		fmt.Printf("%s Step %d: %s auto-rejected\n", ui.Warning("⚠"), currentStepNum, step.Name)
 		fmt.Printf("  %s: %s\n\n", ui.Label("Reason"), decision.Reason)
-		printResubmitHints()
+		printResubmitHints(opts)
 		return nil
 	default:
 		// Unreachable today: parseApprovalJudgeResponse already rejects any
@@ -339,9 +363,13 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 	}
 }
 
-func printResubmitHints() {
+func printResubmitHints(opts approvalJudgeOptions) {
 	fmt.Println("The step is now blocked. Address the feedback and revise the work.")
-	fmt.Println("When ready, re-submit to the judge: " + ui.Accent("fest workflow approve --auto"))
+	if opts.OneOffJudge {
+		fmt.Println("When ready, re-run the one-off judge invocation: " + ui.Accent("fest workflow approve --auto --judge-command <same-command>"))
+	} else {
+		fmt.Println("When ready, re-submit to the configured judge: " + ui.Accent("fest workflow approve --auto"))
+	}
 	fmt.Println("Operator override (interactive):     " + ui.Accent("fest workflow approve"))
 	fmt.Println("Operator override (scripted):        " + ui.Accent("fest workflow approve --override-judge --summary \"...\""))
 }

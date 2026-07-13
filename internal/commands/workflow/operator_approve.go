@@ -55,7 +55,8 @@ func stepHasOpenJudgeReject(stepState *wf.StepState) bool {
 
 // resolveManualApprovalDecision applies authority rules when auto-judge is configured.
 //
-// When the workspace has an approval judge hook:
+// When the workspace has an approval judge hook, the step is a human
+// attestation, or durable state records a prior delegated rejection:
 //   - Non-interactive (no TTY) manual approve is refused unless --override-judge
 //     with a sufficient summary (true operator override from a scripted path).
 //   - Interactive approve requires typing APPROVE.
@@ -63,6 +64,7 @@ func stepHasOpenJudgeReject(stepState *wf.StepState) bool {
 func resolveManualApprovalDecision(
 	decision wf.DecisionMetadata,
 	judgeConfigured bool,
+	operatorAttestation bool,
 	overrideJudge bool,
 	stepState *wf.StepState,
 	stepNum int,
@@ -74,11 +76,9 @@ func resolveManualApprovalDecision(
 
 	priorReject := stepHasOpenJudgeReject(stepState)
 
-	if !judgeConfigured {
+	requiresOperatorAuthority := judgeConfigured || priorReject || operatorAttestation
+	if !requiresOperatorAuthority {
 		// Legacy path: no auto-judge hook → keep open manual approve for CI/scripts.
-		if priorReject {
-			decision.Actor = decisionActorUserOverride
-		}
 		return decision, nil
 	}
 
@@ -98,7 +98,7 @@ func resolveManualApprovalDecision(
 		if priorReject {
 			hint = "fix evidence and re-submit with 'fest workflow approve --auto', or override interactively / with --override-judge --summary \"...\""
 		}
-		return wf.DecisionMetadata{}, festerrors.Validation("manual approve requires an interactive operator TTY when auto-judge is configured").
+		return wf.DecisionMetadata{}, festerrors.Validation("manual approve requires an interactive operator TTY for human attestation, after judge delegation, or when auto-judge is configured").
 			WithField("step", stepNum).
 			WithField("step_name", stepName).
 			WithHint(hint + "\nAgents must not clear checkpoints as the user.")

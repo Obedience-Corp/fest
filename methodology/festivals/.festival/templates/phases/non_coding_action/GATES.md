@@ -19,6 +19,8 @@ This gate verifies the non-coding action phase achieved its goal and produced do
 2. Verify the action was performed (not just planned)
 3. Confirm the outcome satisfies the phase's success criteria
 
+**Checkpoint class:** artifact_review
+
 **Checkpoint:** APPROVAL REQUIRED — Confirm phase goal is met
 
 ---
@@ -32,6 +34,8 @@ This gate verifies the non-coding action phase achieved its goal and produced do
 2. Verify any artifacts produced are saved in the appropriate location
 3. Confirm unexpected results or issues are noted
 
+**Checkpoint class:** artifact_review
+
 **Checkpoint:** APPROVAL REQUIRED — Confirm results documented
 
 ---
@@ -44,6 +48,8 @@ This gate verifies the non-coding action phase achieved its goal and produced do
 1. Note any follow-up work triggered by this action
 2. Verify blockers or risks are flagged for later phases
 3. Confirm nothing was left unresolved that affects downstream work
+
+**Checkpoint class:** artifact_review
 
 **Checkpoint:** APPROVAL REQUIRED — Confirm follow-ups identified
 

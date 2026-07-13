@@ -19,6 +19,8 @@ This gate verifies the research phase achieved its goal and produced actionable 
 2. Verify each question received findings or an explicit "inconclusive" note
 3. Confirm no research questions were silently dropped
 
+**Checkpoint class:** artifact_review
+
 **Checkpoint:** APPROVAL REQUIRED — Confirm research goal is met
 
 ---
@@ -32,6 +34,8 @@ This gate verifies the research phase achieved its goal and produced actionable 
 2. Verify confidence levels are noted for conclusions
 3. Confirm contradictions or gaps are transparently noted
 
+**Checkpoint class:** artifact_review
+
 **Checkpoint:** APPROVAL REQUIRED — Confirm findings are documented
 
 ---
@@ -44,6 +48,8 @@ This gate verifies the research phase achieved its goal and produced actionable 
 1. Confirm findings translate into clear recommendations or decisions
 2. Verify downstream phases can act on the research without re-investigation
 3. Check that open questions are flagged for follow-up
+
+**Checkpoint class:** artifact_review
 
 **Checkpoint:** APPROVAL REQUIRED — Confirm conclusions are actionable
 

@@ -109,6 +109,8 @@ This document guides the agent through the planning phase. Follow these steps in
 
 **Output:** Summary presented to user
 
+**Checkpoint class:** artifact_review
+
 **Checkpoint:** APPROVAL REQUIRED — Wait for user response
 
 ---

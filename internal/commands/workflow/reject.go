@@ -143,8 +143,7 @@ func runRejectWithRemediationDecision(ctx context.Context, reason, remediationPh
 		fmt.Printf("  %s: %s\n", ui.Label("Summary"), decision.Summary)
 	}
 	fmt.Println("The step is now blocked. Address the feedback and revise the work.")
-	fmt.Println("When ready, re-submit with: " + ui.Accent("fest workflow approve --auto"))
-	fmt.Println("Operator override: " + ui.Accent("fest workflow approve") + " (interactive)")
+	printApprovalRecovery(ctx, step)
 
 	return nil
 }

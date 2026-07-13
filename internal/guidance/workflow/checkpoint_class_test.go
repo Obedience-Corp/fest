@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -41,6 +42,18 @@ func TestClassifyCheckpoint_ExplicitAnnotationWins(t *testing.T) {
 	}
 	if got := ClassifyCheckpoint(step); got != CheckpointClassArtifactReview {
 		t.Fatalf("explicit class ignored: got %q", got)
+	}
+}
+
+func TestClassifyCheckpoint_AmbiguousHumanGateFailsClosed(t *testing.T) {
+	step := WorkflowStep{
+		Name:           "SIGN-OFF",
+		Goal:           "Obtain customer acceptance before launch.",
+		Checkpoint:     CheckpointUserApproval,
+		CheckpointText: "APPROVAL REQUIRED — Obtain customer sign-off",
+	}
+	if got := ClassifyCheckpoint(step); got != CheckpointClassOperatorAttestation {
+		t.Fatalf("ClassifyCheckpoint() = %q, want fail-closed operator_attestation", got)
 	}
 }
 
@@ -105,5 +118,27 @@ func TestParser_OperatorAttestationClass(t *testing.T) {
 	}
 	if ClassifyCheckpoint(steps[0]) != CheckpointClassOperatorAttestation {
 		t.Fatal("ClassifyCheckpoint should keep explicit operator_attestation")
+	}
+}
+
+func TestParser_InvalidExplicitCheckpointClassFailsClosed(t *testing.T) {
+	for _, class := range []string{"operator_atestation", ""} {
+		t.Run(class, func(t *testing.T) {
+			content := `## Step 1: APPROVAL
+
+**Goal:** Confirm operator intent.
+
+**Checkpoint class:** ` + class + `
+
+**Checkpoint:** APPROVAL REQUIRED — Obtain customer sign-off
+`
+			_, err := NewParser().ParseContent(context.Background(), content)
+			if err == nil {
+				t.Fatal("invalid explicit checkpoint class must fail parsing")
+			}
+			if class != "" && !strings.Contains(err.Error(), class) {
+				t.Fatalf("error = %v, want invalid class value", err)
+			}
+		})
 	}
 }

@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"regexp"
 	"strconv"
@@ -31,7 +32,7 @@ var (
 	checkpointRe = regexp.MustCompile(`(?s)\*\*Checkpoint:\*\*\s*(.+?)(?:\n\n|---|\n##|$)`)
 
 	// checkpointClassRe matches an explicit checkpoint class annotation.
-	checkpointClassRe = regexp.MustCompile(`(?i)\*\*Checkpoint class:\*\*\s*(\S+)`)
+	checkpointClassRe = regexp.MustCompile(`(?im)\*\*Checkpoint class:\*\*[ \t]*([^\r\n]*)`)
 
 	// evidenceRe matches an explicit evidence list for approval judging.
 	evidenceRe = regexp.MustCompile(`(?s)\*\*Evidence:\*\*\s*(.+?)(?:\n\n|\n\*\*|---|\n##|$)`)
@@ -118,7 +119,11 @@ func (p *Parser) ParseContent(ctx context.Context, content string) ([]WorkflowSt
 
 		// Extract checkpoint
 		step.Checkpoint, step.CheckpointText = p.parseCheckpoint(section)
-		step.CheckpointClass = p.parseCheckpointClass(section)
+		checkpointClass, err := p.parseCheckpointClass(section)
+		if err != nil {
+			return nil, fmt.Errorf("step %d checkpoint class: %w", num, err)
+		}
+		step.CheckpointClass = checkpointClass
 		step.EvidencePaths = p.parseEvidencePaths(section)
 
 		steps = append(steps, step)
@@ -196,18 +201,24 @@ func (p *Parser) parseCheckpoint(section string) (CheckpointType, string) {
 	}
 }
 
-func (p *Parser) parseCheckpointClass(section string) CheckpointClass {
+func (p *Parser) parseCheckpointClass(section string) (CheckpointClass, error) {
 	m := checkpointClassRe.FindStringSubmatch(section)
 	if len(m) < 2 {
-		return CheckpointClassUnspecified
+		return CheckpointClassUnspecified, nil
 	}
-	switch strings.ToLower(strings.TrimSpace(m[1])) {
-	case string(CheckpointClassArtifactReview), "artifact", "review":
-		return CheckpointClassArtifactReview
-	case string(CheckpointClassOperatorAttestation), "operator", "attestation", "user":
-		return CheckpointClassOperatorAttestation
+	value := strings.ToLower(strings.TrimSpace(m[1]))
+	switch value {
+	case string(CheckpointClassArtifactReview):
+		return CheckpointClassArtifactReview, nil
+	case string(CheckpointClassOperatorAttestation):
+		return CheckpointClassOperatorAttestation, nil
 	default:
-		return CheckpointClassUnspecified
+		return CheckpointClassUnspecified, fmt.Errorf(
+			"unsupported value %q (expected %q or %q)",
+			value,
+			CheckpointClassArtifactReview,
+			CheckpointClassOperatorAttestation,
+		)
 	}
 }
 
@@ -236,6 +247,8 @@ func (p *Parser) parseEvidencePaths(section string) []string {
 // PRESENT / "wait for user response" steps remain artifact_review: the judge
 // reviews the presentation pack. Phrases that ask whether the user already
 // validated/approved are operator_attestation and cannot be auto-judged.
+// Ambiguous legacy checkpoints fail closed as operator_attestation; shipped
+// templates carry explicit classes so heuristics are compatibility-only.
 func ClassifyCheckpoint(step WorkflowStep) CheckpointClass {
 	if step.CheckpointClass == CheckpointClassArtifactReview ||
 		step.CheckpointClass == CheckpointClassOperatorAttestation {
@@ -264,7 +277,10 @@ func ClassifyCheckpoint(step WorkflowStep) CheckpointClass {
 			return CheckpointClassOperatorAttestation
 		}
 	}
-	return CheckpointClassArtifactReview
+	if IsPresentationStep(step) {
+		return CheckpointClassArtifactReview
+	}
+	return CheckpointClassOperatorAttestation
 }
 
 // IsPresentationStep reports whether the step is a PRESENT-style deliverable review.
