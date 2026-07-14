@@ -294,8 +294,11 @@ func buildSequenceNode(seqDir string, store *progress.Store, festivalRoot string
 			NodeType: "task",
 			Status:   displayStatus,
 			Stats: StatusCounts{
-				Total:     1,
-				Completed: boolToInt(status == progress.StatusCompleted),
+				Total:      1,
+				Completed:  boolToInt(status == progress.StatusCompleted),
+				InProgress: boolToInt(status == progress.StatusInProgress),
+				Pending:    boolToInt(status == progress.StatusPending),
+				Blocked:    boolToInt(status == progress.StatusBlocked),
 			},
 		}
 		node.Children = append(node.Children, taskNode)
@@ -305,20 +308,22 @@ func buildSequenceNode(seqDir string, store *progress.Store, festivalRoot string
 	return node
 }
 
-// markNextPending walks the tree top-down and marks the first non-completed
+// markNextPending walks the tree top-down and marks the first non-terminal
 // child at each level as IsNextPending, recursing into it. Only one path
 // through the tree gets marked, giving --inprogress a "next up" expansion.
 func markNextPending(node *DisplayNode) {
 	for _, child := range node.Children {
-		if child.Status != "completed" && child.Status != "skipped" {
-			child.IsNextPending = true
-			// Leaf nodes (tasks/steps) show as in_progress to indicate "work here next"
-			if child.NodeType == "task" || child.NodeType == "step" {
-				child.Status = "in_progress"
-			}
-			markNextPending(child)
-			return
+		if child.Status == "completed" || child.Status == "skipped" {
+			continue
 		}
+		child.IsNextPending = true
+		// Highlight an actual pending leaf as the next place to work, but do
+		// not mask an existing in_progress or blocked status.
+		if (child.NodeType == "task" || child.NodeType == "step") && child.Status == "pending" {
+			child.Status = "in_progress"
+		}
+		markNextPending(child)
+		return
 	}
 }
 
@@ -337,6 +342,9 @@ func determineStatus(stats StatusCounts) string {
 	}
 	if stats.Completed == stats.Total {
 		return "completed"
+	}
+	if stats.Blocked > 0 {
+		return "blocked"
 	}
 	if stats.InProgress > 0 || stats.Completed > 0 {
 		return "in_progress"
