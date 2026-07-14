@@ -10,6 +10,7 @@ import (
 	festcontract "github.com/Obedience-Corp/fest/internal/contract"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/fileops"
+	"github.com/Obedience-Corp/fest/internal/pathutil"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/Obedience-Corp/obey-shared/contract"
@@ -84,20 +85,28 @@ func RunInit(ctx context.Context, targetPath string, opts *InitOptions) error {
 		return errors.Wrap(err, "resolving path").WithField("path", targetPath)
 	}
 
+	// Prefer campaign-relative display paths; fall back to the init target
+	// (festival workspace root) when not inside a campaign.
+	campaignRoot, campaignErr := workspace.DetectCampaign(ctx, absPath)
+	displayRoot := resolveDisplayRoot(campaignRoot, campaignErr, absPath)
+	showPath := func(p string) string {
+		return pathutil.DisplayPath(p, displayRoot)
+	}
+
 	// Handle --register flag: register existing festivals directory
 	if opts.Register {
-		return runRegister(absPath, display)
+		return runRegister(ctx, absPath, display)
 	}
 
 	// Handle --unregister flag: remove workspace marker
 	if opts.Unregister {
-		return runUnregister(absPath, display)
+		return runUnregister(ctx, absPath, display)
 	}
 
 	// Check if festival already exists
 	festivalPath := filepath.Join(absPath, "festivals")
 	if fileops.Exists(festivalPath) && !opts.Force {
-		if !display.Confirm("Festival directory already exists at %s. Overwrite?", festivalPath) {
+		if !display.Confirm("Festival directory already exists at %s. Overwrite?", showPath(festivalPath)) {
 			display.Warning("Initialization cancelled")
 			return nil
 		}
@@ -131,7 +140,7 @@ func RunInit(ctx context.Context, targetPath string, opts *InitOptions) error {
 		}
 	}
 
-	display.Info("Initializing festival structure at %s...", festivalPath)
+	display.Info("Initializing festival structure at %s...", showPath(festivalPath))
 
 	// Create festivals directory if it doesn't exist
 	if err := os.MkdirAll(festivalPath, 0755); err != nil {
@@ -182,7 +191,7 @@ func RunInit(ctx context.Context, targetPath string, opts *InitOptions) error {
 			return errors.IO("saving checksums", err).WithField("path", checksumFile)
 		}
 
-		display.Info("Created checksum tracking at %s", checksumFile)
+		display.Info("Created checksum tracking at %s", showPath(checksumFile))
 	}
 
 	// Scaffold a user-owned .festival/config.yaml with a commented hooks example
@@ -208,36 +217,51 @@ func RunInit(ctx context.Context, targetPath string, opts *InitOptions) error {
 	// This declares fest's state files and directories so the daemon knows
 	// what to watch. If no campaign exists (standalone fest workspace),
 	// skip gracefully -- the contract only matters when a daemon is present.
-	campaignRoot, campaignErr := workspace.DetectCampaign(ctx, absPath)
 	if campaignErr == nil {
 		contractPath := contract.ContractPath(campaignRoot)
 		if err := contract.WriteEntries(contractPath, contract.OwnerFest, festcontract.FestEntries()); err != nil {
 			display.Warning("Could not write contract entries: %v", err)
 		} else {
 			if shared.IsVerbose() {
-				display.Info("Wrote fest entries to %s", contractPath)
+				display.Info("Wrote fest entries to %s", showPath(contractPath))
 			}
 		}
 	}
 
-	// Show summary
-	display.Success("Successfully initialized festival structure at %s", festivalPath)
+	// Show summary — user-facing paths stay campaign- or workspace-relative.
+	display.Success("Successfully initialized festival structure at %s", showPath(festivalPath))
 	display.Info("\nNext steps:")
-	display.Info("  1. cd %s", absPath)
+	display.Info("  1. cd %s", showPath(absPath))
 	display.Info("  2. Review festivals/.festival/README.md")
 	display.Info("  3. Start planning your festival in festivals/planning/")
 	display.Info("\nWorkspace navigation:")
-	display.Info("  cd $(fest go)              # Navigate to festivals from anywhere")
+	display.Info("  cd \"$(fest go --print)\"   # Navigate to festivals from anywhere")
 
 	return nil
 }
 
+// resolveDisplayRoot chooses the root used for user-facing path display.
+// Prefer campaign root when present; otherwise the festival workspace root
+// (init target / parent of festivals/).
+func resolveDisplayRoot(campaignRoot string, campaignErr error, festivalWorkspaceRoot string) string {
+	if campaignErr == nil && campaignRoot != "" {
+		return campaignRoot
+	}
+	return festivalWorkspaceRoot
+}
+
 // runRegister registers an existing festivals directory as the active workspace
-func runRegister(targetPath string, display *ui.UI) error {
+func runRegister(ctx context.Context, targetPath string, display *ui.UI) error {
 	// Find the festivals directory
 	festivalsDir, err := findFestivalsDir(targetPath)
 	if err != nil {
 		return err
+	}
+
+	campaignRoot, campaignErr := workspace.DetectCampaign(ctx, festivalsDir)
+	displayRoot := resolveDisplayRoot(campaignRoot, campaignErr, filepath.Dir(festivalsDir))
+	showPath := func(p string) string {
+		return pathutil.DisplayPath(p, displayRoot)
 	}
 
 	// Check if already registered
@@ -260,23 +284,29 @@ func runRegister(targetPath string, display *ui.UI) error {
 		wsName = marker.Workspace
 	}
 
-	display.Success("Registered %s as workspace: %s", festivalsDir, wsName)
-	display.Info("You can now use 'cd $(fest go)' from anywhere in this project")
+	display.Success("Registered %s as workspace: %s", showPath(festivalsDir), wsName)
+	display.Info("You can now use 'cd \"$(fest go --print)\"' from anywhere in this project")
 
 	return nil
 }
 
 // runUnregister removes the workspace marker from a festivals directory
-func runUnregister(targetPath string, display *ui.UI) error {
+func runUnregister(ctx context.Context, targetPath string, display *ui.UI) error {
 	// Find the festivals directory
 	festivalsDir, err := findFestivalsDir(targetPath)
 	if err != nil {
 		return err
 	}
 
+	campaignRoot, campaignErr := workspace.DetectCampaign(ctx, festivalsDir)
+	displayRoot := resolveDisplayRoot(campaignRoot, campaignErr, filepath.Dir(festivalsDir))
+	showPath := func(p string) string {
+		return pathutil.DisplayPath(p, displayRoot)
+	}
+
 	// Check if registered
 	if !workspace.HasMarker(festivalsDir) {
-		display.Info("No workspace marker found at %s", festivalsDir)
+		display.Info("No workspace marker found at %s", showPath(festivalsDir))
 		return nil
 	}
 
