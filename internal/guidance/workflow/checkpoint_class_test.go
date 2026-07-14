@@ -57,6 +57,43 @@ func TestClassifyCheckpoint_AmbiguousHumanGateFailsClosed(t *testing.T) {
 	}
 }
 
+func TestNormalizeLegacyGateCheckpointClasses(t *testing.T) {
+	steps := []WorkflowStep{
+		{
+			Name:       "LEGACY-GATE",
+			Checkpoint: CheckpointUserApproval,
+		},
+		{
+			Name:            "HUMAN-ATTESTATION",
+			Checkpoint:      CheckpointUserApproval,
+			CheckpointClass: CheckpointClassOperatorAttestation,
+		},
+		{
+			Name:            "EXPLICIT-REVIEW",
+			Checkpoint:      CheckpointUserApproval,
+			CheckpointClass: CheckpointClassArtifactReview,
+		},
+		{
+			Name:       "NON-BLOCKING",
+			Checkpoint: CheckpointVerification,
+		},
+	}
+
+	normalizeLegacyGateCheckpointClasses(steps)
+
+	want := []CheckpointClass{
+		CheckpointClassArtifactReview,
+		CheckpointClassOperatorAttestation,
+		CheckpointClassArtifactReview,
+		CheckpointClassUnspecified,
+	}
+	for i, step := range steps {
+		if step.CheckpointClass != want[i] {
+			t.Errorf("step %d CheckpointClass = %q, want %q", i+1, step.CheckpointClass, want[i])
+		}
+	}
+}
+
 func TestParser_CheckpointClassAndEvidence(t *testing.T) {
 	content := `## Step 4: PRESENT — Get User Approval
 

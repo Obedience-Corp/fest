@@ -132,6 +132,9 @@ func (n *Navigator) Initialize(ctx context.Context) error {
 	if err != nil {
 		return errors.Parse("parsing workflow document", err).WithField("file", n.filename())
 	}
+	if n.IsGate() {
+		normalizeLegacyGateCheckpointClasses(steps)
+	}
 
 	n.steps = steps
 
@@ -170,6 +173,21 @@ func (n *Navigator) Initialize(ctx context.Context) error {
 	n.workflowState = state
 
 	return nil
+}
+
+// normalizeLegacyGateCheckpointClasses preserves auto-judge behavior for
+// phase gates created before checkpoint classes were added to the GATES.md
+// template. Phase gates are artifact-oriented quality checks by convention,
+// so an omitted class on a blocking gate is compatible with artifact_review.
+// Explicit operator_attestation remains human-only, and regular WORKFLOW.md
+// steps continue to fail closed through ClassifyCheckpoint.
+func normalizeLegacyGateCheckpointClasses(steps []WorkflowStep) {
+	for i := range steps {
+		if steps[i].Checkpoint.IsBlocking() &&
+			steps[i].CheckpointClass == CheckpointClassUnspecified {
+			steps[i].CheckpointClass = CheckpointClassArtifactReview
+		}
+	}
 }
 
 // GetNext returns the next workflow step.
