@@ -359,6 +359,78 @@ func TestRenderTree_Collapsed(t *testing.T) {
 	}
 }
 
+func TestRenderTree_InProgressPreservesBlockedTaskStatus(t *testing.T) {
+	tree := &DisplayNode{
+		Name:   "test-festival",
+		Status: "blocked",
+		Stats:  StatusCounts{Total: 1, Blocked: 1},
+		Children: []*DisplayNode{{
+			Name:   "001_PHASE",
+			Status: "blocked",
+			Stats:  StatusCounts{Total: 1, Blocked: 1},
+			Children: []*DisplayNode{{
+				Name:   "01_sequence",
+				Status: "blocked",
+				Stats:  StatusCounts{Total: 1, Blocked: 1},
+				Children: []*DisplayNode{{
+					Name:     "01_blocked.md",
+					NodeType: "task",
+					Status:   "blocked",
+					Stats:    StatusCounts{Total: 1, Blocked: 1},
+				}},
+			}},
+		}},
+	}
+
+	opts := DefaultTreeOptions()
+	opts.InProgress = true
+	output := RenderTree(tree, opts)
+
+	if tree.Children[0].Children[0].Children[0].Status != "blocked" {
+		t.Fatalf("in-progress rendering changed blocked task status to %q", tree.Children[0].Children[0].Children[0].Status)
+	}
+	if !strings.Contains(output, "■") {
+		t.Errorf("blocked task should render the blocked icon, got %q", output)
+	}
+	if strings.Contains(output, "●") {
+		t.Errorf("blocked task should not render as in_progress, got %q", output)
+	}
+}
+
+func TestRenderTree_InProgressHighlightsPendingTask(t *testing.T) {
+	task := &DisplayNode{
+		Name:     "01_pending.md",
+		NodeType: "task",
+		Status:   "pending",
+		Stats:    StatusCounts{Total: 1, Pending: 1},
+	}
+	tree := &DisplayNode{
+		Name:   "test-festival",
+		Status: "pending",
+		Stats:  StatusCounts{Total: 1, Pending: 1},
+		Children: []*DisplayNode{{
+			Name:   "001_PHASE",
+			Status: "pending",
+			Stats:  StatusCounts{Total: 1, Pending: 1},
+			Children: []*DisplayNode{{
+				Name:     "01_sequence",
+				NodeType: "sequence",
+				Status:   "pending",
+				Stats:    StatusCounts{Total: 1, Pending: 1},
+				Children: []*DisplayNode{task},
+			}},
+		}},
+	}
+
+	opts := DefaultTreeOptions()
+	opts.InProgress = true
+	RenderTree(tree, opts)
+
+	if task.Status != "in_progress" {
+		t.Errorf("next pending task status = %q, want in_progress", task.Status)
+	}
+}
+
 func TestDetermineStatus(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -370,6 +442,7 @@ func TestDetermineStatus(t *testing.T) {
 		{"all completed", StatusCounts{Total: 5, Completed: 5}, "completed"},
 		{"in progress", StatusCounts{Total: 5, Completed: 2, InProgress: 1, Pending: 2}, "in_progress"},
 		{"some completed no in progress", StatusCounts{Total: 5, Completed: 2, Pending: 3}, "in_progress"},
+		{"blocked", StatusCounts{Total: 5, Blocked: 1, Pending: 4}, "blocked"},
 	}
 
 	for _, tt := range tests {
