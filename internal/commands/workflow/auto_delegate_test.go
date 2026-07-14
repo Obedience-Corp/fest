@@ -66,6 +66,9 @@ func TestAutoDelegateBlockingCheckpoints_NoJudgeIsNoop(t *testing.T) {
 	if err := nav.Initialize(context.Background()); err != nil {
 		t.Fatal(err)
 	}
+	if got := nav.GetSteps()[0].CheckpointClass; got != wf.CheckpointClassArtifactReview {
+		t.Fatalf("legacy GATES.md checkpoint class = %q, want artifact_review", got)
+	}
 
 	if err := AutoDelegateBlockingCheckpoints(context.Background(), nav); err != nil {
 		t.Fatalf("no-op without judge: %v", err)
