@@ -58,13 +58,17 @@ Progress: Step {{.StepNumber}}/{{.TotalSteps}} | Phase: {{.PhaseName}} | Type: {
 This step is BLOCKED: {{.Feedback}}
 
 Address the feedback and try again.
+{{if .JudgeRetryAvailable}}
+When the revised evidence is ready, re-run the approval judge:
+  fest workflow judge
+{{end}}
 {{else if .IsBlocking}}
 When work is complete, submit for review:
   fest workflow advance
 {{if and .JudgeConfigured (not .OperatorAttestation)}}
 This checkpoint is delegated to the operator-configured approval judge. After
 advancing, run:
-  fest workflow approve --auto
+  fest workflow judge
 {{else}}
 This will require operator approval before proceeding. Present the work and
 wait for the operator; do not approve it yourself.

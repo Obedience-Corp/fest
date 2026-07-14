@@ -44,10 +44,6 @@ type workflowStatusStepJSON struct {
 	// WaitingOnJudge is true when a detached approval judge is still running.
 	WaitingOnJudge bool   `json:"waiting_on_judge,omitempty"`
 	JudgeStatus    string `json:"judge_status,omitempty"`
-	JudgeCommand   string `json:"judge_command,omitempty"`
-	JudgePid       int    `json:"judge_pid,omitempty"`
-	JudgeRunID     string `json:"judge_run_id,omitempty"`
-	JudgeDetail    string `json:"judge_detail,omitempty"`
 }
 
 // collectWorkflowStatus builds the structured snapshot from navigator state.
@@ -98,14 +94,10 @@ func collectWorkflowStatus(nav *wf.Navigator) workflowStatusJSON {
 		}
 		if stepState := state.GetStepState(step.Number); stepState != nil {
 			status = stepState.Status
-			feedback = stepState.Feedback
+			feedback = wf.DisplayFeedback(stepState.Feedback)
 			remediation = stepState.RemediationPhase
 			if stepState.Judge != nil {
 				entry.JudgeStatus = stepState.Judge.Status
-				entry.JudgeCommand = stepState.Judge.Command
-				entry.JudgePid = stepState.Judge.Pid
-				entry.JudgeRunID = stepState.Judge.RunID
-				entry.JudgeDetail = stepState.Judge.Detail
 				entry.WaitingOnJudge = stepState.Judge.Status == wf.JudgeRunning
 			}
 		}

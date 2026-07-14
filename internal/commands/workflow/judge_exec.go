@@ -26,7 +26,8 @@ const (
 	judgeLockPoll     = 25 * time.Millisecond
 )
 
-// judgeExecPayload is the handoff from 'fest workflow approve --auto' to the
+// judgeExecPayload is the handoff from 'fest workflow judge' (or the legacy
+// 'fest workflow approve --auto' alias) to the
 // detached judge-exec runner. The runner rebuilds the judge request from live
 // workflow state; the payload only pins which checkpoint was delegated and
 // how to run the judge.
@@ -54,6 +55,9 @@ func launchApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum in
 			return festerrors.Validation("checkpoint changed before approval judge launch").
 				WithField("expected_step", currentStepNum).
 				WithField("current_step", state.CurrentStep)
+		}
+		if err := reopenJudgeRejectionIfRequested(ctx, fresh, currentStepNum, opts); err != nil {
+			return err
 		}
 		if ss := state.GetStepState(currentStepNum); ss != nil && ss.Judge != nil &&
 			ss.Judge.Status == wf.JudgeRunning {
@@ -260,7 +264,7 @@ func newJudgeExecCmd() *cobra.Command {
 			return runJudgeExec(cmd.Context(), payloadPath)
 		},
 	}
-	cmd.Flags().StringVar(&payloadPath, "payload", "", "path to the payload written by 'fest workflow approve --auto'")
+	cmd.Flags().StringVar(&payloadPath, "payload", "", "path to the payload written by 'fest workflow judge'")
 	_ = cmd.MarkFlagRequired("payload")
 	return cmd
 }

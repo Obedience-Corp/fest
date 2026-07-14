@@ -44,6 +44,10 @@ const (
 	// previously failed remediation step for re-evaluation.
 	EventWorkflowStepRecheck EventType = "wf_step_recheck"
 
+	// EventWorkflowJudgeRecheck records that a judge-owned rejection is being
+	// reopened for a new approval-judge evaluation.
+	EventWorkflowJudgeRecheck EventType = "wf_judge_recheck"
+
 	// EventWorkflowJudgeStarted records that a delegated approval judge run
 	// was invoked on a blocking checkpoint via 'fest workflow approve --auto'.
 	EventWorkflowJudgeStarted EventType = "wf_judge_started"
@@ -404,6 +408,18 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 			ss := phaseState.GetOrCreateStepState(e.Step)
 			if ss.Status == wf.StepStatusFailedRemediation {
 				ss.Status = wf.StepStatusInProgress
+				ss.RemediationPhase = ""
+				ss.DecisionActor = ""
+				ss.DecisionSummary = ""
+				ss.DecisionAt = nil
+				ss.Judge = nil
+			}
+
+		case EventWorkflowJudgeRecheck:
+			ss := phaseState.GetOrCreateStepState(e.Step)
+			if wf.IsJudgeRejection(ss) {
+				ss.Status = wf.StepStatusInProgress
+				ss.Feedback = ""
 				ss.RemediationPhase = ""
 				ss.DecisionActor = ""
 				ss.DecisionSummary = ""

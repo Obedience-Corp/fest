@@ -96,7 +96,7 @@ func TestFormatCheckpoint_JudgeConfigured_ArtifactReviewDelegates(t *testing.T) 
 	for _, want := range []string{
 		"This checkpoint is delegated",
 		"fest next` auto-invokes the judge",
-		"fest workflow approve --auto",
+		"fest workflow judge",
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("checkpoint output missing %q:\n%s", want, out)

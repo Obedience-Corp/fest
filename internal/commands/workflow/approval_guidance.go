@@ -33,8 +33,8 @@ func approvalRecoveryLinesFor(ctx context.Context, nav *wf.Navigator, step wf.Wo
 		}
 	}
 	return []string{
-		"Re-submit to the judge: " + ui.Accent("fest workflow approve --auto"),
 		"Operator override:       " + ui.Accent("fest workflow approve") + " (interactive)",
+		"Re-run approval judge:   " + ui.Accent("fest workflow judge"),
 	}
 }
 

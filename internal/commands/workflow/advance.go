@@ -216,8 +216,8 @@ func runAdvance(ctx context.Context) error {
 	// Handle blocked step
 	if stepState != nil && stepState.Status == wf.StepStatusBlocked {
 		feedback := ""
-		if stepState.Feedback != "" {
-			feedback = fmt.Sprintf(": %s", stepState.Feedback)
+		if note := wf.DisplayFeedback(stepState.Feedback); note != "" {
+			feedback = fmt.Sprintf(": %s", note)
 		}
 		return fmt.Errorf("step %d is blocked%s\n\nAddress the feedback, then choose a valid approval route:\n%s\nOr use 'fest workflow reset' to start the phase workflow over", currentStepNum, feedback, approvalRecoveryTextFor(ctx, nav, step))
 	}

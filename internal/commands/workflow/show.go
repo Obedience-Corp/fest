@@ -154,26 +154,15 @@ func runShow(ctx context.Context, stepNum int) error {
 		sb.WriteString(ui.Label("Judge: "))
 		switch stepState.Judge.Status {
 		case wf.JudgeRunning:
-			detail := stepState.Judge.Command
-			if stepState.Judge.Pid > 0 {
-				detail = fmt.Sprintf("%s (pid %d)", detail, stepState.Judge.Pid)
-			}
-			if stepState.Judge.StartedAt != nil {
-				detail = fmt.Sprintf("%s since %s", detail, stepState.Judge.StartedAt.Local().Format("15:04:05"))
-			}
-			sb.WriteString(ui.ColoredText("waiting — "+detail, ui.JudgeColor))
+			sb.WriteString(ui.ColoredText("waiting", ui.JudgeColor))
 		case wf.JudgeFailed:
 			sb.WriteString(ui.Error("failed (fails closed)"))
-			if stepState.Judge.Detail != "" {
+			if detail := wf.DisplayFeedback(stepState.Judge.Detail); detail != "" {
 				sb.WriteString("\n  ")
-				sb.WriteString(stepState.Judge.Detail)
+				sb.WriteString(detail)
 			}
 		case wf.JudgeApproved, wf.JudgeRejected:
 			sb.WriteString(ui.Dim(stepState.Judge.Status))
-			if stepState.Judge.Detail != "" {
-				sb.WriteString("\n  ")
-				sb.WriteString(stepState.Judge.Detail)
-			}
 		default:
 			sb.WriteString(stepState.Judge.Status)
 		}
@@ -182,14 +171,17 @@ func runShow(ctx context.Context, stepNum int) error {
 
 	// Show feedback/note metadata for blocked and skipped/completed-with-note states.
 	if stepState != nil && stepState.Feedback != "" {
-		label := ui.Error("Rejection Feedback:")
+		feedback := wf.DisplayFeedback(stepState.Feedback)
+		label := ui.Error("Feedback:")
 		if stepState.Status == wf.StepStatusSkipped || stepState.Status == wf.StepStatusCompleted {
 			label = ui.Warning("Operator Note:")
 		}
-		sb.WriteString(label)
-		sb.WriteString("\n  ")
-		sb.WriteString(stepState.Feedback)
-		sb.WriteString("\n\n")
+		if feedback != "" {
+			sb.WriteString(label)
+			sb.WriteString("\n  ")
+			sb.WriteString(feedback)
+			sb.WriteString("\n\n")
+		}
 	}
 
 	// Navigation hint

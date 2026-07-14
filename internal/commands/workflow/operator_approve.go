@@ -39,18 +39,7 @@ func defaultReadOperatorConfirm() (string, error) {
 // stepHasOpenJudgeReject reports whether the current step is blocked after a
 // judge rejection (or readiness block that left agent feedback).
 func stepHasOpenJudgeReject(stepState *wf.StepState) bool {
-	if stepState == nil || stepState.Status != wf.StepStatusBlocked {
-		return false
-	}
-	if stepState.Judge != nil && stepState.Judge.Status == wf.JudgeRejected {
-		return true
-	}
-	// Readiness blocks also set agent decision + blocked without a judge run.
-	if stepState.DecisionActor == decisionActorAgent {
-		return true
-	}
-	return strings.Contains(strings.ToLower(stepState.Feedback), "approval auto mode") ||
-		strings.Contains(strings.ToLower(stepState.Feedback), "approval readiness")
+	return wf.IsJudgeRejection(stepState)
 }
 
 // resolveManualApprovalDecision applies authority rules when auto-judge is configured.
@@ -96,7 +85,7 @@ func resolveManualApprovalDecision(
 	if !stdinIsInteractiveFn() {
 		hint := "run from a terminal and type APPROVE when prompted"
 		if priorReject {
-			hint = "fix evidence and re-submit with 'fest workflow approve --auto', or override interactively / with --override-judge --summary \"...\""
+			hint = "fix evidence and re-submit with 'fest workflow judge', or override interactively / with --override-judge --summary \"...\""
 		}
 		return wf.DecisionMetadata{}, festerrors.Validation("manual approve requires an interactive operator TTY for human attestation, after judge delegation, or when auto-judge is configured").
 			WithField("step", stepNum).
@@ -108,7 +97,7 @@ func resolveManualApprovalDecision(
 	if priorReject {
 		fmt.Fprintf(os.Stderr, "%s This step was previously rejected by the approval judge or readiness check.\n", ui.Label("Note"))
 		if stepState != nil && stepState.Feedback != "" {
-			fmt.Fprintf(os.Stderr, "%s %s\n", ui.Label("Last feedback"), truncateForPrompt(stepState.Feedback, 240))
+			fmt.Fprintf(os.Stderr, "%s %s\n", ui.Label("Last feedback"), truncateForPrompt(wf.DisplayFeedback(stepState.Feedback), 240))
 		}
 		fmt.Fprintf(os.Stderr, "Confirming will record decision_actor=%s (operator override).\n", decisionActorUserOverride)
 	}

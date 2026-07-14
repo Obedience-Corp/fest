@@ -25,6 +25,7 @@ const approvalJudgeSchemaVersion = "fest.approval.judge/v1"
 
 type approvalJudgeOptions struct {
 	Auto          bool
+	Rejudge       bool
 	JudgeCommand  string
 	Timeout       time.Duration
 	WorkDir       string // festival path; set as judge process cwd
@@ -79,8 +80,8 @@ Auto approval:
   delegates blocking checkpoints away from human review. With that hook set,
   fest next auto-invokes the judge on blocking WORKFLOW.md / GATES.md steps.
 
-  Use --auto to re-run the judge explicitly (for example after a reject or a
-  failed judge invocation). Agents must not clear checkpoints with --as agent;
+  Use 'fest workflow judge' to re-run the judge explicitly after a rejection;
+  '--auto' remains a backwards-compatible alias. Agents must not clear checkpoints with --as agent;
   agent-actor decisions are recorded only via the judge path.
 
   Checkpoint classes:
@@ -91,7 +92,7 @@ Auto approval:
   Presentation-like steps require non-empty evidence (e.g. output_specs/PRESENTATION.md)
   before the judge is invoked. Missing evidence blocks deterministically without a model call.
 
-  After a judge reject, re-submit with: fest workflow approve --auto
+  After a judge reject, re-submit with: fest workflow judge
   Operator override (interactive TTY, or --override-judge --summary "..."):
   records decision_actor=user_override.
 
@@ -120,6 +121,7 @@ Auto approval:
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if opts.Auto {
+				opts.Rejudge = true
 				return runApproveWithOptions(cmd.Context(), wf.DecisionMetadata{}, opts)
 			}
 			decision, err := normalizeDecision("approval", actor, opts.Summary)
@@ -502,6 +504,9 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 		if fresh.GetWorkflowState().CurrentStep != currentStepNum {
 			return festerrors.Validation("checkpoint changed before approval judge started")
 		}
+		if err := reopenJudgeRejectionIfRequested(ctx, fresh, currentStepNum, opts); err != nil {
+			return err
+		}
 		freshSteps := fresh.GetSteps()
 		if currentStepNum < 1 || currentStepNum > len(freshSteps) {
 			return festerrors.Validation("checkpoint changed before approval judge started")
@@ -542,6 +547,20 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 		_, err = applyApproveAutoVerdict(ctx, fresh, currentStepNum, step, runID, decision, audit)
 		return err
 	})
+}
+
+// reopenJudgeRejectionIfRequested clears only a judge-owned blocked state.
+// This keeps re-judging safe: an agent cannot use the judge command to bypass
+// an ordinary operator rejection or an operator-attestation checkpoint.
+func reopenJudgeRejectionIfRequested(ctx context.Context, nav *wf.Navigator, step int, opts approvalJudgeOptions) error {
+	if !opts.Rejudge {
+		return nil
+	}
+	state := nav.GetWorkflowState().GetStepState(step)
+	if state == nil || state.Status != wf.StepStatusBlocked {
+		return nil
+	}
+	return nav.ReopenJudgeRejection(ctx, step)
 }
 
 func applyApproveAutoVerdict(ctx context.Context, nav *wf.Navigator, currentStepNum int, step wf.WorkflowStep, runID string, decision *approvalJudgeResponse, audit string) (bool, error) {

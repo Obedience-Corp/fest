@@ -79,7 +79,7 @@ func runStatus(ctx context.Context, jsonOutput bool) error {
 		var judge *wf.JudgeState
 		if stepState != nil {
 			status = stepState.Status
-			feedback = stepState.Feedback
+			feedback = wf.DisplayFeedback(stepState.Feedback)
 			judge = stepState.Judge
 			if stepState.Status == wf.StepStatusFailedRemediation {
 				failedRemediation[i] = stepState
@@ -142,8 +142,8 @@ func runStatus(ctx context.Context, jsonOutput bool) error {
 		sb.WriteString(ui.Warning("⚠ Failed gate (remediation linked)"))
 		sb.WriteString("\n")
 		fmt.Fprintf(&sb, "  Step %d: %s\n", steps[i].Number, steps[i].Name)
-		if ss.Feedback != "" {
-			fmt.Fprintf(&sb, "  Reason: %s\n", ss.Feedback)
+		if feedback := wf.DisplayFeedback(ss.Feedback); feedback != "" {
+			fmt.Fprintf(&sb, "  Reason: %s\n", feedback)
 		}
 		if ss.RemediationPhase != "" {
 			fmt.Fprintf(&sb, "  Remediation phase: %s\n", ss.RemediationPhase)

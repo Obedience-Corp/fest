@@ -474,14 +474,14 @@ func (n *Navigator) ApplyJudgeApproval(ctx context.Context, step int, runID, aud
 	if !n.workflowState.RecordJudgeOutcome(step, runID, JudgeApproved, decision.Summary, now) {
 		return false, nil
 	}
-	if err := n.workflowState.ApproveWithAudit(audit, decision); err != nil {
+	if err := n.workflowState.ApproveWithAudit(decision.Summary, decision); err != nil {
 		return false, err
 	}
 
 	sk := n.stateKey()
 	if n.store != nil {
 		n.store.QueueWorkflowEvents(EmitJudgeReturnedEvents(sk, step, runID, JudgeApproved, decision.Summary))
-		n.store.QueueWorkflowEvents(EmitStepDoneWithDecisionEvents(sk, step, audit, decision))
+		n.store.QueueWorkflowEvents(EmitStepDoneWithDecisionEvents(sk, step, decision.Summary, decision))
 		if n.workflowState.CurrentStep > step {
 			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
 			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, n.workflowState.CurrentStep))
@@ -504,12 +504,12 @@ func (n *Navigator) ApplyJudgeRejection(ctx context.Context, step int, runID, au
 	if !n.workflowState.RecordJudgeOutcome(step, runID, JudgeRejected, decision.Summary, now) {
 		return false, nil
 	}
-	n.workflowState.RejectWithDecision(audit, decision)
+	n.workflowState.RejectWithDecision(decision.Summary, decision)
 
 	sk := n.stateKey()
 	if n.store != nil {
 		n.store.QueueWorkflowEvents(EmitJudgeReturnedEvents(sk, step, runID, JudgeRejected, decision.Summary))
-		n.store.QueueWorkflowEvents(EmitStepBlockWithDecisionEvents(sk, step, audit, decision))
+		n.store.QueueWorkflowEvents(EmitStepBlockWithDecisionEvents(sk, step, decision.Summary, decision))
 		return true, n.store.SaveEvents(ctx)
 	}
 	return true, n.workflowState.Save(ctx, n.festivalPath, sk)
@@ -534,6 +534,36 @@ func (n *Navigator) Recheck(ctx context.Context) error {
 	sk := n.stateKey()
 	if n.store != nil {
 		n.store.QueueWorkflowEvents(EmitStepRecheckEvents(sk, n.workflowState.CurrentStep))
+		return n.store.SaveEvents(ctx)
+	}
+	return n.workflowState.Save(ctx, n.festivalPath, sk)
+}
+
+// ReopenJudgeRejection moves the current judge-owned rejection back to
+// in-progress so revised evidence can be submitted with the approval judge.
+// Ordinary operator rejections are intentionally left untouched.
+func (n *Navigator) ReopenJudgeRejection(ctx context.Context, step int) error {
+	if err := n.EnsureInitialized(); err != nil {
+		return err
+	}
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+	if n.workflowState.CurrentStep != step {
+		return errors.Validation("approval judge can only re-run the current step").
+			WithField("expected_step", n.workflowState.CurrentStep).
+			WithField("step", step)
+	}
+	if !n.workflowState.ReopenJudgeRejection(step) {
+		return errors.Validation("current step is not blocked by an approval judge rejection").
+			WithHint("address the current feedback first, then run 'fest workflow judge'; ordinary operator rejections require 'fest workflow approve'")
+	}
+
+	sk := n.stateKey()
+	if n.store != nil {
+		n.store.QueueWorkflowEvents(EmitJudgeRecheckEvents(sk, step))
 		return n.store.SaveEvents(ctx)
 	}
 	return n.workflowState.Save(ctx, n.festivalPath, sk)

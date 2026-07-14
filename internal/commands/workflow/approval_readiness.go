@@ -74,7 +74,7 @@ func checkApprovalReadinessWithInspector(
 			WithField("step", step.Number).
 			WithField("step_name", step.Name).
 			WithField("missing", strings.Join(status.missing, ", ")).
-			WithHint("create every file listed under **Evidence:**, then re-submit with 'fest workflow approve --auto'")
+			WithHint("create every file listed under **Evidence:**, then re-submit with 'fest workflow judge'")
 	}
 
 	if presentationRequired && !status.presentationFound {
@@ -83,7 +83,7 @@ func checkApprovalReadinessWithInspector(
 			WithField("step_name", step.Name).
 			WithField("required", "output_specs/PRESENTATION.md").
 			WithField("missing", strings.Join(status.missing, ", ")).
-			WithHint("write the presentation deliverable, then re-submit with 'fest workflow approve --auto'")
+			WithHint("write the presentation deliverable, then re-submit with 'fest workflow judge'")
 	}
 
 	if status.found == 0 {
@@ -91,7 +91,7 @@ func checkApprovalReadinessWithInspector(
 			WithField("step", step.Number).
 			WithField("step_name", step.Name).
 			WithField("checked", strings.Join(paths, ", ")).
-			WithHint("create the evidence files listed for this step, then re-submit with 'fest workflow approve --auto'")
+			WithHint("create the evidence files listed for this step, then re-submit with 'fest workflow judge'")
 	}
 
 	return nil

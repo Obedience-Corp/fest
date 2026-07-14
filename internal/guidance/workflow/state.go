@@ -5,6 +5,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -97,6 +99,54 @@ type JudgeState struct {
 
 	// FinishedAt is when the judge outcome was recorded.
 	FinishedAt *time.Time `yaml:"finished_at,omitempty" json:"finished_at,omitempty"`
+}
+
+// DisplayFeedback removes implementation details from approval-judge feedback
+// before it is shown in normal command output. Older event logs stored the
+// complete judge audit string; keep accepting those records while presenting
+// only the actionable reason to users and agents.
+func DisplayFeedback(feedback string) string {
+	feedback = strings.TrimSpace(feedback)
+	if feedback == "" {
+		return ""
+	}
+
+	if strings.HasPrefix(feedback, "approval auto mode:") {
+		if idx := strings.LastIndex(feedback, " reason="); idx >= 0 {
+			rawReason := strings.TrimSpace(feedback[idx+len(" reason="):])
+			if reason, err := strconv.Unquote(rawReason); err == nil {
+				return reason
+			}
+			return strings.Trim(rawReason, "\"")
+		}
+	}
+
+	const preflightPrefix = "detached approval judge preflight rejected:"
+	if strings.HasPrefix(feedback, preflightPrefix) {
+		return strings.TrimSpace(strings.TrimPrefix(feedback, preflightPrefix))
+	}
+
+	return feedback
+}
+
+// IsJudgeRejection reports whether a blocked step was produced by an approval
+// judge or by the deterministic readiness checks that precede one. Ordinary
+// operator rejections intentionally return false and cannot be reopened by
+// the agent-facing judge command.
+func IsJudgeRejection(stepState *StepState) bool {
+	if stepState == nil || stepState.Status != StepStatusBlocked {
+		return false
+	}
+	if stepState.Judge != nil && stepState.Judge.Status == JudgeRejected {
+		return true
+	}
+	if stepState.DecisionActor == "agent" {
+		return true
+	}
+	feedback := strings.ToLower(stepState.Feedback)
+	return strings.Contains(feedback, "approval auto mode") ||
+		strings.Contains(feedback, "approval readiness") ||
+		strings.Contains(feedback, "detached approval judge preflight rejected")
 }
 
 // StepState tracks the state of a single workflow step.
@@ -527,6 +577,26 @@ func (s *WorkflowState) ClearFailedRemediation() {
 	state.DecisionAt = nil
 }
 
+// ReopenJudgeRejection moves a judge-owned blocked step back to in-progress
+// so the approval judge can evaluate the revised evidence. The prior rejection
+// remains in the append-only event log; the active state is cleared for the
+// new judge run.
+func (s *WorkflowState) ReopenJudgeRejection(step int) bool {
+	if s.CurrentStep != step || !IsJudgeRejection(s.GetStepState(step)) {
+		return false
+	}
+	state := s.GetOrCreateStepState(step)
+	state.Status = StepStatusInProgress
+	state.Feedback = ""
+	state.RemediationPhase = ""
+	state.DecisionActor = ""
+	state.DecisionSummary = ""
+	state.DecisionAt = nil
+	state.Judge = nil
+	s.UpdatedAt = time.Now().UTC()
+	return true
+}
+
 // Reset resets the workflow to step 1 and clears all step states.
 func (s *WorkflowState) Reset() {
 	s.CurrentStep = 1
@@ -688,6 +758,16 @@ func EmitStepFailRemediationWithDecisionEvents(phaseName string, step int, feedb
 func EmitStepRecheckEvents(phaseName string, step int) []WorkflowEvent {
 	return []WorkflowEvent{{
 		EventType: "wf_step_recheck",
+		Phase:     phaseName,
+		Step:      step,
+	}}
+}
+
+// EmitJudgeRecheckEvents generates an event for reopening a judge-owned
+// rejection before submitting revised evidence to the judge again.
+func EmitJudgeRecheckEvents(phaseName string, step int) []WorkflowEvent {
+	return []WorkflowEvent{{
+		EventType: "wf_judge_recheck",
 		Phase:     phaseName,
 		Step:      step,
 	}}

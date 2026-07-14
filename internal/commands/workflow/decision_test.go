@@ -48,7 +48,7 @@ func TestNormalizeDecisionDefaultsToUser(t *testing.T) {
 func TestAgentActorHintNamesOperatorPath(t *testing.T) {
 	for _, action := range []string{"approval", "rejection", "other"} {
 		hint := agentActorHint(action)
-		if !strings.Contains(hint, "approve --auto") {
+		if !strings.Contains(hint, "workflow judge") {
 			t.Fatalf("agentActorHint(%q) = %q, want delegation path mentioned", action, hint)
 		}
 	}
