@@ -25,6 +25,17 @@ func TestShowCommand_RejectsPositionalWithFestivalFlag(t *testing.T) {
 	}
 }
 
+func TestShowCommand_ProvidesFeedbackOptIn(t *testing.T) {
+	cmd := NewShowCommand()
+	flag := cmd.Flags().Lookup("show-feedback")
+	if flag == nil {
+		t.Fatal("show command missing --show-feedback")
+	}
+	if flag.DefValue != "false" {
+		t.Fatalf("--show-feedback default = %q, want false", flag.DefValue)
+	}
+}
+
 func TestRunShowBySelector_FromProjectDirInCampaign(t *testing.T) {
 	campaignRoot := filepath.Join(t.TempDir(), "campaign")
 	if err := os.MkdirAll(filepath.Join(campaignRoot, ".campaign"), 0755); err != nil {

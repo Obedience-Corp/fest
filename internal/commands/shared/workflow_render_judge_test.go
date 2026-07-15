@@ -34,6 +34,19 @@ func TestRenderWorkflowStepLine_WaitingOnJudge(t *testing.T) {
 	}
 }
 
+func TestRenderWorkflowStepLine_BlockedWaitingOnJudgeUsesJudgeIcon(t *testing.T) {
+	view := judgeStepView(&wf.JudgeState{Status: wf.JudgeRunning})
+	view.Status = wf.StepStatusBlocked
+	out := RenderWorkflowStepLine(view, false)
+
+	if !strings.Contains(out, "⚖ Step 2: REVIEW") {
+		t.Fatalf("blocked waiting step missing judge icon:\n%s", out)
+	}
+	if !strings.Contains(out, "Judge: waiting") {
+		t.Fatalf("blocked waiting step missing judge state:\n%s", out)
+	}
+}
+
 func TestRenderWorkflowStepLine_JudgeFailed(t *testing.T) {
 	out := RenderWorkflowStepLine(judgeStepView(&wf.JudgeState{
 		Status: wf.JudgeFailed,

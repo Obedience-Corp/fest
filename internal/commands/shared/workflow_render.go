@@ -58,7 +58,7 @@ func RenderWorkflowStepLine(step WorkflowStepView, compact bool) string {
 	var sb strings.Builder
 
 	icon := WorkflowStepIcon(step.Status)
-	if step.JudgeWaiting() && step.Status != wf.StepStatusBlocked {
+	if step.JudgeWaiting() {
 		icon = ui.ColoredText("⚖", ui.JudgeColor)
 	}
 

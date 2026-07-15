@@ -41,6 +41,7 @@ fest show [festival-name] [flags]
       --inprogress        expand only in-progress phases and sequences
       --json              output in JSON format
       --roadmap           show full execution roadmap with task statuses
+      --show-feedback     show blocked-step feedback
       --summary           show aggregate summary instead of tree view
       --watch             continuously refresh display
 ```

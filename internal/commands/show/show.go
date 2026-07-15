@@ -18,14 +18,15 @@ import (
 )
 
 type showOptions struct {
-	json       bool
-	summary    bool // Show aggregate summary instead of tree view
-	watch      bool // Continuously refresh display
-	goals      bool // Show goals for phases and sequences
-	collapsed  bool // Show collapsed tree with counters only
-	inProgress bool // Expand only in_progress phases/sequences
-	roadmap    bool // Show full execution roadmap with task statuses
-	festival   string
+	json         bool
+	summary      bool // Show aggregate summary instead of tree view
+	watch        bool // Continuously refresh display
+	goals        bool // Show goals for phases and sequences
+	showFeedback bool // Show blocked-step feedback
+	collapsed    bool // Show collapsed tree with counters only
+	inProgress   bool // Expand only in_progress phases/sequences
+	roadmap      bool // Show full execution roadmap with task statuses
+	festival     string
 }
 
 // NewShowCommand creates the show command with all subcommands.
@@ -75,6 +76,7 @@ To list festivals by status, use 'fest list' (e.g. 'fest list active',
 	cmd.Flags().BoolVar(&opts.summary, "summary", false, "show aggregate summary instead of tree view")
 	cmd.Flags().BoolVar(&opts.watch, "watch", false, "continuously refresh display")
 	cmd.Flags().BoolVar(&opts.goals, "goals", false, "show goals for phases and sequences")
+	cmd.Flags().BoolVar(&opts.showFeedback, "show-feedback", false, "show blocked-step feedback")
 	cmd.Flags().BoolVar(&opts.collapsed, "collapsed", false, "show collapsed tree with counters only")
 	cmd.Flags().BoolVar(&opts.inProgress, "inprogress", false, "expand only in-progress phases and sequences")
 	cmd.Flags().BoolVar(&opts.roadmap, "roadmap", false, "show full execution roadmap with task statuses")
@@ -303,6 +305,7 @@ func showCycleWatchOptions(opts *showOptions, cycling bool) WatchOptions {
 	return WatchOptions{
 		Summary:      opts.summary,
 		Goals:        opts.goals,
+		ShowFeedback: opts.showFeedback,
 		Collapsed:    opts.collapsed,
 		InProgress:   opts.inProgress,
 		CycleHint:    true,
@@ -619,10 +622,11 @@ type festivalShowView struct {
 }
 
 type festivalShowViewOptions struct {
-	Summary    bool `json:"summary"`
-	ShowGoals  bool `json:"show_goals"`
-	Collapsed  bool `json:"collapsed"`
-	InProgress bool `json:"in_progress"`
+	Summary      bool `json:"summary"`
+	ShowGoals    bool `json:"show_goals"`
+	ShowFeedback bool `json:"show_feedback"`
+	Collapsed    bool `json:"collapsed"`
+	InProgress   bool `json:"in_progress"`
 }
 
 func emitFestivalJSON(ctx context.Context, festival *FestivalInfo, opts *showOptions, campaignRoot string) error {
@@ -649,10 +653,11 @@ func buildFestivalShowView(ctx context.Context, festival *FestivalInfo, opts *sh
 	view := &festivalShowView{
 		Mode: "tree",
 		Options: festivalShowViewOptions{
-			Summary:    opts.summary,
-			ShowGoals:  opts.goals,
-			Collapsed:  opts.collapsed,
-			InProgress: opts.inProgress,
+			Summary:      opts.summary,
+			ShowGoals:    opts.goals,
+			ShowFeedback: opts.showFeedback,
+			Collapsed:    opts.collapsed,
+			InProgress:   opts.inProgress,
 		},
 	}
 
@@ -671,8 +676,21 @@ func buildFestivalShowView(ctx context.Context, festival *FestivalInfo, opts *sh
 	if opts.inProgress {
 		markNextPending(tree)
 	}
+	if !opts.showFeedback {
+		hideTreeFeedback(tree)
+	}
 	view.Tree = tree
 	return view
+}
+
+func hideTreeFeedback(node *DisplayNode) {
+	if node == nil {
+		return
+	}
+	node.Feedback = ""
+	for _, child := range node.Children {
+		hideTreeFeedback(child)
+	}
 }
 
 func emitFestivalText(festival *FestivalInfo, showOpts *showOptions, campaignRoot string) error {
@@ -694,6 +712,7 @@ func emitFestivalText(festival *FestivalInfo, showOpts *showOptions, campaignRoo
 
 	opts := DefaultTreeOptions()
 	opts.ShowGoals = showOpts.goals
+	opts.ShowFeedback = showOpts.showFeedback
 	opts.Collapsed = showOpts.collapsed
 	opts.InProgress = showOpts.inProgress
 	fmt.Println(RenderTree(tree, opts))

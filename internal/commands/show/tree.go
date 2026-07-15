@@ -33,10 +33,11 @@ type DisplayNode struct {
 
 // TreeOptions configures how the tree is rendered.
 type TreeOptions struct {
-	ShowGoals  bool // Show primary goals (default: true)
-	Collapsed  bool // Show only phases with counters, no children
-	InProgress bool // Expand only in_progress phases/sequences, collapse rest
-	Width      int  // Terminal width for alignment (0 = auto)
+	ShowGoals    bool // Show primary goals (default: true)
+	ShowFeedback bool // Show blocked-step feedback
+	Collapsed    bool // Show only phases with counters, no children
+	InProgress   bool // Expand only in_progress phases/sequences, collapse rest
+	Width        int  // Terminal width for alignment (0 = auto)
 }
 
 // DefaultTreeOptions returns sensible defaults for tree rendering.
@@ -509,7 +510,7 @@ func renderStepNode(sb *strings.Builder, node *DisplayNode, prefix string, isLas
 		sb.WriteString(ui.Dim("Goal: " + truncateGoal(node.Goal, opts.Width-len(prefix)-10)))
 		sb.WriteString("\n")
 	}
-	if node.Feedback != "" {
+	if opts.ShowFeedback && node.Feedback != "" {
 		sb.WriteString(prefix)
 		sb.WriteString(ui.Dim(childPrefix))
 		sb.WriteString(ui.Error("Feedback: ") + node.Feedback)

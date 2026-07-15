@@ -145,7 +145,7 @@ func TestRenderTreeStepShowsConciseJudgeFeedback(t *testing.T) {
 		Feedback: `approval auto mode: schema_version=fest.approval.judge/v1 judge_command="ob judge" decision=reject reason="missing acceptance proof"`,
 		Judge:    &wf.JudgeState{Status: wf.JudgeRejected},
 	})
-	output := RenderTree(&DisplayNode{
+	tree := &DisplayNode{
 		Name:     "festival",
 		NodeType: "festival",
 		Children: []*DisplayNode{{
@@ -155,7 +155,14 @@ func TestRenderTreeStepShowsConciseJudgeFeedback(t *testing.T) {
 			Stats:    StatusCounts{Total: 1, Blocked: 1},
 			Children: []*DisplayNode{step},
 		}},
-	}, DefaultTreeOptions())
+	}
+	defaultOutput := RenderTree(tree, DefaultTreeOptions())
+	if strings.Contains(defaultOutput, "Feedback:") {
+		t.Fatalf("tree should hide feedback by default:\n%s", defaultOutput)
+	}
+	opts := DefaultTreeOptions()
+	opts.ShowFeedback = true
+	output := RenderTree(tree, opts)
 
 	if !strings.Contains(output, "Feedback: missing acceptance proof") {
 		t.Fatalf("tree missing concise feedback:\n%s", output)

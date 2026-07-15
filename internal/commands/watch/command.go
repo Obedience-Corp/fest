@@ -13,9 +13,10 @@ import (
 )
 
 type options struct {
-	goals     bool
-	collapsed bool
-	summary   bool
+	goals        bool
+	showFeedback bool
+	collapsed    bool
+	summary      bool
 }
 
 type commandDeps struct {
@@ -88,6 +89,7 @@ It does not change your shell directory.`,
 	}
 
 	cmd.Flags().BoolVar(&opts.goals, "goals", false, "show goals for phases and sequences")
+	cmd.Flags().BoolVar(&opts.showFeedback, "show-feedback", false, "show blocked-step feedback")
 	cmd.Flags().BoolVar(&opts.collapsed, "collapsed", false, "show collapsed tree with counters only")
 	cmd.Flags().BoolVar(&opts.summary, "summary", false, "show aggregate summary instead of tree view")
 
@@ -166,9 +168,10 @@ func watchStandaloneWorkflow(ctx context.Context, workflow *show.StandaloneWorkf
 
 func showWatchOptions(opts options) show.WatchOptions {
 	return show.WatchOptions{
-		Summary:    opts.summary,
-		Goals:      opts.goals,
-		Collapsed:  opts.collapsed,
-		InProgress: true,
+		Summary:      opts.summary,
+		Goals:        opts.goals,
+		ShowFeedback: opts.showFeedback,
+		Collapsed:    opts.collapsed,
+		InProgress:   true,
 	}
 }

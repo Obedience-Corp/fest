@@ -4529,6 +4529,7 @@ fest show [festival-name] [flags]
       --inprogress        expand only in-progress phases and sequences
       --json              output in JSON format
       --roadmap           show full execution roadmap with task statuses
+      --show-feedback     show blocked-step feedback
       --summary           show aggregate summary instead of tree view
       --watch             continuously refresh display
 ```
@@ -6635,10 +6636,11 @@ fest watch [festival-selector] [flags]
 ### Options
 
 ```
-      --collapsed   show collapsed tree with counters only
-      --goals       show goals for phases and sequences
-  -h, --help        help for watch
-      --summary     show aggregate summary instead of tree view
+      --collapsed       show collapsed tree with counters only
+      --goals           show goals for phases and sequences
+  -h, --help            help for watch
+      --show-feedback   show blocked-step feedback
+      --summary         show aggregate summary instead of tree view
 ```
 
 ### Options inherited from parent commands
