@@ -26,7 +26,8 @@ const (
 	judgeLockPoll     = 25 * time.Millisecond
 )
 
-// judgeExecPayload is the handoff from 'fest workflow approve --auto' to the
+// judgeExecPayload is the handoff from 'fest workflow judge' (or the legacy
+// 'fest workflow approve --auto' alias) to the
 // detached judge-exec runner. The runner rebuilds the judge request from live
 // workflow state; the payload only pins which checkpoint was delegated and
 // how to run the judge.
@@ -55,23 +56,22 @@ func launchApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum in
 				WithField("expected_step", currentStepNum).
 				WithField("current_step", state.CurrentStep)
 		}
-		if ss := state.GetStepState(currentStepNum); ss != nil && ss.Judge != nil &&
-			ss.Judge.Status == wf.JudgeRunning {
-			if judgeLeaseActive(ss.Judge) {
-				return judgeAlreadyRunningError(ss.Judge)
-			}
-			if _, err := fresh.RecordJudgeOutcome(ctx, currentStepNum, ss.Judge.RunID, wf.JudgeFailed,
-				"detached judge process exited before recording a verdict"); err != nil {
-				return festerrors.Wrap(err, "recording stale judge failure")
-			}
-		}
 		freshSteps := fresh.GetSteps()
 		if currentStepNum < 1 || currentStepNum > len(freshSteps) {
 			return festerrors.Validation("checkpoint changed before approval judge launch")
 		}
 		step = freshSteps[currentStepNum-1]
-		if err := prepareAutoJudgeReadiness(ctx, fresh, currentStepNum, step); err != nil {
+		rejudgePreflighted, err := reopenJudgeRejectionIfRequested(ctx, fresh, currentStepNum, step, opts)
+		if err != nil {
 			return err
+		}
+		if err := reconcileJudgeBeforeLaunch(ctx, fresh, currentStepNum); err != nil {
+			return err
+		}
+		if !rejudgePreflighted {
+			if err := prepareAutoJudgeReadiness(ctx, fresh, currentStepNum, step); err != nil {
+				return err
+			}
 		}
 
 		runID, err := newJudgeRunID()
@@ -260,7 +260,7 @@ func newJudgeExecCmd() *cobra.Command {
 			return runJudgeExec(cmd.Context(), payloadPath)
 		},
 	}
-	cmd.Flags().StringVar(&payloadPath, "payload", "", "path to the payload written by 'fest workflow approve --auto'")
+	cmd.Flags().StringVar(&payloadPath, "payload", "", "path to the payload written by 'fest workflow judge'")
 	_ = cmd.MarkFlagRequired("payload")
 	return cmd
 }
@@ -417,7 +417,7 @@ func recordUnclaimedJudgeFailure(ctx context.Context, nav *wf.Navigator, payload
 		if ss == nil || ss.Judge == nil || ss.Judge.RunID != payload.RunID || ss.Judge.Pid != 0 {
 			return nil
 		}
-		_, err = fresh.RecordJudgeOutcome(ctx, payload.StepNumber, payload.RunID, wf.JudgeFailed, detail)
+		_, err = fresh.RecordJudgeFailure(ctx, payload.StepNumber, payload.RunID, detail)
 		return err
 	})
 }
@@ -428,7 +428,7 @@ func recordJudgeFailureIfOwned(ctx context.Context, nav *wf.Navigator, payload j
 		if err != nil {
 			return err
 		}
-		_, err = fresh.RecordJudgeOutcome(ctx, payload.StepNumber, payload.RunID, wf.JudgeFailed, detail)
+		_, err = fresh.RecordJudgeFailure(ctx, payload.StepNumber, payload.RunID, detail)
 		return err
 	})
 }

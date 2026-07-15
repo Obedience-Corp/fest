@@ -185,6 +185,32 @@ func TestWorkflowStatusJSON_EmptyStepsSerializesArray(t *testing.T) {
 	}
 }
 
+func TestWorkflowStatusJSON_ConciseJudgeFeedback(t *testing.T) {
+	dir := setupWorkflowFestival(t)
+	phaseDir := filepath.Join(dir, "001_INGEST")
+	nav := getNavigator(t, phaseDir)
+	if err := nav.Advance(context.Background()); err != nil {
+		t.Fatalf("advance: %v", err)
+	}
+	step := nav.GetWorkflowState().GetStepState(2)
+	step.Status = wf.StepStatusBlocked
+	step.Feedback = `approval auto mode: schema_version=fest.approval.judge/v1 judge_command="ob judge" decision=reject reason="missing acceptance proof"`
+	step.Judge = &wf.JudgeState{Status: wf.JudgeRejected, Command: "ob judge", Detail: "missing acceptance proof", Pid: 42, RunID: "run-1"}
+
+	out, err := renderWorkflowStatusJSON(nav)
+	if err != nil {
+		t.Fatalf("renderWorkflowStatusJSON: %v", err)
+	}
+	if !strings.Contains(out, `"feedback": "missing acceptance proof"`) {
+		t.Fatalf("JSON missing concise feedback:\n%s", out)
+	}
+	for _, want := range []string{`"judge_command": "ob judge"`, `"judge_pid": 42`, `"judge_run_id": "run-1"`, `"judge_detail": "missing acceptance proof"`} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("JSON missing v1 compatibility field %q:\n%s", want, out)
+		}
+	}
+}
+
 // TestRunStatus_JSONAndText exercises the real command entrypoint for both
 // modes: --json emits parseable structured output and default text mode still
 // renders the human-readable status without leaking JSON.

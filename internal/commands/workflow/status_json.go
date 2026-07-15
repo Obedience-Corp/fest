@@ -44,10 +44,12 @@ type workflowStatusStepJSON struct {
 	// WaitingOnJudge is true when a detached approval judge is still running.
 	WaitingOnJudge bool   `json:"waiting_on_judge,omitempty"`
 	JudgeStatus    string `json:"judge_status,omitempty"`
-	JudgeCommand   string `json:"judge_command,omitempty"`
-	JudgePid       int    `json:"judge_pid,omitempty"`
-	JudgeRunID     string `json:"judge_run_id,omitempty"`
-	JudgeDetail    string `json:"judge_detail,omitempty"`
+	// These judge fields are retained for fest.workflow.status/v1 consumers.
+	// Human renderers intentionally keep this metadata out of normal output.
+	JudgeCommand string `json:"judge_command,omitempty"`
+	JudgePid     int    `json:"judge_pid,omitempty"`
+	JudgeRunID   string `json:"judge_run_id,omitempty"`
+	JudgeDetail  string `json:"judge_detail,omitempty"`
 }
 
 // collectWorkflowStatus builds the structured snapshot from navigator state.
@@ -98,15 +100,15 @@ func collectWorkflowStatus(nav *wf.Navigator) workflowStatusJSON {
 		}
 		if stepState := state.GetStepState(step.Number); stepState != nil {
 			status = stepState.Status
-			feedback = stepState.Feedback
+			feedback = wf.DisplayFeedback(stepState.Feedback)
 			remediation = stepState.RemediationPhase
 			if stepState.Judge != nil {
 				entry.JudgeStatus = stepState.Judge.Status
+				entry.WaitingOnJudge = stepState.Judge.Status == wf.JudgeRunning
 				entry.JudgeCommand = stepState.Judge.Command
 				entry.JudgePid = stepState.Judge.Pid
 				entry.JudgeRunID = stepState.Judge.RunID
-				entry.JudgeDetail = stepState.Judge.Detail
-				entry.WaitingOnJudge = stepState.Judge.Status == wf.JudgeRunning
+				entry.JudgeDetail = wf.DisplayFeedback(stepState.Judge.Detail)
 			}
 		}
 		isCurrent := step.Number == state.CurrentStep && !out.Complete

@@ -91,27 +91,28 @@ func RenderWorkflowStepLine(step WorkflowStepView, compact bool) string {
 		fmt.Fprintf(&sb, "     %s: %s\n", ui.Dim("Goal"), step.Goal)
 	}
 
-	if !compact && step.Feedback != "" {
+	feedback := wf.DisplayFeedback(step.Feedback)
+	if !compact && feedback != "" {
 		switch step.Status {
 		case wf.StepStatusBlocked:
-			fmt.Fprintf(&sb, "     %s: %s\n", ui.Error("Feedback"), step.Feedback)
+			fmt.Fprintf(&sb, "     %s: %s\n", ui.Error("Feedback"), feedback)
 		case wf.StepStatusSkipped, wf.StepStatusCompleted:
-			fmt.Fprintf(&sb, "     %s: %s\n", ui.Warning("Note"), step.Feedback)
+			fmt.Fprintf(&sb, "     %s: %s\n", ui.Warning("Note"), feedback)
 		}
 	}
 
 	if !compact && step.Judge != nil {
 		switch step.Judge.Status {
 		case wf.JudgeRunning:
-			started := ""
-			if step.Judge.StartedAt != nil {
-				started = " since " + step.Judge.StartedAt.Local().Format("15:04:05")
-			}
-			fmt.Fprintf(&sb, "     %s\n", ui.ColoredText(fmt.Sprintf("Waiting on judge (%s)%s", step.Judge.Command, started), ui.JudgeColor))
+			fmt.Fprintf(&sb, "     %s\n", ui.ColoredText("Judge: waiting", ui.JudgeColor))
 		case wf.JudgeFailed:
-			fmt.Fprintf(&sb, "     %s: %s\n", ui.Error("Judge failed (fails closed)"), step.Judge.Detail)
+			fmt.Fprintf(&sb, "     %s", ui.Error("Judge: failed (fails closed)"))
+			if detail := wf.DisplayFeedback(step.Judge.Detail); detail != "" {
+				fmt.Fprintf(&sb, ": %s", detail)
+			}
+			sb.WriteByte('\n')
 		case wf.JudgeApproved, wf.JudgeRejected:
-			fmt.Fprintf(&sb, "     %s: %s\n", ui.Dim("Judge "+step.Judge.Status), step.Judge.Detail)
+			fmt.Fprintf(&sb, "     %s\n", ui.Dim("Judge: "+step.Judge.Status))
 		}
 	}
 
@@ -178,7 +179,7 @@ func LoadWorkflowStepsForPhase(ctx context.Context, festivalPath, phasePath stri
 		var judge *wf.JudgeState
 		if stepState != nil {
 			status = stepState.Status
-			feedback = stepState.Feedback
+			feedback = wf.DisplayFeedback(stepState.Feedback)
 			judge = stepState.Judge
 		}
 
@@ -275,7 +276,7 @@ func LoadGateStepsForPhase(ctx context.Context, festivalPath, phasePath string) 
 		var judge *wf.JudgeState
 		if stepState != nil {
 			status = stepState.Status
-			feedback = stepState.Feedback
+			feedback = wf.DisplayFeedback(stepState.Feedback)
 			judge = stepState.Judge
 		}
 

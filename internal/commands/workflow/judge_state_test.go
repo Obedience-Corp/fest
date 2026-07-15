@@ -8,7 +8,9 @@ import (
 	"time"
 
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/guidance"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/progress"
 )
 
 func TestRunApproveAuto_RecordsJudgeLifecycle(t *testing.T) {
@@ -101,5 +103,118 @@ func TestRunApproveAuto_JudgeFailureLeavesDurableTrace(t *testing.T) {
 	}
 	if judge.StartedAt == nil || judge.FinishedAt == nil {
 		t.Fatalf("judge timestamps missing: %+v", judge)
+	}
+}
+
+func TestReconcileJudgeBeforeLaunch_RecordsDeadLease(t *testing.T) {
+	dir := setupWorkflowFestival(t)
+	phaseDir := filepath.Join(dir, "001_INGEST")
+	nav := getNavigator(t, phaseDir)
+	ctx := context.Background()
+	if err := nav.Advance(ctx); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	if err := nav.BeginJudge(ctx, 2, "fake judge", "stale-run", 99999999); err != nil {
+		t.Fatalf("BeginJudge: %v", err)
+	}
+
+	if err := reconcileJudgeBeforeLaunch(ctx, nav, 2); err != nil {
+		t.Fatalf("reconcileJudgeBeforeLaunch: %v", err)
+	}
+	judge := nav.GetWorkflowState().GetStepState(2).Judge
+	if judge == nil || judge.Status != wf.JudgeFailed {
+		t.Fatalf("judge = %+v, want failed stale lease", judge)
+	}
+	if !strings.Contains(judge.Detail, "detached judge process exited") {
+		t.Fatalf("judge detail = %q, want stale-run explanation", judge.Detail)
+	}
+
+	reloaded := getNavigator(t, phaseDir)
+	replayed := reloaded.GetWorkflowState().GetStepState(2).Judge
+	if replayed == nil || replayed.Status != wf.JudgeFailed {
+		t.Fatalf("replayed judge = %+v, want failed stale lease", replayed)
+	}
+}
+
+func TestOperatorDecisionClearsJudgeAcrossEventReload(t *testing.T) {
+	dir := setupWorkflowFestival(t)
+	phaseDir := filepath.Join(dir, "001_INGEST")
+	ctx := context.Background()
+	gctx := createGuidanceContext(phaseDir)
+	nav, err := wf.NewNavigator(gctx, guidance.ModeWorkflow)
+	if err != nil {
+		t.Fatalf("NewNavigator: %v", err)
+	}
+	store := progress.NewStore(dir)
+	if err := store.Load(ctx); err != nil {
+		t.Fatalf("store.Load: %v", err)
+	}
+	nav.SetStateStore(store)
+	if err := nav.Initialize(ctx); err != nil {
+		t.Fatalf("Initialize: %v", err)
+	}
+	if err := nav.Advance(ctx); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	if err := nav.BeginJudge(ctx, 2, "fake judge", "run-1", 123); err != nil {
+		t.Fatalf("BeginJudge: %v", err)
+	}
+	if recorded, err := nav.RecordJudgeOutcome(ctx, 2, "run-1", wf.JudgeRejected, "missing proof"); err != nil || !recorded {
+		t.Fatalf("RecordJudgeOutcome: recorded=%v err=%v", recorded, err)
+	}
+	if err := nav.RejectWithDecision(ctx, "operator review required", wf.DecisionMetadata{Actor: decisionActorUser}); err != nil {
+		t.Fatalf("RejectWithDecision: %v", err)
+	}
+
+	reloaded, err := reloadWorkflowNavigator(ctx, nav)
+	if err != nil {
+		t.Fatalf("reloadWorkflowNavigator: %v", err)
+	}
+	step := reloaded.GetWorkflowState().GetStepState(2)
+	if step == nil || step.Judge != nil {
+		t.Fatalf("reloaded step = %+v, want operator block with no stale judge", step)
+	}
+	if step.Status != wf.StepStatusBlocked || step.DecisionActor != decisionActorUser {
+		t.Fatalf("reloaded step = %+v, want blocked operator decision", step)
+	}
+}
+
+func TestOperatorDecisionClearsLegacyEmptyRunIDJudgeAcrossEventReload(t *testing.T) {
+	dir := setupWorkflowFestival(t)
+	phaseDir := filepath.Join(dir, "001_INGEST")
+	ctx := context.Background()
+	gctx := createGuidanceContext(phaseDir)
+	nav, err := wf.NewNavigator(gctx, guidance.ModeWorkflow)
+	if err != nil {
+		t.Fatalf("NewNavigator: %v", err)
+	}
+	store := progress.NewStore(dir)
+	if err := store.Load(ctx); err != nil {
+		t.Fatalf("store.Load: %v", err)
+	}
+	nav.SetStateStore(store)
+	if err := nav.Initialize(ctx); err != nil {
+		t.Fatalf("Initialize: %v", err)
+	}
+	if err := nav.Advance(ctx); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	if err := nav.BeginJudge(ctx, 2, "legacy judge", "", 123); err != nil {
+		t.Fatalf("BeginJudge: %v", err)
+	}
+	if recorded, err := nav.RecordJudgeOutcome(ctx, 2, "", wf.JudgeRejected, "legacy rejection"); err != nil || !recorded {
+		t.Fatalf("RecordJudgeOutcome: recorded=%v err=%v", recorded, err)
+	}
+	if err := nav.RejectWithDecision(ctx, "operator review required", wf.DecisionMetadata{Actor: decisionActorUser}); err != nil {
+		t.Fatalf("RejectWithDecision: %v", err)
+	}
+
+	reloaded, err := reloadWorkflowNavigator(ctx, nav)
+	if err != nil {
+		t.Fatalf("reloadWorkflowNavigator: %v", err)
+	}
+	step := reloaded.GetWorkflowState().GetStepState(2)
+	if step == nil || step.Judge != nil {
+		t.Fatalf("reloaded step = %+v, want operator block with no legacy judge", step)
 	}
 }

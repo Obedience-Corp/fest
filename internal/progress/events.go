@@ -44,6 +44,10 @@ const (
 	// previously failed remediation step for re-evaluation.
 	EventWorkflowStepRecheck EventType = "wf_step_recheck"
 
+	// EventWorkflowJudgeRecheck records that a judge-owned rejection is being
+	// reopened for a new approval-judge evaluation.
+	EventWorkflowJudgeRecheck EventType = "wf_judge_recheck"
+
 	// EventWorkflowJudgeStarted records that a delegated approval judge run
 	// was invoked on a blocking checkpoint via 'fest workflow approve --auto'.
 	EventWorkflowJudgeStarted EventType = "wf_judge_started"
@@ -55,6 +59,10 @@ const (
 	// EventWorkflowJudgeReturned records how a delegated judge run ended:
 	// approved, rejected, or failed (timeout, missing command, bad verdict).
 	EventWorkflowJudgeReturned EventType = "wf_judge_returned"
+
+	// EventWorkflowJudgeCleared removes a prior terminal judge outcome after
+	// an operator takes ownership of the checkpoint.
+	EventWorkflowJudgeCleared EventType = "wf_judge_cleared"
 )
 
 // ProgressEvent represents a single progress event in JSONL format.
@@ -411,6 +419,18 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 				ss.Judge = nil
 			}
 
+		case EventWorkflowJudgeRecheck:
+			ss := phaseState.GetOrCreateStepState(e.Step)
+			if wf.IsJudgeRejection(ss) {
+				ss.Status = wf.StepStatusInProgress
+				ss.Feedback = ""
+				ss.RemediationPhase = ""
+				ss.DecisionActor = ""
+				ss.DecisionSummary = ""
+				ss.DecisionAt = nil
+				ss.Judge = nil
+			}
+
 		case EventWorkflowJudgeStarted:
 			ss := phaseState.GetOrCreateStepState(e.Step)
 			ts := e.Timestamp
@@ -431,19 +451,27 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 
 		case EventWorkflowJudgeReturned:
 			ss := phaseState.GetOrCreateStepState(e.Step)
-			if ss.Judge == nil {
-				ss.Judge = &wf.JudgeState{}
-			}
 			// Run IDs make late events from superseded detached processes inert.
 			// Empty IDs remain compatible with events written before leases existed.
-			if e.JudgeRunID != "" && (ss.Judge.Status != wf.JudgeRunning ||
+			if e.JudgeRunID != "" && (ss.Judge == nil || ss.Judge.Status != wf.JudgeRunning ||
 				ss.Judge.RunID != e.JudgeRunID) {
 				continue
+			}
+			if ss.Judge == nil {
+				ss.Judge = &wf.JudgeState{}
 			}
 			ts := e.Timestamp
 			ss.Judge.Status = e.JudgeStatus
 			ss.Judge.Detail = e.JudgeDetail
 			ss.Judge.FinishedAt = &ts
+
+		case EventWorkflowJudgeCleared:
+			ss := phaseState.GetOrCreateStepState(e.Step)
+			// A run ID prevents an older operator cleanup from clearing a
+			// newer judge lease that started before the event was replayed.
+			if e.JudgeRunID == "" || (ss.Judge != nil && ss.Judge.RunID == e.JudgeRunID) {
+				ss.Judge = nil
+			}
 
 		case EventWorkflowAdvance:
 			phaseState.CurrentStep = e.Step

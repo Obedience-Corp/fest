@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 )
 
 func TestBuildFestivalTree(t *testing.T) {
@@ -131,6 +134,71 @@ fest_tracking: true
 	}
 	if seq.Children[1].Name != "02_task.md" {
 		t.Errorf("expected task name '02_task.md', got '%s'", seq.Children[1].Name)
+	}
+}
+
+func TestRenderTreeStepShowsConciseJudgeFeedback(t *testing.T) {
+	step := buildStepNode(shared.WorkflowStepView{
+		Number:   2,
+		Name:     "REVIEW",
+		Status:   wf.StepStatusBlocked,
+		Feedback: `approval auto mode: schema_version=fest.approval.judge/v1 judge_command="ob judge" decision=reject reason="missing acceptance proof"`,
+		Judge:    &wf.JudgeState{Status: wf.JudgeRejected},
+	})
+	tree := &DisplayNode{
+		Name:     "festival",
+		NodeType: "festival",
+		Children: []*DisplayNode{{
+			Name:     "001_PHASE",
+			NodeType: "phase",
+			Status:   "blocked",
+			Stats:    StatusCounts{Total: 1, Blocked: 1},
+			Children: []*DisplayNode{step},
+		}},
+	}
+	defaultOutput := RenderTree(tree, DefaultTreeOptions())
+	if strings.Contains(defaultOutput, "Feedback:") {
+		t.Fatalf("tree should hide feedback by default:\n%s", defaultOutput)
+	}
+	opts := DefaultTreeOptions()
+	opts.ShowFeedback = true
+	output := RenderTree(tree, opts)
+
+	if !strings.Contains(output, "Feedback: missing acceptance proof") {
+		t.Fatalf("tree missing concise feedback:\n%s", output)
+	}
+	if !strings.Contains(output, "Judge: rejected") {
+		t.Fatalf("tree missing judge status:\n%s", output)
+	}
+	if strings.Contains(output, "schema_version") || strings.Contains(output, "judge_command") {
+		t.Fatalf("tree leaked judge metadata:\n%s", output)
+	}
+}
+
+func TestRenderTreeStepShowsWaitingJudgeIcon(t *testing.T) {
+	step := buildStepNode(shared.WorkflowStepView{
+		Number: 2,
+		Name:   "REVIEW",
+		Status: wf.StepStatusBlocked,
+		Judge:  &wf.JudgeState{Status: wf.JudgeRunning},
+	})
+	output := RenderTree(&DisplayNode{
+		Name:     "festival",
+		NodeType: "festival",
+		Children: []*DisplayNode{{
+			Name:     "001_PHASE",
+			NodeType: "phase",
+			Status:   "blocked",
+			Stats:    StatusCounts{Total: 1, Blocked: 1},
+			Children: []*DisplayNode{step},
+		}},
+	}, DefaultTreeOptions())
+
+	if !strings.Contains(output, "⚖ Step 2: REVIEW") {
+		t.Fatalf("tree missing purple waiting judge icon:\n%s", output)
+	}
+	if !strings.Contains(output, "Judge: waiting") {
+		t.Fatalf("tree missing waiting judge state:\n%s", output)
 	}
 }
 

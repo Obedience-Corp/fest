@@ -19,8 +19,8 @@ Auto approval:
 ```bash
   fest next auto-invokes the judge on blocking WORKFLOW.md / GATES.md steps.
 
-  Use --auto to re-run the judge explicitly (for example after a reject or a
-  failed judge invocation). Agents must not clear checkpoints with --as agent;
+  Use 'fest workflow judge' to re-run the judge explicitly after a rejection;
+  '--auto' remains a backwards-compatible alias. Agents must not clear checkpoints with --as agent;
   agent-actor decisions are recorded only via the judge path.
 
   Checkpoint classes:
@@ -31,7 +31,7 @@ Auto approval:
   Presentation-like steps require non-empty evidence (e.g. output_specs/PRESENTATION.md)
   before the judge is invoked. Missing evidence blocks deterministically without a model call.
 
-  After a judge reject, re-submit with: fest workflow approve --auto
+  After a judge reject, re-submit with: fest workflow judge
   Operator override (interactive TTY, or --override-judge --summary "..."):
   records decision_actor=user_override.
 

@@ -33,7 +33,7 @@ func normalizeDecision(action, actor, summary string) (wf.DecisionMetadata, erro
 	default:
 		return wf.DecisionMetadata{}, festerrors.Validation("invalid decision actor").
 			WithField("actor", actor).
-			WithHint("use --as user; agent-actor decisions are recorded only by 'fest workflow approve --auto' with a configured approval judge")
+			WithHint("use --as user; agent-actor decisions are recorded only by 'fest workflow judge' with a configured approval judge")
 	}
 
 	return wf.DecisionMetadata{
@@ -43,7 +43,7 @@ func normalizeDecision(action, actor, summary string) (wf.DecisionMetadata, erro
 }
 
 func agentActorHint(action string) string {
-	const delegation = "agent-actor decisions enter the audit trail only through 'fest workflow approve --auto' with a configured approval judge (hooks.approval_judge.command)"
+	const delegation = "agent-actor decisions enter the audit trail only through 'fest workflow judge' with a configured approval judge (hooks.approval_judge.command)"
 	switch action {
 	case "approval":
 		return "blocking checkpoints are operator decisions: stop, present the work, and ask the operator to run 'fest workflow approve'; " + delegation

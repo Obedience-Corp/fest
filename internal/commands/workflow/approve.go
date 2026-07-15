@@ -25,6 +25,7 @@ const approvalJudgeSchemaVersion = "fest.approval.judge/v1"
 
 type approvalJudgeOptions struct {
 	Auto          bool
+	Rejudge       bool
 	JudgeCommand  string
 	Timeout       time.Duration
 	WorkDir       string // festival path; set as judge process cwd
@@ -79,8 +80,8 @@ Auto approval:
   delegates blocking checkpoints away from human review. With that hook set,
   fest next auto-invokes the judge on blocking WORKFLOW.md / GATES.md steps.
 
-  Use --auto to re-run the judge explicitly (for example after a reject or a
-  failed judge invocation). Agents must not clear checkpoints with --as agent;
+  Use 'fest workflow judge' to re-run the judge explicitly after a rejection;
+  '--auto' remains a backwards-compatible alias. Agents must not clear checkpoints with --as agent;
   agent-actor decisions are recorded only via the judge path.
 
   Checkpoint classes:
@@ -91,7 +92,7 @@ Auto approval:
   Presentation-like steps require non-empty evidence (e.g. output_specs/PRESENTATION.md)
   before the judge is invoked. Missing evidence blocks deterministically without a model call.
 
-  After a judge reject, re-submit with: fest workflow approve --auto
+  After a judge reject, re-submit with: fest workflow judge
   Operator override (interactive TTY, or --override-judge --summary "..."):
   records decision_actor=user_override.
 
@@ -120,6 +121,7 @@ Auto approval:
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if opts.Auto {
+				opts.Rejudge = true
 				return runApproveWithOptions(cmd.Context(), wf.DecisionMetadata{}, opts)
 			}
 			decision, err := normalizeDecision("approval", actor, opts.Summary)
@@ -507,12 +509,17 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 			return festerrors.Validation("checkpoint changed before approval judge started")
 		}
 		step = freshSteps[currentStepNum-1]
-		if ss := fresh.GetWorkflowState().GetStepState(currentStepNum); ss != nil && ss.Judge != nil &&
-			ss.Judge.Status == wf.JudgeRunning && judgeLeaseActive(ss.Judge) {
-			return judgeAlreadyRunningError(ss.Judge)
-		}
-		if err := prepareAutoJudgeReadiness(ctx, fresh, currentStepNum, step); err != nil {
+		rejudgePreflighted, err := reopenJudgeRejectionIfRequested(ctx, fresh, currentStepNum, step, opts)
+		if err != nil {
 			return err
+		}
+		if err := reconcileJudgeBeforeLaunch(ctx, fresh, currentStepNum); err != nil {
+			return err
+		}
+		if !rejudgePreflighted {
+			if err := prepareAutoJudgeReadiness(ctx, fresh, currentStepNum, step); err != nil {
+				return err
+			}
 		}
 		if err := fresh.BeginJudge(ctx, currentStepNum, opts.JudgeCommand, runID, os.Getpid()); err != nil {
 			return festerrors.Wrap(err, "recording judge start")
@@ -542,6 +549,51 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 		_, err = applyApproveAutoVerdict(ctx, fresh, currentStepNum, step, runID, decision, audit)
 		return err
 	})
+}
+
+// reconcileJudgeBeforeLaunch closes a dead detached judge lease before a new
+// run starts. The failure is persisted through the event log so another
+// process cannot continue to render the checkpoint as waiting forever.
+func reconcileJudgeBeforeLaunch(ctx context.Context, nav *wf.Navigator, step int) error {
+	state := nav.GetWorkflowState()
+	stepState := state.GetStepState(step)
+	if stepState == nil || stepState.Judge == nil || stepState.Judge.Status != wf.JudgeRunning {
+		return nil
+	}
+	if judgeLeaseActive(stepState.Judge) {
+		return judgeAlreadyRunningError(stepState.Judge)
+	}
+
+	recorded, err := nav.RecordJudgeFailure(ctx, step, stepState.Judge.RunID,
+		"detached judge process exited before recording a verdict")
+	if err != nil {
+		return festerrors.Wrap(err, "recording stale judge failure")
+	}
+	if !recorded {
+		return festerrors.Validation("approval judge lease changed before stale-run cleanup").
+			WithHint("run fest workflow status, then retry the approval judge")
+	}
+	return nil
+}
+
+// reopenJudgeRejectionIfRequested clears only a judge-owned blocked state
+// after the same deterministic preflight used for a fresh auto-judge run.
+// Rejected preflight leaves the original blocked state untouched.
+func reopenJudgeRejectionIfRequested(ctx context.Context, nav *wf.Navigator, stepNum int, step wf.WorkflowStep, opts approvalJudgeOptions) (bool, error) {
+	if !opts.Rejudge {
+		return false, nil
+	}
+	state := nav.GetWorkflowState().GetStepState(stepNum)
+	if state == nil || state.Status != wf.StepStatusBlocked {
+		return false, nil
+	}
+	if err := checkAutoJudgePreflight(nav.Ctx.PhasePath, step); err != nil {
+		return false, err
+	}
+	if err := nav.ReopenJudgeRejection(ctx, stepNum); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func applyApproveAutoVerdict(ctx context.Context, nav *wf.Navigator, currentStepNum int, step wf.WorkflowStep, runID string, decision *approvalJudgeResponse, audit string) (bool, error) {

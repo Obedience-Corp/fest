@@ -54,9 +54,9 @@ loop.
    waiting-on-judge while the detached runner is alive.
 2. When the judge returns, run `fest next` again:
    - Approved: the workflow continues.
-   - Rejected: address the recorded feedback, then
-     `fest workflow approve --auto` to resubmit.
-3. Do **not** run `fest workflow approve --auto` again while the judge is
+   - Rejected: address the recorded feedback, then run
+     `fest workflow judge` to resubmit.
+3. Do **not** run `fest workflow judge` again while the judge is
    running (duplicate launch is refused).
 
 **Operator commands:**
@@ -70,21 +70,21 @@ lands on a blocking checkpoint; you should not wait for a human.
 
 **What you should do:**
 1. If you are reading this after `fest next` without an auto-verdict, run:
-   fest workflow approve --auto
+   fest workflow judge
    (default is fire-and-forget: it launches the judge and returns immediately;
    use `--wait` only when you need a blocking in-process verdict)
 2. While the judge runs, the checkpoint stays blocked and
    `fest workflow status` / `fest show` render purple waiting-on-judge.
 3. After the judge returns, run fest next:
    - Approved: continue.
-   - Rejected: address the recorded feedback, then fest workflow approve --auto to
+   - Rejected: address the recorded feedback, then fest workflow judge to
      resubmit.
 4. Auto mode fails closed on judge errors (checkpoint unchanged).
 
 **Operator commands:**
 - Manual approve: fest workflow approve
 - Reject with feedback: fest workflow reject --reason "..."
-- Block until verdict: fest workflow approve --auto --wait
+- Block until verdict: fest workflow judge --wait
 {{- else}}
 
 This step requires explicit operator confirmation before proceeding.
@@ -102,7 +102,7 @@ This step requires explicit operator confirmation before proceeding.
 - This checkpoint requires human attestation and cannot be delegated to a judge.
 {{- else}}
 - Delegate this decision: configure hooks.approval_judge.command, then
-  fest workflow approve --auto
+  fest workflow judge
 {{- end}}
 {{- end}}
 

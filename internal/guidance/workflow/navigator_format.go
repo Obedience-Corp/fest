@@ -172,7 +172,7 @@ func (n *Navigator) festivalsRoot(ctx context.Context) string {
 // formatStep renders the step template for the current workflow step.
 func (n *Navigator) formatStep(ctx context.Context, step WorkflowStep, stepState *StepState) (string, error) {
 	status := string(stepState.Status)
-	feedback := stepState.Feedback
+	feedback := DisplayFeedback(stepState.Feedback)
 
 	isGate := n.docFilename == "GATES.md"
 	phaseType := n.displayPhaseType()
@@ -197,6 +197,9 @@ func (n *Navigator) formatStep(ctx context.Context, step WorkflowStep, stepState
 		"IsGate":              isGate,
 		"JudgeConfigured":     n.approvalJudgeConfigured(ctx),
 		"OperatorAttestation": ClassifyCheckpoint(step) == CheckpointClassOperatorAttestation,
+		"JudgeRetryAvailable": stepState.Status == StepStatusBlocked &&
+			ClassifyCheckpoint(step) != CheckpointClassOperatorAttestation &&
+			IsJudgeRejection(stepState) && n.approvalJudgeConfigured(ctx),
 	}
 
 	return agent.Render("workflow/step", data)

@@ -98,7 +98,7 @@ func findFailedRemediationGateInStore(ctx context.Context, festivalPath string, 
 		PhasePath:        phasePath,
 		PhaseName:        c.phaseName,
 		Step:             c.stepNum,
-		Reason:           c.stepState.Feedback,
+		Reason:           wf.DisplayFeedback(c.stepState.Feedback),
 		RemediationPhase: c.stepState.RemediationPhase,
 	}
 	if name, err := lookupGateStepName(ctx, phasePath, c.stepNum); err == nil {

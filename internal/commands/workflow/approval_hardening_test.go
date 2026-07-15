@@ -3,6 +3,7 @@ package workflow
 import (
 	"context"
 	"errors"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -248,6 +249,31 @@ func TestApprovalRecoveryLines_OnlySuggestValidRoutesWithoutJudge(t *testing.T) 
 	}
 }
 
+func TestApprovalRecoveryLines_OrdinaryOperatorRejectionOmitsJudgeRetry(t *testing.T) {
+	dir := setupWorkflowFestival(t)
+	cfg := config.DefaultWorkspaceConfig()
+	cfg.Hooks.ApprovalJudge.Command = "configured-judge"
+	if err := config.SaveWorkspaceConfig(dir, cfg); err != nil {
+		t.Fatalf("SaveWorkspaceConfig: %v", err)
+	}
+	ctx := scope.WithWorkspace(context.Background(), &scope.WorkspaceInfo{FestivalsPath: dir})
+	nav := getNavigator(t, filepath.Join(dir, "001_INGEST"))
+	if err := nav.Advance(ctx); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	if err := nav.RejectWithDecision(ctx, "operator review required", wf.DecisionMetadata{Actor: decisionActorUser}); err != nil {
+		t.Fatalf("RejectWithDecision: %v", err)
+	}
+
+	text := strings.Join(approvalRecoveryLinesFor(ctx, nav, nav.GetSteps()[1]), "\n")
+	if strings.Contains(text, "fest workflow judge") {
+		t.Fatalf("ordinary operator rejection should not suggest judge retry: %q", text)
+	}
+	if !strings.Contains(text, "fest workflow approve") {
+		t.Fatalf("operator recovery missing approve route: %q", text)
+	}
+}
+
 func TestResolveManualApprovalDecision_OverrideJudge(t *testing.T) {
 	orig := stdinIsInteractiveFn
 	stdinIsInteractiveFn = func() bool { return false }
@@ -292,8 +318,9 @@ func TestResolveManualApprovalDecision_InteractiveConfirm(t *testing.T) {
 	})
 
 	blocked := &wf.StepState{
-		Status: wf.StepStatusBlocked,
-		Judge:  &wf.JudgeState{Status: wf.JudgeRejected, Detail: "nope"},
+		Status:        wf.StepStatusBlocked,
+		DecisionActor: decisionActorAgent,
+		Judge:         &wf.JudgeState{Status: wf.JudgeRejected, Detail: "nope"},
 	}
 	decision, err := resolveManualApprovalDecision(
 		wf.DecisionMetadata{},

@@ -27,10 +27,23 @@ func TestRenderWorkflowStepLine_WaitingOnJudge(t *testing.T) {
 		StartedAt: &started,
 	}), false)
 
-	for _, want := range []string{"[waiting on judge]", "Waiting on judge (ob judge)", "⚖"} {
+	for _, want := range []string{"[waiting on judge]", "Judge: waiting", "⚖"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("output missing %q:\n%s", want, out)
 		}
+	}
+}
+
+func TestRenderWorkflowStepLine_BlockedWaitingOnJudgeUsesJudgeIcon(t *testing.T) {
+	view := judgeStepView(&wf.JudgeState{Status: wf.JudgeRunning})
+	view.Status = wf.StepStatusBlocked
+	out := RenderWorkflowStepLine(view, false)
+
+	if !strings.Contains(out, "⚖ Step 2: REVIEW") {
+		t.Fatalf("blocked waiting step missing judge icon:\n%s", out)
+	}
+	if !strings.Contains(out, "Judge: waiting") {
+		t.Fatalf("blocked waiting step missing judge state:\n%s", out)
 	}
 }
 
@@ -40,7 +53,7 @@ func TestRenderWorkflowStepLine_JudgeFailed(t *testing.T) {
 		Detail: "judge timed out",
 	}), false)
 
-	if !strings.Contains(out, "Judge failed (fails closed)") || !strings.Contains(out, "judge timed out") {
+	if !strings.Contains(out, "Judge: failed (fails closed)") || !strings.Contains(out, "judge timed out") {
 		t.Errorf("failed judge not surfaced:\n%s", out)
 	}
 	if strings.Contains(out, "[waiting on judge]") {
@@ -54,7 +67,10 @@ func TestRenderWorkflowStepLine_JudgeOutcomeNote(t *testing.T) {
 		Detail: "evidence complete",
 	}), false)
 
-	if !strings.Contains(out, "Judge approved") || !strings.Contains(out, "evidence complete") {
+	if !strings.Contains(out, "Judge: approved") {
 		t.Errorf("judge outcome note missing:\n%s", out)
+	}
+	if strings.Contains(out, "evidence complete") {
+		t.Errorf("judge detail should be rendered as feedback, not metadata:\n%s", out)
 	}
 }

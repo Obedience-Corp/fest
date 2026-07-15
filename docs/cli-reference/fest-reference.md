@@ -4529,6 +4529,7 @@ fest show [festival-name] [flags]
       --inprogress        expand only in-progress phases and sequences
       --json              output in JSON format
       --roadmap           show full execution roadmap with task statuses
+      --show-feedback     show blocked-step feedback
       --summary           show aggregate summary instead of tree view
       --watch             continuously refresh display
 ```
@@ -6635,10 +6636,11 @@ fest watch [festival-selector] [flags]
 ### Options
 
 ```
-      --collapsed   show collapsed tree with counters only
-      --goals       show goals for phases and sequences
-  -h, --help        help for watch
-      --summary     show aggregate summary instead of tree view
+      --collapsed       show collapsed tree with counters only
+      --goals           show goals for phases and sequences
+  -h, --help            help for watch
+      --show-feedback   show blocked-step feedback
+      --summary         show aggregate summary instead of tree view
 ```
 
 ### Options inherited from parent commands
@@ -6832,6 +6834,7 @@ Examples:
   fest workflow advance             # Complete current step and move to next
   fest workflow skip --reason "already completed externally" # Operator override
   fest workflow approve             # Approve a blocking checkpoint
+  fest workflow judge               # Run or re-run the configured approval judge
   fest workflow reject              # Reject checkpoint with feedback
   fest workflow reset               # Reset workflow or gate to step 1
   fest workflow show                # Display the current step details
@@ -6911,8 +6914,8 @@ Auto approval:
 ```bash
   fest next auto-invokes the judge on blocking WORKFLOW.md / GATES.md steps.
 
-  Use --auto to re-run the judge explicitly (for example after a reject or a
-  failed judge invocation). Agents must not clear checkpoints with --as agent;
+  Use 'fest workflow judge' to re-run the judge explicitly after a rejection;
+  '--auto' remains a backwards-compatible alias. Agents must not clear checkpoints with --as agent;
   agent-actor decisions are recorded only via the judge path.
 
   Checkpoint classes:
@@ -6923,7 +6926,7 @@ Auto approval:
   Presentation-like steps require non-empty evidence (e.g. output_specs/PRESENTATION.md)
   before the judge is invoked. Missing evidence blocks deterministically without a model call.
 
-  After a judge reject, re-submit with: fest workflow approve --auto
+  After a judge reject, re-submit with: fest workflow judge
   Operator override (interactive TTY, or --override-judge --summary "..."):
   records decision_actor=user_override.
 
@@ -7057,6 +7060,46 @@ fest workflow init [flags]
       --force                overwrite existing .workflow/workflow.yaml
   -h, --help                 help for init
       --workflow-id string   workflow_id to write into manifest (defaults to wf-<basename>)
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --phase string    specify phase directory (e.g., 001_INGEST)
+      --verbose         enable verbose output
+```
+---
+
+## fest workflow judge
+
+Run the approval judge for the current checkpoint
+
+### Synopsis
+
+Run the configured approval judge for the current blocking checkpoint.
+
+Use this after revising evidence following a judge rejection. A judge-owned
+rejection is reopened automatically; ordinary operator rejections still
+require 'fest workflow approve'. By default the judge runs in the background;
+use --wait when this command should wait for the verdict.
+
+The judge command is resolved from --judge-command or the
+hooks.approval_judge.command workspace configuration hook.
+
+```
+fest workflow judge [flags]
+```
+
+### Options
+
+```
+  -h, --help                     help for judge
+      --judge-command string     approval judge command (overrides hooks.approval_judge.command)
+      --judge-timeout duration   maximum time to wait for the approval judge (0 waits until it returns)
+      --wait                     block until the judge returns instead of launching it in the background
 ```
 
 ### Options inherited from parent commands
