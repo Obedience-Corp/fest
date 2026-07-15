@@ -152,7 +152,7 @@ func statusFromPath(path, festivalsDir string) string {
 		return "festival"
 	}
 	parts := strings.SplitN(rel, string(filepath.Separator), 3)
-	if len(parts) >= 2 && parts[0] == "dungeon" {
+	if len(parts) >= 2 && workspace.IsDungeonDirName(parts[0]) {
 		return "dungeon/" + parts[1]
 	}
 	if len(parts) > 0 {

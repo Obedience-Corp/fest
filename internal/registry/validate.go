@@ -9,6 +9,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 // ValidationError represents a discrepancy between registry and filesystem.
@@ -85,7 +86,7 @@ func Rebuild(ctx context.Context, festivalsRoot string, registryPath string) (*R
 
 	// Scan all status directories
 	for _, status := range id.StatusDirectories {
-		statusPath := filepath.Join(festivalsRoot, status)
+		statusPath := workspace.JoinStatus(festivalsRoot, status)
 
 		if _, err := os.Stat(statusPath); os.IsNotExist(err) {
 			continue
@@ -197,7 +198,7 @@ func scanFilesystemForFestivals(ctx context.Context, festivalsRoot string) (map[
 	result := make(map[string]string)
 
 	for _, status := range id.StatusDirectories {
-		statusPath := filepath.Join(festivalsRoot, status)
+		statusPath := workspace.JoinStatus(festivalsRoot, status)
 
 		if _, err := os.Stat(statusPath); os.IsNotExist(err) {
 			continue
@@ -271,12 +272,12 @@ func detectStatus(path string) string {
 	greatGrandparentName := filepath.Base(filepath.Dir(grandparentDir))
 
 	// Check for dungeon substatus: dungeon/<substatus>/festival
-	if grandparentName == "dungeon" {
+	if workspace.IsDungeonDirName(grandparentName) {
 		return "dungeon/" + parentName
 	}
 
 	// Check for dungeon substatus with date subdir: dungeon/<substatus>/YYYY-MM/festival
-	if greatGrandparentName == "dungeon" {
+	if workspace.IsDungeonDirName(greatGrandparentName) {
 		return "dungeon/" + grandparentName
 	}
 
@@ -288,7 +289,7 @@ func detectStatus(path string) string {
 	}
 
 	// Legacy: festival directly in dungeon/
-	if parentName == "dungeon" {
+	if workspace.IsDungeonDirName(parentName) {
 		return "dungeon"
 	}
 

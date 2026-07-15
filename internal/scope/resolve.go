@@ -188,7 +188,7 @@ func resolveFestival(ws *WorkspaceInfo) (string, error) {
 // findFestivalByName searches for a festival by name in all status directories.
 func findFestivalByName(festivalsRoot, name string) (string, error) {
 	for _, status := range id.StatusDirectories {
-		statusDir := filepath.Join(festivalsRoot, status)
+		statusDir := workspace.JoinStatus(festivalsRoot, status)
 		festivalPath := filepath.Join(statusDir, name)
 
 		// Check if this festival directory exists

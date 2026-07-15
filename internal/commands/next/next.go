@@ -459,7 +459,7 @@ func printChainContext(ctx context.Context, festivalPath string, festivalComplet
 	// Build search dirs for status resolution.
 	searchDirs := make([]string, len(id.StatusDirectories))
 	for i, d := range id.StatusDirectories {
-		searchDirs[i] = filepath.Join(root, d)
+		searchDirs[i] = workspace.JoinStatus(root, d)
 	}
 
 	// Best-effort so a missing chain member does not blank the rest of the chain.

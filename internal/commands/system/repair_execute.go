@@ -9,6 +9,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workflow"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/Obedience-Corp/fest/internal/yamlutil"
 )
 
@@ -54,8 +55,9 @@ func executeRenames(ctx context.Context, festivalsRoot string, plan *repairPlan)
 
 // executeMoves applies directory moves (e.g. completed/ → dungeon/completed/).
 func executeMoves(ctx context.Context, festivalsRoot string, plan *repairPlan) error {
-	// Ensure dungeon/ exists as parent for moves
-	dungeonPath := filepath.Join(festivalsRoot, "dungeon")
+	// Ensure the dungeon directory exists as parent for moves, following
+	// whichever spelling already exists (defaults to visible dungeon/).
+	dungeonPath := workspace.JoinDungeon(festivalsRoot)
 	if err := os.MkdirAll(dungeonPath, 0755); err != nil {
 		return fmt.Errorf("creating dungeon directory: %w", err)
 	}
@@ -65,7 +67,7 @@ func executeMoves(ctx context.Context, festivalsRoot string, plan *repairPlan) e
 			return err
 		}
 		srcPath := filepath.Join(festivalsRoot, src)
-		dstPath := filepath.Join(festivalsRoot, dst)
+		dstPath := workspace.JoinStatus(festivalsRoot, dst)
 		if err := os.Rename(srcPath, dstPath); err != nil {
 			return fmt.Errorf("moving %s to %s: %w", src, dst, err)
 		}
@@ -80,7 +82,7 @@ func executeCreateDirs(ctx context.Context, festivalsRoot string, plan *repairPl
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		fullPath := filepath.Join(festivalsRoot, dir)
+		fullPath := workspace.JoinStatus(festivalsRoot, dir)
 		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 			if err := os.MkdirAll(fullPath, 0755); err != nil {
 				return fmt.Errorf("creating directory %s: %w", dir, err)
@@ -138,7 +140,7 @@ func executeOrphanMoves(ctx context.Context, festivalsRoot string, plan *repairP
 		return nil
 	}
 
-	archivedPath := filepath.Join(festivalsRoot, "dungeon", "archived")
+	archivedPath := workspace.JoinDungeon(festivalsRoot, "archived")
 	if err := os.MkdirAll(archivedPath, 0755); err != nil {
 		return fmt.Errorf("creating dungeon/archived: %w", err)
 	}
@@ -147,7 +149,7 @@ func executeOrphanMoves(ctx context.Context, festivalsRoot string, plan *repairP
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		src := filepath.Join(festivalsRoot, "dungeon", name)
+		src := workspace.JoinDungeon(festivalsRoot, name)
 		dst := filepath.Join(archivedPath, name)
 		if err := os.Rename(src, dst); err != nil {
 			return fmt.Errorf("moving dungeon orphan %s: %w", name, err)

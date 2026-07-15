@@ -10,6 +10,7 @@ import (
 	chainpkg "github.com/Obedience-Corp/fest/internal/chain"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -143,7 +144,7 @@ func findChainByID(ctx context.Context, chainID string) (*chainpkg.Chain, string
 
 	searchDirs := []string{
 		filepath.Join(root, "chains"),
-		filepath.Join(root, "dungeon", "completed", "chains"),
+		workspace.JoinDungeon(root, "completed", "chains"),
 	}
 
 	for _, dir := range searchDirs {

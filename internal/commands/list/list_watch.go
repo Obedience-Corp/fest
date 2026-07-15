@@ -11,6 +11,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/watch"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 // listPollingInterval matches show/progress watch fallback cadence.
@@ -120,11 +121,11 @@ func renderListFrame(ctx context.Context, festivalsDir, filterStatus string, opt
 func listWatchPaths(festivalsDir string) []string {
 	paths := []string{festivalsDir}
 	for _, status := range id.StatusDirectories {
-		paths = append(paths, filepath.Join(festivalsDir, status))
+		paths = append(paths, workspace.JoinStatus(festivalsDir, status))
 	}
 	// dungeon root so moves into/out of dungeon tree are noticed even when a
 	// dated bucket path is new.
-	paths = append(paths, filepath.Join(festivalsDir, "dungeon"))
+	paths = append(paths, workspace.JoinDungeon(festivalsDir))
 	return paths
 }
 

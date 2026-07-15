@@ -606,7 +606,7 @@ func RunWithFestival(ctx context.Context, festivalPath string) (*FestivalItem, e
 func detectStatusFromPath(festivalPath string) string {
 	parent := filepath.Base(filepath.Dir(festivalPath))
 	grandparent := filepath.Base(filepath.Dir(filepath.Dir(festivalPath)))
-	if grandparent == "dungeon" {
+	if workspace.IsDungeonDirName(grandparent) {
 		return "dungeon/" + parent
 	}
 	return parent

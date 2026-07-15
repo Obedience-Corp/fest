@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 // DiscoverAll loads all chain YAML files from the given festivals root.
@@ -20,7 +21,7 @@ func DiscoverAll(ctx context.Context, festivalsRoot string) ([]*Chain, error) {
 
 	dirs := []string{
 		filepath.Join(festivalsRoot, "chains"),
-		filepath.Join(festivalsRoot, "dungeon", "completed", "chains"),
+		workspace.JoinDungeon(festivalsRoot, "completed", "chains"),
 	}
 
 	var all []*Chain
@@ -54,7 +55,7 @@ func DiscoverAllStrict(ctx context.Context, festivalsRoot string) ([]*Chain, []P
 
 	dirs := []string{
 		filepath.Join(festivalsRoot, "chains"),
-		filepath.Join(festivalsRoot, "dungeon", "completed", "chains"),
+		workspace.JoinDungeon(festivalsRoot, "completed", "chains"),
 	}
 
 	var all []*Chain

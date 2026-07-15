@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/Obedience-Corp/fest/internal/yamlutil"
 )
 
@@ -214,9 +215,12 @@ type CrawlResult struct {
 	Transitions map[string]int // "from → to": count
 }
 
-// resolvePath converts a status path to an absolute filesystem path.
+// resolvePath converts a status path to an absolute filesystem path. Status
+// paths of "dungeon" or "dungeon/..." resolve the dungeon segment to
+// whichever on-disk spelling (dungeon/ or .dungeon/) actually exists under
+// the workflow root, defaulting to the visible spelling when neither exists.
 func (s *Service) resolvePath(status string) string {
-	return filepath.Join(s.root, status)
+	return workspace.JoinStatus(s.root, status)
 }
 
 // Init creates a new workflow with the default structure.
@@ -293,7 +297,7 @@ func (s *Service) Init(ctx context.Context, opts InitOptions) (*InitResult, erro
 			path        string
 			getTemplate func() ([]byte, error)
 		}{
-			{filepath.Join(s.root, "dungeon", "OBEY.md"), GetDungeonOBEYTemplate},
+			{filepath.Join(s.resolvePath("dungeon"), "OBEY.md"), GetDungeonOBEYTemplate},
 		}
 	} else {
 		obeyFiles = []struct {
@@ -302,7 +306,7 @@ func (s *Service) Init(ctx context.Context, opts InitOptions) (*InitResult, erro
 		}{
 			{filepath.Join(s.root, "active", "OBEY.md"), GetActiveOBEYTemplate},
 			{filepath.Join(s.root, "ready", "OBEY.md"), GetReadyOBEYTemplate},
-			{filepath.Join(s.root, "dungeon", "OBEY.md"), GetDungeonOBEYTemplate},
+			{filepath.Join(s.resolvePath("dungeon"), "OBEY.md"), GetDungeonOBEYTemplate},
 		}
 	}
 
@@ -446,10 +450,10 @@ func (s *Service) List(ctx context.Context, status string, opts ListOptions) (*L
 
 		// Skip hidden files and dungeon when listing root in v2
 		if isRootListing {
-			if strings.HasPrefix(entry.Name(), ".") {
+			if entry.IsDir() && workspace.IsDungeonDirName(entry.Name()) {
 				continue
 			}
-			if entry.Name() == "dungeon" && entry.IsDir() {
+			if strings.HasPrefix(entry.Name(), ".") {
 				continue
 			}
 		}
@@ -646,7 +650,7 @@ func (s *Service) Migrate(ctx context.Context, opts MigrateOptions) (*MigrateRes
 		}{
 			{filepath.Join(s.root, "active", "OBEY.md"), GetActiveOBEYTemplate},
 			{filepath.Join(s.root, "ready", "OBEY.md"), GetReadyOBEYTemplate},
-			{filepath.Join(s.root, "dungeon", "OBEY.md"), GetDungeonOBEYTemplate},
+			{filepath.Join(s.resolvePath("dungeon"), "OBEY.md"), GetDungeonOBEYTemplate},
 		}
 
 		for _, obey := range obeyFiles {

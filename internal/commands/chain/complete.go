@@ -9,6 +9,7 @@ import (
 	chainpkg "github.com/Obedience-Corp/fest/internal/chain"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/Obedience-Corp/fest/internal/yamlutil"
 	"github.com/spf13/cobra"
 )
@@ -96,7 +97,7 @@ func runComplete(ctx context.Context, chainID string, force bool, notes string) 
 		return err
 	}
 
-	destDir := filepath.Join(root, "dungeon", "completed", "chains")
+	destDir := workspace.JoinDungeon(root, "completed", "chains")
 	if err := os.MkdirAll(destDir, 0o755); err != nil {
 		return errors.IO("creating completed chains directory", err)
 	}
