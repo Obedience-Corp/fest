@@ -442,3 +442,38 @@ func TestRunApproveAuto_RejudgeReopensJudgeRejection(t *testing.T) {
 		t.Fatalf("replayed rejudge status = %s, want completed", got)
 	}
 }
+
+func TestRejudgePreflightFailurePreservesBlockedState(t *testing.T) {
+	dir := setupWorkflowFestival(t)
+	phaseDir := filepath.Join(dir, "001_INGEST")
+	nav := getNavigator(t, phaseDir)
+	ctx := context.Background()
+
+	if err := nav.Advance(ctx); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	state := nav.GetWorkflowState().GetStepState(2)
+	state.Status = wf.StepStatusBlocked
+	state.Feedback = "missing acceptance proof"
+	state.DecisionActor = decisionActorAgent
+	state.Judge = &wf.JudgeState{
+		Status:  wf.JudgeRejected,
+		Detail:  "missing acceptance proof",
+		RunID:   "run-1",
+		Command: "fake judge",
+	}
+
+	operatorStep := wf.WorkflowStep{
+		Number:          2,
+		Name:            "ANALYZE",
+		Checkpoint:      wf.CheckpointUserApproval,
+		CheckpointClass: wf.CheckpointClassOperatorAttestation,
+	}
+	if _, err := reopenJudgeRejectionIfRequested(ctx, nav, 2, operatorStep, approvalJudgeOptions{Rejudge: true}); err == nil {
+		t.Fatal("rejudge should fail closed for operator_attestation")
+	}
+
+	if state.Status != wf.StepStatusBlocked || state.Feedback != "missing acceptance proof" || state.Judge == nil || state.Judge.Status != wf.JudgeRejected {
+		t.Fatalf("preflight failure mutated blocked state: %+v", state)
+	}
+}

@@ -204,9 +204,9 @@ func TestWorkflowStatusJSON_ConciseJudgeFeedback(t *testing.T) {
 	if !strings.Contains(out, `"feedback": "missing acceptance proof"`) {
 		t.Fatalf("JSON missing concise feedback:\n%s", out)
 	}
-	for _, noisy := range []string{"judge_command", "judge_detail", "judge_pid", "judge_run_id"} {
-		if strings.Contains(out, noisy) {
-			t.Fatalf("JSON leaked %q:\n%s", noisy, out)
+	for _, want := range []string{`"judge_command": "ob judge"`, `"judge_pid": 42`, `"judge_run_id": "run-1"`, `"judge_detail": "missing acceptance proof"`} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("JSON missing v1 compatibility field %q:\n%s", want, out)
 		}
 	}
 }

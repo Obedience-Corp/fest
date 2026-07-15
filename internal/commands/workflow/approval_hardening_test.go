@@ -292,8 +292,9 @@ func TestResolveManualApprovalDecision_InteractiveConfirm(t *testing.T) {
 	})
 
 	blocked := &wf.StepState{
-		Status: wf.StepStatusBlocked,
-		Judge:  &wf.JudgeState{Status: wf.JudgeRejected, Detail: "nope"},
+		Status:        wf.StepStatusBlocked,
+		DecisionActor: decisionActorAgent,
+		Judge:         &wf.JudgeState{Status: wf.JudgeRejected, Detail: "nope"},
 	}
 	decision, err := resolveManualApprovalDecision(
 		wf.DecisionMetadata{},

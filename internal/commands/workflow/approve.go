@@ -504,20 +504,23 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 		if fresh.GetWorkflowState().CurrentStep != currentStepNum {
 			return festerrors.Validation("checkpoint changed before approval judge started")
 		}
-		if err := reopenJudgeRejectionIfRequested(ctx, fresh, currentStepNum, opts); err != nil {
-			return err
-		}
 		freshSteps := fresh.GetSteps()
 		if currentStepNum < 1 || currentStepNum > len(freshSteps) {
 			return festerrors.Validation("checkpoint changed before approval judge started")
 		}
 		step = freshSteps[currentStepNum-1]
+		rejudgePreflighted, err := reopenJudgeRejectionIfRequested(ctx, fresh, currentStepNum, step, opts)
+		if err != nil {
+			return err
+		}
 		if ss := fresh.GetWorkflowState().GetStepState(currentStepNum); ss != nil && ss.Judge != nil &&
 			ss.Judge.Status == wf.JudgeRunning && judgeLeaseActive(ss.Judge) {
 			return judgeAlreadyRunningError(ss.Judge)
 		}
-		if err := prepareAutoJudgeReadiness(ctx, fresh, currentStepNum, step); err != nil {
-			return err
+		if !rejudgePreflighted {
+			if err := prepareAutoJudgeReadiness(ctx, fresh, currentStepNum, step); err != nil {
+				return err
+			}
 		}
 		if err := fresh.BeginJudge(ctx, currentStepNum, opts.JudgeCommand, runID, os.Getpid()); err != nil {
 			return festerrors.Wrap(err, "recording judge start")
@@ -549,18 +552,24 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 	})
 }
 
-// reopenJudgeRejectionIfRequested clears only a judge-owned blocked state.
-// This keeps re-judging safe: an agent cannot use the judge command to bypass
-// an ordinary operator rejection or an operator-attestation checkpoint.
-func reopenJudgeRejectionIfRequested(ctx context.Context, nav *wf.Navigator, step int, opts approvalJudgeOptions) error {
+// reopenJudgeRejectionIfRequested clears only a judge-owned blocked state
+// after the same deterministic preflight used for a fresh auto-judge run.
+// Rejected preflight leaves the original blocked state untouched.
+func reopenJudgeRejectionIfRequested(ctx context.Context, nav *wf.Navigator, stepNum int, step wf.WorkflowStep, opts approvalJudgeOptions) (bool, error) {
 	if !opts.Rejudge {
-		return nil
+		return false, nil
 	}
-	state := nav.GetWorkflowState().GetStepState(step)
+	state := nav.GetWorkflowState().GetStepState(stepNum)
 	if state == nil || state.Status != wf.StepStatusBlocked {
-		return nil
+		return false, nil
 	}
-	return nav.ReopenJudgeRejection(ctx, step)
+	if err := checkAutoJudgePreflight(nav.Ctx.PhasePath, step); err != nil {
+		return false, err
+	}
+	if err := nav.ReopenJudgeRejection(ctx, stepNum); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func applyApproveAutoVerdict(ctx context.Context, nav *wf.Navigator, currentStepNum int, step wf.WorkflowStep, runID string, decision *approvalJudgeResponse, audit string) (bool, error) {

@@ -12,6 +12,13 @@ func TestDisplayFeedbackStripsLegacyJudgeAudit(t *testing.T) {
 	}
 }
 
+func TestDisplayFeedbackPreservesReasonTextContainingReasonField(t *testing.T) {
+	got := DisplayFeedback(`approval auto mode: schema_version=fest.approval.judge/v1 judge_command="ob judge" decision=reject reason="the note says reason=needs more evidence"`)
+	if got != `the note says reason=needs more evidence` {
+		t.Fatalf("DisplayFeedback() = %q, want complete reason", got)
+	}
+}
+
 func TestDisplayFeedbackLeavesNormalReasonUntouched(t *testing.T) {
 	if got := DisplayFeedback("missing acceptance proof"); got != "missing acceptance proof" {
 		t.Fatalf("DisplayFeedback() = %q", got)
@@ -47,5 +54,24 @@ func TestWorkflowStateReopenJudgeRejectionDoesNotBypassOperator(t *testing.T) {
 	}
 	if state.GetStepState(1).Status != StepStatusBlocked {
 		t.Fatal("operator rejection was reopened")
+	}
+}
+
+func TestWorkflowStateReopenJudgeRejectionDoesNotBypassLaterOperatorDecision(t *testing.T) {
+	state := NewWorkflowState(1)
+	state.StartCurrentStep()
+	now := time.Now().UTC()
+	state.BeginJudge(1, "ob judge", "run-1", 123, now)
+	if !state.RecordJudgeOutcome(1, "run-1", JudgeRejected, "judge feedback", now) {
+		t.Fatal("RecordJudgeOutcome() did not record rejection")
+	}
+	state.RejectWithDecision("approval auto mode: operator feedback", DecisionMetadata{Actor: "user"})
+
+	if state.ReopenJudgeRejection(1) {
+		t.Fatal("ReopenJudgeRejection() = true after later operator rejection")
+	}
+	step := state.GetStepState(1)
+	if step.Status != StepStatusBlocked || step.Feedback != "approval auto mode: operator feedback" {
+		t.Fatalf("operator decision was not preserved: %+v", step)
 	}
 }

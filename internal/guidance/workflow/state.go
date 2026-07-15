@@ -112,8 +112,7 @@ func DisplayFeedback(feedback string) string {
 	}
 
 	if strings.HasPrefix(feedback, "approval auto mode:") {
-		if idx := strings.LastIndex(feedback, " reason="); idx >= 0 {
-			rawReason := strings.TrimSpace(feedback[idx+len(" reason="):])
+		if rawReason, ok := legacyJudgeReason(feedback); ok {
 			if reason, err := strconv.Unquote(rawReason); err == nil {
 				return reason
 			}
@@ -129,6 +128,39 @@ func DisplayFeedback(feedback string) string {
 	return feedback
 }
 
+// legacyJudgeReason finds the final, unquoted reason field in the legacy
+// approval audit format. A plain LastIndex is unsafe because free-form reason
+// text can itself contain "reason=".
+func legacyJudgeReason(audit string) (string, bool) {
+	const delimiter = " reason="
+	inQuote := false
+	escaped := false
+	for i := 0; i < len(audit); i++ {
+		if inQuote {
+			if escaped {
+				escaped = false
+				continue
+			}
+			switch audit[i] {
+			case '\\':
+				escaped = true
+			case '"':
+				inQuote = false
+			}
+			continue
+		}
+
+		if audit[i] == '"' {
+			inQuote = true
+			continue
+		}
+		if strings.HasPrefix(audit[i:], delimiter) {
+			return strings.TrimSpace(audit[i+len(delimiter):]), true
+		}
+	}
+	return "", false
+}
+
 // IsJudgeRejection reports whether a blocked step was produced by an approval
 // judge or by the deterministic readiness checks that precede one. Ordinary
 // operator rejections intentionally return false and cannot be reopened by
@@ -138,10 +170,16 @@ func IsJudgeRejection(stepState *StepState) bool {
 		return false
 	}
 	if stepState.Judge != nil && stepState.Judge.Status == JudgeRejected {
-		return true
+		// A manual rejection can leave an older terminal judge record in
+		// append-only history. The current decision actor is authoritative;
+		// only an agent-owned decision may be reopened by the judge command.
+		return stepState.DecisionActor == "agent"
 	}
 	if stepState.DecisionActor == "agent" {
 		return true
+	}
+	if stepState.DecisionActor != "" {
+		return false
 	}
 	feedback := strings.ToLower(stepState.Feedback)
 	return strings.Contains(feedback, "approval auto mode") ||
@@ -518,6 +556,11 @@ func (s *WorkflowState) RejectWithDecision(feedback string, decision DecisionMet
 	state.Status = StepStatusBlocked
 	state.Feedback = feedback
 	state.RemediationPhase = ""
+	if decision.Actor != "agent" && state.Judge != nil && state.Judge.Status != JudgeCanceled {
+		// Replace any prior terminal judge outcome so a later judge command
+		// cannot reopen a checkpoint after an operator has taken ownership.
+		state.Judge = nil
+	}
 	s.recordDecision(s.CurrentStep, decision)
 }
 

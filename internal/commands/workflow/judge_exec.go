@@ -56,7 +56,13 @@ func launchApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum in
 				WithField("expected_step", currentStepNum).
 				WithField("current_step", state.CurrentStep)
 		}
-		if err := reopenJudgeRejectionIfRequested(ctx, fresh, currentStepNum, opts); err != nil {
+		freshSteps := fresh.GetSteps()
+		if currentStepNum < 1 || currentStepNum > len(freshSteps) {
+			return festerrors.Validation("checkpoint changed before approval judge launch")
+		}
+		step = freshSteps[currentStepNum-1]
+		rejudgePreflighted, err := reopenJudgeRejectionIfRequested(ctx, fresh, currentStepNum, step, opts)
+		if err != nil {
 			return err
 		}
 		if ss := state.GetStepState(currentStepNum); ss != nil && ss.Judge != nil &&
@@ -69,13 +75,10 @@ func launchApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum in
 				return festerrors.Wrap(err, "recording stale judge failure")
 			}
 		}
-		freshSteps := fresh.GetSteps()
-		if currentStepNum < 1 || currentStepNum > len(freshSteps) {
-			return festerrors.Validation("checkpoint changed before approval judge launch")
-		}
-		step = freshSteps[currentStepNum-1]
-		if err := prepareAutoJudgeReadiness(ctx, fresh, currentStepNum, step); err != nil {
-			return err
+		if !rejudgePreflighted {
+			if err := prepareAutoJudgeReadiness(ctx, fresh, currentStepNum, step); err != nil {
+				return err
+			}
 		}
 
 		runID, err := newJudgeRunID()
