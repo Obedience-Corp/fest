@@ -7,14 +7,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Obedience-Corp/camp/pkg/ledgerkit"
+
+	"github.com/Obedience-Corp/fest/internal/campledger"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 )
 
 // Manager handles progress operations for a festival
 type Manager struct {
-	store *Store
-	gate  Gate
+	store        *Store
+	gate         Gate
+	festivalPath string
 }
 
 // NewManager creates a new progress manager with no lifecycle gate.
@@ -41,7 +45,7 @@ func NewManagerWithGate(ctx context.Context, festivalPath string, gate Gate) (*M
 	if err := store.Load(ctx); err != nil {
 		return nil, errors.Wrap(err, "loading progress data")
 	}
-	return &Manager{store: store, gate: gate}, nil
+	return &Manager{store: store, gate: gate, festivalPath: festivalPath}, nil
 }
 
 // NewManagerReadOnly creates a progress manager that never mutates disk while
@@ -56,7 +60,7 @@ func NewManagerReadOnly(ctx context.Context, festivalPath string) (*Manager, err
 	if err := store.LoadReadOnly(ctx); err != nil {
 		return nil, errors.Wrap(err, "loading progress data")
 	}
-	return &Manager{store: store, gate: NoopGate{}}, nil
+	return &Manager{store: store, gate: NoopGate{}, festivalPath: festivalPath}, nil
 }
 
 // UpdateProgress updates the progress percentage for a task
@@ -188,6 +192,11 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 		return err
 	}
 	m.SyncFrontmatterStatus(taskID, task.Status)
+	// Campaign ledger: high-intent task completion (D003/D006). Does not
+	// alter progress_events.jsonl content beyond the save already done.
+	m.emitLedger(ctx, ledgerkit.KindCompleted, taskID, "", map[string]any{
+		"status": "completed",
+	})
 	// Propagation is best-effort: a failure here should not block
 	// the task completion that already succeeded above.
 	_ = m.PropagateCompletion(ctx, taskID)
@@ -279,6 +288,11 @@ func (m *Manager) ReportBlocker(ctx context.Context, taskID, message string) err
 		return err
 	}
 	m.SyncFrontmatterStatus(taskID, task.Status)
+	m.emitLedger(ctx, ledgerkit.KindTransitioned, taskID, message, map[string]any{
+		"from":   string(StatusPending),
+		"to":     "blocked",
+		"target": "blocked",
+	})
 	return nil
 }
 
@@ -320,7 +334,29 @@ func (m *Manager) ResetTask(ctx context.Context, taskID string) error {
 		return err
 	}
 	m.SyncFrontmatterStatus(taskID, task.Status)
+	m.emitLedger(ctx, ledgerkit.KindTransitioned, taskID, "", map[string]any{
+		"to":     "pending",
+		"target": "reset",
+	})
 	return nil
+}
+
+// emitLedger best-effort appends a campaign ledger event for a high-intent
+// task mutation. No-op outside a campaign. Never fails the caller (D003).
+func (m *Manager) emitLedger(ctx context.Context, kind ledgerkit.Kind, taskID, why string, payload map[string]any) {
+	if m == nil || m.festivalPath == "" {
+		return
+	}
+	e := campledger.NewFromFestival(ctx, m.festivalPath, campledger.WarnToStderr())
+	scope := campledger.FestivalScope(m.festivalPath, taskID)
+	opts := []campledger.Option{}
+	if why != "" {
+		opts = append(opts, campledger.WithWhy(why))
+	}
+	if payload != nil {
+		opts = append(opts, campledger.WithPayload(payload))
+	}
+	e.Emit(ctx, kind, scope, opts...)
 }
 
 // ClearBlocker clears a blocker for a task

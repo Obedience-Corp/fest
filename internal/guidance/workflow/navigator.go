@@ -7,6 +7,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/Obedience-Corp/camp/pkg/ledgerkit"
+
+	"github.com/Obedience-Corp/fest/internal/campledger"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 )
@@ -398,9 +401,17 @@ func (n *Navigator) ApproveWithAudit(ctx context.Context, feedback string, decis
 			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
 			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, n.workflowState.CurrentStep))
 		}
-		return n.store.SaveEvents(ctx)
+		if err := n.store.SaveEvents(ctx); err != nil {
+			return err
+		}
+		n.emitCampaignDecided(ctx, "approve", feedback)
+		return nil
 	}
-	return n.workflowState.Save(ctx, n.festivalPath, sk)
+	if err := n.workflowState.Save(ctx, n.festivalPath, sk); err != nil {
+		return err
+	}
+	n.emitCampaignDecided(ctx, "approve", feedback)
+	return nil
 }
 
 // Reject rejects the current step with feedback.
@@ -435,9 +446,17 @@ func (n *Navigator) RejectWithDecision(ctx context.Context, reason string, decis
 			n.store.QueueWorkflowEvents(EmitJudgeClearedEvents(sk, currentStep, judgeClearRunID))
 		}
 		n.store.QueueWorkflowEvents(EmitStepBlockWithDecisionEvents(sk, currentStep, reason, decision))
-		return n.store.SaveEvents(ctx)
+		if err := n.store.SaveEvents(ctx); err != nil {
+			return err
+		}
+		n.emitCampaignDecided(ctx, "reject", reason)
+		return nil
 	}
-	return n.workflowState.Save(ctx, n.festivalPath, sk)
+	if err := n.workflowState.Save(ctx, n.festivalPath, sk); err != nil {
+		return err
+	}
+	n.emitCampaignDecided(ctx, "reject", reason)
+	return nil
 }
 
 // RejectWithRemediation records the current step as failed with a linked
@@ -475,9 +494,39 @@ func (n *Navigator) RejectWithRemediationDecision(ctx context.Context, reason, r
 			n.store.QueueWorkflowEvents(EmitJudgeClearedEvents(sk, currentStep, judgeClearRunID))
 		}
 		n.store.QueueWorkflowEvents(EmitStepFailRemediationWithDecisionEvents(sk, currentStep, reason, remediationPhase, decision))
-		return n.store.SaveEvents(ctx)
+		if err := n.store.SaveEvents(ctx); err != nil {
+			return err
+		}
+		n.emitCampaignDecided(ctx, "reject_remediation", reason)
+		return nil
 	}
-	return n.workflowState.Save(ctx, n.festivalPath, sk)
+	if err := n.workflowState.Save(ctx, n.festivalPath, sk); err != nil {
+		return err
+	}
+	n.emitCampaignDecided(ctx, "reject_remediation", reason)
+	return nil
+}
+
+// emitCampaignDecided records a gate verdict on the campaign ledger (D005/D006).
+// Best-effort; never blocks the workflow mutation.
+func (n *Navigator) emitCampaignDecided(ctx context.Context, verdict, why string) {
+	if n == nil || n.festivalPath == "" {
+		return
+	}
+	phase := ""
+	if n.Ctx != nil && n.Ctx.PhasePath != "" {
+		phase = filepath.Base(n.Ctx.PhasePath)
+	}
+	scope := campledger.FestivalScope(n.festivalPath, "")
+	scope.Phase = phase
+	emit := campledger.NewFromFestival(ctx, n.festivalPath, campledger.WarnToStderr())
+	emit.Emit(ctx, ledgerkit.KindDecided, scope,
+		campledger.WithWhy(why),
+		campledger.WithPayload(map[string]any{
+			"title":   "gate verdict: " + verdict,
+			"verdict": verdict,
+		}),
+	)
 }
 
 func runningJudgeRunID(state *StepState) string {
