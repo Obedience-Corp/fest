@@ -75,3 +75,19 @@ func TestWorkflowStateReopenJudgeRejectionDoesNotBypassLaterOperatorDecision(t *
 		t.Fatalf("operator decision was not preserved: %+v", step)
 	}
 }
+
+func TestWorkflowStateRecordJudgeFailureAllowsBlockedStaleLease(t *testing.T) {
+	state := NewWorkflowState(1)
+	state.StartCurrentStep()
+	now := time.Now().UTC()
+	state.BeginJudge(1, "ob judge", "run-1", 123, now)
+	state.GetStepState(1).Status = StepStatusBlocked
+
+	if !state.RecordJudgeFailure(1, "run-1", "detached runner exited", now.Add(time.Second)) {
+		t.Fatal("RecordJudgeFailure() = false, want stale lease to be recorded")
+	}
+	judge := state.GetStepState(1).Judge
+	if judge == nil || judge.Status != JudgeFailed || judge.Detail != "detached runner exited" {
+		t.Fatalf("judge = %+v, want failed stale lease", judge)
+	}
+}

@@ -65,15 +65,8 @@ func launchApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum in
 		if err != nil {
 			return err
 		}
-		if ss := state.GetStepState(currentStepNum); ss != nil && ss.Judge != nil &&
-			ss.Judge.Status == wf.JudgeRunning {
-			if judgeLeaseActive(ss.Judge) {
-				return judgeAlreadyRunningError(ss.Judge)
-			}
-			if _, err := fresh.RecordJudgeOutcome(ctx, currentStepNum, ss.Judge.RunID, wf.JudgeFailed,
-				"detached judge process exited before recording a verdict"); err != nil {
-				return festerrors.Wrap(err, "recording stale judge failure")
-			}
+		if err := reconcileJudgeBeforeLaunch(ctx, fresh, currentStepNum); err != nil {
+			return err
 		}
 		if !rejudgePreflighted {
 			if err := prepareAutoJudgeReadiness(ctx, fresh, currentStepNum, step); err != nil {
@@ -424,7 +417,7 @@ func recordUnclaimedJudgeFailure(ctx context.Context, nav *wf.Navigator, payload
 		if ss == nil || ss.Judge == nil || ss.Judge.RunID != payload.RunID || ss.Judge.Pid != 0 {
 			return nil
 		}
-		_, err = fresh.RecordJudgeOutcome(ctx, payload.StepNumber, payload.RunID, wf.JudgeFailed, detail)
+		_, err = fresh.RecordJudgeFailure(ctx, payload.StepNumber, payload.RunID, detail)
 		return err
 	})
 }
@@ -435,7 +428,7 @@ func recordJudgeFailureIfOwned(ctx context.Context, nav *wf.Navigator, payload j
 		if err != nil {
 			return err
 		}
-		_, err = fresh.RecordJudgeOutcome(ctx, payload.StepNumber, payload.RunID, wf.JudgeFailed, detail)
+		_, err = fresh.RecordJudgeFailure(ctx, payload.StepNumber, payload.RunID, detail)
 		return err
 	})
 }

@@ -465,11 +465,21 @@ func (s *WorkflowState) ClaimJudge(step int, runID string, pid int) bool {
 	return true
 }
 
+// JudgeRunOwned reports whether a running judge still owns the current step.
+// Unlike JudgeOwned, this does not require the step to remain pending or
+// in-progress. A dead detached runner may need to be marked failed after a
+// concurrent transition has blocked the step.
+func (s *WorkflowState) JudgeRunOwned(step int, runID string) bool {
+	state := s.GetStepState(step)
+	return state != nil && state.Judge != nil && state.Judge.Status == JudgeRunning &&
+		state.Judge.RunID == runID && s.CurrentStep == step
+}
+
 // JudgeOwned reports whether a running judge still owns the current decision.
 func (s *WorkflowState) JudgeOwned(step int, runID string) bool {
 	state := s.GetStepState(step)
-	return state != nil && state.Judge != nil && state.Judge.Status == JudgeRunning &&
-		state.Judge.RunID == runID && s.CurrentStep == step &&
+	return s.JudgeRunOwned(step, runID) &&
+		state != nil &&
 		(state.Status == StepStatusPending || state.Status == StepStatusInProgress)
 }
 
@@ -486,6 +496,24 @@ func (s *WorkflowState) RecordJudgeOutcome(step int, runID, status, detail strin
 	}
 	finished := at
 	state.Judge.Status = status
+	state.Judge.Detail = detail
+	state.Judge.FinishedAt = &finished
+	return true
+}
+
+// RecordJudgeFailure records a failure for an owned judge lease. This is
+// intentionally allowed after a step becomes blocked so a stale detached
+// runner cannot leave the durable state looking permanently "waiting".
+func (s *WorkflowState) RecordJudgeFailure(step int, runID, detail string, at time.Time) bool {
+	if runID != "" && !s.JudgeRunOwned(step, runID) {
+		return false
+	}
+	state := s.GetOrCreateStepState(step)
+	if state.Judge == nil {
+		state.Judge = &JudgeState{}
+	}
+	finished := at
+	state.Judge.Status = JudgeFailed
 	state.Judge.Detail = detail
 	state.Judge.FinishedAt = &finished
 	return true
@@ -535,7 +563,11 @@ func (s *WorkflowState) ApproveWithDecision(decision DecisionMetadata) error {
 // ApproveWithAudit approves a blocking checkpoint, recording durable audit
 // text and decision metadata, then advances to the next step.
 func (s *WorkflowState) ApproveWithAudit(feedback string, decision DecisionMetadata) error {
+	state := s.GetOrCreateStepState(s.CurrentStep)
 	s.cancelCurrentJudge("superseded by manual approval")
+	if decision.Actor != "agent" && state.Judge != nil && state.Judge.Status != JudgeCanceled {
+		state.Judge = nil
+	}
 	s.MarkCurrentStep(StepStatusCompleted, feedback)
 	s.recordDecision(s.CurrentStep, decision)
 	if s.CurrentStep < s.TotalSteps {
@@ -579,6 +611,9 @@ func (s *WorkflowState) RejectWithRemediationDecision(feedback, remediationPhase
 	state.Status = StepStatusFailedRemediation
 	state.Feedback = feedback
 	state.RemediationPhase = remediationPhase
+	if decision.Actor != "agent" && state.Judge != nil && state.Judge.Status != JudgeCanceled {
+		state.Judge = nil
+	}
 	s.recordDecision(s.CurrentStep, decision)
 }
 
@@ -870,5 +905,16 @@ func EmitJudgeReturnedEvents(phaseName string, step int, runID, status, detail s
 		JudgeStatus: status,
 		JudgeDetail: detail,
 		JudgeRunID:  runID,
+	}}
+}
+
+// EmitJudgeClearedEvents generates an event that removes a prior terminal
+// judge outcome after an operator takes ownership of the checkpoint.
+func EmitJudgeClearedEvents(phaseName string, step int, runID string) []WorkflowEvent {
+	return []WorkflowEvent{{
+		EventType:  "wf_judge_cleared",
+		Phase:      phaseName,
+		Step:       step,
+		JudgeRunID: runID,
 	}}
 }

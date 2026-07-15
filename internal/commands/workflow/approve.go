@@ -513,9 +513,8 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 		if err != nil {
 			return err
 		}
-		if ss := fresh.GetWorkflowState().GetStepState(currentStepNum); ss != nil && ss.Judge != nil &&
-			ss.Judge.Status == wf.JudgeRunning && judgeLeaseActive(ss.Judge) {
-			return judgeAlreadyRunningError(ss.Judge)
+		if err := reconcileJudgeBeforeLaunch(ctx, fresh, currentStepNum); err != nil {
+			return err
 		}
 		if !rejudgePreflighted {
 			if err := prepareAutoJudgeReadiness(ctx, fresh, currentStepNum, step); err != nil {
@@ -550,6 +549,31 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 		_, err = applyApproveAutoVerdict(ctx, fresh, currentStepNum, step, runID, decision, audit)
 		return err
 	})
+}
+
+// reconcileJudgeBeforeLaunch closes a dead detached judge lease before a new
+// run starts. The failure is persisted through the event log so another
+// process cannot continue to render the checkpoint as waiting forever.
+func reconcileJudgeBeforeLaunch(ctx context.Context, nav *wf.Navigator, step int) error {
+	state := nav.GetWorkflowState()
+	stepState := state.GetStepState(step)
+	if stepState == nil || stepState.Judge == nil || stepState.Judge.Status != wf.JudgeRunning {
+		return nil
+	}
+	if judgeLeaseActive(stepState.Judge) {
+		return judgeAlreadyRunningError(stepState.Judge)
+	}
+
+	recorded, err := nav.RecordJudgeFailure(ctx, step, stepState.Judge.RunID,
+		"detached judge process exited before recording a verdict")
+	if err != nil {
+		return festerrors.Wrap(err, "recording stale judge failure")
+	}
+	if !recorded {
+		return festerrors.Validation("approval judge lease changed before stale-run cleanup").
+			WithHint("run fest workflow status, then retry the approval judge")
+	}
+	return nil
 }
 
 // reopenJudgeRejectionIfRequested clears only a judge-owned blocked state

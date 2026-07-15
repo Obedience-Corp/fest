@@ -32,6 +32,15 @@ func approvalRecoveryLinesFor(ctx context.Context, nav *wf.Navigator, step wf.Wo
 			"To enable auto-judge, configure hooks.approval_judge.command first.",
 		}
 	}
+	if nav != nil {
+		state := nav.GetWorkflowState()
+		stepState := state.GetStepState(step.Number)
+		if stepState != nil && stepState.Status == wf.StepStatusBlocked && !wf.IsJudgeRejection(stepState) {
+			return []string{
+				"Operator override: " + ui.Accent("fest workflow approve") + " (interactive)",
+			}
+		}
+	}
 	return []string{
 		"Operator override:       " + ui.Accent("fest workflow approve") + " (interactive)",
 		"Re-run approval judge:   " + ui.Accent("fest workflow judge"),

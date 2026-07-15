@@ -322,6 +322,17 @@ func (n *Navigator) RecordJudgeOutcome(ctx context.Context, step int, runID, sta
 	return recorded, err
 }
 
+// RecordJudgeFailure durably marks an owned judge lease as failed. Unlike a
+// normal verdict, stale-run cleanup remains valid after the step is blocked.
+func (n *Navigator) RecordJudgeFailure(ctx context.Context, step int, runID, detail string) (bool, error) {
+	recorded := false
+	err := n.recordJudge(ctx, EmitJudgeReturnedEvents(n.stateKey(), step, runID, JudgeFailed, detail), func(at time.Time) bool {
+		recorded = n.workflowState.RecordJudgeFailure(step, runID, detail, at)
+		return recorded
+	})
+	return recorded, err
+}
+
 func (n *Navigator) recordJudge(ctx context.Context, events []WorkflowEvent, apply func(at time.Time) bool) error {
 	if err := n.EnsureInitialized(); err != nil {
 		return err
@@ -367,7 +378,9 @@ func (n *Navigator) ApproveWithAudit(ctx context.Context, feedback string, decis
 	}
 
 	currentStep := n.workflowState.CurrentStep
-	judgeRunID := runningJudgeRunID(n.workflowState.GetStepState(currentStep))
+	stepState := n.workflowState.GetStepState(currentStep)
+	judgeRunID := runningJudgeRunID(stepState)
+	judgeClearRunID := terminalJudgeRunID(stepState, decision)
 	if err := n.workflowState.ApproveWithAudit(feedback, decision); err != nil {
 		return err
 	}
@@ -376,6 +389,9 @@ func (n *Navigator) ApproveWithAudit(ctx context.Context, feedback string, decis
 	if n.store != nil {
 		if judgeRunID != "" {
 			n.store.QueueWorkflowEvents(EmitJudgeReturnedEvents(sk, currentStep, judgeRunID, JudgeCanceled, "superseded by manual approval"))
+		}
+		if judgeClearRunID != "" {
+			n.store.QueueWorkflowEvents(EmitJudgeClearedEvents(sk, currentStep, judgeClearRunID))
 		}
 		n.store.QueueWorkflowEvents(EmitStepDoneWithDecisionEvents(sk, currentStep, feedback, decision))
 		if n.workflowState.CurrentStep > currentStep {
@@ -405,13 +421,18 @@ func (n *Navigator) RejectWithDecision(ctx context.Context, reason string, decis
 	}
 
 	currentStep := n.workflowState.CurrentStep
-	judgeRunID := runningJudgeRunID(n.workflowState.GetStepState(currentStep))
+	stepState := n.workflowState.GetStepState(currentStep)
+	judgeRunID := runningJudgeRunID(stepState)
+	judgeClearRunID := terminalJudgeRunID(stepState, decision)
 	n.workflowState.RejectWithDecision(reason, decision)
 
 	sk := n.stateKey()
 	if n.store != nil {
 		if judgeRunID != "" {
 			n.store.QueueWorkflowEvents(EmitJudgeReturnedEvents(sk, currentStep, judgeRunID, JudgeCanceled, "superseded by manual rejection"))
+		}
+		if judgeClearRunID != "" {
+			n.store.QueueWorkflowEvents(EmitJudgeClearedEvents(sk, currentStep, judgeClearRunID))
 		}
 		n.store.QueueWorkflowEvents(EmitStepBlockWithDecisionEvents(sk, currentStep, reason, decision))
 		return n.store.SaveEvents(ctx)
@@ -440,13 +461,18 @@ func (n *Navigator) RejectWithRemediationDecision(ctx context.Context, reason, r
 	}
 
 	currentStep := n.workflowState.CurrentStep
-	judgeRunID := runningJudgeRunID(n.workflowState.GetStepState(currentStep))
+	stepState := n.workflowState.GetStepState(currentStep)
+	judgeRunID := runningJudgeRunID(stepState)
+	judgeClearRunID := terminalJudgeRunID(stepState, decision)
 	n.workflowState.RejectWithRemediationDecision(reason, remediationPhase, decision)
 
 	sk := n.stateKey()
 	if n.store != nil {
 		if judgeRunID != "" {
 			n.store.QueueWorkflowEvents(EmitJudgeReturnedEvents(sk, currentStep, judgeRunID, JudgeCanceled, "superseded by manual remediation decision"))
+		}
+		if judgeClearRunID != "" {
+			n.store.QueueWorkflowEvents(EmitJudgeClearedEvents(sk, currentStep, judgeClearRunID))
 		}
 		n.store.QueueWorkflowEvents(EmitStepFailRemediationWithDecisionEvents(sk, currentStep, reason, remediationPhase, decision))
 		return n.store.SaveEvents(ctx)
@@ -456,6 +482,14 @@ func (n *Navigator) RejectWithRemediationDecision(ctx context.Context, reason, r
 
 func runningJudgeRunID(state *StepState) string {
 	if state == nil || state.Judge == nil || state.Judge.Status != JudgeRunning {
+		return ""
+	}
+	return state.Judge.RunID
+}
+
+func terminalJudgeRunID(state *StepState, decision DecisionMetadata) string {
+	if decision.Actor == "agent" || state == nil || state.Judge == nil ||
+		state.Judge.Status == JudgeRunning || state.Judge.Status == JudgeCanceled {
 		return ""
 	}
 	return state.Judge.RunID
