@@ -193,6 +193,9 @@ func (h *HierarchySelector) ListFestivals(ctx context.Context) ([]LevelOption, e
 	// List festivals in standard locations (active, planning, etc.)
 	locations := []string{"active", "planning"}
 	if !h.config.FilterActive {
+		if err := workspace.CheckDungeonConflict(h.state.FestivalsRoot); err != nil {
+			return nil, err
+		}
 		locations = append(locations, "dungeon/completed", "dungeon/archived", "dungeon/someday")
 	}
 
