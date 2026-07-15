@@ -168,6 +168,33 @@ func TestRenderTreeStepShowsConciseJudgeFeedback(t *testing.T) {
 	}
 }
 
+func TestRenderTreeStepShowsWaitingJudgeIcon(t *testing.T) {
+	step := buildStepNode(shared.WorkflowStepView{
+		Number: 2,
+		Name:   "REVIEW",
+		Status: wf.StepStatusBlocked,
+		Judge:  &wf.JudgeState{Status: wf.JudgeRunning},
+	})
+	output := RenderTree(&DisplayNode{
+		Name:     "festival",
+		NodeType: "festival",
+		Children: []*DisplayNode{{
+			Name:     "001_PHASE",
+			NodeType: "phase",
+			Status:   "blocked",
+			Stats:    StatusCounts{Total: 1, Blocked: 1},
+			Children: []*DisplayNode{step},
+		}},
+	}, DefaultTreeOptions())
+
+	if !strings.Contains(output, "⚖ Step 2: REVIEW") {
+		t.Fatalf("tree missing purple waiting judge icon:\n%s", output)
+	}
+	if !strings.Contains(output, "Judge: waiting") {
+		t.Fatalf("tree missing waiting judge state:\n%s", output)
+	}
+}
+
 func TestRenderTree(t *testing.T) {
 	// Create a simple tree structure
 	tree := &DisplayNode{

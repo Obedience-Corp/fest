@@ -547,6 +547,9 @@ func formatTaskStatus(node *DisplayNode) string {
 
 func formatStepStatus(node *DisplayNode) string {
 	icon := shared.WorkflowStepIcon(wf.StepStatus(node.Status))
+	if node.WaitingOnJudge {
+		icon = ui.ColoredText("⚖", ui.JudgeColor)
+	}
 	return icon + " " + node.Name
 }
 
