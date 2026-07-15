@@ -12,6 +12,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Obedience-Corp/camp/pkg/ledgerkit"
+
+	"github.com/Obedience-Corp/fest/internal/campledger"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/config"
 	festcontract "github.com/Obedience-Corp/fest/internal/contract"
@@ -363,6 +366,17 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 	// fest init ran before camp init (so .campaign/ didn't exist yet),
 	// or where the contract file was deleted and needs regeneration.
 	writeContractEntries(cfg.campaignRoot)
+
+	// Campaign ledger: festival created (high-intent). Dry-run already returned.
+	if !opts.DryRun && cfg.destDir != "" {
+		emit := campledger.NewFromFestival(ctx, cfg.destDir, campledger.WarnToStderr())
+		emit.Emit(ctx, ledgerkit.KindCreated, campledger.FestivalScope(cfg.destDir, ""),
+			campledger.WithPayload(map[string]any{
+				"status": "created",
+				"type":   "festival",
+			}),
+		)
+	}
 
 	return emitCreateOutput(cfg, res)
 }
