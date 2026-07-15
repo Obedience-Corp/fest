@@ -8,7 +8,9 @@ import (
 	"time"
 
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/guidance"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/progress"
 )
 
 func TestRunApproveAuto_RecordsJudgeLifecycle(t *testing.T) {
@@ -131,5 +133,48 @@ func TestReconcileJudgeBeforeLaunch_RecordsDeadLease(t *testing.T) {
 	replayed := reloaded.GetWorkflowState().GetStepState(2).Judge
 	if replayed == nil || replayed.Status != wf.JudgeFailed {
 		t.Fatalf("replayed judge = %+v, want failed stale lease", replayed)
+	}
+}
+
+func TestOperatorDecisionClearsJudgeAcrossEventReload(t *testing.T) {
+	dir := setupWorkflowFestival(t)
+	phaseDir := filepath.Join(dir, "001_INGEST")
+	ctx := context.Background()
+	gctx := createGuidanceContext(phaseDir)
+	nav, err := wf.NewNavigator(gctx, guidance.ModeWorkflow)
+	if err != nil {
+		t.Fatalf("NewNavigator: %v", err)
+	}
+	store := progress.NewStore(dir)
+	if err := store.Load(ctx); err != nil {
+		t.Fatalf("store.Load: %v", err)
+	}
+	nav.SetStateStore(store)
+	if err := nav.Initialize(ctx); err != nil {
+		t.Fatalf("Initialize: %v", err)
+	}
+	if err := nav.Advance(ctx); err != nil {
+		t.Fatalf("Advance: %v", err)
+	}
+	if err := nav.BeginJudge(ctx, 2, "fake judge", "run-1", 123); err != nil {
+		t.Fatalf("BeginJudge: %v", err)
+	}
+	if recorded, err := nav.RecordJudgeOutcome(ctx, 2, "run-1", wf.JudgeRejected, "missing proof"); err != nil || !recorded {
+		t.Fatalf("RecordJudgeOutcome: recorded=%v err=%v", recorded, err)
+	}
+	if err := nav.RejectWithDecision(ctx, "operator review required", wf.DecisionMetadata{Actor: decisionActorUser}); err != nil {
+		t.Fatalf("RejectWithDecision: %v", err)
+	}
+
+	reloaded, err := reloadWorkflowNavigator(ctx, nav)
+	if err != nil {
+		t.Fatalf("reloadWorkflowNavigator: %v", err)
+	}
+	step := reloaded.GetWorkflowState().GetStepState(2)
+	if step == nil || step.Judge != nil {
+		t.Fatalf("reloaded step = %+v, want operator block with no stale judge", step)
+	}
+	if step.Status != wf.StepStatusBlocked || step.DecisionActor != decisionActorUser {
+		t.Fatalf("reloaded step = %+v, want blocked operator decision", step)
 	}
 }
