@@ -4,8 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/Obedience-Corp/camp/pkg/ledgerkit"
+
+	"github.com/Obedience-Corp/fest/internal/campledger"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/scope"
@@ -126,6 +130,26 @@ func runSkip(ctx context.Context, reason string, terminalState wf.StepStatus) er
 	fmt.Printf("%s: %s\n", ui.Label("Terminal State"), terminalState)
 	fmt.Printf("%s: %s\n", ui.Label("Reason"), reason)
 	fmt.Println()
+
+	// Campaign ledger: skip is a high-intent human decision (D005/D006).
+	// One decided event for the whole operator override, not per step.
+	if updatedCount > 0 {
+		phase := ""
+		if nav.Ctx != nil && nav.Ctx.PhasePath != "" {
+			phase = filepath.Base(nav.Ctx.PhasePath)
+		}
+		scope := campledger.FestivalScope(nav.Ctx.FestivalPath, "")
+		scope.Phase = phase
+		emit := campledger.NewFromFestival(ctx, nav.Ctx.FestivalPath, campledger.WarnToStderr())
+		emit.Emit(ctx, ledgerkit.KindDecided, scope,
+			campledger.WithWhy(reason),
+			campledger.WithPayload(map[string]any{
+				"title":          "workflow skip",
+				"terminal_state": string(terminalState),
+				"steps_skipped":  updatedCount,
+			}),
+		)
+	}
 
 	return showNextStep(ctx, nav, steps)
 }

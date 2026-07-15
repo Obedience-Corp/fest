@@ -8,6 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Obedience-Corp/camp/pkg/ledgerkit"
+
+	"github.com/Obedience-Corp/fest/internal/campledger"
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/registry"
 )
@@ -60,6 +63,17 @@ func AtomicStatusChange(ctx context.Context, festivalPath, fromStatus, toStatus 
 
 	// Update registry with new path/status
 	updateRegistry(ctx, festivalsRoot, festivalName, toStatus, newPath)
+
+	// Campaign ledger: festival lifecycle transition at the atomic core
+	// success boundary (D003/D006). status_history + dir move already done.
+	emit := campledger.NewFromFestival(ctx, newPath, campledger.WarnToStderr())
+	emit.Emit(ctx, ledgerkit.KindTransitioned, campledger.FestivalScope(newPath, ""),
+		campledger.WithPayload(map[string]any{
+			"from":   fromStatus,
+			"to":     toStatus,
+			"target": "festival",
+		}),
+	)
 
 	return newPath, nil
 }
