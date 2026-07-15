@@ -380,7 +380,7 @@ func (n *Navigator) ApproveWithAudit(ctx context.Context, feedback string, decis
 	currentStep := n.workflowState.CurrentStep
 	stepState := n.workflowState.GetStepState(currentStep)
 	judgeRunID := runningJudgeRunID(stepState)
-	judgeClearRunID := terminalJudgeRunID(stepState, decision)
+	judgeClearRunID, shouldClearJudge := terminalJudgeRunID(stepState, decision)
 	if err := n.workflowState.ApproveWithAudit(feedback, decision); err != nil {
 		return err
 	}
@@ -390,7 +390,7 @@ func (n *Navigator) ApproveWithAudit(ctx context.Context, feedback string, decis
 		if judgeRunID != "" {
 			n.store.QueueWorkflowEvents(EmitJudgeReturnedEvents(sk, currentStep, judgeRunID, JudgeCanceled, "superseded by manual approval"))
 		}
-		if judgeClearRunID != "" {
+		if shouldClearJudge {
 			n.store.QueueWorkflowEvents(EmitJudgeClearedEvents(sk, currentStep, judgeClearRunID))
 		}
 		n.store.QueueWorkflowEvents(EmitStepDoneWithDecisionEvents(sk, currentStep, feedback, decision))
@@ -423,7 +423,7 @@ func (n *Navigator) RejectWithDecision(ctx context.Context, reason string, decis
 	currentStep := n.workflowState.CurrentStep
 	stepState := n.workflowState.GetStepState(currentStep)
 	judgeRunID := runningJudgeRunID(stepState)
-	judgeClearRunID := terminalJudgeRunID(stepState, decision)
+	judgeClearRunID, shouldClearJudge := terminalJudgeRunID(stepState, decision)
 	n.workflowState.RejectWithDecision(reason, decision)
 
 	sk := n.stateKey()
@@ -431,7 +431,7 @@ func (n *Navigator) RejectWithDecision(ctx context.Context, reason string, decis
 		if judgeRunID != "" {
 			n.store.QueueWorkflowEvents(EmitJudgeReturnedEvents(sk, currentStep, judgeRunID, JudgeCanceled, "superseded by manual rejection"))
 		}
-		if judgeClearRunID != "" {
+		if shouldClearJudge {
 			n.store.QueueWorkflowEvents(EmitJudgeClearedEvents(sk, currentStep, judgeClearRunID))
 		}
 		n.store.QueueWorkflowEvents(EmitStepBlockWithDecisionEvents(sk, currentStep, reason, decision))
@@ -463,7 +463,7 @@ func (n *Navigator) RejectWithRemediationDecision(ctx context.Context, reason, r
 	currentStep := n.workflowState.CurrentStep
 	stepState := n.workflowState.GetStepState(currentStep)
 	judgeRunID := runningJudgeRunID(stepState)
-	judgeClearRunID := terminalJudgeRunID(stepState, decision)
+	judgeClearRunID, shouldClearJudge := terminalJudgeRunID(stepState, decision)
 	n.workflowState.RejectWithRemediationDecision(reason, remediationPhase, decision)
 
 	sk := n.stateKey()
@@ -471,7 +471,7 @@ func (n *Navigator) RejectWithRemediationDecision(ctx context.Context, reason, r
 		if judgeRunID != "" {
 			n.store.QueueWorkflowEvents(EmitJudgeReturnedEvents(sk, currentStep, judgeRunID, JudgeCanceled, "superseded by manual remediation decision"))
 		}
-		if judgeClearRunID != "" {
+		if shouldClearJudge {
 			n.store.QueueWorkflowEvents(EmitJudgeClearedEvents(sk, currentStep, judgeClearRunID))
 		}
 		n.store.QueueWorkflowEvents(EmitStepFailRemediationWithDecisionEvents(sk, currentStep, reason, remediationPhase, decision))
@@ -487,12 +487,12 @@ func runningJudgeRunID(state *StepState) string {
 	return state.Judge.RunID
 }
 
-func terminalJudgeRunID(state *StepState, decision DecisionMetadata) string {
+func terminalJudgeRunID(state *StepState, decision DecisionMetadata) (string, bool) {
 	if decision.Actor == "agent" || state == nil || state.Judge == nil ||
 		state.Judge.Status == JudgeRunning || state.Judge.Status == JudgeCanceled {
-		return ""
+		return "", false
 	}
-	return state.Judge.RunID
+	return state.Judge.RunID, true
 }
 
 // ApplyJudgeApproval atomically records an owned verdict and advances the
