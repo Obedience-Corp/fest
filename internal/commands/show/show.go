@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -175,6 +176,10 @@ func runShowDungeon(ctx context.Context, opts *showOptions) error {
 	}
 	if festivalsDir == "" {
 		return errors.NotFound("festivals directory")
+	}
+
+	if err := workspace.CheckDungeonConflict(festivalsDir); err != nil {
+		return err
 	}
 
 	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
@@ -417,6 +422,12 @@ func runShowStatus(ctx context.Context, status string, opts *showOptions) error 
 		return errors.NotFound("festivals directory")
 	}
 
+	if strings.HasPrefix(status, "dungeon/") {
+		if err := workspace.CheckDungeonConflict(festivalsDir); err != nil {
+			return err
+		}
+	}
+
 	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
 
 	festivals, err := ListFestivalsByStatus(ctx, festivalsDir, status, campaignRoot)
@@ -442,6 +453,10 @@ func runShowAll(ctx context.Context, opts *showOptions) error {
 	}
 	if festivalsDir == "" {
 		return errors.NotFound("festivals directory")
+	}
+
+	if err := workspace.CheckDungeonConflict(festivalsDir); err != nil {
+		return err
 	}
 
 	campaignRoot, _ := workspace.DetectCampaign(ctx, "")

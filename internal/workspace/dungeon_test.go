@@ -109,6 +109,62 @@ func TestResolveDungeonDir_WarnsOnlyOnce(t *testing.T) {
 	}
 }
 
+func TestCheckDungeonConflict(t *testing.T) {
+	tests := []struct {
+		name     string
+		makeDirs []string
+		wantErr  bool
+	}{
+		{
+			name:     "both exist errors",
+			makeDirs: []string{DungeonDir, HiddenDungeonDir},
+			wantErr:  true,
+		},
+		{
+			name:     "only visible exists",
+			makeDirs: []string{DungeonDir},
+			wantErr:  false,
+		},
+		{
+			name:     "only hidden exists",
+			makeDirs: []string{HiddenDungeonDir},
+			wantErr:  false,
+		},
+		{
+			name:     "neither exists",
+			makeDirs: nil,
+			wantErr:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			festivalsRoot := t.TempDir()
+			for _, dir := range tt.makeDirs {
+				if err := os.MkdirAll(filepath.Join(festivalsRoot, dir), 0755); err != nil {
+					t.Fatalf("setup: %v", err)
+				}
+			}
+
+			err := CheckDungeonConflict(festivalsRoot)
+			if tt.wantErr && err == nil {
+				t.Fatal("CheckDungeonConflict() = nil, want error")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("CheckDungeonConflict() = %v, want nil", err)
+			}
+			if tt.wantErr {
+				if !strings.Contains(err.Error(), DungeonDir) || !strings.Contains(err.Error(), HiddenDungeonDir) {
+					t.Errorf("error should name both spellings, got: %v", err)
+				}
+				if !strings.Contains(err.Error(), "camp dungeon migrate") {
+					t.Errorf("error should hint at the migration command, got: %v", err)
+				}
+			}
+		})
+	}
+}
+
 func TestIsDungeonDirName(t *testing.T) {
 	tests := []struct {
 		name string

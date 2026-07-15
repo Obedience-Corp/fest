@@ -232,6 +232,13 @@ func FindFestivalByName(ctx context.Context, festivalsDir, name, campaignRoot st
 		}
 	}
 
+	// The search above walked every status including the dungeon buckets, so
+	// a plain "not found" could actually mean the festival is filed under
+	// whichever dungeon spelling ResolveDungeonDir did not choose.
+	if err := workspace.CheckDungeonConflict(festivalsDir); err != nil {
+		return nil, err
+	}
+
 	return nil, errors.NotFound("festival").WithField("name", name).
 		WithHint("Run 'fest list --all' to see available festivals")
 }

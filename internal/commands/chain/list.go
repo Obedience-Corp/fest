@@ -55,6 +55,10 @@ func runList(ctx context.Context, statusFilter string, jsonOut bool) error {
 		return err
 	}
 
+	if err := workspace.CheckDungeonConflict(root); err != nil {
+		return err
+	}
+
 	chains, err := discoverChains(ctx, filepath.Join(root, "chains"))
 	if err != nil {
 		return err

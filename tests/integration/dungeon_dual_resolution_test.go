@@ -15,9 +15,12 @@ import (
 // TestDungeonDualResolution exercises fest's status/list/promote-to-dungeon
 // flows against campaigns scaffolded with the visible dungeon/ spelling, the
 // hidden .dungeon/ spelling, and both at once, verifying every flow resolves
-// to the correct on-disk directory per docs/tribal-knowledge dungeon
-// resolution rules: whichever exists; visible wins (with a warning) if both
-// exist; visible is created when neither exists yet.
+// to the correct on-disk directory: whichever spelling exists is used;
+// visible is created when neither exists yet; a campaign with both present
+// is a broken migration state, so dungeon-touching operations (promote,
+// status set, list) refuse with a hint to run 'camp dungeon migrate' rather
+// than silently picking one spelling and hiding festivals filed under the
+// other.
 func TestDungeonDualResolution(t *testing.T) {
 	tc := GetSharedContainer(t)
 
@@ -102,25 +105,80 @@ func TestDungeonDualResolution(t *testing.T) {
 		assert.Contains(t, listOutput, "legacy-dungeon-test", "list output should include the completed festival")
 	})
 
-	t.Run("BothExist_PrefersVisibleAndWarns", func(t *testing.T) {
-		base := "/dungeon-both"
+	t.Run("BothExist_PromoteErrors", func(t *testing.T) {
+		// A campaign with both dungeon/ and .dungeon/ is a broken migration
+		// state, not a supported layout: promoting into a dungeon status must
+		// refuse rather than silently picking the visible spelling and
+		// hiding whatever is filed under the hidden one.
+		base := "/dungeon-both-promote"
 		festivalsDir := setupDungeonWorkspace(t, tc, base, "dungeon", ".dungeon")
 
-		festPath := createPlanningFestival(t, tc, festivalsDir, "both-dungeon-test")
+		festPath := createPlanningFestival(t, tc, festivalsDir, "both-dungeon-promote-test")
 
 		output, err := tc.RunFestInDir(festPath, "promote", "--dungeon", "completed", "--force", "--no-commit")
-		require.NoError(t, err, "promote --dungeon completed should succeed when both spellings exist: %s", output)
+		require.Error(t, err, "promote --dungeon completed must refuse when both spellings exist: %s", output)
 
 		assert.True(t,
 			strings.Contains(output, "dungeon/") && strings.Contains(output, ".dungeon/"),
-			"promote output should warn that both dungeon/ and .dungeon/ exist: %s", output)
+			"error should name both dungeon/ and .dungeon/: %s", output)
+		assert.Contains(t, output, "camp dungeon migrate",
+			"error should hint at the migration command: %s", output)
 
-		visiblePath, foundVisible := findDungeonCompletedFestival(t, tc, festivalsDir+"/dungeon/completed", "both-dungeon-test")
-		assert.True(t, foundVisible, "festival should be moved under the visible dungeon/completed/<date>/")
-		_ = visiblePath
+		// The festival must not have moved anywhere.
+		stillPlanning, statErr := tc.CheckDirExists(festPath)
+		require.NoError(t, statErr)
+		assert.True(t, stillPlanning, "festival should remain in planning/ after a refused promotion")
 
-		_, foundHidden := findDungeonCompletedFestival(t, tc, festivalsDir+"/.dungeon/completed", "both-dungeon-test")
-		assert.False(t, foundHidden, "festival must not land under the hidden .dungeon/completed/ when both exist")
+		_, foundVisible := findDungeonCompletedFestival(t, tc, festivalsDir+"/dungeon/completed", "both-dungeon-promote-test")
+		assert.False(t, foundVisible, "festival must not land under dungeon/completed/ when the promotion was refused")
+
+		_, foundHidden := findDungeonCompletedFestival(t, tc, festivalsDir+"/.dungeon/completed", "both-dungeon-promote-test")
+		assert.False(t, foundHidden, "festival must not land under .dungeon/completed/ when the promotion was refused")
+	})
+
+	t.Run("BothExist_StatusSetErrors", func(t *testing.T) {
+		// fest status set resolves the dungeon through a separate code path
+		// (executeFestivalMove) from fest promote (AtomicStatusChange); both
+		// must refuse the same way when both spellings exist.
+		base := "/dungeon-both-status"
+		festivalsDir := setupDungeonWorkspace(t, tc, base, "dungeon", ".dungeon")
+
+		festPath := createPlanningFestival(t, tc, festivalsDir, "both-dungeon-status-test")
+
+		output, err := tc.RunFestInDir(festPath, "status", "set", "archived", "--force", "--no-commit")
+		require.Error(t, err, "status set archived must refuse when both spellings exist: %s", output)
+
+		assert.True(t,
+			strings.Contains(output, "dungeon/") && strings.Contains(output, ".dungeon/"),
+			"error should name both dungeon/ and .dungeon/: %s", output)
+		assert.Contains(t, output, "camp dungeon migrate",
+			"error should hint at the migration command: %s", output)
+
+		stillPlanning, statErr := tc.CheckDirExists(festPath)
+		require.NoError(t, statErr)
+		assert.True(t, stillPlanning, "festival should remain in planning/ after a refused status set")
+	})
+
+	t.Run("BothExist_ListDungeonErrors", func(t *testing.T) {
+		// fest list dungeon must refuse rather than silently listing only
+		// whichever spelling ResolveDungeonDir would have preferred.
+		base := "/dungeon-both-list"
+		festivalsDir := setupDungeonWorkspace(t, tc, base, "dungeon", ".dungeon")
+
+		output, err := tc.RunFestInDir(festivalsDir, "list", "dungeon")
+		require.Error(t, err, "fest list dungeon must refuse when both spellings exist: %s", output)
+		assert.Contains(t, output, "camp dungeon migrate",
+			"error should hint at the migration command: %s", output)
+
+		// A single-status dungeon listing must refuse the same way.
+		output, err = tc.RunFestInDir(festivalsDir, "list", "dungeon/completed")
+		require.Error(t, err, "fest list dungeon/completed must refuse when both spellings exist: %s", output)
+		assert.Contains(t, output, "camp dungeon migrate",
+			"error should hint at the migration command: %s", output)
+
+		// A working-status listing is unaffected by a conflicted dungeon.
+		output, err = tc.RunFestInDir(festivalsDir, "list", "active")
+		require.NoError(t, err, "fest list active must keep working in a drifted campaign: %s", output)
 	})
 }
 

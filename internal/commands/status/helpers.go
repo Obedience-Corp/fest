@@ -78,6 +78,13 @@ func resolveFestivalFromPath(cwd, pathArg string) (string, error) {
 		return candidatePath, nil
 	}
 
+	// The search above walked every status including the dungeon buckets, so
+	// a plain "not found" could actually mean the festival is filed under
+	// whichever dungeon spelling was not searched.
+	if err := workspace.CheckDungeonConflict(festivalsRoot); err != nil {
+		return "", err
+	}
+
 	return "", errors.NotFound("festival").
 		WithField("name", pathArg).
 		WithField("hint", "festival not found in active, planning, completed, or dungeon/*")

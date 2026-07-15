@@ -37,6 +37,10 @@ func AtomicStatusChange(ctx context.Context, festivalPath, fromStatus, toStatus 
 
 	var newPath string
 	if strings.HasPrefix(resolvedStatus, "dungeon/") {
+		if err := workspace.CheckDungeonConflict(festivalsRoot); err != nil {
+			return "", err
+		}
+
 		// All dungeon statuses use date-based directories
 		dateDir := CalculateDateDir(time.Now())
 		statusDir := workspace.JoinStatus(festivalsRoot, resolvedStatus)

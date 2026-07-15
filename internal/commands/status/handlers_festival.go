@@ -296,6 +296,10 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 
 	var newPath string
 	if strings.HasPrefix(newStatus, "dungeon/") {
+		if err := workspace.CheckDungeonConflict(festivalsRoot); err != nil {
+			return err
+		}
+
 		// All dungeon statuses use date-based directories
 		dateDir := CalculateDateDir(time.Now())
 		dungeonStatusDir := workspace.JoinStatus(festivalsRoot, newStatus)

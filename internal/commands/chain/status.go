@@ -142,6 +142,10 @@ func findChainByID(ctx context.Context, chainID string) (*chainpkg.Chain, string
 		return nil, "", err
 	}
 
+	if err := workspace.CheckDungeonConflict(root); err != nil {
+		return nil, "", err
+	}
+
 	searchDirs := []string{
 		filepath.Join(root, "chains"),
 		workspace.JoinDungeon(root, "completed", "chains"),

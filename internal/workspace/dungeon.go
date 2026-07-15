@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
 const (
@@ -76,6 +78,32 @@ func JoinStatus(festivalsRoot, status string) string {
 		return JoinDungeon(festivalsRoot, rest)
 	}
 	return filepath.Join(festivalsRoot, status)
+}
+
+// CheckDungeonConflict reports an error when both dungeon/ and .dungeon/
+// exist under festivalsRoot. A campaign has exactly one dungeon spelling;
+// both present at once is a broken migration state, not a supported layout,
+// because it lets whichever spelling ResolveDungeonDir prefers silently hide
+// festivals filed under the other one.
+//
+// Call this at the entry of operations whose actual job is to read or write
+// the dungeon (list dungeon, promote/complete into a dungeon status, chain
+// completion, festival discovery that falls through to "not found"). Do not
+// call it from generic multi-status resolution helpers that touch the
+// dungeon only incidentally while resolving something else — those keep
+// using ResolveDungeonDir's existing prefer-visible fallback and one-time
+// warning.
+func CheckDungeonConflict(festivalsRoot string) error {
+	visible := isExistingDir(filepath.Join(festivalsRoot, DungeonDir))
+	hidden := isExistingDir(filepath.Join(festivalsRoot, HiddenDungeonDir))
+	if !visible || !hidden {
+		return nil
+	}
+	return errors.Validation("both dungeon/ and .dungeon/ exist").
+		WithField("festivalsRoot", festivalsRoot).
+		WithField("visible", DungeonDir).
+		WithField("hidden", HiddenDungeonDir).
+		WithHint("run 'camp dungeon migrate' to consolidate to a single dungeon spelling")
 }
 
 func warnDungeonConflict(festivalsRoot string) {
