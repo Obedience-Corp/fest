@@ -80,6 +80,16 @@ integration-dev-watch:
     echo "Running fest watch dev integration tests..."
     TESTCONTAINERS_RYUK_DISABLED=true go test -v -tags "integration dev" -run TestFestWatch -timeout 5m ./tests/integration/...
 
+# Run dev-profile fest list --watch integration tests through the container harness
+[no-cd]
+integration-dev-list-watch:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Building dev Linux binary..."
+    BUILD_TAGS=dev just build test-binary
+    echo "Running fest list --watch dev integration tests..."
+    TESTCONTAINERS_RYUK_DISABLED=true go test -v -tags "integration dev" -run TestFestListWatch -timeout 5m ./tests/integration/...
+
 # Run all tests directly (fallback)
 [no-cd]
 all-raw: unit-raw integration-raw
