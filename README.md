@@ -16,9 +16,36 @@
 
 <p align="center"><em><a href="https://github.com/Festival-Examples/example-camp-hardening-festival">See the festival behind this demo &rarr;</a></em></p>
 
-Festival Methodology transforms high-level objectives into structured, executable work that AI agents complete autonomously. **Fest** is the CLI that makes it happen - scaffolding festivals, guiding agents through execution, and tracking progress from goal to completion.
+**Fest is a template-driven agent orchestrator.** You describe work as structured documents scaffolded from templates you control, and agents execute them through a tracked loop: `fest next` hands the agent its next task with full context, quality gates and approval judges check the work, and progress lands in git. Festival Methodology transforms high-level objectives into structured, executable work that AI agents complete autonomously; fest is the CLI that makes it happen.
+
+This practice is **loop engineering**: instead of babysitting prompts, you design the loop your agents run in (the goals, steps, gates, and feedback) and let them run it. The better your loop, the less you supervise. Fest is a tool for building those loops out of plain markdown.
 
 Festivals live within **campaigns** - isolated workspaces managed by [camp](https://github.com/Obedience-Corp/camp). A campaign organizes your projects, plans, and context in one place. See the [methodology README](methodology/README.md) for the complete guide.
+
+## Your Templates, Your Workflow
+
+Fest ships with a complete default methodology, but the methodology is a
+template set, not a requirement. Everything fest scaffolds comes from
+templates you can inspect and change:
+
+- **Campaign-level templates** - every festival, phase, sequence, and task
+  document is generated from `festivals/.festival/templates/` in your
+  campaign. Edit them and fest uses your versions.
+- **Custom festival types** - `festivals/.festival/festival_types.yaml`
+  defines which phases each festival type auto-scaffolds. Add your own types
+  for your own workflow shapes.
+- **Quality gates** - defaults included; replace or modify them campaign-wide
+  or per festival.
+- **Approval judges** - delegate workflow checkpoints to any command via the
+  `hooks.approval_judge` hook in `.festival/config.yaml` (an AI judge, a CI
+  call, or your own script).
+- **Template syncing** - `fest system sync` pulls templates from a
+  configurable repository (`repository.url`, `branch`, and `path` in
+  [configuration](docs/configuration.md)), so a team can maintain and
+  distribute its own template set.
+
+If you can write markdown, you can make fest orchestrate agents your way.
+The default templates encode one proven workflow; yours can encode yours.
 
 ## Steps, Not Time
 
@@ -169,6 +196,7 @@ These festivals span Go, Rust, Python, and web projects - from simple CLI fixes 
 | **AI Autonomy** | Guided by autonomy levels | N/A | Constant prompting |
 | **Collaboration** | Human-AI task creation | Human teams | Human directs |
 | **Success Metrics** | Built-in evaluation framework | Retrospectives | Undefined |
+| **Customization** | Template-driven; bring your own workflow | Process imposed by tool | None |
 
 ## Installation
 
@@ -366,7 +394,7 @@ just lint         # Linting (golangci-lint, gopls, vet)
 
 ## Part of Festival
 
-Fest is one half of the Festival product. The other half is [camp](https://github.com/Obedience-Corp/camp), which manages campaign workspaces - isolated environments for individual missions. Camp creates the workspace (`camp init`), fest manages the planning and execution within it. Together, camp + fest = Festival.
+Fest is one half of the Festival product. The other half is [camp](https://github.com/Obedience-Corp/camp), which manages campaign workspaces - isolated environments for individual missions. Camp creates the workspace (`camp init`), fest manages the planning and execution within it. Together, camp + fest = Festival. Both tools are built to be customized: camp scaffolds the workspace, fest scaffolds and executes the work inside it, and the templates behind both are yours to change.
 
 - [Festival documentation](https://fest.build) - Full docs, methodology, tutorials
 - [camp CLI](https://github.com/Obedience-Corp/camp) - Campaign workspace management
