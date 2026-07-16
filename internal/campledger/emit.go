@@ -125,9 +125,6 @@ func (e *Emitter) Emit(ctx context.Context, kind ledgerkit.Kind, scope ledgerkit
 		return
 	}
 	scope.Campaign = e.campaignID
-	if scope.Festival == "" {
-		// Best-effort: leave empty when caller did not set it.
-	}
 	ev := &ledgerkit.Event{
 		V:      ledgerkit.EnvelopeVersion,
 		ID:     ledgerkit.NewEventID(),
