@@ -96,6 +96,12 @@ func runComplete(ctx context.Context, chainID string, force bool, notes string) 
 	if err != nil {
 		return err
 	}
+	// Chain completion writes into the dungeon; refuse to run against a
+	// campaign holding both spellings, where a silent prefer-visible resolve
+	// could file the completed chain under a dungeon the user cannot see.
+	if err := workspace.CheckDungeonConflict(root); err != nil {
+		return err
+	}
 
 	destDir := workspace.JoinDungeon(root, "completed", "chains")
 	if err := os.MkdirAll(destDir, 0o755); err != nil {

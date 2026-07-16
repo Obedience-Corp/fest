@@ -109,6 +109,147 @@ func TestResolveDungeonDir_WarnsOnlyOnce(t *testing.T) {
 	}
 }
 
+// TestResolveDungeonDir_CampaignSpellingFallback covers the neither-exists
+// case: when no festivals dungeon exists yet, resolution follows the campaign
+// root's spelling so a create lands under the right one.
+func TestResolveDungeonDir_CampaignSpellingFallback(t *testing.T) {
+	tests := []struct {
+		name         string
+		rootDungeons []string // dungeon dirs to create at the campaign root
+		want         string
+	}{
+		{
+			name:         "hidden campaign root implies hidden dungeon",
+			rootDungeons: []string{HiddenDungeonDir},
+			want:         HiddenDungeonDir,
+		},
+		{
+			name:         "visible campaign root implies visible dungeon",
+			rootDungeons: []string{DungeonDir},
+			want:         DungeonDir,
+		},
+		{
+			name:         "no campaign root signal falls back to visible",
+			rootDungeons: nil,
+			want:         DungeonDir,
+		},
+		{
+			name:         "ambiguous campaign root falls back to visible",
+			rootDungeons: []string{DungeonDir, HiddenDungeonDir},
+			want:         DungeonDir,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			campaignRoot := t.TempDir()
+			festivalsRoot := filepath.Join(campaignRoot, FestivalsDir)
+			if err := os.MkdirAll(festivalsRoot, 0755); err != nil {
+				t.Fatalf("setup festivals: %v", err)
+			}
+			for _, dir := range tt.rootDungeons {
+				if err := os.MkdirAll(filepath.Join(campaignRoot, dir), 0755); err != nil {
+					t.Fatalf("setup root dungeon: %v", err)
+				}
+			}
+
+			// No festivals dungeon exists, so resolution hits the fallback.
+			if got := ResolveDungeonDir(festivalsRoot); got != tt.want {
+				t.Errorf("ResolveDungeonDir() = %q, want %q", got, tt.want)
+			}
+			// An existing festivals dungeon always wins over the campaign signal.
+			if err := os.MkdirAll(filepath.Join(festivalsRoot, DungeonDir), 0755); err != nil {
+				t.Fatalf("setup existing festivals dungeon: %v", err)
+			}
+			if got := ResolveDungeonDir(festivalsRoot); got != DungeonDir {
+				t.Errorf("existing festivals dungeon should win: got %q, want %q", got, DungeonDir)
+			}
+		})
+	}
+}
+
+func TestNormalizeNewDungeonSpelling(t *testing.T) {
+	tests := []struct {
+		name             string
+		rootDungeons     []string // campaign-root dungeon dirs
+		festivalDungeons []string // pre-existing festivals dungeon dirs
+		wantVisible      bool     // festivals/dungeon exists after normalize
+		wantHidden       bool     // festivals/.dungeon exists after normalize
+	}{
+		{
+			name:             "hidden campaign renames visible dungeon to hidden",
+			rootDungeons:     []string{HiddenDungeonDir},
+			festivalDungeons: []string{DungeonDir},
+			wantVisible:      false,
+			wantHidden:       true,
+		},
+		{
+			name:             "visible campaign leaves visible dungeon in place",
+			rootDungeons:     []string{DungeonDir},
+			festivalDungeons: []string{DungeonDir},
+			wantVisible:      true,
+			wantHidden:       false,
+		},
+		{
+			name:             "no campaign signal leaves visible dungeon in place",
+			rootDungeons:     nil,
+			festivalDungeons: []string{DungeonDir},
+			wantVisible:      true,
+			wantHidden:       false,
+		},
+		{
+			name:             "hidden campaign with hidden already present is a no-op",
+			rootDungeons:     []string{HiddenDungeonDir},
+			festivalDungeons: []string{HiddenDungeonDir},
+			wantVisible:      false,
+			wantHidden:       true,
+		},
+		{
+			name:             "hidden campaign with no festivals dungeon is a no-op",
+			rootDungeons:     []string{HiddenDungeonDir},
+			festivalDungeons: nil,
+			wantVisible:      false,
+			wantHidden:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			campaignRoot := t.TempDir()
+			festivalsRoot := filepath.Join(campaignRoot, FestivalsDir)
+			for _, dir := range tt.rootDungeons {
+				if err := os.MkdirAll(filepath.Join(campaignRoot, dir), 0755); err != nil {
+					t.Fatalf("setup root dungeon: %v", err)
+				}
+			}
+			for _, dir := range tt.festivalDungeons {
+				if err := os.MkdirAll(filepath.Join(festivalsRoot, dir, "completed"), 0755); err != nil {
+					t.Fatalf("setup festivals dungeon: %v", err)
+				}
+			}
+
+			if err := NormalizeNewDungeonSpelling(festivalsRoot); err != nil {
+				t.Fatalf("NormalizeNewDungeonSpelling() = %v", err)
+			}
+
+			gotVisible := isExistingDir(filepath.Join(festivalsRoot, DungeonDir))
+			gotHidden := isExistingDir(filepath.Join(festivalsRoot, HiddenDungeonDir))
+			if gotVisible != tt.wantVisible {
+				t.Errorf("visible dungeon present = %v, want %v", gotVisible, tt.wantVisible)
+			}
+			if gotHidden != tt.wantHidden {
+				t.Errorf("hidden dungeon present = %v, want %v", gotHidden, tt.wantHidden)
+			}
+			// When a dungeon was renamed, its contents must survive the move.
+			if tt.wantHidden && len(tt.festivalDungeons) > 0 {
+				if !isExistingDir(filepath.Join(festivalsRoot, HiddenDungeonDir, "completed")) {
+					t.Errorf("completed/ subdir should survive the rename")
+				}
+			}
+		})
+	}
+}
+
 func TestCheckDungeonConflict(t *testing.T) {
 	tests := []struct {
 		name     string

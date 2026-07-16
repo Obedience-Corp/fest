@@ -30,8 +30,20 @@ var dungeonConflictWarned sync.Map
 // ResolveDungeonDir returns the on-disk directory name to use for the
 // dungeon under festivalsRoot: whichever of dungeon/ or .dungeon/ actually
 // exists. If both exist, the visible spelling wins and a one-time warning is
-// printed to stderr. If neither exists yet, it defaults to the visible
-// spelling so callers creating a dungeon path get the current behavior.
+// printed to stderr. If neither exists yet, it follows the campaign's
+// established spelling (see campaignDungeonSpelling) so that a path a caller is
+// about to create matches the rest of the campaign — a dungeon_hidden campaign
+// creates festivals/.dungeon rather than a stray visible dungeon. When there is
+// no campaign signal (a standalone festivals tree, or a campaign whose root
+// dungeon is itself absent) it falls back to the visible spelling, preserving
+// prior behavior.
+//
+// Deciding the neither-exists case here rather than in a separate create-only
+// helper keeps every JoinDungeon/JoinStatus call site correct without each one
+// having to remember to opt into a "for new" variant; a read against a
+// not-yet-created dungeon returns a non-existent path under either spelling, so
+// following the campaign spelling is harmless for reads and correct for the
+// creation paths that flow through the same choke point.
 func ResolveDungeonDir(festivalsRoot string) string {
 	visible := isExistingDir(filepath.Join(festivalsRoot, DungeonDir))
 	hidden := isExistingDir(filepath.Join(festivalsRoot, HiddenDungeonDir))
@@ -42,9 +54,52 @@ func ResolveDungeonDir(festivalsRoot string) string {
 		return DungeonDir
 	case hidden:
 		return HiddenDungeonDir
-	default:
+	case visible:
 		return DungeonDir
+	default:
+		return campaignDungeonSpelling(festivalsRoot)
 	}
+}
+
+// campaignDungeonSpelling infers the campaign-wide dungeon spelling from the
+// campaign root (the parent of festivalsRoot) for the case where no festivals
+// dungeon exists yet. A dungeon_hidden campaign has a hidden root dungeon, so
+// its festivals dungeon should be hidden too. When the signal is absent or
+// ambiguous — both root spellings present, neither present, or a standalone
+// festivals tree with no campaign root — it returns the visible spelling to
+// preserve prior behavior.
+func campaignDungeonSpelling(festivalsRoot string) string {
+	campaignRoot := filepath.Dir(festivalsRoot)
+	rootVisible := isExistingDir(filepath.Join(campaignRoot, DungeonDir))
+	rootHidden := isExistingDir(filepath.Join(campaignRoot, HiddenDungeonDir))
+	if rootHidden && !rootVisible {
+		return HiddenDungeonDir
+	}
+	return DungeonDir
+}
+
+// NormalizeNewDungeonSpelling renames a freshly scaffolded visible dungeon/ to
+// the hidden .dungeon/ spelling when the campaign is dungeon_hidden, so a newly
+// initialized festivals tree matches the rest of the campaign. It exists for
+// callers that materialize the dungeon by copying a template tree (which always
+// ships the visible spelling) rather than through JoinDungeon, e.g. fest init.
+// It is a no-op for visible campaigns, when there is nothing to rename, or when
+// the hidden spelling already exists.
+func NormalizeNewDungeonSpelling(festivalsRoot string) error {
+	if campaignDungeonSpelling(festivalsRoot) != HiddenDungeonDir {
+		return nil
+	}
+	visiblePath := filepath.Join(festivalsRoot, DungeonDir)
+	hiddenPath := filepath.Join(festivalsRoot, HiddenDungeonDir)
+	if !isExistingDir(visiblePath) || isExistingDir(hiddenPath) {
+		return nil
+	}
+	if err := os.Rename(visiblePath, hiddenPath); err != nil {
+		return errors.IO("renaming dungeon to hidden spelling", err).
+			WithField("from", visiblePath).
+			WithField("to", hiddenPath)
+	}
+	return nil
 }
 
 // IsDungeonDirName reports whether name is a recognized dungeon directory

@@ -168,6 +168,14 @@ func RunInit(ctx context.Context, targetPath string, opts *InitOptions) error {
 		}
 	}
 
+	// The template tree always ships the visible dungeon/ spelling. Match it to
+	// the campaign so a dungeon_hidden campaign scaffolds festivals/.dungeon
+	// rather than a stray visible dungeon while the rest of the campaign is
+	// hidden. No-op for visible campaigns and standalone (non-campaign) trees.
+	if err := workspace.NormalizeNewDungeonSpelling(festivalPath); err != nil {
+		return err
+	}
+
 	// Generate checksums unless disabled
 	if !opts.NoChecksums {
 		display.Info("Generating .festival checksums...")

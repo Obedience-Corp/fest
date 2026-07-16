@@ -23,6 +23,11 @@ const listPollingInterval = 2 * time.Second
 // Filesystem events and the 2s progress ticker both paint through one mutex so
 // clear+write frames never interleave on stdout.
 func runListWatch(ctx context.Context, festivalsDir, filterStatus string, opts *listOptions, campaignRoot string) error {
+	// Listing reads the dungeon; refuse against a both-spellings campaign so the
+	// watch view cannot silently omit festivals filed under the other spelling.
+	if err := workspace.CheckDungeonConflict(festivalsDir); err != nil {
+		return err
+	}
 	var renderMu sync.Mutex
 	// Hybrid path always polls for deep progress updates; footer reflects that.
 	paint := func() error {

@@ -67,6 +67,12 @@ func runRepair(ctx context.Context, opts *repairOptions) error {
 		return errors.Wrap(err, "finding festivals root").
 			WithHint("run this command from within a festivals/ directory")
 	}
+	// Repair classifies and moves items based on a single-spelling dungeon
+	// scan; if both spellings exist the scan cannot see the other one, so refuse
+	// rather than reorganize against a partial view.
+	if err := workspace.CheckDungeonConflict(festivalsRoot); err != nil {
+		return err
+	}
 
 	plan, err := analyzeRepair(ctx, festivalsRoot)
 	if err != nil {

@@ -105,6 +105,31 @@ func TestDungeonDualResolution(t *testing.T) {
 		assert.Contains(t, listOutput, "legacy-dungeon-test", "list output should include the completed festival")
 	})
 
+	t.Run("HiddenCampaignRoot_CreatesHiddenDungeon", func(t *testing.T) {
+		// A dungeon_hidden campaign whose festivals dungeon does not exist yet
+		// must create the hidden spelling when a festival is first promoted into
+		// it — following the campaign root's spelling rather than defaulting to
+		// a stray visible dungeon/ while the rest of the campaign is hidden.
+		base := "/dungeon-infer-hidden"
+		festivalsDir := setupDungeonWorkspace(t, tc, base) // no festivals dungeon yet
+
+		// Campaign root (parent of festivals/) is hidden.
+		_, err := tc.runCommand([]string{"sh", "-c", "mkdir -p " + base + "/.dungeon"})
+		require.NoError(t, err, "should create the hidden campaign-root dungeon")
+
+		festPath := createPlanningFestival(t, tc, festivalsDir, "infer-hidden-test")
+
+		output, err := tc.RunFestInDir(festPath, "promote", "--dungeon", "completed", "--force", "--no-commit")
+		require.NoError(t, err, "promote should succeed and create the hidden dungeon: %s", output)
+
+		_, found := findDungeonCompletedFestival(t, tc, festivalsDir+"/.dungeon/completed", "infer-hidden-test")
+		assert.True(t, found, "festival should be created under .dungeon/completed/ on a hidden campaign")
+
+		visibleExists, err := tc.CheckDirExists(festivalsDir + "/dungeon")
+		require.NoError(t, err)
+		assert.False(t, visibleExists, "a stray visible dungeon/ must not be created on a hidden campaign")
+	})
+
 	t.Run("BothExist_PromoteErrors", func(t *testing.T) {
 		// A campaign with both dungeon/ and .dungeon/ is a broken migration
 		// state, not a supported layout: promoting into a dungeon status must
