@@ -22,6 +22,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -356,10 +357,14 @@ func promoteCore(ctx context.Context, festival *show.FestivalInfo, confirm bool,
 
 	// Update fest.yaml metadata with the new status
 	var festivalID string
-	if festCfg, cfgErr := config.LoadFestivalConfig(newPath, ""); cfgErr == nil {
+	workspaceRoot := ""
+	if ws, wsErr := workspace.FindWorkspace(ctx, newPath); wsErr == nil {
+		workspaceRoot = ws.Root
+	}
+	if festCfg, cfgErr := config.LoadFestivalConfig(newPath, workspaceRoot); cfgErr == nil {
 		festivalID = festCfg.Metadata.ID
 		festCfg.Metadata.AddStatusChange(nextStatus, newPath, "")
-		if saveErr := config.SaveFestivalConfig(newPath, "", festCfg); saveErr != nil {
+		if saveErr := config.SaveFestivalConfig(newPath, workspaceRoot, festCfg); saveErr != nil {
 			fmt.Printf("%s %s\n", ui.Dim("Warning: could not update fest.yaml status:"), ui.Dim(saveErr.Error()))
 		}
 	}
