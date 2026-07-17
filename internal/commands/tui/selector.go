@@ -162,6 +162,15 @@ func (s *FestivalSelector) loadFestivals(ctx context.Context) error {
 		statuses = allStatuses
 	}
 
+	for _, status := range statuses {
+		if strings.HasPrefix(status, "dungeon/") {
+			if err := workspace.CheckDungeonConflict(s.festivalsDir); err != nil {
+				return err
+			}
+			break
+		}
+	}
+
 	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
 
 	s.festivals = nil

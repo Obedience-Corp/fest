@@ -9,6 +9,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/workflow"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 // dateDirPattern matches YYYY-MM-DD or YYYY-MM formatted date directory names.
@@ -48,14 +49,14 @@ func resolveFestivalFromPath(cwd, pathArg string) (string, error) {
 	// Search in all status directories
 	for _, status := range id.StatusDirectories {
 		// Try direct path: festivals/<status>/<pathArg>
-		candidatePath := filepath.Join(festivalsRoot, status, pathArg)
+		candidatePath := filepath.Join(workspace.JoinStatus(festivalsRoot, status), pathArg)
 		if isValidFestivalDir(candidatePath) {
 			return candidatePath, nil
 		}
 
 		// For dungeon statuses, also search inside date subdirectories
 		if strings.HasPrefix(status, "dungeon/") {
-			statusDir := filepath.Join(festivalsRoot, status)
+			statusDir := workspace.JoinStatus(festivalsRoot, status)
 			entries, err := os.ReadDir(statusDir)
 			if err != nil {
 				continue
@@ -75,6 +76,13 @@ func resolveFestivalFromPath(cwd, pathArg string) (string, error) {
 	candidatePath := filepath.Join(festivalsRoot, pathArg)
 	if isValidFestivalDir(candidatePath) {
 		return candidatePath, nil
+	}
+
+	// The search above walked every status including the dungeon buckets, so
+	// a plain "not found" could actually mean the festival is filed under
+	// whichever dungeon spelling was not searched.
+	if err := workspace.CheckDungeonConflict(festivalsRoot); err != nil {
+		return "", err
 	}
 
 	return "", errors.NotFound("festival").

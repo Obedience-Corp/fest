@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tpl "github.com/Obedience-Corp/fest/internal/template"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 // findDotFestivalDir searches for the .festival directory by walking up the directory tree.
@@ -115,7 +116,7 @@ func findCurrentFestival() string {
 	}
 
 	// Handle dungeon sub-statuses (dungeon/completed, dungeon/archived, dungeon/someday)
-	if len(parts) >= 3 && parts[0] == "dungeon" {
+	if len(parts) >= 3 && workspace.IsDungeonDirName(parts[0]) {
 		festivalPath := filepath.Join(root, parts[0], parts[1], parts[2])
 		if _, err := os.Stat(filepath.Join(festivalPath, "fest.yaml")); err == nil {
 			return festivalPath

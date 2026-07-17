@@ -14,6 +14,7 @@ import (
 	"unicode"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 // Common words to skip when extracting initials
@@ -227,7 +228,7 @@ func FindNextCounter(ctx context.Context, festivalsRoot string, prefix string) (
 			return 0, err
 		}
 
-		statusPath := filepath.Join(festivalsRoot, status)
+		statusPath := workspace.JoinStatus(festivalsRoot, status)
 
 		// Skip if directory doesn't exist
 		if _, err := os.Stat(statusPath); os.IsNotExist(err) {
@@ -357,7 +358,7 @@ func FindNextRitualRun(ctx context.Context, festivalsRoot, ritualDirName string)
 			return 0, err
 		}
 
-		statusPath := filepath.Join(festivalsRoot, status)
+		statusPath := workspace.JoinStatus(festivalsRoot, status)
 
 		// Use WalkDir to recurse into date subdirectories
 		err := filepath.WalkDir(statusPath, func(path string, d os.DirEntry, err error) error {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/progress"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 // multiStatusBoard is the shared collection model for dungeon and all-status
@@ -49,6 +50,10 @@ func formatListBoard(ctx context.Context, festivalsDir, filterStatus string, opt
 }
 
 func collectDungeonBoard(ctx context.Context, festivalsDir string, opts *listOptions, campaignRoot string) (multiStatusBoard, error) {
+	if err := workspace.CheckDungeonConflict(festivalsDir); err != nil {
+		return multiStatusBoard{}, err
+	}
+
 	var totalCount int
 	allFestivals := make(map[string][]*show.FestivalInfo)
 	order := make([]string, 0, len(dungeonSubstatuses))
@@ -91,6 +96,12 @@ func collectDungeonBoard(ctx context.Context, festivalsDir string, opts *listOpt
 }
 
 func collectStatusBoard(ctx context.Context, festivalsDir, status string, opts *listOptions, campaignRoot string) (statusBoard, error) {
+	if strings.HasPrefix(status, "dungeon/") {
+		if err := workspace.CheckDungeonConflict(festivalsDir); err != nil {
+			return statusBoard{}, err
+		}
+	}
+
 	festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status, campaignRoot)
 	if err != nil {
 		return statusBoard{}, err
@@ -114,12 +125,16 @@ func collectStatusBoard(ctx context.Context, festivalsDir, status string, opts *
 }
 
 func collectAllBoard(ctx context.Context, festivalsDir string, opts *listOptions, campaignRoot string) (multiStatusBoard, error) {
-	var totalCount int
-	allFestivals := make(map[string][]*show.FestivalInfo)
 	statuses := defaultStatuses
 	if opts.all {
+		if err := workspace.CheckDungeonConflict(festivalsDir); err != nil {
+			return multiStatusBoard{}, err
+		}
 		statuses = validStatuses
 	}
+
+	var totalCount int
+	allFestivals := make(map[string][]*show.FestivalInfo)
 	statusOrder := make([]string, 0, len(statuses))
 	var allFestivalsList []*show.FestivalInfo
 

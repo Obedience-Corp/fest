@@ -9,6 +9,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/workflow"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 // phasePattern matches numbered phase directories like "001_PLANNING", "002_IMPLEMENTATION".
@@ -49,7 +50,7 @@ func analyzeDungeonOrphans(ctx context.Context, festivalsRoot string, plan *repa
 		return nil
 	}
 
-	dungeonPath := filepath.Join(festivalsRoot, "dungeon")
+	dungeonPath := workspace.JoinDungeon(festivalsRoot)
 	entries, err := os.ReadDir(dungeonPath)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -89,7 +90,7 @@ func analyzeLegacyProgress(ctx context.Context, festivalsRoot string, plan *repa
 
 	// Scan orphan festivals (will be moved later, but paths are still valid now)
 	for _, orphan := range plan.dungeonOrphans {
-		p := filepath.Join(festivalsRoot, "dungeon", orphan)
+		p := workspace.JoinDungeon(festivalsRoot, orphan)
 		if hasLegacyProgress(p) {
 			plan.progressMigrate = append(plan.progressMigrate, p)
 			seen[p] = true
@@ -98,7 +99,7 @@ func analyzeLegacyProgress(ctx context.Context, festivalsRoot string, plan *repa
 
 	// Scan unknown children's contents
 	for _, unknown := range plan.unknownChildren {
-		unknownPath := filepath.Join(festivalsRoot, "dungeon", unknown)
+		unknownPath := workspace.JoinDungeon(festivalsRoot, unknown)
 		scanFestivalsInDir(ctx, unknownPath, plan, seen)
 	}
 
@@ -110,10 +111,10 @@ func analyzeLegacyProgress(ctx context.Context, festivalsRoot string, plan *repa
 		}
 		if dir.Nested && len(dir.Children) > 0 {
 			for child := range dir.Children {
-				scanFestivalsInDir(ctx, filepath.Join(festivalsRoot, name, child), plan, seen)
+				scanFestivalsInDir(ctx, workspace.JoinStatus(festivalsRoot, name+"/"+child), plan, seen)
 			}
 		} else {
-			scanFestivalsInDir(ctx, filepath.Join(festivalsRoot, name), plan, seen)
+			scanFestivalsInDir(ctx, workspace.JoinStatus(festivalsRoot, name), plan, seen)
 		}
 	}
 

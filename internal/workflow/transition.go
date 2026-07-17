@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 // Transition represents a status transition for an item.
@@ -50,7 +52,10 @@ func findItemStatus(workflowRoot, item string) (string, error) {
 	}
 
 	for _, entry := range entries {
-		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") {
+		if !entry.IsDir() {
+			continue
+		}
+		if strings.HasPrefix(entry.Name(), ".") && !workspace.IsDungeonDirName(entry.Name()) {
 			continue
 		}
 		status := entry.Name()

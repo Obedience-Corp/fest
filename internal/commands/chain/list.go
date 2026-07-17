@@ -11,6 +11,7 @@ import (
 	chainpkg "github.com/Obedience-Corp/fest/internal/chain"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -54,13 +55,17 @@ func runList(ctx context.Context, statusFilter string, jsonOut bool) error {
 		return err
 	}
 
+	if err := workspace.CheckDungeonConflict(root); err != nil {
+		return err
+	}
+
 	chains, err := discoverChains(ctx, filepath.Join(root, "chains"))
 	if err != nil {
 		return err
 	}
 
 	// Also check dungeon for completed chains.
-	dungeonChains, _ := discoverChains(ctx, filepath.Join(root, "dungeon", "completed", "chains"))
+	dungeonChains, _ := discoverChains(ctx, workspace.JoinDungeon(root, "completed", "chains"))
 	chains = append(chains, dungeonChains...)
 
 	// Human empty-workspace message reflects the unfiltered set; JSON reports the filtered set.

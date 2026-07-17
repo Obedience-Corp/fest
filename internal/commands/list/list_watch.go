@@ -11,6 +11,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/watch"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 // listPollingInterval matches show/progress watch fallback cadence.
@@ -22,6 +23,11 @@ const listPollingInterval = 2 * time.Second
 // Filesystem events and the 2s progress ticker both paint through one mutex so
 // clear+write frames never interleave on stdout.
 func runListWatch(ctx context.Context, festivalsDir, filterStatus string, opts *listOptions, campaignRoot string) error {
+	// Listing reads the dungeon; refuse against a both-spellings campaign so the
+	// watch view cannot silently omit festivals filed under the other spelling.
+	if err := workspace.CheckDungeonConflict(festivalsDir); err != nil {
+		return err
+	}
 	var renderMu sync.Mutex
 	// Hybrid path always polls for deep progress updates; footer reflects that.
 	paint := func() error {
@@ -120,11 +126,11 @@ func renderListFrame(ctx context.Context, festivalsDir, filterStatus string, opt
 func listWatchPaths(festivalsDir string) []string {
 	paths := []string{festivalsDir}
 	for _, status := range id.StatusDirectories {
-		paths = append(paths, filepath.Join(festivalsDir, status))
+		paths = append(paths, workspace.JoinStatus(festivalsDir, status))
 	}
 	// dungeon root so moves into/out of dungeon tree are noticed even when a
 	// dated bucket path is new.
-	paths = append(paths, filepath.Join(festivalsDir, "dungeon"))
+	paths = append(paths, workspace.JoinDungeon(festivalsDir))
 	return paths
 }
 

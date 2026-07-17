@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 // CalculateDateDir returns the YYYY-MM-DD formatted date directory
@@ -71,7 +72,7 @@ func isCrossDevice(err error) bool {
 // GetCompletedPath returns the full path for a completed festival with date organization.
 // Festivals are stored under dungeon/completed with date-based subdirectories.
 func GetCompletedPath(festivalsRoot, festivalName, dateDir string) string {
-	return filepath.Join(festivalsRoot, "dungeon", "completed", dateDir, festivalName)
+	return workspace.JoinDungeon(festivalsRoot, "completed", dateDir, festivalName)
 }
 
 // copyAndDelete performs a copy+delete move across filesystems. It stages the

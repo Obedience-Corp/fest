@@ -13,6 +13,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/campledger"
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/registry"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 // AtomicStatusChange performs an atomic status change for a festival.
@@ -36,9 +37,13 @@ func AtomicStatusChange(ctx context.Context, festivalPath, fromStatus, toStatus 
 
 	var newPath string
 	if strings.HasPrefix(resolvedStatus, "dungeon/") {
+		if err := workspace.CheckDungeonConflict(festivalsRoot); err != nil {
+			return "", err
+		}
+
 		// All dungeon statuses use date-based directories
 		dateDir := CalculateDateDir(time.Now())
-		statusDir := filepath.Join(festivalsRoot, resolvedStatus)
+		statusDir := workspace.JoinStatus(festivalsRoot, resolvedStatus)
 		var err error
 		newPath, err = MoveToDateDirectory(festivalPath, statusDir, dateDir)
 		if err != nil {

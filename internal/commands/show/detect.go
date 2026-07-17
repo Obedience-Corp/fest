@@ -94,7 +94,7 @@ func DetectCurrentFestival(ctx context.Context, startDir, campaignRoot string) (
 func findLinkedFestivalPath(festivalsRoot, name string) string {
 	for _, status := range id.StatusDirectories {
 		deep := strings.HasPrefix(status, "dungeon/")
-		for _, entry := range festivalDirsUnderStatus(filepath.Join(festivalsRoot, status), deep) {
+		for _, entry := range festivalDirsUnderStatus(workspace.JoinStatus(festivalsRoot, status), deep) {
 			if filepath.Base(entry.path) == name {
 				return entry.path
 			}
@@ -200,7 +200,7 @@ func FindFestivalByName(ctx context.Context, festivalsDir, name, campaignRoot st
 
 	for _, status := range id.StatusDirectories {
 		deep := strings.HasPrefix(status, "dungeon/")
-		for _, entry := range festivalDirsUnderStatus(filepath.Join(festivalsDir, status), deep) {
+		for _, entry := range festivalDirsUnderStatus(workspace.JoinStatus(festivalsDir, status), deep) {
 			base := filepath.Base(entry.path)
 			switch {
 			case base == name || strings.HasPrefix(base, name+"_"):
@@ -232,6 +232,13 @@ func FindFestivalByName(ctx context.Context, festivalsDir, name, campaignRoot st
 		}
 	}
 
+	// The search above walked every status including the dungeon buckets, so
+	// a plain "not found" could actually mean the festival is filed under
+	// whichever dungeon spelling ResolveDungeonDir did not choose.
+	if err := workspace.CheckDungeonConflict(festivalsDir); err != nil {
+		return nil, err
+	}
+
 	return nil, errors.NotFound("festival").WithField("name", name).
 		WithHint("Run 'fest list --all' to see available festivals")
 }
@@ -242,7 +249,7 @@ func ListFestivalsByStatus(ctx context.Context, festivalsDir, status, campaignRo
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	statusDir := filepath.Join(festivalsDir, status)
+	statusDir := workspace.JoinStatus(festivalsDir, status)
 	if _, err := os.ReadDir(statusDir); err != nil {
 		if os.IsNotExist(err) {
 			return []*FestivalInfo{}, nil
@@ -276,7 +283,7 @@ func ListFestivalsByStatus(ctx context.Context, festivalsDir, status, campaignRo
 // recursive walk that CalculateFestivalStats performs on every task file.
 // For dungeon statuses, also recurses into date subdirectories.
 func ListFestivalsByStatusLight(_ context.Context, festivalsDir, status string) ([]*FestivalInfo, error) {
-	statusDir := filepath.Join(festivalsDir, status)
+	statusDir := workspace.JoinStatus(festivalsDir, status)
 	if _, err := os.ReadDir(statusDir); err != nil {
 		if os.IsNotExist(err) {
 			return []*FestivalInfo{}, nil
@@ -347,18 +354,18 @@ func parseFestivalInfo(ctx context.Context, festivalDir, campaignRoot string) (*
 	// Determine status from parent directory
 	parentDir := filepath.Dir(festivalDir)
 	parentName := filepath.Base(parentDir)
-	switch parentName {
-	case "active", "ready", "planning", "ritual":
+	switch {
+	case parentName == "active" || parentName == "ready" || parentName == "planning" || parentName == "ritual":
 		info.Status = parentName
-	case "completed", "archived", "someday":
+	case parentName == "completed" || parentName == "archived" || parentName == "someday":
 		// Could be dungeon/completed, dungeon/archived, dungeon/someday
 		grandparentName := filepath.Base(filepath.Dir(parentDir))
-		if grandparentName == "dungeon" {
+		if workspace.IsDungeonDirName(grandparentName) {
 			info.Status = "dungeon/" + parentName
 		} else {
 			info.Status = parentName
 		}
-	case "dungeon":
+	case workspace.IsDungeonDirName(parentName):
 		info.Status = "dungeon"
 	default:
 		// Check if parent is a date directory (YYYY-MM-DD or YYYY-MM)
@@ -366,7 +373,7 @@ func parseFestivalInfo(ctx context.Context, festivalDir, campaignRoot string) (*
 			// Walk up one more level to find the status name
 			statusName := filepath.Base(filepath.Dir(parentDir))                // e.g., "completed"
 			grandparent := filepath.Base(filepath.Dir(filepath.Dir(parentDir))) // e.g., "dungeon"
-			if grandparent == "dungeon" && isKnownDungeonStatus(statusName) {
+			if workspace.IsDungeonDirName(grandparent) && isKnownDungeonStatus(statusName) {
 				info.Status = "dungeon/" + statusName
 				info.StatusDate = parentName
 			} else {
