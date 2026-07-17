@@ -533,7 +533,10 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 
 	decision, audit, err := judgeApproval(ctx, nav, step, opts)
 	if err != nil {
-		if recErr := recordJudgeFailureIfOwned(ctx, nav, judgeExecPayload{
+		// Synchronous --wait path: the agent is still mid-turn, so no detached
+		// continuation is delivered (the ad-hoc payload carries no session
+		// identity and delivery must not interleave an in-flight turn).
+		if _, recErr := recordJudgeFailureIfOwned(ctx, nav, judgeExecPayload{
 			StepNumber: currentStepNum, RunID: runID,
 		}, err.Error()); recErr != nil {
 			fmt.Printf("%s failed to record judge outcome: %v\n", ui.Warning("⚠"), recErr)
