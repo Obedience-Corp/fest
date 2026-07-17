@@ -2,7 +2,9 @@ package workflow
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -331,6 +333,112 @@ func TestResolveManualApprovalDecision_InteractiveConfirm(t *testing.T) {
 	}
 	if decision.Actor != decisionActorUserOverride {
 		t.Fatalf("actor = %q after prior reject, want user_override", decision.Actor)
+	}
+}
+
+func TestResolveExistingEvidencePaths_ReturnsPresentDeliverables(t *testing.T) {
+	step := wf.WorkflowStep{Number: 4, Name: "PRESENT", Checkpoint: wf.CheckpointUserApproval}
+	present := map[string]bool{
+		"output_specs/PRESENTATION.md": true,
+		"output_specs/purpose.md":      true,
+	}
+	got := resolveExistingEvidencePathsWithInspector("/phase", step, func(_, path string) (bool, error) {
+		return present[path], nil
+	})
+	want := []string{"output_specs/PRESENTATION.md", "output_specs/purpose.md"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("evidence = %v, want %v", got, want)
+	}
+}
+
+func TestResolveExistingEvidencePaths_SkipsMissingAndErrors(t *testing.T) {
+	step := wf.WorkflowStep{Number: 4, Name: "PRESENT", Checkpoint: wf.CheckpointUserApproval}
+	got := resolveExistingEvidencePathsWithInspector("/phase", step, func(_, _ string) (bool, error) {
+		return false, errors.New("containment failed")
+	})
+	if len(got) != 0 {
+		t.Fatalf("evidence = %v, want empty when nothing is present", got)
+	}
+}
+
+func TestResolveExistingEvidencePaths_NilWhenNoConventionalPaths(t *testing.T) {
+	// A non-presentation step with no explicit evidence has no conventional
+	// deliverable set; the judge receives no evidence files, only the document.
+	step := wf.WorkflowStep{Number: 2, Name: "ANALYZE", Checkpoint: wf.CheckpointUserApproval}
+	got := resolveExistingEvidencePathsWithInspector("/phase", step, func(_, _ string) (bool, error) {
+		t.Fatal("a step with no conventional evidence paths must not inspect files")
+		return false, nil
+	})
+	if got != nil {
+		t.Fatalf("evidence = %v, want nil", got)
+	}
+}
+
+func TestResolveExistingEvidencePaths_HonorsExplicitEvidence(t *testing.T) {
+	step := wf.WorkflowStep{
+		Number:        2,
+		Name:          "REVIEW",
+		Checkpoint:    wf.CheckpointUserApproval,
+		EvidencePaths: []string{"output_specs/review.md", "output_specs/demo.txt"},
+	}
+	got := resolveExistingEvidencePathsWithInspector("/phase", step, func(_, path string) (bool, error) {
+		return path == "output_specs/review.md", nil
+	})
+	if len(got) != 1 || got[0] != "output_specs/review.md" {
+		t.Fatalf("evidence = %v, want [output_specs/review.md]", got)
+	}
+}
+
+func TestJudgeApproval_AttachesDeliverableEvidenceToRequest(t *testing.T) {
+	dir := setupWorkflowFestival(t)
+	phaseDir := filepath.Join(dir, "001_INGEST")
+
+	// Write the deliverables a PRESENT step is expected to produce.
+	specs := filepath.Join(phaseDir, "output_specs")
+	if err := os.MkdirAll(specs, 0o755); err != nil {
+		t.Fatalf("mkdir output_specs: %v", err)
+	}
+	for name, body := range map[string]string{
+		"PRESENTATION.md": "# Presentation\n\nThe user wants a chat TUI.\n",
+		"purpose.md":      "# Purpose\n\nReduce onboarding friction.\n",
+	} {
+		if err := os.WriteFile(filepath.Join(specs, name), []byte(body), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+
+	nav := getNavigator(t, phaseDir)
+	step := wf.WorkflowStep{
+		Number:     4,
+		Name:       "PRESENT",
+		Goal:       "Verify the structured output captures the user's intent.",
+		Output:     "Summary presented to user",
+		Checkpoint: wf.CheckpointUserApproval,
+	}
+
+	var captured approvalJudgeRequest
+	withApprovalJudgeRunner(t, func(_ context.Context, _ string, stdin []byte, _ string) ([]byte, error) {
+		if err := json.Unmarshal(stdin, &captured); err != nil {
+			t.Fatalf("unmarshal judge request: %v", err)
+		}
+		return []byte(`{"schema_version":"fest.approval.judge/v1","decision":"approve","reason":"ok"}`), nil
+	})
+
+	if _, _, err := judgeApproval(context.Background(), nav, step, approvalJudgeOptions{JudgeCommand: "fake"}); err != nil {
+		t.Fatalf("judgeApproval: %v", err)
+	}
+
+	want := map[string]bool{
+		"output_specs/PRESENTATION.md": true,
+		"output_specs/purpose.md":      true,
+	}
+	if len(captured.Evidence) != len(want) {
+		t.Fatalf("evidence = %v, want the two existing deliverables", captured.Evidence)
+	}
+	for _, got := range captured.Evidence {
+		if !want[got] {
+			t.Fatalf("unexpected evidence path %q in %v", got, captured.Evidence)
+		}
 	}
 }
 
