@@ -24,7 +24,9 @@ func newUpdateCmd() *cobra.Command {
 		Long: `Update a task's progress percentage (0-100).
 
 This is a frictionless forward-motion signal and does not prompt for
-confirmation. When [task] is omitted the current task is auto-detected.`,
+confirmation. Progress must stay below 100%; use 'fest task completed' at
+100% so quality gates are evaluated. When [task] is omitted the current task
+is auto-detected.`,
 		Args: cobra.RangeArgs(1, 2),
 		Annotations: map[string]string{
 			"scope": string(scope.Festival),
@@ -57,6 +59,10 @@ func runUpdate(cmd *cobra.Command, args []string) error {
 	pct, err := parsePercent(pctArg)
 	if err != nil {
 		return err
+	}
+	if pct == 100 {
+		return errors.Validation("100% progress must be finalized with 'fest task completed'").
+			WithHint("run 'fest task completed --yes' to evaluate quality gates and complete the task")
 	}
 
 	taskID, _, err := resolveTask(ctx, festivalPath, taskArg)

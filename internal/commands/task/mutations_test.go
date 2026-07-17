@@ -312,6 +312,29 @@ func TestRunUpdate(t *testing.T) {
 	}
 }
 
+func TestRunUpdate_100RequiresGatedCompletion(t *testing.T) {
+	resetTaskFlags()
+	festDir, taskRel := setupActiveFestival(t)
+	wantID := canonicalTaskID(t, festDir, taskRel)
+
+	var err error
+	_ = captureIO(t, func() { err = runUpdate(taskCmd(t, festDir), []string{taskRel, "100"}) })
+	if err == nil {
+		t.Fatal("runUpdate at 100% unexpectedly succeeded")
+	}
+	if !strings.Contains(err.Error(), "fest task completed") {
+		t.Fatalf("error = %v, want gated completion guidance", err)
+	}
+
+	task, ok := taskStatus(t, festDir, wantID)
+	if ok && task.Status == progress.StatusCompleted {
+		t.Fatal("task must not be completed through fest task update 100")
+	}
+	if ok && task.Progress == 100 {
+		t.Fatal("task progress must not reach 100 through fest task update")
+	}
+}
+
 func TestRunUnblock(t *testing.T) {
 	resetTaskFlags()
 	blockedYes = true

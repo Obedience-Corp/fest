@@ -7,7 +7,9 @@ Update a task's progress percentage
 Update a task's progress percentage (0-100).
 
 This is a frictionless forward-motion signal and does not prompt for
-confirmation. When [task] is omitted the current task is auto-detected.
+confirmation. Progress must stay below 100%; use 'fest task completed' at
+100% so quality gates are evaluated. When [task] is omitted the current task
+is auto-detected.
 
 ```
 fest task update [task] <percent> [flags]
