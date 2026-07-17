@@ -186,6 +186,15 @@ func handleTaskUpdate(ctx context.Context, mgr *progress.Manager, festivalPath s
 		if err != nil {
 			return err
 		}
+		// Mirror `fest task update`: 100% must run through the gated completion
+		// path, not this deprecated shim. Without this, an agent still on the
+		// old flag could complete a task without quality-gate evaluation for the
+		// whole deprecation window, re-opening the ungated completion side-door
+		// that `fest task completed` exists to close.
+		if pct == 100 {
+			return errors.Validation("100% progress must be finalized with 'fest task completed'").
+				WithHint("run 'fest task completed --yes' to evaluate quality gates and complete the task")
+		}
 		if err := mgr.UpdateProgress(ctx, taskID, pct); err != nil {
 			return err
 		}
