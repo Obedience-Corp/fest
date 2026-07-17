@@ -4,6 +4,7 @@ package progress
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -23,6 +24,8 @@ func handleTaskUpdate(ctx context.Context, mgr *progress.Manager, festivalPath s
 	if err != nil {
 		return err
 	}
+
+	warnProgressDeprecation(os.Stderr, opts)
 
 	if err := lifecycle.EnforcePreActive(ctx, festivalPath, lifecycle.EnforceOptions{
 		TaskID: taskID,
@@ -295,6 +298,29 @@ func statusForProgress(progressPct int) string {
 	default:
 		return progress.StatusPending
 	}
+}
+
+// warnProgressDeprecation prints a one-line deprecation notice to w when a
+// task-mutating progress flag is used. Task mutations now live under
+// 'fest task'; 'fest progress' is display-only. The action still runs for one
+// release so existing callers keep working. --in-progress is intentionally not
+// deprecated: it stays with the progress display surface.
+func warnProgressDeprecation(w io.Writer, opts *progressOptions) {
+	var replacement string
+	switch {
+	case opts.complete:
+		replacement = "fest task completed --yes"
+	case opts.update != "":
+		replacement = "fest task update <percent>"
+	case opts.blocker != "":
+		replacement = "fest task blocked --reason <msg> --yes"
+	case opts.clear:
+		replacement = "fest task unblock"
+	default:
+		return
+	}
+	_, _ = fmt.Fprintf(w, "%s this 'fest progress' task mutation is deprecated; use '%s' instead. It will be removed in a future release.\n",
+		ui.Warning("Warning:"), replacement)
 }
 
 // progressReasonFor returns a label for the lifecycle gate based on the
