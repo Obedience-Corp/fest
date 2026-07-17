@@ -45,6 +45,12 @@ type approvalJudgeRequest struct {
 	Actions       []string `json:"actions,omitempty"`
 	Output        string   `json:"output,omitempty"`
 	Checkpoint    string   `json:"checkpoint"`
+	// Evidence lists phase-relative deliverable files the judge should read as
+	// evidence, beyond Document (which is only the step definition for a
+	// WORKFLOW.md checkpoint). These are the same existing, non-empty artifacts
+	// the readiness gate validated. Additive to fest.approval.judge/v1: an older
+	// judge ignores it and sees only Document, as before.
+	Evidence []string `json:"evidence,omitempty"`
 }
 
 type approvalJudgeResponse struct {
@@ -660,6 +666,10 @@ func judgeApproval(ctx context.Context, nav *wf.Navigator, step wf.WorkflowStep,
 	if text := strings.TrimSpace(step.CheckpointText); text != "" {
 		req.Checkpoint = text
 	}
+	// Attach the step's deliverable files so the judge reads the actual work,
+	// not just the step definition. Without this the judge sees only Document
+	// and rejects (no evidence) or approves on the agent's self-report.
+	req.Evidence = resolveExistingEvidencePaths(nav.Ctx.PhasePath, step)
 
 	return evaluateApprovalJudge(ctx, req, opts)
 }

@@ -83,7 +83,8 @@ func checkApprovalReadinessWithInspector(
 			WithField("step_name", step.Name).
 			WithField("required", "output_specs/PRESENTATION.md").
 			WithField("missing", strings.Join(status.missing, ", ")).
-			WithHint("write the presentation deliverable, then re-submit with 'fest workflow judge'")
+			WithHint("write output_specs/PRESENTATION.md relative to the phase directory " +
+				"(e.g. <phase>/output_specs/PRESENTATION.md), then re-submit with 'fest workflow judge'")
 	}
 
 	if status.found == 0 {
@@ -91,7 +92,8 @@ func checkApprovalReadinessWithInspector(
 			WithField("step", step.Number).
 			WithField("step_name", step.Name).
 			WithField("checked", strings.Join(paths, ", ")).
-			WithHint("create the evidence files listed for this step, then re-submit with 'fest workflow judge'")
+			WithHint("create at least one of these files relative to the phase directory, then " +
+				"re-submit with 'fest workflow judge': " + strings.Join(paths, ", "))
 	}
 
 	return nil
@@ -122,6 +124,45 @@ func inspectApprovalEvidencePaths(
 		}
 	}
 	return status, nil
+}
+
+// resolveExistingEvidencePaths returns the step's phase-relative deliverable
+// paths that exist as non-empty regular files. It reuses the same path
+// resolution and inspection the readiness gate applies, so the judge receives
+// exactly the evidence set readiness considered present. Missing or empty
+// candidates are dropped rather than surfaced; the judge is handed only files
+// it can actually read. Returns nil when the step has no conventional evidence.
+func resolveExistingEvidencePaths(phasePath string, step wf.WorkflowStep) []string {
+	return resolveExistingEvidencePathsWithInspector(phasePath, step, inspectApprovalEvidence)
+}
+
+func resolveExistingEvidencePathsWithInspector(
+	phasePath string,
+	step wf.WorkflowStep,
+	inspect approvalEvidenceInspector,
+) []string {
+	paths := wf.DefaultEvidencePaths(step)
+	if len(paths) == 0 {
+		return nil
+	}
+	var present []string
+	seen := make(map[string]struct{}, len(paths))
+	for _, rawPath := range paths {
+		rel, err := normalizeEvidencePath(rawPath)
+		if err != nil {
+			continue
+		}
+		if _, dup := seen[rel]; dup {
+			continue
+		}
+		ok, err := inspect(phasePath, rel)
+		if err != nil || !ok {
+			continue
+		}
+		seen[rel] = struct{}{}
+		present = append(present, rel)
+	}
+	return present
 }
 
 func normalizeEvidencePath(path string) (string, error) {
