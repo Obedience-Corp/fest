@@ -1,6 +1,14 @@
 ## fest task reset
 
-Reset a task to pending (requires confirmation)
+Reset a task to pending
+
+### Synopsis
+
+Reset a task to pending, clearing all progress, time, and blocker data.
+
+By default a confirmation prompt is shown; pass --yes to skip it for
+non-interactive or agent use. --json emits a structured result and requires
+--yes.
 
 ```
 fest task reset [task] [flags]
@@ -10,7 +18,8 @@ fest task reset [task] [flags]
 
 ```
   -h, --help   help for reset
-      --json   output as JSON (blocks: interactive confirmation required)
+      --json   output as JSON (requires --yes)
+  -y, --yes    skip the interactive confirmation prompt
 ```
 
 ### Options inherited from parent commands
