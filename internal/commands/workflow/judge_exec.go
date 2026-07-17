@@ -12,12 +12,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Obedience-Corp/fest/internal/config"
+	"github.com/Obedience-Corp/fest/internal/continuation"
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
 )
+
+// judgeContinuationNotifier submits a judge continuation notification to the
+// originating Obey session. It is a package variable so tests can inject a fake;
+// the default shells the installed obey binary. A notification failure is always
+// isolated from the judge outcome.
+var judgeContinuationNotifier continuation.Notifier = continuation.CLINotifier{}
 
 const judgeExecPayloadSchema = "fest.approval.judge-exec/v1"
 
@@ -31,13 +39,21 @@ const (
 // detached judge-exec runner. The runner rebuilds the judge request from live
 // workflow state; the payload only pins which checkpoint was delegated and
 // how to run the judge.
+//
+// TargetSessionID and CampaignID pin the originating Obey session identity that
+// was captured from the environment at launch. The detached runner reads them
+// from this payload and never re-reads the environment, so a changed child
+// environment cannot redirect a continuation. The delivery id is derived from
+// RunID (continuation.DeliveryID), not stored, so retries and replays reuse it.
 type judgeExecPayload struct {
-	SchemaVersion string `json:"schema_version"`
-	StepNumber    int    `json:"step_number"`
-	StepName      string `json:"step_name"`
-	JudgeCommand  string `json:"judge_command"`
-	Timeout       string `json:"timeout,omitempty"`
-	RunID         string `json:"run_id"`
+	SchemaVersion   string `json:"schema_version"`
+	StepNumber      int    `json:"step_number"`
+	StepName        string `json:"step_name"`
+	JudgeCommand    string `json:"judge_command"`
+	Timeout         string `json:"timeout,omitempty"`
+	RunID           string `json:"run_id"`
+	TargetSessionID string `json:"target_session_id,omitempty"`
+	CampaignID      string `json:"campaign_id,omitempty"`
 }
 
 // launchApproveAuto starts the judge in the background and returns. The
@@ -92,6 +108,14 @@ func launchApproveAutoLocked(ctx context.Context, nav *wf.Navigator, currentStep
 	}
 	if opts.Timeout > 0 {
 		payload.Timeout = opts.Timeout.String()
+	}
+	// Capture the originating Obey session identity once, here, from this
+	// process's environment. This is the only place identity is read; the
+	// detached child uses the pinned payload values. No identity means no
+	// continuation and byte-for-byte existing behavior.
+	if cc, ok := continuation.Resolve(os.LookupEnv); ok {
+		payload.TargetSessionID = cc.SessionID
+		payload.CampaignID = cc.CampaignID
 	}
 
 	festDir := filepath.Join(nav.Ctx.PhasePath, ".fest")
@@ -310,8 +334,12 @@ func runJudgeExec(ctx context.Context, payloadPath string) error {
 	if payload.StepNumber < 1 || payload.StepNumber > len(steps) {
 		err := festerrors.Validation("judge-exec payload step out of range").
 			WithField("step", fmt.Sprintf("%d", payload.StepNumber))
-		if recErr := recordJudgeFailureIfOwned(ctx, nav, payload, err.Error()); recErr != nil {
+		applied, recErr := recordJudgeFailureIfOwned(ctx, nav, payload, err.Error())
+		if recErr != nil {
 			fmt.Printf("%s failed to record judge outcome: %v\n", ui.Warning("⚠"), recErr)
+		}
+		if applied {
+			fireJudgeContinuation(ctx, nav, payload, continuation.VerdictFailed, err.Error())
 		}
 		return err
 	}
@@ -343,33 +371,52 @@ func runJudgeExec(ctx context.Context, payloadPath string) error {
 		if !applied {
 			return nil
 		}
+		fireJudgeContinuation(ctx, nav, payload, continuation.VerdictRejected, reason)
 		return festerrors.Validation(reason).
 			WithHint("the judge was not invoked; fix the checkpoint class or evidence before resubmitting")
 	}
 
 	decision, audit, err := judgeApproval(ctx, nav, step, opts)
 	if err != nil {
-		if recErr := recordJudgeFailureIfOwned(ctx, nav, payload, err.Error()); recErr != nil {
+		applied, recErr := recordJudgeFailureIfOwned(ctx, nav, payload, err.Error())
+		if recErr != nil {
 			fmt.Printf("%s failed to record judge outcome: %v\n", ui.Warning("⚠"), recErr)
+		}
+		if applied {
+			fireJudgeContinuation(ctx, nav, payload, continuation.VerdictFailed, err.Error())
 		}
 		return err
 	}
 
-	return withJudgeStepLock(ctx, nav.Ctx.PhasePath, payload.StepNumber, func() error {
+	var applied bool
+	if err := withJudgeStepLock(ctx, nav.Ctx.PhasePath, payload.StepNumber, func() error {
 		fresh, err := reloadWorkflowNavigator(ctx, nav)
 		if err != nil {
 			return err
 		}
-		applied, err := applyApproveAutoVerdict(ctx, fresh, payload.StepNumber, step, payload.RunID, decision, audit)
-		if err != nil {
-			return err
+		var applyErr error
+		applied, applyErr = applyApproveAutoVerdict(ctx, fresh, payload.StepNumber, step, payload.RunID, decision, audit)
+		if applyErr != nil {
+			return applyErr
 		}
 		if !applied {
 			fmt.Printf("%s judge run %s was superseded; verdict %q discarded\n",
 				ui.Warning("⚠"), payload.RunID, decision.Decision)
 		}
 		return nil
-	})
+	}); err != nil {
+		return err
+	}
+	// Delivery happens after the durable verdict and outside the step lock, and
+	// only when this run actually recorded the verdict (never when superseded).
+	if applied {
+		verdict := continuation.VerdictApproved
+		if decision.Decision == "reject" {
+			verdict = continuation.VerdictRejected
+		}
+		fireJudgeContinuation(ctx, nav, payload, verdict, decision.Reason)
+	}
+	return nil
 }
 
 func waitForJudgeClaim(ctx context.Context, payload judgeExecPayload) (*wf.Navigator, bool, error) {
@@ -422,13 +469,66 @@ func recordUnclaimedJudgeFailure(ctx context.Context, nav *wf.Navigator, payload
 	})
 }
 
-func recordJudgeFailureIfOwned(ctx context.Context, nav *wf.Navigator, payload judgeExecPayload, detail string) error {
-	return withJudgeStepLock(ctx, nav.Ctx.PhasePath, payload.StepNumber, func() error {
+func recordJudgeFailureIfOwned(ctx context.Context, nav *wf.Navigator, payload judgeExecPayload, detail string) (bool, error) {
+	recorded := false
+	err := withJudgeStepLock(ctx, nav.Ctx.PhasePath, payload.StepNumber, func() error {
 		fresh, err := reloadWorkflowNavigator(ctx, nav)
 		if err != nil {
 			return err
 		}
-		_, err = fresh.RecordJudgeFailure(ctx, payload.StepNumber, payload.RunID, detail)
-		return err
+		var recErr error
+		recorded, recErr = fresh.RecordJudgeFailure(ctx, payload.StepNumber, payload.RunID, detail)
+		return recErr
 	})
+	return recorded, err
+}
+
+// fireJudgeContinuation renders and submits a continuation notification to the
+// originating Obey session after a terminal verdict has been durably recorded.
+// It is a no-op when no session identity was captured at launch. A submission
+// failure is isolated: the judge outcome is already authoritative, so the error
+// only degrades to the manual next-step instruction and never propagates.
+func fireJudgeContinuation(ctx context.Context, nav *wf.Navigator, payload judgeExecPayload, verdict continuation.Verdict, feedback string) {
+	if payload.TargetSessionID == "" {
+		return
+	}
+	festivalID, festivalName := resolveFestivalIdentity(nav)
+	result := continuation.JudgeResult{
+		RunID:         payload.RunID,
+		TargetSession: payload.TargetSessionID,
+		CampaignID:    payload.CampaignID,
+		FestivalID:    festivalID,
+		FestivalName:  festivalName,
+		Phase:         nav.Ctx.PhaseName,
+		StepNumber:    payload.StepNumber,
+		StepName:      payload.StepName,
+		Verdict:       verdict,
+		Feedback:      feedback,
+	}
+	if err := judgeContinuationNotifier.Notify(ctx, continuation.BuildNotification(result)); err != nil {
+		fmt.Printf("%s judge result recorded; continuation notice to the originating session was not delivered: %v\n",
+			ui.Warning("⚠"), err)
+		fmt.Printf("  Run %s to continue.\n", ui.Accent(continuation.NextCommand(verdict)))
+	}
+}
+
+// resolveFestivalIdentity returns the festival id and human name for the
+// continuation envelope. The detached runner's guidance context does not carry
+// them, so they are loaded from the festival config, falling back to the
+// festival directory base name when the config cannot be read.
+func resolveFestivalIdentity(nav *wf.Navigator) (id, name string) {
+	name = nav.Ctx.FestivalName
+	if name == "" {
+		name = filepath.Base(nav.Ctx.FestivalPath)
+	}
+	id = nav.Ctx.FestivalID
+	if cfg, err := config.LoadFestivalConfig(nav.Ctx.FestivalPath, ""); err == nil {
+		if cfg.Metadata.ID != "" {
+			id = cfg.Metadata.ID
+		}
+		if cfg.Metadata.Name != "" {
+			name = cfg.Metadata.Name
+		}
+	}
+	return id, name
 }

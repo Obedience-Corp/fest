@@ -1,0 +1,17 @@
+{
+  "schema_version": "obey.session.notification/v1",
+  "delivery_id": "fest-judge:8f3c1a2b-4d5e-6f70-8192-a3b4c5d6e7f8",
+  "target_session_id": "ses_01J9ZX3ABCDEF",
+  "campaign_id": "camp_01J9ZWXYZ0123",
+  "source": "fest",
+  "kind": "workflow.judge",
+  "message": "Approval judge approved step 2 (Implement the change) in example-festival. Continue with: fest next",
+  "metadata": {
+    "festival_id": "FE0001",
+    "phase": "001_IMPLEMENT",
+    "step_number": "2",
+    "judge_type": "approval",
+    "authority": "authoritative",
+    "verdict": "approved"
+  }
+}
