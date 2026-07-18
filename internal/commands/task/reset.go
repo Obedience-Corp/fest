@@ -13,20 +13,29 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var resetJSON bool
+var (
+	resetJSON bool
+	resetYes  bool
+)
 
 func newResetCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "reset [task]",
-		Short: "Reset a task to pending (requires confirmation)",
-		Args:  cobra.MaximumNArgs(1),
+		Short: "Reset a task to pending",
+		Long: `Reset a task to pending, clearing all progress, time, and blocker data.
+
+By default a confirmation prompt is shown; pass --yes to skip it for
+non-interactive or agent use. --json emits a structured result and requires
+--yes.`,
+		Args: cobra.MaximumNArgs(1),
 		Annotations: map[string]string{
 			"scope": string(scope.Festival),
 		},
 		RunE: runReset,
 	}
 
-	cmd.Flags().BoolVar(&resetJSON, "json", false, "output as JSON (blocks: interactive confirmation required)")
+	cmd.Flags().BoolVar(&resetJSON, "json", false, "output as JSON (requires --yes)")
+	cmd.Flags().BoolVarP(&resetYes, "yes", "y", false, "skip the interactive confirmation prompt")
 
 	return cmd
 }
@@ -56,17 +65,11 @@ func runReset(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Require interactive mode
-	if resetJSON {
-		result := map[string]any{
-			"error":   "interactive confirmation required",
-			"task":    taskID,
-			"message": "Use 'fest task reset' without --json to reset a task interactively",
-		}
-		if encErr := shared.EncodeJSON(os.Stdout, result); encErr != nil {
-			return errors.Wrap(encErr, "encoding JSON output")
-		}
-		return errors.Validation("interactive confirmation required for task reset")
+	// Refuse before doing any work when confirmation cannot be obtained.
+	needPrompt, err := resolveConfirmation(resetYes, resetJSON, taskID,
+		"reset this task", "fest task reset --yes")
+	if err != nil {
+		return err
 	}
 
 	mgr, err := progress.NewManagerWithGate(ctx, festivalPath,
@@ -75,30 +78,39 @@ func runReset(cmd *cobra.Command, args []string) error {
 		return errors.Wrap(err, "loading progress")
 	}
 
-	// Show current status before reset
-	task, _ := mgr.GetTaskProgress(taskID)
-	if task != nil {
-		fmt.Printf("%s %s (%s)\n", ui.Label("Task"), ui.Value(taskID, ui.TaskColor),
-			ui.GetStateStyle(task.Status).Render(task.Status))
-		if task.Progress > 0 {
-			fmt.Printf("%s %s\n", ui.Label("Progress"), ui.Value(fmt.Sprintf("%d%%", task.Progress)))
+	if !resetJSON {
+		task, _ := mgr.GetTaskProgress(taskID)
+		if task != nil {
+			fmt.Printf("%s %s (%s)\n", ui.Label("Task"), ui.Value(taskID, ui.TaskColor),
+				ui.GetStateStyle(task.Status).Render(task.Status))
+			if task.Progress > 0 {
+				fmt.Printf("%s %s\n", ui.Label("Progress"), ui.Value(fmt.Sprintf("%d%%", task.Progress)))
+			}
+			if task.TimeSpentMinutes > 0 {
+				fmt.Printf("%s %s\n", ui.Label("Time"), ui.Value(ui.FormatDuration(task.TimeSpentMinutes)))
+			}
+		} else {
+			fmt.Printf("%s %s (%s)\n", ui.Label("Task"), ui.Value(taskID, ui.TaskColor),
+				ui.GetStateStyle(progress.StatusPending).Render(progress.StatusPending))
 		}
-		if task.TimeSpentMinutes > 0 {
-			fmt.Printf("%s %s\n", ui.Label("Time"), ui.Value(ui.FormatDuration(task.TimeSpentMinutes)))
-		}
-	} else {
-		fmt.Printf("%s %s (%s)\n", ui.Label("Task"), ui.Value(taskID, ui.TaskColor),
-			ui.GetStateStyle(progress.StatusPending).Render(progress.StatusPending))
 	}
 
-	// Interactive confirmation
-	if !confirmReset(taskID) {
+	if needPrompt && !confirmReset(taskID) {
 		fmt.Println(ui.Info("Cancelled."))
 		return nil
 	}
 
 	if err := mgr.ResetTask(ctx, taskID); err != nil {
 		return err
+	}
+
+	if resetJSON {
+		result := map[string]any{
+			"success": true,
+			"task":    taskID,
+			"status":  progress.StatusPending,
+		}
+		return shared.EncodeJSON(os.Stdout, result)
 	}
 
 	fmt.Println()

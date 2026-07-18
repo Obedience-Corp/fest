@@ -3404,25 +3404,25 @@ Track and display festival execution progress
 
 Track and display progress for festival execution.
 
-When run without flags, shows an overview of festival progress.
-Use flags to update task progress, report blockers, or mark tasks complete.
+When run without flags, shows an overview of festival progress. 'fest progress'
+is the display surface; task state mutations live under 'fest task'.
 
 PROGRESS OVERVIEW:
 ```bash
   fest progress              Show festival progress summary
   fest progress --json       Output progress in JSON format
+  fest progress --watch      Continuously refresh the display
 ```
 
-TASK UPDATES:
+DEPRECATED TASK MUTATIONS (use 'fest task' instead):
 ```bash
-  fest progress --task <id> --update 50%     Update task progress
-  fest progress --task <id> --complete       Mark task as complete
-  fest progress --task <id> --in-progress    Mark task as in progress
-  fest progress --task <id> --blocker "msg"  Report a blocker
-  fest progress --task <id> --clear          Clear blocker
-  fest progress --path <task_path> --complete
-  fest progress --phase <phase> --sequence <seq> --task <id> --complete
+  fest progress --task <id> --complete   -> fest task completed --yes
+  fest progress --task <id> --update 50% -> fest task update 50%
+  fest progress --task <id> --blocker "msg" -> fest task blocked --reason "msg" --yes
+  fest progress --task <id> --clear      -> fest task unblock
 ```
+
+These flags still work for one release and print a deprecation notice.
 
 Task IDs can be festival-relative paths (e.g. 002_FOUNDATION/01_project_scaffold/01_design.md)
 or absolute paths. Use --path or --phase/--sequence to disambiguate duplicates.
@@ -3436,12 +3436,9 @@ fest progress [flags]
 
 ```
   fest progress                          # Show overall progress
-  fest progress --task 01_setup.md --update 75%
-  fest progress --path 002_FOUNDATION/01_project_scaffold/01_design.md --complete
-  fest progress --phase 002_FOUNDATION --sequence 01_project_scaffold --task 01_design.md --complete
-  fest progress --festival festivals/active/guild-chat-GC0001 --task 01_setup.md --update 75%
-  fest progress --task 02_impl.md --blocker "Waiting on API spec"
-  fest progress --task 02_impl.md --clear
+  fest progress --json                   # Overall progress as JSON
+  fest progress --watch                  # Live-refreshing progress display
+  fest progress --task 01_setup.md       # Show a single task's progress
 ```
 
 ### Options
@@ -4976,9 +4973,11 @@ Manage task status (show, edit, complete, block, reset)
 
 Commands for managing individual task status within a festival.
 
-These commands provide a simpler interface for viewing, editing, marking
-tasks complete, blocked, or resetting them. Each mutation requires
-interactive confirmation to ensure agents verify their work before proceeding.
+This is the single home for task state mutations. Consequential changes
+(completed, blocked, reset) prompt for confirmation to ensure agents verify
+their work; pass --yes to skip the prompt for non-interactive or agent use, and
+--json to emit a structured result (--json requires --yes). Progress signals
+(update, unblock) are frictionless and never prompt.
 
 Task Resolution:
   When [task] is omitted, the command auto-detects the current task:
@@ -4996,8 +4995,12 @@ Examples:
   fest task show 01_design.md             # Show specific task
   fest task edit                          # Open current task in editor
   fest task completed                     # Mark current task complete (Y/n)
+  fest task completed --yes               # Mark complete, no prompt (agents)
+  fest task completed --yes --json        # Mark complete, structured output
   fest task blocked --reason "need API"   # Mark task blocked (Y/n)
   fest task reset                         # Reset task to pending (Y/n)
+  fest task update 50%                    # Set progress to 50%
+  fest task unblock                       # Clear a blocker, resume work
 ```
 
 ### Options
@@ -5018,7 +5021,15 @@ Examples:
 
 ## fest task blocked
 
-Mark a task as blocked (requires confirmation)
+Mark a task as blocked
+
+### Synopsis
+
+Mark a task as blocked, pausing work and notifying the user.
+
+By default a confirmation prompt is shown; pass --yes to skip it for
+non-interactive or agent use. --json emits a structured result and requires
+--yes.
 
 ```
 fest task blocked [task] [flags]
@@ -5028,8 +5039,9 @@ fest task blocked [task] [flags]
 
 ```
   -h, --help            help for blocked
-      --json            output as JSON (blocks: interactive confirmation required)
+      --json            output as JSON (requires --yes)
       --reason string   reason for the blocker (required)
+  -y, --yes             skip the interactive confirmation prompt
 ```
 
 ### Options inherited from parent commands
@@ -5044,7 +5056,15 @@ fest task blocked [task] [flags]
 
 ## fest task completed
 
-Mark a task as complete (requires confirmation)
+Mark a task as complete
+
+### Synopsis
+
+Mark a task as complete.
+
+Quality gates are evaluated first and block completion on failure. By default a
+confirmation prompt is shown; pass --yes to skip it for non-interactive or agent
+use. --json emits a structured result and requires --yes.
 
 ```
 fest task completed [task] [flags]
@@ -5054,7 +5074,8 @@ fest task completed [task] [flags]
 
 ```
   -h, --help   help for completed
-      --json   output as JSON (blocks: interactive confirmation required)
+      --json   output as JSON (requires --yes)
+  -y, --yes    skip the interactive confirmation prompt
 ```
 
 ### Options inherited from parent commands
@@ -5093,7 +5114,15 @@ fest task edit [task] [flags]
 
 ## fest task reset
 
-Reset a task to pending (requires confirmation)
+Reset a task to pending
+
+### Synopsis
+
+Reset a task to pending, clearing all progress, time, and blocker data.
+
+By default a confirmation prompt is shown; pass --yes to skip it for
+non-interactive or agent use. --json emits a structured result and requires
+--yes.
 
 ```
 fest task reset [task] [flags]
@@ -5103,7 +5132,8 @@ fest task reset [task] [flags]
 
 ```
   -h, --help   help for reset
-      --json   output as JSON (blocks: interactive confirmation required)
+      --json   output as JSON (requires --yes)
+  -y, --yes    skip the interactive confirmation prompt
 ```
 
 ### Options inherited from parent commands
@@ -5130,6 +5160,72 @@ fest task show [task] [flags]
   -h, --help         help for show
       --json         output as JSON
       --no-context   hide task markdown content
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
+## fest task unblock
+
+Clear a task's blocker and resume work
+
+### Synopsis
+
+Clear a task's blocker, returning it to in_progress.
+
+This is a frictionless forward-motion signal and does not prompt for
+confirmation. When [task] is omitted the current task is auto-detected.
+
+```
+fest task unblock [task] [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for unblock
+      --json   output as JSON
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
+## fest task update
+
+Update a task's progress percentage
+
+### Synopsis
+
+Update a task's progress percentage (0-100).
+
+This is a frictionless forward-motion signal and does not prompt for
+confirmation. Progress must stay below 100%; use 'fest task completed' at
+100% so quality gates are evaluated. When [task] is omitted the current task
+is auto-detected.
+
+```
+fest task update [task] <percent> [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for update
+      --json   output as JSON
 ```
 
 ### Options inherited from parent commands
