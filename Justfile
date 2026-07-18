@@ -31,6 +31,8 @@ mod install '.justfiles/install.just'
 [doc('Linting (golangci-lint, gopls, vet)')]
 mod lint '.justfiles/lint.just'
 
+[doc('Record terminal workflows with VHS')]
+mod vhs '.justfiles/vhs.just'
 
 [private]
 default:
