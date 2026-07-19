@@ -4,6 +4,8 @@
 # Build and validate its evidence with: just vhs bundle <evidence-dir> <binary> <tape> <fixture-id> <states...>
 # Create a secret-Gist handoff with: just vhs gist out/demo.gif
 
+set positional-arguments
+
 [private]
 default:
     @just --list --justfile {{source_file()}}
@@ -30,12 +32,16 @@ record tape:
 bundle evidence_dir binary tape fixture_id +states:
     #!/usr/bin/env bash
     set -euo pipefail
-    campaign_root="${CAMP_ROOT:-$(camp root 2>/dev/null || true)}"
-    [[ -n "$campaign_root" ]] || {
-        echo "vhs: campaign root not found; set CAMP_ROOT or VHS_PRIVATE_GIST_ROOT" >&2
-        exit 1
-    }
-    skill_root="${VHS_PRIVATE_GIST_ROOT:-$campaign_root/.campaign/skills/vhs-private-gist}"
+    if [[ -n "${VHS_PRIVATE_GIST_ROOT:-}" ]]; then
+        skill_root="$VHS_PRIVATE_GIST_ROOT"
+    else
+        campaign_root="${CAMP_ROOT:-$(camp root 2>/dev/null || true)}"
+        [[ -n "$campaign_root" ]] || {
+            echo "vhs: campaign root not found; set CAMP_ROOT or VHS_PRIVATE_GIST_ROOT" >&2
+            exit 1
+        }
+        skill_root="$campaign_root/.campaign/skills/vhs-private-gist"
+    fi
     validator="$skill_root/scripts/validate-evidence.py"
     optimizer="$skill_root/scripts/optimize-gif.sh"
     metadata="$skill_root/scripts/collect-artifact-metadata.py"
@@ -109,8 +115,12 @@ bundle evidence_dir binary tape fixture_id +states:
 gist gif *args:
     #!/usr/bin/env bash
     set -euo pipefail
-    campaign_root="${CAMP_ROOT:-$(camp root 2>/dev/null || true)}"
-    [[ -n "$campaign_root" ]] || { echo "vhs: campaign root not found" >&2; exit 1; }
-    helper="${VHS_PRIVATE_GIST_ROOT:-$campaign_root/.campaign/skills/vhs-private-gist}/scripts/publish-secret-gist.sh"
+    if [[ -n "${VHS_PRIVATE_GIST_ROOT:-}" ]]; then
+        helper="$VHS_PRIVATE_GIST_ROOT/scripts/publish-secret-gist.sh"
+    else
+        campaign_root="${CAMP_ROOT:-$(camp root 2>/dev/null || true)}"
+        [[ -n "$campaign_root" ]] || { echo "vhs: campaign root not found" >&2; exit 1; }
+        helper="$campaign_root/.campaign/skills/vhs-private-gist/scripts/publish-secret-gist.sh"
+    fi
     [[ -x "$helper" ]] || { echo "vhs: missing shared Gist helper: $helper" >&2; exit 1; }
-    exec "$helper" "{{gif}}" {{args}}
+    exec "$helper" "{{gif}}" "${@:2}"
