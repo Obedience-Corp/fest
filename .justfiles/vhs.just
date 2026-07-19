@@ -24,7 +24,13 @@ doctor:
 
 # Record one VHS tape. The tape owns its output path and setup commands.
 record tape:
-    vhs "{{tape}}"
+    #!/usr/bin/env bash
+    set -euo pipefail
+    repo_root="$(git rev-parse --show-toplevel)"
+    tape="{{tape}}"
+    [[ "$tape" = /* ]] || tape="$repo_root/$tape"
+    cd "$repo_root"
+    exec vhs "$tape"
 
 # Optimize, scan, and validate one complete evidence bundle. PTY metadata,
 # pyte snapshots, dependencies.txt, and pty-transcript.txt must already exist
@@ -50,9 +56,13 @@ bundle evidence_dir binary tape fixture_id +states:
         [[ -f "$required" ]] || { echo "vhs: missing shared helper: $required" >&2; exit 1; }
     done
 
+    repo_root="$(git rev-parse --show-toplevel)"
     evidence_dir="{{evidence_dir}}"
     binary="{{binary}}"
     tape="{{tape}}"
+    [[ "$evidence_dir" = /* ]] || evidence_dir="$repo_root/$evidence_dir"
+    [[ "$binary" = /* ]] || binary="$repo_root/$binary"
+    [[ "$tape" = /* ]] || tape="$repo_root/$tape"
     fixture_id="{{fixture_id}}"
     mkdir -p "$evidence_dir"
     "$optimizer" "$evidence_dir/raw.gif" "$evidence_dir/optimized.gif"
@@ -61,7 +71,7 @@ bundle evidence_dir binary tape fixture_id +states:
         --optimized "$evidence_dir/optimized.gif" \
         --output "$evidence_dir/artifact-metadata.json"
     python3 "$privacy" \
-        --repo-root "$PWD" \
+        --repo-root "$repo_root" \
         --output "$evidence_dir/privacy-scan-pre.txt" \
         --path "$tape" \
         --path "$evidence_dir/raw.gif" \
@@ -93,12 +103,12 @@ bundle evidence_dir binary tape fixture_id +states:
             --privacy-scan "$privacy_scan" \
             "${expected[@]}" \
             "${recorded_at[@]}" \
-            --validation-command "just vhs bundle $evidence_dir $binary $tape $fixture_id" \
-            --repo-root "$PWD"
+            --validation-command "just vhs bundle <evidence-dir> <binary> <tape> <fixture-id>" \
+            --repo-root "$repo_root"
     }
     validate_bundle "$evidence_dir/privacy-scan-pre.txt"
     python3 "$privacy" \
-        --repo-root "$PWD" \
+        --repo-root "$repo_root" \
         --output "$evidence_dir/privacy-scan.txt" \
         --path "$tape" \
         --path "$evidence_dir/raw.gif" \
@@ -123,4 +133,7 @@ gist gif *args:
         helper="$campaign_root/.campaign/skills/vhs-private-gist/scripts/publish-secret-gist.sh"
     fi
     [[ -x "$helper" ]] || { echo "vhs: missing shared Gist helper: $helper" >&2; exit 1; }
-    exec "$helper" "{{gif}}" "${@:2}"
+    repo_root="$(git rev-parse --show-toplevel)"
+    gif="{{gif}}"
+    [[ "$gif" = /* ]] || gif="$repo_root/$gif"
+    exec "$helper" "$gif" "${@:2}"
