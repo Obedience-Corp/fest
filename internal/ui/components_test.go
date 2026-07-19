@@ -641,8 +641,8 @@ func TestDefaultProgressBarOptions(t *testing.T) {
 		t.Error("Expected filled color to be SuccessColor")
 	}
 
-	if opts.EmptyColor != lipgloss.Color("240") {
-		t.Error("Expected empty color to be grey (240)")
+	if opts.EmptyColor != BorderColor {
+		t.Error("Expected empty color to use BorderColor")
 	}
 
 	if !opts.ShowPercentage {

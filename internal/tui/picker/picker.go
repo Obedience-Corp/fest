@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -27,15 +28,6 @@ type Item struct {
 // Scorer is a function that scores a query against a target string.
 // Returns score (0 = no match) and matched character indices.
 type Scorer func(query, target string) (score int, indices []int)
-
-// Fest theme colors using adaptive colors (auto-detect light/dark terminal)
-var (
-	colorText        = lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"}
-	colorPlaceholder = lipgloss.AdaptiveColor{Light: "#808080", Dark: "#949494"}
-	colorFocus       = lipgloss.AdaptiveColor{Light: "#FF8700", Dark: "#FFD700"}
-	colorSelected    = lipgloss.AdaptiveColor{Light: "#00AF00", Dark: "#00FF5F"}
-	colorBorder      = lipgloss.AdaptiveColor{Light: "#005FAF", Dark: "#00D7FF"}
-)
 
 // Model is the picker's bubbletea model.
 type Model struct {
@@ -68,15 +60,16 @@ type Model struct {
 // When rendering to stderr (e.g. fgo piping stdout), pass a renderer created
 // from os.Stderr so colors are detected against the actual TTY.
 func New(items []Item, scorer Scorer, renderer *lipgloss.Renderer) Model {
+	p := ui.Current()
 	ti := textinput.New()
 	ti.Placeholder = "Type to filter..."
 	ti.Focus()
 	ti.CharLimit = 100
 	ti.Width = 50
-	ti.PromptStyle = renderer.NewStyle().Foreground(colorFocus)
-	ti.TextStyle = renderer.NewStyle().Foreground(colorText)
-	ti.PlaceholderStyle = renderer.NewStyle().Foreground(colorPlaceholder)
-	ti.Cursor.Style = renderer.NewStyle().Foreground(colorFocus)
+	ti.PromptStyle = renderer.NewStyle().Foreground(p.InProgress)
+	ti.TextStyle = renderer.NewStyle().Foreground(p.Value)
+	ti.PlaceholderStyle = renderer.NewStyle().Foreground(p.Metadata)
+	ti.Cursor.Style = renderer.NewStyle().Foreground(p.InProgress)
 
 	m := Model{
 		items:      items,
@@ -86,14 +79,14 @@ func New(items []Item, scorer Scorer, renderer *lipgloss.Renderer) Model {
 		renderer:   renderer,
 		maxVisible: 10, // Fixed height like fzf --height
 
-		promptStyle:   renderer.NewStyle().Foreground(colorFocus).Bold(true),
-		cursorStyle:   renderer.NewStyle().Foreground(colorFocus),
-		matchStyle:    renderer.NewStyle().Foreground(colorSelected).Bold(true),
-		selectedStyle: renderer.NewStyle().Foreground(colorSelected).Bold(true),
-		normalStyle:   renderer.NewStyle().Foreground(colorText),
-		countStyle:    renderer.NewStyle().Foreground(colorPlaceholder),
-		helpStyle:     renderer.NewStyle().Foreground(colorPlaceholder).Faint(true),
-		borderStyle:   renderer.NewStyle().Foreground(colorBorder),
+		promptStyle:   renderer.NewStyle().Foreground(p.InProgress).Bold(true),
+		cursorStyle:   renderer.NewStyle().Foreground(p.InProgress),
+		matchStyle:    renderer.NewStyle().Foreground(p.Success).Bold(true),
+		selectedStyle: renderer.NewStyle().Foreground(p.Success).Bold(true),
+		normalStyle:   renderer.NewStyle().Foreground(p.Value),
+		countStyle:    renderer.NewStyle().Foreground(p.Metadata),
+		helpStyle:     renderer.NewStyle().Foreground(p.Metadata).Faint(true),
+		borderStyle:   renderer.NewStyle().Foreground(p.Border),
 	}
 
 	return m
