@@ -56,8 +56,10 @@ bundle evidence_dir binary tape fixture_id +states:
         --output "$evidence_dir/artifact-metadata.json"
     python3 "$privacy" \
         --repo-root "$PWD" \
-        --output "$evidence_dir/privacy-scan.txt" \
+        --output "$evidence_dir/privacy-scan-pre.txt" \
         --path "$tape" \
+        --path "$evidence_dir/raw.gif" \
+        --path "$evidence_dir/optimized.gif" \
         --path "$evidence_dir/pty-transcript.txt" \
         --path "$evidence_dir/pty-metadata.json" \
         --path "$evidence_dir/screen-snapshots.json" \
@@ -71,19 +73,36 @@ bundle evidence_dir binary tape fixture_id +states:
     if [[ -n "${VHS_RECORDED_AT:-}" ]]; then
         recorded_at=(--recorded-at "$VHS_RECORDED_AT")
     fi
-    python3 "$validator" \
-        --evidence-dir "$evidence_dir" \
-        --repository fest \
-        --journey "${VHS_JOURNEY:-$(basename "$tape" .tape)}" \
-        --source-revision "$(git rev-parse HEAD)" \
-        --fixture-id "$fixture_id" \
-        --binary "$binary" \
-        --tape "$tape" \
-        --dependencies "$evidence_dir/dependencies.txt" \
-        "${expected[@]}" \
-        "${recorded_at[@]}" \
-        --validation-command "just vhs bundle $evidence_dir $binary $tape $fixture_id" \
-        --repo-root "$PWD"
+    validate_bundle() {
+        local privacy_scan=$1
+        python3 "$validator" \
+            --evidence-dir "$evidence_dir" \
+            --repository fest \
+            --journey "${VHS_JOURNEY:-$(basename "$tape" .tape)}" \
+            --source-revision "$(git rev-parse HEAD)" \
+            --fixture-id "$fixture_id" \
+            --binary "$binary" \
+            --tape "$tape" \
+            --dependencies "$evidence_dir/dependencies.txt" \
+            --privacy-scan "$privacy_scan" \
+            "${expected[@]}" \
+            "${recorded_at[@]}" \
+            --validation-command "just vhs bundle $evidence_dir $binary $tape $fixture_id" \
+            --repo-root "$PWD"
+    }
+    validate_bundle "$evidence_dir/privacy-scan-pre.txt"
+    python3 "$privacy" \
+        --repo-root "$PWD" \
+        --output "$evidence_dir/privacy-scan.txt" \
+        --path "$tape" \
+        --path "$evidence_dir/raw.gif" \
+        --path "$evidence_dir/optimized.gif" \
+        --path "$evidence_dir/pty-transcript.txt" \
+        --path "$evidence_dir/pty-metadata.json" \
+        --path "$evidence_dir/screen-snapshots.json" \
+        --path "$evidence_dir/artifact-metadata.json" \
+        --path "$evidence_dir/manifest.json"
+    validate_bundle "$evidence_dir/privacy-scan.txt"
 
 # Create a secret/unlisted GitHub Gist and print the PR-ready Markdown embed.
 # The shared helper rejects --public; publication never defaults to public.
