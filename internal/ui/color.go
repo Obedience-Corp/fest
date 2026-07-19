@@ -5,13 +5,38 @@ import (
 	"github.com/muesli/termenv"
 )
 
+// noColorOverride records the explicit --no-color flag separately from the
+// ambient environment so palette resolution can apply the same policy before
+// Lip Gloss renders its first frame.
+var noColorOverride bool
+
 // SetNoColor configures lipgloss to disable colors when requested.
 func SetNoColor(noColor bool) {
+	noColorOverride = noColor
 	if noColor {
 		lipgloss.SetColorProfile(termenv.Ascii)
 		return
 	}
 	lipgloss.SetColorProfile(termenv.EnvColorProfile())
+}
+
+// ColorSequence converts a shared semantic color into an ANSI-256 foreground
+// sequence for explicitly colorized shell completion output. The source color
+// remains a shared hex token; termenv performs the terminal-safe conversion.
+func ColorSequence(color lipgloss.TerminalColor) string {
+	if !CurrentBrandPalette().ColorEnabled || noColorOverride {
+		return ""
+	}
+
+	value, ok := color.(lipgloss.Color)
+	if !ok || value == "" {
+		return ""
+	}
+	converted := termenv.ANSI256.Color(string(value))
+	if converted == nil {
+		return ""
+	}
+	return "\x1b[" + converted.Sequence(false) + "m"
 }
 
 // MarkdownStyle returns an explicit glamour style ("dark" or "light") for

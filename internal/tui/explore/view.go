@@ -10,7 +10,7 @@ import (
 // View renders the model with an IDE-style split layout: tree on left, content on right.
 func (m Model) View() string {
 	if m.loading {
-		return dimStyle.Render("  Loading...")
+		return dimStyle().Render("  Loading...")
 	}
 	if m.err != nil {
 		return fmt.Sprintf("  Error: %v\n", m.err)
@@ -20,7 +20,7 @@ func (m Model) View() string {
 		if m.status != "" {
 			label = m.status
 		}
-		return dimStyle.Render(fmt.Sprintf("  No festivals found (%s)\n", label))
+		return dimStyle().Render(fmt.Sprintf("  No festivals found (%s)\n", label))
 	}
 
 	if m.width < 80 {
@@ -40,9 +40,9 @@ func (m Model) renderNarrowView() string {
 	var b strings.Builder
 	crumb := m.renderBreadcrumb()
 	b.WriteString(crumb)
-	b.WriteString(dimStyle.Render(fmt.Sprintf("  %d items", len(m.visible))))
+	b.WriteString(dimStyle().Render(fmt.Sprintf("  %d items", len(m.visible))))
 	b.WriteString("\n")
-	b.WriteString(borderStyle.Render(strings.Repeat("─", max(m.width-2, 20))))
+	b.WriteString(borderStyle().Render(strings.Repeat("─", max(m.width-2, 20))))
 	b.WriteString("\n")
 
 	endIdx := min(m.scrollStart+m.maxVisible, len(m.visible))
@@ -51,7 +51,7 @@ func (m Model) renderNarrowView() string {
 		isSelected := i == m.cursor
 		cursor := "  "
 		if isSelected {
-			cursor = cursorStyle.Render("▶ ")
+			cursor = cursorStyle().Render("▶ ")
 		}
 		b.WriteString(cursor)
 		b.WriteString(m.renderTreeLine(node, isSelected, max(m.width-4, 20)))
@@ -63,7 +63,7 @@ func (m Model) renderNarrowView() string {
 	if m.canSelectCurrent() {
 		help = "j/k nav • Enter open • s select • h back • q quit"
 	}
-	b.WriteString(helpStyle.Render(help))
+	b.WriteString(helpStyle().Render(help))
 	return b.String()
 }
 
@@ -83,7 +83,7 @@ func (m Model) renderTree(width int) string {
 
 		cursor := "  "
 		if isSelected {
-			cursor = cursorStyle.Render("▶ ")
+			cursor = cursorStyle().Render("▶ ")
 		}
 
 		b.WriteString(cursor)
@@ -101,14 +101,14 @@ func (m Model) renderTree(width int) string {
 
 	// Help / Filter
 	if m.filtering {
-		b.WriteString(cursorStyle.Render("/ "))
+		b.WriteString(cursorStyle().Render("/ "))
 		b.WriteString(m.filterInput.View())
 	} else {
 		help := "j/k nav • Enter open • h back • /search"
 		if m.canSelectCurrent() {
 			help = "j/k nav • Enter open • s select • h back • /search"
 		}
-		b.WriteString(helpStyle.Render(help))
+		b.WriteString(helpStyle().Render(help))
 	}
 
 	innerW := max(width-2, 20) // Subtract border
@@ -125,7 +125,7 @@ func (m Model) renderContent(width int) string {
 
 	// Title
 	if m.cursor < 0 || m.cursor >= len(m.visible) {
-		b.WriteString(previewTitle.Render("Preview"))
+		b.WriteString(previewTitle().Render("Preview"))
 	} else {
 		item := m.visible[m.cursor].Item
 		title := "Preview"
@@ -141,7 +141,7 @@ func (m Model) renderContent(width int) string {
 		case ItemTask:
 			title = "Task"
 		}
-		b.WriteString(previewTitle.Render(title))
+		b.WriteString(previewTitle().Render(title))
 	}
 	b.WriteString("\n")
 
@@ -156,13 +156,13 @@ func (m Model) renderContent(width int) string {
 		if m.canSelectCurrent() {
 			help = fmt.Sprintf("j/k scroll • Enter/s select • Tab/h: tree  %.0f%%", pct)
 		}
-		b.WriteString(helpStyle.Render(help))
+		b.WriteString(helpStyle().Render(help))
 	} else {
 		help := "Tab: focus preview"
 		if m.canSelectCurrent() {
 			help = "Tab: focus preview • s: select"
 		}
-		b.WriteString(helpStyle.Render(help))
+		b.WriteString(helpStyle().Render(help))
 	}
 
 	innerW := max(width-4, 20)
@@ -193,16 +193,16 @@ func (m Model) renderBreadcrumb() string {
 	}
 
 	if len(parts) == 1 {
-		return headerStyle.Render(parts[0])
+		return headerStyle().Render(parts[0])
 	}
 
 	var b strings.Builder
 	for i, part := range parts {
 		if i == len(parts)-1 {
-			b.WriteString(headerStyle.Render(part))
+			b.WriteString(headerStyle().Render(part))
 		} else {
-			b.WriteString(breadcrumbStyle.Render(part))
-			b.WriteString(dimStyle.Render(" > "))
+			b.WriteString(breadcrumbStyle().Render(part))
+			b.WriteString(dimStyle().Render(" > "))
 		}
 	}
 	return b.String()
@@ -241,7 +241,7 @@ func (m Model) renderTreeLine(node *TreeNode, isSelected bool, maxW int) string 
 		if node.Item.Count >= 0 {
 			countText = fmt.Sprintf("%d", node.Item.Count)
 		}
-		suffix = " " + dimStyle.Render(fmt.Sprintf("(%s)", countText))
+		suffix = " " + dimStyle().Render(fmt.Sprintf("(%s)", countText))
 		suffixW = len(countText) + 3 // parens + space
 	case ItemFestival:
 		suffix = " " + StatusStyle(node.Item.Status).Render(node.Item.Status)
@@ -253,9 +253,9 @@ func (m Model) renderTreeLine(node *TreeNode, isSelected bool, maxW int) string 
 		name = name[:nameW-3] + "..."
 	}
 
-	nameText := normalStyle.Render(name)
+	nameText := normalStyle().Render(name)
 	if isSelected {
-		nameText = selectedStyle.Render(name)
+		nameText = selectedStyle().Render(name)
 	}
 
 	return indent + icon + nameText + suffix

@@ -7,7 +7,6 @@
 package ui
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -37,47 +36,46 @@ func GetSomedayColor() lipgloss.TerminalColor { return Current().Someday }
 // GetDungeonColor returns the color for dungeon (deep archive) items.
 func GetDungeonColor() lipgloss.TerminalColor { return Current().Dungeon }
 
-// Legacy color variables for backward compatibility.
-// These are used by code that hasn't been updated to use the palette yet.
-// NOTE: These use the dark theme defaults and won't change with theme setting.
-// New code should use the Get*Color() functions instead.
+// Legacy color variables for backward compatibility. InitPalette refreshes
+// these values from the shared semantic palette so older callers still follow
+// the configured theme. New code should use the Get*Color() functions instead.
 var (
-	ActiveColor    = lipgloss.Color("42")  // Green - currently executing
-	ReadyColor     = lipgloss.Color("220") // Yellow - ready for execution (distinct from planning)
-	PlanningColor  = lipgloss.Color("33")  // Blue - future work
-	RitualColor    = lipgloss.Color("141") // Purple-blue - review/wrap-up
-	CompletedColor = lipgloss.Color("205") // Purple/Magenta - finished successfully
-	ArchivedColor  = lipgloss.Color("250") // Light grey - deprioritized/paused
-	SomedayColor   = lipgloss.Color("139") // Muted purple - deferred
-	DungeonColor   = lipgloss.Color("248") // Light grey - deep archived
+	ActiveColor    = paletteLipglossColor(defaultDarkPalette().Active)
+	ReadyColor     = paletteLipglossColor(defaultDarkPalette().Ready)
+	PlanningColor  = paletteLipglossColor(defaultDarkPalette().Planning)
+	RitualColor    = paletteLipglossColor(defaultDarkPalette().Ritual)
+	CompletedColor = paletteLipglossColor(defaultDarkPalette().Completed)
+	ArchivedColor  = paletteLipglossColor(defaultDarkPalette().Archived)
+	SomedayColor   = paletteLipglossColor(defaultDarkPalette().Someday)
+	DungeonColor   = paletteLipglossColor(defaultDarkPalette().Dungeon)
 )
 
 // Entity type colors for visual hierarchy in fest CLI output.
 // Each entity type gets a distinct color to make nested structures easier to scan.
 var (
-	FestivalColor = ActiveColor           // Green (42) - reuse active color for top-level entities
-	PhaseColor    = PlanningColor         // Blue (33) - reuse planning color for major divisions
-	SequenceColor = lipgloss.Color("51")  // Cyan - distinct color for mid-level groupings
-	TaskColor     = lipgloss.Color("141") // Purple - for individual work items
-	GateColor     = lipgloss.Color("214") // Orange - for quality gates and checkpoints
+	FestivalColor = ActiveColor   // Reuse the active color for top-level entities.
+	PhaseColor    = PlanningColor // Reuse the planning color for major divisions.
+	SequenceColor = paletteLipglossColor(defaultDarkPalette().Sequence)
+	TaskColor     = paletteLipglossColor(defaultDarkPalette().Task)
+	GateColor     = paletteLipglossColor(defaultDarkPalette().Gate)
 )
 
 // State colors for progress and status indication across all entity types.
 var (
-	PendingColor    = lipgloss.Color("250") // Light grey - not yet started (updated from 245)
-	InProgressColor = lipgloss.Color("220") // Yellow/amber - actively being worked
-	JudgeColor      = lipgloss.Color("135") // Purple - checkpoint waiting on a delegated judge
-	BlockedColor    = lipgloss.Color("196") // Red - blocked/waiting
+	PendingColor    = paletteLipglossColor(defaultDarkPalette().Pending)
+	InProgressColor = paletteLipglossColor(defaultDarkPalette().InProgress)
+	JudgeColor      = paletteLipglossColor(defaultDarkPalette().Task)
+	BlockedColor    = paletteLipglossColor(defaultDarkPalette().Blocked)
 )
 
 // Structural element colors for UI components and formatting.
 var (
-	BorderColor   = lipgloss.Color("244") // Medium grey - borders, separators (updated from 240)
-	ValueColor    = lipgloss.Color("255") // Bright white - emphasized values
-	MetadataColor = lipgloss.Color("250") // Light grey - paths, IDs, secondary info (updated from 245)
-	SuccessColor  = ActiveColor           // Green (42) - reuse active color for success
-	WarningColor  = InProgressColor       // Yellow (220) - reuse in-progress color for warnings
-	ErrorColor    = BlockedColor          // Red (196) - reuse blocked color for errors
+	BorderColor   = paletteLipglossColor(defaultDarkPalette().Border)
+	ValueColor    = paletteLipglossColor(defaultDarkPalette().Value)
+	MetadataColor = paletteLipglossColor(defaultDarkPalette().Metadata)
+	SuccessColor  = ActiveColor
+	WarningColor  = paletteLipglossColor(defaultDarkPalette().Warning)
+	ErrorColor    = paletteLipglossColor(defaultDarkPalette().Error)
 )
 
 // GetStatusStyle returns the appropriate lipgloss style for a given status string.
@@ -132,18 +130,21 @@ func GetStatusColor(status string) lipgloss.TerminalColor {
 	}
 }
 
-// StatusColorSequence returns the raw ANSI 256-color foreground escape for a
-// festival status, sourced from the active theme palette via GetStatusColor.
-// Unlike lipgloss styling it is emitted unconditionally, so colorized shell
-// completions render even when stdout is not a TTY. Palette entries are ANSI-256
-// indices; an unknown status falls back to dim.
+// StatusColorSequence returns an ANSI-256 foreground escape for a festival
+// status, sourced from the shared semantic palette via GetStatusColor.
+// Unknown statuses fall back to dim; a plain resolved palette emits no escape.
 func StatusColorSequence(status string) string {
-	color, ok := GetStatusColor(status).(lipgloss.Color)
-	code := string(color)
-	if !ok || code == "" {
+	if !CurrentBrandPalette().ColorEnabled {
+		return ""
+	}
+	color := GetStatusColor(status)
+	if sequence := ColorSequence(color); sequence != "" {
+		return sequence
+	}
+	if color == lipgloss.Color("") {
 		return "\x1b[2m"
 	}
-	return fmt.Sprintf("\x1b[38;5;%sm", code)
+	return "\x1b[2m"
 }
 
 // GetStateColor returns the appropriate color for a workflow state string.
@@ -232,14 +233,14 @@ func GetGateStyle() lipgloss.Style {
 
 // Work type colors for visual indicators
 var (
-	WorkTypeImplColor     = lipgloss.Color("42")  // Green - implementation
-	WorkTypeAnalysisColor = lipgloss.Color("33")  // Blue - analysis/research
-	WorkTypeReviewColor   = lipgloss.Color("214") // Orange - review
-	WorkTypeVerifyColor   = lipgloss.Color("220") // Yellow - verification
-	WorkTypeConfigColor   = lipgloss.Color("250") // Grey - configuration
-	WorkTypeDocsColor     = lipgloss.Color("51")  // Cyan - documentation
-	WorkTypePlanColor     = lipgloss.Color("141") // Purple - planning
-	WorkTypeActionColor   = lipgloss.Color("205") // Magenta - action
+	WorkTypeImplColor     = paletteLipglossColor(defaultDarkPalette().Success)
+	WorkTypeAnalysisColor = paletteLipglossColor(defaultDarkPalette().Festival)
+	WorkTypeReviewColor   = paletteLipglossColor(defaultDarkPalette().Planning)
+	WorkTypeVerifyColor   = paletteLipglossColor(defaultDarkPalette().Warning)
+	WorkTypeConfigColor   = paletteLipglossColor(defaultDarkPalette().Metadata)
+	WorkTypeDocsColor     = paletteLipglossColor(defaultDarkPalette().InProgress)
+	WorkTypePlanColor     = paletteLipglossColor(defaultDarkPalette().Task)
+	WorkTypeActionColor   = paletteLipglossColor(defaultDarkPalette().Sequence)
 )
 
 // FormatWorkType returns a styled work type indicator string.

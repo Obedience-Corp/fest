@@ -10,16 +10,10 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	festErrors "github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/navigation"
+	"github.com/Obedience-Corp/fest/internal/ui"
 	uitheme "github.com/Obedience-Corp/fest/internal/ui/theme"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
-)
-
-// Styles for list items
-var (
-	shortcutStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("205")).Bold(true) // Pink
-	linkStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("42")).Bold(true)  // Green
-	pathStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))            // Gray
 )
 
 func init() {
@@ -30,6 +24,11 @@ func init() {
 // StartGoListTUI launches an interactive selector for navigation shortcuts and links.
 // Returns the selected path or empty string if cancelled.
 func StartGoListTUI(ctx context.Context) (string, error) {
+	p := ui.Current()
+	shortcutStyle := lipgloss.NewStyle().Foreground(p.Planning).Bold(true)
+	linkStyle := lipgloss.NewStyle().Foreground(p.Festival).Bold(true)
+	pathStyle := lipgloss.NewStyle().Foreground(p.Metadata)
+
 	// Check context
 	if err := ctx.Err(); err != nil {
 		return "", err
@@ -86,7 +85,7 @@ func StartGoListTUI(ctx context.Context) (string, error) {
 				Options(opts...).
 				Value(&selected),
 		),
-	)
+	).WithTheme(uitheme.GetThemeFromConfig(ctx))
 
 	if err := uitheme.RunForm(ctx, form); err != nil {
 		// Silent exit on user cancel (Ctrl-C or Esc)

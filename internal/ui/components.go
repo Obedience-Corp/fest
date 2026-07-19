@@ -349,7 +349,7 @@ func DefaultProgressBarOptions() ProgressBarOptions {
 		FilledChar:     "█",
 		EmptyChar:      "░",
 		FilledColor:    SuccessColor,
-		EmptyColor:     lipgloss.Color("240"),
+		EmptyColor:     BorderColor,
 		ShowPercentage: true,
 		ShowFraction:   false,
 	}

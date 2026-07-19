@@ -61,8 +61,8 @@ func TestColorSelectorCompletionsFormat(t *testing.T) {
 	}
 	got := ColorSelectorCompletions(candidates, "")
 	want := []string{
-		"a-active-AA0001\ta-active-AA0001 \033[38;5;42mactive\033[0m",
-		"b-ready-BR0001\tb-ready-BR0001 \033[38;5;220mready\033[0m",
+		"a-active-AA0001\ta-active-AA0001 \033[38;5;84mactive\033[0m",
+		"b-ready-BR0001\tb-ready-BR0001 \033[38;5;214mready\033[0m",
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("color completions = %#v, want %#v", got, want)

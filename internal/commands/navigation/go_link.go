@@ -14,20 +14,21 @@ import (
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/ui/theme"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )
 
-// Styles for festival status in TUI
-var (
-	activeStyle   = lipgloss.NewStyle().Foreground(ui.ActiveColor).Bold(true)
-	planningStyle = lipgloss.NewStyle().Foreground(ui.PlanningColor).Bold(true)
-	pathStyle     = lipgloss.NewStyle().Foreground(ui.MetadataColor)
-)
-
 const linkForceHint = "use 'fest link --force' to relink the project to this festival, or run 'fest unlink' from the linked festival first"
+
+func linkStyles() (lipgloss.Style, lipgloss.Style, lipgloss.Style) {
+	p := ui.Current()
+	return lipgloss.NewStyle().Foreground(p.Active).Bold(true),
+		lipgloss.NewStyle().Foreground(p.Planning).Bold(true),
+		lipgloss.NewStyle().Foreground(p.Metadata)
+}
 
 // guardProjectConflict blocks relinking a project that is already linked to a
 // different festival unless force is set. A project holds exactly one festival
@@ -41,7 +42,7 @@ func guardProjectConflict(nav *navigation.Navigation, festivalName, projectPath 
 		return "", nil
 	}
 	if !force {
-		return "", festErrors.Validation("project is already linked to festival " + existing).
+		return "", festErrors.Validation("project is already linked to festival "+existing).
 			WithField("existing_festival", existing).
 			WithField("existing_festival_path", existingFestivalPath).
 			WithField("project", projectPath).
@@ -179,7 +180,7 @@ func linkFestivalToProject(ctx context.Context, cwd, targetPath string, force bo
 		projectPath = absPath
 	} else {
 		// Show interactive directory picker
-		selectedPath, err := selectProjectDirectory(loc.Festival.Path, festivalName)
+		selectedPath, err := selectProjectDirectory(ctx, loc.Festival.Path, festivalName)
 		if err != nil {
 			// Silent exit on user cancel (Ctrl-C or Esc)
 			if errors.Is(err, huh.ErrUserAborted) {
@@ -240,6 +241,7 @@ func linkProjectToFestival(ctx context.Context, cwd string, force bool) error {
 
 	// Build options for picker with color-coded status
 	options := make([]huh.Option[string], 0, len(festivals))
+	activeStyle, planningStyle, pathStyle := linkStyles()
 
 	for _, f := range festivals {
 		var label string
@@ -261,7 +263,7 @@ func linkProjectToFestival(ctx context.Context, cwd string, force bool) error {
 				Options(options...).
 				Value(&selectedFestival),
 		),
-	).WithTheme(huh.ThemeCharm())
+	).WithTheme(theme.GetThemeFromConfig(ctx))
 
 	if err := form.Run(); err != nil {
 		// Silent exit on user cancel (Ctrl-C or Esc)
@@ -368,7 +370,7 @@ func resolveFestivalPath(festivalsDir, festivalName string) string {
 
 // selectProjectDirectory shows an interactive picker for selecting a project directory.
 // It lists directories inside campaignRoot/projects/, expanding monorepos into sub-entries.
-func selectProjectDirectory(festivalPath, festivalName string) (string, error) {
+func selectProjectDirectory(ctx context.Context, festivalPath, festivalName string) (string, error) {
 	// Find campaign root by walking up from festival path
 	// festivalPath is like: /path/to/campaign/festivals/active/festival-name
 	// We want campaign root: /path/to/campaign
@@ -386,6 +388,7 @@ func selectProjectDirectory(festivalPath, festivalName string) (string, error) {
 
 	// Build options — show project label (with monorepo@sub notation)
 	options := make([]huh.Option[string], 0, len(entries))
+	_, _, pathStyle := linkStyles()
 	for _, entry := range entries {
 		label := pathStyle.Render(entry.label)
 		options = append(options, huh.NewOption(label, entry.path))
@@ -400,7 +403,7 @@ func selectProjectDirectory(festivalPath, festivalName string) (string, error) {
 				Options(options...).
 				Value(&selectedDir),
 		),
-	).WithTheme(huh.ThemeCharm())
+	).WithTheme(theme.GetThemeFromConfig(ctx))
 
 	if err := form.Run(); err != nil {
 		return "", err

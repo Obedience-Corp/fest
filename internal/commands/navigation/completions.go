@@ -42,9 +42,8 @@ func NewGoCompletionsCommand() *cobra.Command {
 // ANSI codes for shortcut lines; status colors come from ui.StatusColorSequence
 // (the single theme-aware palette source).
 const (
-	ansiReset    = "\033[0m"
-	ansiDim      = "\033[2m"
-	ansiShortcut = "\033[38;5;214m" // orange
+	ansiReset = "\033[0m"
+	ansiDim   = "\033[2m"
 )
 
 // statusANSI returns the ANSI color escape for a status directory name.
@@ -53,6 +52,7 @@ func statusANSI(status string) string {
 }
 
 func runGoCompletions(descriptions, color bool, statusFilter string) error {
+	shortcutColor := ui.ColorSequence(ui.Current().Gate)
 	// Locate festivals directory (needed for both filtered and unfiltered modes)
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -101,7 +101,7 @@ func runGoCompletions(descriptions, color bool, statusFilter string) error {
 		for name := range nav.Shortcuts {
 			switch {
 			case color:
-				fmt.Printf("-%s\t%s-%s%s %sshortcut%s\n", name, ansiShortcut, name, ansiReset, ansiDim, ansiReset)
+				fmt.Printf("-%s\t%s-%s%s %sshortcut%s\n", name, shortcutColor, name, ansiReset, ansiDim, ansiReset)
 			case descriptions:
 				fmt.Printf("-%s:shortcut\n", name)
 			default:

@@ -4,6 +4,7 @@ package vim
 import (
 	"fmt"
 
+	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -74,12 +75,12 @@ func renderMode(mode Mode) string {
 	case ModeInsert:
 		// INSERT mode: green/accent to indicate active text entry
 		style = lipgloss.NewStyle().
-			Foreground(lipgloss.AdaptiveColor{Light: "#00AF00", Dark: "#00FF5F"}).
+			Foreground(ui.Current().Success).
 			Bold(true)
 	default:
 		// NORMAL mode: subtle gray to indicate navigation mode
 		style = lipgloss.NewStyle().
-			Foreground(lipgloss.AdaptiveColor{Light: "#808080", Dark: "#949494"})
+			Foreground(ui.Current().Metadata)
 	}
 
 	return style.Render(mode.String())
