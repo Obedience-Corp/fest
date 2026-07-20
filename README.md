@@ -20,6 +20,13 @@
 
 This practice is **loop engineering**: instead of babysitting prompts, you design the loop your agents run in (the goals, steps, gates, and feedback) and let them run it. The better your loop, the less you supervise. Fest is a tool for building those loops out of plain markdown.
 
+**Install** (see the [festival repo](https://github.com/Obedience-Corp/festival#install) for all package options):
+
+```bash
+brew install --cask Obedience-Corp/tap/festival   # macOS/Linux (installs camp + fest)
+npm install -g @obedience-corp/festival           # any platform with node
+```
+
 Festivals live within **campaigns** - isolated workspaces managed by [camp](https://github.com/Obedience-Corp/camp). A campaign organizes your projects, plans, and context in one place. See the [methodology README](methodology/README.md) for the complete guide.
 
 ## Your Templates, Your Workflow
@@ -159,7 +166,7 @@ Defaults are included out of the box but fully customizable - modify them at the
 
 ## Battle-Tested at Scale
 
-Festival Methodology has been refined through **63 completed festivals** spanning infrastructure, CLI tools, architecture, web launches, and multi-service platforms.
+Festival Methodology has been refined through **daily production use** spanning infrastructure, CLI tools, architecture, web launches, and multi-service platforms.
 
 **Complexity tiers with real examples:**
 
@@ -170,13 +177,6 @@ Festival Methodology has been refined through **63 completed festivals** spannin
 | **Complex** | 7-9 | guild-scaffold (9 phases, 30 sequences), obediencecorp-website-launch |
 
 These festivals span Go, Rust, Python, and web projects - from simple CLI fixes to building an entire daemon service with gRPC, WebSocket, and SQLite from scratch.
-
-**What users report:**
-
-- **Reduced token usage** - structured context means agents spend less time figuring out what to do
-- **Faster time to solution** - agents follow defined paths instead of exploring blindly
-- **Less rework** - pre-execution review and structured plans mean fewer iteration cycles
-- **Compounding gains** - each festival builds on patterns from previous ones
 
 ## Realistic Expectations
 
