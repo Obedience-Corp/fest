@@ -20,6 +20,7 @@ import (
 var (
 	currentPalette      Palette
 	currentBrandPalette = defaultSharedDarkPalette()
+	configuredMode      = sharedbrand.ModeDark
 	paletteOnce         sync.Once
 	paletteInit         bool
 )
@@ -66,11 +67,13 @@ func InitPalette(ctx context.Context) {
 	paletteOnce.Do(func() {
 		cfg, err := config.Load(ctx, "")
 		if err != nil {
-			setPalette(ResolveBrandPalette(sharedbrand.ModeDark))
+			configuredMode = sharedbrand.ModeDark
+			setPalette(ResolveBrandPalette(configuredMode))
 			return
 		}
 
-		setPalette(ResolveBrandPalette(sharedbrand.ParseMode(cfg.TUI.Theme)))
+		configuredMode = sharedbrand.ParseMode(cfg.TUI.Theme)
+		setPalette(ResolveBrandPalette(configuredMode))
 	})
 }
 
@@ -145,6 +148,24 @@ func CurrentBrandPalette() sharedbrand.Palette {
 		return defaultSharedDarkPalette()
 	}
 	return currentBrandPalette
+}
+
+// completionPalette resolves the configured theme for explicit shell
+// completion display colors. Completion commands write into a shell pipe, so
+// the normal output policy resolves their palette to plain; the shell itself
+// still supports ANSI display cells and requested these colors explicitly.
+func completionPalette() Palette {
+	if noColorOverride || configuredMode == sharedbrand.ModePlain {
+		return Palette{}
+	}
+
+	shared := sharedbrand.Resolve(configuredMode, sharedbrand.Capabilities{
+		IsTTY:           true,
+		ColorDepth:      sharedbrand.ColorANSI256,
+		DarkBackground:  lipgloss.HasDarkBackground(),
+		BackgroundKnown: true,
+	})
+	return paletteFromShared(shared)
 }
 
 func outputIsTTY() bool {
@@ -291,6 +312,7 @@ func ResetPalette() {
 	paletteInit = false
 	currentPalette = Palette{}
 	currentBrandPalette = defaultSharedDarkPalette()
+	configuredMode = sharedbrand.ModeDark
 	defaultDarkPaletteInstance = nil
 	syncLegacyColors(defaultDarkPalette())
 }

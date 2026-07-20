@@ -24,10 +24,14 @@ func SetNoColor(noColor bool) {
 // sequence for explicitly colorized shell completion output. The source color
 // remains a shared hex token; termenv performs the terminal-safe conversion.
 func ColorSequence(color lipgloss.TerminalColor) string {
-	if !CurrentBrandPalette().ColorEnabled || noColorOverride {
+	if noColorOverride {
 		return ""
 	}
 
+	return colorSequence(color)
+}
+
+func colorSequence(color lipgloss.TerminalColor) string {
 	value, ok := color.(lipgloss.Color)
 	if !ok || value == "" {
 		return ""

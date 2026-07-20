@@ -137,12 +137,54 @@ func StatusColorSequence(status string) string {
 	if !CurrentBrandPalette().ColorEnabled {
 		return ""
 	}
-	color := GetStatusColor(status)
-	if sequence := ColorSequence(color); sequence != "" {
-		return sequence
+	return statusColorSequence(*Current(), status)
+}
+
+// CompletionStatusColorSequence returns the ANSI-256 foreground escape for
+// an explicitly colorized shell completion. Unlike ordinary command output,
+// completion display cells are intentionally written through a pipe, so they
+// use the configured theme even when the normal palette is plain.
+func CompletionStatusColorSequence(status string) string {
+	p := completionPalette()
+	if p.Active == nil {
+		return ""
 	}
-	if color == lipgloss.Color("") {
-		return "\x1b[2m"
+	return statusColorSequence(p, status)
+}
+
+// CompletionAccentSequence returns the configured accent for non-status
+// completion entries such as shortcuts.
+func CompletionAccentSequence() string {
+	return colorSequence(completionPalette().Gate)
+}
+
+func statusColor(p Palette, status string) lipgloss.TerminalColor {
+	switch strings.ToLower(status) {
+	case "active":
+		return p.Active
+	case "ready":
+		return p.Ready
+	case "planning":
+		return p.Planning
+	case "ritual":
+		return p.Ritual
+	case "completed", "dungeon/completed":
+		return p.Completed
+	case "archived", "dungeon/archived":
+		return p.Archived
+	case "someday", "dungeon/someday":
+		return p.Someday
+	case "dungeon":
+		return p.Dungeon
+	default:
+		return lipgloss.Color("")
+	}
+}
+
+func statusColorSequence(p Palette, status string) string {
+	color := statusColor(p, status)
+	if sequence := colorSequence(color); sequence != "" {
+		return sequence
 	}
 	return "\x1b[2m"
 }
