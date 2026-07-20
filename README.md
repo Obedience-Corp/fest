@@ -166,7 +166,7 @@ Defaults are included out of the box but fully customizable - modify them at the
 
 ## Battle-Tested at Scale
 
-Festival Methodology has been refined through **140+ completed festivals** spanning infrastructure, CLI tools, architecture, web launches, and multi-service platforms.
+Festival Methodology has been refined through **daily production use** spanning infrastructure, CLI tools, architecture, web launches, and multi-service platforms.
 
 **Complexity tiers with real examples:**
 
