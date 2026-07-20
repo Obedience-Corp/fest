@@ -39,8 +39,8 @@ func NewGoCompletionsCommand() *cobra.Command {
 	return cmd
 }
 
-// ANSI codes for shortcut lines; status colors come from ui.StatusColorSequence
-// (the single theme-aware palette source).
+// ANSI codes for shortcut lines; status colors come from the UI's explicit
+// completion palette so they survive the shell's completion pipe.
 const (
 	ansiReset = "\033[0m"
 	ansiDim   = "\033[2m"
@@ -48,11 +48,11 @@ const (
 
 // statusANSI returns the ANSI color escape for a status directory name.
 func statusANSI(status string) string {
-	return ui.StatusColorSequence(status)
+	return ui.CompletionStatusColorSequence(status)
 }
 
 func runGoCompletions(descriptions, color bool, statusFilter string) error {
-	shortcutColor := ui.ColorSequence(ui.Current().Gate)
+	shortcutColor := ui.CompletionAccentSequence()
 	// Locate festivals directory (needed for both filtered and unfiltered modes)
 	cwd, err := os.Getwd()
 	if err != nil {
