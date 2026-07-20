@@ -191,12 +191,15 @@ func paletteLipglossColor(color lipgloss.TerminalColor) lipgloss.Color {
 // Statuses and workflow states use status roles; hierarchy uses the brand
 // accent family to stay distinct without inventing another color system.
 func paletteFromShared(p sharedbrand.Palette) Palette {
+	planning, ritual, completed := festivalStatusColors(p)
+	task := festivalTaskColor(p)
+
 	return Palette{
 		Active:    paletteColor(p.StatusSuccess),
 		Ready:     paletteColor(p.StatusWarning),
-		Planning:  paletteColor(p.AccentHighlight),
-		Ritual:    paletteColor(p.AccentSubtle),
-		Completed: paletteColor(p.StatusSuccess),
+		Planning:  paletteColor(planning),
+		Ritual:    paletteColor(ritual),
+		Completed: paletteColor(completed),
 		Archived:  paletteColor(p.TextMuted),
 		Someday:   paletteColor(p.AccentSubtle),
 		Dungeon:   paletteColor(p.TextMuted),
@@ -204,11 +207,11 @@ func paletteFromShared(p sharedbrand.Palette) Palette {
 		Festival: paletteColor(p.Accent),
 		Phase:    paletteColor(p.AccentHighlight),
 		Sequence: paletteColor(p.AccentStrong),
-		Task:     paletteColor(p.AccentSubtle),
+		Task:     paletteColor(task),
 		Gate:     paletteColor(p.StatusWarning),
 
 		Pending:    paletteColor(p.TextMuted),
-		InProgress: paletteColor(p.Focus),
+		InProgress: paletteColor(p.StatusWarning),
 		Blocked:    paletteColor(p.StatusError),
 		Success:    paletteColor(p.StatusSuccess),
 		Warning:    paletteColor(p.StatusWarning),
@@ -218,6 +221,44 @@ func paletteFromShared(p sharedbrand.Palette) Palette {
 		Value:    paletteColor(p.TextPrimary),
 		Metadata: paletteColor(p.TextMuted),
 		Dim:      paletteColor(p.TextMuted),
+	}
+}
+
+// festivalStatusColors preserves the established lifecycle color distinctions
+// that are more granular than the shared brand's generic accent roles. In
+// particular, planning must remain blue, ritual must remain purple, and
+// completed must remain magenta so those statuses do not collapse into the
+// shared orange family or active green.
+func festivalStatusColors(p sharedbrand.Palette) (planning, ritual, completed string) {
+	if !p.ColorEnabled || p.Mode == sharedbrand.ModePlain {
+		return "", "", ""
+	}
+
+	switch p.Mode {
+	case sharedbrand.ModeLight:
+		return "#1D4ED8", "#7C3AED", "#A21CAF"
+	case sharedbrand.ModeHighContrast:
+		return "#60A5FA", "#D8B4FE", "#FF79C6"
+	default:
+		return "#4DA3FF", "#B388FF", "#FF79C6"
+	}
+}
+
+// festivalTaskColor keeps task names in the established purple family. Task
+// names are hierarchy labels, not error indicators, so they must not inherit
+// the shared brand's reddish AccentSubtle role.
+func festivalTaskColor(p sharedbrand.Palette) string {
+	if !p.ColorEnabled || p.Mode == sharedbrand.ModePlain {
+		return ""
+	}
+
+	switch p.Mode {
+	case sharedbrand.ModeLight:
+		return "#7C3AED"
+	case sharedbrand.ModeHighContrast:
+		return "#D8B4FE"
+	default:
+		return "#B388FF"
 	}
 }
 
