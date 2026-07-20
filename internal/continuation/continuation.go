@@ -46,6 +46,9 @@ const (
 	// maxFeedbackLen bounds rendered feedback so a malformed or oversized
 	// judge reason cannot produce an unbounded agent message.
 	maxFeedbackLen = 500
+	// maxFollowups bounds the number of judge fix items rendered into a
+	// continuation message so a malformed verdict cannot make it unbounded.
+	maxFollowups = 12
 )
 
 // Verdict is the terminal judge outcome carried at the transport layer.
@@ -138,6 +141,9 @@ type JudgeResult struct {
 	StepName      string
 	Verdict       Verdict
 	Feedback      string
+	// Followups carries the judge's itemized fixes for a rejection so the
+	// resumed session receives the concrete revise list, not just the reason.
+	Followups []string
 }
 
 // DeliveryID derives the deterministic, retry-stable delivery id for a run.
@@ -165,8 +171,8 @@ func RenderMessage(r JudgeResult) string {
 	case VerdictApproved:
 		return fmt.Sprintf("Approval judge approved %s.\nContinue with: %s", loc, next)
 	case VerdictRejected:
-		return fmt.Sprintf("Approval judge rejected %s.\nFeedback: %s\nAddress the feedback, then run: %s",
-			loc, sanitizeFeedback(r.Feedback), next)
+		return fmt.Sprintf("Approval judge rejected %s.\nFeedback: %s%s\nAddress the feedback, then run: %s",
+			loc, sanitizeFeedback(r.Feedback), renderFollowups(r.Followups), next)
 	case VerdictFailed:
 		return fmt.Sprintf("Approval judge failed for %s.\nFeedback: %s\nInspect the judge configuration or evidence, then run: %s",
 			loc, sanitizeFeedback(r.Feedback), next)
@@ -195,6 +201,36 @@ func BuildNotification(r JudgeResult) SessionNotification {
 			"verdict":     string(r.Verdict),
 		},
 	}
+}
+
+// renderFollowups formats the judge's itemized fixes as an indented list
+// appended after the feedback line. It returns "" when there are no usable
+// followups so the rejection message is unchanged for a reason-only verdict.
+// Each item is sanitized and bounded, and the count is capped, so a malformed
+// verdict cannot produce an unbounded message.
+func renderFollowups(followups []string) string {
+	if len(followups) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\nFixes required:")
+	n := 0
+	for _, f := range followups {
+		item := sanitizeFeedback(f)
+		if item == "(no detail provided)" {
+			continue
+		}
+		b.WriteString("\n- ")
+		b.WriteString(item)
+		n++
+		if n >= maxFollowups {
+			break
+		}
+	}
+	if n == 0 {
+		return ""
+	}
+	return b.String()
 }
 
 // sanitizeFeedback collapses whitespace, strips control characters, and bounds

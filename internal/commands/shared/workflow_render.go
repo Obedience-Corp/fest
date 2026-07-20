@@ -24,6 +24,7 @@ type WorkflowStepView struct {
 	HasCheckpoint bool
 	Goal          string
 	Feedback      string
+	Followups     []string
 	Judge         *wf.JudgeState
 }
 
@@ -98,6 +99,16 @@ func RenderWorkflowStepLine(step WorkflowStepView, compact bool) string {
 			fmt.Fprintf(&sb, "     %s: %s\n", ui.Error("Feedback"), feedback)
 		case wf.StepStatusSkipped, wf.StepStatusCompleted:
 			fmt.Fprintf(&sb, "     %s: %s\n", ui.Warning("Note"), feedback)
+		}
+	}
+
+	if !compact && len(step.Followups) > 0 &&
+		(step.Status == wf.StepStatusBlocked || step.Status == wf.StepStatusFailedRemediation) {
+		fmt.Fprintf(&sb, "     %s:\n", ui.Error("Fixes required"))
+		for i, f := range step.Followups {
+			if f = strings.TrimSpace(f); f != "" {
+				fmt.Fprintf(&sb, "       %d. %s\n", i+1, f)
+			}
 		}
 	}
 
@@ -176,10 +187,12 @@ func LoadWorkflowStepsForPhase(ctx context.Context, festivalPath, phasePath stri
 		stepState := state.GetStepState(step.Number)
 		status := wf.StepStatusPending
 		feedback := ""
+		var followups []string
 		var judge *wf.JudgeState
 		if stepState != nil {
 			status = stepState.Status
 			feedback = wf.DisplayFeedback(stepState.Feedback)
+			followups = stepState.Followups
 			judge = stepState.Judge
 		}
 
@@ -191,6 +204,7 @@ func LoadWorkflowStepsForPhase(ctx context.Context, festivalPath, phasePath stri
 			HasCheckpoint: step.HasCheckpoint(),
 			Goal:          step.Goal,
 			Feedback:      feedback,
+			Followups:     followups,
 			Judge:         judge,
 		}
 	}
@@ -273,10 +287,12 @@ func LoadGateStepsForPhase(ctx context.Context, festivalPath, phasePath string) 
 		stepState := state.GetStepState(step.Number)
 		status := wf.StepStatusPending
 		feedback := ""
+		var followups []string
 		var judge *wf.JudgeState
 		if stepState != nil {
 			status = stepState.Status
 			feedback = wf.DisplayFeedback(stepState.Feedback)
+			followups = stepState.Followups
 			judge = stepState.Judge
 		}
 
@@ -288,6 +304,7 @@ func LoadGateStepsForPhase(ctx context.Context, festivalPath, phasePath string) 
 			HasCheckpoint: step.HasCheckpoint(),
 			Goal:          step.Goal,
 			Feedback:      feedback,
+			Followups:     followups,
 			Judge:         judge,
 		}
 	}

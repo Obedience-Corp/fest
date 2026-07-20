@@ -606,7 +606,7 @@ func reopenJudgeRejectionIfRequested(ctx context.Context, nav *wf.Navigator, ste
 }
 
 func applyApproveAutoVerdict(ctx context.Context, nav *wf.Navigator, currentStepNum int, step wf.WorkflowStep, runID string, decision *approvalJudgeResponse, audit string) (bool, error) {
-	judgeDecision := wf.DecisionMetadata{Actor: decisionActorAgent, Summary: decision.Reason}
+	judgeDecision := wf.DecisionMetadata{Actor: decisionActorAgent, Summary: decision.Reason, Followups: decision.Followups}
 
 	switch decision.Decision {
 	case "approve":
@@ -629,7 +629,9 @@ func applyApproveAutoVerdict(ctx context.Context, nav *wf.Navigator, currentStep
 			return false, nil
 		}
 		fmt.Printf("%s Step %d: %s auto-rejected\n", ui.Warning("⚠"), currentStepNum, step.Name)
-		fmt.Printf("  %s: %s\n\n", ui.Label("Reason"), decision.Reason)
+		fmt.Printf("  %s: %s\n", ui.Label("Reason"), decision.Reason)
+		printJudgeFollowups(decision.Followups)
+		fmt.Println()
 		fmt.Println("The step is now blocked. Address the feedback and revise the work.")
 		printApprovalRecoveryFor(ctx, nav, step)
 		return true, nil

@@ -76,10 +76,12 @@ func runStatus(ctx context.Context, jsonOutput bool) error {
 		stepState := state.GetStepState(step.Number)
 		status := wf.StepStatusPending
 		feedback := ""
+		var followups []string
 		var judge *wf.JudgeState
 		if stepState != nil {
 			status = stepState.Status
 			feedback = wf.DisplayFeedback(stepState.Feedback)
+			followups = stepState.Followups
 			judge = stepState.Judge
 			if stepState.Status == wf.StepStatusFailedRemediation {
 				failedRemediation[i] = stepState
@@ -94,6 +96,7 @@ func runStatus(ctx context.Context, jsonOutput bool) error {
 			HasCheckpoint: step.HasCheckpoint(),
 			Goal:          step.Goal,
 			Feedback:      feedback,
+			Followups:     followups,
 			Judge:         judge,
 		}
 	}

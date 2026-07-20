@@ -119,6 +119,45 @@ func TestMaterializeWorkflowState_ClearsJudgeAfterOperatorDecision(t *testing.T)
 	}
 }
 
+func TestMaterializeWorkflowState_JudgeRejectionFollowupsRoundTrip(t *testing.T) {
+	now := time.Now().UTC()
+	followups := []string{
+		"Attach the actual test-run console output.",
+		"Include the ledger transition as captured output, not an assertion.",
+	}
+	events := []ProgressEvent{
+		{Timestamp: now, Event: EventWorkflowInit, Phase: "gate:001_IMPLEMENT", TotalSteps: 1},
+		{Timestamp: now.Add(time.Second), Event: EventWorkflowStepStart, Phase: "gate:001_IMPLEMENT", Step: 1},
+		{Timestamp: now.Add(2 * time.Second), Event: EventWorkflowJudgeStarted, Phase: "gate:001_IMPLEMENT", Step: 1, JudgeCommand: "ob judge", JudgeRunID: "run-1"},
+		{Timestamp: now.Add(3 * time.Second), Event: EventWorkflowJudgeReturned, Phase: "gate:001_IMPLEMENT", Step: 1, JudgeStatus: wf.JudgeRejected, JudgeDetail: "thin evidence", JudgeRunID: "run-1"},
+		{Timestamp: now.Add(4 * time.Second), Event: EventWorkflowStepBlock, Phase: "gate:001_IMPLEMENT", Step: 1, Feedback: "thin evidence", Followups: followups, DecisionActor: "agent", DecisionSummary: "thin evidence"},
+	}
+
+	step := materializeWorkflowState(events).Phases["gate:001_IMPLEMENT"].GetStepState(1)
+	if step == nil {
+		t.Fatal("expected step state")
+	}
+	if step.Status != wf.StepStatusBlocked {
+		t.Fatalf("status = %v, want blocked", step.Status)
+	}
+	if len(step.Followups) != len(followups) {
+		t.Fatalf("followups = %v, want %v", step.Followups, followups)
+	}
+	for i, f := range followups {
+		if step.Followups[i] != f {
+			t.Fatalf("followup[%d] = %q, want %q", i, step.Followups[i], f)
+		}
+	}
+
+	// A subsequent re-judge (JudgeRecheck) clears the stale fix list so the
+	// agent never re-reads fixes for evidence it has since revised.
+	events = append(events, ProgressEvent{Timestamp: now.Add(5 * time.Second), Event: EventWorkflowJudgeRecheck, Phase: "gate:001_IMPLEMENT", Step: 1})
+	step = materializeWorkflowState(events).Phases["gate:001_IMPLEMENT"].GetStepState(1)
+	if len(step.Followups) != 0 {
+		t.Fatalf("followups after recheck = %v, want empty", step.Followups)
+	}
+}
+
 func TestGenerateWorkflowEventsFromYAML_EmitsStepSkip(t *testing.T) {
 	now := time.Now().UTC()
 	phaseState := wf.NewWorkflowState(2)

@@ -414,7 +414,7 @@ func runJudgeExec(ctx context.Context, payloadPath string) error {
 		if decision.Decision == "reject" {
 			verdict = continuation.VerdictRejected
 		}
-		fireJudgeContinuation(ctx, nav, payload, verdict, decision.Reason)
+		fireJudgeContinuation(ctx, nav, payload, verdict, decision.Reason, decision.Followups...)
 	}
 	return nil
 }
@@ -488,7 +488,7 @@ func recordJudgeFailureIfOwned(ctx context.Context, nav *wf.Navigator, payload j
 // It is a no-op when no session identity was captured at launch. A submission
 // failure is isolated: the judge outcome is already authoritative, so the error
 // only degrades to the manual next-step instruction and never propagates.
-func fireJudgeContinuation(ctx context.Context, nav *wf.Navigator, payload judgeExecPayload, verdict continuation.Verdict, feedback string) {
+func fireJudgeContinuation(ctx context.Context, nav *wf.Navigator, payload judgeExecPayload, verdict continuation.Verdict, feedback string, followups ...string) {
 	if payload.TargetSessionID == "" {
 		return
 	}
@@ -504,6 +504,7 @@ func fireJudgeContinuation(ctx context.Context, nav *wf.Navigator, payload judge
 		StepName:      payload.StepName,
 		Verdict:       verdict,
 		Feedback:      feedback,
+		Followups:     followups,
 	}
 	if err := judgeContinuationNotifier.Notify(ctx, continuation.BuildNotification(result)); err != nil {
 		fmt.Printf("%s judge result recorded; continuation notice to the originating session was not delivered: %v\n",

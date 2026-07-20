@@ -53,6 +53,42 @@ func TestWorkflowStateRejectWithDecision(t *testing.T) {
 	}
 }
 
+func TestWorkflowStateRejectStoresAndEmitsFollowups(t *testing.T) {
+	state := NewWorkflowState(1)
+	state.StartCurrentStep()
+
+	followups := []string{"attach console output", "capture the ledger transition"}
+	state.RejectWithDecision("thin evidence", DecisionMetadata{
+		Actor:     "agent",
+		Summary:   "thin evidence",
+		Followups: followups,
+	})
+
+	step := state.GetStepState(1)
+	if len(step.Followups) != len(followups) {
+		t.Fatalf("stored followups = %v, want %v", step.Followups, followups)
+	}
+
+	// The block event that persists to the log must carry the same fix list so
+	// the followups survive an event-sourced reload, not only the in-memory state.
+	events := EmitStepBlockWithDecisionEvents("gate:001_IMPLEMENT", 1, "thin evidence", DecisionMetadata{
+		Actor:     "agent",
+		Summary:   "thin evidence",
+		Followups: followups,
+	})
+	if len(events) != 1 || len(events[0].Followups) != len(followups) {
+		t.Fatalf("emitted event followups = %+v, want %v", events, followups)
+	}
+
+	// A judge re-run (reopen) clears the fix list along with the rejection.
+	if !state.ReopenJudgeRejection(1) {
+		t.Fatal("ReopenJudgeRejection = false, want reopened")
+	}
+	if step := state.GetStepState(1); len(step.Followups) != 0 {
+		t.Fatalf("followups after reopen = %v, want empty", step.Followups)
+	}
+}
+
 func TestWorkflowStateRecheckClearsDecision(t *testing.T) {
 	state := NewWorkflowState(1)
 	state.StartCurrentStep()

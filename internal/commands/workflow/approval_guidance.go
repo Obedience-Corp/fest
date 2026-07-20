@@ -56,3 +56,31 @@ func printApprovalRecoveryFor(ctx context.Context, nav *wf.Navigator, step wf.Wo
 		fmt.Println(line)
 	}
 }
+
+// judgeFollowupLines renders a judge's itemized fixes as numbered, indented
+// lines under a header. Empty followups (a judge that gave only a reason)
+// produce no output so callers can print unconditionally.
+func judgeFollowupLines(followups []string) []string {
+	cleaned := make([]string, 0, len(followups))
+	for _, f := range followups {
+		if f = strings.TrimSpace(f); f != "" {
+			cleaned = append(cleaned, f)
+		}
+	}
+	if len(cleaned) == 0 {
+		return nil
+	}
+	lines := []string{"  " + ui.Label("Fixes the judge requires") + ":"}
+	for i, f := range cleaned {
+		lines = append(lines, fmt.Sprintf("    %d. %s", i+1, f))
+	}
+	return lines
+}
+
+// printJudgeFollowups writes the judge's itemized fixes to stdout. No-op when
+// the judge returned no followups.
+func printJudgeFollowups(followups []string) {
+	for _, line := range judgeFollowupLines(followups) {
+		fmt.Println(line)
+	}
+}
