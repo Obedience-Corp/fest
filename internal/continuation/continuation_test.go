@@ -128,6 +128,48 @@ func TestRenderMessageRejection(t *testing.T) {
 	if !strings.HasSuffix(msg, "run: fest workflow judge") {
 		t.Fatalf("rejection message must end with the rejudge command: %q", msg)
 	}
+	if strings.Contains(msg, "Fixes required:") {
+		t.Fatalf("rejection with no followups must not render a fixes list: %q", msg)
+	}
+}
+
+func TestRenderMessageRejectionFollowups(t *testing.T) {
+	r := approvalResult()
+	r.Verdict = VerdictRejected
+	r.Feedback = "missing acceptance proof"
+	r.Followups = []string{"Attach the test console output.", "Include the ledger transition as captured output."}
+	msg := RenderMessage(r)
+	if !strings.Contains(msg, "Feedback: missing acceptance proof") {
+		t.Fatalf("rejection message missing feedback: %q", msg)
+	}
+	if !strings.Contains(msg, "Fixes required:") {
+		t.Fatalf("rejection message missing fixes list: %q", msg)
+	}
+	for _, f := range r.Followups {
+		if !strings.Contains(msg, "- "+f) {
+			t.Fatalf("rejection message missing followup %q: %q", f, msg)
+		}
+	}
+	// The itemized fixes precede the closing rejudge instruction.
+	if !strings.HasSuffix(msg, "Address the feedback, then run: fest workflow judge") {
+		t.Fatalf("rejection message must end with the rejudge instruction: %q", msg)
+	}
+}
+
+func TestRenderFollowupsBoundsAndSanitizes(t *testing.T) {
+	// Count is capped so a malformed verdict cannot make the message unbounded.
+	many := make([]string, maxFollowups+5)
+	for i := range many {
+		many[i] = "fix item"
+	}
+	got := renderFollowups(many)
+	if n := strings.Count(got, "\n- "); n != maxFollowups {
+		t.Fatalf("rendered %d items, want cap of %d", n, maxFollowups)
+	}
+	// Blank/whitespace-only items are dropped rather than rendered empty.
+	if renderFollowups([]string{"   ", ""}) != "" {
+		t.Fatalf("blank followups must render nothing")
+	}
 }
 
 func TestRenderMessageFailure(t *testing.T) {

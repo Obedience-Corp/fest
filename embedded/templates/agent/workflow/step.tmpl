@@ -56,7 +56,10 @@ EXAMPLE OUTPUT:
 Progress: Step {{.StepNumber}}/{{.TotalSteps}} | Phase: {{.PhaseName}} | Type: {{.PhaseType}}
 {{if eq .Status "blocked"}}
 This step is BLOCKED: {{.Feedback}}
-
+{{if .Followups}}
+Fixes the judge requires (address every item, then re-submit):
+{{range .Followups}}  - {{.}}
+{{end}}{{end}}
 Address the feedback and try again.
 {{if .JudgeRetryAvailable}}
 When the revised evidence is ready, re-run the approval judge:

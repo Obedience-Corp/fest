@@ -193,6 +193,7 @@ func (n *Navigator) formatStep(ctx context.Context, step WorkflowStep, stepState
 		"IsBlocking":          step.Checkpoint.IsBlocking(),
 		"Status":              status,
 		"Feedback":            feedback,
+		"Followups":           stepState.Followups,
 		"CurrentStep":         n.workflowState.CurrentStep,
 		"IsGate":              isGate,
 		"JudgeConfigured":     n.approvalJudgeConfigured(ctx),

@@ -623,6 +623,7 @@ func (s *Store) QueueWorkflowEvents(events []wf.WorkflowEvent) {
 			Step:             we.Step,
 			TotalSteps:       we.TotalSteps,
 			Feedback:         we.Feedback,
+			Followups:        we.Followups,
 			RemediationPhase: we.RemediationPhase,
 			DecisionActor:    we.DecisionActor,
 			DecisionSummary:  we.DecisionSummary,

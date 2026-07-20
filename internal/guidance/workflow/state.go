@@ -49,6 +49,7 @@ type WorkflowEvent struct {
 	RemediationPhase string
 	DecisionActor    string
 	DecisionSummary  string
+	Followups        []string
 	JudgeStatus      string
 	JudgeCommand     string
 	JudgeDetail      string
@@ -60,6 +61,9 @@ type WorkflowEvent struct {
 type DecisionMetadata struct {
 	Actor   string
 	Summary string
+	// Followups carries the judge's concrete, itemized fixes for a rejection
+	// so a blocked agent knows exactly what to revise before re-submitting.
+	Followups []string
 }
 
 // Judge lifecycle status values recorded on StepState.Judge.
@@ -203,6 +207,10 @@ type StepState struct {
 
 	// Feedback stores rejection reasons or notes.
 	Feedback string `yaml:"feedback,omitempty" json:"feedback,omitempty"`
+
+	// Followups stores the judge's itemized fixes for a blocked step so a
+	// blocked agent has a concrete revise list, not just the one-line reason.
+	Followups []string `yaml:"followups,omitempty" json:"followups,omitempty"`
 
 	// RemediationPhase is the linked phase name for a step in
 	// StepStatusFailedRemediation. Empty for any other status.
@@ -587,6 +595,7 @@ func (s *WorkflowState) RejectWithDecision(feedback string, decision DecisionMet
 	s.cancelCurrentJudge("superseded by manual rejection")
 	state.Status = StepStatusBlocked
 	state.Feedback = feedback
+	state.Followups = decision.Followups
 	state.RemediationPhase = ""
 	if decision.Actor != "agent" && state.Judge != nil && state.Judge.Status != JudgeCanceled {
 		// Replace any prior terminal judge outcome so a later judge command
@@ -610,6 +619,7 @@ func (s *WorkflowState) RejectWithRemediationDecision(feedback, remediationPhase
 	s.cancelCurrentJudge("superseded by manual remediation decision")
 	state.Status = StepStatusFailedRemediation
 	state.Feedback = feedback
+	state.Followups = decision.Followups
 	state.RemediationPhase = remediationPhase
 	if decision.Actor != "agent" && state.Judge != nil && state.Judge.Status != JudgeCanceled {
 		state.Judge = nil
@@ -650,6 +660,7 @@ func (s *WorkflowState) ClearFailedRemediation() {
 	}
 	state.Status = StepStatusInProgress
 	state.RemediationPhase = ""
+	state.Followups = nil
 	state.DecisionActor = ""
 	state.DecisionSummary = ""
 	state.DecisionAt = nil
@@ -666,6 +677,7 @@ func (s *WorkflowState) ReopenJudgeRejection(step int) bool {
 	state := s.GetOrCreateStepState(step)
 	state.Status = StepStatusInProgress
 	state.Feedback = ""
+	state.Followups = nil
 	state.RemediationPhase = ""
 	state.DecisionActor = ""
 	state.DecisionSummary = ""
@@ -683,6 +695,7 @@ func (s *WorkflowState) Reset() {
 		state.StartedAt = nil
 		state.CompletedAt = nil
 		state.Feedback = ""
+		state.Followups = nil
 		state.DecisionActor = ""
 		state.DecisionSummary = ""
 		state.DecisionAt = nil
@@ -807,6 +820,7 @@ func EmitStepBlockWithDecisionEvents(phaseName string, step int, feedback string
 		Phase:           phaseName,
 		Step:            step,
 		Feedback:        feedback,
+		Followups:       decision.Followups,
 		DecisionActor:   decision.Actor,
 		DecisionSummary: decision.Summary,
 	}}
@@ -825,6 +839,7 @@ func EmitStepFailRemediationWithDecisionEvents(phaseName string, step int, feedb
 		Phase:            phaseName,
 		Step:             step,
 		Feedback:         feedback,
+		Followups:        decision.Followups,
 		RemediationPhase: remediationPhase,
 		DecisionActor:    decision.Actor,
 		DecisionSummary:  decision.Summary,
