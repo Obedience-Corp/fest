@@ -83,7 +83,7 @@ func festivalPickerItemsFromCandidates(candidates []FestivalPickCandidate) []pic
 	for _, candidate := range candidates {
 		items = append(items, picker.Item{
 			Prefix:      festivalStatusLabel(candidate),
-			PrefixColor: ui.GetStatusColor(candidate.Status),
+			PrefixColor: ui.GetInteractiveStatusColor(candidate.Status),
 			Name:        festivalPickerItemName(candidate),
 			Value:       candidate.Path,
 		})

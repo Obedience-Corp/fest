@@ -100,6 +100,31 @@ func TestFestivalStatusColorsDisableInPlainMode(t *testing.T) {
 	}
 }
 
+func TestInteractivePaletteKeepsColorsWhenOutputPaletteIsPlain(t *testing.T) {
+	ResetPalette()
+	t.Cleanup(func() {
+		SetNoColor(false)
+		ResetPalette()
+	})
+	t.Setenv("TERM", "xterm-256color")
+	t.Setenv("COLORTERM", "truecolor")
+	t.Setenv("CLICOLOR_FORCE", "1")
+	t.Setenv("NO_COLOR", "")
+
+	// Simulate a shell wrapper capturing stdout for a selected path. The
+	// interactive picker still renders to a color-capable stderr TTY.
+	configuredMode = sharedbrand.ModeDark
+	setPalette(sharedbrand.Resolve(sharedbrand.ModePlain, sharedbrand.Capabilities{}))
+
+	got := InteractivePalette()
+	if got.Planning == nil || got.Ready == nil {
+		t.Fatalf("interactive palette lost colors: planning=%v ready=%v", got.Planning, got.Ready)
+	}
+	if string(got.Planning.(lipgloss.Color)) != "#4DA3FF" {
+		t.Fatalf("interactive planning color = %q, want #4DA3FF", got.Planning)
+	}
+}
+
 func TestResolveBrandPaletteHonorsExplicitNoColor(t *testing.T) {
 	ResetPalette()
 	SetNoColor(true)
