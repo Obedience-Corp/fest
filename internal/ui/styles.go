@@ -104,10 +104,7 @@ func GetStatusStyle(status string) lipgloss.Style {
 	}
 }
 
-// GetStatusColor returns the appropriate color for a given status string.
-// Now uses the palette for theme-aware colors.
-func GetStatusColor(status string) lipgloss.TerminalColor {
-	p := Current()
+func statusColor(p Palette, status string) lipgloss.TerminalColor {
 	switch strings.ToLower(status) {
 	case "active":
 		return p.Active
@@ -128,6 +125,18 @@ func GetStatusColor(status string) lipgloss.TerminalColor {
 	default:
 		return lipgloss.Color("")
 	}
+}
+
+// GetStatusColor returns the appropriate color for a given status string.
+// Now uses the palette for theme-aware colors.
+func GetStatusColor(status string) lipgloss.TerminalColor {
+	return statusColor(*Current(), status)
+}
+
+// GetInteractiveStatusColor returns a status color for a TUI rendered to a
+// terminal while the command's stdout may be captured by a shell wrapper.
+func GetInteractiveStatusColor(status string) lipgloss.TerminalColor {
+	return statusColor(InteractivePalette(), status)
 }
 
 // StatusColorSequence returns an ANSI-256 foreground escape for a festival
@@ -156,29 +165,6 @@ func CompletionStatusColorSequence(status string) string {
 // completion entries such as shortcuts.
 func CompletionAccentSequence() string {
 	return colorSequence(completionPalette().Gate)
-}
-
-func statusColor(p Palette, status string) lipgloss.TerminalColor {
-	switch strings.ToLower(status) {
-	case "active":
-		return p.Active
-	case "ready":
-		return p.Ready
-	case "planning":
-		return p.Planning
-	case "ritual":
-		return p.Ritual
-	case "completed", "dungeon/completed":
-		return p.Completed
-	case "archived", "dungeon/archived":
-		return p.Archived
-	case "someday", "dungeon/someday":
-		return p.Someday
-	case "dungeon":
-		return p.Dungeon
-	default:
-		return lipgloss.Color("")
-	}
 }
 
 func statusColorSequence(p Palette, status string) string {

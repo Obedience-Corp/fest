@@ -150,6 +150,26 @@ func CurrentBrandPalette() sharedbrand.Palette {
 	return currentBrandPalette
 }
 
+// InteractivePalette resolves the configured theme for a TUI rendered to a
+// terminal other than stdout. Shell navigation wrappers capture stdout so
+// they can use it as the selected path, while the picker itself renders to
+// stderr. In that case Current() is intentionally plain, but the TUI still
+// has a color-capable terminal to render into.
+func InteractivePalette() Palette {
+	if noColorOverride || configuredMode == sharedbrand.ModePlain {
+		return Palette{}
+	}
+
+	profile := termenv.EnvColorProfile()
+	shared := sharedbrand.Resolve(configuredMode, sharedbrand.Capabilities{
+		IsTTY:           true,
+		ColorDepth:      colorDepth(profile),
+		DarkBackground:  lipgloss.HasDarkBackground(),
+		BackgroundKnown: true,
+	})
+	return paletteFromShared(shared)
+}
+
 // completionPalette resolves the configured theme for explicit shell
 // completion display colors. Completion commands write into a shell pipe, so
 // the normal output policy resolves their palette to plain; the shell itself
