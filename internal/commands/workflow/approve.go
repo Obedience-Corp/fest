@@ -76,6 +76,9 @@ type approvalJudgeRequest struct {
 	// the readiness gate validated. Additive to fest.approval.judge/v1: an older
 	// judge ignores it and sees only Document, as before.
 	Evidence []string `json:"evidence,omitempty"`
+	// EvidenceFiles is optional embedded content when the resolved hook uses
+	// evidence: embed. Omitted in the default paths mode.
+	EvidenceFiles []hooks.EvidenceFile `json:"evidence_files,omitempty"`
 }
 
 type approvalJudgeResponse struct {
@@ -713,8 +716,32 @@ func judgeApproval(ctx context.Context, nav *wf.Navigator, step wf.WorkflowStep,
 	// not just the step definition. Without this the judge sees only Document
 	// and rejects (no evidence) or approves on the agent's self-report.
 	req.Evidence = resolveExistingEvidencePaths(nav.Ctx.PhasePath, step)
+	if files, ok := maybeEmbedEvidence(ctx, nav, req.Evidence); ok {
+		req.EvidenceFiles = files
+	}
 
 	return evaluateApprovalJudge(ctx, req, opts)
+}
+
+// maybeEmbedEvidence attaches evidence_files when the resolved approval_judge
+// hook opts into evidence: embed. Best-effort: failures leave path-only mode.
+func maybeEmbedEvidence(ctx context.Context, nav *wf.Navigator, present []string) ([]hooks.EvidenceFile, bool) {
+	if nav == nil || nav.Ctx == nil || nav.Ctx.FestivalPath == "" || len(present) == 0 {
+		return nil, false
+	}
+	eff, err := hooks.LoadAndResolve(ctx, nav.Ctx.FestivalPath)
+	if err != nil || eff == nil {
+		return nil, false
+	}
+	h, ok := eff.Hooks[hooks.ApprovalJudgeName]
+	if !ok || h.Evidence != hooks.EvidenceEmbed {
+		return nil, false
+	}
+	files, err := hooks.BuildEvidenceFiles(nav.Ctx.PhasePath, present, hooks.EvidenceEmbedCapBytes)
+	if err != nil || len(files) == 0 {
+		return nil, false
+	}
+	return files, true
 }
 
 func evaluateApprovalJudge(ctx context.Context, req approvalJudgeRequest, opts approvalJudgeOptions) (*approvalJudgeResponse, string, error) {
