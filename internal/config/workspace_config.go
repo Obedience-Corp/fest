@@ -23,20 +23,12 @@ type WorkspaceConfig struct {
 	Hooks   HooksConfig `yaml:"hooks,omitempty"`
 }
 
-// HooksConfig holds optional workspace-level command hooks configured in
-// .festival/config.yaml. fest reads these directly so it stays usable on its
-// own, without the camp CLI.
-type HooksConfig struct {
-	// ApprovalJudge configures the command run by `fest workflow judge`.
-	ApprovalJudge ApprovalJudgeHookConfig `yaml:"approval_judge,omitempty"`
-}
-
 // ApprovalJudgeHookConfig configures an external approval judge command. The
 // command receives the approval request as JSON on stdin and must emit a JSON
 // verdict on stdout (schema fest.approval.judge/v1).
 type ApprovalJudgeHookConfig struct {
 	// Command is executed as configured (e.g. "ob judge").
-	Command string `yaml:"command,omitempty"`
+	Command string `yaml:"command,omitempty" json:"command,omitempty"`
 }
 
 // AgentConfig controls AI agent behavior for the workspace
@@ -98,7 +90,7 @@ func SaveWorkspaceConfig(festivalsRoot string, cfg *WorkspaceConfig) error {
 
 	// Surface the hooks option as a discoverable commented block when none is
 	// configured, so users can opt into the approval judge without reading docs.
-	if (cfg.Hooks == HooksConfig{}) {
+	if cfg.Hooks.IsZero() && cfg.Hooks.ApprovalJudge.Command == "" {
 		data = append(data, commentedHooksPlaceholder()...)
 	}
 
