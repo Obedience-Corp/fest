@@ -37,6 +37,10 @@ Step {{.StepNumber}}: {{.StepName}}
 
 **Question:** {{.Goal}}
 {{- end}}
+{{- if .SkippedHooksUndeclared}}
+
+{{.SkippedHooksUndeclared}}
+{{- end}}
 {{- if .Actions}}
 
 **Actions to verify:**

@@ -50,3 +50,24 @@ func ValidateHooksConfig(ctx context.Context, festivalPath string) ([]Issue, err
 		Fix:     "Move the command under hooks.definitions.approval_judge with timeout: 0",
 	}}, nil
 }
+
+// CodeHooksUndeclaredBinding warns when a step binds a hook name not declared.
+const CodeHooksUndeclaredBinding = "hooks_undeclared_binding"
+
+// IssuesForUndeclaredBindings builds non-blocking warnings for undeclared bound names.
+func IssuesForUndeclaredBindings(path string, planned []hooks.PlannedHook) []Issue {
+	var issues []Issue
+	for _, p := range planned {
+		if p.Skip != hooks.SkipUndeclared {
+			continue
+		}
+		issues = append(issues, Issue{
+			Level:   LevelWarning,
+			Code:    CodeHooksUndeclaredBinding,
+			Path:    path,
+			Message: "hook binding references undeclared name " + p.Name + " (skipped)",
+			Fix:     "Declare the hook under hooks.definitions or remove the binding",
+		})
+	}
+	return issues
+}
