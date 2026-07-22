@@ -14,6 +14,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/config"
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/hooks"
 	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -696,7 +697,8 @@ func evaluateApprovalJudge(ctx context.Context, req approvalJudgeRequest, opts a
 	}
 	defer cancel()
 
-	out, err := runApprovalJudgeCommand(judgeCtx, opts.JudgeCommand, append(stdin, '\n'), opts.WorkDir)
+	// Execute through the hooks runner seam so there is one command path.
+	out, err := runApprovalJudgeViaHooks(judgeCtx, opts.JudgeCommand, append(stdin, '\n'), opts.WorkDir)
 	if err != nil {
 		if errors.Is(judgeCtx.Err(), context.DeadlineExceeded) {
 			return nil, "", festerrors.Wrap(judgeCtx.Err(), "approval judge timed out").
@@ -737,6 +739,53 @@ func runApprovalJudgeCommandDefault(ctx context.Context, command string, stdin [
 		return nil, err
 	}
 	return out, nil
+}
+
+// runApprovalJudgeViaHooks executes the judge command through hooks.Runner so
+// there is a single command-execution path. The package var
+// runApprovalJudgeCommand remains injectable for tests.
+func runApprovalJudgeViaHooks(ctx context.Context, command string, stdin []byte, dir string) ([]byte, error) {
+	r := hooks.NewRunner(dir)
+	r.Exec = func(ctx context.Context, command string, stdin []byte, dir string) hooks.CommandResult {
+		out, err := runApprovalJudgeCommand(ctx, command, stdin, dir)
+		res := hooks.CommandResult{Stdout: out, Err: err}
+		if err != nil {
+			res.ExitCode = 1
+			if ee, ok := err.(*exec.ExitError); ok {
+				res.ExitCode = ee.ExitCode()
+			}
+		}
+		return res
+	}
+	planned := []hooks.PlannedHook{{
+		Name:   hooks.ApprovalJudgeName,
+		Timing: hooks.TimingPost,
+		Hook: hooks.ResolvedHook{
+			Name:    hooks.ApprovalJudgeName,
+			Command: command,
+			Fail:    hooks.FailClosed,
+			Timeout: 0, // no deadline unless caller already bound ctx
+			Source:  hooks.LayerFestivals,
+		},
+	}}
+	runs, _, err := r.Run(ctx, hooks.LevelGate, hooks.VerbGateApprove, planned, stdin)
+	if err != nil {
+		return nil, err
+	}
+	if len(runs) == 0 {
+		return nil, festerrors.Validation("approval judge produced no hook run")
+	}
+	run := runs[0]
+	if run.Outcome != hooks.OutcomePass {
+		if run.Outcome == hooks.OutcomeTimeout {
+			return run.Stdout, context.DeadlineExceeded
+		}
+		if run.Err != nil {
+			return run.Stdout, run.Err
+		}
+		return run.Stdout, fmt.Errorf("approval judge hook failed: outcome=%s exit=%d", run.Outcome, run.ExitCode)
+	}
+	return run.Stdout, nil
 }
 
 func parseApprovalJudgeResponse(out []byte) (*approvalJudgeResponse, error) {

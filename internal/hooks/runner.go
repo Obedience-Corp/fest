@@ -36,6 +36,7 @@ type HookRun struct {
 	Fail     FailPolicy
 	Blocked  bool // true when a closed failure blocked the verb
 	Stdout   []byte
+	Err      error // underlying exec error when Outcome is fail/timeout
 }
 
 // CommandResult is what the exec seam returns.
@@ -155,6 +156,7 @@ func (r *Runner) runOne(ctx context.Context, level Level, verb Verb, p PlannedHo
 	run.Duration = time.Since(start)
 	run.ExitCode = res.ExitCode
 	run.Stdout = res.Stdout
+	run.Err = res.Err
 	switch {
 	case runCtx.Err() == context.DeadlineExceeded:
 		run.Outcome = OutcomeTimeout
