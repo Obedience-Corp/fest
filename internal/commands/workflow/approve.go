@@ -39,8 +39,8 @@ func requireHumanGateTTY() error {
 
 func humanRequiredAutoRefusal(stepNum int, step wf.WorkflowStep) error {
 	return festerrors.Validation(
-		"cannot auto-clear a human-required gate (step " +
-			strings.TrimSpace(step.Name) + ")").
+		"cannot auto-clear a human-required gate (step "+
+			strings.TrimSpace(step.Name)+")").
 		WithField("step", stepNum).
 		WithField("gate", step.Name).
 		WithHint("this checkpoint is marked approval: human-required; a human must run 'fest workflow approve' in a terminal")
@@ -57,6 +57,13 @@ type approvalJudgeOptions struct {
 	OverrideJudge bool
 	Summary       string // manual path summary (also used with --override-judge)
 	Wait          bool
+
+	// Source is the config layer the resolved judge definition came from,
+	// recorded on the judge's wf_hook_run audit event.
+	Source hooks.Layer
+	// OnHookRuns receives the judge execution's runner records so callers can
+	// persist them to the festival audit trail (D9).
+	OnHookRuns func([]hooks.HookRun)
 }
 
 type approvalJudgeRequest struct {
@@ -237,6 +244,12 @@ func runApproveWithOptions(ctx context.Context, decision wf.DecisionMetadata, op
 		}
 	}
 
+	// Pre hooks gate the approve verb (spec 03, D4): a fail-closed failure
+	// refuses the approval before any decision is recorded.
+	if _, err := runGateHookStage(ctx, nav, currentStepNum, step, hooks.TimingPre); err != nil {
+		return err
+	}
+
 	if opts.Auto {
 		judgeCommand, err := resolveApprovalJudgeCommandFor(ctx, nav, opts.JudgeCommand)
 		if err != nil {
@@ -289,6 +302,9 @@ func runApproveWithOptions(ctx context.Context, decision wf.DecisionMetadata, op
 		}
 		if decision.Summary != "" {
 			fmt.Printf("  %s: %s\n", ui.Label("Summary"), decision.Summary)
+		}
+		if _, postErr := runGateHookStage(ctx, fresh, currentStepNum, freshStep, hooks.TimingPost); postErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: gate post hooks: %v\n", postErr)
 		}
 		return showNextStep(ctx, fresh, fresh.GetSteps())
 	})
@@ -480,6 +496,17 @@ func AutoDelegateBlockingCheckpoints(ctx context.Context, nav *wf.Navigator) err
 			return nil
 		}
 
+		// Pre hooks gate the approve verb (spec 03, D4): a fail-closed
+		// failure parks the checkpoint instead of launching the judge. The
+		// block is recorded in the audit trail; fest next keeps rendering the
+		// checkpoint until the hook failure is fixed.
+		if blocked, hookErr := runGateHookStage(ctx, nav, current, step, hooks.TimingPre); blocked || hookErr != nil {
+			if hookErr != nil {
+				fmt.Fprintf(os.Stderr, "Warning: gate pre hooks blocked judge delegation: %v\n", hookErr)
+			}
+			return nil
+		}
+
 		fmt.Printf("%s Checkpoint delegated to approval judge (%s)\n", ui.Info("→"), judgeCommand)
 		fmt.Printf("  Step %d: %s\n", current, step.Name)
 
@@ -660,6 +687,9 @@ func applyApproveAutoVerdict(ctx context.Context, nav *wf.Navigator, currentStep
 		}
 		fmt.Printf("%s Step %d: %s auto-approved\n", ui.Success("✓"), currentStepNum, step.Name)
 		fmt.Printf("  %s: %s\n", ui.Label("Reason"), decision.Reason)
+		if _, postErr := runGateHookStage(ctx, nav, currentStepNum, step, hooks.TimingPost); postErr != nil {
+			fmt.Fprintf(os.Stderr, "Warning: gate post hooks: %v\n", postErr)
+		}
 		return true, showNextStep(ctx, nav, nav.GetSteps())
 	case "reject":
 		applied, err := nav.ApplyJudgeRejection(ctx, currentStepNum, runID, audit, judgeDecision)
@@ -716,32 +746,44 @@ func judgeApproval(ctx context.Context, nav *wf.Navigator, step wf.WorkflowStep,
 	// not just the step definition. Without this the judge sees only Document
 	// and rejects (no evidence) or approves on the agent's self-report.
 	req.Evidence = resolveExistingEvidencePaths(nav.Ctx.PhasePath, step)
-	if files, ok := maybeEmbedEvidence(ctx, nav, req.Evidence); ok {
-		req.EvidenceFiles = files
+	files, source := resolveJudgeHookContext(ctx, nav, opts.JudgeCommand, req.Evidence)
+	req.EvidenceFiles = files
+	opts.Source = source
+	stepNum := step.Number
+	opts.OnHookRuns = func(runs []hooks.HookRun) {
+		emitJudgeHookRuns(ctx, nav, stepNum, runs)
 	}
 
 	return evaluateApprovalJudge(ctx, req, opts)
 }
 
-// maybeEmbedEvidence attaches evidence_files when the resolved approval_judge
-// hook opts into evidence: embed. Best-effort: failures leave path-only mode.
-func maybeEmbedEvidence(ctx context.Context, nav *wf.Navigator, present []string) ([]hooks.EvidenceFile, bool) {
-	if nav == nil || nav.Ctx == nil || nav.Ctx.FestivalPath == "" || len(present) == 0 {
-		return nil, false
+// resolveJudgeHookContext resolves the approval_judge hook once for both the
+// evidence: embed opt-in and the audit-event source layer. Best-effort:
+// resolve failures leave path-only mode and the festivals-layer default.
+func resolveJudgeHookContext(ctx context.Context, nav *wf.Navigator, judgeCommand string, present []string) ([]hooks.EvidenceFile, hooks.Layer) {
+	source := hooks.LayerFestivals
+	if nav == nil || nav.Ctx == nil || nav.Ctx.FestivalPath == "" {
+		return nil, source
 	}
 	eff, err := hooks.LoadAndResolve(ctx, nav.Ctx.FestivalPath)
 	if err != nil || eff == nil {
-		return nil, false
+		return nil, source
 	}
 	h, ok := eff.Hooks[hooks.ApprovalJudgeName]
-	if !ok || h.Evidence != hooks.EvidenceEmbed {
-		return nil, false
+	if !ok {
+		return nil, source
+	}
+	if h.Command == judgeCommand {
+		source = h.Source
+	}
+	if h.Evidence != hooks.EvidenceEmbed || len(present) == 0 {
+		return nil, source
 	}
 	files, err := hooks.BuildEvidenceFiles(nav.Ctx.PhasePath, present, hooks.EvidenceEmbedCapBytes)
 	if err != nil || len(files) == 0 {
-		return nil, false
+		return nil, source
 	}
-	return files, true
+	return files, source
 }
 
 func evaluateApprovalJudge(ctx context.Context, req approvalJudgeRequest, opts approvalJudgeOptions) (*approvalJudgeResponse, string, error) {
@@ -762,7 +804,10 @@ func evaluateApprovalJudge(ctx context.Context, req approvalJudgeRequest, opts a
 	defer cancel()
 
 	// Execute through the hooks runner seam so there is one command path.
-	out, err := runApprovalJudgeViaHooks(judgeCtx, opts.JudgeCommand, append(stdin, '\n'), opts.WorkDir)
+	out, judgeRuns, err := runApprovalJudgeViaHooks(judgeCtx, opts.JudgeCommand, append(stdin, '\n'), opts.WorkDir, opts.Source)
+	if opts.OnHookRuns != nil && len(judgeRuns) > 0 {
+		opts.OnHookRuns(judgeRuns)
+	}
 	if err != nil {
 		if errors.Is(judgeCtx.Err(), context.DeadlineExceeded) {
 			return nil, "", festerrors.Wrap(judgeCtx.Err(), "approval judge timed out").
@@ -807,8 +852,12 @@ func runApprovalJudgeCommandDefault(ctx context.Context, command string, stdin [
 
 // runApprovalJudgeViaHooks executes the judge command through hooks.Runner so
 // there is a single command-execution path. The package var
-// runApprovalJudgeCommand remains injectable for tests.
-func runApprovalJudgeViaHooks(ctx context.Context, command string, stdin []byte, dir string) ([]byte, error) {
+// runApprovalJudgeCommand remains injectable for tests. The returned runs are
+// the runner's audit records for the execution.
+func runApprovalJudgeViaHooks(ctx context.Context, command string, stdin []byte, dir string, source hooks.Layer) ([]byte, []hooks.HookRun, error) {
+	if source == "" {
+		source = hooks.LayerFestivals
+	}
 	r := hooks.NewRunner(dir)
 	r.Exec = func(ctx context.Context, command string, stdin []byte, dir string) hooks.CommandResult {
 		out, err := runApprovalJudgeCommand(ctx, command, stdin, dir)
@@ -829,27 +878,29 @@ func runApprovalJudgeViaHooks(ctx context.Context, command string, stdin []byte,
 			Command: command,
 			Fail:    hooks.FailClosed,
 			Timeout: 0, // no deadline unless caller already bound ctx
-			Source:  hooks.LayerFestivals,
+			Source:  source,
 		},
 	}}
 	runs, _, err := r.Run(ctx, hooks.LevelGate, hooks.VerbGateApprove, planned, stdin)
 	if err != nil {
-		return nil, err
+		return nil, runs, err
 	}
 	if len(runs) == 0 {
-		return nil, festerrors.Validation("approval judge produced no hook run")
+		return nil, nil, festerrors.Validation("approval judge produced no hook run")
 	}
 	run := runs[0]
 	if run.Outcome != hooks.OutcomePass {
 		if run.Outcome == hooks.OutcomeTimeout {
-			return run.Stdout, context.DeadlineExceeded
+			return run.Stdout, runs, context.DeadlineExceeded
 		}
 		if run.Err != nil {
-			return run.Stdout, run.Err
+			return run.Stdout, runs, run.Err
 		}
-		return run.Stdout, fmt.Errorf("approval judge hook failed: outcome=%s exit=%d", run.Outcome, run.ExitCode)
+		return run.Stdout, runs, festerrors.New("approval judge hook failed").
+			WithField("outcome", string(run.Outcome)).
+			WithField("exit_code", run.ExitCode)
 	}
-	return run.Stdout, nil
+	return run.Stdout, runs, nil
 }
 
 func parseApprovalJudgeResponse(out []byte) (*approvalJudgeResponse, error) {

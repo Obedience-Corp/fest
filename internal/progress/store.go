@@ -632,6 +632,16 @@ func (s *Store) QueueWorkflowEvents(events []wf.WorkflowEvent) {
 			JudgeDetail:      we.JudgeDetail,
 			JudgePid:         we.JudgePid,
 			JudgeRunID:       we.JudgeRunID,
+			HookName:         we.HookName,
+			HookLayer:        we.HookLayer,
+			HookTiming:       we.HookTiming,
+			HookVerb:         we.HookVerb,
+			HookOutcome:      we.HookOutcome,
+			HookSkip:         we.HookSkip,
+			HookExitCode:     we.HookExitCode,
+			HookMillis:       we.HookDurationMS,
+			HookFail:         we.HookFail,
+			HookBlocked:      we.HookBlocked,
 		}
 		s.pendingEvents = append(s.pendingEvents, pe)
 	}

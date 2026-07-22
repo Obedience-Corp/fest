@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Obedience-Corp/fest/internal/hooks"
 	"github.com/Obedience-Corp/fest/internal/yamlutil"
 	"gopkg.in/yaml.v3"
 )
@@ -55,6 +56,18 @@ type WorkflowEvent struct {
 	JudgeDetail      string
 	JudgePid         int
 	JudgeRunID       string
+
+	// Hook-run fields (wf_hook_run). Hook runs are events, never decisions (D9).
+	HookName       string
+	HookLayer      string
+	HookTiming     string
+	HookVerb       string
+	HookOutcome    string
+	HookSkip       string
+	HookExitCode   int
+	HookDurationMS int64
+	HookFail       string
+	HookBlocked    bool
 }
 
 // DecisionMetadata records who made a checkpoint decision and the rationale.
@@ -895,6 +908,30 @@ func EmitJudgeStartedEvents(phaseName string, step int, command, runID string, p
 		JudgePid:     pid,
 		JudgeRunID:   runID,
 	}}
+}
+
+// EmitHookRunEvents generates one wf_hook_run event per hook runner record so
+// the festival audit trail captures every hook execution or skip (D9).
+func EmitHookRunEvents(phaseName string, step int, runs []hooks.HookRun) []WorkflowEvent {
+	events := make([]WorkflowEvent, 0, len(runs))
+	for _, run := range runs {
+		events = append(events, WorkflowEvent{
+			EventType:      "wf_hook_run",
+			Phase:          phaseName,
+			Step:           step,
+			HookName:       run.Name,
+			HookLayer:      string(run.Layer),
+			HookTiming:     string(run.Timing),
+			HookVerb:       string(run.Verb),
+			HookOutcome:    string(run.Outcome),
+			HookSkip:       string(run.Skip),
+			HookExitCode:   run.ExitCode,
+			HookDurationMS: run.Duration.Milliseconds(),
+			HookFail:       string(run.Fail),
+			HookBlocked:    run.Blocked,
+		})
+	}
+	return events
 }
 
 // EmitJudgeClaimedEvents binds a durable judge lease to the detached process

@@ -12,6 +12,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/campledger"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
+	"github.com/Obedience-Corp/fest/internal/hooks"
 )
 
 // Manager handles progress operations for a festival
@@ -501,7 +502,8 @@ func (m *Manager) propagateSequenceCompletion(ctx context.Context, seqPath strin
 	}
 
 	goalPath := filepath.Join(seqPath, "SEQUENCE_GOAL.md")
-	return m.updateGoalStatus(ctx, goalPath, frontmatter.StatusCompleted)
+	return m.completeGoalWithHooks(ctx, goalPath, hooks.LevelSequence, hooks.VerbSequenceComplete,
+		filepath.Base(filepath.Dir(seqPath)), filepath.Base(seqPath))
 }
 
 // propagatePhaseCompletion updates PHASE_GOAL.md if all sequences/workflows are done.
@@ -516,7 +518,68 @@ func (m *Manager) propagatePhaseCompletion(ctx context.Context, phasePath string
 	}
 
 	goalPath := filepath.Join(phasePath, "PHASE_GOAL.md")
-	return m.updateGoalStatus(ctx, goalPath, frontmatter.StatusCompleted)
+	return m.completeGoalWithHooks(ctx, goalPath, hooks.LevelPhase, hooks.VerbPhaseComplete,
+		filepath.Base(phasePath), "")
+}
+
+// completeGoalWithHooks marks a goal doc completed, running its frontmatter
+// hook bindings around the transition (spec 03: sequence/phase complete
+// verbs). A blocked pre list leaves the goal incomplete because the verb
+// never applies; a blocked post list leaves the transition applied. Hooks run
+// only on the pending -> completed transition, never for goals already
+// completed.
+func (m *Manager) completeGoalWithHooks(ctx context.Context, goalPath string, level hooks.Level, verb hooks.Verb, phaseName, taskCoord string) error {
+	content, err := os.ReadFile(goalPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // Goal files are optional
+		}
+		return errors.IO("reading goal file", err)
+	}
+	fm, _, err := frontmatter.Parse(content)
+	if err != nil || fm == nil {
+		return m.updateGoalStatus(ctx, goalPath, frontmatter.StatusCompleted)
+	}
+	if fm.Status == frontmatter.StatusCompleted {
+		return nil // Already applied; never re-run completion hooks
+	}
+
+	req := LifecycleHookRequest{
+		FestivalPath: m.store.FestivalPath(),
+		Phase:        phaseName,
+		Task:         taskCoord,
+		Level:        level,
+		Verb:         verb,
+	}
+	req.Pre, req.Post, req.HumanGate = StepHookBindingsFromFrontmatter(content)
+	planned, err := PlanLifecycleHooks(ctx, req)
+	if err != nil {
+		return errors.Wrap(err, "planning goal hooks")
+	}
+	runner := newLifecycleHookRunner(m.store.FestivalPath())
+	preRuns, blocked, err := RunLifecycleStage(ctx, m.store, runner, req, planned, hooks.TimingPre)
+	if saveErr := m.store.SaveEvents(ctx); saveErr != nil && err == nil {
+		err = saveErr
+	}
+	if err != nil {
+		return errors.Wrap(err, "running goal pre hooks")
+	}
+	if blocked {
+		return BlockedHookError(verb, preRuns)
+	}
+
+	if err := m.updateGoalStatus(ctx, goalPath, frontmatter.StatusCompleted); err != nil {
+		return err
+	}
+
+	_, _, postErr := RunLifecycleStage(ctx, m.store, runner, req, planned, hooks.TimingPost)
+	if saveErr := m.store.SaveEvents(ctx); saveErr != nil && postErr == nil {
+		postErr = saveErr
+	}
+	if postErr != nil {
+		return errors.Wrap(postErr, "running goal post hooks")
+	}
+	return nil
 }
 
 // ResetPhaseStatus sets the phase PHASE_GOAL.md frontmatter status back to in_progress.

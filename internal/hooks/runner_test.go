@@ -3,6 +3,7 @@ package hooks
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -194,5 +195,25 @@ func TestRunner_PrePostFilters(t *testing.T) {
 	_, _, _ = r.RunPost(context.Background(), LevelTask, VerbTaskComplete, planned, nil)
 	if len(cmds) != 1 || cmds[0] != "post-cmd" {
 		t.Fatalf("post cmds = %v", cmds)
+	}
+}
+
+func TestDefaultExec_FailureCarriesStderrTail(t *testing.T) {
+	res := defaultExec(context.Background(), "sh -c this-command-does-not-exist-xyz", nil, t.TempDir())
+	if res.Err == nil {
+		t.Fatal("expected failure")
+	}
+	if !strings.Contains(res.Err.Error(), "not found") && !strings.Contains(res.Err.Error(), "exit") {
+		t.Fatalf("err should carry diagnostics: %v", res.Err)
+	}
+}
+
+func TestStderrTail_Bounds(t *testing.T) {
+	long := strings.Repeat("x", stderrTailLimit+100)
+	if got := stderrTail(long); len(got) != stderrTailLimit {
+		t.Fatalf("tail length = %d, want %d", len(got), stderrTailLimit)
+	}
+	if got := stderrTail("  short  "); got != "short" {
+		t.Fatalf("tail = %q", got)
 	}
 }

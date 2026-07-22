@@ -101,3 +101,21 @@ func TestV1Verbs_ClosedSet(t *testing.T) {
 		}
 	}
 }
+
+func TestApplyHumanGate_SkipsEverything(t *testing.T) {
+	eff, err := Resolve(nil, &config.HooksConfig{
+		Definitions: map[string]config.HookDefinition{"a": {Command: "true"}},
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	planned := ApplyHumanGate(eff.PlanBindings(LevelGate, []string{"a"}, []string{"missing"}))
+	if len(planned) != 2 {
+		t.Fatalf("planned = %+v", planned)
+	}
+	for i, p := range planned {
+		if p.Skip != SkipHumanGate {
+			t.Fatalf("planned[%d].Skip = %q, want human-gate", i, p.Skip)
+		}
+	}
+}

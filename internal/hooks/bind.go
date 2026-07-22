@@ -54,6 +54,18 @@ func (e *Effective) PlanBindings(level Level, pre, post []string) []PlannedHook 
 	return planned
 }
 
+// ApplyHumanGate marks every planned binding as skipped: human-gate.
+// Spec 04: a human-required step disables all automation hooks for that step;
+// the skips are still recorded in the audit trail.
+func ApplyHumanGate(planned []PlannedHook) []PlannedHook {
+	out := make([]PlannedHook, len(planned))
+	for i, p := range planned {
+		p.Skip = SkipHumanGate
+		out[i] = p
+	}
+	return out
+}
+
 // UndeclaredNames returns bound names skipped because they are not declared.
 func UndeclaredNames(planned []PlannedHook) []string {
 	var out []string

@@ -2,12 +2,12 @@ package workflow
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/hooks"
 )
 
 type approvalEvidenceInspector func(phasePath, relativePath string) (bool, error)
@@ -166,54 +166,11 @@ func resolveExistingEvidencePathsWithInspector(
 }
 
 func normalizeEvidencePath(path string) (string, error) {
-	path = strings.TrimSpace(path)
-	if path == "" {
-		return "", fmt.Errorf("path is empty")
-	}
-	if filepath.IsAbs(path) {
-		return "", fmt.Errorf("absolute paths are not allowed")
-	}
-	clean := filepath.Clean(path)
-	if clean == "." || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("path escapes the phase directory")
-	}
-	return clean, nil
+	return hooks.NormalizeEvidencePath(path)
 }
 
 func inspectApprovalEvidence(phasePath, relativePath string) (bool, error) {
-	phaseRoot, err := filepath.Abs(phasePath)
-	if err != nil {
-		return false, fmt.Errorf("resolving phase root: %w", err)
-	}
-	resolvedRoot, err := filepath.EvalSymlinks(phaseRoot)
-	if err != nil {
-		return false, fmt.Errorf("resolving phase root symlinks: %w", err)
-	}
-
-	candidate := filepath.Join(phaseRoot, relativePath)
-	resolvedCandidate, err := filepath.EvalSymlinks(candidate)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return false, nil
-		}
-		return false, fmt.Errorf("resolving evidence symlinks: %w", err)
-	}
-	containedPath, err := filepath.Rel(resolvedRoot, resolvedCandidate)
-	if err != nil {
-		return false, fmt.Errorf("checking resolved evidence containment: %w", err)
-	}
-	if containedPath == ".." || strings.HasPrefix(containedPath, ".."+string(filepath.Separator)) {
-		return false, fmt.Errorf("resolved evidence path escapes the phase directory")
-	}
-
-	info, err := os.Stat(resolvedCandidate)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return false, nil
-		}
-		return false, err
-	}
-	return info.Mode().IsRegular() && info.Size() > 0, nil
+	return hooks.WithinRoot(phasePath, relativePath)
 }
 
 // formatReadinessBlockReason turns a readiness error into durable step feedback.

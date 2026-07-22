@@ -36,8 +36,8 @@ const (
 	CodeUnfilledTemplate   = "unfilled_template"
 	CodeMissingGoal        = "missing_goal"
 	CodeNumberingGap       = "numbering_gap"
-	CodeHookShadowDrift       = "hook_shadow_drift"
-	CodeHookUndeclaredBinding = "hook_undeclared_binding"
+	CodeHookShadowDrift  = "hook_shadow_drift"
+	CodeHookResolveError = "hook_resolve_error"
 )
 
 // ValidationIssue represents a single validation problem
@@ -523,7 +523,7 @@ func validateHooksChecks(ctx context.Context, festivalPath string, result *Valid
 	eff, err := hookslib.LoadAndResolve(ctx, festivalPath)
 	if err != nil {
 		result.Issues = append(result.Issues, ValidationIssue{
-			Level: LevelWarning, Code: CodeHookShadowDrift, Path: festivalPath,
+			Level: LevelWarning, Code: CodeHookResolveError, Path: festivalPath,
 			Message: fmt.Sprintf("could not resolve hooks: %v", err),
 		})
 		return
@@ -539,5 +539,9 @@ func validateHooksChecks(ctx context.Context, festivalPath string, result *Valid
 			})
 		}
 	}
+
+	// Undeclared bindings skip with a warning (spec 03, D10).
+	result.Issues = append(result.Issues,
+		convertIssues(validator.ScanUndeclaredBindings(ctx, festivalPath, eff))...)
 }
 

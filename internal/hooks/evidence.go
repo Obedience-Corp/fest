@@ -1,10 +1,11 @@
 package hooks
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+
+	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 )
 
 // EvidenceEmbedCapBytes is the total budget for evidence: embed mode (256KB).
@@ -22,14 +23,14 @@ type EvidenceFile struct {
 func NormalizeEvidencePath(path string) (string, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
-		return "", fmt.Errorf("path is empty")
+		return "", festerrors.Validation("evidence path is empty")
 	}
 	if filepath.IsAbs(path) {
-		return "", fmt.Errorf("absolute paths are not allowed")
+		return "", festerrors.Validation("absolute evidence paths are not allowed")
 	}
 	clean := filepath.Clean(path)
 	if clean == "." || clean == ".." || strings.HasPrefix(clean, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("path escapes the phase directory")
+		return "", festerrors.Validation("evidence path escapes the phase directory")
 	}
 	return clean, nil
 }
@@ -39,11 +40,11 @@ func NormalizeEvidencePath(path string) (string, error) {
 func WithinRoot(phasePath, relativePath string) (bool, error) {
 	phaseRoot, err := filepath.Abs(phasePath)
 	if err != nil {
-		return false, fmt.Errorf("resolving phase root: %w", err)
+		return false, festerrors.Wrap(err, "resolving phase root")
 	}
 	resolvedRoot, err := filepath.EvalSymlinks(phaseRoot)
 	if err != nil {
-		return false, fmt.Errorf("resolving phase root symlinks: %w", err)
+		return false, festerrors.Wrap(err, "resolving phase root symlinks")
 	}
 
 	candidate := filepath.Join(phaseRoot, relativePath)
@@ -52,14 +53,14 @@ func WithinRoot(phasePath, relativePath string) (bool, error) {
 		if os.IsNotExist(err) {
 			return false, nil
 		}
-		return false, fmt.Errorf("resolving evidence symlinks: %w", err)
+		return false, festerrors.Wrap(err, "resolving evidence symlinks")
 	}
 	containedPath, err := filepath.Rel(resolvedRoot, resolvedCandidate)
 	if err != nil {
-		return false, fmt.Errorf("checking resolved evidence containment: %w", err)
+		return false, festerrors.Wrap(err, "checking resolved evidence containment")
 	}
 	if containedPath == ".." || strings.HasPrefix(containedPath, ".."+string(filepath.Separator)) {
-		return false, fmt.Errorf("resolved evidence path escapes the phase directory")
+		return false, festerrors.Validation("resolved evidence path escapes the phase directory")
 	}
 
 	info, err := os.Stat(resolvedCandidate)

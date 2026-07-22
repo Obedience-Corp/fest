@@ -78,7 +78,23 @@ func defaultExec(ctx context.Context, command string, stdin []byte, dir string) 
 	} else if err != nil {
 		res.ExitCode = -1
 	}
+	if err != nil {
+		if tail := stderrTail(stderr.String()); tail != "" {
+			res.Err = festerrors.Wrap(err, tail)
+		}
+	}
 	return res
+}
+
+// stderrTailLimit bounds how much hook stderr is carried on a failure record.
+const stderrTailLimit = 2048
+
+func stderrTail(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) > stderrTailLimit {
+		s = s[len(s)-stderrTailLimit:]
+	}
+	return s
 }
 
 // Run executes the planned hooks for one timing in list order.

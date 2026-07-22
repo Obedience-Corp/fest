@@ -1,7 +1,7 @@
 package workflow
 
 import (
-	"context"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -49,12 +49,19 @@ func TestRequireHumanGateTTY_TTY(t *testing.T) {
 	}
 }
 
-func TestHumanApprovalRequiredInStatusJSON(t *testing.T) {
-	// Minimal synthetic navigator is hard; unit-test the step flag via isHumanRequired path in collect.
-	// Covered by isHumanRequired + field presence on struct tags.
-	_ = context.Background()
-	s := workflowStatusStepJSON{HumanApprovalRequired: true}
-	if !s.HumanApprovalRequired {
-		t.Fatal("field missing")
+func TestHumanApprovalRequiredStatusJSONKey(t *testing.T) {
+	raw, err := json.Marshal(workflowStatusStepJSON{HumanApprovalRequired: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"human_approval_required":true`) {
+		t.Fatalf("json key missing: %s", raw)
+	}
+	raw, err = json.Marshal(workflowStatusStepJSON{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "human_approval_required") {
+		t.Fatalf("field must be omitempty when false: %s", raw)
 	}
 }

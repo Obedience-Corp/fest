@@ -12,6 +12,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/campledger"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/guidance"
+	"github.com/Obedience-Corp/fest/internal/hooks"
 )
 
 // StepTypeWorkflowStep is the step type for workflow-based steps.
@@ -62,6 +63,19 @@ func (n *Navigator) SetStateStore(store StateStore) {
 // persistence mode so injected navigators do not silently change backends.
 func (n *Navigator) HasStateStore() bool {
 	return n.store != nil
+}
+
+// QueueHookRunEvents persists hook runner records as wf_hook_run events via
+// the navigator's own state store (D9). A storeless (legacy YAML) navigator
+// records nothing rather than side-loading a store, because constructing a
+// fresh event store migrates and deletes the YAML state out from under the
+// live navigator.
+func (n *Navigator) QueueHookRunEvents(ctx context.Context, step int, runs []hooks.HookRun) error {
+	if n == nil || n.store == nil || len(runs) == 0 {
+		return nil
+	}
+	n.store.QueueWorkflowEvents(EmitHookRunEvents(n.stateKey(), step, runs))
+	return n.store.SaveEvents(ctx)
 }
 
 // SetDocFilename overrides the document filename to parse (default: "WORKFLOW.md").

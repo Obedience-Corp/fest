@@ -91,12 +91,18 @@ func QuickValidate(ctx context.Context, festivalPath string) (*Result, error) {
 	}
 	result.Issues = append(result.Issues, templateIssues...)
 
-	// Legacy hooks.approval_judge.command deprecation (non-blocking)
-	hookIssues, err := ValidateHooksConfig(ctx, festivalPath)
-	if err != nil {
-		return nil, err
+	// Legacy hooks.approval_judge.command deprecation (non-blocking). Hook
+	// checks never fail validation: load errors degrade to a warning.
+	if hookIssues, err := ValidateHooksConfig(ctx, festivalPath); err != nil {
+		result.Issues = append(result.Issues, Issue{
+			Level:   LevelWarning,
+			Code:    CodeHooksConfigError,
+			Path:    festivalPath,
+			Message: "could not check hooks configuration: " + err.Error(),
+		})
+	} else {
+		result.Issues = append(result.Issues, hookIssues...)
 	}
-	result.Issues = append(result.Issues, hookIssues...)
 
 	// Calculate score based on issues
 	result.Score = CalculateScore(result)
@@ -164,12 +170,18 @@ func FullValidate(ctx context.Context, festivalPath string) (*Result, error) {
 		result.Issues = append(result.Issues, autoLinkIssues...)
 	}
 
-	// Legacy hooks.approval_judge.command deprecation (non-blocking warning).
-	hookIssues, err := ValidateHooksConfig(ctx, festivalPath)
-	if err != nil {
-		return nil, err
+	// Legacy hooks.approval_judge.command deprecation (non-blocking). Hook
+	// checks never fail validation: load errors degrade to a warning.
+	if hookIssues, err := ValidateHooksConfig(ctx, festivalPath); err != nil {
+		result.Issues = append(result.Issues, Issue{
+			Level:   LevelWarning,
+			Code:    CodeHooksConfigError,
+			Path:    festivalPath,
+			Message: "could not check hooks configuration: " + err.Error(),
+		})
+	} else {
+		result.Issues = append(result.Issues, hookIssues...)
 	}
-	result.Issues = append(result.Issues, hookIssues...)
 
 	// Calculate score based on issues
 	result.Score = CalculateScore(result)
