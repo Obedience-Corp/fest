@@ -17,6 +17,7 @@ import (
 	feedbackcmd "github.com/Obedience-Corp/fest/internal/commands/feedback"
 	"github.com/Obedience-Corp/fest/internal/commands/festival"
 	"github.com/Obedience-Corp/fest/internal/commands/gates"
+	hookscmd "github.com/Obedience-Corp/fest/internal/commands/hooks"
 	idcmd "github.com/Obedience-Corp/fest/internal/commands/id"
 	introcmd "github.com/Obedience-Corp/fest/internal/commands/intro"
 	listcmd "github.com/Obedience-Corp/fest/internal/commands/list"
@@ -347,6 +348,10 @@ func init() {
 	gatesCmd := gates.NewGatesCommand()
 	gatesCmd.GroupID = "learning"
 	rootCmd.AddCommand(gatesCmd)
+
+	hooksCmd := hookscmd.NewHooksCommand()
+	hooksCmd.GroupID = "learning"
+	rootCmd.AddCommand(hooksCmd)
 
 	// Research document management
 	researchCmd := research.NewResearchCommand()

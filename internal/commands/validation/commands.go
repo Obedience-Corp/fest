@@ -14,6 +14,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	hookslib "github.com/Obedience-Corp/fest/internal/hooks"
 	"github.com/Obedience-Corp/fest/internal/validator"
 	"github.com/spf13/cobra"
 )
@@ -35,6 +36,8 @@ const (
 	CodeUnfilledTemplate   = "unfilled_template"
 	CodeMissingGoal        = "missing_goal"
 	CodeNumberingGap       = "numbering_gap"
+	CodeHookShadowDrift       = "hook_shadow_drift"
+	CodeHookUndeclaredBinding = "hook_undeclared_binding"
 )
 
 // ValidationIssue represents a single validation problem
@@ -509,11 +512,32 @@ func emitValidateError(opts *validateOptions, err error) error {
 	return err
 }
 
-// validateHooksChecks emits non-blocking warnings for legacy hook aliases.
+
+// validateHooksChecks emits non-blocking warnings for legacy aliases, shadow drift, and undeclared bindings.
 func validateHooksChecks(ctx context.Context, festivalPath string, result *ValidationResult) {
 	issues, err := validator.ValidateHooksConfig(ctx, festivalPath)
+	if err == nil {
+		result.Issues = append(result.Issues, convertIssues(issues)...)
+	}
+
+	eff, err := hookslib.LoadAndResolve(ctx, festivalPath)
 	if err != nil {
+		result.Issues = append(result.Issues, ValidationIssue{
+			Level: LevelWarning, Code: CodeHookShadowDrift, Path: festivalPath,
+			Message: fmt.Sprintf("could not resolve hooks: %v", err),
+		})
 		return
 	}
-	result.Issues = append(result.Issues, convertIssues(issues)...)
+	if eff == nil {
+		return
+	}
+	for name, h := range eff.Hooks {
+		for _, s := range h.Shadowed {
+			result.Issues = append(result.Issues, ValidationIssue{
+				Level: LevelWarning, Code: CodeHookShadowDrift, Path: festivalPath,
+				Message: fmt.Sprintf("hook %q at layer %s overrides a differing definition from layer %s", name, h.Source, s.Source),
+			})
+		}
+	}
 }
+
