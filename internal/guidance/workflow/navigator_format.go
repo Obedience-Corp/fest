@@ -7,6 +7,7 @@ import (
 	"github.com/Obedience-Corp/fest/embedded/templates/agent"
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/guidance"
+	"github.com/Obedience-Corp/fest/internal/hooks"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 )
@@ -99,14 +100,16 @@ func (n *Navigator) formatCheckpoint(ctx context.Context, step WorkflowStep) (st
 		}
 	}
 	data := map[string]any{
-		"InstructionHeader":   guidance.InstructionHeader,
-		"StepNumber":          step.Number,
-		"StepName":            step.Name,
-		"Goal":                step.Goal,
-		"Actions":             step.Actions,
-		"JudgeConfigured":     n.approvalJudgeConfigured(ctx),
-		"JudgeWaiting":        judgeWaiting,
-		"OperatorAttestation": ClassifyCheckpoint(step) == CheckpointClassOperatorAttestation,
+		"InstructionHeader":    guidance.InstructionHeader,
+		"StepNumber":           step.Number,
+		"StepName":             step.Name,
+		"Goal":                 step.Goal,
+		"Actions":              step.Actions,
+		"JudgeConfigured":      n.approvalJudgeConfigured(ctx),
+		"JudgeWaiting":         judgeWaiting,
+		"OperatorAttestation":  ClassifyCheckpoint(step) == CheckpointClassOperatorAttestation,
+		"SkippedHooksUndeclared": n.skippedUndeclaredLine(ctx, step),
+		"HumanApprovalRequired":  strings.EqualFold(strings.TrimSpace(step.Approval), "human-required"),
 	}
 
 	return agent.Render("workflow/checkpoint", data)
@@ -181,29 +184,54 @@ func (n *Navigator) formatStep(ctx context.Context, step WorkflowStep, stepState
 	}
 
 	data := map[string]any{
-		"InstructionHeader":   guidance.InstructionHeader,
-		"PhaseType":           phaseType,
-		"PhaseName":           n.Ctx.PhaseName,
-		"StepNumber":          step.Number,
-		"TotalSteps":          n.workflowState.TotalSteps,
-		"StepName":            step.Name,
-		"Goal":                step.Goal,
-		"Actions":             step.Actions,
-		"Output":              step.Output,
-		"IsBlocking":          step.Checkpoint.IsBlocking(),
-		"Status":              status,
-		"Feedback":            feedback,
-		"Followups":           stepState.Followups,
-		"CurrentStep":         n.workflowState.CurrentStep,
-		"IsGate":              isGate,
-		"JudgeConfigured":     n.approvalJudgeConfigured(ctx),
-		"OperatorAttestation": ClassifyCheckpoint(step) == CheckpointClassOperatorAttestation,
+		"InstructionHeader":      guidance.InstructionHeader,
+		"PhaseType":              phaseType,
+		"PhaseName":              n.Ctx.PhaseName,
+		"StepNumber":             step.Number,
+		"TotalSteps":             n.workflowState.TotalSteps,
+		"StepName":               step.Name,
+		"Goal":                   step.Goal,
+		"Actions":                step.Actions,
+		"Output":                 step.Output,
+		"IsBlocking":             step.Checkpoint.IsBlocking(),
+		"Status":                 status,
+		"Feedback":               feedback,
+		"Followups":              stepState.Followups,
+		"CurrentStep":            n.workflowState.CurrentStep,
+		"IsGate":                 isGate,
+		"JudgeConfigured":        n.approvalJudgeConfigured(ctx),
+		"OperatorAttestation":    ClassifyCheckpoint(step) == CheckpointClassOperatorAttestation,
 		"JudgeRetryAvailable": stepState.Status == StepStatusBlocked &&
 			ClassifyCheckpoint(step) != CheckpointClassOperatorAttestation &&
 			IsJudgeRejection(stepState) && n.approvalJudgeConfigured(ctx),
+		"SkippedHooksUndeclared": n.skippedUndeclaredLine(ctx, step),
+		"HumanApprovalRequired":  strings.EqualFold(strings.TrimSpace(step.Approval), "human-required"),
 	}
 
 	return agent.Render("workflow/step", data)
+}
+
+// skippedUndeclaredLine returns fest next guidance for bound names not declared.
+func (n *Navigator) skippedUndeclaredLine(ctx context.Context, step WorkflowStep) string {
+	festivalPath := ""
+	if n != nil && n.BaseNavigator != nil && n.Ctx != nil {
+		festivalPath = n.Ctx.FestivalPath
+	}
+	level := hooks.LevelGate
+	if n == nil || n.docFilename != "GATES.md" {
+		level = hooks.LevelPhase
+	}
+	var eff *hooks.Effective
+	if festivalPath != "" {
+		if resolved, err := hooks.LoadAndResolve(ctx, festivalPath); err == nil {
+			eff = resolved
+		}
+	}
+	if eff == nil {
+		eff, _ = hooks.Resolve(nil, nil, nil)
+	}
+	plan := eff.PlanBindings(level, step.Hooks.Pre, step.Hooks.Post)
+	return hooks.FormatSkippedUndeclaredLine(plan)
 }
 
 // FormatProgress renders the progress template showing workflow status.

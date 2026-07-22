@@ -46,7 +46,7 @@ func TestSaveWorkspaceConfig_WritesCommentedHooksPlaceholder(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadWorkspaceConfig: %v", err)
 	}
-	if (loaded.Hooks != HooksConfig{}) {
+	if !loaded.Hooks.IsZero() || loaded.Hooks.ApprovalJudge.Command != "" {
 		t.Fatalf("commented placeholder should not parse into hooks, got %+v", loaded.Hooks)
 	}
 }

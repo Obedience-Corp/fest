@@ -14,6 +14,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	hookslib "github.com/Obedience-Corp/fest/internal/hooks"
 	"github.com/Obedience-Corp/fest/internal/validator"
 	"github.com/spf13/cobra"
 )
@@ -35,6 +36,8 @@ const (
 	CodeUnfilledTemplate   = "unfilled_template"
 	CodeMissingGoal        = "missing_goal"
 	CodeNumberingGap       = "numbering_gap"
+	CodeHookShadowDrift  = "hook_shadow_drift"
+	CodeHookResolveError = "hook_resolve_error"
 )
 
 // ValidationIssue represents a single validation problem
@@ -324,6 +327,7 @@ func runValidateAll(ctx context.Context, opts *validateOptions) error {
 	validateTemplateChecks(festivalPath, result)
 	validateOrderingChecks(ctx, festivalPath, result)
 	validateAutoLinkChecks(ctx, festivalPath, result)
+	validateHooksChecks(ctx, festivalPath, result)
 	validateWorkflowDocsChecks(ctx, festivalPath, result)
 
 	// Add suggestions based on issues
@@ -507,3 +511,37 @@ func emitValidateError(opts *validateOptions, err error) error {
 	}
 	return err
 }
+
+
+// validateHooksChecks emits non-blocking warnings for legacy aliases, shadow drift, and undeclared bindings.
+func validateHooksChecks(ctx context.Context, festivalPath string, result *ValidationResult) {
+	issues, err := validator.ValidateHooksConfig(ctx, festivalPath)
+	if err == nil {
+		result.Issues = append(result.Issues, convertIssues(issues)...)
+	}
+
+	eff, err := hookslib.LoadAndResolve(ctx, festivalPath)
+	if err != nil {
+		result.Issues = append(result.Issues, ValidationIssue{
+			Level: LevelWarning, Code: CodeHookResolveError, Path: festivalPath,
+			Message: fmt.Sprintf("could not resolve hooks: %v", err),
+		})
+		return
+	}
+	if eff == nil {
+		return
+	}
+	for name, h := range eff.Hooks {
+		for _, s := range h.Shadowed {
+			result.Issues = append(result.Issues, ValidationIssue{
+				Level: LevelWarning, Code: CodeHookShadowDrift, Path: festivalPath,
+				Message: fmt.Sprintf("hook %q at layer %s overrides a differing definition from layer %s", name, h.Source, s.Source),
+			})
+		}
+	}
+
+	// Undeclared bindings skip with a warning (spec 03, D10).
+	result.Issues = append(result.Issues,
+		convertIssues(validator.ScanUndeclaredBindings(ctx, festivalPath, eff))...)
+}
+

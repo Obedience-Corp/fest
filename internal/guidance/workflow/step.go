@@ -147,6 +147,19 @@ type WorkflowStep struct {
 
 	// EvidencePaths are phase-relative deliverable paths listed under **Evidence:**.
 	EvidencePaths []string `json:"evidence_paths,omitempty" yaml:"evidence_paths,omitempty"`
+
+	// Hooks are the pre/post hook name bindings for this step (spec 03).
+	Hooks StepHooks `json:"hooks,omitempty" yaml:"hooks,omitempty"`
+
+	// Approval, when "human-required", marks a non-bypassable human gate (sequence 04).
+	Approval string `json:"approval,omitempty" yaml:"approval,omitempty"`
+}
+
+// StepHooks binds already-declared hooks to a step's lifecycle by name.
+// Structurally matches frontmatter.StepHooks to avoid import cycles.
+type StepHooks struct {
+	Pre  []string `json:"pre,omitempty" yaml:"pre,omitempty"`
+	Post []string `json:"post,omitempty" yaml:"post,omitempty"`
 }
 
 // HasCheckpoint returns true if this step has a checkpoint.

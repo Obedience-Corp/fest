@@ -27,7 +27,7 @@ func normalizeDecision(action, actor, summary string) (wf.DecisionMetadata, erro
 	switch actor {
 	case decisionActorUser:
 	case decisionActorAgent:
-		return wf.DecisionMetadata{}, festerrors.Validation("--as agent is not allowed for manual " + action).
+		return wf.DecisionMetadata{}, festerrors.Validation("--as agent is not allowed for manual "+action).
 			WithField("actor", actor).
 			WithHint(agentActorHint(action))
 	default:

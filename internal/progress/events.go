@@ -63,6 +63,10 @@ const (
 	// EventWorkflowJudgeCleared removes a prior terminal judge outcome after
 	// an operator takes ownership of the checkpoint.
 	EventWorkflowJudgeCleared EventType = "wf_judge_cleared"
+
+	// EventWorkflowHookRun records one hook execution (or skip) fired by a
+	// lifecycle binding. Hook runs are events, never decisions (D9).
+	EventWorkflowHookRun EventType = "wf_hook_run"
 )
 
 // ProgressEvent represents a single progress event in JSONL format.
@@ -92,6 +96,19 @@ type ProgressEvent struct {
 	JudgeDetail      string   `json:"judge_detail,omitempty"`
 	JudgePid         int      `json:"judge_pid,omitempty"`
 	JudgeRunID       string   `json:"judge_run_id,omitempty"`
+
+	// Hook-run event fields (wf_hook_run).
+	HookName     string `json:"hook_name,omitempty"`
+	HookLayer    string `json:"hook_layer,omitempty"`  // machine|festivals|festival
+	HookTiming   string `json:"hook_timing,omitempty"` // pre|post
+	HookVerb     string `json:"hook_verb,omitempty"`   // task_complete|sequence_complete|phase_complete|gate_approve
+	HookOutcome  string `json:"hook_outcome,omitempty"`
+	HookSkip     string `json:"hook_skip,omitempty"`
+	HookExitCode int    `json:"hook_exit_code,omitempty"`
+	HookMillis   int64  `json:"hook_duration_ms,omitempty"`
+	HookFail     string `json:"hook_fail,omitempty"` // closed|open
+	HookBlocked  bool   `json:"hook_blocked,omitempty"`
+	HookVerdict  string `json:"hook_verdict,omitempty"`
 }
 
 // loadFromEvents reads the JSONL file and materializes current state.

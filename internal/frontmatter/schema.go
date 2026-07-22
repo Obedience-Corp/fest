@@ -216,11 +216,30 @@ type Frontmatter struct {
 	RequiresHuman   bool       `yaml:"fest_requires_human,omitempty" json:"fest_requires_human,omitempty"`
 	RequiresContext bool       `yaml:"fest_requires_context,omitempty" json:"fest_requires_context,omitempty"`
 
+	// Hook bindings for this step's lifecycle (spec 03-lifecycle-and-orchestration.md).
+	// Bindings only reference declared hook names; they never declare definitions.
+	Hooks StepHooks `yaml:"hooks,omitempty" json:"hooks,omitempty"`
+
+	// Approval, when "human-required", marks a non-bypassable human gate (sequence 04).
+	Approval string `yaml:"approval,omitempty" json:"approval,omitempty"`
+
 	// Extra preserves keys this schema does not know about, so every
 	// parse -> mutate -> inject round-trip (task status updates, goal
 	// status changes, migrations) keeps user-added metadata instead of
 	// silently dropping it.
 	Extra map[string]any `yaml:",inline" json:"-"`
+}
+
+// StepHooks binds already-declared hooks to a step's lifecycle by name.
+// Bindings never declare; they only reference names resolved from config.
+type StepHooks struct {
+	Pre  []string `yaml:"pre,omitempty" json:"pre,omitempty"`
+	Post []string `yaml:"post,omitempty" json:"post,omitempty"`
+}
+
+// HookBindings returns the step's pre/post hook name lists (may be empty).
+func (f Frontmatter) HookBindings() StepHooks {
+	return f.Hooks
 }
 
 // Validate checks if the frontmatter is valid

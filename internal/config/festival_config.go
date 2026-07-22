@@ -27,6 +27,7 @@ type FestivalConfig struct {
 	Tracking         TrackingConfig      `yaml:"tracking"`
 	Agent            AgentConfig         `yaml:"agent,omitempty"`
 	AutoLink         AutoLinkConfig      `yaml:"auto_link,omitempty"`
+	Hooks            HooksConfig         `yaml:"hooks,omitempty"`
 	RitualConfig     *RitualConfig       `yaml:"ritual_config,omitempty"`
 }
 

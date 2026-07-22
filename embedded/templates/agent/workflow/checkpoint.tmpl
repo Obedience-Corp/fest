@@ -32,10 +32,17 @@ EXAMPLE OUTPUT (no judge configured):
 ═══════════════════════════════════════════════════════════════════════════════
 
 Step {{.StepNumber}}: {{.StepName}}
+{{- if .HumanApprovalRequired}}
 
+HUMAN APPROVAL REQUIRED
+{{- end}}
 {{- if .Goal}}
 
 **Question:** {{.Goal}}
+{{- end}}
+{{- if .SkippedHooksUndeclared}}
+
+{{.SkippedHooksUndeclared}}
 {{- end}}
 {{- if .Actions}}
 
