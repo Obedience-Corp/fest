@@ -31,14 +31,15 @@ const (
 
 // Config represents the fest configuration
 type Config struct {
-	Version    string     `json:"version"`
-	Repository Repository `json:"repository"`
-	Local      Local      `json:"local"`
-	Behavior   Behavior   `json:"behavior"`
-	Network    Network    `json:"network"`
-	TUI        TUI        `json:"tui"`
-	Execute    Execute    `json:"execute"`
-	LastSync   string     `json:"last_sync,omitempty"`
+	Version    string       `json:"version"`
+	Repository Repository   `json:"repository"`
+	Local      Local        `json:"local"`
+	Behavior   Behavior     `json:"behavior"`
+	Network    Network      `json:"network"`
+	TUI        TUI          `json:"tui"`
+	Execute    Execute      `json:"execute"`
+	LastSync   string       `json:"last_sync,omitempty"`
+	Hooks      *HooksConfig `json:"hooks,omitempty"`
 }
 
 // Execute contains execution configuration
