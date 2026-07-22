@@ -20,7 +20,31 @@ import (
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
+
+var workflowApproveTTYCheck = term.IsTerminal
+
+func isHumanRequired(step wf.WorkflowStep) bool {
+	return strings.EqualFold(strings.TrimSpace(step.Approval), "human-required")
+}
+
+func requireHumanGateTTY() error {
+	if workflowApproveTTYCheck(int(os.Stdin.Fd())) && workflowApproveTTYCheck(int(os.Stderr.Fd())) {
+		return nil
+	}
+	return festerrors.Validation("this step requires an interactive human approval").
+		WithHint("run 'fest workflow approve' directly in a terminal as a human operator")
+}
+
+func humanRequiredAutoRefusal(stepNum int, step wf.WorkflowStep) error {
+	return festerrors.Validation(
+		"cannot auto-clear a human-required gate (step " +
+			strings.TrimSpace(step.Name) + ")").
+		WithField("step", stepNum).
+		WithField("gate", step.Name).
+		WithHint("this checkpoint is marked approval: human-required; a human must run 'fest workflow approve' in a terminal")
+}
 
 const approvalJudgeSchemaVersion = "fest.approval.judge/v1"
 
@@ -199,6 +223,15 @@ func runApproveWithOptions(ctx context.Context, decision wf.DecisionMetadata, op
 		return festerrors.Validation("step does not have a blocking checkpoint").
 			WithField("step", currentStepNum).
 			WithHint("Use 'fest workflow advance' for regular steps")
+	}
+
+	if isHumanRequired(step) {
+		if opts.Auto {
+			return humanRequiredAutoRefusal(currentStepNum, step)
+		}
+		if err := requireHumanGateTTY(); err != nil {
+			return err
+		}
 	}
 
 	if opts.Auto {
@@ -393,6 +426,10 @@ func AutoDelegateBlockingCheckpoints(ctx context.Context, nav *wf.Navigator) err
 			return nil
 		}
 		step := steps[current-1]
+		if isHumanRequired(step) {
+			// Human gate: never delegate. Leave the checkpoint for the human approve path.
+			return nil
+		}
 		if wf.ClassifyCheckpoint(step) == wf.CheckpointClassOperatorAttestation {
 			// Operator attestations are intentionally never delegated. Leave the
 			// checkpoint untouched so fest next renders the human approval path.

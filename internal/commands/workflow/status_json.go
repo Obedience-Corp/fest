@@ -50,6 +50,8 @@ type workflowStatusStepJSON struct {
 	JudgePid     int    `json:"judge_pid,omitempty"`
 	JudgeRunID   string `json:"judge_run_id,omitempty"`
 	JudgeDetail  string `json:"judge_detail,omitempty"`
+	// HumanApprovalRequired is true when approval: human-required is set on the step.
+	HumanApprovalRequired bool `json:"human_approval_required,omitempty"`
 }
 
 // collectWorkflowStatus builds the structured snapshot from navigator state.
@@ -93,10 +95,11 @@ func collectWorkflowStatus(nav *wf.Navigator) workflowStatusJSON {
 		feedback := ""
 		remediation := ""
 		entry := workflowStatusStepJSON{
-			Number:        step.Number,
-			Name:          step.Name,
-			HasCheckpoint: step.HasCheckpoint(),
-			Goal:          step.Goal,
+			Number:                step.Number,
+			Name:                  step.Name,
+			HasCheckpoint:         step.HasCheckpoint(),
+			Goal:                  step.Goal,
+			HumanApprovalRequired: isHumanRequired(step),
 		}
 		if stepState := state.GetStepState(step.Number); stepState != nil {
 			status = stepState.Status

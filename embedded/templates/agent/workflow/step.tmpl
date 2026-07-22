@@ -38,7 +38,9 @@ EXAMPLE OUTPUT:
 ═══════════════════════════════════════════════════════════════════════════════
 
 ## Step {{.StepNumber}}: {{.StepName}}
-
+{{if .HumanApprovalRequired}}
+HUMAN APPROVAL REQUIRED
+{{end}}
 {{if .IsGate}}**Question:** {{.Goal}}{{else}}**Goal:** {{.Goal}}{{end}}
 {{if .SkippedHooksUndeclared}}{{.SkippedHooksUndeclared}}
 {{end}}
