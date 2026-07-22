@@ -39,6 +39,15 @@ var (
 
 	// evidenceItemRe matches bullet evidence paths.
 	evidenceItemRe = regexp.MustCompile(`(?m)^\s*[-*]\s+(\S+)\s*$`)
+
+	// hooksMarkerRe matches a per-step "**Hooks:**" line in GATES.md.
+	hooksMarkerRe = regexp.MustCompile(`(?im)\*\*Hooks:\*\*[ \t]*([^\r\n]*)`)
+
+	// approvalMarkerRe matches a per-step "**Approval:**" line in GATES.md.
+	approvalMarkerRe = regexp.MustCompile(`(?im)\*\*Approval:\*\*[ \t]*([^\r\n]*)`)
+
+	// hookListRe matches "pre: [a, b]" or "post: [x]" fragments.
+	hookListRe = regexp.MustCompile(`(?i)\b(pre|post)\s*:\s*\[([^\]]*)\]`)
 )
 
 // Parser parses WORKFLOW.md files and extracts steps.
@@ -125,6 +134,8 @@ func (p *Parser) ParseContent(ctx context.Context, content string) ([]WorkflowSt
 		}
 		step.CheckpointClass = checkpointClass
 		step.EvidencePaths = p.parseEvidencePaths(section)
+		step.Hooks = p.parseStepHooks(section)
+		step.Approval = p.parseApproval(section)
 
 		steps = append(steps, step)
 	}
@@ -239,6 +250,62 @@ func (p *Parser) parseEvidencePaths(section string) []string {
 		paths = append(paths, path)
 	}
 	return paths
+}
+
+// parseStepHooks extracts pre/post hook name lists from a **Hooks:** marker.
+// Names only; malformed fragments yield empty lists (no panic).
+func (p *Parser) parseStepHooks(section string) StepHooks {
+	m := hooksMarkerRe.FindStringSubmatch(section)
+	if len(m) < 2 {
+		return StepHooks{}
+	}
+	value := strings.TrimSpace(m[1])
+	if value == "" {
+		return StepHooks{}
+	}
+	var hooks StepHooks
+	for _, match := range hookListRe.FindAllStringSubmatch(value, -1) {
+		if len(match) < 3 {
+			continue
+		}
+		names := splitHookNames(match[2])
+		switch strings.ToLower(match[1]) {
+		case "pre":
+			hooks.Pre = append(hooks.Pre, names...)
+		case "post":
+			hooks.Post = append(hooks.Post, names...)
+		}
+	}
+	return hooks
+}
+
+func splitHookNames(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	var names []string
+	for _, p := range parts {
+		name := strings.TrimSpace(p)
+		name = strings.Trim(name, `"'`)
+		if name == "" {
+			continue
+		}
+		// Names only — reject map-like or assignment fragments.
+		if strings.Contains(name, ":") || strings.ContainsAny(name, "{}") {
+			continue
+		}
+		names = append(names, name)
+	}
+	return names
+}
+
+func (p *Parser) parseApproval(section string) string {
+	m := approvalMarkerRe.FindStringSubmatch(section)
+	if len(m) < 2 {
+		return ""
+	}
+	return strings.TrimSpace(m[1])
 }
 
 // ClassifyCheckpoint resolves the checkpoint class for a step.
