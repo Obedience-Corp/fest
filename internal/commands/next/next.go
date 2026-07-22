@@ -391,12 +391,14 @@ func runNext(cmd *cobra.Command, args []string) error {
 		fmt.Print(selection.FormatVerbose(result, showInlineContext))
 		printChainContext(ctx, festivalPath, result.FestivalComplete)
 		printFeedbackReminder(ctx, festivalPath)
+		printLegacyHooksAliasWarning(ctx, festivalPath)
 		return nil
 	}
 
 	fmt.Print(selection.FormatText(result, showInlineContext))
 	printChainContext(ctx, festivalPath, result.FestivalComplete)
 	printFeedbackReminder(ctx, festivalPath)
+	printLegacyHooksAliasWarning(ctx, festivalPath)
 	return nil
 }
 
@@ -428,6 +430,22 @@ func printFeedbackReminder(ctx context.Context, festivalPath string) {
 		return
 	}
 	fmt.Printf("\n%s%s", strings.Repeat("─", 60), text)
+}
+
+// printLegacyHooksAliasWarning prints a best-effort deprecation notice when the
+// festivals-layer flat hooks.approval_judge.command key is still in use.
+func printLegacyHooksAliasWarning(ctx context.Context, festivalPath string) {
+	issues, err := validator.ValidateHooksConfig(ctx, festivalPath)
+	if err != nil || len(issues) == 0 {
+		return
+	}
+	for _, issue := range issues {
+		if issue.Code != validator.CodeHooksLegacyAlias {
+			continue
+		}
+		fmt.Fprintf(os.Stderr, "\nWarning: %s\n", issue.Message)
+		return
+	}
 }
 
 // printChainContext shows chain-awareness context when a festival is complete.

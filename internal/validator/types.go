@@ -26,6 +26,9 @@ const (
 	CodeAutoLinkPathNotDir         = "autolink_path_not_dir"
 	CodeAutoLinkUnrequiredSet      = "autolink_unrequired_set"
 	CodeAutoLinkProjectPathInvalid = "autolink_project_path_invalid"
+
+	// Hooks issue codes
+	CodeHooksLegacyAlias = "hooks_legacy_alias"
 )
 
 // Issue represents a single validation problem

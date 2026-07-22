@@ -324,6 +324,7 @@ func runValidateAll(ctx context.Context, opts *validateOptions) error {
 	validateTemplateChecks(festivalPath, result)
 	validateOrderingChecks(ctx, festivalPath, result)
 	validateAutoLinkChecks(ctx, festivalPath, result)
+	validateHooksChecks(ctx, festivalPath, result)
 	validateWorkflowDocsChecks(ctx, festivalPath, result)
 
 	// Add suggestions based on issues
@@ -506,4 +507,13 @@ func emitValidateError(opts *validateOptions, err error) error {
 		return emitValidateJSON(result)
 	}
 	return err
+}
+
+// validateHooksChecks emits non-blocking warnings for legacy hook aliases.
+func validateHooksChecks(ctx context.Context, festivalPath string, result *ValidationResult) {
+	issues, err := validator.ValidateHooksConfig(ctx, festivalPath)
+	if err != nil {
+		return
+	}
+	result.Issues = append(result.Issues, convertIssues(issues)...)
 }

@@ -55,6 +55,10 @@ type Effective struct {
 	Enabled bool                    // layer-wide switch, most-specific-wins, default true
 	Levels  map[string]bool         // phase/sequence/task, most-specific-wins, default true
 	Hooks   map[string]ResolvedHook // by name
+
+	// Legacy alias (flat hooks.approval_judge.command) metadata for warnings.
+	LegacyAliasActive  bool
+	LegacyAliasCommand string
 }
 
 type layerCfg struct {
@@ -69,12 +73,20 @@ type prior struct {
 
 // Resolve merges three declaration layers into one effective hook set.
 // Nil or empty layers are skipped (D7: empty defaults at every layer).
+// The festivals-layer legacy flat key is expanded in-memory before merge (D6/R6).
 func Resolve(machine, festivals, festival *config.HooksConfig) (*Effective, error) {
 	eff := &Effective{
 		Enabled: true,
 		Levels:  map[string]bool{"phase": true, "sequence": true, "task": true},
 		Hooks:   map[string]ResolvedHook{},
 	}
+
+	festivals = cloneHooksConfig(festivals)
+	if aliased, cmd := applyApprovalJudgeAlias(festivals); aliased {
+		eff.LegacyAliasActive = true
+		eff.LegacyAliasCommand = cmd
+	}
+
 	layers := []layerCfg{
 		{LayerMachine, machine},
 		{LayerFestivals, festivals},

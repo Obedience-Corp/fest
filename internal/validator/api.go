@@ -91,6 +91,13 @@ func QuickValidate(ctx context.Context, festivalPath string) (*Result, error) {
 	}
 	result.Issues = append(result.Issues, templateIssues...)
 
+	// Legacy hooks.approval_judge.command deprecation (non-blocking)
+	hookIssues, err := ValidateHooksConfig(ctx, festivalPath)
+	if err != nil {
+		return nil, err
+	}
+	result.Issues = append(result.Issues, hookIssues...)
+
 	// Calculate score based on issues
 	result.Score = CalculateScore(result)
 	result.Valid = !result.HasErrors()
@@ -156,6 +163,13 @@ func FullValidate(ctx context.Context, festivalPath string) (*Result, error) {
 		}
 		result.Issues = append(result.Issues, autoLinkIssues...)
 	}
+
+	// Legacy hooks.approval_judge.command deprecation (non-blocking warning).
+	hookIssues, err := ValidateHooksConfig(ctx, festivalPath)
+	if err != nil {
+		return nil, err
+	}
+	result.Issues = append(result.Issues, hookIssues...)
 
 	// Calculate score based on issues
 	result.Score = CalculateScore(result)
