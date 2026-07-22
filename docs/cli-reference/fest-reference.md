@@ -7023,11 +7023,13 @@ Auto approval:
   before the judge is invoked. Missing evidence blocks deterministically without a model call.
 
   After a judge reject, re-submit with: fest workflow judge
-  Operator override (interactive TTY, or --override-judge --summary "..."):
-  records decision_actor=user_override.
+  Operator override: run --override-judge --summary "..." from a real terminal
+  and type APPROVE when prompted; records decision_actor=user_override.
 
-  When an approval judge is configured, non-interactive manual approve is refused
-  so agents cannot mint decision_actor=user. Use a real terminal and type APPROVE.
+  When an approval judge is configured, non-interactive manual approve is
+  refused, including --override-judge and --judge-command, so agents cannot
+  mint decision_actor=user or user_override. Use a real terminal and type
+  APPROVE.
 
   The judge command receives JSON on stdin using schema fest.approval.judge/v1
   and must return JSON on stdout with decision "approve" or "reject" and a
@@ -7057,9 +7059,9 @@ fest workflow approve [flags]
 ```
       --auto                     delegate this checkpoint decision to the configured approval judge command
   -h, --help                     help for approve
-      --judge-command string     approval judge command for --auto (overrides the .festival/config.yaml hooks.approval_judge.command hook)
+      --judge-command string     approval judge command for --auto (overrides the .festival/config.yaml hooks.approval_judge.command hook; requires an interactive TTY)
       --judge-timeout duration   maximum time to wait for the approval judge (0 waits until it returns)
-      --override-judge           operator override of a judge/readiness reject (requires --summary; for non-interactive use)
+      --override-judge           operator override of a judge/readiness reject (requires --summary and an interactive TTY)
       --summary string           approval summary or rationale (required with --override-judge)
       --wait                     block until the judge returns instead of launching it in the background
 ```
@@ -7193,7 +7195,7 @@ fest workflow judge [flags]
 
 ```
   -h, --help                     help for judge
-      --judge-command string     approval judge command (overrides hooks.approval_judge.command)
+      --judge-command string     approval judge command (overrides hooks.approval_judge.command; requires an interactive TTY)
       --judge-timeout duration   maximum time to wait for the approval judge (0 waits until it returns)
       --wait                     block until the judge returns instead of launching it in the background
 ```

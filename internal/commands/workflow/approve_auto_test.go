@@ -84,7 +84,11 @@ func TestResolveApprovalJudgeCommand(t *testing.T) {
 	}
 	wsCtx := scope.WithWorkspace(context.Background(), &scope.WorkspaceInfo{FestivalsPath: festivalsRoot})
 
-	// Flag wins over the hook (and is trimmed).
+	origTTY := stdinIsInteractiveFn
+	stdinIsInteractiveFn = func() bool { return true }
+	t.Cleanup(func() { stdinIsInteractiveFn = origTTY })
+
+	// Flag wins over the hook (and is trimmed) when an operator TTY is present.
 	got, err := resolveApprovalJudgeCommand(wsCtx, "  flag-judge  ")
 	if err != nil {
 		t.Fatalf("flag precedence: %v", err)
@@ -92,6 +96,14 @@ func TestResolveApprovalJudgeCommand(t *testing.T) {
 	if got != "flag-judge" {
 		t.Fatalf("flag precedence = %q, want flag-judge", got)
 	}
+
+	// The flag is refused without a TTY so agents cannot choose their own judge.
+	stdinIsInteractiveFn = func() bool { return false }
+	if _, err := resolveApprovalJudgeCommand(wsCtx, "flag-judge"); err == nil ||
+		!strings.Contains(err.Error(), "interactive operator TTY") {
+		t.Fatalf("non-interactive --judge-command must be refused, got: %v", err)
+	}
+	stdinIsInteractiveFn = func() bool { return true }
 
 	// Hook is used when no flag is passed.
 	got, err = resolveApprovalJudgeCommand(wsCtx, "")

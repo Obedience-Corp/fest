@@ -31,7 +31,7 @@ hooks.approval_judge.command workspace configuration hook.`,
 			return runApproveWithOptions(cmd.Context(), wf.DecisionMetadata{}, opts)
 		},
 	}
-	cmd.Flags().StringVar(&opts.JudgeCommand, "judge-command", "", "approval judge command (overrides hooks.approval_judge.command)")
+	cmd.Flags().StringVar(&opts.JudgeCommand, "judge-command", "", "approval judge command (overrides hooks.approval_judge.command; requires an interactive TTY)")
 	cmd.Flags().DurationVar(&opts.Timeout, "judge-timeout", 0, "maximum time to wait for the approval judge (0 waits until it returns)")
 	cmd.Flags().BoolVar(&opts.Wait, "wait", false, "block until the judge returns instead of launching it in the background")
 	return cmd

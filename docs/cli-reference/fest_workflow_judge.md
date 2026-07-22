@@ -22,7 +22,7 @@ fest workflow judge [flags]
 
 ```
   -h, --help                     help for judge
-      --judge-command string     approval judge command (overrides hooks.approval_judge.command)
+      --judge-command string     approval judge command (overrides hooks.approval_judge.command; requires an interactive TTY)
       --judge-timeout duration   maximum time to wait for the approval judge (0 waits until it returns)
       --wait                     block until the judge returns instead of launching it in the background
 ```
