@@ -99,11 +99,13 @@ Auto approval:
   before the judge is invoked. Missing evidence blocks deterministically without a model call.
 
   After a judge reject, re-submit with: fest workflow judge
-  Operator override (interactive TTY, or --override-judge --summary "..."):
-  records decision_actor=user_override.
+  Operator override: run --override-judge --summary "..." from a real terminal
+  and type APPROVE when prompted; records decision_actor=user_override.
 
-  When an approval judge is configured, non-interactive manual approve is refused
-  so agents cannot mint decision_actor=user. Use a real terminal and type APPROVE.
+  When an approval judge is configured, non-interactive manual approve is
+  refused, including --override-judge and --judge-command, so agents cannot
+  mint decision_actor=user or user_override. Use a real terminal and type
+  APPROVE.
 
   The judge command receives JSON on stdin using schema fest.approval.judge/v1
   and must return JSON on stdout with decision "approve" or "reject" and a
@@ -142,9 +144,9 @@ Auto approval:
 	_ = cmd.Flags().MarkHidden("as")
 	cmd.Flags().StringVar(&opts.Summary, "summary", "", "approval summary or rationale (required with --override-judge)")
 	cmd.Flags().BoolVar(&opts.Auto, "auto", false, "delegate this checkpoint decision to the configured approval judge command")
-	cmd.Flags().StringVar(&opts.JudgeCommand, "judge-command", opts.JudgeCommand, "approval judge command for --auto (overrides the .festival/config.yaml hooks.approval_judge.command hook)")
+	cmd.Flags().StringVar(&opts.JudgeCommand, "judge-command", opts.JudgeCommand, "approval judge command for --auto (overrides the .festival/config.yaml hooks.approval_judge.command hook; requires an interactive TTY)")
 	cmd.Flags().DurationVar(&opts.Timeout, "judge-timeout", opts.Timeout, "maximum time to wait for the approval judge (0 waits until it returns)")
-	cmd.Flags().BoolVar(&opts.OverrideJudge, "override-judge", false, "operator override of a judge/readiness reject (requires --summary; for non-interactive use)")
+	cmd.Flags().BoolVar(&opts.OverrideJudge, "override-judge", false, "operator override of a judge/readiness reject (requires --summary and an interactive TTY)")
 	cmd.Flags().BoolVar(&opts.Wait, "wait", false, "block until the judge returns instead of launching it in the background")
 	cmd.MarkFlagsMutuallyExclusive("auto", "as")
 	cmd.MarkFlagsMutuallyExclusive("auto", "summary")
@@ -320,6 +322,11 @@ func resolveApprovalJudgeCommand(ctx context.Context, flagValue string) (string,
 
 func resolveApprovalJudgeCommandFor(ctx context.Context, nav *wf.Navigator, flagValue string) (string, error) {
 	if cmd := strings.TrimSpace(flagValue); cmd != "" {
+		if !stdinIsInteractiveFn() {
+			return "", festerrors.Validation("--judge-command requires an interactive operator TTY").
+				WithField("judge_command", cmd).
+				WithHint("agents must not choose their own judge; configure hooks.approval_judge.command in .festival/config.yaml so non-interactive runs use the operator-controlled command")
+		}
 		return cmd, nil
 	}
 

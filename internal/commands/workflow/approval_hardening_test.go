@@ -276,7 +276,7 @@ func TestApprovalRecoveryLines_OrdinaryOperatorRejectionOmitsJudgeRetry(t *testi
 	}
 }
 
-func TestResolveManualApprovalDecision_OverrideJudge(t *testing.T) {
+func TestResolveManualApprovalDecision_OverrideJudgeNonInteractiveRefused(t *testing.T) {
 	orig := stdinIsInteractiveFn
 	stdinIsInteractiveFn = func() bool { return false }
 	t.Cleanup(func() { stdinIsInteractiveFn = orig })
@@ -287,15 +287,58 @@ func TestResolveManualApprovalDecision_OverrideJudge(t *testing.T) {
 		Feedback:      "approval readiness: missing presentation",
 		Judge:         &wf.JudgeState{Status: wf.JudgeRejected, Detail: "thin evidence"},
 	}
+	_, err := resolveManualApprovalDecision(
+		wf.DecisionMetadata{Summary: "I reviewed output_specs and accept them as written"},
+		true, false, true, blocked, 4, "PRESENT",
+	)
+	if err == nil || !strings.Contains(err.Error(), "interactive operator TTY") {
+		t.Fatalf("non-interactive --override-judge must be refused, got: %v", err)
+	}
+}
+
+func TestResolveManualApprovalDecision_OverrideJudgeInteractiveConfirm(t *testing.T) {
+	origTTY := stdinIsInteractiveFn
+	origRead := readOperatorConfirm
+	stdinIsInteractiveFn = func() bool { return true }
+	readOperatorConfirm = func() (string, error) { return operatorApproveToken, nil }
+	t.Cleanup(func() {
+		stdinIsInteractiveFn = origTTY
+		readOperatorConfirm = origRead
+	})
+
+	blocked := &wf.StepState{
+		Status:        wf.StepStatusBlocked,
+		DecisionActor: decisionActorAgent,
+		Judge:         &wf.JudgeState{Status: wf.JudgeRejected, Detail: "thin evidence"},
+	}
 	decision, err := resolveManualApprovalDecision(
 		wf.DecisionMetadata{Summary: "I reviewed output_specs and accept them as written"},
 		true, false, true, blocked, 4, "PRESENT",
 	)
 	if err != nil {
-		t.Fatalf("override: %v", err)
+		t.Fatalf("interactive override: %v", err)
 	}
 	if decision.Actor != decisionActorUserOverride {
 		t.Fatalf("actor = %q, want user_override", decision.Actor)
+	}
+}
+
+func TestResolveManualApprovalDecision_OverrideJudgeWrongTokenRefused(t *testing.T) {
+	origTTY := stdinIsInteractiveFn
+	origRead := readOperatorConfirm
+	stdinIsInteractiveFn = func() bool { return true }
+	readOperatorConfirm = func() (string, error) { return "yes", nil }
+	t.Cleanup(func() {
+		stdinIsInteractiveFn = origTTY
+		readOperatorConfirm = origRead
+	})
+
+	_, err := resolveManualApprovalDecision(
+		wf.DecisionMetadata{Summary: "I reviewed output_specs and accept them as written"},
+		true, false, true, nil, 4, "PRESENT",
+	)
+	if err == nil || !strings.Contains(err.Error(), "operator approval not confirmed") {
+		t.Fatalf("wrong confirmation token must be refused, got: %v", err)
 	}
 }
 
