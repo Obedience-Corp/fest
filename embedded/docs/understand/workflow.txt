@@ -61,11 +61,22 @@ Common commands:
 Approval Auto Mode
 ------------------
 
-Configuring `hooks.approval_judge.command` in `.festival/config.yaml` is the
-operator opt-in that delegates blocking checkpoints (WORKFLOW.md and GATES.md)
-away from human pings.
+Blocking checkpoints can be delegated to an automation hook named
+`approval_judge`. Preferred declaration (festivals layer):
 
-When that hook is set:
+  hooks:
+    definitions:
+      approval_judge:
+        command: ob judge
+        timeout: 0   # no deadline; matches historical judge behavior
+
+Legacy flat key (still works, deprecation-warned by fest validate):
+
+  hooks:
+    approval_judge:
+      command: ob judge
+
+When that definition is present and the step is not human-required:
 
   • `fest next` auto-invokes the judge on each consecutive blocking checkpoint
     and continues after approve (or stops after reject / fail-closed errors).
@@ -73,7 +84,7 @@ When that hook is set:
     feedback is addressed; `fest workflow approve --auto` remains a compatible
     alias.
 
-There is no default judge command: without the hook (or `--judge-command`),
+There is no default judge command: without a definition (or `--judge-command`),
 approval stays manual and fails closed for `--auto`.
 
 The judge command receives JSON on stdin using schema
@@ -83,6 +94,12 @@ non-zero exits, malformed JSON, unknown decisions, and empty reasons fail
 closed: fest does not approve the checkpoint and leaves the workflow state
 unchanged except for valid reject decisions, which block the step with the
 judge reason as concise feedback.
+
+Full hooks model (layers, bindings, fail policies, human gates):
+
+  fest understand hooks
+  docs/concepts/hooks.md
+  fest hooks list
 
 Auto-Routing Rules
 ------------------

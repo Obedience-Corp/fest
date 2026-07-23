@@ -28,6 +28,7 @@ QUICK REFERENCE:
   fest understand checklist      Validation checklist before starting
   fest understand rules          Naming conventions for automation
   fest understand workflow       Just-in-time reading + workflow/gates
+  fest understand hooks          Lifecycle hooks schema, bindings, human gates
 
 The understand command helps you grasp WHEN and WHY to use specific
 approaches. For command syntax, use --help on any command.
@@ -52,6 +53,7 @@ ensuring you see the current methodology design and any customizations.`,
 	cmd.AddCommand(newUnderstandContextCmd()) // Session memory - CREATE FIRST
 	cmd.AddCommand(newUnderstandNodeIDsCmd()) // Node reference system for traceability
 	cmd.AddCommand(newUnderstandWorkflowCmd())
+	cmd.AddCommand(newUnderstandHooksCmd())     // Lifecycle hooks system
 	cmd.AddCommand(newUnderstandLoopCmd())      // The fest next execution loop (+ standalone workflows)
 	cmd.AddCommand(newUnderstandRolesCmd())     // Human vs agent responsibilities
 	cmd.AddCommand(newUnderstandPlanningCmd())  // Goal -> structured plan

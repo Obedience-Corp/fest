@@ -158,6 +158,7 @@ More Information
   fest understand rules          # MANDATORY structure requirements
   fest understand templates      # Variables that save tokens
   fest understand loop           # The fest next loop + standalone workflows
+  fest understand hooks          # Lifecycle hooks schema and human gates
   fest understand planning       # Turning a goal into a structured plan
   fest understand roles          # Human vs agent responsibilities
   fest understand lifecycle      # planning -> ready -> active -> dungeon

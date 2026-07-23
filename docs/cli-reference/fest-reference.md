@@ -2087,6 +2087,65 @@ fest go unmap <name> [flags]
 ```
 ---
 
+## fest hooks
+
+Inspect resolved lifecycle hooks
+
+### Synopsis
+
+Inspect the hooks resolved from the machine, festivals, and festival layers.
+
+Available Commands:
+  list   Show the effective resolved hook set with source layers and shadow diffs
+
+### Options
+
+```
+  -h, --help   help for hooks
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
+## fest hooks list
+
+Show the effective resolved hook set
+
+```
+fest hooks list [flags]
+```
+
+### Examples
+
+```
+  fest hooks list
+  fest hooks list --json
+```
+
+### Options
+
+```
+  -h, --help   help for list
+      --json   Output in JSON format
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
 ## fest id
 
 Show the festival ID for the current context
@@ -5654,6 +5713,7 @@ QUICK REFERENCE:
   fest understand checklist      Validation checklist before starting
   fest understand rules          Naming conventions for automation
   fest understand workflow       Just-in-time reading + workflow/gates
+  fest understand hooks          Lifecycle hooks schema, bindings, human gates
 ```
 
 The understand command helps you grasp WHEN and WHY to use specific
@@ -5844,6 +5904,38 @@ fest understand gates [flags]
 ```
   -h, --help   help for gates
       --json   output as JSON
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
+## fest understand hooks
+
+Lifecycle hooks schema, bindings, and human gates
+
+### Synopsis
+
+Learn how fest resolves hooks across machine, festivals, and festival
+layers; how step bindings fire; legacy approval_judge alias behavior; and
+non-bypassable human gates (approval: human-required).
+
+See also docs/concepts/hooks.md and docs/concepts/hook-evidence-contract.md.
+
+```
+fest understand hooks [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for hooks
 ```
 
 ### Options inherited from parent commands
