@@ -126,9 +126,24 @@ func (n *Navigator) approvalJudgeConfigured(ctx context.Context) bool {
 	return strings.TrimSpace(n.ApprovalJudgeCommand(ctx)) != ""
 }
 
-// ApprovalJudgeCommand returns hooks.approval_judge.command when configured.
-// Empty string means no judge is configured (manual approval path).
+// ApprovalJudgeCommand returns the resolved approval_judge hook command when
+// configured (definitions.approval_judge across layers, or the legacy flat
+// hooks.approval_judge.command alias). Empty means manual approval path.
 func (n *Navigator) ApprovalJudgeCommand(ctx context.Context) string {
+	festivalPath := ""
+	if n != nil && n.BaseNavigator != nil && n.Ctx != nil {
+		festivalPath = strings.TrimSpace(n.Ctx.FestivalPath)
+	}
+	if festivalPath != "" {
+		if eff, err := hooks.LoadAndResolve(ctx, festivalPath); err == nil && eff != nil {
+			if h, ok := eff.Hooks[hooks.ApprovalJudgeName]; ok && h.Enabled {
+				if cmd := strings.TrimSpace(h.Command); cmd != "" {
+					return cmd
+				}
+			}
+		}
+	}
+
 	festivalsRoot := n.festivalsRoot(ctx)
 	if festivalsRoot == "" {
 		return ""
@@ -136,6 +151,14 @@ func (n *Navigator) ApprovalJudgeCommand(ctx context.Context) string {
 	cfg, err := config.LoadWorkspaceConfig(festivalsRoot)
 	if err != nil || cfg == nil {
 		return ""
+	}
+	festivals := cfg.Hooks
+	if eff, err := hooks.Resolve(nil, &festivals, nil); err == nil && eff != nil {
+		if h, ok := eff.Hooks[hooks.ApprovalJudgeName]; ok && h.Enabled {
+			if cmd := strings.TrimSpace(h.Command); cmd != "" {
+				return cmd
+			}
+		}
 	}
 	return strings.TrimSpace(cfg.Hooks.ApprovalJudge.Command)
 }

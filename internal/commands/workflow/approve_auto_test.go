@@ -126,6 +126,38 @@ func TestResolveApprovalJudgeCommand(t *testing.T) {
 	}
 }
 
+func TestResolveApprovalJudgeCommand_DefinitionsOnly(t *testing.T) {
+	// Regression: definitions.approval_judge alone must configure auto-judge
+	// discovery without the legacy flat hooks.approval_judge.command key.
+	festivalsRoot := t.TempDir()
+	cfg := config.DefaultWorkspaceConfig()
+	cfg.Hooks.Definitions = map[string]config.HookDefinition{
+		"approval_judge": {
+			Command: "defs-only-judge",
+			Timeout: "0",
+		},
+	}
+	if err := config.SaveWorkspaceConfig(festivalsRoot, cfg); err != nil {
+		t.Fatalf("SaveWorkspaceConfig: %v", err)
+	}
+	wsCtx := scope.WithWorkspace(context.Background(), &scope.WorkspaceInfo{FestivalsPath: festivalsRoot})
+
+	got, err := resolveApprovalJudgeCommand(wsCtx, "")
+	if err != nil {
+		t.Fatalf("definitions-only resolve: %v", err)
+	}
+	if got != "defs-only-judge" {
+		t.Fatalf("definitions-only = %q, want defs-only-judge", got)
+	}
+	ok, err := approvalJudgeConfiguredWithLoader(wsCtx, config.LoadWorkspaceConfig)
+	if err != nil {
+		t.Fatalf("configured: %v", err)
+	}
+	if !ok {
+		t.Fatal("definitions-only config must report judge configured")
+	}
+}
+
 func TestEvaluateApprovalJudge_ApproveDecision(t *testing.T) {
 	withApprovalJudgeRunner(t, judgeRunner(func(ctx context.Context, command string, stdin []byte) ([]byte, error) {
 		if command != "fake judge" {

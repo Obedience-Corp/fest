@@ -135,14 +135,20 @@ Bindings only reference names. They never set `command`, `fail`, or `timeout`.
 | `phase_complete` | phase completion |
 | `gate_approve` | GATES.md blocking approval checkpoint |
 
-Timings: **pre** (before the verb applies) and **post** (after success).
+Timings: **pre** (before the verb applies) and **post** (after the transition
+has already been applied).
 
 Orchestration:
 
 - Sequential, binding-list order (no parallel v1).
-- `fail: closed` (default): non-zero exit / timeout / spawn error short-circuits
-  remaining hooks and **blocks the verb**.
-- `fail: open`: failure is recorded; remaining hooks still run.
+- **`fail: closed` pre-hooks:** a non-zero exit / timeout / spawn error
+  short-circuits remaining pre-hooks and **blocks the verb** (completion or
+  approval is not applied).
+- **`fail: closed` post-hooks:** run **after** the verb is already applied.
+  Failure short-circuits remaining post-hooks and surfaces an audited warning;
+  it does **not** roll back task completion, sequence/phase completion, or gate
+  approval.
+- `fail: open`: failure is recorded; remaining hooks at that timing still run.
 - Undeclared bound names: **skip + warn** (not an error). Scaffolded templates
   may bind `approval_judge` while config is still empty.
 

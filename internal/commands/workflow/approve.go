@@ -315,21 +315,80 @@ func runApproveWithOptions(ctx context.Context, decision wf.DecisionMetadata, op
 type workspaceConfigLoader func(string) (*config.WorkspaceConfig, error)
 
 func approvalJudgeConfiguredFor(ctx context.Context, nav *wf.Navigator) (bool, error) {
-	festivalsRoot, err := approvalJudgeFestivalsRoot(ctx, nav)
+	cmd, err := lookupApprovalJudgeCommand(ctx, nav)
 	if err != nil {
 		return false, err
 	}
-	if festivalsRoot == "" {
-		return false, nil
+	return cmd != "", nil
+}
+
+// lookupApprovalJudgeCommand returns the effective approval_judge command from
+// the three-layer hooks resolver (definitions + legacy flat-key alias).
+func lookupApprovalJudgeCommand(ctx context.Context, nav *wf.Navigator) (string, error) {
+	festivalPath := ""
+	if nav != nil && nav.Ctx != nil {
+		festivalPath = strings.TrimSpace(nav.Ctx.FestivalPath)
 	}
-	cfg, err := config.LoadWorkspaceConfig(festivalsRoot)
+	festivalsRoot, err := approvalJudgeFestivalsRoot(ctx, nav)
 	if err != nil {
-		return false, festerrors.Wrap(err, "loading approval judge authority configuration")
+		return "", err
 	}
-	if cfg == nil {
-		return false, festerrors.Validation("approval judge authority configuration is empty")
+	return resolveApprovalJudgeCommandFromHooks(ctx, festivalPath, festivalsRoot)
+}
+
+// resolveApprovalJudgeCommandFromHooks uses hooks.Resolve so both
+// definitions.approval_judge and the legacy flat approval_judge.command key
+// configure auto-judge discovery (fest next / judge / approve --auto).
+func resolveApprovalJudgeCommandFromHooks(ctx context.Context, festivalPath, festivalsRoot string) (string, error) {
+	if festivalPath != "" {
+		eff, err := hooks.LoadAndResolve(ctx, festivalPath)
+		if err != nil {
+			return "", festerrors.Wrap(err, "resolving approval judge hooks")
+		}
+		if cmd := approvalJudgeCommandFromEffective(eff); cmd != "" {
+			return cmd, nil
+		}
 	}
-	return strings.TrimSpace(cfg.Hooks.ApprovalJudge.Command) != "", nil
+
+	if festivalsRoot == "" {
+		return "", nil
+	}
+
+	var machine *config.HooksConfig
+	if machineCfg, err := config.Load(ctx, ""); err != nil {
+		return "", festerrors.Wrap(err, "loading machine hooks for approval judge")
+	} else if machineCfg != nil {
+		machine = machineCfg.Hooks
+	}
+
+	wcfg, err := config.LoadWorkspaceConfig(festivalsRoot)
+	if err != nil {
+		return "", festerrors.Wrap(err, "loading approval judge authority configuration")
+	}
+	if wcfg == nil {
+		return "", festerrors.Validation("approval judge authority configuration is empty")
+	}
+	festivals := wcfg.Hooks
+	eff, err := hooks.Resolve(machine, &festivals, nil)
+	if err != nil {
+		return "", festerrors.Wrap(err, "resolving approval judge hooks")
+	}
+	if cmd := approvalJudgeCommandFromEffective(eff); cmd != "" {
+		return cmd, nil
+	}
+	// Defensive fallback if alias expansion did not apply for any reason.
+	return strings.TrimSpace(wcfg.Hooks.ApprovalJudge.Command), nil
+}
+
+func approvalJudgeCommandFromEffective(eff *hooks.Effective) string {
+	if eff == nil {
+		return ""
+	}
+	h, ok := eff.Hooks[hooks.ApprovalJudgeName]
+	if !ok || !h.Enabled {
+		return ""
+	}
+	return strings.TrimSpace(h.Command)
 }
 
 func approvalJudgeFestivalsRoot(ctx context.Context, nav *wf.Navigator) (string, error) {
@@ -361,14 +420,23 @@ func approvalJudgeConfiguredWithLoader(ctx context.Context, load workspaceConfig
 	if cfg == nil {
 		return false, festerrors.Validation("approval judge authority configuration is empty")
 	}
+	// Test loader path: resolve via hooks so definitions.approval_judge works too.
+	festivals := cfg.Hooks
+	eff, err := hooks.Resolve(nil, &festivals, nil)
+	if err != nil {
+		return false, err
+	}
+	if cmd := approvalJudgeCommandFromEffective(eff); cmd != "" {
+		return true, nil
+	}
 	return strings.TrimSpace(cfg.Hooks.ApprovalJudge.Command) != "", nil
 }
 
 // resolveApprovalJudgeCommand resolves the command used for --auto approval.
-// Precedence: the --judge-command flag, then the hooks.approval_judge.command
-// hook in .festival/config.yaml (via workspace context or navigator festival
-// path). It fails closed when neither is set so no checkpoint is delegated to
-// an unconfigured (or assumed) command.
+// Precedence: the --judge-command flag, then the resolved approval_judge hook
+// (definitions.approval_judge across layers, or the legacy flat
+// hooks.approval_judge.command alias). It fails closed when neither is set so
+// no checkpoint is delegated to an unconfigured (or assumed) command.
 func resolveApprovalJudgeCommand(ctx context.Context, flagValue string) (string, error) {
 	return resolveApprovalJudgeCommandFor(ctx, nil, flagValue)
 }
@@ -378,26 +446,17 @@ func resolveApprovalJudgeCommandFor(ctx context.Context, nav *wf.Navigator, flag
 		if !stdinIsInteractiveFn() {
 			return "", festerrors.Validation("--judge-command requires an interactive operator TTY").
 				WithField("judge_command", cmd).
-				WithHint("agents must not choose their own judge; configure hooks.approval_judge.command in .festival/config.yaml so non-interactive runs use the operator-controlled command")
+				WithHint("agents must not choose their own judge; configure hooks.definitions.approval_judge (or legacy hooks.approval_judge.command) so non-interactive runs use the operator-controlled command")
 		}
 		return cmd, nil
 	}
 
-	festivalsRoot, err := approvalJudgeFestivalsRoot(ctx, nav)
+	cmd, err := lookupApprovalJudgeCommand(ctx, nav)
 	if err != nil {
 		return "", err
 	}
-	if festivalsRoot != "" {
-		cfg, err := config.LoadWorkspaceConfig(festivalsRoot)
-		if err != nil {
-			return "", festerrors.Wrap(err, "loading approval judge hook")
-		}
-		if cfg == nil {
-			return "", festerrors.Validation("approval judge authority configuration is empty")
-		}
-		if cmd := strings.TrimSpace(cfg.Hooks.ApprovalJudge.Command); cmd != "" {
-			return cmd, nil
-		}
+	if cmd != "" {
+		return cmd, nil
 	}
 
 	return "", festerrors.Validation("approval judge command is not configured").
@@ -406,6 +465,14 @@ func resolveApprovalJudgeCommandFor(ctx context.Context, nav *wf.Navigator, flag
 Configure a command in .festival/config.yaml. It receives the approval request
 as JSON on stdin and must print a JSON verdict on stdout (schema
 fest.approval.judge/v1):
+
+hooks:
+  definitions:
+    approval_judge:
+      command: <your-approval-judge-tool>
+      timeout: 0
+
+Legacy flat form (still supported):
 
 hooks:
   approval_judge:

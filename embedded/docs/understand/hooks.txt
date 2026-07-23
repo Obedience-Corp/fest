@@ -48,8 +48,11 @@ GATES.md step markers:
   **Hooks:** post: [approval_judge]
 
 v1 verbs: task_complete, sequence_complete, phase_complete, gate_approve.
-pre runs before the verb; post runs after success.
-fail:closed short-circuits and blocks the verb; fail:open continues.
+pre runs before the verb; post runs after the transition is already applied.
+fail:closed pre-hooks block the verb (completion/approval not applied).
+fail:closed post-hooks short-circuit remaining post-hooks and warn; they do
+not roll back an already-applied completion or approval.
+fail:open records failure and continues remaining hooks at that timing.
 Undeclared bound names skip with a warning (not a hard error).
 
 Legacy alias
