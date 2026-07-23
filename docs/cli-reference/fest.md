@@ -54,6 +54,7 @@ Run 'fest understand' to learn the methodology before executing tasks.
 * [fest feedback](fest_feedback.md)	 - Manage structured feedback collection
 * [fest gates](fest_gates.md)	 - Manage quality gates - validation steps at sequence end
 * [fest go](fest_go.md)	 - Navigate to festivals/ - use 'fgo' after shell-init setup
+* [fest hooks](fest_hooks.md)	 - Inspect resolved lifecycle hooks
 * [fest id](fest_id.md)	 - Show the festival ID for the current context
 * [fest index](fest_index.md)	 - Manage festival indices
 * [fest init](fest_init.md)	 - Initialize a new festival directory structure

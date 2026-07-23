@@ -1,5 +1,7 @@
 # Hook Evidence Contract (read-by-approver)
 
+> Parent guide: [hooks.md](./hooks.md) (layers, schema, bindings, human gates).
+
 Default evidence mode for fest hooks is **read-by-approver** (`evidence: paths`).
 The transport carries paths; the approver (judge or human) reads files itself.
 

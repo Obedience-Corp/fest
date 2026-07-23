@@ -197,3 +197,39 @@ func TestApprovalJudgeConfigured_FromFestivalPathWithoutWorkspaceCtx(t *testing.
 		t.Fatalf("ApprovalJudgeCommand = %q, want %q", got, "ob judge")
 	}
 }
+
+func TestApprovalJudgeConfigured_DefinitionsOnly(t *testing.T) {
+	// Preferred schema: definitions.approval_judge without the flat key.
+	root := t.TempDir()
+	festivalsRoot := filepath.Join(root, "festivals")
+	festivalPath := filepath.Join(festivalsRoot, "active", "example-fest")
+	if err := os.MkdirAll(festivalPath, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	dotFestival := filepath.Join(festivalsRoot, config.DotFestivalDir)
+	if err := os.MkdirAll(dotFestival, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfgYAML := `version: "1.0"
+hooks:
+  definitions:
+    approval_judge:
+      command: defs-only-judge
+      timeout: 0
+`
+	if err := os.WriteFile(filepath.Join(dotFestival, config.WorkspaceConfigFileName), []byte(cfgYAML), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	gctx := &guidance.GuidanceContext{FestivalPath: festivalPath}
+	nav, err := NewNavigator(gctx, guidance.ModeWorkflow)
+	if err != nil {
+		t.Fatalf("NewNavigator: %v", err)
+	}
+	if !nav.approvalJudgeConfigured(context.Background()) {
+		t.Fatal("definitions-only approval_judge must configure the judge")
+	}
+	if got := nav.ApprovalJudgeCommand(context.Background()); got != "defs-only-judge" {
+		t.Fatalf("ApprovalJudgeCommand = %q, want defs-only-judge", got)
+	}
+}

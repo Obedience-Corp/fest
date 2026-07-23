@@ -43,9 +43,9 @@ templates you can inspect and change:
   for your own workflow shapes.
 - **Quality gates** - defaults included; replace or modify them campaign-wide
   or per festival.
-- **Approval judges** - delegate workflow checkpoints to any command via the
-  `hooks.approval_judge` hook in `.festival/config.yaml` (an AI judge, a CI
-  call, or your own script).
+- **Lifecycle hooks** - declare named commands at machine / festivals / festival
+  layers, bind them to steps, and inspect with `fest hooks list`. The approval
+  judge is one hook (`approval_judge`); see [docs/concepts/hooks.md](docs/concepts/hooks.md).
 - **Template syncing** - `fest system sync` pulls templates from a
   configurable repository (`repository.url`, `branch`, and `path` in
   [configuration](docs/configuration.md)), so a team can maintain and
