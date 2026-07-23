@@ -152,3 +152,56 @@ func TestSystemUpdate_ShowsOrphanedInDryRun(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, orphanExists, "orphaned file should still exist after dry-run")
 }
+
+// TestSystemUpdate_PreservesUserConfig verifies that `fest system update --force`
+// never deletes the user-owned .festival/config.yaml. init.go scaffolds it after
+// checksums so it is deliberately absent from source templates; it must not be
+// treated as an orphan. Deleting it would wipe operator hooks such as
+// hooks.approval_judge.command, the very config non-interactive judging relies on.
+func TestSystemUpdate_PreservesUserConfig(t *testing.T) {
+	tc := GetSharedContainer(t)
+
+	parentDir := "/sysupdate-preserve-config-test"
+	sourceDir := "/root/.obey/fest/festivals"
+	workspaceDir := parentDir + "/festivals" // init creates this
+	configPath := workspaceDir + "/.festival/config.yaml"
+
+	// Minimal source templates. config.yaml is user-owned and never shipped as a
+	// methodology template, so remove any stray copy from the shared source to
+	// deterministically reproduce a real install where source lacks config.yaml.
+	_, err := tc.runCommand([]string{"sh", "-c", fmt.Sprintf(`
+		mkdir -p %s/.festival/templates/festival
+		echo "# Festival Goal" > %s/.festival/templates/festival/GOAL.md
+		rm -f %s/.festival/config.yaml
+	`, sourceDir, sourceDir, sourceDir)})
+	require.NoError(t, err, "failed to create source templates")
+
+	_, err = tc.runCommand([]string{"mkdir", "-p", parentDir})
+	require.NoError(t, err, "failed to create parent directory")
+
+	// fest init scaffolds workspaceDir/.festival including a user-owned config.yaml.
+	output, err := tc.RunFest("init", parentDir)
+	require.NoError(t, err, "fest init should succeed: %s", output)
+
+	// Write an operator judge command into config.yaml to prove content survives.
+	_, err = tc.runCommand([]string{"sh", "-c", fmt.Sprintf(`cat > %s <<'EOF'
+version: "1.0"
+hooks:
+  approval_judge:
+    command: /bin/false
+EOF`, configPath)})
+	require.NoError(t, err, "failed to write operator config")
+
+	// Run the destructive path.
+	_, err = tc.RunFestInDir(workspaceDir, "system", "update", "--force")
+	// update may exit non-zero on conflicts; the config-preservation assertions below are what matter.
+
+	// config.yaml must survive and keep the operator's judge command.
+	configExists, err := tc.CheckFileExists(configPath)
+	require.NoError(t, err)
+	assert.True(t, configExists, "user-owned config.yaml must survive system update --force")
+
+	content, err := tc.runCommand([]string{"cat", configPath})
+	require.NoError(t, err, "should read config.yaml after update")
+	assert.Contains(t, content, "command: /bin/false", "operator judge command must be preserved")
+}

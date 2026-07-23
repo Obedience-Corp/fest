@@ -21,6 +21,15 @@ func TestApprovalReadinessRejectsEvidenceSymlinkOutsidePhase(t *testing.T) {
 	script := `
 set -eu
 mkdir -p "` + phasePath + `/output_specs" /outside
+# Configure the approval judge via operator-owned .festival/config.yaml. Passing
+# --judge-command is TTY-gated (PR #292) and unusable in this non-interactive
+# container, so the operator-configured hook is the path that reaches readiness.
+cat > /festivals/.festival/config.yaml <<'EOF'
+version: "1.0"
+hooks:
+  approval_judge:
+    command: /bin/false
+EOF
 cat > "` + festivalPath + `/fest.yaml" <<'EOF'
 version: "1.0"
 name: approval-readiness-test
@@ -72,7 +81,7 @@ ln -s /outside/presentation.md "` + phasePath + `/output_specs/PRESENTATION.md"
 
 	output, err := container.RunFestInDir(
 		phasePath,
-		"workflow", "approve", "--auto", "--judge-command", "/bin/false",
+		"workflow", "approve", "--auto",
 	)
 	require.Error(t, err, "out-of-phase evidence symlink must fail readiness")
 	require.Contains(t, strings.ToLower(output), "escapes the phase directory")

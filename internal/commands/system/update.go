@@ -348,12 +348,19 @@ func categorizeChanges(ctx context.Context, stored, current map[string]fileops.C
 		}
 	}
 
-	// Check for orphaned files (exist locally but not in source)
-	// Skip .state/ directory which contains local state files
+	// Check for orphaned files (exist locally but not in source).
+	// Skip .state/ (local state) and the user-owned config.yaml: init.go
+	// scaffolds config.yaml after checksums so it stays user-owned rather than a
+	// synced methodology resource, so it is legitimately absent from source.
+	// Deleting it would wipe operator hooks such as hooks.approval_judge.command.
 	for path := range current {
-		if !sourceFilesSet[path] && !strings.HasPrefix(path, workspace.StateDir+"/") && path != workspace.StateDir {
-			changes.orphaned = append(changes.orphaned, path)
+		if sourceFilesSet[path] ||
+			path == config.WorkspaceConfigFileName ||
+			path == workspace.StateDir ||
+			strings.HasPrefix(path, workspace.StateDir+"/") {
+			continue
 		}
+		changes.orphaned = append(changes.orphaned, path)
 	}
 
 	return changes
