@@ -246,6 +246,32 @@ This gives you:
 - `fls` - Quick listing (`fest list`)
 - Tab completion for all fest commands
 
+### Finding the installed binary
+
+Shell integration defines `fest` as a **shell function** (so `fest go` / `fgo`
+can `cd` in your current shell). That means plain `which fest` usually prints
+the function body, not a filesystem path.
+
+Use these instead:
+
+```bash
+# zsh — path of the external binary (skips shell functions)
+whence -p fest
+# or: which -p fest
+
+# bash
+type -P fest
+
+# show the function plus every binary on PATH
+type -a fest
+
+# resolve symlinks to the real file
+realpath "$(whence -p fest)"   # zsh
+realpath "$(type -P fest)"     # bash
+```
+
+To run the binary without the wrapper (scripts, debugging): `command fest version`.
+
 ## Agent Workflow
 
 The typical workflow for AI agents:
