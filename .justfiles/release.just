@@ -1,5 +1,10 @@
 # Release packaging and versioning recipes
 # Three channels: dev (pre-release), rc (release candidate), and stable (public)
+#
+# These recipes create component tags and GitHub releases. The Festival
+# distribution repo then pins the selected fest tag into the unified release.
+# Never create a component tag from a failing tree; every channel-tagging recipe
+# runs the repository release gate first.
 binary_name := "fest"
 main_path := "cmd/fest/main.go"
 bin_dir := "bin"
@@ -130,6 +135,8 @@ next level="":
 dev level="":
     #!/usr/bin/env bash
     set -euo pipefail
+    echo "Running gate before tagging..."
+    just gate
 
     level="{{level}}"
     latest=$(git tag -l "v*-dev.*" --sort=-version:refname | head -1)
@@ -172,6 +179,8 @@ dev level="":
 rc version n="1":
     #!/usr/bin/env bash
     set -euo pipefail
+    echo "Running gate before tagging..."
+    just gate
 
     tag="v{{version}}-rc.{{n}}"
 
@@ -196,6 +205,8 @@ rc version n="1":
 stable level="patch":
     #!/usr/bin/env bash
     set -euo pipefail
+    echo "Running gate before tagging..."
+    just gate
 
     level="{{level}}"
 
@@ -236,6 +247,8 @@ stable level="patch":
 promote-rc version="":
     #!/usr/bin/env bash
     set -euo pipefail
+    echo "Running gate before tagging..."
+    just gate
 
     if [ -n "{{version}}" ]; then
         latest_rc=$(git tag -l "v{{version}}-rc.*" --sort=-version:refname | head -1)
@@ -267,6 +280,8 @@ promote-rc version="":
 promote:
     #!/usr/bin/env bash
     set -euo pipefail
+    echo "Running gate before tagging..."
+    just gate
 
     latest_dev=$(git tag -l "v*-dev.*" --sort=-version:refname | head -1)
     if [ -z "$latest_dev" ]; then
