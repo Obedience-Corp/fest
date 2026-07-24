@@ -2,6 +2,31 @@
 
 Common issues and fixes for Fest CLI output and styling.
 
+## Finding the installed binary
+
+After shell integration (`eval "$(fest shell-init zsh)"` or the Festival helper
+file), `fest` is a **shell function**, not just a PATH entry. Plain
+`which fest` usually prints that function body instead of a filesystem path.
+
+```bash
+# zsh — external binary only (skips shell functions)
+whence -p fest
+# or: which -p fest
+
+# bash
+type -P fest
+
+# function + every binary on PATH
+type -a fest
+
+# resolve symlinks to the real install location
+realpath "$(whence -p fest)"   # zsh
+realpath "$(type -P fest)"     # bash
+```
+
+Run the binary without the wrapper with `command fest ...` (for example
+`command fest version`).
+
 ## Styled Output and Color
 
 ### Output has no color in a TTY
