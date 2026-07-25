@@ -1,8 +1,8 @@
 Lifecycle Hooks
 ===============
 
-Hooks are named commands bound to festival lifecycle events. They generalize
-the older single workspace setting hooks.approval_judge.command.
+Hooks are named commands bound to festival lifecycle events. The approval
+judge is one hook among them, not a special case.
 
 Read the full guide: docs/concepts/hooks.md
 Evidence transport: docs/concepts/hook-evidence-contract.md
@@ -30,7 +30,7 @@ Schema sketch
       approval_judge:
         command: ob judge    # required
         fail: closed         # closed | open
-        timeout: 120s        # 0 = no deadline
+        timeout: 0           # 0 = no deadline (approval_judge default)
         evidence: paths      # paths | embed
         enabled: true
 
@@ -54,16 +54,6 @@ fail:closed post-hooks short-circuit remaining post-hooks and warn; they do
 not roll back an already-applied completion or approval.
 fail:open records failure and continues remaining hooks at that timing.
 Undeclared bound names skip with a warning (not a hard error).
-
-Legacy alias
-------------
-
-  hooks:
-    approval_judge:
-      command: ob judge
-
-Still works at the festivals layer as an implicit definitions.approval_judge
-with timeout: 0. Prefer explicit definitions; fest validate warns.
 
 Human gates (not hooks)
 -----------------------

@@ -50,27 +50,62 @@ func TestResolve_InvalidTimeout(t *testing.T) {
 func TestResolve_ByNameWholeDefinitionOverride(t *testing.T) {
 	festivals := &config.HooksConfig{
 		Definitions: map[string]config.HookDefinition{
-			"approval_judge": {Command: "ws-judge", Fail: "open", Timeout: "30s"},
+			"lint": {Command: "ws-lint", Fail: "open", Timeout: "30s"},
 		},
 	}
 	festival := &config.HooksConfig{
 		Definitions: map[string]config.HookDefinition{
-			"approval_judge": {Command: "fest-judge"},
+			"lint": {Command: "fest-lint"},
 		},
 	}
 	eff, err := Resolve(nil, festivals, festival)
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	h := eff.Hooks["approval_judge"]
-	if h.Command != "fest-judge" {
-		t.Fatalf("command = %q, want fest-judge (whole replace)", h.Command)
+	h := eff.Hooks["lint"]
+	if h.Command != "fest-lint" {
+		t.Fatalf("command = %q, want fest-lint (whole replace)", h.Command)
 	}
 	if h.Fail != FailClosed || h.Timeout != DefaultTimeout {
 		t.Fatalf("want defaults after replace, got fail=%s timeout=%v", h.Fail, h.Timeout)
 	}
 	if h.Source != LayerFestival {
 		t.Fatalf("source = %s, want festival", h.Source)
+	}
+}
+
+// approval_judge shells out to an LLM, and a timeout fails closed. Defaulting it
+// to a wall-clock deadline would block gates on slow judges rather than judge
+// them, so an omitted timeout means no deadline for that name only.
+func TestResolve_ApprovalJudgeDefaultsToNoTimeout(t *testing.T) {
+	eff, err := Resolve(nil, &config.HooksConfig{
+		Definitions: map[string]config.HookDefinition{
+			ApprovalJudgeName: {Command: "ob judge"},
+			"lint":            {Command: "just lint"},
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got := eff.Hooks[ApprovalJudgeName].Timeout; got != NoTimeout {
+		t.Fatalf("approval_judge timeout = %v, want no deadline", got)
+	}
+	if got := eff.Hooks["lint"].Timeout; got != DefaultTimeout {
+		t.Fatalf("lint timeout = %v, want %v", got, DefaultTimeout)
+	}
+}
+
+func TestResolve_ApprovalJudgeExplicitTimeoutWins(t *testing.T) {
+	eff, err := Resolve(nil, &config.HooksConfig{
+		Definitions: map[string]config.HookDefinition{
+			ApprovalJudgeName: {Command: "ob judge", Timeout: "45s"},
+		},
+	}, nil)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got := eff.Hooks[ApprovalJudgeName].Timeout; got != 45*time.Second {
+		t.Fatalf("approval_judge timeout = %v, want 45s", got)
 	}
 }
 

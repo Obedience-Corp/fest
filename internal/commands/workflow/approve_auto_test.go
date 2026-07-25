@@ -78,7 +78,7 @@ func TestJudgeCommandUsesAutoRejudgePath(t *testing.T) {
 func TestResolveApprovalJudgeCommand(t *testing.T) {
 	festivalsRoot := t.TempDir()
 	cfg := config.DefaultWorkspaceConfig()
-	cfg.Hooks.ApprovalJudge.Command = "my-judge --strict"
+	cfg.Hooks.Definitions = map[string]config.HookDefinition{"approval_judge": {Command: "my-judge --strict"}}
 	if err := config.SaveWorkspaceConfig(festivalsRoot, cfg); err != nil {
 		t.Fatalf("SaveWorkspaceConfig: %v", err)
 	}

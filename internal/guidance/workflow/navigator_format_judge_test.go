@@ -74,7 +74,7 @@ func TestFormatCheckpoint_JudgeConfigured_ArtifactReviewDelegates(t *testing.T) 
 	if err := os.MkdirAll(dotFestival, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	cfgYAML := "version: \"1.0\"\nhooks:\n  approval_judge:\n    command: ob judge\n"
+	cfgYAML := "version: \"1.0\"\nhooks:\n  definitions:\n    approval_judge:\n      command: ob judge\n"
 	if err := os.WriteFile(filepath.Join(dotFestival, config.WorkspaceConfigFileName), []byte(cfgYAML), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
@@ -115,7 +115,7 @@ func TestFormatCheckpoint_JudgeConfigured_OperatorAttestationStaysManual(t *test
 	if err := os.MkdirAll(dotFestival, 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}
-	cfgYAML := "version: \"1.0\"\nhooks:\n  approval_judge:\n    command: ob judge\n"
+	cfgYAML := "version: \"1.0\"\nhooks:\n  definitions:\n    approval_judge:\n      command: ob judge\n"
 	if err := os.WriteFile(filepath.Join(dotFestival, config.WorkspaceConfigFileName), []byte(cfgYAML), 0o644); err != nil {
 		t.Fatalf("write config: %v", err)
 	}
@@ -179,7 +179,7 @@ func TestApprovalJudgeConfigured_FromFestivalPathWithoutWorkspaceCtx(t *testing.
 	if err := os.MkdirAll(dotFestival, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	cfgYAML := "version: \"1.0\"\nhooks:\n  approval_judge:\n    command: ob judge\n"
+	cfgYAML := "version: \"1.0\"\nhooks:\n  definitions:\n    approval_judge:\n      command: ob judge\n"
 	if err := os.WriteFile(filepath.Join(dotFestival, config.WorkspaceConfigFileName), []byte(cfgYAML), 0o644); err != nil {
 		t.Fatal(err)
 	}

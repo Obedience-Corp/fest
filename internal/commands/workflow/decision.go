@@ -43,7 +43,7 @@ func normalizeDecision(action, actor, summary string) (wf.DecisionMetadata, erro
 }
 
 func agentActorHint(action string) string {
-	const delegation = "agent-actor decisions enter the audit trail only through 'fest workflow judge' with a configured approval judge (hooks.approval_judge.command)"
+	const delegation = "agent-actor decisions enter the audit trail only through 'fest workflow judge' with a configured approval judge (hooks.definitions.approval_judge)"
 	switch action {
 	case "approval":
 		return "blocking checkpoints are operator decisions: stop, present the work, and ask the operator to run 'fest workflow approve'; " + delegation

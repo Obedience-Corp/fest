@@ -5923,8 +5923,8 @@ Lifecycle hooks schema, bindings, and human gates
 ### Synopsis
 
 Learn how fest resolves hooks across machine, festivals, and festival
-layers; how step bindings fire; legacy approval_judge alias behavior; and
-non-bypassable human gates (approval: human-required).
+layers; how step bindings fire; and non-bypassable human gates
+(approval: human-required).
 
 See also docs/concepts/hooks.md and docs/concepts/hook-evidence-contract.md.
 
@@ -7097,7 +7097,7 @@ After approval:
   - The workflow advances to the next step
 
 Auto approval:
-  Configuring hooks.approval_judge.command is the operator opt-in that
+  Configuring hooks.definitions.approval_judge is the operator opt-in that
   delegates blocking checkpoints away from human review. With that hook set,
 ```bash
   fest next auto-invokes the judge on blocking WORKFLOW.md / GATES.md steps.
@@ -7129,12 +7129,14 @@ Auto approval:
   decisions, and empty reasons fail closed and do not approve the checkpoint.
 
   The judge command is resolved as: --judge-command flag, else the
-  hooks.approval_judge.command hook in .festival/config.yaml. If neither is
+  hooks.definitions.approval_judge hook in .festival/config.yaml. If neither is
   set, --auto fails closed and leaves the checkpoint unchanged.
 
       hooks:
-        approval_judge:
-          command: ob judge
+        definitions:
+          approval_judge:
+            command: ob judge
+            timeout: 0
 
   By default --auto launches the judge in the background and returns
   immediately; the checkpoint stays blocked until the verdict lands, and
@@ -7151,7 +7153,7 @@ fest workflow approve [flags]
 ```
       --auto                     delegate this checkpoint decision to the configured approval judge command
   -h, --help                     help for approve
-      --judge-command string     approval judge command for --auto (overrides the .festival/config.yaml hooks.approval_judge.command hook; requires an interactive TTY)
+      --judge-command string     approval judge command for --auto (overrides the .festival/config.yaml hooks.definitions.approval_judge hook; requires an interactive TTY)
       --judge-timeout duration   maximum time to wait for the approval judge (0 waits until it returns)
       --override-judge           operator override of a judge/readiness reject (requires --summary and an interactive TTY)
       --summary string           approval summary or rationale (required with --override-judge)
@@ -7277,7 +7279,7 @@ require 'fest workflow approve'. By default the judge runs in the background;
 use --wait when this command should wait for the verdict.
 
 The judge command is resolved from --judge-command or the
-hooks.approval_judge.command workspace configuration hook.
+hooks.definitions.approval_judge workspace configuration hook.
 
 ```
 fest workflow judge [flags]
@@ -7287,7 +7289,7 @@ fest workflow judge [flags]
 
 ```
   -h, --help                     help for judge
-      --judge-command string     approval judge command (overrides hooks.approval_judge.command; requires an interactive TTY)
+      --judge-command string     approval judge command (overrides hooks.definitions.approval_judge; requires an interactive TTY)
       --judge-timeout duration   maximum time to wait for the approval judge (0 waits until it returns)
       --wait                     block until the judge returns instead of launching it in the background
 ```

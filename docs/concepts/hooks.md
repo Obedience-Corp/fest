@@ -1,9 +1,8 @@
 # Lifecycle Hooks
 
 fest hooks are **named commands** bound to festival lifecycle events (task
-complete, sequence complete, phase complete, gate approve). They are the
-generalization of the older single `hooks.approval_judge.command` workspace
-setting.
+complete, sequence complete, phase complete, gate approve). The approval judge
+is one hook among them, not a special case.
 
 Related:
 
@@ -49,7 +48,7 @@ hooks:
     approval_judge:
       command: ob judge    # required; cwd = festival root
       fail: closed         # closed (default) | open
-      timeout: 120s        # default 120s for newly declared hooks; 0 = no deadline
+      timeout: 0           # 0 = no deadline; default 120s, except approval_judge
       evidence: paths      # paths (default) | embed
       enabled: true        # per-hook switch
 ```
@@ -57,6 +56,11 @@ hooks:
 Field notes:
 
 - `command` is the only required definition field.
+- `timeout` defaults to 120s, **except for `approval_judge`, which defaults to
+  no deadline**. Judges call an LLM and a large checkpoint can legitimately run
+  for many minutes; since a timeout fails closed, a wall-clock default there
+  would block gates rather than judge them. Set an explicit `timeout` on
+  `approval_judge` to opt back into a deadline.
 - `definitions` is a map keyed by hook name (unit of layer override and binding).
 - `hooks.enabled` and `hooks.levels` resolve most-specific-wins across layers,
   independently of `definitions`.
@@ -152,35 +156,6 @@ Orchestration:
 - Undeclared bound names: **skip + warn** (not an error). Scaffolded templates
   may bind `approval_judge` while config is still empty.
 
-## Legacy approval_judge alias
-
-Production campaigns often have:
-
-```yaml
-# festivals/.festival/config.yaml
-hooks:
-  approval_judge:
-    command: ob judge
-```
-
-That flat key is still honored as an implicit festivals-layer
-`definitions.approval_judge` with:
-
-- `fail: closed`
-- `evidence: paths`
-- **`timeout: 0`** (preserves today's no-deadline judge behavior)
-
-An explicit `definitions.approval_judge` wins over the flat key.
-`fest validate` emits a non-blocking deprecation warning; migrate when ready:
-
-```yaml
-hooks:
-  definitions:
-    approval_judge:
-      command: ob judge
-      timeout: 0
-```
-
 ## Human gates
 
 ```yaml
@@ -223,7 +198,6 @@ records decisions only through the existing judge/approve paths.
 
 `fest validate` may emit **non-blocking** warnings for:
 
-- legacy flat `approval_judge` alias
 - differing layer shadows
 - bindings that name undeclared hooks
 

@@ -129,23 +129,15 @@ hooks:
     approval_judge:
       command: ob judge   # required
       fail: closed        # closed (default) | open
-      timeout: 120s       # default 120s; use 0 for no deadline
+      timeout: 0          # 0 = no deadline (the approval_judge default)
       evidence: paths     # paths (default) | embed
       enabled: true
 ```
 
 Machine-layer JSON uses the same fields under a top-level `"hooks"` object.
 
-### Legacy approval_judge key
-
-```yaml
-hooks:
-  approval_judge:
-    command: ob judge
-```
-
-Still honored at the festivals layer as an implicit `definitions.approval_judge`
-with `timeout: 0`. Prefer explicit `definitions`. `fest validate` warns.
+`timeout` defaults to 120s for hooks generally, but `approval_judge` defaults to
+no deadline because judges call an LLM and a timeout fails closed.
 
 ### Inspect
 

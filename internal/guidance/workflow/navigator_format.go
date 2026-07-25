@@ -116,7 +116,7 @@ func (n *Navigator) formatCheckpoint(ctx context.Context, step WorkflowStep) (st
 }
 
 // approvalJudgeConfigured reports whether the operator has delegated blocking
-// checkpoints to an approval judge via hooks.approval_judge.command.
+// checkpoints to an approval judge via hooks.definitions.approval_judge.
 //
 // Detection must not depend solely on scope.WorkspaceFrom(ctx): fest next uses
 // scope.Global and never injects workspace into context, so WorkspaceFrom is
@@ -128,7 +128,7 @@ func (n *Navigator) approvalJudgeConfigured(ctx context.Context) bool {
 
 // ApprovalJudgeCommand returns the resolved approval_judge hook command when
 // configured (definitions.approval_judge across layers, or the legacy flat
-// hooks.approval_judge.command alias). Empty means manual approval path.
+// hooks.definitions.approval_judge alias). Empty means manual approval path.
 func (n *Navigator) ApprovalJudgeCommand(ctx context.Context) string {
 	festivalPath := ""
 	if n != nil && n.BaseNavigator != nil && n.Ctx != nil {
@@ -160,7 +160,7 @@ func (n *Navigator) ApprovalJudgeCommand(ctx context.Context) string {
 			}
 		}
 	}
-	return strings.TrimSpace(cfg.Hooks.ApprovalJudge.Command)
+	return ""
 }
 
 // festivalsRoot resolves the campaigns festivals/ directory used for

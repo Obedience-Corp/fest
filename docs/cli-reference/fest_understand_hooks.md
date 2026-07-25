@@ -5,8 +5,8 @@ Lifecycle hooks schema, bindings, and human gates
 ### Synopsis
 
 Learn how fest resolves hooks across machine, festivals, and festival
-layers; how step bindings fire; legacy approval_judge alias behavior; and
-non-bypassable human gates (approval: human-required).
+layers; how step bindings fire; and non-bypassable human gates
+(approval: human-required).
 
 See also docs/concepts/hooks.md and docs/concepts/hook-evidence-contract.md.
 

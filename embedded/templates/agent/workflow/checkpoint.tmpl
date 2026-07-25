@@ -1,7 +1,7 @@
 {{/*
 TEMPLATE: workflow/checkpoint.tmpl
 PURPOSE: Shown when a step requires approval. Rendering is judge-aware:
-when the operator configured hooks.approval_judge.command the agent is
+when the operator configured hooks.definitions.approval_judge the agent is
 instructed to run the delegated judge; otherwise the agent must stop and
 hand off to the operator, and --auto is not advertised.
 
@@ -53,7 +53,7 @@ HUMAN APPROVAL REQUIRED
 {{- if .JudgeWaiting}}
 
 This checkpoint is delegated and a judge is **already running**
-(hooks.approval_judge.command). Do not relaunch it and do not wait in a spin
+(hooks.definitions.approval_judge). Do not relaunch it and do not wait in a spin
 loop.
 
 **What you should do:**
@@ -72,7 +72,7 @@ loop.
 {{- else if and .JudgeConfigured (not .OperatorAttestation)}}
 
 This checkpoint is delegated: the operator configured an approval judge
-(hooks.approval_judge.command). `fest next` auto-invokes the judge when it
+(hooks.definitions.approval_judge). `fest next` auto-invokes the judge when it
 lands on a blocking checkpoint; you should not wait for a human.
 
 **What you should do:**
@@ -108,7 +108,7 @@ This step requires explicit operator confirmation before proceeding.
 {{- if .OperatorAttestation}}
 - This checkpoint requires human attestation and cannot be delegated to a judge.
 {{- else}}
-- Delegate this decision: configure hooks.approval_judge.command, then
+- Delegate this decision: configure hooks.definitions.approval_judge, then
   fest workflow judge
 {{- end}}
 {{- end}}
