@@ -279,8 +279,9 @@ EOF
 cat > /festivals/.festival/config.yaml <<EOF
 version: "1.0"
 hooks:
-  approval_judge:
-    command: %[2]s
+  definitions:
+    approval_judge:
+      command: %[2]s
 EOF
 
 cat > "%[1]s/fest.yaml" <<'EOF'

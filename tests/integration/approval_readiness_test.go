@@ -27,8 +27,9 @@ mkdir -p "` + phasePath + `/output_specs" /outside
 cat > /festivals/.festival/config.yaml <<'EOF'
 version: "1.0"
 hooks:
-  approval_judge:
-    command: /bin/false
+  definitions:
+    approval_judge:
+      command: /bin/false
 EOF
 cat > "` + festivalPath + `/fest.yaml" <<'EOF'
 version: "1.0"
