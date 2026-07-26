@@ -160,8 +160,9 @@ func writeOperatorConfig(t *testing.T, tc *TestContainer, configPath, command st
 	_, err := tc.runCommand([]string{"sh", "-c", fmt.Sprintf(`cat > %s <<'EOF'
 version: "1.0"
 hooks:
-  approval_judge:
-    command: %s
+  definitions:
+    approval_judge:
+      command: %s
 EOF`, configPath, command)})
 	require.NoError(t, err, "failed to write operator config")
 }
@@ -276,8 +277,9 @@ func TestSystemUpdate_PreservesUserConfigAcrossUpdates(t *testing.T) {
 	_, err = tc.runCommand([]string{"sh", "-c", fmt.Sprintf(`cat > %s/.festival/config.yaml <<'EOF'
 version: "1.0"
 hooks:
-  approval_judge:
-    command: /bin/STALE-SOURCE
+  definitions:
+    approval_judge:
+      command: /bin/STALE-SOURCE
 EOF`, sourceDir)})
 	require.NoError(t, err, "failed to plant stale source config")
 
