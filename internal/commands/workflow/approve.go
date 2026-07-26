@@ -86,6 +86,19 @@ type approvalJudgeRequest struct {
 	// EvidenceFiles is optional embedded content when the resolved hook uses
 	// evidence: embed. Omitted in the default paths mode.
 	EvidenceFiles []hooks.EvidenceFile `json:"evidence_files,omitempty"`
+	// CampaignRoot is the campaign directory containing this festival, so a
+	// judge can resolve working dirs and read the repositories the phase
+	// actually changed. Empty when no campaign root is found.
+	CampaignRoot string `json:"campaign_root,omitempty"`
+	// WorkingDirs are the fest_working_dir declarations of the phase's
+	// sequences: where the work landed, as opposed to where the plan lives.
+	//
+	// Without these a judge evaluating an implementation phase can only read
+	// the executor's own account of what it did, because the deliverable is
+	// code in another repository that the request never mentioned. Additive to
+	// fest.approval.judge/v1: an older judge ignores the field and behaves
+	// exactly as before.
+	WorkingDirs []judgeWorkingDir `json:"working_dirs,omitempty"`
 }
 
 type approvalJudgeResponse struct {
@@ -800,6 +813,11 @@ func judgeApproval(ctx context.Context, nav *wf.Navigator, step wf.WorkflowStep,
 		Output:        step.Output,
 		Checkpoint:    step.Checkpoint.String(),
 	}
+	// Where the work landed, not just where the plan lives. Best-effort: a
+	// phase with no declared working dirs (design, docs) simply sends none, and
+	// the judge sees the festival through phase_path as before.
+	req.CampaignRoot = campaignRootFor(nav.Ctx.FestivalPath)
+	req.WorkingDirs = collectPhaseWorkingDirs(nav.Ctx.PhasePath, req.CampaignRoot)
 	if nav.IsGate() {
 		req.Document = "GATES.md"
 	}
