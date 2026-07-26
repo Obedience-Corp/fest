@@ -29,7 +29,7 @@ func approvalRecoveryLinesFor(ctx context.Context, nav *wf.Navigator, step wf.Wo
 	if !configured {
 		return []string{
 			"Operator approve: " + ui.Accent("fest workflow approve"),
-			"To enable auto-judge, configure hooks.approval_judge.command first.",
+			"To enable auto-judge, configure hooks.definitions.approval_judge first.",
 		}
 	}
 	if nav != nil {

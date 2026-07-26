@@ -254,7 +254,7 @@ func TestApprovalRecoveryLines_OnlySuggestValidRoutesWithoutJudge(t *testing.T) 
 func TestApprovalRecoveryLines_OrdinaryOperatorRejectionOmitsJudgeRetry(t *testing.T) {
 	dir := setupWorkflowFestival(t)
 	cfg := config.DefaultWorkspaceConfig()
-	cfg.Hooks.ApprovalJudge.Command = "configured-judge"
+	cfg.Hooks.Definitions = map[string]config.HookDefinition{"approval_judge": {Command: "configured-judge"}}
 	if err := config.SaveWorkspaceConfig(dir, cfg); err != nil {
 		t.Fatalf("SaveWorkspaceConfig: %v", err)
 	}

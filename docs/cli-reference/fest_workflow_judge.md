@@ -12,7 +12,7 @@ require 'fest workflow approve'. By default the judge runs in the background;
 use --wait when this command should wait for the verdict.
 
 The judge command is resolved from --judge-command or the
-hooks.approval_judge.command workspace configuration hook.
+hooks.definitions.approval_judge workspace configuration hook.
 
 ```
 fest workflow judge [flags]
@@ -22,7 +22,7 @@ fest workflow judge [flags]
 
 ```
   -h, --help                     help for judge
-      --judge-command string     approval judge command (overrides hooks.approval_judge.command; requires an interactive TTY)
+      --judge-command string     approval judge command (overrides hooks.definitions.approval_judge; requires an interactive TTY)
       --judge-timeout duration   maximum time to wait for the approval judge (0 waits until it returns)
       --wait                     block until the judge returns instead of launching it in the background
 ```

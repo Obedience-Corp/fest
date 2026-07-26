@@ -513,13 +513,8 @@ func emitValidateError(opts *validateOptions, err error) error {
 }
 
 
-// validateHooksChecks emits non-blocking warnings for legacy aliases, shadow drift, and undeclared bindings.
+// validateHooksChecks emits non-blocking warnings for shadow drift and undeclared bindings.
 func validateHooksChecks(ctx context.Context, festivalPath string, result *ValidationResult) {
-	issues, err := validator.ValidateHooksConfig(ctx, festivalPath)
-	if err == nil {
-		result.Issues = append(result.Issues, convertIssues(issues)...)
-	}
-
 	eff, err := hookslib.LoadAndResolve(ctx, festivalPath)
 	if err != nil {
 		result.Issues = append(result.Issues, ValidationIssue{

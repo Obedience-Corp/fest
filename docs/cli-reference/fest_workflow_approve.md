@@ -14,7 +14,7 @@ After approval:
   - The workflow advances to the next step
 
 Auto approval:
-  Configuring hooks.approval_judge.command is the operator opt-in that
+  Configuring hooks.definitions.approval_judge is the operator opt-in that
   delegates blocking checkpoints away from human review. With that hook set,
 ```bash
   fest next auto-invokes the judge on blocking WORKFLOW.md / GATES.md steps.
@@ -46,12 +46,14 @@ Auto approval:
   decisions, and empty reasons fail closed and do not approve the checkpoint.
 
   The judge command is resolved as: --judge-command flag, else the
-  hooks.approval_judge.command hook in .festival/config.yaml. If neither is
+  hooks.definitions.approval_judge hook in .festival/config.yaml. If neither is
   set, --auto fails closed and leaves the checkpoint unchanged.
 
       hooks:
-        approval_judge:
-          command: ob judge
+        definitions:
+          approval_judge:
+            command: ob judge
+            timeout: 0
 
   By default --auto launches the judge in the background and returns
   immediately; the checkpoint stays blocked until the verdict lands, and
@@ -68,7 +70,7 @@ fest workflow approve [flags]
 ```
       --auto                     delegate this checkpoint decision to the configured approval judge command
   -h, --help                     help for approve
-      --judge-command string     approval judge command for --auto (overrides the .festival/config.yaml hooks.approval_judge.command hook; requires an interactive TTY)
+      --judge-command string     approval judge command for --auto (overrides the .festival/config.yaml hooks.definitions.approval_judge hook; requires an interactive TTY)
       --judge-timeout duration   maximum time to wait for the approval judge (0 waits until it returns)
       --override-judge           operator override of a judge/readiness reject (requires --summary and an interactive TTY)
       --summary string           approval summary or rationale (required with --override-judge)

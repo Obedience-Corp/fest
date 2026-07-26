@@ -128,7 +128,7 @@ func runWorkflowModeWithStore(ctx context.Context, festivalPath, phasePath strin
 		return errors.Wrap(err, "initializing workflow navigator")
 	}
 
-	// Operator opt-in via hooks.approval_judge: auto-run the judge on
+	// Operator opt-in via hooks.definitions.approval_judge: auto-run the judge on
 	// consecutive blocking checkpoints so fest next does not wait for a human.
 	if wfNav, ok := nav.(*wf.Navigator); ok {
 		if err := wfcmd.AutoDelegateBlockingCheckpoints(ctx, wfNav); err != nil {
@@ -216,7 +216,7 @@ func runPhaseGateMode(ctx context.Context, festivalPath, phasePath string) error
 		return errors.Wrap(err, "initializing phase gate navigator")
 	}
 
-	// Operator opt-in via hooks.approval_judge: auto-run the judge on
+	// Operator opt-in via hooks.definitions.approval_judge: auto-run the judge on
 	// consecutive blocking gate steps so fest next does not wait for a human.
 	if wfNav, ok := nav.(*wf.Navigator); ok {
 		if err := wfcmd.AutoDelegateBlockingCheckpoints(ctx, wfNav); err != nil {

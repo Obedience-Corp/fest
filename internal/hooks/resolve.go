@@ -7,6 +7,9 @@ import (
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 )
 
+// ApprovalJudgeName is the reserved hook name the gate-approval judge binds to.
+const ApprovalJudgeName = "approval_judge"
+
 type Layer string
 
 const (
@@ -32,6 +35,21 @@ const (
 // DefaultTimeout is applied to newly declared hooks when timeout is unset.
 const DefaultTimeout = 120 * time.Second
 
+// NoTimeout disables the deadline for a hook. It is the default for
+// ApprovalJudgeName: judges call an LLM, and a large checkpoint can legitimately
+// run for many minutes. Since a timeout fails closed, a wall-clock default here
+// would block gates rather than judge them. Operators can still set an explicit
+// timeout on approval_judge to opt back into a deadline.
+const NoTimeout time.Duration = 0
+
+// defaultTimeoutFor returns the timeout applied when a definition omits one.
+func defaultTimeoutFor(name string) time.Duration {
+	if name == ApprovalJudgeName {
+		return NoTimeout
+	}
+	return DefaultTimeout
+}
+
 // ResolvedHook is a fully-defaulted, typed hook definition plus provenance.
 type ResolvedHook struct {
 	Name     string
@@ -55,10 +73,6 @@ type Effective struct {
 	Enabled bool                    // layer-wide switch, most-specific-wins, default true
 	Levels  map[string]bool         // phase/sequence/task, most-specific-wins, default true
 	Hooks   map[string]ResolvedHook // by name
-
-	// Legacy alias (flat hooks.approval_judge.command) metadata for warnings.
-	LegacyAliasActive  bool
-	LegacyAliasCommand string
 }
 
 type layerCfg struct {
@@ -73,18 +87,11 @@ type prior struct {
 
 // Resolve merges three declaration layers into one effective hook set.
 // Nil or empty layers are skipped (D7: empty defaults at every layer).
-// The festivals-layer legacy flat key is expanded in-memory before merge (D6/R6).
 func Resolve(machine, festivals, festival *config.HooksConfig) (*Effective, error) {
 	eff := &Effective{
 		Enabled: true,
 		Levels:  map[string]bool{"phase": true, "sequence": true, "task": true},
 		Hooks:   map[string]ResolvedHook{},
-	}
-
-	festivals = cloneHooksConfig(festivals)
-	if aliased, cmd := applyApprovalJudgeAlias(festivals); aliased {
-		eff.LegacyAliasActive = true
-		eff.LegacyAliasCommand = cmd
 	}
 
 	layers := []layerCfg{
@@ -139,7 +146,6 @@ func emptyLayer(cfg *config.HooksConfig) bool {
 		return true
 	}
 	return cfg.IsZero() &&
-		cfg.ApprovalJudge.Command == "" &&
 		cfg.Enabled == nil &&
 		len(cfg.Levels) == 0 &&
 		len(cfg.Definitions) == 0
@@ -167,7 +173,7 @@ func resolveOne(name string, src Layer, def config.HookDefinition) (ResolvedHook
 			WithField("hook", name).WithField("evidence", def.Evidence).
 			WithHint("evidence must be paths or embed")
 	}
-	rh.Timeout = DefaultTimeout
+	rh.Timeout = defaultTimeoutFor(name)
 	if def.Timeout != "" {
 		d, err := time.ParseDuration(def.Timeout)
 		if err != nil {

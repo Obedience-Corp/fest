@@ -130,32 +130,10 @@ func TestSaveWorkspaceConfig_AbsentHooksIsZeroAndNoEmptySection(t *testing.T) {
 	}
 }
 
-func TestLoadWorkspaceConfig_LegacyApprovalJudgeOnly(t *testing.T) {
-	root := t.TempDir()
-	dir := filepath.Join(root, DotFestivalDir)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	data := "version: \"1.0\"\nhooks:\n  approval_judge:\n    command: my-judge\n"
-	if err := os.WriteFile(filepath.Join(dir, WorkspaceConfigFileName), []byte(data), 0o644); err != nil {
-		t.Fatalf("write: %v", err)
-	}
-	cfg, err := LoadWorkspaceConfig(root)
-	if err != nil {
-		t.Fatalf("LoadWorkspaceConfig: %v", err)
-	}
-	if cfg.Hooks.ApprovalJudge.Command != "my-judge" {
-		t.Fatalf("command = %q, want my-judge", cfg.Hooks.ApprovalJudge.Command)
-	}
-	if cfg.Hooks.IsZero() {
-		t.Fatal("legacy hooks section should set present")
-	}
-}
-
 func TestSaveWorkspaceConfig_PlaceholderOnlyWhenEmpty(t *testing.T) {
 	root := t.TempDir()
 	cfg := DefaultWorkspaceConfig()
-	cfg.Hooks.ApprovalJudge.Command = "ob judge"
+	cfg.Hooks.Definitions = map[string]HookDefinition{"approval_judge": {Command: "ob judge"}}
 	cfg.Hooks.present = true
 	if err := SaveWorkspaceConfig(root, cfg); err != nil {
 		t.Fatalf("SaveWorkspaceConfig: %v", err)

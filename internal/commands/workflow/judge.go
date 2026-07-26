@@ -22,7 +22,7 @@ require 'fest workflow approve'. By default the judge runs in the background;
 use --wait when this command should wait for the verdict.
 
 The judge command is resolved from --judge-command or the
-hooks.approval_judge.command workspace configuration hook.`,
+hooks.definitions.approval_judge workspace configuration hook.`,
 		Annotations: map[string]string{
 			"scope": string(scope.Festival),
 		},
@@ -31,7 +31,7 @@ hooks.approval_judge.command workspace configuration hook.`,
 			return runApproveWithOptions(cmd.Context(), wf.DecisionMetadata{}, opts)
 		},
 	}
-	cmd.Flags().StringVar(&opts.JudgeCommand, "judge-command", "", "approval judge command (overrides hooks.approval_judge.command; requires an interactive TTY)")
+	cmd.Flags().StringVar(&opts.JudgeCommand, "judge-command", "", "approval judge command (overrides hooks.definitions.approval_judge; requires an interactive TTY)")
 	cmd.Flags().DurationVar(&opts.Timeout, "judge-timeout", 0, "maximum time to wait for the approval judge (0 waits until it returns)")
 	cmd.Flags().BoolVar(&opts.Wait, "wait", false, "block until the judge returns instead of launching it in the background")
 	return cmd

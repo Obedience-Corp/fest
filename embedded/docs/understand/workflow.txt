@@ -68,13 +68,7 @@ Blocking checkpoints can be delegated to an automation hook named
     definitions:
       approval_judge:
         command: ob judge
-        timeout: 0   # no deadline; matches historical judge behavior
-
-Legacy flat key (still works, deprecation-warned by fest validate):
-
-  hooks:
-    approval_judge:
-      command: ob judge
+        timeout: 0   # optional: approval_judge already defaults to no deadline
 
 When that definition is present and the step is not human-required:
 

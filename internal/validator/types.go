@@ -28,7 +28,6 @@ const (
 	CodeAutoLinkProjectPathInvalid = "autolink_project_path_invalid"
 
 	// Hooks issue codes
-	CodeHooksLegacyAlias = "hooks_legacy_alias"
 )
 
 // Issue represents a single validation problem

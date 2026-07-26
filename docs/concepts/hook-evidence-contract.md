@@ -58,5 +58,3 @@ When a hook definition sets `evidence: embed`, fest may also attach
 
 - `fest.approval.judge/v1` decision protocol is unchanged.
 - Default `evidence: paths` marshals without `evidence_files`.
-- Legacy `hooks.approval_judge.command` continues to use path mode with
-  `timeout: 0`.

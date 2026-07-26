@@ -117,7 +117,7 @@ After approval:
   - The workflow advances to the next step
 
 Auto approval:
-  Configuring hooks.approval_judge.command is the operator opt-in that
+  Configuring hooks.definitions.approval_judge is the operator opt-in that
   delegates blocking checkpoints away from human review. With that hook set,
   fest next auto-invokes the judge on blocking WORKFLOW.md / GATES.md steps.
 
@@ -148,12 +148,14 @@ Auto approval:
   decisions, and empty reasons fail closed and do not approve the checkpoint.
 
   The judge command is resolved as: --judge-command flag, else the
-  hooks.approval_judge.command hook in .festival/config.yaml. If neither is
+  hooks.definitions.approval_judge hook in .festival/config.yaml. If neither is
   set, --auto fails closed and leaves the checkpoint unchanged.
 
       hooks:
-        approval_judge:
-          command: ob judge
+        definitions:
+          approval_judge:
+            command: ob judge
+            timeout: 0
 
   By default --auto launches the judge in the background and returns
   immediately; the checkpoint stays blocked until the verdict lands, and
@@ -179,7 +181,7 @@ Auto approval:
 	_ = cmd.Flags().MarkHidden("as")
 	cmd.Flags().StringVar(&opts.Summary, "summary", "", "approval summary or rationale (required with --override-judge)")
 	cmd.Flags().BoolVar(&opts.Auto, "auto", false, "delegate this checkpoint decision to the configured approval judge command")
-	cmd.Flags().StringVar(&opts.JudgeCommand, "judge-command", opts.JudgeCommand, "approval judge command for --auto (overrides the .festival/config.yaml hooks.approval_judge.command hook; requires an interactive TTY)")
+	cmd.Flags().StringVar(&opts.JudgeCommand, "judge-command", opts.JudgeCommand, "approval judge command for --auto (overrides the .festival/config.yaml hooks.definitions.approval_judge hook; requires an interactive TTY)")
 	cmd.Flags().DurationVar(&opts.Timeout, "judge-timeout", opts.Timeout, "maximum time to wait for the approval judge (0 waits until it returns)")
 	cmd.Flags().BoolVar(&opts.OverrideJudge, "override-judge", false, "operator override of a judge/readiness reject (requires --summary and an interactive TTY)")
 	cmd.Flags().BoolVar(&opts.Wait, "wait", false, "block until the judge returns instead of launching it in the background")
@@ -323,7 +325,7 @@ func approvalJudgeConfiguredFor(ctx context.Context, nav *wf.Navigator) (bool, e
 }
 
 // lookupApprovalJudgeCommand returns the effective approval_judge command from
-// the three-layer hooks resolver (definitions + legacy flat-key alias).
+// the three-layer hooks resolver.
 func lookupApprovalJudgeCommand(ctx context.Context, nav *wf.Navigator) (string, error) {
 	festivalPath := ""
 	if nav != nil && nav.Ctx != nil {
@@ -336,9 +338,9 @@ func lookupApprovalJudgeCommand(ctx context.Context, nav *wf.Navigator) (string,
 	return resolveApprovalJudgeCommandFromHooks(ctx, festivalPath, festivalsRoot)
 }
 
-// resolveApprovalJudgeCommandFromHooks uses hooks.Resolve so both
-// definitions.approval_judge and the legacy flat approval_judge.command key
-// configure auto-judge discovery (fest next / judge / approve --auto).
+// resolveApprovalJudgeCommandFromHooks uses hooks.Resolve so
+// definitions.approval_judge across all three layers configures auto-judge
+// discovery (fest next / judge / approve --auto).
 func resolveApprovalJudgeCommandFromHooks(ctx context.Context, festivalPath, festivalsRoot string) (string, error) {
 	if festivalPath != "" {
 		eff, err := hooks.LoadAndResolve(ctx, festivalPath)
@@ -373,11 +375,7 @@ func resolveApprovalJudgeCommandFromHooks(ctx context.Context, festivalPath, fes
 	if err != nil {
 		return "", festerrors.Wrap(err, "resolving approval judge hooks")
 	}
-	if cmd := approvalJudgeCommandFromEffective(eff); cmd != "" {
-		return cmd, nil
-	}
-	// Defensive fallback if alias expansion did not apply for any reason.
-	return strings.TrimSpace(wcfg.Hooks.ApprovalJudge.Command), nil
+	return approvalJudgeCommandFromEffective(eff), nil
 }
 
 func approvalJudgeCommandFromEffective(eff *hooks.Effective) string {
@@ -426,16 +424,13 @@ func approvalJudgeConfiguredWithLoader(ctx context.Context, load workspaceConfig
 	if err != nil {
 		return false, err
 	}
-	if cmd := approvalJudgeCommandFromEffective(eff); cmd != "" {
-		return true, nil
-	}
-	return strings.TrimSpace(cfg.Hooks.ApprovalJudge.Command) != "", nil
+	return approvalJudgeCommandFromEffective(eff) != "", nil
 }
 
 // resolveApprovalJudgeCommand resolves the command used for --auto approval.
 // Precedence: the --judge-command flag, then the resolved approval_judge hook
 // (definitions.approval_judge across layers, or the legacy flat
-// hooks.approval_judge.command alias). It fails closed when neither is set so
+// hooks.definitions.approval_judge). It fails closed when neither is set so
 // no checkpoint is delegated to an unconfigured (or assumed) command.
 func resolveApprovalJudgeCommand(ctx context.Context, flagValue string) (string, error) {
 	return resolveApprovalJudgeCommandFor(ctx, nil, flagValue)
@@ -446,7 +441,7 @@ func resolveApprovalJudgeCommandFor(ctx context.Context, nav *wf.Navigator, flag
 		if !stdinIsInteractiveFn() {
 			return "", festerrors.Validation("--judge-command requires an interactive operator TTY").
 				WithField("judge_command", cmd).
-				WithHint("agents must not choose their own judge; configure hooks.definitions.approval_judge (or legacy hooks.approval_judge.command) so non-interactive runs use the operator-controlled command")
+				WithHint("agents must not choose their own judge; configure hooks.definitions.approval_judge so non-interactive runs use the operator-controlled command")
 		}
 		return cmd, nil
 	}
@@ -472,17 +467,13 @@ hooks:
       command: <your-approval-judge-tool>
       timeout: 0
 
-Legacy flat form (still supported):
-
-hooks:
-  approval_judge:
-    command: <your-approval-judge-tool>
-
 Example (using the obey CLI):
 
 hooks:
-  approval_judge:
-    command: ob judge
+  definitions:
+    approval_judge:
+      command: ob judge
+      timeout: 0
 
 Or pass --judge-command <cmd> for a one-off.`)
 }
@@ -490,7 +481,7 @@ Or pass --judge-command <cmd> for a one-off.`)
 // AutoDelegateBlockingCheckpoints runs the configured approval judge for each
 // consecutive blocking checkpoint while a judge is configured.
 //
-// This is the fest next integration path: configuring hooks.approval_judge is
+// This is the fest next integration path: configuring hooks.definitions.approval_judge is
 // an operator opt-in to skip human pings on GATES.md / WORKFLOW.md checkpoints.
 // When no judge is configured, this is a no-op and the caller formats the
 // manual checkpoint instructions.

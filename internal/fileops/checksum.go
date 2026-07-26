@@ -252,7 +252,7 @@ func shouldSkipFile(path, rootPath string) bool {
 
 	// Skip the user-owned workspace config (.festival/config.yaml). It is
 	// scaffolded by 'fest init' and edited by operators (e.g.
-	// hooks.approval_judge.command); it is not synced methodology, so it must
+	// hooks.definitions.approval_judge); it is not synced methodology, so it must
 	// never be checksum-tracked, updated, or deleted by 'fest system update'.
 	// Literal mirrors config.WorkspaceConfigFileName; kept inline to avoid
 	// coupling this low-level utility to the config package.

@@ -48,10 +48,9 @@ func newHooksListCmd() *cobra.Command {
 }
 
 type hooksListJSON struct {
-	Enabled bool                    `json:"enabled"`
-	Levels  map[string]bool         `json:"levels"`
-	Hooks   []hooksListHookJSON     `json:"hooks"`
-	Legacy  *hooksListLegacyJSON    `json:"legacy_alias,omitempty"`
+	Enabled bool                `json:"enabled"`
+	Levels  map[string]bool     `json:"levels"`
+	Hooks   []hooksListHookJSON `json:"hooks"`
 }
 
 type hooksListHookJSON struct {
@@ -69,11 +68,6 @@ type hooksListShadowJSON struct {
 	Source  string `json:"source"`
 	Command string `json:"command"`
 	Differs bool   `json:"differs"`
-}
-
-type hooksListLegacyJSON struct {
-	Active  bool   `json:"active"`
-	Command string `json:"command,omitempty"`
 }
 
 func runHooksList(ctx context.Context, jsonOutput bool) error {
@@ -127,9 +121,6 @@ func buildHooksListView(eff *hooks.Effective) hooksListJSON {
 	for k, v := range eff.Levels {
 		view.Levels[k] = v
 	}
-	if eff.LegacyAliasActive {
-		view.Legacy = &hooksListLegacyJSON{Active: true, Command: eff.LegacyAliasCommand}
-	}
 	names := make([]string, 0, len(eff.Hooks))
 	for name := range eff.Hooks {
 		names = append(names, name)
@@ -172,9 +163,6 @@ func printHooksListText(view hooksListJSON) {
 			parts = append(parts, fmt.Sprintf("%s=%v", k, view.Levels[k]))
 		}
 		fmt.Printf("hooks.levels: %s\n", strings.Join(parts, " "))
-	}
-	if view.Legacy != nil && view.Legacy.Active {
-		fmt.Printf("legacy alias: approval_judge.command=%q (timeout=0)\n", view.Legacy.Command)
 	}
 	if len(view.Hooks) == 0 {
 		fmt.Println("No hooks configured. Declare hooks under hooks.definitions or run `fest hooks list` after configuring.")
