@@ -46,6 +46,24 @@ func checkApprovalReadinessWithInspector(
 		return err
 	}
 
+	// An Evidence block the parser could not fully read is refused before the
+	// judge starts. The judge can only see what Evidence lists, so an unfilled
+	// scaffold placeholder ("- (attach the task outputs for this step)") or a
+	// path with a space used to be dropped in silence, leaving a list that
+	// looked deliberate. The judge would then reject for missing deliverables
+	// that were never handed to it, which costs a full round-trip and reads as
+	// the judge being wrong rather than the gate being unfilled.
+	if len(step.EvidenceUnparsed) > 0 {
+		return festerrors.Validation("approval readiness failed: evidence list has entries that are not paths: "+
+			strings.Join(step.EvidenceUnparsed, " | ")).
+			WithField("step", step.Number).
+			WithField("step_name", step.Name).
+			WithField("unreadable", strings.Join(step.EvidenceUnparsed, " | ")).
+			WithHint("each **Evidence:** bullet must be a single phase-relative path with no spaces; " +
+				"replace the listed lines in GATES.md with the real deliverables, then re-submit " +
+				"with 'fest workflow judge'")
+	}
+
 	// Presentation-like steps require a non-empty presentation (or listed evidence).
 	if !wf.IsPresentationStep(step) && len(step.EvidencePaths) == 0 {
 		return nil
