@@ -156,6 +156,87 @@ func TestRegistryDiscover(t *testing.T) {
 	}
 }
 
+func TestRegistryDiscoverNestedMethodologyLayout(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Nested package layout matching fest system sync output.
+	mustWrite := func(rel, content string) {
+		t.Helper()
+		path := filepath.Join(tmpDir, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustWrite("phases/implementation/GOAL.md", "# Implement\n[REPLACE: x]")
+	mustWrite("phases/implementation/GATES.md", "# Gates")
+	mustWrite("phases/implementation/gates/QUALITY_GATE_REVIEW.md", "# Review gate")
+	mustWrite("phases/planning/GOAL.md", "# Plan")
+	mustWrite("phases/ingest/GOAL.md", "# Ingest")
+	mustWrite("sequences/GOAL.md", "# Sequence")
+	mustWrite("sequences/GOAL_MINIMAL.md", "# Minimal sequence")
+	mustWrite("tasks/TASK.md", "# Task")
+	mustWrite("festival/GOAL.md", "# Festival goal")
+	mustWrite("festival/OVERVIEW.md", "# Overview")
+
+	reg := NewRegistry()
+	if err := reg.Discover(context.Background(), DiscoverOptions{
+		BuiltInDir:   tmpDir,
+		CountMarkers: true,
+	}); err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+
+	if reg.FindType(LevelPhase, "implementation") == nil {
+		t.Fatal("expected phase/implementation")
+	}
+	if reg.FindType(LevelPhase, "planning") == nil {
+		t.Fatal("expected phase/planning")
+	}
+	if reg.FindType(LevelPhase, "ingest") == nil {
+		t.Fatal("expected phase/ingest")
+	}
+	if reg.FindType(LevelSequence, "default") == nil {
+		t.Fatal("expected sequence/default from GOAL.md")
+	}
+	if reg.FindType(LevelSequence, "minimal") == nil {
+		t.Fatal("expected sequence/minimal from GOAL_MINIMAL.md")
+	}
+	if reg.FindType(LevelTask, "default") == nil {
+		t.Fatal("expected task/default from TASK.md")
+	}
+	if reg.FindType(LevelTask, "gate/review") == nil {
+		t.Fatal("expected task/gate/review quality gate")
+	}
+	// festival/ scaffold files are not create --type values.
+	if reg.FindType(LevelFestival, "scaffold") != nil {
+		t.Fatal("did not expect festival/scaffold as a listed type")
+	}
+	// Must not invent a phase type from flat filename when nested layout is used.
+	if reg.FindType(LevelPhase, "goal") != nil {
+		t.Fatal("did not expect legacy phase/goal from nested layout")
+	}
+}
+
+func TestMergeFestivalWorkflowTypes(t *testing.T) {
+	reg := NewRegistry()
+	reg.MergeFestivalWorkflowTypes(&FestivalTypesConfig{
+		Types: []FestivalType{
+			{Name: "standard", Description: "Default", Default: true},
+			{Name: "research", Description: "Research"},
+		},
+	})
+	std := reg.FindType(LevelFestival, "standard")
+	if std == nil || !std.IsDefault || std.Description != "Default" {
+		t.Fatalf("standard type not merged correctly: %+v", std)
+	}
+	if reg.FindType(LevelFestival, "research") == nil {
+		t.Fatal("expected research festival type")
+	}
+}
+
 func TestRegistryFindType(t *testing.T) {
 	reg := NewRegistry()
 	reg.Festival = []TypeInfo{

@@ -38,7 +38,8 @@ func NewRegistry() *Registry {
 
 // DiscoverOptions configures type discovery behavior.
 type DiscoverOptions struct {
-	// BuiltInDir is the path to built-in templates (e.g., ~/.obey/fest/templates).
+	// BuiltInDir is the path to built-in templates
+	// (e.g., ~/.obey/fest/festivals/.festival/templates).
 	BuiltInDir string
 	// CustomDir is the path to custom templates (e.g., .festival/templates/).
 	CustomDir string
@@ -78,7 +79,32 @@ func (r *Registry) Discover(ctx context.Context, opts DiscoverOptions) error {
 	return nil
 }
 
+// MergeFestivalWorkflowTypes adds festival workflow blueprints (from
+// festival_types.yaml) into the festival level of the registry so
+// `fest types list` surfaces the same names as `fest create festival --type`.
+func (r *Registry) MergeFestivalWorkflowTypes(config *FestivalTypesConfig) {
+	if config == nil {
+		return
+	}
+	for _, ft := range config.Types {
+		desc := ft.Description
+		r.addType(&TypeInfo{
+			Name:        ft.Name,
+			Level:       LevelFestival,
+			Description: desc,
+			IsDefault:   ft.Default,
+			IsCustom:    false,
+			Templates:   nil,
+			Source:      "festival_types.yaml",
+		})
+	}
+	r.sortTypes()
+}
+
 // scanDirectory scans a template directory and extracts types.
+// Supports both the modern nested methodology layout
+// (phases/<type>/, sequences/, tasks/, festival/) and legacy flat
+// FESTIVAL_*/PHASE_*/TASK_* filenames.
 func (r *Registry) scanDirectory(ctx context.Context, dir string, isCustom bool, countMarkers bool) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -93,53 +119,232 @@ func (r *Registry) scanDirectory(ctx context.Context, dir string, isCustom bool,
 		return nil
 	}
 
-	// Find all markdown files
+	if isMethodologyTemplatesRoot(dir) {
+		return r.scanMethodologyRoot(ctx, dir, isCustom, countMarkers)
+	}
+
+	return r.scanLegacyFlatAndRecurse(ctx, dir, isCustom, countMarkers)
+}
+
+// isMethodologyTemplatesRoot reports whether dir uses the nested package layout
+// produced by fest system sync (phases/, sequences/, tasks/, and/or festival/).
+func isMethodologyTemplatesRoot(dir string) bool {
+	for _, name := range []string{"phases", "sequences", "tasks", "festival"} {
+		info, err := os.Stat(filepath.Join(dir, name))
+		if err == nil && info.IsDir() {
+			return true
+		}
+	}
+	return false
+}
+
+// scanMethodologyRoot discovers types from the nested templates tree.
+func (r *Registry) scanMethodologyRoot(ctx context.Context, root string, isCustom bool, countMarkers bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	// Phase packages: phases/<type>/{GOAL,GATES,WORKFLOW,...}.md
+	phasesDir := filepath.Join(root, "phases")
+	if info, err := os.Stat(phasesDir); err == nil && info.IsDir() {
+		entries, err := os.ReadDir(phasesDir)
+		if err != nil {
+			return errors.IO("reading phases directory", err).WithField("path", phasesDir)
+		}
+		for _, entry := range entries {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+			if !entry.IsDir() {
+				continue
+			}
+			typeName := entry.Name()
+			pkgDir := filepath.Join(phasesDir, typeName)
+			files, markers := collectMarkdownPackage(pkgDir, countMarkers)
+			if len(files) == 0 {
+				continue
+			}
+			r.addType(&TypeInfo{
+				Name:      typeName,
+				Level:     LevelPhase,
+				IsCustom:  isCustom,
+				IsDefault: typeName == "planning",
+				Templates: files,
+				Source:    pkgDir,
+				Markers:   markers,
+			})
+			// Quality gates under phases/<type>/gates/
+			gatesDir := filepath.Join(pkgDir, "gates")
+			if gInfo, gErr := os.Stat(gatesDir); gErr == nil && gInfo.IsDir() {
+				_ = r.scanLegacyFlatAndRecurse(ctx, gatesDir, isCustom, countMarkers)
+			}
+		}
+	}
+
+	// Sequence package: sequences/GOAL.md, GOAL_MINIMAL.md
+	if err := r.scanFlatPackageDir(ctx, filepath.Join(root, "sequences"), LevelSequence, isCustom, countMarkers); err != nil {
+		return err
+	}
+
+	// Task package: tasks/TASK.md
+	if err := r.scanFlatPackageDir(ctx, filepath.Join(root, "tasks"), LevelTask, isCustom, countMarkers); err != nil {
+		return err
+	}
+
+	// festival/ holds shared scaffold files (GOAL, OVERVIEW, …), not create --type
+	// values. Workflow festival types come from festival_types.yaml via
+	// MergeFestivalWorkflowTypes. Do not register "scaffold" as a festival type.
+
+	// Any legacy flat files still sitting at the templates root.
+	return r.scanLegacyFlatFilesOnly(ctx, root, isCustom, countMarkers)
+}
+
+// scanFlatPackageDir maps markdown files in a single package directory to types.
+// GOAL.md / TASK.md → "default"; GOAL_MINIMAL.md → "minimal"; others lowercased stem.
+func (r *Registry) scanFlatPackageDir(ctx context.Context, dir string, level Level, isCustom bool, countMarkers bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	info, err := os.Stat(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	if !info.IsDir() {
+		return nil
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return errors.IO("reading package directory", err).WithField("path", dir)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+		name := entry.Name()
+		stem := strings.TrimSuffix(name, ".md")
+		typeName := packageFileTypeName(stem)
+		markers := 0
+		if countMarkers {
+			markers, _ = countMarkersInFile(filepath.Join(dir, name))
+		}
+		r.addType(&TypeInfo{
+			Name:      typeName,
+			Level:     level,
+			IsCustom:  isCustom,
+			IsDefault: typeName == "default",
+			Templates: []string{name},
+			Source:    dir,
+			Markers:   markers,
+		})
+	}
+	return nil
+}
+
+func packageFileTypeName(stem string) string {
+	switch strings.ToUpper(stem) {
+	case "GOAL", "TASK", "OVERVIEW", "RULES", "TODO", "GATES", "WORKFLOW":
+		return "default"
+	case "GOAL_MINIMAL":
+		return "minimal"
+	default:
+		return strings.ToLower(stem)
+	}
+}
+
+func collectMarkdownPackage(dir string, countMarkers bool) (files []string, markers int) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, 0
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+		files = append(files, entry.Name())
+		if countMarkers {
+			n, _ := countMarkersInFile(filepath.Join(dir, entry.Name()))
+			markers += n
+		}
+	}
+	sort.Strings(files)
+	return files, markers
+}
+
+// scanLegacyFlatAndRecurse walks dir recursively, parsing legacy TEMPLATE filenames.
+func (r *Registry) scanLegacyFlatAndRecurse(ctx context.Context, dir string, isCustom bool, countMarkers bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	info, err := os.Stat(dir)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() {
+		return nil
+	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return errors.IO("reading directory", err).WithField("path", dir)
 	}
-
 	for _, entry := range entries {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-
 		if entry.IsDir() {
-			// Recursively scan subdirectories (e.g., gates/)
 			subDir := filepath.Join(dir, entry.Name())
-			if err := r.scanDirectory(ctx, subDir, isCustom, countMarkers); err != nil {
-				continue // Skip problematic subdirs
+			// Do not re-enter methodology package roots via recursion from a parent.
+			if isMethodologyTemplatesRoot(subDir) {
+				if err := r.scanMethodologyRoot(ctx, subDir, isCustom, countMarkers); err != nil {
+					continue
+				}
+				continue
 			}
+			_ = r.scanLegacyFlatAndRecurse(ctx, subDir, isCustom, countMarkers)
 			continue
 		}
-
-		// Only process markdown template files
-		name := entry.Name()
-		if !strings.HasSuffix(name, ".md") {
-			continue
-		}
-		if !strings.Contains(name, "TEMPLATE") && !strings.Contains(name, "GOAL") && !strings.Contains(name, "GATE") {
-			continue
-		}
-
-		// Parse the filename to extract type info
-		typeInfo := parseTemplateFilename(name, dir, isCustom)
-		if typeInfo == nil {
-			continue
-		}
-
-		// Count markers if enabled
-		if countMarkers {
-			filePath := filepath.Join(dir, name)
-			markers, _ := countMarkersInFile(filePath)
-			typeInfo.Markers = markers
-		}
-
-		// Add to registry
-		r.addType(typeInfo)
+		r.maybeAddLegacyFile(entry.Name(), dir, isCustom, countMarkers)
 	}
-
 	return nil
+}
+
+// scanLegacyFlatFilesOnly processes only files in dir (no subdirectory descent).
+func (r *Registry) scanLegacyFlatFilesOnly(ctx context.Context, dir string, isCustom bool, countMarkers bool) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return errors.IO("reading directory", err).WithField("path", dir)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		r.maybeAddLegacyFile(entry.Name(), dir, isCustom, countMarkers)
+	}
+	return nil
+}
+
+func (r *Registry) maybeAddLegacyFile(name, dir string, isCustom bool, countMarkers bool) {
+	if !strings.HasSuffix(name, ".md") {
+		return
+	}
+	if !strings.Contains(name, "TEMPLATE") && !strings.Contains(name, "GOAL") && !strings.Contains(name, "GATE") {
+		return
+	}
+	typeInfo := parseTemplateFilename(name, dir, isCustom)
+	if typeInfo == nil {
+		return
+	}
+	if countMarkers {
+		filePath := filepath.Join(dir, name)
+		markers, _ := countMarkersInFile(filePath)
+		typeInfo.Markers = markers
+	}
+	r.addType(typeInfo)
 }
 
 // parseTemplateFilename extracts type information from a template filename.
@@ -271,6 +476,15 @@ func (r *Registry) addType(info *TypeInfo) {
 			// Update marker count if higher
 			if info.Markers > (*types)[i].Markers {
 				(*types)[i].Markers = info.Markers
+			}
+			if info.Description != "" && (*types)[i].Description == "" {
+				(*types)[i].Description = info.Description
+			}
+			if info.IsDefault {
+				(*types)[i].IsDefault = true
+			}
+			if info.Source != "" && (*types)[i].Source == "" {
+				(*types)[i].Source = info.Source
 			}
 			return
 		}

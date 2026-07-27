@@ -230,7 +230,7 @@ func (c *FestivalTypesConfig) GetFestivalType(name string) (*FestivalType, error
 	}
 	return nil, errors.NotFound("festival type").
 		WithField("type", name).
-		WithHint("Run 'fest types list' to see available festival types")
+		WithHint("Run 'fest types list --level festival' or 'fest types festival list' to see available festival types")
 }
 
 // GetDefaultType returns the default festival type.

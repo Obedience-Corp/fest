@@ -84,7 +84,7 @@ func TestFindType(t *testing.T) {
 			typeName:    "feature",
 			level:       "task",
 			wantErr:     true,
-			errContains: "not found at level",
+			errContains: "at level 'task' not found",
 		},
 	}
 
@@ -302,7 +302,7 @@ func TestOutputTypeText(t *testing.T) {
 		"Type: feature",
 		"Level: festival",
 		"Markers: ~50",
-		"fest create festival --type feature",
+		"fest create festival --name",
 	}
 
 	for _, check := range checks {

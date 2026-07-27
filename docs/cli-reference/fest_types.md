@@ -1,20 +1,26 @@
 ## fest types
 
-Discover and explore template types
+Discover types for `fest create`
 
 ### Synopsis
 
-Explore available template types at each festival level.
+List festival, phase, sequence, and task types available for create.
 
-Template types define the structure and purpose of festivals, phases,
-sequences, and tasks. Custom types can be added in .festival/templates/.
+Festival workflow types (standard, implementation, research, ritual) come from
+`festival_types.yaml`. Phase scaffold types come from the methodology templates
+tree under `festivals/.festival/templates/phases/` (also
+`~/.obey/fest/festivals/.festival/templates` after `fest system sync`).
+
+With no subcommand, behaves like `fest types list`.
 
 Examples:
 ```bash
-  fest types list                        # List all available types
-  fest types list --level task           # List task-level types only
-  fest types show feature                # Show details about a type
+  fest types                             # Same as fest types list
+  fest types list --level festival       # Values for create festival --type
+  fest types list --level phase          # Values for create phase --type
+  fest types show standard               # Festival workflow type details
   fest types show implementation --level phase
+  fest types festival                    # Festival workflow types (alias)
 ```
 
 ### Options
@@ -34,7 +40,6 @@ Examples:
 
 ### SEE ALSO
 
-* [fest](fest.md)	 - Festival Methodology CLI - goal-oriented project management for AI agents
-* [fest types festival](fest_types_festival.md)	 - Discover festival types
-* [fest types list](fest_types_list.md)	 - List available template types
-* [fest types show](fest_types_show.md)	 - Show details about a template type
+* [fest types list](fest_types_list.md)	 - List available types
+* [fest types show](fest_types_show.md)	 - Show details about a type
+* [fest types festival](fest_types_festival.md)	 - Discover festival workflow types

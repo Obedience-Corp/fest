@@ -1,19 +1,18 @@
 ## fest types show
 
-Show details about a template type
+Show details about a type
 
 ### Synopsis
 
-Display detailed information about a specific template type.
+Display detailed information about a specific type.
 
-Shows the type's level, description, number of markers, template files,
-and example usage.
+Shows the type's level, description, markers, template files, and example usage.
 
 Examples:
 ```bash
-  fest types show feature                   # Show feature type details
-  fest types show implementation --level phase  # Show phase-level implementation
-  fest types show simple --level task --json    # JSON output
+  fest types show standard                      # Festival workflow type
+  fest types show implementation --level phase  # Phase scaffold type
+  fest types show default --level task --json   # Task package
 ```
 
 ```
@@ -40,4 +39,5 @@ fest types show <type-name> [flags]
 
 ### SEE ALSO
 
-* [fest types](fest_types.md)	 - Discover and explore template types
+* [fest types](fest_types.md)	 - Discover types for fest create
+* [fest types list](fest_types_list.md)	 - List available types

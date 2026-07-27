@@ -23,7 +23,7 @@ fest create festival [flags]
       --seed-file string      File whose contents seed the ingest phase input_specs/ (mutually exclusive with --seed)
       --skip-markers          Skip REPLACE marker processing
       --tags string           Comma-separated tags
-      --type string           Festival type (standard, implementation, research, quick, ritual)
+      --type string           Festival type (standard, implementation, research, ritual)
       --vars-file string      JSON file with variables
 ```
 

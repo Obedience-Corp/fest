@@ -42,7 +42,7 @@ type CreateFestivalOptions struct {
 	Goal        string
 	Tags        string
 	Project     string // Project directory path
-	Type        string // Festival type (standard, implementation, research, quick, ritual)
+	Type        string // Festival type (standard, implementation, research, ritual)
 	VarsFile    string
 	Markers     string // Inline JSON with hint→value mappings
 	MarkersFile string // JSON file path with hint→value mappings
@@ -143,7 +143,7 @@ func NewCreateFestivalCommand() *cobra.Command {
 	cmd.Flags().StringVar(&opts.Goal, "goal", "", "Festival goal")
 	cmd.Flags().StringVar(&opts.Tags, "tags", "", "Comma-separated tags")
 	cmd.Flags().StringVarP(&opts.Project, "project", "p", "", "Project directory path (auto-links to festival)")
-	cmd.Flags().StringVar(&opts.Type, "type", "", "Festival type (standard, implementation, research, quick, ritual)")
+	cmd.Flags().StringVar(&opts.Type, "type", "", "Festival type (standard, implementation, research, ritual); see 'fest types list --level festival'")
 	cmd.Flags().StringVar(&opts.VarsFile, "vars-file", "", "JSON file with variables")
 	cmd.Flags().StringVar(&opts.Markers, "markers", "", "JSON string with REPLACE marker hint→value mappings")
 	cmd.Flags().StringVar(&opts.MarkersFile, "markers-file", "", "JSON file with REPLACE marker hint→value mappings")
