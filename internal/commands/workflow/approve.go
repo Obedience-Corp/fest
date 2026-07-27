@@ -89,6 +89,11 @@ type approvalJudgeRequest struct {
 	// CampaignRoot is the campaign directory containing this festival, so a
 	// judge can resolve working dirs and read the repositories the phase
 	// actually changed. Empty when no campaign root is found.
+	//
+	// It is the one absolute path in the request, and it is here so the
+	// working dirs themselves can stay relative: an absolute path per working
+	// dir would put the operator's home directory and username into every
+	// judge prompt, provider log, ledger entry and transcript.
 	CampaignRoot string `json:"campaign_root,omitempty"`
 	// WorkingDirs are the fest_working_dir declarations of the phase's
 	// sequences: where the work landed, as opposed to where the plan lives.
@@ -816,8 +821,10 @@ func judgeApproval(ctx context.Context, nav *wf.Navigator, step wf.WorkflowStep,
 	// Where the work landed, not just where the plan lives. Best-effort: a
 	// phase with no declared working dirs (design, docs) simply sends none, and
 	// the judge sees the festival through phase_path as before.
-	req.CampaignRoot = campaignRootFor(nav.Ctx.FestivalPath)
-	req.WorkingDirs = collectPhaseWorkingDirs(nav.Ctx.PhasePath, req.CampaignRoot)
+	req.CampaignRoot = campaignRootFor(ctx, nav.Ctx.FestivalPath)
+	workingDirs, skipped := collectPhaseWorkingDirs(nav.Ctx.PhasePath)
+	req.WorkingDirs = workingDirs
+	reportWorkingDirSkips(os.Stderr, skipped, len(workingDirs))
 	if nav.IsGate() {
 		req.Document = "GATES.md"
 	}
