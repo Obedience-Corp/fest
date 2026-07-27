@@ -37,13 +37,19 @@ var (
 	// evidenceRe matches an explicit evidence list for approval judging.
 	evidenceRe = regexp.MustCompile(`(?s)\*\*Evidence:\*\*\s*(.+?)(?:\n\n|\n\*\*|---|\n##|$)`)
 
-	// evidenceItemRe matches bullet evidence paths: a single token on its own
-	// line. Anything else under **Evidence:** is captured by evidenceBulletRe
-	// instead and reported, rather than vanishing.
+	// evidenceItemRe matches a bullet evidence path: a single token on its own
+	// line. It is the ONLY definition of "this bullet is a path"; a `-`/`*`
+	// bullet it does not match is reported as unparsed rather than dropped.
+	//
+	// Non-bullet lines, other list markers, and empty bullets under
+	// **Evidence:** still match neither regex and are still ignored. Closing
+	// that would mean classifying every line in the block, which is a wider
+	// change than the silent drop this fixes.
 	evidenceItemRe = regexp.MustCompile(`(?m)^\s*[-*]\s+(\S+)\s*$`)
 
-	// evidenceBulletRe matches EVERY bullet under **Evidence:**, so the parser
-	// can tell a path it understood from a line it could not.
+	// evidenceBulletRe matches EVERY bullet under **Evidence:**. Each one is
+	// then classified against evidenceItemRe, so "not a path" is defined by
+	// that regex rather than by a second heuristic that can drift from it.
 	evidenceBulletRe = regexp.MustCompile(`(?m)^\s*[-*]\s+(.+?)\s*$`)
 
 	// hooksMarkerRe matches a per-step "**Hooks:**" line in GATES.md.
@@ -139,8 +145,7 @@ func (p *Parser) ParseContent(ctx context.Context, content string) ([]WorkflowSt
 			return nil, fmt.Errorf("step %d checkpoint class: %w", num, err)
 		}
 		step.CheckpointClass = checkpointClass
-		step.EvidencePaths = p.parseEvidencePaths(section)
-		step.EvidenceUnparsed = p.parseUnparsedEvidence(section)
+		step.EvidencePaths, step.EvidenceUnparsed = p.parseEvidence(section)
 		step.Hooks = p.parseStepHooks(section)
 		step.Approval = p.parseApproval(section)
 
@@ -240,51 +245,35 @@ func (p *Parser) parseCheckpointClass(section string) (CheckpointClass, error) {
 	}
 }
 
-func (p *Parser) parseEvidencePaths(section string) []string {
-	m := evidenceRe.FindStringSubmatch(section)
-	if len(m) < 2 {
-		return nil
-	}
-	var paths []string
-	for _, item := range evidenceItemRe.FindAllStringSubmatch(m[1], -1) {
-		if len(item) < 2 {
-			continue
-		}
-		path := strings.TrimSpace(item[1])
-		if path == "" {
-			continue
-		}
-		paths = append(paths, path)
-	}
-	return paths
-}
-
-// parseUnparsedEvidence returns the bullets under **Evidence:** that are not
-// single-token paths.
+// parseEvidence classifies every bullet under **Evidence:** exactly once: a
+// bullet is either a path or it is reported.
 //
-// These used to disappear. evidenceItemRe requires one non-whitespace token, so
-// a scaffold placeholder like "- (attach the task outputs for this step)" or a
-// path containing a space matched nothing and was dropped in silence. The
-// remaining real entries then looked like a complete, deliberate evidence list,
-// and the approval judge was handed a partial set nobody was told was partial.
-// Reporting them is what lets readiness refuse with something actionable.
-func (p *Parser) parseUnparsedEvidence(section string) []string {
+// One scan on purpose. Splitting this into a path pass and a separate
+// "not a path" pass meant two definitions of what a path is, and the readiness
+// gate's invariant -- no bullet is silently discarded -- held only while the
+// two happened to agree.
+func (p *Parser) parseEvidence(section string) (paths, unparsed []string) {
 	m := evidenceRe.FindStringSubmatch(section)
 	if len(m) < 2 {
-		return nil
+		return nil, nil
 	}
-	var unparsed []string
-	for _, item := range evidenceBulletRe.FindAllStringSubmatch(m[1], -1) {
-		if len(item) < 2 {
+	for _, bullet := range evidenceBulletRe.FindAllStringSubmatch(m[1], -1) {
+		if len(bullet) < 2 {
 			continue
 		}
-		text := strings.TrimSpace(item[1])
-		if text == "" || !strings.ContainsAny(text, " \t") {
+		text := strings.TrimSpace(bullet[1])
+		if text == "" {
 			continue
+		}
+		if item := evidenceItemRe.FindStringSubmatch(bullet[0]); len(item) >= 2 {
+			if path := strings.TrimSpace(item[1]); path != "" {
+				paths = append(paths, path)
+				continue
+			}
 		}
 		unparsed = append(unparsed, text)
 	}
-	return unparsed
+	return paths, unparsed
 }
 
 // parseStepHooks extracts pre/post hook name lists from a **Hooks:** marker.

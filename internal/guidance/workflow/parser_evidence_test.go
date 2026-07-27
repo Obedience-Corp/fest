@@ -57,8 +57,7 @@ func TestEvidenceBulletsAreNeverSilentlyDropped(t *testing.T) {
 	p := &Parser{}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			gotPaths := p.parseEvidencePaths(tt.section)
-			gotUnparsed := p.parseUnparsedEvidence(tt.section)
+			gotPaths, gotUnparsed := p.parseEvidence(tt.section)
 
 			if strings.Join(gotPaths, ",") != strings.Join(tt.wantPaths, ",") {
 				t.Errorf("paths = %v, want %v", gotPaths, tt.wantPaths)
