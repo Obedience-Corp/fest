@@ -1,16 +1,16 @@
 ## fest types list
 
-List available types for create
+List available template types
 
 ### Synopsis
 
 List types you can pass to fest create, grouped by level.
 
 Sources:
-  - Festival workflow types from festival_types.yaml (`create festival --type`)
+  - Festival workflow types from festival_types.yaml (create festival --type)
   - Phase/sequence/task scaffold packages under the methodology templates tree
-    (`~/.obey/fest/festivals/.festival/templates` or campaign `festivals/.festival/templates`)
-  - Custom overrides in a festival's `.festival/templates/`
+    (~/.obey/fest/festivals/.festival/templates or campaign festivals/.festival/templates)
+  - Custom overrides in a festival's .festival/templates/
 
 Examples:
 ```bash
@@ -46,4 +46,3 @@ fest types list [flags]
 ### SEE ALSO
 
 * [fest types](fest_types.md)	 - Discover types for fest create
-* [fest types show](fest_types_show.md)	 - Show details about a type

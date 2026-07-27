@@ -293,7 +293,6 @@ Choose a festival type to auto-scaffold the right structure:
 | **standard** | INGEST + PLAN | Most projects - gather requirements then plan |
 | **implementation** | IMPLEMENT | Requirements already defined |
 | **research** | INGEST + RESEARCH + SYNTHESIZE | Investigation or exploration |
-| **quick** | Minimal scaffold | Small, focused tasks |
 | **ritual** | Custom (no defaults) | Recurring processes |
 
 ```bash

@@ -14,6 +14,11 @@ import (
 //  1. FEST_TEMPLATES_DIR (explicit override)
 //  2. Campaign festivals/.festival/templates (when cwd is inside a campaign)
 //  3. System-synced ~/.obey/fest/festivals/.festival/templates
+//
+// Intentionally broader than template.LocalTemplateRoot / FindFestivalsRoot:
+// those require being inside festivals/ (create path). Types discovery must also
+// work from campaign root and outside any campaign, so it uses workspace.FindFestivals
+// plus the config.ConfigDir() fallback rather than sharing LocalTemplateRoot.
 func getBuiltInTemplatesDir() string {
 	if dir := os.Getenv("FEST_TEMPLATES_DIR"); dir != "" {
 		return dir

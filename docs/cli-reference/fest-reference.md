@@ -972,7 +972,7 @@ fest create festival [flags]
       --seed-file string      File whose contents seed the ingest phase input_specs/ (mutually exclusive with --seed)
       --skip-markers          Skip REPLACE marker processing
       --tags string           Comma-separated tags
-      --type string           Festival type (standard, implementation, research, quick, ritual)
+      --type string           Festival type (standard, implementation, research, ritual); see 'fest types list --level festival'
       --vars-file string      JSON file with variables
 ```
 
@@ -5448,21 +5448,28 @@ fest templates list [flags]
 
 ## fest types
 
-Discover and explore template types
+Discover types for fest create
 
 ### Synopsis
 
-Explore available template types at each festival level.
+List festival, phase, sequence, and task types available for create.
 
-Template types define the structure and purpose of festivals, phases,
-sequences, and tasks. Custom types can be added in .festival/templates/.
+Festival workflow types (standard, implementation, research, ritual) come from
+festival_types.yaml. Phase scaffold types come from the methodology templates
+tree under festivals/.festival/templates/phases/.
 
 Examples:
 ```bash
-  fest types list                        # List all available types
-  fest types list --level task           # List task-level types only
-  fest types show feature                # Show details about a type
+  fest types                             # Same as fest types list
+  fest types list --level festival       # Values for create festival --type
+  fest types list --level phase          # Values for create phase --type
+  fest types show standard               # Festival workflow type details
   fest types show implementation --level phase
+  fest types festival                    # Festival workflow types (alias)
+```
+
+```
+fest types [flags]
 ```
 
 ### Options
@@ -5487,14 +5494,13 @@ Discover festival types
 
 ### Synopsis
 
-Discover available festival types and their phase structures.
+Discover available festival workflow types and their phase structures.
 
-Festival types define the workflow structure for different kinds of projects:
-  - standard: Full planning and implementation phases
+These are the values for 'fest create festival --type'. Built-in types:
+  - standard: Full planning and implementation phases (default)
   - implementation: Direct implementation without planning
   - research: Research-focused workflow
-  - quick: Fast, minimal overhead workflow
-  - ritual: Simple repeating patterns
+  - ritual: Custom structure defined by the festival
 
 Examples:
 ```bash
@@ -5581,7 +5587,7 @@ Examples:
   fest types festival show standard           # Show standard type details
   fest types festival show implementation     # Show implementation type
   fest types festival show standard --phases  # Show only phases
-  fest types festival show quick --json       # JSON output
+  fest types festival show research --json    # JSON output
 ```
 
 ```
@@ -5612,19 +5618,20 @@ List available template types
 
 ### Synopsis
 
-List all template types available at each festival level.
+List types you can pass to fest create, grouped by level.
 
-Types are discovered from:
-  - Built-in templates (~/.obey/fest/templates/)
-  - Custom templates (.festival/templates/ in a festival)
+Sources:
+  - Festival workflow types from festival_types.yaml (create festival --type)
+  - Phase/sequence/task scaffold packages under the methodology templates tree
+    (~/.obey/fest/festivals/.festival/templates or campaign festivals/.festival/templates)
+  - Custom overrides in a festival's .festival/templates/
 
 Examples:
 ```bash
-  fest types list                  # List all types grouped by level
-  fest types list --level task     # List task-level types only
-  fest types list --custom         # Show only custom types
-  fest types list --all            # Include marker counts
-  fest types list --json           # Machine-readable output
+  fest types list                      # All levels
+  fest types list --level festival     # create festival --type values
+  fest types list --level phase        # create phase --type values
+  fest types list --json               # Machine-readable output
 ```
 
 ```
@@ -5657,16 +5664,15 @@ Show details about a template type
 
 ### Synopsis
 
-Display detailed information about a specific template type.
+Display detailed information about a specific type.
 
-Shows the type's level, description, number of markers, template files,
-and example usage.
+Shows the type's level, description, markers, template files, and example usage.
 
 Examples:
 ```bash
-  fest types show feature                   # Show feature type details
-  fest types show implementation --level phase  # Show phase-level implementation
-  fest types show simple --level task --json    # JSON output
+  fest types show standard                      # Festival workflow type
+  fest types show implementation --level phase  # Phase scaffold type
+  fest types show default --level task --json   # Task package
 ```
 
 ```

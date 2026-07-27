@@ -14,6 +14,11 @@ import (
 // markerPattern matches REPLACE markers in templates.
 var markerPattern = regexp.MustCompile(`\[REPLACE[^\]]*\]`)
 
+// defaultPhaseType is the default phase type for create phase --type and for
+// IsDefault tagging during methodology discovery. Keep in sync with
+// create_phase flag default ("planning").
+const defaultPhaseType = "planning"
+
 // Registry holds all discovered template types organized by level.
 type Registry struct {
 	// Festival holds festival-level types.
@@ -160,7 +165,10 @@ func (r *Registry) scanMethodologyRoot(ctx context.Context, root string, isCusto
 			}
 			typeName := entry.Name()
 			pkgDir := filepath.Join(phasesDir, typeName)
-			files, markers := collectMarkdownPackage(pkgDir, countMarkers)
+			files, markers, err := collectMarkdownPackage(pkgDir, countMarkers)
+			if err != nil {
+				return err
+			}
 			if len(files) == 0 {
 				continue
 			}
@@ -168,17 +176,31 @@ func (r *Registry) scanMethodologyRoot(ctx context.Context, root string, isCusto
 				Name:      typeName,
 				Level:     LevelPhase,
 				IsCustom:  isCustom,
-				IsDefault: typeName == "planning",
+				IsDefault: typeName == defaultPhaseType,
 				Templates: files,
 				Source:    pkgDir,
 				Markers:   markers,
 			})
 			// Quality gates under phases/<type>/gates/
 			gatesDir := filepath.Join(pkgDir, "gates")
-			if gInfo, gErr := os.Stat(gatesDir); gErr == nil && gInfo.IsDir() {
-				_ = r.scanLegacyFlatAndRecurse(ctx, gatesDir, isCustom, countMarkers)
+			gInfo, gErr := os.Stat(gatesDir)
+			if gErr != nil {
+				if os.IsNotExist(gErr) {
+					continue
+				}
+				return errors.IO("statting gates directory", gErr).WithField("path", gatesDir)
+			}
+			if gInfo.IsDir() {
+				if err := r.scanLegacyFlatAndRecurse(ctx, gatesDir, isCustom, countMarkers); err != nil {
+					if os.IsNotExist(err) {
+						continue
+					}
+					return err
+				}
 			}
 		}
+	} else if err != nil && !os.IsNotExist(err) {
+		return errors.IO("statting phases directory", err).WithField("path", phasesDir)
 	}
 
 	// Sequence package: sequences/GOAL.md, GOAL_MINIMAL.md
@@ -254,10 +276,13 @@ func packageFileTypeName(stem string) string {
 	}
 }
 
-func collectMarkdownPackage(dir string, countMarkers bool) (files []string, markers int) {
+func collectMarkdownPackage(dir string, countMarkers bool) (files []string, markers int, err error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return nil, 0
+		if os.IsNotExist(err) {
+			return nil, 0, nil
+		}
+		return nil, 0, errors.IO("reading package directory", err).WithField("path", dir)
 	}
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
@@ -270,7 +295,7 @@ func collectMarkdownPackage(dir string, countMarkers bool) (files []string, mark
 		}
 	}
 	sort.Strings(files)
-	return files, markers
+	return files, markers, nil
 }
 
 // scanLegacyFlatAndRecurse walks dir recursively, parsing legacy TEMPLATE filenames.
@@ -298,11 +323,20 @@ func (r *Registry) scanLegacyFlatAndRecurse(ctx context.Context, dir string, isC
 			// Do not re-enter methodology package roots via recursion from a parent.
 			if isMethodologyTemplatesRoot(subDir) {
 				if err := r.scanMethodologyRoot(ctx, subDir, isCustom, countMarkers); err != nil {
-					continue
+					// Missing roots are non-fatal; permission/IO failures must surface.
+					if os.IsNotExist(err) {
+						continue
+					}
+					return err
 				}
 				continue
 			}
-			_ = r.scanLegacyFlatAndRecurse(ctx, subDir, isCustom, countMarkers)
+			if err := r.scanLegacyFlatAndRecurse(ctx, subDir, isCustom, countMarkers); err != nil {
+				if os.IsNotExist(err) {
+					continue
+				}
+				return err
+			}
 			continue
 		}
 		r.maybeAddLegacyFile(entry.Name(), dir, isCustom, countMarkers)
