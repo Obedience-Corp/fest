@@ -25,15 +25,14 @@ func newShowCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "show <type-name>",
 		Short: "Show details about a template type",
-		Long: `Display detailed information about a specific template type.
+		Long: `Display detailed information about a specific type.
 
-Shows the type's level, description, number of markers, template files,
-and example usage.
+Shows the type's level, description, markers, template files, and example usage.
 
 Examples:
-  fest types show feature                   # Show feature type details
-  fest types show implementation --level phase  # Show phase-level implementation
-  fest types show simple --level task --json    # JSON output`,
+  fest types show standard                      # Festival workflow type
+  fest types show implementation --level phase  # Phase scaffold type
+  fest types show default --level task --json   # Task package`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runShow(cmd.Context(), args[0], level, jsonOutput, showTemplate)
@@ -48,16 +47,8 @@ Examples:
 }
 
 func runShow(ctx context.Context, typeName, levelFilter string, jsonOutput, showTemplate bool) error {
-	registry := types.NewRegistry()
-
-	// Discover templates with marker counting
-	opts := types.DiscoverOptions{
-		BuiltInDir:   getBuiltInTemplatesDir(),
-		CustomDir:    getCustomTemplatesDir(),
-		CountMarkers: true,
-	}
-
-	if err := registry.Discover(ctx, opts); err != nil {
+	registry, err := discoverRegistry(ctx, true)
+	if err != nil {
 		return err
 	}
 
@@ -114,14 +105,17 @@ func typeNotFoundError(registry *types.Registry, name, level string) error {
 	// Find similar types for suggestions
 	suggestions := findSimilarTypes(registry, name)
 
-	errMsg := fmt.Sprintf("type '%s' not found", name)
+	// NotFound appends " not found" — pass the resource name only.
+	resource := fmt.Sprintf("type '%s'", name)
 	if level != "" {
-		errMsg = fmt.Sprintf("type '%s' not found at level '%s'", name, level)
+		resource = fmt.Sprintf("type '%s' at level '%s'", name, level)
 	}
 
-	err := errors.NotFound(errMsg)
+	err := errors.NotFound(resource).
+		WithHint("Run 'fest types list' to see available types")
 	if len(suggestions) > 0 {
-		err = err.WithField("similar", strings.Join(suggestions, ", "))
+		err = err.WithField("similar", strings.Join(suggestions, ", ")).
+			WithHint(fmt.Sprintf("Similar: %s. Run 'fest types list' to see all types", strings.Join(suggestions, ", ")))
 	}
 	return err
 }
@@ -183,7 +177,27 @@ func outputTypeText(t *types.TypeInfo, showTemplate bool) error {
 
 	// Example usage
 	fmt.Printf("Example Usage:\n")
-	fmt.Printf("  fest create %s --type %s\n", t.Level, t.Name)
+	switch t.Level {
+	case types.LevelFestival:
+		if t.Source == "festival_types.yaml" {
+			fmt.Printf("  fest create festival --type %s --name <festival-name>\n", t.Name)
+		} else {
+			fmt.Printf("  # Festival scaffold files used when creating festivals\n")
+			fmt.Printf("  fest create festival --name <festival-name>\n")
+		}
+	case types.LevelPhase:
+		fmt.Printf("  fest create phase --type %s --name <phase-name>\n", t.Name)
+	case types.LevelSequence:
+		fmt.Printf("  fest create sequence --name <sequence-name>\n")
+	case types.LevelTask:
+		if strings.HasPrefix(t.Name, "gate/") {
+			fmt.Printf("  fest gates apply  # quality gate templates\n")
+		} else {
+			fmt.Printf("  fest create task --name <task-name>\n")
+		}
+	default:
+		fmt.Printf("  fest create %s --type %s\n", t.Level, t.Name)
+	}
 	fmt.Println()
 
 	// Template files

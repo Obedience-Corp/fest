@@ -156,6 +156,186 @@ func TestRegistryDiscover(t *testing.T) {
 	}
 }
 
+func TestRegistryDiscoverNestedMethodologyLayout(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	// Nested package layout matching fest system sync output.
+	mustWrite := func(rel, content string) {
+		t.Helper()
+		path := filepath.Join(tmpDir, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustWrite("phases/implementation/GOAL.md", "# Implement\n[REPLACE: x]")
+	mustWrite("phases/implementation/GATES.md", "# Gates")
+	mustWrite("phases/implementation/gates/QUALITY_GATE_REVIEW.md", "# Review gate")
+	mustWrite("phases/planning/GOAL.md", "# Plan")
+	mustWrite("phases/ingest/GOAL.md", "# Ingest")
+	mustWrite("sequences/GOAL.md", "# Sequence")
+	mustWrite("sequences/GOAL_MINIMAL.md", "# Minimal sequence")
+	mustWrite("tasks/TASK.md", "# Task")
+	mustWrite("festival/GOAL.md", "# Festival goal")
+	mustWrite("festival/OVERVIEW.md", "# Overview")
+
+	reg := NewRegistry()
+	if err := reg.Discover(context.Background(), DiscoverOptions{
+		BuiltInDir:   tmpDir,
+		CountMarkers: true,
+	}); err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+
+	if reg.FindType(LevelPhase, "implementation") == nil {
+		t.Fatal("expected phase/implementation")
+	}
+	if reg.FindType(LevelPhase, "planning") == nil {
+		t.Fatal("expected phase/planning")
+	}
+	if reg.FindType(LevelPhase, "ingest") == nil {
+		t.Fatal("expected phase/ingest")
+	}
+	if reg.FindType(LevelSequence, "default") == nil {
+		t.Fatal("expected sequence/default from GOAL.md")
+	}
+	if reg.FindType(LevelSequence, "minimal") == nil {
+		t.Fatal("expected sequence/minimal from GOAL_MINIMAL.md")
+	}
+	if reg.FindType(LevelTask, "default") == nil {
+		t.Fatal("expected task/default from TASK.md")
+	}
+	if reg.FindType(LevelTask, "gate/review") == nil {
+		t.Fatal("expected task/gate/review quality gate")
+	}
+	// festival/ scaffold files are not create --type values.
+	if reg.FindType(LevelFestival, "scaffold") != nil {
+		t.Fatal("did not expect festival/scaffold as a listed type")
+	}
+	// Must not invent a phase type from flat filename when nested layout is used.
+	if reg.FindType(LevelPhase, "goal") != nil {
+		t.Fatal("did not expect legacy phase/goal from nested layout")
+	}
+}
+
+func TestMergeFestivalWorkflowTypes(t *testing.T) {
+	reg := NewRegistry()
+	reg.MergeFestivalWorkflowTypes(&FestivalTypesConfig{
+		Types: []FestivalType{
+			{Name: "standard", Description: "Default", Default: true},
+			{Name: "research", Description: "Research"},
+		},
+	})
+	std := reg.FindType(LevelFestival, "standard")
+	if std == nil || !std.IsDefault || std.Description != "Default" {
+		t.Fatalf("standard type not merged correctly: %+v", std)
+	}
+	if reg.FindType(LevelFestival, "research") == nil {
+		t.Fatal("expected research festival type")
+	}
+}
+
+func TestRegistryDiscoverNestedPlanningIsDefault(t *testing.T) {
+	tmpDir := t.TempDir()
+	for _, rel := range []string{
+		"phases/planning/GOAL.md",
+		"phases/implementation/GOAL.md",
+	} {
+		path := filepath.Join(tmpDir, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte("# x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	reg := NewRegistry()
+	if err := reg.Discover(context.Background(), DiscoverOptions{BuiltInDir: tmpDir}); err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	plan := reg.FindType(LevelPhase, defaultPhaseType)
+	if plan == nil || !plan.IsDefault {
+		t.Fatalf("expected phase/%s to be default, got %+v", defaultPhaseType, plan)
+	}
+	impl := reg.FindType(LevelPhase, "implementation")
+	if impl == nil || impl.IsDefault {
+		t.Fatalf("expected phase/implementation not default, got %+v", impl)
+	}
+}
+
+func TestRegistryDiscoverUnreadableGatesPropagates(t *testing.T) {
+	tmpDir := t.TempDir()
+	mustWrite := func(rel, content string) {
+		t.Helper()
+		path := filepath.Join(tmpDir, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustWrite("phases/implementation/GOAL.md", "# Implement")
+	gatesDir := filepath.Join(tmpDir, "phases", "implementation", "gates")
+	if err := os.MkdirAll(gatesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(gatesDir, "QUALITY_GATE_REVIEW.md"), []byte("# g"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Make gates unreadable after creation so ReadDir fails while path exists.
+	if err := os.Chmod(gatesDir, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(gatesDir, 0o755) })
+
+	reg := NewRegistry()
+	err := reg.Discover(context.Background(), DiscoverOptions{BuiltInDir: tmpDir})
+	if err == nil {
+		// Some CI/sandbox environments ignore mode bits; skip rather than false-fail.
+		if info, statErr := os.Stat(gatesDir); statErr == nil {
+			// Probe ReadDir ourselves — if still readable, cannot assert propagation.
+			if _, readErr := os.ReadDir(gatesDir); readErr == nil {
+				t.Skip("filesystem does not enforce directory mode bits; cannot test unreadable gates")
+			}
+			_ = info
+		}
+		t.Fatal("expected Discover to fail when gates/ exists but is unreadable")
+	}
+}
+
+func TestRegistryDiscoverUnreadablePhasesPropagates(t *testing.T) {
+	tmpDir := t.TempDir()
+	phasesDir := filepath.Join(tmpDir, "phases")
+	if err := os.MkdirAll(filepath.Join(phasesDir, "planning"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(phasesDir, "planning", "GOAL.md"), []byte("# p"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// Also create a methodology marker sibling so root is recognized even if phases unreadable.
+	if err := os.MkdirAll(filepath.Join(tmpDir, "sequences"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := os.Chmod(phasesDir, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(phasesDir, 0o755) })
+
+	reg := NewRegistry()
+	err := reg.Discover(context.Background(), DiscoverOptions{BuiltInDir: tmpDir})
+	if err == nil {
+		if _, readErr := os.ReadDir(phasesDir); readErr == nil {
+			t.Skip("filesystem does not enforce directory mode bits; cannot test unreadable phases")
+		}
+		t.Fatal("expected Discover to fail when phases/ exists but is unreadable")
+	}
+}
+
 func TestRegistryFindType(t *testing.T) {
 	reg := NewRegistry()
 	reg.Festival = []TypeInfo{

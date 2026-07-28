@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/types"
@@ -24,18 +22,19 @@ func newListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List available template types",
-		Long: `List all template types available at each festival level.
+		Long: `List types you can pass to fest create, grouped by level.
 
-Types are discovered from:
-  - Built-in templates (~/.obey/fest/templates/)
-  - Custom templates (.festival/templates/ in a festival)
+Sources:
+  - Festival workflow types from festival_types.yaml (create festival --type)
+  - Phase/sequence/task scaffold packages under the methodology templates tree
+    (~/.obey/fest/festivals/.festival/templates or campaign festivals/.festival/templates)
+  - Custom overrides in a festival's .festival/templates/
 
 Examples:
-  fest types list                  # List all types grouped by level
-  fest types list --level task     # List task-level types only
-  fest types list --custom         # Show only custom types
-  fest types list --all            # Include marker counts
-  fest types list --json           # Machine-readable output`,
+  fest types list                      # All levels
+  fest types list --level festival     # create festival --type values
+  fest types list --level phase        # create phase --type values
+  fest types list --json               # Machine-readable output`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runList(cmd.Context(), level, jsonOutput, showAll, customOnly)
 		},
@@ -50,16 +49,8 @@ Examples:
 }
 
 func runList(ctx context.Context, levelFilter string, jsonOutput, showAll, customOnly bool) error {
-	registry := types.NewRegistry()
-
-	// Discover templates
-	opts := types.DiscoverOptions{
-		BuiltInDir:   getBuiltInTemplatesDir(),
-		CustomDir:    getCustomTemplatesDir(),
-		CountMarkers: showAll,
-	}
-
-	if err := registry.Discover(ctx, opts); err != nil {
+	registry, err := discoverRegistry(ctx, showAll)
+	if err != nil {
 		return err
 	}
 
@@ -82,6 +73,24 @@ func runList(ctx context.Context, levelFilter string, jsonOutput, showAll, custo
 	}
 
 	return outputText(registry, levelFilter, showAll, customOnly)
+}
+
+// discoverRegistry loads scaffold types from the methodology tree and merges
+// festival workflow types from festival_types.yaml.
+func discoverRegistry(ctx context.Context, countMarkers bool) (*types.Registry, error) {
+	registry := types.NewRegistry()
+	opts := types.DiscoverOptions{
+		BuiltInDir:   getBuiltInTemplatesDir(),
+		CustomDir:    getCustomTemplatesDir(),
+		CountMarkers: countMarkers,
+	}
+	if err := registry.Discover(ctx, opts); err != nil {
+		return nil, err
+	}
+	if config, err := types.LoadFestivalTypesConfig(ctx); err == nil {
+		registry.MergeFestivalWorkflowTypes(config)
+	}
+	return registry, nil
 }
 
 func filterCustomTypes(typeInfos []types.TypeInfo) []types.TypeInfo {
@@ -108,7 +117,14 @@ func outputText(registry *types.Registry, levelFilter string, showAll, customOnl
 
 	if registry.TypeCount() == 0 {
 		display.Info("No template types found.")
-		display.Info("Tip: Run 'fest system sync' to download built-in templates.")
+		builtIn := getBuiltInTemplatesDir()
+		if !templatesDirExists(builtIn) {
+			display.Info("Tip: Run 'fest system sync' to download built-in methodology templates.")
+			display.Info("Expected templates at: %s", builtIn)
+		} else {
+			display.Info("Templates directory exists (%s) but no types were discovered.", builtIn)
+			display.Info("Tip: Check for phases/, sequences/, tasks/ under that path, or set FEST_TEMPLATES_DIR.")
+		}
 		return nil
 	}
 
@@ -122,6 +138,8 @@ func outputText(registry *types.Registry, levelFilter string, showAll, customOnl
 			display.Info("No %s types found.", levelFilter)
 			if customOnly {
 				display.Info("Tip: Create custom templates in .festival/templates/")
+			} else if levelFilter == "festival" {
+				display.Info("Tip: Run 'fest types festival list' or check festivals/.festival/festival_types.yaml")
 			}
 			return nil
 		}
@@ -161,11 +179,14 @@ func printTypes(typeInfos []types.TypeInfo, showAll bool) {
 			suffix = " (custom)"
 		}
 
+		line := fmt.Sprintf("  %s%s", t.Name, suffix)
 		if showAll && t.Markers > 0 {
-			fmt.Printf("  %-20s %d markers%s\n", t.Name, t.Markers, suffix)
-		} else {
-			fmt.Printf("  %s%s\n", t.Name, suffix)
+			line = fmt.Sprintf("  %-20s %d markers%s", t.Name, t.Markers, suffix)
 		}
+		if showAll && t.Description != "" {
+			line = fmt.Sprintf("%s — %s", line, t.Description)
+		}
+		fmt.Println(line)
 	}
 }
 
@@ -174,29 +195,4 @@ func capitalize(s string) string {
 		return s
 	}
 	return string(s[0]-32) + s[1:]
-}
-
-func getBuiltInTemplatesDir() string {
-	// Check environment variable first
-	if dir := os.Getenv("FEST_TEMPLATES_DIR"); dir != "" {
-		return dir
-	}
-	// Default to standard config location
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "fest", "templates")
-}
-
-func getCustomTemplatesDir() string {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return ""
-	}
-
-	// Look for .festival/templates in current festival
-	festivalPath, err := shared.ResolveFestivalPath(cwd, "")
-	if err != nil {
-		return ""
-	}
-
-	return filepath.Join(festivalPath, ".festival", "templates")
 }
