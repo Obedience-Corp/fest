@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/id"
@@ -14,30 +13,26 @@ import (
 	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
-// listPollingInterval matches show/progress watch fallback cadence.
-const listPollingInterval = 2 * time.Second
+// listPollingInterval is only used when filesystem watching is unavailable.
+// Keep the fallback deliberately slow so degraded watch mode does not cause
+// distracting terminal flashes.
+const listPollingInterval = 30 * time.Second
 
-// runListWatch continuously refreshes the multi-festival list board.
-// It does not cycle between festivals (that behavior stays on fest watch).
+// runListWatch refreshes the multi-festival list board when festival lifecycle
+// statuses change. It does not cycle between festivals (that behavior stays on
+// fest watch).
 //
-// Filesystem events and the 2s progress ticker both paint through one mutex so
-// clear+write frames never interleave on stdout.
+// The board redraws only when a festival moves into or out of a lifecycle
+// status directory. Task progress changes are visible on the next lifecycle
+// change (or the next invocation) rather than causing periodic screen flashes.
 func runListWatch(ctx context.Context, festivalsDir, filterStatus string, opts *listOptions, campaignRoot string) error {
 	// Listing reads the dungeon; refuse against a both-spellings campaign so the
 	// watch view cannot silently omit festivals filed under the other spelling.
 	if err := workspace.CheckDungeonConflict(festivalsDir); err != nil {
 		return err
 	}
-	var renderMu sync.Mutex
-	// Hybrid path always polls for deep progress updates; footer reflects that.
 	paint := func() error {
-		renderMu.Lock()
-		defer renderMu.Unlock()
-		return renderListFrame(ctx, festivalsDir, filterStatus, opts, campaignRoot, true)
-	}
-
-	if err := paint(); err != nil {
-		return err
+		return renderListFrame(ctx, festivalsDir, filterStatus, opts, campaignRoot, false)
 	}
 
 	watchPaths := listWatchPaths(festivalsDir)
@@ -59,33 +54,16 @@ func runListWatch(ctx context.Context, festivalsDir, filterStatus string, opts *
 	}
 	defer func() { _ = w.Close() }()
 
-	// Also poll so progress/stats updates inside festival trees surface even
-	// though status-dir watches are non-recursive.
-	ticker := time.NewTicker(listPollingInterval)
-	defer ticker.Stop()
-
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- w.Watch(ctx)
-	}()
-
-	for {
-		select {
-		case <-ctx.Done():
-			fmt.Println()
-			return nil
-		case err := <-errCh:
-			if err != nil && ctx.Err() == nil {
-				return err
-			}
-			fmt.Println()
-			return nil
-		case <-ticker.C:
-			if err := paint(); err != nil {
-				fmt.Fprintf(os.Stderr, "%s could not refresh list view: %v\n", ui.Warning("Warning:"), err)
-			}
-		}
+	if err := paint(); err != nil {
+		return err
 	}
+
+	err = w.Watch(ctx)
+	if err != nil && ctx.Err() == nil {
+		return err
+	}
+	fmt.Println()
+	return nil
 }
 
 func runListPollingMode(ctx context.Context, festivalsDir, filterStatus string, opts *listOptions, campaignRoot string) error {
@@ -121,8 +99,7 @@ func renderListFrame(ctx context.Context, festivalsDir, filterStatus string, opt
 }
 
 // listWatchPaths returns non-recursive fsnotify paths covering status buckets
-// where festivals appear, move, or leave. Deep progress file changes are
-// covered by the polling interval in runListWatch.
+// where festivals appear, move, or leave.
 func listWatchPaths(festivalsDir string) []string {
 	paths := []string{festivalsDir}
 	for _, status := range id.StatusDirectories {

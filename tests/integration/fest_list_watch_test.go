@@ -70,20 +70,32 @@ func TestFestListWatchNonTTYFailsFast(t *testing.T) {
 	require.Contains(t, output, "interactive terminal")
 }
 
-func TestFestListWatchProgressUpdatesBetweenTicks(t *testing.T) {
+func TestFestListWatchDoesNotRedrawWhileIdle(t *testing.T) {
+	container := GetSharedContainer(t)
+	workspaceRoot, _, _ := setupListWatchFixture(t, container)
+
+	output, exitCode := runFestListWatchBounded(t, container, workspaceRoot, 4, "active", "--watch")
+
+	require.Contains(t, []int{124, 143}, exitCode, "watch process should be stopped by the bounded timeout")
+	require.Equal(t, 1, strings.Count(output, "\x1b[H\x1b[2J"), "an idle watch should render only its initial frame")
+}
+
+func TestFestListWatchRefreshesOnFestivalStatusChange(t *testing.T) {
 	container := GetSharedContainer(t)
 	workspaceRoot, activePath, _ := setupListWatchFixture(t, container)
+	readyPath := filepath.Join(workspaceRoot, "festivals", "ready", filepath.Base(activePath))
 
 	script := fmt.Sprintf(
-		"cd %s && timeout 7s /fest list active --watch & watchpid=$!; sleep 3; (cd %s && /fest progress --task 001_IMPLEMENT/01_core/01_first_task.md --complete >/dev/null 2>&1); wait $watchpid",
-		shellQuote(workspaceRoot), shellQuote(activePath),
+		"cd %s && timeout 5s /fest list active --watch & watchpid=$!; sleep 1; mv %s %s; wait $watchpid",
+		shellQuote(workspaceRoot), shellQuote(activePath), shellQuote(readyPath),
 	)
 
 	output, exitCode := runContainerScriptTTY(t, container, script)
 
 	require.Contains(t, []int{124, 143}, exitCode, "watch process should be stopped by the bounded timeout")
-	require.Contains(t, output, "[0%]", "initial frame should render 0%% before the task is completed")
-	require.Contains(t, output, "[100%]", "a later frame should render 100%% after fest progress --complete")
+	require.Contains(t, output, "ACTIVE Festivals (1)", "initial frame should include the active festival")
+	require.Contains(t, output, "ACTIVE Festivals (0)", "status move should refresh the filtered board")
+	require.Equal(t, 2, strings.Count(output, "\x1b[H\x1b[2J"), "one status transition should produce one refresh")
 }
 
 // setupListWatchFixture creates a workspace with one active and one ready
