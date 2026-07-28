@@ -24,7 +24,8 @@ func charmCreateFestival(ctx context.Context) error {
 	}
 
 	var name, goal, tags string
-	festivalTypes := []string{"standard", "implementation", "research", "quick", "ritual"}
+	// Keep in sync with festival_types.yaml / fest types festival — no phantom types.
+	festivalTypes := []string{"standard", "implementation", "research", "ritual"}
 	var festType = festivalTypes[0]
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -94,7 +95,8 @@ func charmPlanFestivalWizard(ctx context.Context) error {
 		return err
 	}
 	var name, goal, tags string
-	festivalTypes := []string{"standard", "implementation", "research", "quick", "ritual"}
+	// Keep in sync with festival_types.yaml / fest types festival — no phantom types.
+	festivalTypes := []string{"standard", "implementation", "research", "ritual"}
 	var festType = festivalTypes[0]
 	base := huh.NewForm(
 		huh.NewGroup(

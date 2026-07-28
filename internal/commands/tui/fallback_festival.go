@@ -28,7 +28,8 @@ func tuiCreateFestival(ctx context.Context, display *ui.UI) error {
 	}
 	goal := strings.TrimSpace(display.PromptDefault("Festival goal", ""))
 	tags := strings.TrimSpace(display.PromptDefault("Tags (comma-separated)", ""))
-	festTypes := []string{"standard", "implementation", "research", "quick", "ritual"}
+	// Keep in sync with festival_types.yaml / fest types festival — no phantom types.
+	festTypes := []string{"standard", "implementation", "research", "ritual"}
 	tIdx := display.Choose("Festival type:", festTypes)
 	if tIdx < 0 || tIdx >= len(festTypes) {
 		tIdx = 0
@@ -101,7 +102,8 @@ func tuiPlanFestivalWizard(ctx context.Context, display *ui.UI) error {
 	}
 	goal := strings.TrimSpace(display.PromptDefault("Festival goal", ""))
 	tags := strings.TrimSpace(display.PromptDefault("Tags (comma-separated)", ""))
-	festTypes := []string{"standard", "implementation", "research", "quick", "ritual"}
+	// Keep in sync with festival_types.yaml / fest types festival — no phantom types.
+	festTypes := []string{"standard", "implementation", "research", "ritual"}
 	tIdx := display.Choose("Festival type:", festTypes)
 	if tIdx < 0 || tIdx >= len(festTypes) {
 		tIdx = 0
