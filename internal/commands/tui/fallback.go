@@ -97,9 +97,9 @@ func StartCreateTUI(ctx context.Context) error {
 				return err
 			}
 		case 1:
-			display.Info("Standalone workflow TUI is not ready yet.")
-			display.Info("  Use: fest create workflow <name>")
-			display.Info("  Or:  fest create workflow <name> --steps-file steps.json")
+			if err := tuiCreateWorkflow(ctx, display); err != nil {
+				return err
+			}
 		case 2:
 			if err := tuiCreatePhase(ctx, display); err != nil {
 				return err
