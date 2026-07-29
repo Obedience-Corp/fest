@@ -3,11 +3,10 @@ package theme
 import (
 	"context"
 	"errors"
-	"os"
 
 	festErrors "github.com/Obedience-Corp/fest/internal/errors"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
-	"golang.org/x/term"
 )
 
 // Error codes for theme package.
@@ -23,8 +22,12 @@ var ErrUserCancelled = festErrors.New("operation cancelled by user").WithCode(Er
 // Keyboard interrupt (Ctrl-C) and Escape are enabled for clean exits.
 // Theme is loaded from user config (~/.obey/fest/config.json).
 //
-// When stdout is a TTY, the form width is clamped to the terminal so focused
-// field borders (Focused.Base rounded boxes) do not clip on the right edge.
+// Full rounded Focused.Base boxes only paint a complete right border when the
+// field is content-sized (width 0). huh's Group viewport uses MaxWidth(fieldWidth)
+// while Select does Base.Width(fieldWidth), and lipgloss paints borders *outside*
+// that width — so the right border is always clipped when WindowSizeMsg expands
+// fields to the full terminal. Dropping WindowSizeMsg keeps width 0 so boxes
+// hug content with intact ╭╮/│/╯. Keep select option keys short for readability.
 func RunForm(ctx context.Context, form *huh.Form) error {
 	if err := ctx.Err(); err != nil {
 		return festErrors.Wrap(err, "context cancelled").WithOp("RunForm")
@@ -33,17 +36,18 @@ func RunForm(ctx context.Context, form *huh.Form) error {
 	form = form.
 		WithTheme(GetThemeFromConfig(ctx)).
 		WithKeyMap(huh.NewDefaultKeyMap()).
-		WithShowHelp(true)
-
-	// Constrain form layout to the live terminal width so Focused.Base rounded
-	// borders do not clip. huh applies Base.Width(fieldWidth); lipgloss then
-	// paints left/right border + horizontal padding outside that content box,
-	// so reserve frame space (border L/R + pad L/R ≈ 4) plus 1 col safety.
-	// Floor at 40 cols so a misreported tiny TTY size does not collapse fields.
-	const frameReserve = 5 // 2 border + 2 pad + 1 safety
-	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w >= 40 {
-		form = form.WithWidth(w - frameReserve)
-	}
+		WithShowHelp(true).
+		WithProgramOptions(tea.WithFilter(func(_ tea.Model, msg tea.Msg) tea.Msg {
+			// Keep height updates for viewport scrolling, but force width 0 so
+			// fields stay content-sized. Full-terminal width + rounded Base
+			// clips the right border (Group viewport MaxWidth == field Width,
+			// while lipgloss paints borders outside Width).
+			if ws, ok := msg.(tea.WindowSizeMsg); ok {
+				ws.Width = 0
+				return ws
+			}
+			return msg
+		}))
 
 	if err := form.RunWithContext(ctx); err != nil {
 		if errors.Is(err, huh.ErrUserAborted) {

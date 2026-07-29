@@ -3,8 +3,6 @@ package theme
 import (
 	"strings"
 	"testing"
-
-	"github.com/charmbracelet/lipgloss"
 )
 
 // Ensure focused boxes use a full rounded border so the right edge is painted.
@@ -53,18 +51,35 @@ func TestFocusedBaseHasAllBorderSides(t *testing.T) {
 	}
 }
 
-func TestFocusedBaseWidthKeepsRightBorderInsideBudget(t *testing.T) {
+func TestFocusedBaseContentSizedKeepsRightBorder(t *testing.T) {
 	t.Parallel()
 	th := GetTheme(ThemeDark)
-	// Simulate huh: Base.Width(fieldWidth) with fieldWidth = term - frameReserve
-	termCols := 80
-	frameReserve := 5
-	fieldWidth := termCols - frameReserve
-	out := th.Focused.Base.Width(fieldWidth).Render("Festival\nStandalone workflow\nPhase")
-	for _, line := range strings.Split(out, "\n") {
+	// Content-sized (no Width): right border must remain. Forcing Width(N) on a
+	// full-border style is what clips ╮/│/╯ — do not use form.WithWidth(term).
+	out := th.Focused.Base.Render("Festival\nStandalone workflow\nPhase")
+	lines := strings.Split(out, "\n")
+	if len(lines) < 3 {
+		t.Fatalf("expected multi-line box, got %q", out)
+	}
+	for i, line := range lines {
 		plain := stripANSI(line)
-		if lipgloss.Width(plain) > termCols {
-			t.Fatalf("rendered line wider than terminal: %d > %d\n%q", lipgloss.Width(plain), termCols, plain)
+		last, ok := lastRune(plain)
+		if !ok {
+			t.Fatalf("empty line %d", i)
+		}
+		switch i {
+		case 0:
+			if last != '╮' && last != '┐' {
+				t.Fatalf("top missing right corner: %q", plain)
+			}
+		case len(lines) - 1:
+			if last != '╯' && last != '┘' {
+				t.Fatalf("bottom missing right corner: %q", plain)
+			}
+		default:
+			if last != '│' {
+				t.Fatalf("side missing right border: %q", plain)
+			}
 		}
 	}
 }
