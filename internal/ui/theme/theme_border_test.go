@@ -3,41 +3,45 @@ package theme
 import (
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/lipgloss"
 )
 
-// Ensure focused boxes use a full rounded border so the right edge is painted.
-// Regression: BorderStyle alone without enabling sides / Width without frame
-// reserve left the right border missing in create TUI demos.
-func TestFocusedBaseHasAllBorderSides(t *testing.T) {
+// Full-width form chrome must paint a complete rounded box at the terminal
+// width. Regression: field-level Focused.Base borders were clipped by huh's
+// group viewport; content-sized (width 0) boxes stayed complete but looked tiny.
+func TestFormFrameFullWidthHasAllCorners(t *testing.T) {
 	t.Parallel()
 	th := GetTheme(ThemeDark)
-	base := th.Focused.Base
-
-	if !base.GetBorderTop() || !base.GetBorderRight() || !base.GetBorderBottom() || !base.GetBorderLeft() {
-		t.Fatalf("Focused.Base missing border sides: top=%v right=%v bottom=%v left=%v",
-			base.GetBorderTop(), base.GetBorderRight(), base.GetBorderBottom(), base.GetBorderLeft())
-	}
-
-	// Render a fixed-width field and assert the right border glyph is present
-	// on each content line (not clipped by width math).
-	content := "Create what?\n> Festival\n  Phase"
-	out := base.Width(40).Render(content)
+	termCols := 80
+	content := "Create what?\n> Festival\n  Phase\n  Sequence"
+	out := RenderFormFrame(th, termCols, content)
 	lines := strings.Split(out, "\n")
 	if len(lines) < 3 {
-		t.Fatalf("expected multi-line render, got %q", out)
+		t.Fatalf("expected multi-line frame, got %q", out)
 	}
-	// Rounded right border runes (╮  │  ╯) or normal (┐ │ ┘)
+
+	maxW := 0
 	for i, line := range lines {
-		// strip ANSI for glyph checks
 		plain := stripANSI(line)
+		w := lipgloss.Width(plain)
+		if w > maxW {
+			maxW = w
+		}
 		if plain == "" {
 			continue
 		}
-		last, _ := lastRune(plain)
+		last, ok := lastRune(plain)
+		if !ok {
+			t.Fatalf("empty line %d", i)
+		}
 		switch i {
 		case 0:
 			if last != '╮' && last != '┐' && last != '╗' {
 				t.Fatalf("top line missing right corner, last=%q line=%q", string(last), plain)
+			}
+			if !strings.HasPrefix(plain, "╭") && !strings.HasPrefix(plain, "┌") {
+				t.Fatalf("top line missing left corner: %q", plain)
 			}
 		case len(lines) - 1:
 			if last != '╯' && last != '┘' && last != '╝' {
@@ -49,38 +53,30 @@ func TestFocusedBaseHasAllBorderSides(t *testing.T) {
 			}
 		}
 	}
+	if maxW != termCols {
+		t.Fatalf("frame should paint full terminal width: maxW=%d want %d\n%s", maxW, termCols, out)
+	}
 }
 
-func TestFocusedBaseContentSizedKeepsRightBorder(t *testing.T) {
+func TestFormFrameStyleHasAllBorderSides(t *testing.T) {
 	t.Parallel()
 	th := GetTheme(ThemeDark)
-	// Content-sized (no Width): right border must remain. Forcing Width(N) on a
-	// full-border style is what clips ╮/│/╯ — do not use form.WithWidth(term).
-	out := th.Focused.Base.Render("Festival\nStandalone workflow\nPhase")
-	lines := strings.Split(out, "\n")
-	if len(lines) < 3 {
-		t.Fatalf("expected multi-line box, got %q", out)
+	frame := FormFrameStyle(th)
+	if !frame.GetBorderTop() || !frame.GetBorderRight() || !frame.GetBorderBottom() || !frame.GetBorderLeft() {
+		t.Fatalf("FormFrameStyle missing border sides: top=%v right=%v bottom=%v left=%v",
+			frame.GetBorderTop(), frame.GetBorderRight(), frame.GetBorderBottom(), frame.GetBorderLeft())
 	}
-	for i, line := range lines {
-		plain := stripANSI(line)
-		last, ok := lastRune(plain)
-		if !ok {
-			t.Fatalf("empty line %d", i)
-		}
-		switch i {
-		case 0:
-			if last != '╮' && last != '┐' {
-				t.Fatalf("top missing right corner: %q", plain)
-			}
-		case len(lines) - 1:
-			if last != '╯' && last != '┘' {
-				t.Fatalf("bottom missing right corner: %q", plain)
-			}
-		default:
-			if last != '│' {
-				t.Fatalf("side missing right border: %q", plain)
-			}
-		}
+}
+
+func TestFocusedBaseIsBorderless(t *testing.T) {
+	t.Parallel()
+	// Field Base must stay borderless so huh viewports do not clip a right edge.
+	// Chrome lives on FormFrameStyle / RunForm.
+	th := GetTheme(ThemeDark)
+	base := th.Focused.Base
+	if base.GetBorderTop() || base.GetBorderRight() || base.GetBorderBottom() || base.GetBorderLeft() {
+		t.Fatalf("Focused.Base should be borderless (outer form frame owns chrome); sides top=%v right=%v bottom=%v left=%v",
+			base.GetBorderTop(), base.GetBorderRight(), base.GetBorderBottom(), base.GetBorderLeft())
 	}
 }
 

@@ -140,9 +140,8 @@ func StartCreateTUI(ctx context.Context) error {
 		}
 
 		var action string
-		// Short option keys so Focused.Base rounded borders stay within terminal
-		// width (details live in the select Description). Same pattern as other
-		// fest huh menus — do not pack fixed-width columns into option labels.
+		// Short option labels; details live in the select Description. RunForm
+		// draws a full-width frame around the menu.
 		menu := huh.NewForm(
 			huh.NewGroup(
 				huh.NewSelect[string]().
