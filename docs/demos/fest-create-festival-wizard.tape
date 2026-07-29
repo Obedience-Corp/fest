@@ -3,7 +3,9 @@
 # Fixture (set FEST_VHS_ROOT):
 #   $FEST_VHS_ROOT/bin/fest
 #   $FEST_VHS_ROOT/config/
-#   $FEST_VHS_ROOT/workspace/   # fest init'd + projects/demo-app optional
+#   $FEST_VHS_ROOT/workspace/              # fest init'd
+#   $FEST_VHS_ROOT/workspace/.campaign/    # required: the project picker lists
+#   $FEST_VHS_ROOT/workspace/projects/     # projects/* only inside a campaign
 #
 # Record from fest repo root:
 #   FEST_VHS_ROOT=/path/to/fixture vhs docs/demos/fest-create-festival-wizard.tape
@@ -40,34 +42,37 @@ Show
 Type "fest create festival" Sleep 400ms Enter
 Sleep 1800ms
 
-# Type: leave on standard* (default)
+# Type: leave on standard* (default). Tab focuses the confirm, Enter submits.
 Sleep 700ms
+Tab
+Sleep 300ms
 Enter
 Sleep 1200ms
 
-# Identity
+# Identity: name and goal, then the separate Next/Back nav form.
 Type "ecommerce-mvp"
 Sleep 400ms
 Tab
 Sleep 300ms
 Type "Launch MVP with catalog, cart, and checkout"
 Sleep 500ms
-Tab
-Sleep 400ms
+Enter
+Sleep 900ms
 Enter
 Sleep 1200ms
 
-# Project: pick from list
-Tab
-Sleep 300ms
-Enter
-Sleep 1000ms
+# Project: mode select defaults to "Pick from projects list"...
 Tab
 Sleep 300ms
 Enter
 Sleep 1200ms
+# ...then choose demo-app from the list.
+Tab
+Sleep 300ms
+Enter
+Sleep 1200ms
 
-# Seed: paste brief (Up if default skip)
+# Seed: default is Skip, so Up selects "Paste a short brief".
 Up
 Sleep 300ms
 Tab

@@ -29,6 +29,11 @@ Human create surface (WI-7acd71 / design `fest-create-tui-2026-07-28`):
 #   $FEST_VHS_ROOT/bin/fest
 #   $FEST_VHS_ROOT/config/config.json   # copy fixtures/fest-create-tui/config.json (theme: dark)
 #   $FEST_VHS_ROOT/workspace/           # fest init .
+#   $FEST_VHS_ROOT/workspace/.campaign/ # project picker only lists inside a campaign
+#   $FEST_VHS_ROOT/workspace/projects/demo-app
+#   $FEST_VHS_ROOT/workspace/projects/payments-api
+# Keep $FEST_VHS_ROOT short (e.g. /tmp/fest-create-demo): the success screen
+# prints the festival's absolute path.
 FEST_VHS_ROOT=/path/to/fixture vhs docs/demos/fest-create-menu.tape
 FEST_VHS_ROOT=/path/to/fixture vhs docs/demos/fest-create-festival-wizard.tape
 cp out/fest-create-*.gif docs/demos/

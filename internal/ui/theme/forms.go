@@ -110,7 +110,7 @@ func RunForm(ctx context.Context, form *huh.Form) error {
 	// TERM=dumb, but the custom Bubble Tea frame model below would otherwise
 	// bypass that state along with the form's configured input and output.
 	if os.Getenv("TERM") == "dumb" {
-		return normalizeFormRunError(ctx, form.WithAccessible(true).RunWithContext(ctx))
+		return normalizeFormRunError(form.WithAccessible(true).RunWithContext(ctx))
 	}
 
 	// Match huh.Form.run: quit on submit, interrupt on cancel.
@@ -146,11 +146,14 @@ func RunForm(ctx context.Context, form *huh.Form) error {
 	// The outer border intentionally occupies the full terminal width. Disable
 	// terminal autowrap while Bubble Tea paints it so a glyph in the last column
 	// does not advance the cursor and leave orphan border rows on repaint.
-	_, _ = os.Stderr.WriteString(resetModeAutoWrap)
-	defer func() { _, _ = os.Stderr.WriteString(setModeAutoWrap) }()
+	// Only when stderr is a TTY: otherwise these bytes land in redirected logs.
+	if term.IsTerminal(int(os.Stderr.Fd())) {
+		_, _ = os.Stderr.WriteString(resetModeAutoWrap)
+		defer func() { _, _ = os.Stderr.WriteString(setModeAutoWrap) }()
+	}
 
 	final, err := tea.NewProgram(m, opts...).Run()
-	if err := normalizeFormRunError(ctx, err); err != nil {
+	if err := normalizeFormRunError(err); err != nil {
 		return err
 	}
 
@@ -165,7 +168,7 @@ func RunForm(ctx context.Context, form *huh.Form) error {
 	return nil
 }
 
-func normalizeFormRunError(ctx context.Context, err error) error {
+func normalizeFormRunError(err error) error {
 	if err == nil {
 		return nil
 	}

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -51,6 +52,94 @@ func TestRenderFormFramePreservesEmptyFinalView(t *testing.T) {
 	t.Parallel()
 	if got := RenderFormFrame(GetTheme(ThemeDark), 80, ""); got != "" {
 		t.Fatalf("empty final form view rendered stale frame: %q", got)
+	}
+}
+
+// A finished form must render nothing. huh returns "" once the form is
+// quitting; framing that empty string paints a two-line box that Bubble Tea
+// prints as the program's final view. The create wizard runs one program per
+// step, so every finished step used to leave a stale box in scrollback (3 above
+// Project, 5 above Seed, 7 above Confirm).
+//
+// This exercises formFrameModel.View, the path RunForm actually uses;
+// RenderFormFrame above is only reached from tests.
+func TestFormFrameModelRendersNothingWhenFinished(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name string
+		key  tea.KeyMsg
+	}{
+		{"submitted", tea.KeyMsg{Type: tea.KeyEnter}},
+		{"aborted", tea.KeyMsg{Type: tea.KeyCtrlC}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			m := newFrameModelForTest()
+			if m.View() == "" {
+				t.Fatal("form should paint a frame while it is still running")
+			}
+			pumpFrameModel(t, m, tc.key)
+			if got := m.View(); got != "" {
+				t.Fatalf("finished form left a frame in scrollback:\n%q", got)
+			}
+		})
+	}
+}
+
+func newFrameModelForTest() *formFrameModel {
+	var selected string
+	form := huh.NewForm(huh.NewGroup(
+		huh.NewSelect[string]().
+			Title("Choose one").
+			Options(huh.NewOption("Alpha", "alpha"), huh.NewOption("Beta", "beta")).
+			Value(&selected),
+	)).WithTheme(GetTheme(ThemeDark)).WithKeyMap(huh.NewDefaultKeyMap())
+	form.SubmitCmd = tea.Quit
+	form.CancelCmd = tea.Interrupt
+
+	frame := FormFrameStyle(GetTheme(ThemeDark))
+	border := frame.GetHorizontalBorderSize()
+	if border <= 0 {
+		border = 2
+	}
+	return &formFrameModel{form: form, frame: frame, frameBorder: border, width: 80}
+}
+
+// pumpFrameModel delivers msgs and the messages their commands produce, so the
+// model reaches the same state it would inside a running Bubble Tea program.
+func pumpFrameModel(t *testing.T, m *formFrameModel, msgs ...tea.Msg) {
+	t.Helper()
+	queue := append([]tea.Msg(nil), msgs...)
+	for steps := 0; len(queue) > 0; steps++ {
+		if steps > 100 {
+			t.Fatal("form update loop did not settle")
+		}
+		msg := queue[0]
+		queue = queue[1:]
+		_, cmd := m.Update(msg)
+		queue = append(queue, drainCmd(t, cmd, 0)...)
+	}
+}
+
+func drainCmd(t *testing.T, cmd tea.Cmd, depth int) []tea.Msg {
+	t.Helper()
+	if cmd == nil || depth > 8 {
+		return nil
+	}
+	switch msg := cmd().(type) {
+	case nil:
+		return nil
+	case tea.BatchMsg:
+		var out []tea.Msg
+		for _, c := range msg {
+			out = append(out, drainCmd(t, c, depth+1)...)
+		}
+		return out
+	case tea.QuitMsg, tea.InterruptMsg:
+		// Program-level signals; the runtime consumes these, not the model.
+		return nil
+	default:
+		return []tea.Msg{msg}
 	}
 }
 
