@@ -5,13 +5,11 @@ package tui
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/types"
-	"github.com/Obedience-Corp/fest/internal/workspace"
 	uitheme "github.com/Obedience-Corp/fest/internal/ui/theme"
 	"github.com/charmbracelet/huh"
 )
@@ -32,7 +30,6 @@ func charmCreateFestival(ctx context.Context) error {
 	}
 
 	projects := listCampaignProjects(ctx)
-
 	draft := festivalDraft{TypeName: defaultTypeName(cfg)}
 	step := 1
 	for {
@@ -68,13 +65,7 @@ func charmCreateFestival(ctx context.Context) error {
 				step = 2
 				continue
 			}
-			ft := typeByName(cfg, draft.TypeName)
-			if festivalTypeSupportsSeed(ft) {
-				step = 4
-			} else {
-				draft.Seed = ""
-				step = 5
-			}
+			step = nextStepAfterProject(cfg, &draft)
 		case 4:
 			ok, err := stepFestivalSeed(ctx, &draft)
 			if err != nil {
@@ -91,8 +82,7 @@ func charmCreateFestival(ctx context.Context) error {
 				return err
 			}
 			if !ok {
-				ft := typeByName(cfg, draft.TypeName)
-				if festivalTypeSupportsSeed(ft) {
+				if festivalTypeSupportsSeed(typeByName(cfg, draft.TypeName)) {
 					step = 4
 				} else {
 					step = 3
@@ -117,96 +107,6 @@ func charmCreateFestival(ctx context.Context) error {
 			return fmt.Errorf("unknown festival create step %d", step)
 		}
 	}
-}
-
-type festivalDraft struct {
-	TypeName string
-	Name     string
-	Goal     string
-	Project  string
-	Seed     string
-	Tags     string
-}
-
-func defaultTypeName(cfg *types.FestivalTypesConfig) string {
-	if d := cfg.GetDefaultType(); d != nil {
-		return d.Name
-	}
-	return cfg.Types[0].Name
-}
-
-func typeByName(cfg *types.FestivalTypesConfig, name string) *types.FestivalType {
-	ft, err := cfg.GetFestivalType(name)
-	if err != nil {
-		return cfg.GetDefaultType()
-	}
-	return ft
-}
-
-func festivalTypeDest(ft *types.FestivalType) string {
-	if ft != nil && ft.Name == "ritual" {
-		return "ritual"
-	}
-	return "planning"
-}
-
-func festivalTypeSupportsSeed(ft *types.FestivalType) bool {
-	if ft == nil || ft.SkipIngestion {
-		return false
-	}
-	for _, p := range ft.Phases {
-		if p.Type == "ingest" || strings.EqualFold(p.Name, "INGEST") {
-			return true
-		}
-	}
-	return false
-}
-
-// festivalTypeOptionLabel is a short select key. Long fixed-width labels
-// forced Focused.Base borders wider than the terminal and clipped the right edge.
-// Details live in the step Note (typesHelpNote) instead.
-func festivalTypeOptionLabel(ft types.FestivalType) string {
-	name := ft.Name
-	if ft.Default {
-		name += "*"
-	}
-	return name
-}
-
-// typesHelpNote lists type details for the type-select screen without packing
-// them into option keys (which size the focused border).
-func typesHelpNote(cfg *types.FestivalTypesConfig) string {
-	var b strings.Builder
-	b.WriteString("Types from festival_types.yaml. * = default.\n")
-	for _, t := range cfg.Types {
-		auto := t.GetAutoPhases()
-		autoStr := "none"
-		if len(auto) > 0 {
-			names := make([]string, len(auto))
-			for i, p := range auto {
-				names[i] = p.Name
-			}
-			autoStr = strings.Join(names, "→")
-		}
-		fmt.Fprintf(&b, "· %s — %s · auto:%s · %s/\n",
-			festivalTypeOptionLabel(t), t.Description, autoStr, festivalTypeDest(&t))
-	}
-	return strings.TrimRight(b.String(), "\n")
-}
-
-func autoPhaseSummary(ft *types.FestivalType) string {
-	if ft == nil {
-		return "(none)"
-	}
-	auto := ft.GetAutoPhases()
-	if len(auto) == 0 {
-		return "(none)"
-	}
-	names := make([]string, len(auto))
-	for i, p := range auto {
-		names[i] = p.Name
-	}
-	return strings.Join(names, " → ")
 }
 
 func stepFestivalType(ctx context.Context, cfg *types.FestivalTypesConfig, d *festivalDraft) (bool, error) {
@@ -239,9 +139,10 @@ func stepFestivalIdentity(ctx context.Context, cfg *types.FestivalTypesConfig, d
 	ft := typeByName(cfg, d.TypeName)
 	ctxLine := fmt.Sprintf("Type: %s · Auto: %s · Dest: festivals/%s/",
 		ft.Name, autoPhaseSummary(ft), festivalTypeDest(ft))
+
+	// Input and navigation are separate forms so Back is not blocked by name validation.
 	name, goal := d.Name, d.Goal
-	cont := true
-	form := huh.NewForm(
+	input := huh.NewForm(
 		huh.NewGroup(
 			huh.NewNote().
 				Title("New Festival · Identity").
@@ -249,8 +150,7 @@ func stepFestivalIdentity(ctx context.Context, cfg *types.FestivalTypesConfig, d
 			huh.NewInput().
 				Title("Name *").
 				Placeholder("e.g., ecommerce-mvp").
-				Value(&name).
-				Validate(notEmpty),
+				Value(&name),
 			huh.NewText().
 				Title("Goal").
 				Placeholder("What does done look like?").
@@ -258,14 +158,9 @@ func stepFestivalIdentity(ctx context.Context, cfg *types.FestivalTypesConfig, d
 				CharLimit(5000).
 				Lines(3).
 				Value(&goal),
-			huh.NewConfirm().
-				Title("Continue to project step?").
-				Affirmative("Next").
-				Negative("Back").
-				Value(&cont),
 		),
 	)
-	if err := uitheme.RunForm(ctx, form); err != nil {
+	if err := uitheme.RunForm(ctx, input); err != nil {
 		if uitheme.IsCancelled(err) {
 			return false, nil
 		}
@@ -273,19 +168,39 @@ func stepFestivalIdentity(ctx context.Context, cfg *types.FestivalTypesConfig, d
 	}
 	d.Name = strings.TrimSpace(name)
 	d.Goal = strings.TrimSpace(goal)
-	return cont, nil
+
+	nav := "next"
+	navForm := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Continue?").
+				Description("Name is required to continue").
+				Options(
+					huh.NewOption("Next", "next"),
+					huh.NewOption("Back", "back"),
+				).
+				Value(&nav),
+		),
+	)
+	if err := uitheme.RunForm(ctx, navForm); err != nil {
+		if uitheme.IsCancelled(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	if nav == "back" {
+		return false, nil
+	}
+	if d.Name == "" {
+		// Re-prompt identity when Next without a name.
+		return stepFestivalIdentity(ctx, cfg, d)
+	}
+	return true, nil
 }
 
-func stepFestivalProject(ctx context.Context, projects []string, d *festivalDraft) (bool, error) {
-	const (
-		pick = "pick"
-		path = "path"
-		skip = "skip"
-	)
-	choice := skip
-	if d.Project != "" {
-		choice = pick
-	}
+func stepFestivalProject(ctx context.Context, projects []projectPick, d *festivalDraft) (bool, error) {
+	paths := projectPaths(projects)
+	choice := resolveProjectMode(d, paths)
 	cont := true
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -295,9 +210,9 @@ func stepFestivalProject(ctx context.Context, projects []string, d *festivalDraf
 			huh.NewSelect[string]().
 				Title("Project").
 				Options(
-					huh.NewOption("Pick from projects list", pick),
-					huh.NewOption("Enter a custom path", path),
-					huh.NewOption("Skip for now", skip),
+					huh.NewOption("Pick from projects list", projectModePick),
+					huh.NewOption("Enter a custom path", projectModePath),
+					huh.NewOption("Skip for now", projectModeSkip),
 				).
 				Value(&choice),
 			huh.NewConfirm().
@@ -316,12 +231,13 @@ func stepFestivalProject(ctx context.Context, projects []string, d *festivalDraf
 	if !cont {
 		return false, nil
 	}
+	d.ProjectMode = choice
 
 	switch choice {
-	case skip:
+	case projectModeSkip:
 		d.Project = ""
 		return true, nil
-	case path:
+	case projectModePath:
 		p := d.Project
 		next := true
 		pf := huh.NewForm(
@@ -350,7 +266,6 @@ func stepFestivalProject(ctx context.Context, projects []string, d *festivalDraf
 		return true, nil
 	default:
 		if len(projects) == 0 {
-			// No projects found — fall back to custom path entry.
 			p := d.Project
 			next := true
 			pf := huh.NewForm(
@@ -369,16 +284,17 @@ func stepFestivalProject(ctx context.Context, projects []string, d *festivalDraf
 			if !next {
 				return stepFestivalProject(ctx, projects, d)
 			}
+			d.ProjectMode = projectModePath
 			d.Project = strings.TrimSpace(p)
 			return true, nil
 		}
 		picked := d.Project
 		if picked == "" {
-			picked = projects[0]
+			picked = projects[0].Path
 		}
 		popts := make([]huh.Option[string], 0, len(projects))
 		for _, p := range projects {
-			popts = append(popts, huh.NewOption(p, p))
+			popts = append(popts, huh.NewOption(p.Label, p.Path))
 		}
 		next := true
 		pf := huh.NewForm(
@@ -536,51 +452,34 @@ func stepFestivalConfirm(ctx context.Context, cfg *types.FestivalTypesConfig, d 
 	return action, nil
 }
 
-func buildFestivalConfirmSummary(cfg *types.FestivalTypesConfig, d *festivalDraft) string {
-	ft := typeByName(cfg, d.TypeName)
-	auto := ft.GetAutoPhases()
-	autoStr := "(none)"
-	if len(auto) > 0 {
-		parts := make([]string, len(auto))
-		for i, p := range auto {
-			// Avoid underscores in Note text (markdown italics).
-			parts[i] = fmt.Sprintf("%03d-%s", i+1, p.Name)
-		}
-		autoStr = strings.Join(parts, ", ") + " (auto)"
-	}
-	proj := d.Project
-	if proj == "" {
-		proj = "(none)"
-	}
-	seed := "no"
-	if s := strings.TrimSpace(d.Seed); s != "" {
-		seed = fmt.Sprintf("yes (%d chars)", len(s))
-	}
-	tags := d.Tags
-	if tags == "" {
-		tags = "(none)"
-	}
-	goal := d.Goal
-	if goal == "" {
-		goal = "(empty — agents plan better with a goal)"
-	}
-	if len(goal) > 80 {
-		goal = goal[:79] + "…"
-	}
-	return fmt.Sprintf(
-		"Name:     %s\nType:     %s\nDest:     festivals/%s/\nPhases:   %s\nProject:  %s\nSeed:     %s\nTags:     %s\nGoal:     %s",
-		d.Name, ft.Name, festivalTypeDest(ft), autoStr, proj, seed, tags, goal,
-	)
-}
-
 func submitFestivalCreate(ctx context.Context, cfg *types.FestivalTypesConfig, d *festivalDraft) error {
 	ft := typeByName(cfg, d.TypeName)
 	dest := festivalTypeDest(ft)
 
-	vars := map[string]interface{}{"festival_name": d.Name, "festival_goal": d.Goal}
-	if strings.TrimSpace(d.Tags) != "" {
-		vars["festival_tags"] = strings.Split(d.Tags, ",")
+	// Collect extra required template vars (parity with previous charm + fallback paths).
+	extra := map[string]interface{}{}
+	if tmplRoot, err := templateRootFromCtx(ctx); err == nil {
+		required := uniqueStrings(collectRequiredVars(ctx, tmplRoot, defaultFestivalTemplatePaths(tmplRoot)))
+		for _, k := range required {
+			if k == "festival_name" || k == "festival_goal" || k == "festival_tags" || k == "festival_description" {
+				continue
+			}
+			var v string
+			if err := uitheme.RunForm(ctx, huh.NewForm(huh.NewGroup(
+				huh.NewInput().Title(k).Value(&v),
+			))); err != nil {
+				if uitheme.IsCancelled(err) {
+					return nil
+				}
+				return err
+			}
+			if strings.TrimSpace(v) != "" {
+				extra[k] = strings.TrimSpace(v)
+			}
+		}
 	}
+
+	vars := buildFestivalVars(d, extra)
 	varsFile, err := writeTempVarsFile(vars)
 	if err != nil {
 		return err
@@ -589,7 +488,7 @@ func submitFestivalCreate(ctx context.Context, cfg *types.FestivalTypesConfig, d
 	opts := &shared.CreateFestivalOpts{
 		Name:     d.Name,
 		Goal:     d.Goal,
-		Tags:     d.Tags,
+		Tags:     strings.Join(trimTagList(d.Tags), ","),
 		Type:     d.TypeName,
 		VarsFile: varsFile,
 		Project:  d.Project,
@@ -597,31 +496,6 @@ func submitFestivalCreate(ctx context.Context, cfg *types.FestivalTypesConfig, d
 		Dest:     dest,
 	}
 	return shared.RunCreateFestival(ctx, opts)
-}
-
-// listCampaignProjects returns relative projects/* paths under the campaign root.
-func listCampaignProjects(ctx context.Context) []string {
-	root, err := workspace.DetectCampaign(ctx, "")
-	if err != nil || root == "" {
-		return nil
-	}
-	projectsDir := filepath.Join(root, "projects")
-	entries, err := os.ReadDir(projectsDir)
-	if err != nil {
-		return nil
-	}
-	var out []string
-	for _, e := range entries {
-		if !e.IsDir() {
-			continue
-		}
-		name := e.Name()
-		if strings.HasPrefix(name, ".") || name == "worktrees" {
-			continue
-		}
-		out = append(out, filepath.Join("projects", name))
-	}
-	return out
 }
 
 // charmPlanFestivalWizard is retained for any legacy callers but now routes to the

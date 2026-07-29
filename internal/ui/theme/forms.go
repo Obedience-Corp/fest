@@ -35,9 +35,10 @@ func RunForm(ctx context.Context, form *huh.Form) error {
 		WithKeyMap(huh.NewDefaultKeyMap()).
 		WithShowHelp(true)
 
-	// Constrain form layout to the live terminal width. Option keys that are
-	// wider than the box wrap instead of painting past the right border.
-	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 4 {
+	// Constrain form layout to the live terminal width so Focused.Base rounded
+	// borders do not clip. Floor at 40 cols so a misreported tiny TTY size
+	// (some multiplexers) does not collapse every field.
+	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w >= 40 {
 		form = form.WithWidth(w - 2)
 	}
 

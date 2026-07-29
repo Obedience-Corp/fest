@@ -27,22 +27,11 @@ func tuiCreateFestival(ctx context.Context, display *ui.UI) error {
 		return errors.Validation("no festival types configured")
 	}
 
-	// Type
+	// Type (labels short; details printed first)
+	display.Info(typesHelpNote(cfg))
 	typeNames := make([]string, len(cfg.Types))
 	for i, t := range cfg.Types {
-		label := t.Name
-		if t.Default {
-			label += " (default)"
-		}
-		auto := t.GetAutoPhases()
-		if len(auto) > 0 {
-			names := make([]string, len(auto))
-			for j, p := range auto {
-				names[j] = p.Name
-			}
-			label += " — " + strings.Join(names, "→")
-		}
-		typeNames[i] = label
+		typeNames[i] = festivalTypeOptionLabel(t)
 	}
 	tIdx := display.Choose("Festival type:", typeNames)
 	if tIdx < 0 || tIdx >= len(cfg.Types) {
@@ -70,45 +59,41 @@ func tuiCreateFestival(ctx context.Context, display *ui.UI) error {
 		project = strings.TrimSpace(display.PromptDefault("Project path", ""))
 	}
 
-	// Seed (only if ingest supported)
+	// Seed only when pipeline accepts it (auto ingest phase).
 	seed := ""
-	if festivalTypeSupportsSeedFallback(&ft) {
+	if festivalTypeSupportsSeed(&ft) {
 		if display.Confirm("Seed ingest with starting material?") {
 			seed = strings.TrimSpace(display.PromptDefault("Seed brief", ""))
 		}
 	}
 
-	dest := "planning"
-	if festType == "ritual" {
-		dest = "ritual"
-	}
+	dest := festivalTypeDest(&ft)
 
 	tmplRoot, err := templateRootFromCtx(ctx)
 	if err != nil {
 		return err
 	}
 	required := uniqueStrings(collectRequiredVars(ctx, tmplRoot, defaultFestivalTemplatePaths(tmplRoot)))
-	vars := map[string]interface{}{
-		"festival_name": name,
-		"festival_goal": goal,
+	draft := &festivalDraft{
+		TypeName: festType,
+		Name:     name,
+		Goal:     goal,
+		Project:  project,
+		Seed:     seed,
+		Tags:     tags,
 	}
-	if tags != "" {
-		vars["festival_tags"] = strings.Split(tags, ",")
-	}
+	extra := map[string]interface{}{}
 	for _, v := range required {
 		if v == "festival_name" || v == "festival_goal" || v == "festival_tags" || v == "festival_description" {
 			continue
 		}
-		if _, ok := vars[v]; ok {
-			continue
-		}
 		val := strings.TrimSpace(display.PromptDefault(fmt.Sprintf("%s", v), ""))
 		if val != "" {
-			vars[v] = val
+			extra[v] = val
 		}
 	}
 
-	varsFile, err := writeTempVarsFile(vars)
+	varsFile, err := writeTempVarsFile(buildFestivalVars(draft, extra))
 	if err != nil {
 		return err
 	}
@@ -116,7 +101,7 @@ func tuiCreateFestival(ctx context.Context, display *ui.UI) error {
 	opts := &shared.CreateFestivalOpts{
 		Name:     name,
 		Goal:     goal,
-		Tags:     tags,
+		Tags:     strings.Join(trimTagList(tags), ","),
 		Type:     festType,
 		VarsFile: varsFile,
 		Project:  project,
@@ -124,18 +109,6 @@ func tuiCreateFestival(ctx context.Context, display *ui.UI) error {
 		Dest:     dest,
 	}
 	return shared.RunCreateFestival(ctx, opts)
-}
-
-func festivalTypeSupportsSeedFallback(ft *types.FestivalType) bool {
-	if ft == nil || ft.SkipIngestion {
-		return false
-	}
-	for _, p := range ft.Phases {
-		if p.Type == "ingest" || strings.EqualFold(p.Name, "INGEST") {
-			return true
-		}
-	}
-	return false
 }
 
 // Wizard: create festival (same path as quick create; dual plan path retired)
