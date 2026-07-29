@@ -170,6 +170,104 @@ func TestResolveFestivalPath_NoFestival(t *testing.T) {
 	}
 }
 
+// setupRootLinkedCampaign builds a campaign whose "linked" festival is linked to
+// the campaign root itself, the shape produced by a sequence with
+// fest_working_dir ".". It returns the campaign root and the two festival paths.
+func setupRootLinkedCampaign(t *testing.T) (root, linkedFest, otherFest string) {
+	t.Helper()
+	root = t.TempDir()
+
+	linkedFest = filepath.Join(root, "festivals", "active", "linked-festival-LK0001")
+	otherFest = filepath.Join(root, "festivals", "ready", "other-festival-OT0001")
+	for _, dir := range []string{linkedFest, otherFest} {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(dir, "fest.yaml"), []byte("name: test\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err := os.MkdirAll(filepath.Join(root, ".campaign", "fest"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	// Mark the festivals root so workspace.FindFestivals resolves it, as it
+	// would in a real campaign.
+	dotFestival := filepath.Join(root, "festivals", ".festival")
+	if err := os.MkdirAll(dotFestival, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dotFestival, ".workspace"), []byte("{}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CAMP_ROOT", root)
+
+	nav, err := navigation.LoadNavigation()
+	if err != nil {
+		t.Fatalf("failed to load navigation: %v", err)
+	}
+	// Link the festival to the campaign root, so its link covers every other
+	// festival in the campaign.
+	nav.SetLinkWithPath("linked-festival-LK0001", root, linkedFest)
+	if err := nav.Save(); err != nil {
+		t.Fatalf("failed to save navigation: %v", err)
+	}
+	return root, linkedFest, otherFest
+}
+
+// A festival linked to the campaign root must not capture other festivals.
+// FindFestivalForPath walks up the tree, so before the precedence fix standing
+// inside any festival resolved to the root-linked one, sending fest next into
+// the wrong festival entirely.
+func TestResolveFestivalPath_FestivalCwdBeatsRootLink(t *testing.T) {
+	_, _, otherFest := setupRootLinkedCampaign(t)
+
+	got, err := ResolveFestivalPath(otherFest, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != otherFest {
+		t.Errorf("standing inside %q resolved to %q; the root link must not win", otherFest, got)
+	}
+}
+
+// The same must hold from a subdirectory of the festival you are standing in.
+func TestResolveFestivalPath_FestivalSubdirBeatsRootLink(t *testing.T) {
+	_, _, otherFest := setupRootLinkedCampaign(t)
+
+	phaseDir := filepath.Join(otherFest, "001_IMPLEMENT")
+	if err := os.MkdirAll(phaseDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := ResolveFestivalPath(phaseDir, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != otherFest {
+		t.Errorf("standing inside %q resolved to %q; the root link must not win", phaseDir, got)
+	}
+}
+
+// Links must still resolve from a directory that is not itself a festival,
+// which is the reason links exist.
+func TestResolveFestivalPath_LinkStillWinsOutsideAnyFestival(t *testing.T) {
+	root, linkedFest, _ := setupRootLinkedCampaign(t)
+
+	workDir := filepath.Join(root, "projects", "some-project")
+	if err := os.MkdirAll(workDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+
+	got, err := ResolveFestivalPath(workDir, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got != linkedFest {
+		t.Errorf("from non-festival %q resolved to %q, want the linked festival %q", workDir, got, linkedFest)
+	}
+}
+
 func TestFindFestivalByName(t *testing.T) {
 	tmpDir := t.TempDir()
 	festivalsDir := filepath.Join(tmpDir, "festivals")
