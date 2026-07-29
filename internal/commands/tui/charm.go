@@ -4,7 +4,6 @@ package tui
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
@@ -170,14 +169,9 @@ func StartCreateTUI(ctx context.Context) error {
 				return err
 			}
 		case "workflow":
-			// Full human wizard deferred (intent). Peer must appear on the menu.
-			fmt.Println()
-			fmt.Println("Standalone workflow TUI is not ready yet.")
-			fmt.Println("  Agents/humans can create with:")
-			fmt.Println("    fest create workflow <name>")
-			fmt.Println("  Or with structured steps:")
-			fmt.Println("    fest create workflow <name> --steps-file steps.json")
-			fmt.Println()
+			if err := charmCreateWorkflow(ctx); err != nil {
+				return err
+			}
 		case "phase":
 			if err := charmCreatePhase(ctx); err != nil {
 				return err
