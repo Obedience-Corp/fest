@@ -6,18 +6,19 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/scope"
+	"github.com/Obedience-Corp/fest/internal/validator"
 	"github.com/Obedience-Corp/obey-shared/festivalbundle"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 )
 
-// NewPackCommand returns fest pack.
+// NewPackCommand returns fest pack (global scope: works outside a workspace).
 func NewPackCommand() *cobra.Command {
 	var (
 		output  string
@@ -34,8 +35,13 @@ func NewPackCommand() *cobra.Command {
 		Long: `Pack a festival/ritual tree into a portable .festival ZIP.
 
 Does not execute or promote the festival. Out-of-root file links are vendored
-into .artifacts/; in-root links are left unchanged.`,
+into .artifacts/; in-root links are left unchanged.
+
+Works from any directory (global scope); source path is explicit.`,
 		Args: cobra.ExactArgs(1),
+		Annotations: map[string]string{
+			"scope": string(scope.Global),
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			if ctx == nil {
@@ -96,7 +102,7 @@ into .artifacts/; in-root links are left unchanged.`,
 	return cmd
 }
 
-// NewUnbundleCommand returns fest unbundle.
+// NewUnbundleCommand returns fest unbundle (global scope).
 func NewUnbundleCommand() *cobra.Command {
 	var (
 		dest     string
@@ -114,8 +120,13 @@ func NewUnbundleCommand() *cobra.Command {
 Does NOT run, promote, or activate the festival. Use fest ritual run or normal
 fest workflow separately after unbundle if execution is desired.
 
-Optional --validate runs fest validate on the destination after extract.`,
+Optional --validate runs in-process festival validation on the destination
+(this binary's validator, not a PATH-installed fest). Validation diagnostics
+go to stderr so --json still emits a single JSON document on stdout.`,
 		Args: cobra.ExactArgs(1),
+		Annotations: map[string]string{
+			"scope": string(scope.Global),
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := cmd.Context()
 			if ctx == nil {
@@ -137,15 +148,24 @@ Optional --validate runs fest validate on the destination after extract.`,
 			if err != nil {
 				return festerrors.Wrap(err, "unbundle")
 			}
+
 			if validate {
-				c := exec.CommandContext(ctx, "fest", "validate")
-				c.Dir = d
-				c.Stdout = cmd.OutOrStdout()
-				c.Stderr = cmd.ErrOrStderr()
-				if err := c.Run(); err != nil {
-					return festerrors.Wrap(err, "fest validate after unbundle")
+				result, err := validator.FullValidate(ctx, d)
+				if err != nil {
+					return festerrors.Wrap(err, "validate after unbundle")
+				}
+				// Always send human validation summary to stderr so --json
+				// stdout remains a single JSON document.
+				fmt.Fprintf(cmd.ErrOrStderr(), "validate: score=%d valid=%v issues=%d\n",
+					result.Score, result.Valid, len(result.Issues))
+				for _, issue := range result.Issues {
+					fmt.Fprintf(cmd.ErrOrStderr(), "  - %s: %s\n", issue.Code, issue.Message)
+				}
+				if !result.Valid {
+					return festerrors.New(fmt.Sprintf("validation failed (score %d)", result.Score))
 				}
 			}
+
 			if jsonOut {
 				enc := json.NewEncoder(cmd.OutOrStdout())
 				enc.SetIndent("", "  ")
@@ -161,7 +181,7 @@ Optional --validate runs fest validate on the destination after extract.`,
 	cmd.Flags().BoolVar(&noVerify, "no-verify", false, "skip content-hash verification")
 	cmd.Flags().BoolVar(&noRecv, "no-received-record", false, "skip .bundles/received")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "print info.json on stdout")
-	cmd.Flags().BoolVar(&validate, "validate", false, "run fest validate on destination after unbundle")
+	cmd.Flags().BoolVar(&validate, "validate", false, "run in-process fest validate on destination after unbundle")
 	_ = cmd.MarkFlagRequired("dest")
 	return cmd
 }
