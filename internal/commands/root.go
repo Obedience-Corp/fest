@@ -23,6 +23,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/migrate"
 	"github.com/Obedience-Corp/fest/internal/commands/navigation"
 	nextcmd "github.com/Obedience-Corp/fest/internal/commands/next"
+	packcmd "github.com/Obedience-Corp/fest/internal/commands/pack"
 	parsecmd "github.com/Obedience-Corp/fest/internal/commands/parse"
 	progresscmd "github.com/Obedience-Corp/fest/internal/commands/progress"
 	promotecmd "github.com/Obedience-Corp/fest/internal/commands/promote"
@@ -255,6 +256,13 @@ func init() {
 	ritualCmd := ritualcmd.NewRitualCommand()
 	ritualCmd.GroupID = "workflow"
 	rootCmd.AddCommand(ritualCmd)
+
+	packCmd := packcmd.NewPackCommand()
+	packCmd.GroupID = "workflow"
+	rootCmd.AddCommand(packCmd)
+	unbundleCmd := packcmd.NewUnbundleCommand()
+	unbundleCmd.GroupID = "workflow"
+	rootCmd.AddCommand(unbundleCmd)
 
 	taskCmd := taskcmd.NewTaskCommand()
 	taskCmd.GroupID = "workflow"
