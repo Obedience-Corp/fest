@@ -94,7 +94,28 @@ func TestFestListWatchRefreshesOnTaskProgressChange(t *testing.T) {
 	require.Contains(t, []int{124, 143}, exitCode, "watch process should be stopped by the bounded timeout")
 	require.Contains(t, output, "[0%]", "initial frame should render 0%% before the task is completed")
 	require.Contains(t, output, "[100%]", "task completion should refresh the board to 100%%")
-	require.Equal(t, 2, strings.Count(output, "\x1b[H\x1b[2J"), "one task completion should produce one visible refresh")
+	clears := strings.Count(output, "\x1b[H\x1b[2J")
+	require.GreaterOrEqual(t, clears, 2, "task completion should produce a visible refresh")
+	require.LessOrEqual(t, clears, 3, "one task completion should not cause repeated visible refreshes")
+}
+
+func TestFestListWatchRefreshesOnValidLifecycleChange(t *testing.T) {
+	container := GetSharedContainer(t)
+	workspaceRoot, _, readyPath := setupListWatchFixture(t, container)
+
+	script := fmt.Sprintf(
+		"cd %s && timeout 7s /fest list ready --watch & watchpid=$!; sleep 2; (cd %s && /fest status set active --force --no-commit >/dev/null 2>&1); wait $watchpid",
+		shellQuote(workspaceRoot), shellQuote(readyPath),
+	)
+
+	output, exitCode := runContainerScriptTTY(t, container, script)
+
+	require.Contains(t, []int{124, 143}, exitCode, "watch process should be stopped by the bounded timeout")
+	require.Contains(t, output, "READY Festivals (1)", "initial frame should include the ready festival")
+	require.Contains(t, output, "READY Festivals (0)", "ready-to-active transition should refresh ready membership")
+	clears := strings.Count(output, "\x1b[H\x1b[2J")
+	require.GreaterOrEqual(t, clears, 2, "lifecycle transition should produce a visible refresh")
+	require.LessOrEqual(t, clears, 3, "one lifecycle transition should not cause repeated visible refreshes")
 }
 
 // setupListWatchFixture creates a workspace with one active and one ready

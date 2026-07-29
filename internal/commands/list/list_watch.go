@@ -3,12 +3,10 @@ package list
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/watch"
 	"github.com/Obedience-Corp/fest/internal/workspace"
@@ -37,22 +35,19 @@ func runListWatch(ctx context.Context, festivalsDir, filterStatus string, opts *
 		return session.render(ctx, festivalsDir, filterStatus, opts, campaignRoot, false)
 	}
 
-	watchPaths := listWatchPaths(festivalsDir)
-	var w *watch.Watcher
+	changes := make(chan struct{}, 1)
 	w, err := watch.New(watch.Config{
-		Paths:    watchPaths,
-		Debounce: 100 * time.Millisecond,
-		MaxWait:  watch.DefaultMaxWait,
+		Paths:     []string{festivalsDir},
+		Recursive: true,
+		Debounce:  100 * time.Millisecond,
+		MaxWait:   watch.DefaultMaxWait,
 		OnError: func(err error) {
 			fmt.Fprintf(os.Stderr, "%s file watch error: %v\n", ui.Warning("Warning:"), err)
 		},
 	}, func() {
-		// A create event on an already-watched parent can introduce a new phase,
-		// sequence, or task directory. Reconcile before rendering so subsequent
-		// writes inside that directory are observed too.
-		addListWatchPaths(w, festivalsDir)
-		if err := paint(); err != nil {
-			fmt.Fprintf(os.Stderr, "%s could not refresh list view: %v\n", ui.Warning("Warning:"), err)
+		select {
+		case changes <- struct{}{}:
+		default:
 		}
 	})
 	if err != nil {
@@ -65,12 +60,41 @@ func runListWatch(ctx context.Context, festivalsDir, filterStatus string, opts *
 		return err
 	}
 
-	err = w.Watch(ctx)
-	if err != nil && ctx.Err() == nil {
-		return err
+	watchDone := make(chan error, 1)
+	go func() {
+		watchDone <- w.Watch(ctx)
+	}()
+
+	// This low-rate reconciliation recovers from missed filesystem events and
+	// adds directories that appeared during an OS watcher race. The frame cache
+	// means an unchanged board is never cleared or redrawn.
+	ticker := time.NewTicker(listPollingInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			fmt.Println()
+			return nil
+		case err := <-watchDone:
+			if err != nil && ctx.Err() == nil {
+				return err
+			}
+			fmt.Println()
+			return nil
+		case <-changes:
+			if err := paint(); err != nil {
+				return err
+			}
+		case <-ticker.C:
+			if err := w.AddTree(festivalsDir); err != nil && !os.IsNotExist(err) {
+				fmt.Fprintf(os.Stderr, "%s could not reconcile festival watches: %v\n", ui.Warning("Warning:"), err)
+			}
+			if err := paint(); err != nil {
+				return err
+			}
+		}
 	}
-	fmt.Println()
-	return nil
 }
 
 func runListPollingMode(ctx context.Context, festivalsDir, filterStatus string, opts *listOptions, campaignRoot string) error {
@@ -115,46 +139,6 @@ func (s *listFrameSession) render(ctx context.Context, festivalsDir, filterStatu
 	s.content = content
 	s.rendered = true
 	return nil
-}
-
-// listWatchPaths returns fsnotify paths for the festivals workspace and every
-// existing directory below it. fsnotify directory watches are non-recursive,
-// so task-file updates require watching their phase and sequence parents.
-func listWatchPaths(festivalsDir string) []string {
-	paths := make([]string, 0)
-	seen := make(map[string]struct{})
-	add := func(path string) {
-		if _, ok := seen[path]; ok {
-			return
-		}
-		seen[path] = struct{}{}
-		paths = append(paths, path)
-	}
-
-	add(festivalsDir)
-	for _, status := range id.StatusDirectories {
-		add(workspace.JoinStatus(festivalsDir, status))
-	}
-	add(workspace.JoinDungeon(festivalsDir))
-
-	_ = filepath.WalkDir(festivalsDir, func(path string, entry fs.DirEntry, err error) error {
-		if err == nil && entry.IsDir() {
-			add(path)
-		}
-		return nil
-	})
-	return paths
-}
-
-func addListWatchPaths(w *watch.Watcher, festivalsDir string) {
-	if w == nil {
-		return
-	}
-	for _, path := range listWatchPaths(festivalsDir) {
-		if err := w.AddPath(path); err != nil && !os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "%s could not watch %s: %v\n", ui.Warning("Warning:"), path, err)
-		}
-	}
 }
 
 func clearListScreen() {
