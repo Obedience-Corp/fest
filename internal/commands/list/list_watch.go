@@ -3,6 +3,7 @@ package list
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
@@ -18,24 +19,26 @@ import (
 // distracting terminal flashes.
 const listPollingInterval = 30 * time.Second
 
-// runListWatch refreshes the multi-festival list board when festival lifecycle
-// statuses change. It does not cycle between festivals (that behavior stays on
-// fest watch).
+// runListWatch refreshes the multi-festival list board when festival files
+// change. It does not cycle between festivals (that behavior stays on fest
+// watch).
 //
-// The board redraws only when a festival moves into or out of a lifecycle
-// status directory. Task progress changes are visible on the next lifecycle
-// change (or the next invocation) rather than causing periodic screen flashes.
+// Recursive directory watches surface task progress and lifecycle changes. The
+// frame cache redraws only when the rendered board actually changes, avoiding
+// periodic or duplicate screen flashes.
 func runListWatch(ctx context.Context, festivalsDir, filterStatus string, opts *listOptions, campaignRoot string) error {
 	// Listing reads the dungeon; refuse against a both-spellings campaign so the
 	// watch view cannot silently omit festivals filed under the other spelling.
 	if err := workspace.CheckDungeonConflict(festivalsDir); err != nil {
 		return err
 	}
+	session := &listFrameSession{}
 	paint := func() error {
-		return renderListFrame(ctx, festivalsDir, filterStatus, opts, campaignRoot, false)
+		return session.render(ctx, festivalsDir, filterStatus, opts, campaignRoot, false)
 	}
 
 	watchPaths := listWatchPaths(festivalsDir)
+	var w *watch.Watcher
 	w, err := watch.New(watch.Config{
 		Paths:    watchPaths,
 		Debounce: 100 * time.Millisecond,
@@ -44,6 +47,10 @@ func runListWatch(ctx context.Context, festivalsDir, filterStatus string, opts *
 			fmt.Fprintf(os.Stderr, "%s file watch error: %v\n", ui.Warning("Warning:"), err)
 		},
 	}, func() {
+		// A create event on an already-watched parent can introduce a new phase,
+		// sequence, or task directory. Reconcile before rendering so subsequent
+		// writes inside that directory are observed too.
+		addListWatchPaths(w, festivalsDir)
 		if err := paint(); err != nil {
 			fmt.Fprintf(os.Stderr, "%s could not refresh list view: %v\n", ui.Warning("Warning:"), err)
 		}
@@ -69,8 +76,9 @@ func runListWatch(ctx context.Context, festivalsDir, filterStatus string, opts *
 func runListPollingMode(ctx context.Context, festivalsDir, filterStatus string, opts *listOptions, campaignRoot string) error {
 	ticker := time.NewTicker(listPollingInterval)
 	defer ticker.Stop()
+	session := &listFrameSession{}
 
-	if err := renderListFrame(ctx, festivalsDir, filterStatus, opts, campaignRoot, true); err != nil {
+	if err := session.render(ctx, festivalsDir, filterStatus, opts, campaignRoot, true); err != nil {
 		return err
 	}
 
@@ -80,35 +88,73 @@ func runListPollingMode(ctx context.Context, festivalsDir, filterStatus string, 
 			fmt.Println()
 			return nil
 		case <-ticker.C:
-			if err := renderListFrame(ctx, festivalsDir, filterStatus, opts, campaignRoot, true); err != nil {
+			if err := session.render(ctx, festivalsDir, filterStatus, opts, campaignRoot, true); err != nil {
 				return err
 			}
 		}
 	}
 }
 
-func renderListFrame(ctx context.Context, festivalsDir, filterStatus string, opts *listOptions, campaignRoot string, polling bool) error {
-	clearListScreen()
+type listFrameSession struct {
+	content  string
+	rendered bool
+}
+
+func (s *listFrameSession) render(ctx context.Context, festivalsDir, filterStatus string, opts *listOptions, campaignRoot string, polling bool) error {
 	content, err := formatListBoard(ctx, festivalsDir, filterStatus, opts, campaignRoot)
 	if err != nil {
 		return err
 	}
+	if s.rendered && s.content == content {
+		return nil
+	}
+
+	clearListScreen()
 	fmt.Print(content)
 	printListWatchFooter(polling, festivalsDir)
+	s.content = content
+	s.rendered = true
 	return nil
 }
 
-// listWatchPaths returns non-recursive fsnotify paths covering status buckets
-// where festivals appear, move, or leave.
+// listWatchPaths returns fsnotify paths for the festivals workspace and every
+// existing directory below it. fsnotify directory watches are non-recursive,
+// so task-file updates require watching their phase and sequence parents.
 func listWatchPaths(festivalsDir string) []string {
-	paths := []string{festivalsDir}
-	for _, status := range id.StatusDirectories {
-		paths = append(paths, workspace.JoinStatus(festivalsDir, status))
+	paths := make([]string, 0)
+	seen := make(map[string]struct{})
+	add := func(path string) {
+		if _, ok := seen[path]; ok {
+			return
+		}
+		seen[path] = struct{}{}
+		paths = append(paths, path)
 	}
-	// dungeon root so moves into/out of dungeon tree are noticed even when a
-	// dated bucket path is new.
-	paths = append(paths, workspace.JoinDungeon(festivalsDir))
+
+	add(festivalsDir)
+	for _, status := range id.StatusDirectories {
+		add(workspace.JoinStatus(festivalsDir, status))
+	}
+	add(workspace.JoinDungeon(festivalsDir))
+
+	_ = filepath.WalkDir(festivalsDir, func(path string, entry fs.DirEntry, err error) error {
+		if err == nil && entry.IsDir() {
+			add(path)
+		}
+		return nil
+	})
 	return paths
+}
+
+func addListWatchPaths(w *watch.Watcher, festivalsDir string) {
+	if w == nil {
+		return
+	}
+	for _, path := range listWatchPaths(festivalsDir) {
+		if err := w.AddPath(path); err != nil && !os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "%s could not watch %s: %v\n", ui.Warning("Warning:"), path, err)
+		}
+	}
 }
 
 func clearListScreen() {

@@ -88,7 +88,7 @@ write_festival \
     "LW0001" \
     "launch-readiness" \
     "active" \
-    "Show that the board refreshes only when lifecycle status changes."
+    "Show that the board refreshes when task completion changes progress."
 
 write_festival \
     "$festivals/ready/docs-polish-LW0002" \

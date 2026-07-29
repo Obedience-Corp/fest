@@ -1,4 +1,4 @@
-# fest list --watch — event-driven lifecycle refresh without polling flashes
+# fest list --watch — event-driven progress refresh without polling flashes
 #
 # Build and record:
 #   just build quick
@@ -27,7 +27,7 @@ Type "export FEST_CONFIG_DIR=$FEST_VHS_ROOT/config" Enter
 Type "export TERM=xterm-256color COLORTERM=truecolor COLORFGBG=15\;0" Enter
 Type "export PS1='\033[38;5;208m❯\033[0m '" Enter
 Type "cd $FEST_VHS_ROOT/workspace" Enter
-Type "(sleep 5; mv festivals/active/launch-readiness-LW0001 festivals/ready/) &" Enter
+Type "(sleep 5; cd festivals/active/launch-readiness-LW0001 && fest progress --task 001_IMPLEMENT/01_core/01_finish.md --complete >/dev/null 2>&1) &" Enter
 Type "clear" Enter
 Show
 
