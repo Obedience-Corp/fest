@@ -85,7 +85,7 @@ func TestFestListWatchRefreshesOnTaskProgressChange(t *testing.T) {
 	workspaceRoot, activePath, _ := setupListWatchFixture(t, container)
 
 	script := fmt.Sprintf(
-		"cd %s && timeout 7s /fest list active --watch & watchpid=$!; sleep 2; (cd %s && /fest progress --task 001_IMPLEMENT/01_core/01_first_task.md --complete >/dev/null 2>&1); wait $watchpid",
+		"cd %s && timeout 7s /fest list active --watch & watchpid=$!; sleep 2; (cd %s && /fest task completed 01_first_task.md --yes >/dev/null 2>&1); wait $watchpid",
 		shellQuote(workspaceRoot), shellQuote(activePath),
 	)
 

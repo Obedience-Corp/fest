@@ -26,12 +26,19 @@ Type "export PATH=$PWD/bin:$PATH" Enter
 Type "export FEST_CONFIG_DIR=$FEST_VHS_ROOT/config" Enter
 Type "export TERM=xterm-256color COLORTERM=truecolor COLORFGBG=15\;0" Enter
 Type "export PS1='\033[38;5;208m❯\033[0m '" Enter
-Type "cd $FEST_VHS_ROOT/workspace" Enter
-Type "(sleep 5; cd festivals/active/launch-readiness-LW0001 && fest progress --task 001_IMPLEMENT/01_core/01_finish.md --complete >/dev/null 2>&1) &" Enter
-Type "clear" Enter
+Type "command -v tmux" Enter
+Type "tmux -L fest-vhs kill-server 2>/dev/null || true" Enter
+Type "tmux -L fest-vhs -f /dev/null new-session -d -s fest-list-watch -x 132 -y 38 -c $FEST_VHS_ROOT/workspace 'fest list --watch'" Enter
+Type "tmux -L fest-vhs set-option -t fest-list-watch status off" Enter
+Type "tmux -L fest-vhs set-option -t fest-list-watch pane-border-style fg=colour240" Enter
+Type "tmux -L fest-vhs split-window -v -p 28 -t fest-list-watch:0 -c $FEST_VHS_ROOT/workspace/festivals/active/launch-readiness-LW0001" Enter
+Type "tmux -L fest-vhs send-keys -t fest-list-watch:0.1 clear Enter" Enter
+Type "tmux -L fest-vhs select-pane -t fest-list-watch:0.1" Enter
+Type "tmux -L fest-vhs attach-session -t fest-list-watch" Enter
 Show
 
-Type "fest list --watch" Sleep 600ms Enter
-Sleep 8500ms
-Ctrl+C
-Sleep 1200ms
+Sleep 2500ms
+Type "fest task completed --yes" Sleep 500ms Enter
+Sleep 5000ms
+Hide
+Type "tmux -L fest-vhs kill-server" Enter

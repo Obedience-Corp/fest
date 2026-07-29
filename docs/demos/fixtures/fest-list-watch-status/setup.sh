@@ -26,6 +26,11 @@ mkdir -p \
 printf '%s\n' '{"workspace":"vhs-demo","registered":"2026-07-28T00:00:00Z"}' \
     >"$festivals/.festival/.state/.workspace"
 
+cat >"$workspace/.campaign/campaign.yaml" <<'EOF'
+id: fest-list-watch-vhs
+name: Fest List Watch VHS
+EOF
+
 write_festival() {
     local path=$1
     local id=$2
@@ -88,7 +93,7 @@ write_festival \
     "LW0001" \
     "launch-readiness" \
     "active" \
-    "Show that the board refreshes when task completion changes progress."
+    "Show fest task completed instantly updating the watched percentage."
 
 write_festival \
     "$festivals/ready/docs-polish-LW0002" \
