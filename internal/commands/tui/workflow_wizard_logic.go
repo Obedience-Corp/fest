@@ -3,11 +3,18 @@ package tui
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/festival"
 	"github.com/Obedience-Corp/fest/internal/errors"
 )
+
+// defaultWorkflowStepsText is the starter recipe used when the user has not
+// entered steps yet (Charm pre-fills the form; fallback uses it if they
+// finish the step loop with no lines).
+const defaultWorkflowStepsText = "Plan|Define the work and success criteria\nImplement|Do the work\nVerify|Confirm done"
 
 // workflowDraft holds human answers for the standalone WORKFLOW.md create wizard.
 type workflowDraft struct {
@@ -15,6 +22,30 @@ type workflowDraft struct {
 	Title       string // WORKFLOW.md H1 (defaults to Name)
 	Description string // one-line intent
 	StepsText   string // Name|Goal per line
+}
+
+// refuseExistingStandaloneWorkflow fails closed when cwd already has a
+// WORKFLOW.md or .workflow/ runtime, matching runStandaloneCreateWorkflow
+// preconditions so the wizard does not multi-step then fail.
+func refuseExistingStandaloneWorkflow(cwd string) error {
+	if cwd == "" {
+		cwd = "."
+	}
+	doc := filepath.Join(cwd, "WORKFLOW.md")
+	if _, err := os.Stat(doc); err == nil {
+		return errors.Validation("WORKFLOW.md already exists in the current directory").
+			WithHint("remove it or change directory before creating")
+	} else if err != nil && !os.IsNotExist(err) {
+		return errors.IO("checking WORKFLOW.md", err).WithField("path", doc)
+	}
+	runtimeDir := filepath.Join(cwd, ".workflow")
+	if _, err := os.Stat(runtimeDir); err == nil {
+		return errors.Validation(".workflow/ already exists in the current directory").
+			WithHint("use fest workflow start for an existing tracked workflow, or remove .workflow/ before creating a new one")
+	} else if err != nil && !os.IsNotExist(err) {
+		return errors.IO("checking .workflow/", err).WithField("path", runtimeDir)
+	}
+	return nil
 }
 
 // parseWorkflowStepsText parses "Name|Goal" lines (empty lines skipped).

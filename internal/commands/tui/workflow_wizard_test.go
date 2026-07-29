@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -30,6 +32,35 @@ func TestParseWorkflowStepsTextDefaultGoal(t *testing.T) {
 	}
 	if len(steps) != 1 || steps[0].Name != "Only name" || steps[0].Goal == "" {
 		t.Fatalf("got %+v", steps)
+	}
+}
+
+func TestParseWorkflowStepsTextEmptyGoalAfterPipe(t *testing.T) {
+	t.Parallel()
+	steps, err := parseWorkflowStepsText("Name|")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(steps) != 1 || steps[0].Name != "Name" || steps[0].Goal != "Describe this step." {
+		t.Fatalf("got %+v", steps)
+	}
+	// Whitespace-only goal also defaults.
+	steps, err = parseWorkflowStepsText("Name|  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if steps[0].Goal != "Describe this step." {
+		t.Fatalf("got %+v", steps[0])
+	}
+}
+
+func TestParseWorkflowStepsTextEmptyName(t *testing.T) {
+	t.Parallel()
+	if _, err := parseWorkflowStepsText("|goal"); err == nil {
+		t.Fatal("expected error for empty name after |")
+	}
+	if _, err := parseWorkflowStepsText("  |x"); err == nil {
+		t.Fatal("expected error for whitespace-only name")
 	}
 }
 
@@ -72,6 +103,16 @@ func TestWorkflowInputFromDraftDefaultsTitle(t *testing.T) {
 	}
 }
 
+func TestWorkflowInputFromDraftMissingName(t *testing.T) {
+	t.Parallel()
+	if _, err := workflowInputFromDraft(nil); err == nil {
+		t.Fatal("expected error for nil draft")
+	}
+	if _, err := workflowInputFromDraft(&workflowDraft{StepsText: "A|B"}); err == nil {
+		t.Fatal("expected error for missing name")
+	}
+}
+
 func TestWorkflowConfirmSummary(t *testing.T) {
 	t.Parallel()
 	s := workflowConfirmSummary(&workflowDraft{
@@ -80,5 +121,48 @@ func TestWorkflowConfirmSummary(t *testing.T) {
 	})
 	if !strings.Contains(s, "demo") || !strings.Contains(s, "A — B") {
 		t.Fatalf("summary=%q", s)
+	}
+}
+
+func TestRefuseExistingStandaloneWorkflow(t *testing.T) {
+	t.Parallel()
+	empty := t.TempDir()
+	if err := refuseExistingStandaloneWorkflow(empty); err != nil {
+		t.Fatalf("empty dir should be ok: %v", err)
+	}
+
+	withDoc := t.TempDir()
+	if err := os.WriteFile(filepath.Join(withDoc, "WORKFLOW.md"), []byte("# x\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	err := refuseExistingStandaloneWorkflow(withDoc)
+	if err == nil {
+		t.Fatal("expected WORKFLOW.md refusal")
+	}
+	if !strings.Contains(err.Error(), "WORKFLOW.md") {
+		t.Fatalf("err=%v", err)
+	}
+
+	withRuntime := t.TempDir()
+	if err := os.Mkdir(filepath.Join(withRuntime, ".workflow"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	err = refuseExistingStandaloneWorkflow(withRuntime)
+	if err == nil {
+		t.Fatal("expected .workflow/ refusal")
+	}
+	if !strings.Contains(err.Error(), ".workflow") {
+		t.Fatalf("err=%v", err)
+	}
+}
+
+func TestDefaultWorkflowStepsTextParses(t *testing.T) {
+	t.Parallel()
+	steps, err := parseWorkflowStepsText(defaultWorkflowStepsText)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(steps) != 3 {
+		t.Fatalf("len=%d want 3", len(steps))
 	}
 }

@@ -4,8 +4,6 @@ package tui
 
 import (
 	"context"
-	"fmt"
-	"os"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/festival"
@@ -18,9 +16,8 @@ func tuiCreateWorkflow(ctx context.Context, display *ui.UI) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if _, err := os.Stat("WORKFLOW.md"); err == nil {
-		return errors.Validation("WORKFLOW.md already exists in the current directory").
-			WithHint("remove it or change directory before creating")
+	if err := refuseExistingStandaloneWorkflow("."); err != nil {
+		return err
 	}
 
 	display.Info("New standalone workflow (WORKFLOW.md in current directory)")
@@ -35,6 +32,7 @@ func tuiCreateWorkflow(ctx context.Context, display *ui.UI) error {
 	desc := strings.TrimSpace(display.PromptDefault("Intent (optional)", ""))
 
 	display.Info("Steps: enter Name|Goal per line; empty line ends.")
+	display.Info("Leave empty for starter steps: Plan → Implement → Verify")
 	var lines []string
 	for {
 		if err := ctx.Err(); err != nil {
@@ -46,15 +44,22 @@ func tuiCreateWorkflow(ctx context.Context, display *ui.UI) error {
 		}
 		lines = append(lines, line)
 	}
-	if len(lines) == 0 {
-		return errors.Validation("at least one workflow step is required")
+	stepsText := strings.Join(lines, "\n")
+	if strings.TrimSpace(stepsText) == "" {
+		// Match Charm's starter recipe when the user enters no lines.
+		stepsText = defaultWorkflowStepsText
+		display.Info("Using starter steps: Plan, Implement, Verify")
+	}
+	// Validate before confirm (parity with Charm live validation).
+	if _, err := parseWorkflowStepsText(stepsText); err != nil {
+		return err
 	}
 
 	draft := &workflowDraft{
 		Name:        name,
 		Title:       title,
 		Description: desc,
-		StepsText:   strings.Join(lines, "\n"),
+		StepsText:   stepsText,
 	}
 	display.Info(workflowConfirmSummary(draft))
 	if !display.Confirm("Create WORKFLOW.md now?") {
@@ -66,14 +71,12 @@ func tuiCreateWorkflow(ctx context.Context, display *ui.UI) error {
 	if err != nil {
 		return err
 	}
+	// Match CLI BindCreateWorkflowFlags defaults (position=after).
 	opts := &festival.CreateWorkflowOptions{
-		Name:  name,
-		Steps: stepsJSON,
+		Name:     name,
+		Steps:    stepsJSON,
+		Position: "after",
 	}
-	if err := festival.RunCreateWorkflow(ctx, opts); err != nil {
-		return err
-	}
-	fmt.Println()
-	display.Info("Standalone workflow ready. next: fest next")
-	return nil
+	// RunCreateWorkflow owns success output (created / next: fest next).
+	return festival.RunCreateWorkflow(ctx, opts)
 }

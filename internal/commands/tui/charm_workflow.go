@@ -5,7 +5,6 @@ package tui
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/festival"
@@ -21,9 +20,9 @@ func charmCreateWorkflow(ctx context.Context) error {
 		return err
 	}
 
-	// Refuse early when cwd already has a workflow doc (avoid multi-step then fail).
-	if _, err := os.Stat("WORKFLOW.md"); err == nil {
-		return fmt.Errorf("WORKFLOW.md already exists in the current directory — remove it or cd elsewhere")
+	// Refuse early when cwd already has a workflow doc or runtime (avoid multi-step then fail).
+	if err := refuseExistingStandaloneWorkflow("."); err != nil {
+		return err
 	}
 
 	draft := workflowDraft{}
@@ -146,7 +145,7 @@ func stepWorkflowIdentity(ctx context.Context, d *workflowDraft) (bool, error) {
 func stepWorkflowSteps(ctx context.Context, d *workflowDraft) (string, error) {
 	text := d.StepsText
 	if text == "" {
-		text = "Plan|Define the work and success criteria\nImplement|Do the work\nVerify|Confirm done"
+		text = defaultWorkflowStepsText
 	}
 	input := huh.NewForm(
 		huh.NewGroup(
@@ -227,16 +226,13 @@ func submitWorkflowCreate(ctx context.Context, d *workflowDraft) error {
 	if err != nil {
 		return err
 	}
+	// Match CLI BindCreateWorkflowFlags defaults (position=after) so festival-mode
+	// dispatch from a festival cwd works the same as `fest create workflow --steps`.
 	opts := &festival.CreateWorkflowOptions{
-		Name:  strings.TrimSpace(d.Name),
-		Steps: stepsJSON,
+		Name:     strings.TrimSpace(d.Name),
+		Steps:    stepsJSON,
+		Position: "after",
 	}
-	if err := festival.RunCreateWorkflow(ctx, opts); err != nil {
-		return err
-	}
-	fmt.Println()
-	fmt.Println("Standalone workflow ready.")
-	fmt.Println("  next: fest next")
-	fmt.Println()
-	return nil
+	// RunCreateWorkflow owns success output (created / next: fest next).
+	return festival.RunCreateWorkflow(ctx, opts)
 }
