@@ -140,17 +140,20 @@ func StartCreateTUI(ctx context.Context) error {
 		}
 
 		var action string
+		// Short option keys so Focused.Base rounded borders stay within terminal
+		// width (details live in the select Description). Same pattern as other
+		// fest huh menus — do not pack fixed-width columns into option labels.
 		menu := huh.NewForm(
 			huh.NewGroup(
 				huh.NewSelect[string]().
 					Title("Create what?").
-					Description("j/k or ↑/↓ navigate • enter select • esc/ctrl-c quit").
+					Description("Festival: festivals/ body of work · Workflow: WORKFLOW.md in cwd · Phase/Sequence/Task: hierarchy\nj/k or ↑/↓ · enter select · esc/ctrl-c quit").
 					Options(
-						huh.NewOption("Festival              Full body of work under festivals/", "festival"),
-						huh.NewOption("Standalone workflow   WORKFLOW.md in cwd (thin start)", "workflow"),
-						huh.NewOption("Phase                 Add a phase to an existing festival", "phase"),
-						huh.NewOption("Sequence              Add a sequence inside a phase", "sequence"),
-						huh.NewOption("Task                  Add a task inside a sequence", "task"),
+						huh.NewOption("Festival", "festival"),
+						huh.NewOption("Standalone workflow", "workflow"),
+						huh.NewOption("Phase", "phase"),
+						huh.NewOption("Sequence", "sequence"),
+						huh.NewOption("Task", "task"),
 						huh.NewOption("Back", "back"),
 					).
 					Value(&action),

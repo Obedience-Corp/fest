@@ -25,10 +25,17 @@ Human create surface (WI-7acd71 / design `fest-create-tui-2026-07-28`):
 
 ```sh
 # Record create demos (disposable fixture with branch binary + fest init workspace)
+# Fixture layout:
+#   $FEST_VHS_ROOT/bin/fest
+#   $FEST_VHS_ROOT/config/config.json   # copy fixtures/fest-create-tui/config.json (theme: dark)
+#   $FEST_VHS_ROOT/workspace/           # fest init .
 FEST_VHS_ROOT=/path/to/fixture vhs docs/demos/fest-create-menu.tape
 FEST_VHS_ROOT=/path/to/fixture vhs docs/demos/fest-create-festival-wizard.tape
 cp out/fest-create-*.gif docs/demos/
 ```
+
+Use `tui.theme: dark` in the fixture config so adaptive background detection does not
+pick a light palette inside VHS/ttyd (which looks uncolored on the dark demo theme).
 
 The private evidence run is `fest/fest-explorer-v3/20260719T105500Z`. Its
 manifest records source revision `e4b491d`, artifact hashes/metadata, the

@@ -23,11 +23,13 @@ Set Framerate 30
 Set TypingSpeed 55ms
 Set Theme {"name":"Obedience Corp","background":"#0D0D11","foreground":"#F8F8F2","selection":"#3A2418","cursor":"#F2721C","black":"#0D0D11","red":"#FF5F57","green":"#50FA7B","yellow":"#FEBC2E","blue":"#F2721C","magenta":"#C2410C","cyan":"#FFB347","white":"#F8F8F2","brightBlack":"#A1A1AA","brightRed":"#FF5F57","brightGreen":"#50FA7B","brightYellow":"#FEBC2E","brightBlue":"#FFB347","brightMagenta":"#EA5513","brightCyan":"#FFB347","brightWhite":"#FFFFFF"}
 
+# Fixture must include config/config.json with tui.theme=dark (see fixtures/fest-create-tui/).
 Hide
 Type "unset NO_COLOR CI" Enter
 Type "export PATH=$FEST_VHS_ROOT/bin:$PATH" Enter
 Type "export FEST_CONFIG_DIR=$FEST_VHS_ROOT/config" Enter
 Type "export TERM=xterm-256color COLORTERM=truecolor COLORFGBG=15\;0" Enter
+Type "export CLICOLOR_FORCE=1" Enter
 Type "export PS1='\033[38;5;208m❯\033[0m '" Enter
 Type "cd $FEST_VHS_ROOT/workspace" Enter
 Type "clear" Enter

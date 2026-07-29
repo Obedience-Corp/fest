@@ -1,0 +1,11 @@
+{
+  "version": "1.0.0",
+  "behavior": {
+    "use_color": true
+  },
+  "tui": {
+    "theme": "dark",
+    "expand_inputs": true,
+    "max_input_height": 20
+  }
+}

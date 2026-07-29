@@ -75,21 +75,42 @@ func TestFestivalTypeDest(t *testing.T) {
 	}
 }
 
-func TestFestivalTypeOptionLabelIncludesAutoPhases(t *testing.T) {
+func TestFestivalTypeOptionLabelIsShort(t *testing.T) {
 	t.Parallel()
 	label := festivalTypeOptionLabel(types.FestivalType{
 		Name:        "standard",
-		Description: "Default type",
+		Description: "Default type with a very long description that must not appear in the select key",
 		Default:     true,
 		Phases: []types.PhaseSpec{
 			{Name: "INGEST", Type: "ingest", Auto: true},
 			{Name: "PLAN", Type: "planning", Auto: true},
-			{Name: "IMPLEMENT", Type: "implementation", Auto: false},
 		},
 	})
-	for _, part := range []string{"standard*", "INGEST→PLAN", "planning"} {
-		if !strings.Contains(label, part) {
-			t.Fatalf("label missing %q: %q", part, label)
+	if label != "standard*" {
+		t.Fatalf("option label = %q, want standard*", label)
+	}
+	if strings.Contains(label, "INGEST") || strings.Contains(label, "Default") {
+		t.Fatalf("option label should not embed detail: %q", label)
+	}
+}
+
+func TestTypesHelpNoteIncludesAutoPhases(t *testing.T) {
+	t.Parallel()
+	cfg := &types.FestivalTypesConfig{
+		Types: []types.FestivalType{{
+			Name:        "standard",
+			Description: "Default type",
+			Default:     true,
+			Phases: []types.PhaseSpec{
+				{Name: "INGEST", Type: "ingest", Auto: true},
+				{Name: "PLAN", Type: "planning", Auto: true},
+			},
+		}},
+	}
+	note := typesHelpNote(cfg)
+	for _, part := range []string{"standard*", "INGEST→PLAN", "planning/", "Default type"} {
+		if !strings.Contains(note, part) {
+			t.Fatalf("help note missing %q: %q", part, note)
 		}
 	}
 }

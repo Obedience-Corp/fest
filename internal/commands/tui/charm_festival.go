@@ -162,25 +162,36 @@ func festivalTypeSupportsSeed(ft *types.FestivalType) bool {
 	return false
 }
 
+// festivalTypeOptionLabel is a short select key. Long fixed-width labels
+// forced Focused.Base borders wider than the terminal and clipped the right edge.
+// Details live in the step Note (typesHelpNote) instead.
 func festivalTypeOptionLabel(ft types.FestivalType) string {
-	auto := ft.GetAutoPhases()
-	autoStr := "none"
-	if len(auto) > 0 {
-		names := make([]string, len(auto))
-		for i, p := range auto {
-			names[i] = p.Name
-		}
-		autoStr = strings.Join(names, "→")
-	}
 	name := ft.Name
 	if ft.Default {
 		name += "*"
 	}
-	desc := ft.Description
-	if len(desc) > 42 {
-		desc = desc[:39] + "…"
+	return name
+}
+
+// typesHelpNote lists type details for the type-select screen without packing
+// them into option keys (which size the focused border).
+func typesHelpNote(cfg *types.FestivalTypesConfig) string {
+	var b strings.Builder
+	b.WriteString("Types from festival_types.yaml. * = default.\n")
+	for _, t := range cfg.Types {
+		auto := t.GetAutoPhases()
+		autoStr := "none"
+		if len(auto) > 0 {
+			names := make([]string, len(auto))
+			for i, p := range auto {
+				names[i] = p.Name
+			}
+			autoStr = strings.Join(names, "→")
+		}
+		fmt.Fprintf(&b, "· %s — %s · auto:%s · %s/\n",
+			festivalTypeOptionLabel(t), t.Description, autoStr, festivalTypeDest(&t))
 	}
-	return fmt.Sprintf("%-15s %-42s  %s  [%s/]", name, desc, autoStr, festivalTypeDest(&ft))
+	return strings.TrimRight(b.String(), "\n")
 }
 
 func autoPhaseSummary(ft *types.FestivalType) string {
@@ -207,7 +218,7 @@ func stepFestivalType(ctx context.Context, cfg *types.FestivalTypesConfig, d *fe
 		huh.NewGroup(
 			huh.NewNote().
 				Title("New Festival · Type").
-				Description("What kind of festival is this?\nTypes load from festival_types.yaml."),
+				Description(typesHelpNote(cfg)),
 			huh.NewSelect[string]().
 				Title("Festival type").
 				Description("j/k or ↑/↓ · enter next · esc cancel").

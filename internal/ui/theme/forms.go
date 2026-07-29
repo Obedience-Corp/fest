@@ -3,9 +3,11 @@ package theme
 import (
 	"context"
 	"errors"
+	"os"
 
 	festErrors "github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/charmbracelet/huh"
+	"golang.org/x/term"
 )
 
 // Error codes for theme package.
@@ -20,6 +22,9 @@ var ErrUserCancelled = festErrors.New("operation cancelled by user").WithCode(Er
 // Context cancellation will interrupt the form. Returns ErrUserCancelled if the user aborts.
 // Keyboard interrupt (Ctrl-C) and Escape are enabled for clean exits.
 // Theme is loaded from user config (~/.obey/fest/config.json).
+//
+// When stdout is a TTY, the form width is clamped to the terminal so focused
+// field borders (Focused.Base rounded boxes) do not clip on the right edge.
 func RunForm(ctx context.Context, form *huh.Form) error {
 	if err := ctx.Err(); err != nil {
 		return festErrors.Wrap(err, "context cancelled").WithOp("RunForm")
@@ -29,6 +34,12 @@ func RunForm(ctx context.Context, form *huh.Form) error {
 		WithTheme(GetThemeFromConfig(ctx)).
 		WithKeyMap(huh.NewDefaultKeyMap()).
 		WithShowHelp(true)
+
+	// Constrain form layout to the live terminal width. Option keys that are
+	// wider than the box wrap instead of painting past the right border.
+	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w > 4 {
+		form = form.WithWidth(w - 2)
+	}
 
 	if err := form.RunWithContext(ctx); err != nil {
 		if errors.Is(err, huh.ErrUserAborted) {
