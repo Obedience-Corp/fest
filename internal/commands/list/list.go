@@ -118,8 +118,8 @@ dungeon, dungeon/completed, dungeon/archived, dungeon/someday
 By default, shows active, ready, planning, and ritual festivals.
 Use 'fest list all' (or --all) to include completed and dungeon festivals.
 
-Use --watch to continuously refresh the multi-festival status board in place
-(similar to fest watch, but without cycling between festivals). Ctrl+C to quit.`,
+Use --watch to refresh the multi-festival status board when festival progress
+or lifecycle status changes (similar to fest watch, but without cycling). Ctrl+C to quit.`,
 		Example: `  fest list                                        # Active, ready, planning, ritual festivals
   fest list active                                 # Only active festivals
   fest list all                                    # Every festival grouped by status
@@ -177,7 +177,7 @@ Use --watch to continuously refresh the multi-festival status board in place
 	}
 
 	cmd.Flags().BoolVar(&opts.json, "json", false, "output in JSON format")
-	cmd.Flags().BoolVarP(&opts.watch, "watch", "w", false, "continuously refresh the list in place until Ctrl+C")
+	cmd.Flags().BoolVarP(&opts.watch, "watch", "w", false, "refresh the list when festival progress or lifecycle status changes")
 	cmd.Flags().BoolVar(&opts.all, "all", false, "include completed and dungeon festivals")
 	cmd.Flags().BoolVar(&opts.progress, "progress", false, "show detailed progress for each festival")
 	cmd.Flags().BoolVar(&opts.alpha, "alpha", false, "sort alphabetically by name instead of by date")

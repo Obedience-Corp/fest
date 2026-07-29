@@ -3,7 +3,9 @@ package watch
 
 import (
 	"context"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -19,9 +21,13 @@ const DefaultMaxWait = 500 * time.Millisecond
 
 // Config configures the file watcher behavior.
 type Config struct {
-	// Paths lists files and directories to watch.
-	// Directories are watched non-recursively.
+	// Paths lists files and directories to watch. Directories are watched
+	// non-recursively unless Recursive is enabled.
 	Paths []string
+
+	// Recursive watches every existing directory below each configured
+	// directory and automatically adds directory subtrees created later.
+	Recursive bool
 
 	// Debounce is the duration to wait after the last change before triggering.
 	// This coalesces rapid changes (e.g., editor save patterns) into a single event.
@@ -94,27 +100,53 @@ func New(cfg Config, onChange func()) (*Watcher, error) {
 	}
 
 	// Add all paths to the watcher.
-	watchedCount := 0
 	for _, path := range cfg.Paths {
-		if err := w.AddPath(path); err != nil {
+		var err error
+		if cfg.Recursive {
+			err = w.AddTree(path)
+		} else {
+			err = w.AddPath(path)
+		}
+		if err != nil {
 			if !os.IsNotExist(err) {
 				_ = fsw.Close()
 				return nil, err
 			}
 			continue
 		}
-		if path != "" {
-			watchedCount++
-		}
 	}
 
 	// If no paths could be watched, return error to trigger fallback
-	if watchedCount == 0 && len(cfg.Paths) > 0 {
+	if len(w.watched) == 0 && len(cfg.Paths) > 0 {
 		_ = fsw.Close()
 		return nil, ErrNoWatchablePaths
 	}
 
 	return w, nil
+}
+
+// AddTree dynamically watches an existing directory and every directory below
+// it. Paths that disappear during traversal are skipped; other errors are
+// returned to the caller.
+func (w *Watcher) AddTree(root string) error {
+	if root == "" {
+		return nil
+	}
+	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if !entry.IsDir() {
+			return nil
+		}
+		if err := w.AddPath(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	})
 }
 
 // AddPath dynamically adds an existing file or directory to the watcher.
@@ -151,6 +183,15 @@ func (w *Watcher) Watch(ctx context.Context) error {
 		case event, ok := <-w.watcher.Events:
 			if !ok {
 				return nil
+			}
+			if w.config.Recursive && event.Has(fsnotify.Create) {
+				if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
+					if err := w.AddTree(event.Name); err != nil && w.config.OnError != nil {
+						w.config.OnError(err)
+					}
+				} else if err != nil && !os.IsNotExist(err) && w.config.OnError != nil {
+					w.config.OnError(err)
+				}
 			}
 			if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
 				w.removePath(event.Name)
