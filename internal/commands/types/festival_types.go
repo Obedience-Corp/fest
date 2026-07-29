@@ -269,7 +269,7 @@ func outputFestivalShowTable(festType *types.FestivalType) error {
 
 	// Usage example
 	fmt.Println("Example Usage:")
-	fmt.Printf("  fest create festival --type %s <festival-name>\n\n", festType.Name)
+	fmt.Printf("  fest create festival --type %s --name <festival-name>\n\n", festType.Name)
 
 	return nil
 }

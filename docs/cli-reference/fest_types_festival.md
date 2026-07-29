@@ -4,14 +4,13 @@ Discover festival types
 
 ### Synopsis
 
-Discover available festival types and their phase structures.
+Discover available festival workflow types and their phase structures.
 
-Festival types define the workflow structure for different kinds of projects:
-  - standard: Full planning and implementation phases
+These are the values for 'fest create festival --type'. Built-in types:
+  - standard: Full planning and implementation phases (default)
   - implementation: Direct implementation without planning
   - research: Research-focused workflow
-  - quick: Fast, minimal overhead workflow
-  - ritual: Simple repeating patterns
+  - ritual: Custom structure defined by the festival
 
 Examples:
 ```bash
@@ -46,6 +45,6 @@ fest types festival [type-name] [flags]
 
 ### SEE ALSO
 
-* [fest types](fest_types.md)	 - Discover and explore template types
+* [fest types](fest_types.md)	 - Discover types for fest create
 * [fest types festival list](fest_types_festival_list.md)	 - List all festival types
 * [fest types festival show](fest_types_festival_show.md)	 - Show details for a festival type

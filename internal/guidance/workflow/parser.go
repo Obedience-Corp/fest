@@ -37,8 +37,20 @@ var (
 	// evidenceRe matches an explicit evidence list for approval judging.
 	evidenceRe = regexp.MustCompile(`(?s)\*\*Evidence:\*\*\s*(.+?)(?:\n\n|\n\*\*|---|\n##|$)`)
 
-	// evidenceItemRe matches bullet evidence paths.
+	// evidenceItemRe matches a bullet evidence path: a single token on its own
+	// line. It is the ONLY definition of "this bullet is a path"; a `-`/`*`
+	// bullet it does not match is reported as unparsed rather than dropped.
+	//
+	// Non-bullet lines, other list markers, and empty bullets under
+	// **Evidence:** still match neither regex and are still ignored. Closing
+	// that would mean classifying every line in the block, which is a wider
+	// change than the silent drop this fixes.
 	evidenceItemRe = regexp.MustCompile(`(?m)^\s*[-*]\s+(\S+)\s*$`)
+
+	// evidenceBulletRe matches EVERY bullet under **Evidence:**. Each one is
+	// then classified against evidenceItemRe, so "not a path" is defined by
+	// that regex rather than by a second heuristic that can drift from it.
+	evidenceBulletRe = regexp.MustCompile(`(?m)^\s*[-*]\s+(.+?)\s*$`)
 
 	// hooksMarkerRe matches a per-step "**Hooks:**" line in GATES.md.
 	hooksMarkerRe = regexp.MustCompile(`(?im)\*\*Hooks:\*\*[ \t]*([^\r\n]*)`)
@@ -133,7 +145,7 @@ func (p *Parser) ParseContent(ctx context.Context, content string) ([]WorkflowSt
 			return nil, fmt.Errorf("step %d checkpoint class: %w", num, err)
 		}
 		step.CheckpointClass = checkpointClass
-		step.EvidencePaths = p.parseEvidencePaths(section)
+		step.EvidencePaths, step.EvidenceUnparsed = p.parseEvidence(section)
 		step.Hooks = p.parseStepHooks(section)
 		step.Approval = p.parseApproval(section)
 
@@ -233,23 +245,35 @@ func (p *Parser) parseCheckpointClass(section string) (CheckpointClass, error) {
 	}
 }
 
-func (p *Parser) parseEvidencePaths(section string) []string {
+// parseEvidence classifies every bullet under **Evidence:** exactly once: a
+// bullet is either a path or it is reported.
+//
+// One scan on purpose. Splitting this into a path pass and a separate
+// "not a path" pass meant two definitions of what a path is, and the readiness
+// gate's invariant -- no bullet is silently discarded -- held only while the
+// two happened to agree.
+func (p *Parser) parseEvidence(section string) (paths, unparsed []string) {
 	m := evidenceRe.FindStringSubmatch(section)
 	if len(m) < 2 {
-		return nil
+		return nil, nil
 	}
-	var paths []string
-	for _, item := range evidenceItemRe.FindAllStringSubmatch(m[1], -1) {
-		if len(item) < 2 {
+	for _, bullet := range evidenceBulletRe.FindAllStringSubmatch(m[1], -1) {
+		if len(bullet) < 2 {
 			continue
 		}
-		path := strings.TrimSpace(item[1])
-		if path == "" {
+		text := strings.TrimSpace(bullet[1])
+		if text == "" {
 			continue
 		}
-		paths = append(paths, path)
+		if item := evidenceItemRe.FindStringSubmatch(bullet[0]); len(item) >= 2 {
+			if path := strings.TrimSpace(item[1]); path != "" {
+				paths = append(paths, path)
+				continue
+			}
+		}
+		unparsed = append(unparsed, text)
 	}
-	return paths
+	return paths, unparsed
 }
 
 // parseStepHooks extracts pre/post hook name lists from a **Hooks:** marker.
