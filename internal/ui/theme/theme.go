@@ -144,10 +144,17 @@ func buildTheme(p palette) *huh.Theme {
 		Foreground(p.placeholder).
 		Padding(0, 1)
 
-	t.Focused.Base = lipgloss.NewStyle().
+	// Full rounded box on the focused field. Use Border() (not BorderStyle alone)
+	// so all four sides are enabled — BorderStyle without side flags can leave
+	// the right edge missing depending on lipgloss inheritance from ThemeBase.
+	// Keep horizontal padding modest: huh sets Base.Width(fieldWidth), and
+	// borders+padding add to the painted width (see RunForm width reserve).
+	focusedBox := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
 		BorderForeground(p.border).
-		BorderStyle(lipgloss.RoundedBorder()).
 		Padding(0, 1)
+	t.Focused.Base = focusedBox
+	t.Focused.Card = focusedBox
 
 	// === Blurred field styles (inactive inputs) ===
 	t.Blurred.Title = lipgloss.NewStyle().
@@ -176,6 +183,13 @@ func buildTheme(p palette) *huh.Theme {
 	t.Blurred.SelectSelector = lipgloss.NewStyle().
 		Foreground(p.placeholder).
 		SetString("  ")
+
+	// Blurred fields: no box so only the focused control draws a border.
+	blurredBox := lipgloss.NewStyle().
+		Border(lipgloss.HiddenBorder()).
+		Padding(0, 1)
+	t.Blurred.Base = blurredBox
+	t.Blurred.Card = blurredBox
 
 	return t
 }

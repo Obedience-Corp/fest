@@ -147,7 +147,7 @@ func StartCreateTUI(ctx context.Context) error {
 			huh.NewGroup(
 				huh.NewSelect[string]().
 					Title("Create what?").
-					Description("Festival: festivals/ body of work · Workflow: WORKFLOW.md in cwd · Phase/Sequence/Task: hierarchy\nj/k or ↑/↓ · enter select · esc/ctrl-c quit").
+					Description("j/k or ↑/↓ navigate · enter select · esc/ctrl-c quit").
 					Options(
 						huh.NewOption("Festival", "festival"),
 						huh.NewOption("Standalone workflow", "workflow"),

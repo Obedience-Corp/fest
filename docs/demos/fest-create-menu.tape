@@ -30,6 +30,7 @@ Type "export PATH=$FEST_VHS_ROOT/bin:$PATH" Enter
 Type "export FEST_CONFIG_DIR=$FEST_VHS_ROOT/config" Enter
 Type "export TERM=xterm-256color COLORTERM=truecolor COLORFGBG=15\;0" Enter
 Type "export CLICOLOR_FORCE=1" Enter
+Type "export COLUMNS=100 LINES=30" Enter
 Type "export PS1='\033[38;5;208m❯\033[0m '" Enter
 Type "cd $FEST_VHS_ROOT/workspace" Enter
 Type "clear" Enter

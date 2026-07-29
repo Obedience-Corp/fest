@@ -36,10 +36,13 @@ func RunForm(ctx context.Context, form *huh.Form) error {
 		WithShowHelp(true)
 
 	// Constrain form layout to the live terminal width so Focused.Base rounded
-	// borders do not clip. Floor at 40 cols so a misreported tiny TTY size
-	// (some multiplexers) does not collapse every field.
+	// borders do not clip. huh applies Base.Width(fieldWidth); lipgloss then
+	// paints left/right border + horizontal padding outside that content box,
+	// so reserve frame space (border L/R + pad L/R ≈ 4) plus 1 col safety.
+	// Floor at 40 cols so a misreported tiny TTY size does not collapse fields.
+	const frameReserve = 5 // 2 border + 2 pad + 1 safety
 	if w, _, err := term.GetSize(int(os.Stdout.Fd())); err == nil && w >= 40 {
-		form = form.WithWidth(w - 2)
+		form = form.WithWidth(w - frameReserve)
 	}
 
 	if err := form.RunWithContext(ctx); err != nil {
