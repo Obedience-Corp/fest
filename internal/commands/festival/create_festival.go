@@ -923,18 +923,26 @@ func emitCreateOutput(cfg *createConfig, res *createResult) error {
 	}
 
 	fmt.Println()
-	fmt.Println(ui.H2("Next Steps"))
+	fmt.Println(ui.H2("Next (you)"))
 	// cd instruction stays absolute for shell usage
 	fmt.Printf("  %s\n", ui.Info(fmt.Sprintf("1. cd %s", cfg.destDir)))
-	if remainingMarkers > 0 {
-		fmt.Printf("  %s\n", ui.Info("2. Edit FESTIVAL_GOAL.md to define your objectives"))
-		fmt.Printf("  %s\n", ui.Info("3. fest create phase --name \"PLAN\" --after 0"))
-		fmt.Printf("  %s\n", ui.Info("4. fest validate (check completion status)"))
-	} else {
-		fmt.Printf("  %s\n", ui.Info("2. fest create phase --name \"PLAN\" --after 0"))
-		fmt.Printf("  %s\n", ui.Info("3. fest create phase --name \"IMPLEMENT\" --after 1"))
-		fmt.Printf("  %s\n", ui.Info("4. After creating tasks: fest gates apply --approve"))
+	fmt.Printf("  %s\n", ui.Info("2. Hand this to your agent: fest next"))
+	fmt.Printf("  %s\n", ui.Info(fmt.Sprintf("3. Or review structure: fest show %s", cfg.slug)))
+	if cfg.destCategory == "planning" {
+		fmt.Printf("  %s\n", ui.Info("4. When the plan is solid: fest promote  (planning → ready → active)"))
 	}
+
+	fmt.Println()
+	fmt.Println(ui.H2("Agent work (not yours)"))
+	if remainingMarkers > 0 {
+		fmt.Printf("  %s\n", ui.Info(fmt.Sprintf("· Resolve %d REPLACE markers (fest wizard fill / agent --markers)", remainingMarkers)))
+	}
+	if len(res.autoPhasesCreated) > 0 {
+		fmt.Printf("  %s\n", ui.Info(fmt.Sprintf("· Drive auto phases already scaffolded: %s", strings.Join(res.autoPhasesCreated, ", "))))
+	} else {
+		fmt.Printf("  %s\n", ui.Info("· Add phases as needed: fest create phase --name PHASE_NAME"))
+	}
+	fmt.Printf("  %s\n", ui.Info("· fest validate --fix if structure drifts"))
 	return nil
 }
 
@@ -950,7 +958,11 @@ func emitCreateJSON(cfg *createConfig, res *createResult, gatesDir string, remai
 			"Run 'fest wizard fill FESTIVAL_GOAL.md' to fill markers interactively",
 		)
 	}
-	warnings = append(warnings, "Next: Create phases with 'fest create phase --name PHASE_NAME'")
+	if len(res.autoPhasesCreated) > 0 {
+		warnings = append(warnings, "Next (human): hand to agent with fest next; auto phases already scaffolded")
+	} else {
+		warnings = append(warnings, "Next: Create phases with 'fest create phase --name PHASE_NAME'")
+	}
 
 	festivalMap := map[string]string{
 		"name":      cfg.opts.Name,

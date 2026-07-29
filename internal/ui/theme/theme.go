@@ -144,10 +144,16 @@ func buildTheme(p palette) *huh.Theme {
 		Foreground(p.placeholder).
 		Padding(0, 1)
 
-	t.Focused.Base = lipgloss.NewStyle().
+	// Field Base is intentionally borderless. huh Group viewports MaxWidth-clip
+	// at field width while lipgloss paints borders *outside* Width, so a
+	// field-level rounded box always loses its right edge when full-width.
+	// RunForm draws a responsive outer frame instead (FormFrameStyle).
+	// BorderForeground is kept so FormFrameStyle can read the chrome color.
+	focusedBox := lipgloss.NewStyle().
 		BorderForeground(p.border).
-		BorderStyle(lipgloss.RoundedBorder()).
 		Padding(0, 1)
+	t.Focused.Base = focusedBox
+	t.Focused.Card = focusedBox
 
 	// === Blurred field styles (inactive inputs) ===
 	t.Blurred.Title = lipgloss.NewStyle().
@@ -176,6 +182,12 @@ func buildTheme(p palette) *huh.Theme {
 	t.Blurred.SelectSelector = lipgloss.NewStyle().
 		Foreground(p.placeholder).
 		SetString("  ")
+
+	// Blurred fields match focused chrome (borderless); outer form frame is shared.
+	blurredBox := lipgloss.NewStyle().
+		Padding(0, 1)
+	t.Blurred.Base = blurredBox
+	t.Blurred.Card = blurredBox
 
 	return t
 }

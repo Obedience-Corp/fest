@@ -4,6 +4,7 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
@@ -65,7 +66,7 @@ func runCharmTUI(ctx context.Context) error {
 		}
 	}
 
-	// main menu loop
+	// main menu loop — Create… reuses the same Create what? menu as `fest create`
 	for {
 		var action string
 		menu := huh.NewForm(
@@ -74,11 +75,7 @@ func runCharmTUI(ctx context.Context) error {
 					Title("What would you like to do?").
 					Description("j/k or ↑/↓ navigate • enter select • esc/ctrl-c quit").
 					Options(
-						huh.NewOption("Plan a New Festival (wizard)", "plan_festival"),
-						huh.NewOption("Create a Festival (quick)", "create_festival"),
-						huh.NewOption("Add a Phase", "create_phase"),
-						huh.NewOption("Add a Sequence", "create_sequence"),
-						huh.NewOption("Add a Task", "create_task"),
+						huh.NewOption("Create…", "create"),
 						huh.NewOption("Generate Festival Goal", "festival_goal"),
 						huh.NewOption("Quit", "quit"),
 					).
@@ -94,24 +91,8 @@ func runCharmTUI(ctx context.Context) error {
 		}
 
 		switch action {
-		case "plan_festival":
-			if err := charmPlanFestivalWizard(ctx); err != nil {
-				return err
-			}
-		case "create_festival":
-			if err := charmCreateFestival(ctx); err != nil {
-				return err
-			}
-		case "create_phase":
-			if err := charmCreatePhase(ctx); err != nil {
-				return err
-			}
-		case "create_sequence":
-			if err := charmCreateSequence(ctx); err != nil {
-				return err
-			}
-		case "create_task":
-			if err := charmCreateTask(ctx); err != nil {
+		case "create":
+			if err := StartCreateTUI(ctx); err != nil {
 				return err
 			}
 		case "festival_goal":
@@ -149,7 +130,8 @@ func fallbackDot(s string) string {
 	return s
 }
 
-// StartCreateTUI shows a create-only menu (Charm implementation)
+// StartCreateTUI shows a create-only menu (Charm implementation).
+// Outer Create what? menu: Festival wizard + Workflow peer + hierarchy creates.
 func StartCreateTUI(ctx context.Context) error {
 	for {
 		// Check context cancellation
@@ -158,13 +140,16 @@ func StartCreateTUI(ctx context.Context) error {
 		}
 
 		var action string
+		// Short option labels; details live in the select Description. RunForm
+		// draws a full-width frame around the menu.
 		menu := huh.NewForm(
 			huh.NewGroup(
 				huh.NewSelect[string]().
 					Title("Create what?").
-					Description("j/k or ↑/↓ navigate • enter select • esc/ctrl-c quit").
+					Description("j/k or ↑/↓ navigate · enter select · esc/ctrl-c quit").
 					Options(
 						huh.NewOption("Festival", "festival"),
+						huh.NewOption("Standalone workflow", "workflow"),
 						huh.NewOption("Phase", "phase"),
 						huh.NewOption("Sequence", "sequence"),
 						huh.NewOption("Task", "task"),
@@ -184,6 +169,15 @@ func StartCreateTUI(ctx context.Context) error {
 			if err := charmCreateFestival(ctx); err != nil {
 				return err
 			}
+		case "workflow":
+			// Full human wizard deferred (intent). Peer must appear on the menu.
+			fmt.Println()
+			fmt.Println("Standalone workflow TUI is not ready yet.")
+			fmt.Println("  Agents/humans can create with:")
+			fmt.Println("    fest create workflow <name>")
+			fmt.Println("  Or with structured steps:")
+			fmt.Println("    fest create workflow <name> --steps-file steps.json")
+			fmt.Println()
 		case "phase":
 			if err := charmCreatePhase(ctx); err != nil {
 				return err

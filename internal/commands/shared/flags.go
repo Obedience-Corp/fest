@@ -30,12 +30,17 @@ type InitOpts struct {
 }
 
 // CreateFestivalOpts holds options for the create festival command.
+// Includes human-TUI-reachable fields (Project, Seed) that map into
+// festival.CreateFestivalOptions via the command hook.
 type CreateFestivalOpts struct {
 	Name       string
 	Goal       string
 	Tags       string
 	Type       string
 	VarsFile   string
+	Project    string // Project directory path (auto-links)
+	Seed       string // Inline seed for ingest input_specs/
+	SeedFile   string // Seed file path (mutually exclusive with Seed at pipeline)
 	JSONOutput bool
 	Dest       string // "planning" (default) or "ritual". Never "active" — use fest promote.
 }

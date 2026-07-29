@@ -30,15 +30,27 @@ func runInitHook(ctx context.Context, path string, opts *shared.InitOpts) error 
 }
 
 func runCreateFestivalHook(ctx context.Context, opts *shared.CreateFestivalOpts) error {
-	return festival.RunCreateFestival(ctx, &festival.CreateFestivalOptions{
+	return festival.RunCreateFestival(ctx, festivalOptsFromShared(opts))
+}
+
+// festivalOptsFromShared maps shared TUI/CLI bridge opts into festival create options.
+// Extracted for unit tests so Project/Seed/SeedFile mapping cannot silently drop.
+func festivalOptsFromShared(opts *shared.CreateFestivalOpts) *festival.CreateFestivalOptions {
+	if opts == nil {
+		return &festival.CreateFestivalOptions{}
+	}
+	return &festival.CreateFestivalOptions{
 		Name:       opts.Name,
 		Goal:       opts.Goal,
 		Tags:       opts.Tags,
 		Type:       opts.Type,
 		VarsFile:   opts.VarsFile,
+		Project:    opts.Project,
+		Seed:       opts.Seed,
+		SeedFile:   opts.SeedFile,
 		JSONOutput: opts.JSONOutput,
 		Dest:       opts.Dest,
-	})
+	}
 }
 
 func runCreatePhaseHook(ctx context.Context, opts *shared.CreatePhaseOpts) error {

@@ -51,37 +51,17 @@ func runTUI(ctx context.Context) error {
 
 	for {
 		choice := display.Choose("What would you like to do?", []string{
-			"Plan a New Festival (wizard)",
-			"Create a Festival (quick)",
-			"Add a Phase",
-			"Add a Sequence",
-			"Add a Task",
+			"Create…",
 			"Generate Festival Goal",
 			"Quit",
 		})
 
 		switch choice {
 		case 0:
-			if err := tuiPlanFestivalWizard(ctx, display); err != nil {
+			if err := StartCreateTUI(ctx); err != nil {
 				return err
 			}
 		case 1:
-			if err := tuiCreateFestival(ctx, display); err != nil {
-				return err
-			}
-		case 2:
-			if err := tuiCreatePhase(ctx, display); err != nil {
-				return err
-			}
-		case 3:
-			if err := tuiCreateSequence(ctx, display); err != nil {
-				return err
-			}
-		case 4:
-			if err := tuiCreateTask(ctx, display); err != nil {
-				return err
-			}
-		case 5:
 			if err := tuiGenerateFestivalGoal(ctx, display); err != nil {
 				return err
 			}
@@ -105,6 +85,7 @@ func StartCreateTUI(ctx context.Context) error {
 		}
 		choice := display.Choose("Create what?", []string{
 			"Festival",
+			"Standalone workflow",
 			"Phase",
 			"Sequence",
 			"Task",
@@ -116,14 +97,18 @@ func StartCreateTUI(ctx context.Context) error {
 				return err
 			}
 		case 1:
+			display.Info("Standalone workflow TUI is not ready yet.")
+			display.Info("  Use: fest create workflow <name>")
+			display.Info("  Or:  fest create workflow <name> --steps-file steps.json")
+		case 2:
 			if err := tuiCreatePhase(ctx, display); err != nil {
 				return err
 			}
-		case 2:
+		case 3:
 			if err := tuiCreateSequence(ctx, display); err != nil {
 				return err
 			}
-		case 3:
+		case 4:
 			if err := tuiCreateTask(ctx, display); err != nil {
 				return err
 			}
