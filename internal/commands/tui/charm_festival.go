@@ -498,12 +498,6 @@ func submitFestivalCreate(ctx context.Context, cfg *types.FestivalTypesConfig, d
 	return shared.RunCreateFestival(ctx, opts)
 }
 
-// charmPlanFestivalWizard is retained for any legacy callers but now routes to the
-// single Festival wizard (plan-vs-quick dual is retired).
-func charmPlanFestivalWizard(ctx context.Context) error {
-	return charmCreateFestival(ctx)
-}
-
 func charmGenerateFestivalGoal(ctx context.Context) error {
 	if _, err := templateRootFromCtx(ctx); err != nil {
 		return err

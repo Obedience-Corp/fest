@@ -14,8 +14,11 @@ import (
 )
 
 // Error codes for theme package.
+const ErrCodeCancelled = "CANCELLED"
+
 const (
-	ErrCodeCancelled = "CANCELLED"
+	resetModeAutoWrap = "\x1b[?7l"
+	setModeAutoWrap   = "\x1b[?7h"
 )
 
 // ErrUserCancelled is returned when user cancels with Ctrl-C or Esc.
@@ -70,6 +73,9 @@ func (m *formFrameModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *formFrameModel) View() string {
 	inner := m.form.View()
+	if inner == "" {
+		return ""
+	}
 	if m.width <= 0 {
 		return m.frame.Render(inner)
 	}
@@ -99,6 +105,13 @@ func RunForm(ctx context.Context, form *huh.Form) error {
 		WithTheme(th).
 		WithKeyMap(huh.NewDefaultKeyMap()).
 		WithShowHelp(true)
+
+	// Preserve huh's line-oriented accessible runner. NewForm enables it for
+	// TERM=dumb, but the custom Bubble Tea frame model below would otherwise
+	// bypass that state along with the form's configured input and output.
+	if os.Getenv("TERM") == "dumb" {
+		return normalizeFormRunError(ctx, form.WithAccessible(true).RunWithContext(ctx))
+	}
 
 	// Match huh.Form.run: quit on submit, interrupt on cancel.
 	form.SubmitCmd = tea.Quit
@@ -130,15 +143,15 @@ func RunForm(ctx context.Context, form *huh.Form) error {
 		tea.WithReportFocus(),
 	}
 
+	// The outer border intentionally occupies the full terminal width. Disable
+	// terminal autowrap while Bubble Tea paints it so a glyph in the last column
+	// does not advance the cursor and leave orphan border rows on repaint.
+	_, _ = os.Stderr.WriteString(resetModeAutoWrap)
+	defer func() { _, _ = os.Stderr.WriteString(setModeAutoWrap) }()
+
 	final, err := tea.NewProgram(m, opts...).Run()
-	if err != nil {
-		if errors.Is(err, tea.ErrInterrupted) {
-			return ErrUserCancelled
-		}
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-			return festErrors.Wrap(err, "context cancelled").WithOp("RunForm")
-		}
-		return festErrors.Wrap(err, "form error").WithOp("RunForm")
+	if err := normalizeFormRunError(ctx, err); err != nil {
+		return err
 	}
 
 	if final != nil {
@@ -150,6 +163,19 @@ func RunForm(ctx context.Context, form *huh.Form) error {
 		}
 	}
 	return nil
+}
+
+func normalizeFormRunError(ctx context.Context, err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, tea.ErrInterrupted) || errors.Is(err, huh.ErrUserAborted) {
+		return ErrUserCancelled
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return festErrors.Wrap(err, "context cancelled").WithOp("RunForm")
+	}
+	return festErrors.Wrap(err, "form error").WithOp("RunForm")
 }
 
 // FormFrameStyle returns the full-width chrome box used by RunForm.
@@ -185,6 +211,9 @@ func detectTermCols() int {
 // RenderFormFrame paints content inside a form frame sized for termCols.
 // painted width equals termCols when termCols >= 4.
 func RenderFormFrame(th *huh.Theme, termCols int, content string) string {
+	if content == "" {
+		return ""
+	}
 	frame := FormFrameStyle(th)
 	border := frame.GetHorizontalBorderSize()
 	if border <= 0 {

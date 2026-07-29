@@ -207,8 +207,11 @@ func TestTrimTagList(t *testing.T) {
 func TestResolveProjectMode(t *testing.T) {
 	t.Parallel()
 	projects := []string{"projects/a", "projects/b"}
-	if got := resolveProjectMode(&festivalDraft{}, projects); got != projectModeSkip {
-		t.Fatalf("empty project mode = %q", got)
+	if got := resolveProjectMode(&festivalDraft{}, projects); got != projectModePick {
+		t.Fatalf("empty project with choices mode = %q, want pick", got)
+	}
+	if got := resolveProjectMode(&festivalDraft{}, nil); got != projectModeSkip {
+		t.Fatalf("empty project without choices mode = %q, want skip", got)
 	}
 	if got := resolveProjectMode(&festivalDraft{Project: "projects/a"}, projects); got != projectModePick {
 		t.Fatalf("listed path mode = %q", got)

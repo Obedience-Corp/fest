@@ -208,6 +208,9 @@ func resolveProjectMode(d *festivalDraft, projects []string) string {
 		return d.ProjectMode
 	}
 	if d.Project == "" {
+		if len(projects) > 0 {
+			return projectModePick
+		}
 		return projectModeSkip
 	}
 	for _, p := range projects {

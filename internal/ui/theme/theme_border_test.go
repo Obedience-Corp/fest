@@ -1,11 +1,58 @@
 package theme
 
 import (
+	"bytes"
+	"context"
+	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 )
+
+func TestRunFormAccessibleTERM(t *testing.T) {
+	if os.Getenv("FEST_TEST_ACCESSIBLE_FORM") == "1" {
+		var selected string
+		form := huh.NewForm(huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Choose one").
+				Options(huh.NewOption("Alpha", "alpha"), huh.NewOption("Beta", "beta")).
+				Value(&selected),
+		))
+		if err := RunForm(context.Background(), form); err != nil {
+			fmt.Fprintf(os.Stderr, "RunForm failed: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("selected=%s\n", selected)
+		return
+	}
+
+	cmd := exec.Command(os.Args[0], "-test.run=^TestRunFormAccessibleTERM$")
+	cmd.Env = append(os.Environ(), "FEST_TEST_ACCESSIBLE_FORM=1", "TERM=dumb")
+	cmd.Stdin = strings.NewReader("1\n")
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("accessible form subprocess failed: %v\nstdout:\n%s\nstderr:\n%s", err, stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "selected=alpha") {
+		t.Fatalf("accessible form did not read piped input:\n%s", stdout.String())
+	}
+	if strings.Contains(stderr.String(), "could not open a new TTY") {
+		t.Fatalf("accessible form tried to open a TTY:\n%s", stderr.String())
+	}
+}
+
+func TestRenderFormFramePreservesEmptyFinalView(t *testing.T) {
+	t.Parallel()
+	if got := RenderFormFrame(GetTheme(ThemeDark), 80, ""); got != "" {
+		t.Fatalf("empty final form view rendered stale frame: %q", got)
+	}
+}
 
 // Full-width form chrome must paint a complete rounded box at the terminal
 // width. Regression: field-level Focused.Base borders were clipped by huh's
