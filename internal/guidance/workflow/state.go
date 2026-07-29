@@ -5,9 +5,12 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/Obedience-Corp/fest/internal/hooks"
 	"github.com/Obedience-Corp/fest/internal/yamlutil"
 	"gopkg.in/yaml.v3"
 )
@@ -47,15 +50,33 @@ type WorkflowEvent struct {
 	RemediationPhase string
 	DecisionActor    string
 	DecisionSummary  string
+	Followups        []string
 	JudgeStatus      string
 	JudgeCommand     string
 	JudgeDetail      string
+	JudgePid         int
+	JudgeRunID       string
+
+	// Hook-run fields (wf_hook_run). Hook runs are events, never decisions (D9).
+	HookName       string
+	HookLayer      string
+	HookTiming     string
+	HookVerb       string
+	HookOutcome    string
+	HookSkip       string
+	HookExitCode   int
+	HookDurationMS int64
+	HookFail       string
+	HookBlocked    bool
 }
 
 // DecisionMetadata records who made a checkpoint decision and the rationale.
 type DecisionMetadata struct {
 	Actor   string
 	Summary string
+	// Followups carries the judge's concrete, itemized fixes for a rejection
+	// so a blocked agent knows exactly what to revise before re-submitting.
+	Followups []string
 }
 
 // Judge lifecycle status values recorded on StepState.Judge.
@@ -64,6 +85,7 @@ const (
 	JudgeApproved = "approved"
 	JudgeRejected = "rejected"
 	JudgeFailed   = "failed"
+	JudgeCanceled = "canceled"
 )
 
 // JudgeState tracks the lifecycle of a delegated approval judge run for a
@@ -84,8 +106,102 @@ type JudgeState struct {
 	// StartedAt is when the judge command was invoked.
 	StartedAt *time.Time `yaml:"started_at,omitempty" json:"started_at,omitempty"`
 
+	// Pid is the process id of the detached judge runner, used to detect a
+	// stale running record after a crash so the judge can be relaunched.
+	Pid int `yaml:"pid,omitempty" json:"pid,omitempty"`
+
+	// RunID uniquely identifies one delegated evaluation. Detached runners
+	// must still own this ID before they may update or decide the checkpoint.
+	RunID string `yaml:"run_id,omitempty" json:"run_id,omitempty"`
+
 	// FinishedAt is when the judge outcome was recorded.
 	FinishedAt *time.Time `yaml:"finished_at,omitempty" json:"finished_at,omitempty"`
+}
+
+// DisplayFeedback removes implementation details from approval-judge feedback
+// before it is shown in normal command output. Older event logs stored the
+// complete judge audit string; keep accepting those records while presenting
+// only the actionable reason to users and agents.
+func DisplayFeedback(feedback string) string {
+	feedback = strings.TrimSpace(feedback)
+	if feedback == "" {
+		return ""
+	}
+
+	if strings.HasPrefix(feedback, "approval auto mode:") {
+		if rawReason, ok := legacyJudgeReason(feedback); ok {
+			if reason, err := strconv.Unquote(rawReason); err == nil {
+				return reason
+			}
+			return strings.Trim(rawReason, "\"")
+		}
+	}
+
+	const preflightPrefix = "detached approval judge preflight rejected:"
+	if strings.HasPrefix(feedback, preflightPrefix) {
+		return strings.TrimSpace(strings.TrimPrefix(feedback, preflightPrefix))
+	}
+
+	return feedback
+}
+
+// legacyJudgeReason finds the final, unquoted reason field in the legacy
+// approval audit format. A plain LastIndex is unsafe because free-form reason
+// text can itself contain "reason=".
+func legacyJudgeReason(audit string) (string, bool) {
+	const delimiter = " reason="
+	inQuote := false
+	escaped := false
+	for i := 0; i < len(audit); i++ {
+		if inQuote {
+			if escaped {
+				escaped = false
+				continue
+			}
+			switch audit[i] {
+			case '\\':
+				escaped = true
+			case '"':
+				inQuote = false
+			}
+			continue
+		}
+
+		if audit[i] == '"' {
+			inQuote = true
+			continue
+		}
+		if strings.HasPrefix(audit[i:], delimiter) {
+			return strings.TrimSpace(audit[i+len(delimiter):]), true
+		}
+	}
+	return "", false
+}
+
+// IsJudgeRejection reports whether a blocked step was produced by an approval
+// judge or by the deterministic readiness checks that precede one. Ordinary
+// operator rejections intentionally return false and cannot be reopened by
+// the agent-facing judge command.
+func IsJudgeRejection(stepState *StepState) bool {
+	if stepState == nil || stepState.Status != StepStatusBlocked {
+		return false
+	}
+	if stepState.Judge != nil && stepState.Judge.Status == JudgeRejected {
+		// A manual rejection can leave an older terminal judge record in
+		// append-only history. The current decision actor is authoritative;
+		// only an agent-owned decision may be reopened by the judge command.
+		return stepState.DecisionActor == "agent"
+	}
+	if stepState.DecisionActor == "agent" {
+		return true
+	}
+	if stepState.DecisionActor != "" {
+		return false
+	}
+	feedback := strings.ToLower(stepState.Feedback)
+	return strings.Contains(feedback, "approval auto mode") ||
+		strings.Contains(feedback, "approval readiness") ||
+		strings.Contains(feedback, "detached approval judge preflight rejected")
 }
 
 // StepState tracks the state of a single workflow step.
@@ -104,6 +220,10 @@ type StepState struct {
 
 	// Feedback stores rejection reasons or notes.
 	Feedback string `yaml:"feedback,omitempty" json:"feedback,omitempty"`
+
+	// Followups stores the judge's itemized fixes for a blocked step so a
+	// blocked agent has a concrete revise list, not just the one-line reason.
+	Followups []string `yaml:"followups,omitempty" json:"followups,omitempty"`
 
 	// RemediationPhase is the linked phase name for a step in
 	// StepStatusFailedRemediation. Empty for any other status.
@@ -338,20 +458,60 @@ func (s *WorkflowState) StartCurrentStep() {
 	}
 }
 
-// BeginJudge records a delegated judge run starting on the current step.
-func (s *WorkflowState) BeginJudge(command string, at time.Time) {
-	state := s.GetOrCreateStepState(s.CurrentStep)
+// BeginJudge records a delegated judge run starting on a step.
+func (s *WorkflowState) BeginJudge(step int, command, runID string, pid int, at time.Time) {
+	state := s.GetOrCreateStepState(step)
 	started := at
 	state.Judge = &JudgeState{
 		Status:    JudgeRunning,
 		Command:   command,
 		StartedAt: &started,
+		Pid:       pid,
+		RunID:     runID,
 	}
 }
 
-// RecordJudgeOutcome records how the current step's judge run ended.
-func (s *WorkflowState) RecordJudgeOutcome(status, detail string, at time.Time) {
-	state := s.GetOrCreateStepState(s.CurrentStep)
+// ClaimJudge records the detached runner PID only while the supplied run still
+// owns the checkpoint. Repeating the same claim is idempotent.
+func (s *WorkflowState) ClaimJudge(step int, runID string, pid int) bool {
+	state := s.GetStepState(step)
+	if state == nil || state.Judge == nil || state.Judge.Status != JudgeRunning ||
+		state.Judge.RunID != runID {
+		return false
+	}
+	if state.Judge.Pid != 0 && state.Judge.Pid != pid {
+		return false
+	}
+	state.Judge.Pid = pid
+	return true
+}
+
+// JudgeRunOwned reports whether a running judge still owns the current step.
+// Unlike JudgeOwned, this does not require the step to remain pending or
+// in-progress. A dead detached runner may need to be marked failed after a
+// concurrent transition has blocked the step.
+func (s *WorkflowState) JudgeRunOwned(step int, runID string) bool {
+	state := s.GetStepState(step)
+	return state != nil && state.Judge != nil && state.Judge.Status == JudgeRunning &&
+		state.Judge.RunID == runID && s.CurrentStep == step
+}
+
+// JudgeOwned reports whether a running judge still owns the current decision.
+func (s *WorkflowState) JudgeOwned(step int, runID string) bool {
+	state := s.GetStepState(step)
+	return s.JudgeRunOwned(step, runID) &&
+		state != nil &&
+		(state.Status == StepStatusPending || state.Status == StepStatusInProgress)
+}
+
+// RecordJudgeOutcome records how an owned judge run ended. It returns false
+// without changing state when a manual decision, reset, or newer run has
+// superseded the caller.
+func (s *WorkflowState) RecordJudgeOutcome(step int, runID, status, detail string, at time.Time) bool {
+	if runID != "" && !s.JudgeOwned(step, runID) {
+		return false
+	}
+	state := s.GetOrCreateStepState(step)
 	if state.Judge == nil {
 		state.Judge = &JudgeState{}
 	}
@@ -359,6 +519,25 @@ func (s *WorkflowState) RecordJudgeOutcome(status, detail string, at time.Time) 
 	state.Judge.Status = status
 	state.Judge.Detail = detail
 	state.Judge.FinishedAt = &finished
+	return true
+}
+
+// RecordJudgeFailure records a failure for an owned judge lease. This is
+// intentionally allowed after a step becomes blocked so a stale detached
+// runner cannot leave the durable state looking permanently "waiting".
+func (s *WorkflowState) RecordJudgeFailure(step int, runID, detail string, at time.Time) bool {
+	if runID != "" && !s.JudgeRunOwned(step, runID) {
+		return false
+	}
+	state := s.GetOrCreateStepState(step)
+	if state.Judge == nil {
+		state.Judge = &JudgeState{}
+	}
+	finished := at
+	state.Judge.Status = JudgeFailed
+	state.Judge.Detail = detail
+	state.Judge.FinishedAt = &finished
+	return true
 }
 
 // CompleteCurrentStep marks the current step as completed.
@@ -405,6 +584,11 @@ func (s *WorkflowState) ApproveWithDecision(decision DecisionMetadata) error {
 // ApproveWithAudit approves a blocking checkpoint, recording durable audit
 // text and decision metadata, then advances to the next step.
 func (s *WorkflowState) ApproveWithAudit(feedback string, decision DecisionMetadata) error {
+	state := s.GetOrCreateStepState(s.CurrentStep)
+	s.cancelCurrentJudge("superseded by manual approval")
+	if decision.Actor != "agent" && state.Judge != nil && state.Judge.Status != JudgeCanceled {
+		state.Judge = nil
+	}
 	s.MarkCurrentStep(StepStatusCompleted, feedback)
 	s.recordDecision(s.CurrentStep, decision)
 	if s.CurrentStep < s.TotalSteps {
@@ -421,9 +605,16 @@ func (s *WorkflowState) Reject(feedback string) {
 // RejectWithDecision rejects the current step with feedback and decision metadata.
 func (s *WorkflowState) RejectWithDecision(feedback string, decision DecisionMetadata) {
 	state := s.GetOrCreateStepState(s.CurrentStep)
+	s.cancelCurrentJudge("superseded by manual rejection")
 	state.Status = StepStatusBlocked
 	state.Feedback = feedback
+	state.Followups = decision.Followups
 	state.RemediationPhase = ""
+	if decision.Actor != "agent" && state.Judge != nil && state.Judge.Status != JudgeCanceled {
+		// Replace any prior terminal judge outcome so a later judge command
+		// cannot reopen a checkpoint after an operator has taken ownership.
+		state.Judge = nil
+	}
 	s.recordDecision(s.CurrentStep, decision)
 }
 
@@ -438,10 +629,26 @@ func (s *WorkflowState) RejectWithRemediation(feedback, remediationPhase string)
 // RejectWithRemediationDecision records a non-passing gate decision with metadata.
 func (s *WorkflowState) RejectWithRemediationDecision(feedback, remediationPhase string, decision DecisionMetadata) {
 	state := s.GetOrCreateStepState(s.CurrentStep)
+	s.cancelCurrentJudge("superseded by manual remediation decision")
 	state.Status = StepStatusFailedRemediation
 	state.Feedback = feedback
+	state.Followups = decision.Followups
 	state.RemediationPhase = remediationPhase
+	if decision.Actor != "agent" && state.Judge != nil && state.Judge.Status != JudgeCanceled {
+		state.Judge = nil
+	}
 	s.recordDecision(s.CurrentStep, decision)
+}
+
+func (s *WorkflowState) cancelCurrentJudge(detail string) {
+	state := s.GetOrCreateStepState(s.CurrentStep)
+	if state.Judge == nil || state.Judge.Status != JudgeRunning {
+		return
+	}
+	now := time.Now().UTC()
+	state.Judge.Status = JudgeCanceled
+	state.Judge.Detail = detail
+	state.Judge.FinishedAt = &now
 }
 
 func (s *WorkflowState) recordDecision(step int, decision DecisionMetadata) {
@@ -466,9 +673,31 @@ func (s *WorkflowState) ClearFailedRemediation() {
 	}
 	state.Status = StepStatusInProgress
 	state.RemediationPhase = ""
+	state.Followups = nil
 	state.DecisionActor = ""
 	state.DecisionSummary = ""
 	state.DecisionAt = nil
+}
+
+// ReopenJudgeRejection moves a judge-owned blocked step back to in-progress
+// so the approval judge can evaluate the revised evidence. The prior rejection
+// remains in the append-only event log; the active state is cleared for the
+// new judge run.
+func (s *WorkflowState) ReopenJudgeRejection(step int) bool {
+	if s.CurrentStep != step || !IsJudgeRejection(s.GetStepState(step)) {
+		return false
+	}
+	state := s.GetOrCreateStepState(step)
+	state.Status = StepStatusInProgress
+	state.Feedback = ""
+	state.Followups = nil
+	state.RemediationPhase = ""
+	state.DecisionActor = ""
+	state.DecisionSummary = ""
+	state.DecisionAt = nil
+	state.Judge = nil
+	s.UpdatedAt = time.Now().UTC()
+	return true
 }
 
 // Reset resets the workflow to step 1 and clears all step states.
@@ -479,6 +708,7 @@ func (s *WorkflowState) Reset() {
 		state.StartedAt = nil
 		state.CompletedAt = nil
 		state.Feedback = ""
+		state.Followups = nil
 		state.DecisionActor = ""
 		state.DecisionSummary = ""
 		state.DecisionAt = nil
@@ -603,6 +833,7 @@ func EmitStepBlockWithDecisionEvents(phaseName string, step int, feedback string
 		Phase:           phaseName,
 		Step:            step,
 		Feedback:        feedback,
+		Followups:       decision.Followups,
 		DecisionActor:   decision.Actor,
 		DecisionSummary: decision.Summary,
 	}}
@@ -621,6 +852,7 @@ func EmitStepFailRemediationWithDecisionEvents(phaseName string, step int, feedb
 		Phase:            phaseName,
 		Step:             step,
 		Feedback:         feedback,
+		Followups:        decision.Followups,
 		RemediationPhase: remediationPhase,
 		DecisionActor:    decision.Actor,
 		DecisionSummary:  decision.Summary,
@@ -632,6 +864,16 @@ func EmitStepFailRemediationWithDecisionEvents(phaseName string, step int, feedb
 func EmitStepRecheckEvents(phaseName string, step int) []WorkflowEvent {
 	return []WorkflowEvent{{
 		EventType: "wf_step_recheck",
+		Phase:     phaseName,
+		Step:      step,
+	}}
+}
+
+// EmitJudgeRecheckEvents generates an event for reopening a judge-owned
+// rejection before submitting revised evidence to the judge again.
+func EmitJudgeRecheckEvents(phaseName string, step int) []WorkflowEvent {
+	return []WorkflowEvent{{
+		EventType: "wf_judge_recheck",
 		Phase:     phaseName,
 		Step:      step,
 	}}
@@ -656,25 +898,75 @@ func EmitResetEvents(phaseName string) []WorkflowEvent {
 
 // EmitJudgeStartedEvents generates events for a delegated judge run starting
 // on a blocking checkpoint.
-func EmitJudgeStartedEvents(phaseName string, step int, command string) []WorkflowEvent {
+func EmitJudgeStartedEvents(phaseName string, step int, command, runID string, pid int) []WorkflowEvent {
 	return []WorkflowEvent{{
 		EventType:    "wf_judge_started",
 		Phase:        phaseName,
 		Step:         step,
 		JudgeStatus:  JudgeRunning,
 		JudgeCommand: command,
+		JudgePid:     pid,
+		JudgeRunID:   runID,
+	}}
+}
+
+// EmitHookRunEvents generates one wf_hook_run event per hook runner record so
+// the festival audit trail captures every hook execution or skip (D9).
+func EmitHookRunEvents(phaseName string, step int, runs []hooks.HookRun) []WorkflowEvent {
+	events := make([]WorkflowEvent, 0, len(runs))
+	for _, run := range runs {
+		events = append(events, WorkflowEvent{
+			EventType:      "wf_hook_run",
+			Phase:          phaseName,
+			Step:           step,
+			HookName:       run.Name,
+			HookLayer:      string(run.Layer),
+			HookTiming:     string(run.Timing),
+			HookVerb:       string(run.Verb),
+			HookOutcome:    string(run.Outcome),
+			HookSkip:       string(run.Skip),
+			HookExitCode:   run.ExitCode,
+			HookDurationMS: run.Duration.Milliseconds(),
+			HookFail:       string(run.Fail),
+			HookBlocked:    run.Blocked,
+		})
+	}
+	return events
+}
+
+// EmitJudgeClaimedEvents binds a durable judge lease to the detached process
+// that may evaluate it.
+func EmitJudgeClaimedEvents(phaseName string, step int, runID string, pid int) []WorkflowEvent {
+	return []WorkflowEvent{{
+		EventType:  "wf_judge_claimed",
+		Phase:      phaseName,
+		Step:       step,
+		JudgePid:   pid,
+		JudgeRunID: runID,
 	}}
 }
 
 // EmitJudgeReturnedEvents generates events recording how a delegated judge
 // run ended: approved, rejected, or failed (timeout, missing command,
 // malformed verdict).
-func EmitJudgeReturnedEvents(phaseName string, step int, status, detail string) []WorkflowEvent {
+func EmitJudgeReturnedEvents(phaseName string, step int, runID, status, detail string) []WorkflowEvent {
 	return []WorkflowEvent{{
 		EventType:   "wf_judge_returned",
 		Phase:       phaseName,
 		Step:        step,
 		JudgeStatus: status,
 		JudgeDetail: detail,
+		JudgeRunID:  runID,
+	}}
+}
+
+// EmitJudgeClearedEvents generates an event that removes a prior terminal
+// judge outcome after an operator takes ownership of the checkpoint.
+func EmitJudgeClearedEvents(phaseName string, step int, runID string) []WorkflowEvent {
+	return []WorkflowEvent{{
+		EventType:  "wf_judge_cleared",
+		Phase:      phaseName,
+		Step:       step,
+		JudgeRunID: runID,
 	}}
 }

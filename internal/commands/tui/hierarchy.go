@@ -11,6 +11,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/errors"
 	uitheme "github.com/Obedience-Corp/fest/internal/ui/theme"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/charmbracelet/huh"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -192,11 +193,14 @@ func (h *HierarchySelector) ListFestivals(ctx context.Context) ([]LevelOption, e
 	// List festivals in standard locations (active, planning, etc.)
 	locations := []string{"active", "planning"}
 	if !h.config.FilterActive {
+		if err := workspace.CheckDungeonConflict(h.state.FestivalsRoot); err != nil {
+			return nil, err
+		}
 		locations = append(locations, "dungeon/completed", "dungeon/archived", "dungeon/someday")
 	}
 
 	for _, loc := range locations {
-		locPath := filepath.Join(h.state.FestivalsRoot, loc)
+		locPath := workspace.JoinStatus(h.state.FestivalsRoot, loc)
 		entries, err := os.ReadDir(locPath)
 		if err != nil {
 			continue // Skip if directory doesn't exist

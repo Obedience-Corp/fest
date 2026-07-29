@@ -128,6 +128,8 @@ fest_parent: 001_INGEST
 
 **Output:** Analysis document
 
+**Checkpoint class:** artifact_review
+
 **Checkpoint:** USER APPROVAL REQUIRED
 
 ---

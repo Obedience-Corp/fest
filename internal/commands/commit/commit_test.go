@@ -6,6 +6,14 @@ import (
 	"testing"
 )
 
+func TestFormatCommitRef(t *testing.T) {
+	t.Parallel()
+
+	if got, want := formatCommitRef("CA0004"), "FE-CA0004"; got != want {
+		t.Errorf("formatCommitRef() = %q, want %q", got, want)
+	}
+}
+
 func TestNewCommitCommand_NoRootFlag(t *testing.T) {
 	cmd := NewCommitCommand()
 

@@ -19,21 +19,25 @@ import (
 
 // DisplayNode represents a node in the festival tree hierarchy.
 type DisplayNode struct {
-	Name          string         `json:"name"`                      // Directory/file name
-	Goal          string         `json:"goal,omitempty"`            // Primary goal from *_GOAL.md
-	Status        string         `json:"status"`                    // pending/in_progress/completed/blocked
-	Stats         StatusCounts   `json:"stats"`                     // Task counts for this level
-	NodeType      string         `json:"node_type"`                 // "festival", "phase", "sequence", "step", "task"
-	Children      []*DisplayNode `json:"children,omitempty"`        // Child phases, sequences, steps, or tasks
-	IsNextPending bool           `json:"is_next_pending,omitempty"` // First incomplete node at this level — expanded by --inprogress
+	Name           string         `json:"name"`                      // Directory/file name
+	Goal           string         `json:"goal,omitempty"`            // Primary goal from *_GOAL.md
+	Status         string         `json:"status"`                    // pending/in_progress/completed/blocked
+	Stats          StatusCounts   `json:"stats"`                     // Task counts for this level
+	NodeType       string         `json:"node_type"`                 // "festival", "phase", "sequence", "step", "task"
+	Children       []*DisplayNode `json:"children,omitempty"`        // Child phases, sequences, steps, or tasks
+	IsNextPending  bool           `json:"is_next_pending,omitempty"` // First incomplete node at this level — expanded by --inprogress
+	Feedback       string         `json:"feedback,omitempty"`        // Concise actionable feedback for blocked steps
+	JudgeStatus    string         `json:"judge_status,omitempty"`    // waiting/approved/rejected/failed
+	WaitingOnJudge bool           `json:"waiting_on_judge,omitempty"`
 }
 
 // TreeOptions configures how the tree is rendered.
 type TreeOptions struct {
-	ShowGoals  bool // Show primary goals (default: true)
-	Collapsed  bool // Show only phases with counters, no children
-	InProgress bool // Expand only in_progress phases/sequences, collapse rest
-	Width      int  // Terminal width for alignment (0 = auto)
+	ShowGoals    bool // Show primary goals (default: true)
+	ShowFeedback bool // Show blocked-step feedback
+	Collapsed    bool // Show only phases with counters, no children
+	InProgress   bool // Expand only in_progress phases/sequences, collapse rest
+	Width        int  // Terminal width for alignment (0 = auto)
 }
 
 // DefaultTreeOptions returns sensible defaults for tree rendering.
@@ -223,6 +227,14 @@ func buildStepNode(step shared.WorkflowStepView) *DisplayNode {
 		Goal:     step.Goal,
 		Status:   status,
 		NodeType: "step",
+		Feedback: wf.DisplayFeedback(step.Feedback),
+		JudgeStatus: func() string {
+			if step.Judge == nil {
+				return ""
+			}
+			return step.Judge.Status
+		}(),
+		WaitingOnJudge: step.JudgeWaiting(),
 		Stats: StatusCounts{
 			Total:     1,
 			Completed: boolToInt(step.Status == wf.StepStatusCompleted || step.Status == wf.StepStatusSkipped),
@@ -294,8 +306,11 @@ func buildSequenceNode(seqDir string, store *progress.Store, festivalRoot string
 			NodeType: "task",
 			Status:   displayStatus,
 			Stats: StatusCounts{
-				Total:     1,
-				Completed: boolToInt(status == progress.StatusCompleted),
+				Total:      1,
+				Completed:  boolToInt(status == progress.StatusCompleted),
+				InProgress: boolToInt(status == progress.StatusInProgress),
+				Pending:    boolToInt(status == progress.StatusPending),
+				Blocked:    boolToInt(status == progress.StatusBlocked),
 			},
 		}
 		node.Children = append(node.Children, taskNode)
@@ -305,20 +320,22 @@ func buildSequenceNode(seqDir string, store *progress.Store, festivalRoot string
 	return node
 }
 
-// markNextPending walks the tree top-down and marks the first non-completed
+// markNextPending walks the tree top-down and marks the first non-terminal
 // child at each level as IsNextPending, recursing into it. Only one path
 // through the tree gets marked, giving --inprogress a "next up" expansion.
 func markNextPending(node *DisplayNode) {
 	for _, child := range node.Children {
-		if child.Status != "completed" && child.Status != "skipped" {
-			child.IsNextPending = true
-			// Leaf nodes (tasks/steps) show as in_progress to indicate "work here next"
-			if child.NodeType == "task" || child.NodeType == "step" {
-				child.Status = "in_progress"
-			}
-			markNextPending(child)
-			return
+		if child.Status == "completed" || child.Status == "skipped" {
+			continue
 		}
+		child.IsNextPending = true
+		// Highlight an actual pending leaf as the next place to work, but do
+		// not mask an existing in_progress or blocked status.
+		if (child.NodeType == "task" || child.NodeType == "step") && child.Status == "pending" {
+			child.Status = "in_progress"
+		}
+		markNextPending(child)
+		return
 	}
 }
 
@@ -337,6 +354,9 @@ func determineStatus(stats StatusCounts) string {
 	}
 	if stats.Completed == stats.Total {
 		return "completed"
+	}
+	if stats.Blocked > 0 {
+		return "blocked"
 	}
 	if stats.InProgress > 0 || stats.Completed > 0 {
 		return "in_progress"
@@ -490,6 +510,22 @@ func renderStepNode(sb *strings.Builder, node *DisplayNode, prefix string, isLas
 		sb.WriteString(ui.Dim("Goal: " + truncateGoal(node.Goal, opts.Width-len(prefix)-10)))
 		sb.WriteString("\n")
 	}
+	if opts.ShowFeedback && node.Feedback != "" {
+		sb.WriteString(prefix)
+		sb.WriteString(ui.Dim(childPrefix))
+		sb.WriteString(ui.Error("Feedback: ") + node.Feedback)
+		sb.WriteString("\n")
+	}
+	if node.JudgeStatus != "" {
+		sb.WriteString(prefix)
+		sb.WriteString(ui.Dim(childPrefix))
+		label := "Judge: " + node.JudgeStatus
+		if node.WaitingOnJudge {
+			label = "Judge: waiting"
+		}
+		sb.WriteString(ui.ColoredText(label, ui.JudgeColor))
+		sb.WriteString("\n")
+	}
 }
 
 func renderTaskNode(sb *strings.Builder, node *DisplayNode, prefix string, isLast bool, _ TreeOptions) {
@@ -512,6 +548,9 @@ func formatTaskStatus(node *DisplayNode) string {
 
 func formatStepStatus(node *DisplayNode) string {
 	icon := shared.WorkflowStepIcon(wf.StepStatus(node.Status))
+	if node.WaitingOnJudge {
+		icon = ui.ColoredText("⚖", ui.JudgeColor)
+	}
 	return icon + " " + node.Name
 }
 

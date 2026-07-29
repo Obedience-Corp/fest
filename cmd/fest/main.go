@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	// bginit must initialize before the bubbletea subtree under
-	// internal/commands; its path keeps it first under gofmt.
-	_ "github.com/Obedience-Corp/fest/internal/bginit"
 	"github.com/Obedience-Corp/fest/internal/commands"
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 )

@@ -7,7 +7,9 @@ import (
 	"github.com/Obedience-Corp/fest/embedded/templates/agent"
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/guidance"
+	"github.com/Obedience-Corp/fest/internal/hooks"
 	"github.com/Obedience-Corp/fest/internal/scope"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 // FormatInstructions generates agent-friendly workflow instructions using templates.
@@ -91,41 +93,112 @@ func (n *Navigator) formatComplete() string {
 
 // formatCheckpoint renders the checkpoint template for blocking steps.
 func (n *Navigator) formatCheckpoint(ctx context.Context, step WorkflowStep) (string, error) {
+	judgeWaiting := false
+	if n.workflowState != nil {
+		if ss := n.workflowState.GetStepState(step.Number); ss != nil && ss.Judge != nil {
+			judgeWaiting = ss.Judge.Status == JudgeRunning
+		}
+	}
 	data := map[string]any{
-		"InstructionHeader": guidance.InstructionHeader,
-		"StepNumber":        step.Number,
-		"StepName":          step.Name,
-		"Goal":              step.Goal,
-		"Actions":           step.Actions,
-		"JudgeConfigured":   n.approvalJudgeConfigured(ctx),
+		"InstructionHeader":    guidance.InstructionHeader,
+		"StepNumber":           step.Number,
+		"StepName":             step.Name,
+		"Goal":                 step.Goal,
+		"Actions":              step.Actions,
+		"JudgeConfigured":      n.approvalJudgeConfigured(ctx),
+		"JudgeWaiting":         judgeWaiting,
+		"OperatorAttestation":  ClassifyCheckpoint(step) == CheckpointClassOperatorAttestation,
+		"SkippedHooksUndeclared": n.skippedUndeclaredLine(ctx, step),
+		"HumanApprovalRequired":  strings.EqualFold(strings.TrimSpace(step.Approval), "human-required"),
 	}
 
 	return agent.Render("workflow/checkpoint", data)
 }
 
 // approvalJudgeConfigured reports whether the operator has delegated blocking
-// checkpoints to an approval judge via hooks.approval_judge.command. Guidance
-// only advertises 'fest workflow approve --auto' when this returns true, so
-// agents are never handed a delegation affordance the operator did not set up.
+// checkpoints to an approval judge via hooks.definitions.approval_judge.
+//
+// Detection must not depend solely on scope.WorkspaceFrom(ctx): fest next uses
+// scope.Global and never injects workspace into context, so WorkspaceFrom is
+// empty even when .festival/config.yaml configures the judge. Fall back to
+// resolving the festivals root from the navigator's festival path.
 func (n *Navigator) approvalJudgeConfigured(ctx context.Context) bool {
-	if ctx == nil {
-		return false
+	return strings.TrimSpace(n.ApprovalJudgeCommand(ctx)) != ""
+}
+
+// ApprovalJudgeCommand returns the resolved approval_judge hook command when
+// configured (definitions.approval_judge across layers, or the legacy flat
+// hooks.definitions.approval_judge alias). Empty means manual approval path.
+func (n *Navigator) ApprovalJudgeCommand(ctx context.Context) string {
+	festivalPath := ""
+	if n != nil && n.BaseNavigator != nil && n.Ctx != nil {
+		festivalPath = strings.TrimSpace(n.Ctx.FestivalPath)
 	}
-	ws, ok := scope.WorkspaceFrom(ctx)
-	if !ok || ws == nil || ws.FestivalsPath == "" {
-		return false
+	if festivalPath != "" {
+		if eff, err := hooks.LoadAndResolve(ctx, festivalPath); err == nil && eff != nil {
+			if h, ok := eff.Hooks[hooks.ApprovalJudgeName]; ok && h.Enabled {
+				if cmd := strings.TrimSpace(h.Command); cmd != "" {
+					return cmd
+				}
+			}
+		}
 	}
-	cfg, err := config.LoadWorkspaceConfig(ws.FestivalsPath)
+
+	festivalsRoot := n.festivalsRoot(ctx)
+	if festivalsRoot == "" {
+		return ""
+	}
+	cfg, err := config.LoadWorkspaceConfig(festivalsRoot)
+	if err != nil || cfg == nil {
+		return ""
+	}
+	festivals := cfg.Hooks
+	if eff, err := hooks.Resolve(nil, &festivals, nil); err == nil && eff != nil {
+		if h, ok := eff.Hooks[hooks.ApprovalJudgeName]; ok && h.Enabled {
+			if cmd := strings.TrimSpace(h.Command); cmd != "" {
+				return cmd
+			}
+		}
+	}
+	return ""
+}
+
+// festivalsRoot resolves the campaigns festivals/ directory used for
+// .festival/config.yaml lookup.
+func (n *Navigator) festivalsRoot(ctx context.Context) string {
+	if ctx != nil {
+		if ws, ok := scope.WorkspaceFrom(ctx); ok && ws != nil && ws.FestivalsPath != "" {
+			return ws.FestivalsPath
+		}
+	}
+	// fest next is scope.Global and does not inject workspace; recover from
+	// the festival path the navigator already resolved.
+	start := ""
+	if n != nil && n.BaseNavigator != nil && n.Ctx != nil {
+		if n.Ctx.FestivalPath != "" {
+			start = n.Ctx.FestivalPath
+		} else if n.Ctx.PhasePath != "" {
+			start = n.Ctx.PhasePath
+		}
+	}
+	if start == "" {
+		return ""
+	}
+	lookupCtx := ctx
+	if lookupCtx == nil {
+		lookupCtx = context.Background()
+	}
+	ws, err := workspace.FindWorkspace(lookupCtx, start)
 	if err != nil {
-		return false
+		return ""
 	}
-	return strings.TrimSpace(cfg.Hooks.ApprovalJudge.Command) != ""
+	return ws.FestivalsPath
 }
 
 // formatStep renders the step template for the current workflow step.
 func (n *Navigator) formatStep(ctx context.Context, step WorkflowStep, stepState *StepState) (string, error) {
 	status := string(stepState.Status)
-	feedback := stepState.Feedback
+	feedback := DisplayFeedback(stepState.Feedback)
 
 	isGate := n.docFilename == "GATES.md"
 	phaseType := n.displayPhaseType()
@@ -134,24 +207,54 @@ func (n *Navigator) formatStep(ctx context.Context, step WorkflowStep, stepState
 	}
 
 	data := map[string]any{
-		"InstructionHeader": guidance.InstructionHeader,
-		"PhaseType":         phaseType,
-		"PhaseName":         n.Ctx.PhaseName,
-		"StepNumber":        step.Number,
-		"TotalSteps":        n.workflowState.TotalSteps,
-		"StepName":          step.Name,
-		"Goal":              step.Goal,
-		"Actions":           step.Actions,
-		"Output":            step.Output,
-		"IsBlocking":        step.Checkpoint.IsBlocking(),
-		"Status":            status,
-		"Feedback":          feedback,
-		"CurrentStep":       n.workflowState.CurrentStep,
-		"IsGate":            isGate,
-		"JudgeConfigured":   n.approvalJudgeConfigured(ctx),
+		"InstructionHeader":      guidance.InstructionHeader,
+		"PhaseType":              phaseType,
+		"PhaseName":              n.Ctx.PhaseName,
+		"StepNumber":             step.Number,
+		"TotalSteps":             n.workflowState.TotalSteps,
+		"StepName":               step.Name,
+		"Goal":                   step.Goal,
+		"Actions":                step.Actions,
+		"Output":                 step.Output,
+		"IsBlocking":             step.Checkpoint.IsBlocking(),
+		"Status":                 status,
+		"Feedback":               feedback,
+		"Followups":              stepState.Followups,
+		"CurrentStep":            n.workflowState.CurrentStep,
+		"IsGate":                 isGate,
+		"JudgeConfigured":        n.approvalJudgeConfigured(ctx),
+		"OperatorAttestation":    ClassifyCheckpoint(step) == CheckpointClassOperatorAttestation,
+		"JudgeRetryAvailable": stepState.Status == StepStatusBlocked &&
+			ClassifyCheckpoint(step) != CheckpointClassOperatorAttestation &&
+			IsJudgeRejection(stepState) && n.approvalJudgeConfigured(ctx),
+		"SkippedHooksUndeclared": n.skippedUndeclaredLine(ctx, step),
+		"HumanApprovalRequired":  strings.EqualFold(strings.TrimSpace(step.Approval), "human-required"),
 	}
 
 	return agent.Render("workflow/step", data)
+}
+
+// skippedUndeclaredLine returns fest next guidance for bound names not declared.
+func (n *Navigator) skippedUndeclaredLine(ctx context.Context, step WorkflowStep) string {
+	festivalPath := ""
+	if n != nil && n.BaseNavigator != nil && n.Ctx != nil {
+		festivalPath = n.Ctx.FestivalPath
+	}
+	level := hooks.LevelGate
+	if n == nil || n.docFilename != "GATES.md" {
+		level = hooks.LevelPhase
+	}
+	var eff *hooks.Effective
+	if festivalPath != "" {
+		if resolved, err := hooks.LoadAndResolve(ctx, festivalPath); err == nil {
+			eff = resolved
+		}
+	}
+	if eff == nil {
+		eff, _ = hooks.Resolve(nil, nil, nil)
+	}
+	plan := eff.PlanBindings(level, step.Hooks.Pre, step.Hooks.Post)
+	return hooks.FormatSkippedUndeclaredLine(plan)
 }
 
 // FormatProgress renders the progress template showing workflow status.

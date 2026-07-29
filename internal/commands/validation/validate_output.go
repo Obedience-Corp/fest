@@ -118,6 +118,9 @@ func printValidationResult(display *ui.UI, festivalPath string, result *Validati
 	autoLinkIssues := filterIssuesByPrefix(result.Issues, "autolink_")
 	printValidationSection(display, "AUTO-LINK", autoLinkIssues)
 
+	hookIssues := filterIssuesByPrefix(result.Issues, "hook")
+	printValidationSection(display, "HOOKS", hookIssues)
+
 	workflowIssues := filterIssuesByCode(result.Issues, CodeWorkflowNumbering, CodeWorkflowScan)
 	printValidationSection(display, "WORKFLOW", workflowIssues)
 

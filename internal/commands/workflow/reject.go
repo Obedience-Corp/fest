@@ -59,7 +59,7 @@ Examples:
 
 	cmd.Flags().StringVarP(&reason, "reason", "r", "", "reason for rejection (required)")
 	cmd.Flags().StringVar(&remediationPhase, "remediation-phase", "", "link a remediation phase for a failed gate (e.g. 005_FIX_PR_302)")
-	cmd.Flags().StringVar(&actor, "as", decisionActorUser, "deprecated: manual rejections are always recorded as the user; agent decisions require 'fest workflow approve --auto' with a configured judge")
+	cmd.Flags().StringVar(&actor, "as", decisionActorUser, "deprecated: manual rejections are always recorded as the user; agent decisions require 'fest workflow judge' with a configured judge")
 	_ = cmd.Flags().MarkHidden("as")
 	cmd.Flags().StringVar(&summary, "summary", "", "decision summary or rationale")
 	_ = cmd.MarkFlagRequired("reason")
@@ -110,6 +110,27 @@ func runRejectWithRemediationDecision(ctx context.Context, reason, remediationPh
 			WithHint("Reject is only for checkpoint steps")
 	}
 
+	if isHumanRequired(step) {
+		if err := requireHumanGateTTY(); err != nil {
+			return err
+		}
+	}
+
+	return withJudgeStepLock(ctx, nav.Ctx.PhasePath, currentStepNum, func() error {
+		fresh, err := reloadWorkflowNavigator(ctx, nav)
+		if err != nil {
+			return err
+		}
+		if fresh.GetWorkflowState().CurrentStep != currentStepNum {
+			return festerrors.Validation("checkpoint changed before rejection").
+				WithField("expected_step", currentStepNum).
+				WithField("current_step", fresh.GetWorkflowState().CurrentStep)
+		}
+		return applyRejectDecision(ctx, fresh, currentStepNum, step, reason, remediationPhase, decision)
+	})
+}
+
+func applyRejectDecision(ctx context.Context, nav *wf.Navigator, currentStepNum int, step wf.WorkflowStep, reason, remediationPhase string, decision wf.DecisionMetadata) error {
 	if remediationPhase != "" {
 		if !nav.IsGate() {
 			return festerrors.Validation("--remediation-phase is only valid for phase gates").
@@ -143,8 +164,7 @@ func runRejectWithRemediationDecision(ctx context.Context, reason, remediationPh
 		fmt.Printf("  %s: %s\n", ui.Label("Summary"), decision.Summary)
 	}
 	fmt.Println("The step is now blocked. Address the feedback and revise the work.")
-	fmt.Println("When ready, re-submit with: " + ui.Accent("fest workflow approve --auto"))
-	fmt.Println("Operator override: " + ui.Accent("fest workflow approve") + " (interactive)")
+	printApprovalRecoveryFor(ctx, nav, step)
 
 	return nil
 }

@@ -102,6 +102,53 @@ Controls local file paths for caching and backups.
 | `backup_dir` | string | `".fest-backup"` | Directory for file backups (relative to workspace) |
 | `checksum_file` | string | `".fest-checksums.json"` | File for tracking template checksums |
 
+## Lifecycle Hooks
+
+Hooks are named commands bound to festival lifecycle events (task/sequence/phase
+complete, gate approve). Definitions can be declared at three layers; the most
+specific layer wins **by hook name** (whole definition replace).
+
+| Layer | File | Format |
+| --- | --- | --- |
+| Machine | `~/.obey/fest/config.json` (or `$FEST_CONFIG_DIR/config.json`) | JSON |
+| Festivals | `festivals/.festival/config.yaml` | YAML |
+| Festival | `fest.yaml` | YAML |
+
+Default at every layer is **empty** (no hooks run until declared).
+
+### Definition schema
+
+```yaml
+hooks:
+  enabled: true
+  levels:
+    phase: true
+    sequence: true
+    task: true
+  definitions:
+    approval_judge:
+      command: ob judge   # required
+      fail: closed        # closed (default) | open
+      timeout: 0          # 0 = no deadline (the approval_judge default)
+      evidence: paths     # paths (default) | embed
+      enabled: true
+```
+
+Machine-layer JSON uses the same fields under a top-level `"hooks"` object.
+
+`timeout` defaults to 120s for hooks generally, but `approval_judge` defaults to
+no deadline because judges call an LLM and a timeout fails closed.
+
+### Inspect
+
+```bash
+fest hooks list
+fest hooks list --json
+```
+
+Full guide: [docs/concepts/hooks.md](concepts/hooks.md). Evidence transport:
+[docs/concepts/hook-evidence-contract.md](concepts/hook-evidence-contract.md).
+
 ## Environment Variables
 
 fest respects the following environment variables:
@@ -146,6 +193,16 @@ fest respects the following environment variables:
     "expand_inputs": true,
     "max_input_height": 10,
     "theme": "adaptive"
+  },
+  "hooks": {
+    "enabled": true,
+    "definitions": {
+      "lint": {
+        "command": "just lint",
+        "fail": "open",
+        "timeout": "60s"
+      }
+    }
   },
   "last_sync": "2025-01-22T10:30:00Z"
 }

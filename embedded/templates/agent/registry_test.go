@@ -107,7 +107,7 @@ func minimalTestData(templateName string) any {
 		"ProgressLine":      "Progress: 50%",
 		"PositionSection":   "Position: Phase 1, Sequence 1",
 		"ContextSection":    "Context: test-festival",
-		"ProgressCmd":       "fest progress --complete",
+		"ProgressCmd":       "fest task completed",
 		"Message":           "Test message",
 		"ActionInstruction": "Follow the instructions",
 	}

@@ -87,6 +87,8 @@ This document guides the agent through the ingest phase. Follow these steps in o
 
 **Output:** Summary presented to user
 
+**Checkpoint class:** artifact_review
+
 **Checkpoint:** APPROVAL REQUIRED — Wait for user response
 
 ---

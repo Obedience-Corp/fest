@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 // ResolvedFestival holds a festival node paired with its resolved filesystem path.
@@ -105,7 +106,7 @@ func matchFestivalInDir(dir, festivalID string) (string, bool) {
 }
 
 func isDungeonStatusDir(dir string) bool {
-	return filepath.Base(filepath.Dir(dir)) == "dungeon"
+	return workspace.IsDungeonDirName(filepath.Base(filepath.Dir(dir)))
 }
 
 // isDateBucket matches a dungeon date bucket: YYYY-MM-DD or legacy YYYY-MM

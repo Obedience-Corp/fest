@@ -22,14 +22,13 @@ func newFestivalCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "festival [type-name]",
 		Short: "Discover festival types",
-		Long: `Discover available festival types and their phase structures.
+		Long: `Discover available festival workflow types and their phase structures.
 
-Festival types define the workflow structure for different kinds of projects:
-  - standard: Full planning and implementation phases
+These are the values for 'fest create festival --type'. Built-in types:
+  - standard: Full planning and implementation phases (default)
   - implementation: Direct implementation without planning
   - research: Research-focused workflow
-  - quick: Fast, minimal overhead workflow
-  - ritual: Simple repeating patterns
+  - ritual: Custom structure defined by the festival
 
 Examples:
   fest types festival                    # List all festival types
@@ -110,7 +109,7 @@ Examples:
   fest types festival show standard           # Show standard type details
   fest types festival show implementation     # Show implementation type
   fest types festival show standard --phases  # Show only phases
-  fest types festival show quick --json       # JSON output`,
+  fest types festival show research --json    # JSON output`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runFestivalShow(cmd.Context(), args[0], jsonOutput, phasesOnly)
@@ -270,7 +269,7 @@ func outputFestivalShowTable(festType *types.FestivalType) error {
 
 	// Usage example
 	fmt.Println("Example Usage:")
-	fmt.Printf("  fest create festival --type %s <festival-name>\n\n", festType.Name)
+	fmt.Printf("  fest create festival --type %s --name <festival-name>\n\n", festType.Name)
 
 	return nil
 }

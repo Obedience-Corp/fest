@@ -89,12 +89,13 @@ const pollingInterval = 2 * time.Second
 
 // WatchOptions contains the public options needed to run the show watch renderer.
 type WatchOptions struct {
-	Summary    bool
-	Goals      bool
-	Collapsed  bool
-	InProgress bool
-	CycleHint  bool
-	Cycling    bool
+	Summary      bool
+	Goals        bool
+	ShowFeedback bool
+	Collapsed    bool
+	InProgress   bool
+	CycleHint    bool
+	Cycling      bool
 	// CyclePromote controls the cycle footer: when true the "p promote" hint is
 	// shown (watch); when false the footer advertises "q/Ctrl+C" exit instead
 	// (show's cycle has no promote affordance).
@@ -110,11 +111,12 @@ func WatchFestival(ctx context.Context, festival *FestivalInfo, opts WatchOption
 		return errors.Validation("festival is required")
 	}
 	return runWatchMode(ctx, festival, &showOptions{
-		summary:    opts.Summary,
-		watch:      true,
-		goals:      opts.Goals,
-		collapsed:  opts.Collapsed,
-		inProgress: opts.InProgress,
+		summary:      opts.Summary,
+		watch:        true,
+		goals:        opts.Goals,
+		showFeedback: opts.ShowFeedback,
+		collapsed:    opts.Collapsed,
+		inProgress:   opts.InProgress,
 	}, opts.CycleHint, opts.Cycling, opts.CyclePromote, opts.Frame)
 }
 
@@ -364,6 +366,7 @@ func renderFestivalView(ctx context.Context, festival *FestivalInfo, opts *showO
 
 	treeOpts := DefaultTreeOptions()
 	treeOpts.ShowGoals = opts.goals
+	treeOpts.ShowFeedback = opts.showFeedback
 	treeOpts.Collapsed = opts.collapsed
 	treeOpts.InProgress = opts.inProgress
 	_, _ = fmt.Fprintln(out, RenderTree(tree, treeOpts))
@@ -387,4 +390,3 @@ func renderProgressBar(percentage int) string {
 func clearScreen(out io.Writer) {
 	_, _ = fmt.Fprint(out, "\033[H\033[2J")
 }
-

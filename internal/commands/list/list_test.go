@@ -1,10 +1,13 @@
 package list
 
 import (
+	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
+	"golang.org/x/term"
 )
 
 func TestIsValidStatus(t *testing.T) {
@@ -478,5 +481,52 @@ func TestSortByStatusDate_EmptyStatusDateSinksToEnd(t *testing.T) {
 	if festivals[1].StatusDate != "" || festivals[2].StatusDate != "" {
 		t.Errorf("empty StatusDate entries should be at positions 1-2, got %q, %q",
 			festivals[1].StatusDate, festivals[2].StatusDate)
+	}
+}
+
+func TestListCommandExposesWatchFlag(t *testing.T) {
+	cmd := NewListCommand()
+	if cmd.Flags().Lookup("watch") == nil {
+		t.Fatal("expected --watch flag on fest list")
+	}
+	if cmd.Flags().ShorthandLookup("w") == nil {
+		t.Fatal("expected -w shorthand for --watch")
+	}
+}
+
+func TestListWatchRejectsJSON(t *testing.T) {
+	cmd := NewListCommand()
+	cmd.SetArgs([]string{"--watch", "--json"})
+	// Avoid terminal check failing first if order matters; both flags set.
+	listStdoutIsTerminal = func() bool { return true }
+	t.Cleanup(func() {
+		listStdoutIsTerminal = func() bool {
+			return term.IsTerminal(int(os.Stdout.Fd()))
+		}
+	})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for --watch --json")
+	}
+	if !strings.Contains(err.Error(), "--watch cannot be combined with --json") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestListWatchRejectsNonTTY(t *testing.T) {
+	cmd := NewListCommand()
+	cmd.SetArgs([]string{"--watch"})
+	listStdoutIsTerminal = func() bool { return false }
+	t.Cleanup(func() {
+		listStdoutIsTerminal = func() bool {
+			return term.IsTerminal(int(os.Stdout.Fd()))
+		}
+	})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("expected error for --watch on non-TTY")
+	}
+	if !strings.Contains(err.Error(), "interactive terminal") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

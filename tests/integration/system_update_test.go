@@ -152,3 +152,146 @@ func TestSystemUpdate_ShowsOrphanedInDryRun(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, orphanExists, "orphaned file should still exist after dry-run")
 }
+
+// writeOperatorConfig writes a .festival/config.yaml carrying an operator judge
+// command marker, so tests can prove the exact content survives an update.
+func writeOperatorConfig(t *testing.T, tc *TestContainer, configPath, command string) {
+	t.Helper()
+	_, err := tc.runCommand([]string{"sh", "-c", fmt.Sprintf(`cat > %s <<'EOF'
+version: "1.0"
+hooks:
+  definitions:
+    approval_judge:
+      command: %s
+EOF`, configPath, command)})
+	require.NoError(t, err, "failed to write operator config")
+}
+
+// assertConfigPreserved asserts config.yaml still exists and still carries the
+// operator's judge command verbatim (i.e. it was neither deleted nor overwritten).
+func assertConfigPreserved(t *testing.T, tc *TestContainer, configPath, command string) {
+	t.Helper()
+	exists, err := tc.CheckFileExists(configPath)
+	require.NoError(t, err)
+	require.True(t, exists, "user-owned config.yaml must survive system update --force")
+	content, err := tc.runCommand([]string{"cat", configPath})
+	require.NoError(t, err, "should read config.yaml after update")
+	assert.Contains(t, content, "command: "+command, "operator judge command must be preserved verbatim")
+}
+
+// TestSystemUpdate_PreservesUserConfig verifies that `fest system update --force`
+// never deletes the user-owned .festival/config.yaml. init.go scaffolds it after
+// checksums so it is deliberately absent from source templates; it must not be
+// treated as an orphan. Deleting it would wipe operator hooks such as
+// hooks.approval_judge.command, the very config non-interactive judging relies on.
+func TestSystemUpdate_PreservesUserConfig(t *testing.T) {
+	tc := GetSharedContainer(t)
+
+	parentDir := "/sysupdate-preserve-config-test"
+	sourceDir := "/root/.obey/fest/festivals"
+	workspaceDir := parentDir + "/festivals" // init creates this
+	configPath := workspaceDir + "/.festival/config.yaml"
+	orphanPath := workspaceDir + "/.festival/templates/OLD_ORPHAN.md"
+
+	// Minimal source templates. config.yaml is user-owned and never shipped as a
+	// methodology template, so remove any stray copy from the shared source to
+	// deterministically reproduce a real install where source lacks config.yaml.
+	_, err := tc.runCommand([]string{"sh", "-c", fmt.Sprintf(`
+		mkdir -p %s/.festival/templates/festival
+		echo "# Festival Goal" > %s/.festival/templates/festival/GOAL.md
+		rm -f %s/.festival/config.yaml
+	`, sourceDir, sourceDir, sourceDir)})
+	require.NoError(t, err, "failed to create source templates")
+
+	_, err = tc.runCommand([]string{"mkdir", "-p", parentDir})
+	require.NoError(t, err, "failed to create parent directory")
+
+	// fest init scaffolds workspaceDir/.festival including a user-owned config.yaml.
+	output, err := tc.RunFest("init", parentDir)
+	require.NoError(t, err, "fest init should succeed: %s", output)
+
+	writeOperatorConfig(t, tc, configPath, "/bin/false")
+
+	// Plant a genuine orphan (present locally, absent from source) so we can prove
+	// the destructive orphan-deletion phase actually executed during --force.
+	_, err = tc.runCommand([]string{"sh", "-c", "echo OLD > " + orphanPath})
+	require.NoError(t, err, "failed to create orphan file")
+
+	// The fixture is deterministic, so the update must succeed. Discarding the
+	// error would let an early failure (before orphan cleanup) satisfy the
+	// preservation assertions without ever exercising the deletion path.
+	output, err = tc.RunFestInDir(workspaceDir, "system", "update", "--force")
+	require.NoError(t, err, "system update --force should succeed: %s", output)
+
+	// Proof the deletion phase ran: the genuine orphan is gone...
+	orphanExists, err := tc.CheckFileExists(orphanPath)
+	require.NoError(t, err)
+	assert.False(t, orphanExists, "genuine orphan must be deleted (proves the deletion phase ran)")
+
+	// ...while the user-owned config survives untouched, and the update never
+	// tried to update it from source.
+	assertConfigPreserved(t, tc, configPath, "/bin/false")
+	assert.NotContains(t, output, "config.yaml", "update must not report config.yaml in any category")
+}
+
+// TestSystemUpdate_PreservesUserConfigAcrossUpdates covers the checksum-persistence
+// regression: protecting config.yaml only in the orphan loop is not enough. A
+// successful update records every workspace file in .fest-checksums.json, so a
+// later operator edit would be seen as "modified methodology" and a subsequent
+// --force would overwrite it from source. Excluding config.yaml at the checksum
+// layer means it is never tracked, so operator edits survive repeated updates
+// even when a stale source later contains a config.yaml of its own.
+func TestSystemUpdate_PreservesUserConfigAcrossUpdates(t *testing.T) {
+	tc := GetSharedContainer(t)
+
+	parentDir := "/sysupdate-preserve-config-multi-test"
+	sourceDir := "/root/.obey/fest/festivals"
+	workspaceDir := parentDir + "/festivals"
+	configPath := workspaceDir + "/.festival/config.yaml"
+
+	_, err := tc.runCommand([]string{"sh", "-c", fmt.Sprintf(`
+		mkdir -p %s/.festival/templates/festival
+		echo "# Festival Goal" > %s/.festival/templates/festival/GOAL.md
+		rm -f %s/.festival/config.yaml
+	`, sourceDir, sourceDir, sourceDir)})
+	require.NoError(t, err, "failed to create source templates")
+
+	_, err = tc.runCommand([]string{"mkdir", "-p", parentDir})
+	require.NoError(t, err, "failed to create parent directory")
+
+	output, err := tc.RunFest("init", parentDir)
+	require.NoError(t, err, "fest init should succeed: %s", output)
+
+	// First update with the operator's original command.
+	writeOperatorConfig(t, tc, configPath, "/bin/first-judge")
+	output, err = tc.RunFestInDir(workspaceDir, "system", "update", "--force")
+	require.NoError(t, err, "first system update --force should succeed: %s", output)
+	assertConfigPreserved(t, tc, configPath, "/bin/first-judge")
+
+	// A stale source now contains a config.yaml of its own. If config.yaml were
+	// tracked, the operator's edit below would be classified as modified and the
+	// second --force would overwrite it with this stale content. Guarantee cleanup
+	// via t.Cleanup so a failing assertion cannot leak it into the shared source
+	// dir and make other tests falsely pass.
+	t.Cleanup(func() { _, _ = tc.runCommand([]string{"rm", "-f", sourceDir + "/.festival/config.yaml"}) })
+	_, err = tc.runCommand([]string{"sh", "-c", fmt.Sprintf(`cat > %s/.festival/config.yaml <<'EOF'
+version: "1.0"
+hooks:
+  definitions:
+    approval_judge:
+      command: /bin/STALE-SOURCE
+EOF`, sourceDir)})
+	require.NoError(t, err, "failed to plant stale source config")
+
+	// Operator edits their config after the first update, then runs update again.
+	writeOperatorConfig(t, tc, configPath, "/bin/second-judge")
+	output, err = tc.RunFestInDir(workspaceDir, "system", "update", "--force")
+	require.NoError(t, err, "second system update --force should succeed: %s", output)
+
+	// The operator's edit must survive, and must not be replaced by stale source.
+	assertConfigPreserved(t, tc, configPath, "/bin/second-judge")
+
+	content, err := tc.runCommand([]string{"cat", configPath})
+	require.NoError(t, err, "should read config.yaml after second update")
+	assert.NotContains(t, content, "STALE-SOURCE", "operator config must not be overwritten from source")
+}

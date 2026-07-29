@@ -44,13 +44,29 @@ const (
 	// previously failed remediation step for re-evaluation.
 	EventWorkflowStepRecheck EventType = "wf_step_recheck"
 
+	// EventWorkflowJudgeRecheck records that a judge-owned rejection is being
+	// reopened for a new approval-judge evaluation.
+	EventWorkflowJudgeRecheck EventType = "wf_judge_recheck"
+
 	// EventWorkflowJudgeStarted records that a delegated approval judge run
 	// was invoked on a blocking checkpoint via 'fest workflow approve --auto'.
 	EventWorkflowJudgeStarted EventType = "wf_judge_started"
 
+	// EventWorkflowJudgeClaimed binds a started judge run to the detached PID
+	// that is allowed to evaluate it.
+	EventWorkflowJudgeClaimed EventType = "wf_judge_claimed"
+
 	// EventWorkflowJudgeReturned records how a delegated judge run ended:
 	// approved, rejected, or failed (timeout, missing command, bad verdict).
 	EventWorkflowJudgeReturned EventType = "wf_judge_returned"
+
+	// EventWorkflowJudgeCleared removes a prior terminal judge outcome after
+	// an operator takes ownership of the checkpoint.
+	EventWorkflowJudgeCleared EventType = "wf_judge_cleared"
+
+	// EventWorkflowHookRun records one hook execution (or skip) fired by a
+	// lifecycle binding. Hook runs are events, never decisions (D9).
+	EventWorkflowHookRun EventType = "wf_hook_run"
 )
 
 // ProgressEvent represents a single progress event in JSONL format.
@@ -67,16 +83,32 @@ type ProgressEvent struct {
 	Reason  string `json:"reason,omitempty"`  // blocked event
 
 	// Workflow event-specific fields (omitempty)
-	Phase            string `json:"phase,omitempty"`
-	Step             int    `json:"step,omitempty"`
-	TotalSteps       int    `json:"total_steps,omitempty"`
-	Feedback         string `json:"feedback,omitempty"`
-	RemediationPhase string `json:"remediation_phase,omitempty"`
-	DecisionActor    string `json:"decision_actor,omitempty"`
-	DecisionSummary  string `json:"decision_summary,omitempty"`
-	JudgeStatus      string `json:"judge_status,omitempty"`
-	JudgeCommand     string `json:"judge_command,omitempty"`
-	JudgeDetail      string `json:"judge_detail,omitempty"`
+	Phase            string   `json:"phase,omitempty"`
+	Step             int      `json:"step,omitempty"`
+	TotalSteps       int      `json:"total_steps,omitempty"`
+	Feedback         string   `json:"feedback,omitempty"`
+	Followups        []string `json:"followups,omitempty"`
+	RemediationPhase string   `json:"remediation_phase,omitempty"`
+	DecisionActor    string   `json:"decision_actor,omitempty"`
+	DecisionSummary  string   `json:"decision_summary,omitempty"`
+	JudgeStatus      string   `json:"judge_status,omitempty"`
+	JudgeCommand     string   `json:"judge_command,omitempty"`
+	JudgeDetail      string   `json:"judge_detail,omitempty"`
+	JudgePid         int      `json:"judge_pid,omitempty"`
+	JudgeRunID       string   `json:"judge_run_id,omitempty"`
+
+	// Hook-run event fields (wf_hook_run).
+	HookName     string `json:"hook_name,omitempty"`
+	HookLayer    string `json:"hook_layer,omitempty"`  // machine|festivals|festival
+	HookTiming   string `json:"hook_timing,omitempty"` // pre|post
+	HookVerb     string `json:"hook_verb,omitempty"`   // task_complete|sequence_complete|phase_complete|gate_approve
+	HookOutcome  string `json:"hook_outcome,omitempty"`
+	HookSkip     string `json:"hook_skip,omitempty"`
+	HookExitCode int    `json:"hook_exit_code,omitempty"`
+	HookMillis   int64  `json:"hook_duration_ms,omitempty"`
+	HookFail     string `json:"hook_fail,omitempty"` // closed|open
+	HookBlocked  bool   `json:"hook_blocked,omitempty"`
+	HookVerdict  string `json:"hook_verdict,omitempty"`
 }
 
 // loadFromEvents reads the JSONL file and materializes current state.
@@ -363,6 +395,7 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 		case EventWorkflowStepStart:
 			ss := phaseState.GetOrCreateStepState(e.Step)
 			ss.Status = wf.StepStatusInProgress
+			ss.Followups = nil
 			ts := e.Timestamp
 			ss.StartedAt = &ts
 
@@ -372,6 +405,7 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 			ts := e.Timestamp
 			ss.CompletedAt = &ts
 			ss.Feedback = e.Feedback
+			ss.Followups = nil
 			recordDecision(ss, e)
 
 		case EventWorkflowStepSkip:
@@ -380,17 +414,20 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 			ts := e.Timestamp
 			ss.CompletedAt = &ts
 			ss.Feedback = e.Feedback
+			ss.Followups = nil
 
 		case EventWorkflowStepBlock:
 			ss := phaseState.GetOrCreateStepState(e.Step)
 			ss.Status = wf.StepStatusBlocked
 			ss.Feedback = e.Feedback
+			ss.Followups = e.Followups
 			recordDecision(ss, e)
 
 		case EventWorkflowStepFailRemediation:
 			ss := phaseState.GetOrCreateStepState(e.Step)
 			ss.Status = wf.StepStatusFailedRemediation
 			ss.Feedback = e.Feedback
+			ss.Followups = e.Followups
 			ss.RemediationPhase = e.RemediationPhase
 			recordDecision(ss, e)
 
@@ -398,6 +435,20 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 			ss := phaseState.GetOrCreateStepState(e.Step)
 			if ss.Status == wf.StepStatusFailedRemediation {
 				ss.Status = wf.StepStatusInProgress
+				ss.RemediationPhase = ""
+				ss.Followups = nil
+				ss.DecisionActor = ""
+				ss.DecisionSummary = ""
+				ss.DecisionAt = nil
+				ss.Judge = nil
+			}
+
+		case EventWorkflowJudgeRecheck:
+			ss := phaseState.GetOrCreateStepState(e.Step)
+			if wf.IsJudgeRejection(ss) {
+				ss.Status = wf.StepStatusInProgress
+				ss.Feedback = ""
+				ss.Followups = nil
 				ss.RemediationPhase = ""
 				ss.DecisionActor = ""
 				ss.DecisionSummary = ""
@@ -412,10 +463,25 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 				Status:    wf.JudgeRunning,
 				Command:   e.JudgeCommand,
 				StartedAt: &ts,
+				Pid:       e.JudgePid,
+				RunID:     e.JudgeRunID,
+			}
+
+		case EventWorkflowJudgeClaimed:
+			ss := phaseState.GetOrCreateStepState(e.Step)
+			if ss.Judge != nil && ss.Judge.Status == wf.JudgeRunning &&
+				ss.Judge.RunID == e.JudgeRunID {
+				ss.Judge.Pid = e.JudgePid
 			}
 
 		case EventWorkflowJudgeReturned:
 			ss := phaseState.GetOrCreateStepState(e.Step)
+			// Run IDs make late events from superseded detached processes inert.
+			// Empty IDs remain compatible with events written before leases existed.
+			if e.JudgeRunID != "" && (ss.Judge == nil || ss.Judge.Status != wf.JudgeRunning ||
+				ss.Judge.RunID != e.JudgeRunID) {
+				continue
+			}
 			if ss.Judge == nil {
 				ss.Judge = &wf.JudgeState{}
 			}
@@ -423,6 +489,14 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 			ss.Judge.Status = e.JudgeStatus
 			ss.Judge.Detail = e.JudgeDetail
 			ss.Judge.FinishedAt = &ts
+
+		case EventWorkflowJudgeCleared:
+			ss := phaseState.GetOrCreateStepState(e.Step)
+			// A run ID prevents an older operator cleanup from clearing a
+			// newer judge lease that started before the event was replayed.
+			if e.JudgeRunID == "" || (ss.Judge != nil && ss.Judge.RunID == e.JudgeRunID) {
+				ss.Judge = nil
+			}
 
 		case EventWorkflowAdvance:
 			phaseState.CurrentStep = e.Step

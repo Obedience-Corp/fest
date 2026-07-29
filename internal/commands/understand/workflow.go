@@ -21,6 +21,21 @@ WORKFLOW.md phases and GATES.md phase gates.`,
 	}
 }
 
+func newUnderstandHooksCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "hooks",
+		Short: "Lifecycle hooks schema, bindings, and human gates",
+		Long: `Learn how fest resolves hooks across machine, festivals, and festival
+layers; how step bindings fire; and non-bypassable human gates
+(approval: human-required).
+
+See also docs/concepts/hooks.md and docs/concepts/hook-evidence-contract.md.`,
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Print(understanddocs.Load("hooks.txt"))
+		},
+	}
+}
+
 func newUnderstandRulesCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "rules",

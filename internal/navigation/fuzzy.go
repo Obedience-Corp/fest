@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 // FuzzyMatch represents a fuzzy match result
@@ -151,7 +152,7 @@ func CollectNavigationTargets(festivalsDir string) []FuzzyTarget {
 // CollectFestivalsInStatus gathers festivals from a single status directory.
 // Returns only directories with supported festival naming formats.
 func CollectFestivalsInStatus(festivalsDir, status string) []FuzzyTarget {
-	statusPath := filepath.Join(festivalsDir, status)
+	statusPath := workspace.JoinStatus(festivalsDir, status)
 	entries, err := os.ReadDir(statusPath)
 	if err != nil {
 		return nil

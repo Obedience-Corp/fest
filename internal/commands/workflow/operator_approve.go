@@ -39,30 +39,24 @@ func defaultReadOperatorConfirm() (string, error) {
 // stepHasOpenJudgeReject reports whether the current step is blocked after a
 // judge rejection (or readiness block that left agent feedback).
 func stepHasOpenJudgeReject(stepState *wf.StepState) bool {
-	if stepState == nil || stepState.Status != wf.StepStatusBlocked {
-		return false
-	}
-	if stepState.Judge != nil && stepState.Judge.Status == wf.JudgeRejected {
-		return true
-	}
-	// Readiness blocks also set agent decision + blocked without a judge run.
-	if stepState.DecisionActor == decisionActorAgent {
-		return true
-	}
-	return strings.Contains(strings.ToLower(stepState.Feedback), "approval auto mode") ||
-		strings.Contains(strings.ToLower(stepState.Feedback), "approval readiness")
+	return wf.IsJudgeRejection(stepState)
 }
 
 // resolveManualApprovalDecision applies authority rules when auto-judge is configured.
 //
-// When the workspace has an approval judge hook:
-//   - Non-interactive (no TTY) manual approve is refused unless --override-judge
-//     with a sufficient summary (true operator override from a scripted path).
-//   - Interactive approve requires typing APPROVE.
-//   - After a judge/readiness reject, the actor is user_override.
+// When the workspace has an approval judge hook, the step is a human
+// attestation, or durable state records a prior delegated rejection:
+//   - Non-interactive (no TTY) manual approve is always refused; there is no
+//     scripted override path, because any flag a script can pass an agent can
+//     pass too.
+//   - Interactive approve requires typing APPROVE. --override-judge
+//     additionally requires a --summary rationale.
+//   - After a judge/readiness reject or with --override-judge, the actor is
+//     user_override.
 func resolveManualApprovalDecision(
 	decision wf.DecisionMetadata,
 	judgeConfigured bool,
+	operatorAttestation bool,
 	overrideJudge bool,
 	stepState *wf.StepState,
 	stepNum int,
@@ -74,11 +68,9 @@ func resolveManualApprovalDecision(
 
 	priorReject := stepHasOpenJudgeReject(stepState)
 
-	if !judgeConfigured {
+	requiresOperatorAuthority := judgeConfigured || priorReject || operatorAttestation
+	if !requiresOperatorAuthority {
 		// Legacy path: no auto-judge hook → keep open manual approve for CI/scripts.
-		if priorReject {
-			decision.Actor = decisionActorUserOverride
-		}
 		return decision, nil
 	}
 
@@ -89,27 +81,29 @@ func resolveManualApprovalDecision(
 				WithField("min_summary_len", overrideSummaryMinLen).
 				WithHint("example: fest workflow approve --override-judge --summary \"I reviewed output_specs and accept them for plan\"")
 		}
-		decision.Actor = decisionActorUserOverride
-		return decision, nil
 	}
 
 	if !stdinIsInteractiveFn() {
 		hint := "run from a terminal and type APPROVE when prompted"
 		if priorReject {
-			hint = "fix evidence and re-submit with 'fest workflow approve --auto', or override interactively / with --override-judge --summary \"...\""
+			hint = "fix evidence and re-submit with 'fest workflow judge', or run 'fest workflow approve --override-judge --summary \"...\"' from a real terminal"
 		}
-		return wf.DecisionMetadata{}, festerrors.Validation("manual approve requires an interactive operator TTY when auto-judge is configured").
+		return wf.DecisionMetadata{}, festerrors.Validation("manual approve requires an interactive operator TTY for human attestation, judge overrides, or when auto-judge is configured").
 			WithField("step", stepNum).
 			WithField("step_name", stepName).
-			WithHint(hint + "\nAgents must not clear checkpoints as the user.")
+			WithHint(hint + "\nAgents must not clear checkpoints as the user; there is no non-interactive override.")
 	}
 
 	fmt.Fprintf(os.Stderr, "\n%s Step %d: %s — operator approval required\n", ui.Warning("⚠"), stepNum, stepName)
 	if priorReject {
 		fmt.Fprintf(os.Stderr, "%s This step was previously rejected by the approval judge or readiness check.\n", ui.Label("Note"))
 		if stepState != nil && stepState.Feedback != "" {
-			fmt.Fprintf(os.Stderr, "%s %s\n", ui.Label("Last feedback"), truncateForPrompt(stepState.Feedback, 240))
+			fmt.Fprintf(os.Stderr, "%s %s\n", ui.Label("Last feedback"), truncateForPrompt(wf.DisplayFeedback(stepState.Feedback), 240))
 		}
+	} else if overrideJudge {
+		fmt.Fprintf(os.Stderr, "%s This approval overrides the configured approval judge.\n", ui.Label("Note"))
+	}
+	if priorReject || overrideJudge {
 		fmt.Fprintf(os.Stderr, "Confirming will record decision_actor=%s (operator override).\n", decisionActorUserOverride)
 	}
 	fmt.Fprintf(os.Stderr, "Type %s to confirm operator approval: ", operatorApproveToken)
@@ -124,7 +118,7 @@ func resolveManualApprovalDecision(
 			WithHint(fmt.Sprintf("type exactly %s to approve, or Ctrl-C to cancel", operatorApproveToken))
 	}
 
-	if priorReject {
+	if priorReject || overrideJudge {
 		decision.Actor = decisionActorUserOverride
 	} else {
 		decision.Actor = decisionActorUser

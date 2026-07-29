@@ -64,6 +64,7 @@ Examples:
   fest workflow advance             # Complete current step and move to next
   fest workflow skip --reason "already completed externally" # Operator override
   fest workflow approve             # Approve a blocking checkpoint
+  fest workflow judge               # Run or re-run the configured approval judge
   fest workflow reject              # Reject checkpoint with feedback
   fest workflow reset               # Reset workflow or gate to step 1
   fest workflow show                # Display the current step details`,
@@ -78,6 +79,8 @@ Examples:
 		newAdvanceCmd(),
 		newSkipCmd(),
 		newApproveCmd(),
+		newJudgeCmd(),
+		newJudgeExecCmd(),
 		newRejectCmd(),
 		newResetCmd(),
 		newShowCmd(),

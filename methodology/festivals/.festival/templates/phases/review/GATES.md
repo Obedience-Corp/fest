@@ -19,6 +19,8 @@ This gate verifies the review phase achieved its goal and produced incorporated 
 2. Verify the review criteria were appropriate for the deliverables examined
 3. Confirm the review answered the questions the phase was created to answer
 
+**Checkpoint class:** artifact_review
+
 **Checkpoint:** APPROVAL REQUIRED — Confirm review goal is met
 
 ---
@@ -32,6 +34,8 @@ This gate verifies the review phase achieved its goal and produced incorporated 
 2. Verify no items were skipped or deferred without justification
 3. Check that review criteria were applied consistently
 
+**Checkpoint class:** artifact_review
+
 **Checkpoint:** APPROVAL REQUIRED — Confirm all items reviewed
 
 ---
@@ -44,6 +48,8 @@ This gate verifies the review phase achieved its goal and produced incorporated 
 1. Confirm fixes were applied for accepted findings
 2. Verify deferred items have clear justification and tracking
 3. Check that the reviewed deliverables reflect the feedback
+
+**Checkpoint class:** artifact_review
 
 **Checkpoint:** APPROVAL REQUIRED — Confirm feedback incorporated
 

@@ -1,0 +1,84 @@
+Lifecycle Hooks
+===============
+
+Hooks are named commands bound to festival lifecycle events. The approval
+judge is one hook among them, not a special case.
+
+Read the full guide: docs/concepts/hooks.md
+Evidence transport: docs/concepts/hook-evidence-contract.md
+
+Declaration layers (least → most specific)
+-----------------------------------------
+
+  1. Machine     ~/.obey/fest/config.json          (JSON)
+  2. Festivals   festivals/.festival/config.yaml   (YAML)
+  3. Festival    fest.yaml                         (YAML)
+
+Default at every layer is empty. A more specific layer redeclares a name by
+replacing the whole definition (no field-level merge).
+
+Schema sketch
+-------------
+
+  hooks:
+    enabled: true
+    levels:
+      phase: true
+      sequence: true
+      task: true
+    definitions:
+      approval_judge:
+        command: ob judge    # required
+        fail: closed         # closed | open
+        timeout: 0           # 0 = no deadline (approval_judge default)
+        evidence: paths      # paths | embed
+        enabled: true
+
+Bindings (names only)
+---------------------
+
+Frontmatter on PHASE_GOAL / SEQUENCE_GOAL / task docs:
+
+  hooks:
+    pre: [lint]
+    post: [approval_judge]
+
+GATES.md step markers:
+
+  **Hooks:** post: [approval_judge]
+
+v1 verbs: task_complete, sequence_complete, phase_complete, gate_approve.
+pre runs before the verb; post runs after the transition is already applied.
+fail:closed pre-hooks block the verb (completion/approval not applied).
+fail:closed post-hooks short-circuit remaining post-hooks and warn; they do
+not roll back an already-applied completion or approval.
+fail:open records failure and continues remaining hooks at that timing.
+Undeclared bound names skip with a warning (not a hard error).
+
+Human gates (not hooks)
+-----------------------
+
+  approval: human-required
+
+or GATES.md:
+
+  **Approval:** human-required
+
+Automation hooks for that step are skipped. fest next parks with a
+HUMAN APPROVAL REQUIRED banner. Clear only with interactive-TTY
+fest workflow approve / reject. --auto and fest workflow judge refuse.
+
+Inspect and validate
+--------------------
+
+  fest hooks list
+  fest hooks list --json
+  fest validate              # non-blocking warnings for alias / drift / undeclared
+
+Common commands
+---------------
+
+  fest hooks list
+  fest understand hooks
+  fest workflow judge        # re-run approval_judge after feedback
+  fest workflow approve      # human path (TTY on human-required gates)

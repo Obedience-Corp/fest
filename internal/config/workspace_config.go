@@ -23,22 +23,6 @@ type WorkspaceConfig struct {
 	Hooks   HooksConfig `yaml:"hooks,omitempty"`
 }
 
-// HooksConfig holds optional workspace-level command hooks configured in
-// .festival/config.yaml. fest reads these directly so it stays usable on its
-// own, without the camp CLI.
-type HooksConfig struct {
-	// ApprovalJudge configures the command run by `fest workflow approve --auto`.
-	ApprovalJudge ApprovalJudgeHookConfig `yaml:"approval_judge,omitempty"`
-}
-
-// ApprovalJudgeHookConfig configures an external approval judge command. The
-// command receives the approval request as JSON on stdin and must emit a JSON
-// verdict on stdout (schema fest.approval.judge/v1).
-type ApprovalJudgeHookConfig struct {
-	// Command is executed as configured (e.g. "ob judge").
-	Command string `yaml:"command,omitempty"`
-}
-
 // AgentConfig controls AI agent behavior for the workspace
 type AgentConfig struct {
 	// StrictMode is a master switch that enables all strict behaviors
@@ -97,8 +81,8 @@ func SaveWorkspaceConfig(festivalsRoot string, cfg *WorkspaceConfig) error {
 	}
 
 	// Surface the hooks option as a discoverable commented block when none is
-	// configured, so users can opt into approve --auto without reading docs.
-	if (cfg.Hooks == HooksConfig{}) {
+	// configured, so users can opt into the approval judge without reading docs.
+	if cfg.Hooks.IsZero() {
 		data = append(data, commentedHooksPlaceholder()...)
 	}
 
@@ -117,11 +101,13 @@ func SaveWorkspaceConfig(festivalsRoot string, cfg *WorkspaceConfig) error {
 func commentedHooksPlaceholder() []byte {
 	return []byte(`
 # hooks:
-#   approval_judge:
-#     # Command run by 'fest workflow approve --auto'. It receives the approval
-#     # request as JSON on stdin and must print a JSON verdict on stdout
-#     # (schema fest.approval.judge/v1). Any tool works; 'ob judge' is one example.
-#     command: ob judge
+#   definitions:
+#     approval_judge:
+#       # Command run by 'fest workflow judge'. It receives the approval
+#       # request as JSON on stdin and must print a JSON verdict on stdout
+#       # (schema fest.approval.judge/v1). Any tool works; 'ob judge' is one example.
+#       command: ob judge
+#       timeout: 0
 `)
 }
 

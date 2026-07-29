@@ -7,7 +7,7 @@ Generate workspace-wide tree index
 Generate a tree index of all festivals in the workspace.
 
 The tree index groups festivals by status (planning, active, completed, dungeon)
-and provides a complete hierarchical view for Guild v3 integration.
+and provides a complete hierarchical view for external tool integration.
 
 ```
 fest index tree [flags]

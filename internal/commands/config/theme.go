@@ -11,6 +11,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/ui/theme"
+	sharedbrand "github.com/Obedience-Corp/obey-shared/brand"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
@@ -131,7 +132,7 @@ how they look on your current terminal background color.`,
 func runThemeTest(ctx context.Context) error {
 	fmt.Println()
 	fmt.Println(lipgloss.NewStyle().Bold(true).Render("Theme Comparison - Select Options Work Best On Your Background"))
-	fmt.Println(lipgloss.NewStyle().Foreground(lipgloss.Color("#888888")).Render("Use j/k or arrows to navigate, enter to confirm, esc to quit"))
+	fmt.Println(lipgloss.NewStyle().Foreground(lipgloss.Color(ui.CurrentBrandPalette().TextMuted)).Render("Use j/k or arrows to navigate, enter to confirm, esc to quit"))
 	fmt.Println()
 
 	themes := []string{"adaptive", "light", "dark", "high-contrast"}
@@ -170,17 +171,18 @@ func runThemeTest(ctx context.Context) error {
 
 func printThemeSample(themeName string) {
 	t := theme.GetTheme(theme.ThemeName(themeName))
+	p := ui.ResolveBrandPalette(sharedbrand.ParseMode(themeName))
 
 	// Header
 	headerStyle := lipgloss.NewStyle().
 		Bold(true).
-		Foreground(lipgloss.Color("#FFFFFF")).
-		Background(lipgloss.Color("#444444")).
+		Foreground(lipgloss.Color(p.TextPrimary)).
+		Background(lipgloss.Color(p.SurfaceRaised)).
 		Padding(0, 1)
 
 	fmt.Println(headerStyle.Render(fmt.Sprintf("═══ %s ═══", themeName)))
 
-	// Sample elements using the theme
+	// Sample elements using the shared-role-backed Huh theme.
 	fmt.Printf("  %s\n", t.Focused.Title.Render("Title: Sample Form"))
 	fmt.Printf("  %s\n", t.Focused.Description.Render("Description: Choose an option"))
 	fmt.Printf("  %s%s\n", t.Focused.SelectSelector.String(), t.Focused.SelectedOption.Render("Selected Option"))

@@ -7,14 +7,19 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Obedience-Corp/camp/pkg/ledgerkit"
+
+	"github.com/Obedience-Corp/fest/internal/campledger"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
+	"github.com/Obedience-Corp/fest/internal/hooks"
 )
 
 // Manager handles progress operations for a festival
 type Manager struct {
-	store *Store
-	gate  Gate
+	store        *Store
+	gate         Gate
+	festivalPath string
 }
 
 // NewManager creates a new progress manager with no lifecycle gate.
@@ -41,7 +46,7 @@ func NewManagerWithGate(ctx context.Context, festivalPath string, gate Gate) (*M
 	if err := store.Load(ctx); err != nil {
 		return nil, errors.Wrap(err, "loading progress data")
 	}
-	return &Manager{store: store, gate: gate}, nil
+	return &Manager{store: store, gate: gate, festivalPath: festivalPath}, nil
 }
 
 // NewManagerReadOnly creates a progress manager that never mutates disk while
@@ -56,7 +61,7 @@ func NewManagerReadOnly(ctx context.Context, festivalPath string) (*Manager, err
 	if err := store.LoadReadOnly(ctx); err != nil {
 		return nil, errors.Wrap(err, "loading progress data")
 	}
-	return &Manager{store: store, gate: NoopGate{}}, nil
+	return &Manager{store: store, gate: NoopGate{}, festivalPath: festivalPath}, nil
 }
 
 // UpdateProgress updates the progress percentage for a task
@@ -188,6 +193,11 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 		return err
 	}
 	m.SyncFrontmatterStatus(taskID, task.Status)
+	// Campaign ledger: high-intent task completion (D003/D006). Does not
+	// alter progress_events.jsonl content beyond the save already done.
+	m.emitLedger(ctx, ledgerkit.KindCompleted, taskID, "", map[string]any{
+		"status": "completed",
+	})
 	// Propagation is best-effort: a failure here should not block
 	// the task completion that already succeeded above.
 	_ = m.PropagateCompletion(ctx, taskID)
@@ -279,6 +289,11 @@ func (m *Manager) ReportBlocker(ctx context.Context, taskID, message string) err
 		return err
 	}
 	m.SyncFrontmatterStatus(taskID, task.Status)
+	m.emitLedger(ctx, ledgerkit.KindTransitioned, taskID, message, map[string]any{
+		"from":   string(StatusPending),
+		"to":     "blocked",
+		"target": "blocked",
+	})
 	return nil
 }
 
@@ -320,7 +335,29 @@ func (m *Manager) ResetTask(ctx context.Context, taskID string) error {
 		return err
 	}
 	m.SyncFrontmatterStatus(taskID, task.Status)
+	m.emitLedger(ctx, ledgerkit.KindTransitioned, taskID, "", map[string]any{
+		"to":     "pending",
+		"target": "reset",
+	})
 	return nil
+}
+
+// emitLedger best-effort appends a campaign ledger event for a high-intent
+// task mutation. No-op outside a campaign. Never fails the caller (D003).
+func (m *Manager) emitLedger(ctx context.Context, kind ledgerkit.Kind, taskID, why string, payload map[string]any) {
+	if m == nil || m.festivalPath == "" {
+		return
+	}
+	e := campledger.NewFromFestival(ctx, m.festivalPath, campledger.WarnToStderr())
+	scope := campledger.FestivalScope(m.festivalPath, taskID)
+	opts := []campledger.Option{}
+	if why != "" {
+		opts = append(opts, campledger.WithWhy(why))
+	}
+	if payload != nil {
+		opts = append(opts, campledger.WithPayload(payload))
+	}
+	e.Emit(ctx, kind, scope, opts...)
 }
 
 // ClearBlocker clears a blocker for a task
@@ -465,7 +502,8 @@ func (m *Manager) propagateSequenceCompletion(ctx context.Context, seqPath strin
 	}
 
 	goalPath := filepath.Join(seqPath, "SEQUENCE_GOAL.md")
-	return m.updateGoalStatus(ctx, goalPath, frontmatter.StatusCompleted)
+	return m.completeGoalWithHooks(ctx, goalPath, hooks.LevelSequence, hooks.VerbSequenceComplete,
+		filepath.Base(filepath.Dir(seqPath)), filepath.Base(seqPath))
 }
 
 // propagatePhaseCompletion updates PHASE_GOAL.md if all sequences/workflows are done.
@@ -480,7 +518,68 @@ func (m *Manager) propagatePhaseCompletion(ctx context.Context, phasePath string
 	}
 
 	goalPath := filepath.Join(phasePath, "PHASE_GOAL.md")
-	return m.updateGoalStatus(ctx, goalPath, frontmatter.StatusCompleted)
+	return m.completeGoalWithHooks(ctx, goalPath, hooks.LevelPhase, hooks.VerbPhaseComplete,
+		filepath.Base(phasePath), "")
+}
+
+// completeGoalWithHooks marks a goal doc completed, running its frontmatter
+// hook bindings around the transition (spec 03: sequence/phase complete
+// verbs). A blocked pre list leaves the goal incomplete because the verb
+// never applies; a blocked post list leaves the transition applied. Hooks run
+// only on the pending -> completed transition, never for goals already
+// completed.
+func (m *Manager) completeGoalWithHooks(ctx context.Context, goalPath string, level hooks.Level, verb hooks.Verb, phaseName, taskCoord string) error {
+	content, err := os.ReadFile(goalPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil // Goal files are optional
+		}
+		return errors.IO("reading goal file", err)
+	}
+	fm, _, err := frontmatter.Parse(content)
+	if err != nil || fm == nil {
+		return m.updateGoalStatus(ctx, goalPath, frontmatter.StatusCompleted)
+	}
+	if fm.Status == frontmatter.StatusCompleted {
+		return nil // Already applied; never re-run completion hooks
+	}
+
+	req := LifecycleHookRequest{
+		FestivalPath: m.store.FestivalPath(),
+		Phase:        phaseName,
+		Task:         taskCoord,
+		Level:        level,
+		Verb:         verb,
+	}
+	req.Pre, req.Post, req.HumanGate = StepHookBindingsFromFrontmatter(content)
+	planned, err := PlanLifecycleHooks(ctx, req)
+	if err != nil {
+		return errors.Wrap(err, "planning goal hooks")
+	}
+	runner := newLifecycleHookRunner(m.store.FestivalPath())
+	preRuns, blocked, err := RunLifecycleStage(ctx, m.store, runner, req, planned, hooks.TimingPre)
+	if saveErr := m.store.SaveEvents(ctx); saveErr != nil && err == nil {
+		err = saveErr
+	}
+	if err != nil {
+		return errors.Wrap(err, "running goal pre hooks")
+	}
+	if blocked {
+		return BlockedHookError(verb, preRuns)
+	}
+
+	if err := m.updateGoalStatus(ctx, goalPath, frontmatter.StatusCompleted); err != nil {
+		return err
+	}
+
+	_, _, postErr := RunLifecycleStage(ctx, m.store, runner, req, planned, hooks.TimingPost)
+	if saveErr := m.store.SaveEvents(ctx); saveErr != nil && postErr == nil {
+		postErr = saveErr
+	}
+	if postErr != nil {
+		return errors.Wrap(postErr, "running goal post hooks")
+	}
+	return nil
 }
 
 // ResetPhaseStatus sets the phase PHASE_GOAL.md frontmatter status back to in_progress.

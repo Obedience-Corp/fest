@@ -3,7 +3,9 @@ package watch
 
 import (
 	"context"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -19,9 +21,13 @@ const DefaultMaxWait = 500 * time.Millisecond
 
 // Config configures the file watcher behavior.
 type Config struct {
-	// Paths lists files and directories to watch.
-	// Directories are watched non-recursively.
+	// Paths lists files and directories to watch. Directories are watched
+	// non-recursively unless Recursive is enabled.
 	Paths []string
+
+	// Recursive watches every existing directory below each configured
+	// directory and automatically adds directory subtrees created later.
+	Recursive bool
 
 	// Debounce is the duration to wait after the last change before triggering.
 	// This coalesces rapid changes (e.g., editor save patterns) into a single event.
@@ -53,6 +59,21 @@ type Watcher struct {
 	pending      bool
 	firstPending time.Time
 	watched      map[string]struct{}
+	// gen is bumped on every (re)schedule and on cancel. Each debounce timer
+	// captures the value live when it was scheduled and re-checks it under mu
+	// before firing. A timer whose Stop() lost the race (it already fired while
+	// scheduleCallback held mu) would otherwise run its stale func, clobber the
+	// live timer handle with nil, and fire a second time; the generation check
+	// makes that stale func a no-op so only the newest schedule ever fires.
+	gen uint64
+
+	// dispatchMu serializes onChange invocations so renders never overlap, even
+	// when MaxWait fires callbacks mid-storm faster than a slow render completes.
+	// stopped is set under dispatchMu by cancelPendingTimer: once that returns,
+	// no onChange is in flight and none can start, so nothing fires after Close
+	// or Watch return.
+	dispatchMu sync.Mutex
+	stopped    bool
 }
 
 // ErrNoWatchablePaths is returned when none of the specified paths can be watched.
@@ -79,27 +100,53 @@ func New(cfg Config, onChange func()) (*Watcher, error) {
 	}
 
 	// Add all paths to the watcher.
-	watchedCount := 0
 	for _, path := range cfg.Paths {
-		if err := w.AddPath(path); err != nil {
+		var err error
+		if cfg.Recursive {
+			err = w.AddTree(path)
+		} else {
+			err = w.AddPath(path)
+		}
+		if err != nil {
 			if !os.IsNotExist(err) {
 				_ = fsw.Close()
 				return nil, err
 			}
 			continue
 		}
-		if path != "" {
-			watchedCount++
-		}
 	}
 
 	// If no paths could be watched, return error to trigger fallback
-	if watchedCount == 0 && len(cfg.Paths) > 0 {
+	if len(w.watched) == 0 && len(cfg.Paths) > 0 {
 		_ = fsw.Close()
 		return nil, ErrNoWatchablePaths
 	}
 
 	return w, nil
+}
+
+// AddTree dynamically watches an existing directory and every directory below
+// it. Paths that disappear during traversal are skipped; other errors are
+// returned to the caller.
+func (w *Watcher) AddTree(root string) error {
+	if root == "" {
+		return nil
+	}
+	return filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) {
+				return nil
+			}
+			return err
+		}
+		if !entry.IsDir() {
+			return nil
+		}
+		if err := w.AddPath(path); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
+	})
 }
 
 // AddPath dynamically adds an existing file or directory to the watcher.
@@ -136,6 +183,15 @@ func (w *Watcher) Watch(ctx context.Context) error {
 		case event, ok := <-w.watcher.Events:
 			if !ok {
 				return nil
+			}
+			if w.config.Recursive && event.Has(fsnotify.Create) {
+				if info, err := os.Stat(event.Name); err == nil && info.IsDir() {
+					if err := w.AddTree(event.Name); err != nil && w.config.OnError != nil {
+						w.config.OnError(err)
+					}
+				} else if err != nil && !os.IsNotExist(err) && w.config.OnError != nil {
+					w.config.OnError(err)
+				}
 			}
 			if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
 				w.removePath(event.Name)
@@ -187,26 +243,55 @@ func (w *Watcher) scheduleCallback() {
 			delay = 0
 		}
 	}
-	w.timer = time.AfterFunc(delay, func() {
-		w.mu.Lock()
-		w.pending = false
-		w.timer = nil
-		w.mu.Unlock()
 
-		w.onChange()
+	w.gen++
+	gen := w.gen
+	w.timer = time.AfterFunc(delay, func() {
+		w.dispatch(gen)
 	})
 }
 
-// cancelPendingTimer cancels any pending debounced callback.
+// dispatch runs the onChange callback for a scheduled timer generation.
+// A timer whose generation was superseded (by a newer schedule or by a cancel)
+// is a no-op, so the newest schedule owns the callback and stale timers can
+// neither double-fire nor clobber the live timer handle. Invocations are
+// serialized through dispatchMu so onChange never overlaps itself, and the
+// stopped gate prevents any callback after cancelPendingTimer has returned.
+func (w *Watcher) dispatch(gen uint64) {
+	w.mu.Lock()
+	if w.gen != gen {
+		w.mu.Unlock()
+		return
+	}
+	w.pending = false
+	w.timer = nil
+	w.mu.Unlock()
+
+	w.dispatchMu.Lock()
+	defer w.dispatchMu.Unlock()
+	if w.stopped {
+		return
+	}
+	w.onChange()
+}
+
+// cancelPendingTimer cancels any pending debounced callback and permanently
+// disables further dispatch. Bumping gen neutralizes any timer whose Stop()
+// lost the race, and setting stopped under dispatchMu (which waits for any
+// in-flight onChange to finish) guarantees no callback fires after this returns.
 func (w *Watcher) cancelPendingTimer() {
 	w.mu.Lock()
-	defer w.mu.Unlock()
-
 	if w.timer != nil {
 		w.timer.Stop()
 		w.timer = nil
 		w.pending = false
 	}
+	w.gen++
+	w.mu.Unlock()
+
+	w.dispatchMu.Lock()
+	w.stopped = true
+	w.dispatchMu.Unlock()
 }
 
 // Close releases all resources associated with the watcher.

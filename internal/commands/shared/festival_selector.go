@@ -237,7 +237,7 @@ func collectFestivalPickCandidates(festivalsDir string, statuses []string, opts 
 	var candidates []FestivalPickCandidate
 
 	for _, status := range statuses {
-		statusDir := filepath.Join(festivalsDir, status)
+		statusDir := workspace.JoinStatus(festivalsDir, status)
 		entries, err := os.ReadDir(statusDir)
 		if err != nil {
 			continue

@@ -283,7 +283,7 @@ func resolveGoTarget(target, festivalsDir string) (string, error) {
 
 	// Resolve dungeon status aliases (completed → dungeon/completed, etc.)
 	if resolved := id.ResolveStatusPath(target); resolved != target {
-		fullPath := filepath.Join(festivalsDir, resolved)
+		fullPath := workspace.JoinStatus(festivalsDir, resolved)
 		if info, err := os.Stat(fullPath); err == nil && info.IsDir() {
 			return fullPath, nil
 		}
@@ -350,7 +350,7 @@ func resolveFuzzy(pattern, festivalsDir string) (string, error) {
 // internal/navigation/fuzzy.go); exact-name lookup does not.
 func resolveFestivalByName(name, festivalsDir string) string {
 	for _, status := range id.StatusDirectories {
-		statusDir := filepath.Join(festivalsDir, status)
+		statusDir := workspace.JoinStatus(festivalsDir, status)
 
 		// Direct child: active/ready/planning/ritual, or any flat dungeon
 		// entry that was moved without a date bucket.

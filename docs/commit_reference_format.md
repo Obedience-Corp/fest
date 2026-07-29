@@ -1,20 +1,14 @@
 # Commit Reference Format
 
-This document describes the standardized commit reference format used by `fest commit` and other Obey workflow tools.
+This document describes the standardized commit reference format used by `fest commit`.
 
 ## Format Specification
 
 ```
-[OBEY-{COMPONENT}-{ID}]
+[FE-{ID}]
 ```
 
-### Components
-
-| Component | Code | Description |
-|-----------|------|-------------|
-| Festival  | `FE` | Festival methodology workflow tool |
-
-*Additional components will be added as the Obey ecosystem expands.*
+`FE` identifies a Festival methodology reference.
 
 ### ID Types
 
@@ -28,9 +22,9 @@ The `{ID}` portion varies by context:
 ### Full Examples
 
 ```
-[OBEY-FE-CS0001] Add user authentication
-[OBEY-FE-FEST-a3b2c1] Fix login validation bug
-[OBEY-FE-TODO0001] Update documentation
+[FE-CS0001] Add user authentication
+[FE-FEST-a3b2c1] Fix login validation bug
+[FE-TODO0001] Update documentation
 ```
 
 ## Detection Priority
@@ -51,7 +45,7 @@ When working in a project linked to a festival (via fest.yaml `project_path` or 
 ```bash
 # In linked project ~/projects/my-app
 fest commit -m "Add feature"
-# → [OBEY-FE-CS0001] Add feature
+# → [FE-CS0001] Add feature
 ```
 
 ### Inside Festival Tasks
@@ -61,29 +55,16 @@ When working inside a festival's task directory, `fest commit` uses the **task r
 ```bash
 # In ~/festivals/active/client-sync/01_setup/01_auth/03_oauth.md
 fest commit -m "Implement OAuth flow"
-# → [OBEY-FE-FEST-a3b2c1] Implement OAuth flow
+# → [FE-FEST-a3b2c1] Implement OAuth flow
 ```
 
 ## Design Rationale
 
 ### Why This Format?
 
-1. **Namespace isolation**: The `OBEY-` prefix prevents conflicts with other tooling
-2. **Component identification**: The two-letter component code (`FE`) allows multiple tools to share the format
-3. **Traceability**: Every commit links back to its planning context
-4. **Machine-parseable**: Consistent format enables automated reporting and tracking
-
-### Future Components
-
-The format is designed to accommodate additional Obey workflow components:
-
-| Component | Code | Purpose |
-|-----------|------|---------|
-| Camp | `CA` | Campaign navigation and scaffolding |
-| Intent | `IN` | Intent tracking system |
-| Review | `RV` | Code review workflow |
-
-These are reserved codes that may be implemented in future versions.
+1. **Component identification**: The `FE` prefix identifies Festival references without a redundant product namespace
+2. **Traceability**: Every commit links back to its planning context
+3. **Machine-parseable**: Consistent format enables automated reporting and tracking
 
 ## Configuration
 
@@ -110,13 +91,13 @@ Use standard git tools to find commits by reference:
 
 ```bash
 # Find all commits for a festival
-git log --grep="OBEY-FE-CS0001"
+git log --grep="FE-CS0001"
 
 # Find commits for a specific task
-git log --grep="OBEY-FE-FEST-a3b2c1"
+git log --grep="FE-FEST-a3b2c1"
 
 # Count commits per festival
-git log --oneline | grep -oE '\[OBEY-FE-[A-Z0-9]+\]' | sort | uniq -c
+git log --oneline | grep -oE '\[FE-[A-Z0-9]+\]' | sort | uniq -c
 ```
 
 ## Integration with CI/CD
@@ -128,7 +109,7 @@ The standardized format enables automation:
 - name: Get Festival Context
   run: |
     COMMIT_MSG=$(git log -1 --format=%s)
-    if [[ $COMMIT_MSG =~ \[OBEY-FE-([A-Z0-9-]+)\] ]]; then
+    if [[ $COMMIT_MSG =~ \[FE-([A-Z0-9-]+)\] ]]; then
       echo "FEST_ID=${BASH_REMATCH[1]}" >> $GITHUB_ENV
     fi
 ```

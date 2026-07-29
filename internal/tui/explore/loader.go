@@ -67,7 +67,7 @@ func loadStatusCounts(ctx context.Context) tea.Msg {
 		if ctx.Err() != nil {
 			break
 		}
-		statusDir := filepath.Join(festivalsDir, s)
+		statusDir := workspace.JoinStatus(festivalsDir, s)
 		entries, readErr := os.ReadDir(statusDir)
 		if readErr != nil {
 			counts[s] = 0

@@ -21,8 +21,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Commit reference format prefix: OBEY-FE (Obey Festival component)
-const commitRefPrefix = "OBEY-FE"
+// Commit reference format prefix: FE (Festival component)
+const commitRefPrefix = "FE"
 
 var (
 	message          string
@@ -63,8 +63,7 @@ with only festival-scoped files staged (not git add -A).
 
 Use --no-root to skip the campaign root commit.
 
-Reference format: [OBEY-FE-{id}]
-  - OBEY: Obey workflow tool prefix
+Reference format: [FE-{id}]
   - FE: Festival component identifier
   - {id}: Task ref (FEST-xxxxxx) or festival ID (e.g., CS0001)
 
@@ -76,14 +75,14 @@ Detection priority:
 
 Examples:
   fest commit -m "Implement feature"
-  # In linked project → [OBEY-FE-CS0001] Implement feature
-  # In festival task  → [OBEY-FE-FEST-a3b2c1] Implement feature
+  # In linked project → [FE-CS0001] Implement feature
+  # In festival task  → [FE-FEST-a3b2c1] Implement feature
 
   fest commit --task FEST-b4c5d6 -m "Related work"
-  # → [OBEY-FE-FEST-b4c5d6] Related work
+  # → [FE-FEST-b4c5d6] Related work
 
   fest commit --festival OA0001 -m "Work from unlinked dir"
-  # → [OBEY-FE-OA0001] Work from unlinked dir
+  # → [FE-OA0001] Work from unlinked dir
 
   fest commit --no-tag -m "No reference"
   # → No reference
@@ -368,7 +367,7 @@ func stageAllChanges(ctx context.Context) error {
 }
 
 // formatCommitRef formats an ID with the standard commit reference prefix.
-// Format: [OBEY-FE-{id}] where FE = Festival component
+// Format: [FE-{id}] where FE = Festival component
 func formatCommitRef(id string) string {
 	return fmt.Sprintf("%s-%s", commitRefPrefix, id)
 }
@@ -459,8 +458,8 @@ func commitWithCampaignSupport(ctx context.Context, ws *scope.WorkspaceInfo, rep
 		if err == nil && cid != "" {
 			name, _ := commitkit.DetectCampaignName(ctx)
 			if festRef != "" {
-				// festRef is "OBEY-FE-<id>"; pass the bare id (the formatter re-adds FE-).
-				festID := strings.TrimPrefix(strings.TrimPrefix(festRef, "OBEY-"), "FE-")
+				// festRef is "FE-<id>"; pass the bare id (the formatter re-adds FE-).
+				festID := strings.TrimPrefix(festRef, commitRefPrefix+"-")
 				tag := commitkit.FormatContextTagsFullNamed(name, cid, "", festID, "")
 				commitMessage = tag + " " + rawMsg
 				result.CampaignTag = tag

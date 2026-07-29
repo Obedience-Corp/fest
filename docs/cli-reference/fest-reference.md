@@ -379,8 +379,7 @@ with only festival-scoped files staged (not git add -A).
 
 Use --no-root to skip the campaign root commit.
 
-Reference format: [OBEY-FE-{id}]
-  - OBEY: Obey workflow tool prefix
+Reference format: [FE-{id}]
   - FE: Festival component identifier
   - {id}: Task ref (FEST-xxxxxx) or festival ID (e.g., CS0001)
 
@@ -393,14 +392,14 @@ Detection priority:
 Examples:
 ```bash
   fest commit -m "Implement feature"
-  # In linked project → [OBEY-FE-CS0001] Implement feature
-  # In festival task  → [OBEY-FE-FEST-a3b2c1] Implement feature
+  # In linked project → [FE-CS0001] Implement feature
+  # In festival task  → [FE-FEST-a3b2c1] Implement feature
 
   fest commit --task FEST-b4c5d6 -m "Related work"
-  # → [OBEY-FE-FEST-b4c5d6] Related work
+  # → [FE-FEST-b4c5d6] Related work
 
   fest commit --festival OA0001 -m "Work from unlinked dir"
-  # → [OBEY-FE-OA0001] Work from unlinked dir
+  # → [FE-OA0001] Work from unlinked dir
 
   fest commit --no-tag -m "No reference"
   # → No reference
@@ -972,7 +971,7 @@ fest create festival [flags]
       --seed-file string      File whose contents seed the ingest phase input_specs/ (mutually exclusive with --seed)
       --skip-markers          Skip REPLACE marker processing
       --tags string           Comma-separated tags
-      --type string           Festival type (standard, implementation, research, quick, ritual)
+      --type string           Festival type (standard, implementation, research, ritual); see 'fest types list --level festival'
       --vars-file string      JSON file with variables
 ```
 
@@ -2087,6 +2086,65 @@ fest go unmap <name> [flags]
 ```
 ---
 
+## fest hooks
+
+Inspect resolved lifecycle hooks
+
+### Synopsis
+
+Inspect the hooks resolved from the machine, festivals, and festival layers.
+
+Available Commands:
+  list   Show the effective resolved hook set with source layers and shadow diffs
+
+### Options
+
+```
+  -h, --help   help for hooks
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
+## fest hooks list
+
+Show the effective resolved hook set
+
+```
+fest hooks list [flags]
+```
+
+### Examples
+
+```
+  fest hooks list
+  fest hooks list --json
+```
+
+### Options
+
+```
+  -h, --help   help for list
+      --json   Output in JSON format
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
 ## fest id
 
 Show the festival ID for the current context
@@ -2131,12 +2189,12 @@ Manage festival indices
 
 ### Synopsis
 
-Generate and validate festival indices for Guild integration.
+Generate and validate festival indices.
 
 The index file (.festival/index.json) provides a machine-readable representation
 of the festival structure, including phases, sequences, and tasks.
 
-For workspace-wide indexing (Guild v3), use the 'tree' subcommand.
+For workspace-wide indexing, use the 'tree' subcommand.
 
 ### Options
 
@@ -2225,7 +2283,7 @@ Generate workspace-wide tree index
 Generate a tree index of all festivals in the workspace.
 
 The tree index groups festivals by status (planning, active, completed, dungeon)
-and provides a complete hierarchical view for Guild v3 integration.
+and provides a complete hierarchical view for external tool integration.
 
 ```
 fest index tree [flags]
@@ -2716,6 +2774,9 @@ dungeon, dungeon/completed, dungeon/archived, dungeon/someday
 By default, shows active, ready, planning, and ritual festivals.
 Use 'fest list all' (or --all) to include completed and dungeon festivals.
 
+Use --watch to refresh the multi-festival status board when festival progress
+or lifecycle status changes (similar to fest watch, but without cycling). Ctrl+C to quit.
+
 ```
 fest list [status] [flags]
 ```
@@ -2731,6 +2792,8 @@ fest list [status] [flags]
   fest list active --sort progress                 # Active festivals, most complete first
   fest list --since 2026-01-01 --until 2026-02-01  # Created in January 2026
   fest list --json                                 # Output in JSON format
+  fest list --watch                                # Live multi-festival status board
+  fest list active --watch                         # Watch only active festivals
 ```
 
 ### Options
@@ -2746,6 +2809,7 @@ fest list [status] [flags]
       --sort string             sort by: date|status|progress|name|created|updated
       --status string           filter by status: active|planning|completed|dungeon
       --until string            show festivals created on or before this date (YYYY-MM-DD or RFC3339)
+  -w, --watch                   refresh the list when festival progress or lifecycle status changes
 ```
 
 ### Options inherited from parent commands
@@ -3309,7 +3373,7 @@ Parse festival documents into structured output
 Parse festival documents into structured JSON or YAML output.
 
 This command walks the festival hierarchy and produces structured output
-suitable for external tool integration (e.g., Guild v3, visualization tools).
+suitable for external tool integration (e.g. visualization tools, editors).
 
 Examples:
 ```bash
@@ -3398,25 +3462,25 @@ Track and display festival execution progress
 
 Track and display progress for festival execution.
 
-When run without flags, shows an overview of festival progress.
-Use flags to update task progress, report blockers, or mark tasks complete.
+When run without flags, shows an overview of festival progress. 'fest progress'
+is the display surface; task state mutations live under 'fest task'.
 
 PROGRESS OVERVIEW:
 ```bash
   fest progress              Show festival progress summary
   fest progress --json       Output progress in JSON format
+  fest progress --watch      Continuously refresh the display
 ```
 
-TASK UPDATES:
+DEPRECATED TASK MUTATIONS (use 'fest task' instead):
 ```bash
-  fest progress --task <id> --update 50%     Update task progress
-  fest progress --task <id> --complete       Mark task as complete
-  fest progress --task <id> --in-progress    Mark task as in progress
-  fest progress --task <id> --blocker "msg"  Report a blocker
-  fest progress --task <id> --clear          Clear blocker
-  fest progress --path <task_path> --complete
-  fest progress --phase <phase> --sequence <seq> --task <id> --complete
+  fest progress --task <id> --complete   -> fest task completed --yes
+  fest progress --task <id> --update 50% -> fest task update 50%
+  fest progress --task <id> --blocker "msg" -> fest task blocked --reason "msg" --yes
+  fest progress --task <id> --clear      -> fest task unblock
 ```
+
+These flags still work for one release and print a deprecation notice.
 
 Task IDs can be festival-relative paths (e.g. 002_FOUNDATION/01_project_scaffold/01_design.md)
 or absolute paths. Use --path or --phase/--sequence to disambiguate duplicates.
@@ -3430,12 +3494,9 @@ fest progress [flags]
 
 ```
   fest progress                          # Show overall progress
-  fest progress --task 01_setup.md --update 75%
-  fest progress --path 002_FOUNDATION/01_project_scaffold/01_design.md --complete
-  fest progress --phase 002_FOUNDATION --sequence 01_project_scaffold --task 01_design.md --complete
-  fest progress --festival festivals/active/guild-chat-GC0001 --task 01_setup.md --update 75%
-  fest progress --task 02_impl.md --blocker "Waiting on API spec"
-  fest progress --task 02_impl.md --clear
+  fest progress --json                   # Overall progress as JSON
+  fest progress --watch                  # Live-refreshing progress display
+  fest progress --task 01_setup.md       # Show a single task's progress
 ```
 
 ### Options
@@ -4523,6 +4584,7 @@ fest show [festival-name] [flags]
       --inprogress        expand only in-progress phases and sequences
       --json              output in JSON format
       --roadmap           show full execution roadmap with task statuses
+      --show-feedback     show blocked-step feedback
       --summary           show aggregate summary instead of tree view
       --watch             continuously refresh display
 ```
@@ -4969,9 +5031,11 @@ Manage task status (show, edit, complete, block, reset)
 
 Commands for managing individual task status within a festival.
 
-These commands provide a simpler interface for viewing, editing, marking
-tasks complete, blocked, or resetting them. Each mutation requires
-interactive confirmation to ensure agents verify their work before proceeding.
+This is the single home for task state mutations. Consequential changes
+(completed, blocked, reset) prompt for confirmation to ensure agents verify
+their work; pass --yes to skip the prompt for non-interactive or agent use, and
+--json to emit a structured result (--json requires --yes). Progress signals
+(update, unblock) are frictionless and never prompt.
 
 Task Resolution:
   When [task] is omitted, the command auto-detects the current task:
@@ -4989,8 +5053,12 @@ Examples:
   fest task show 01_design.md             # Show specific task
   fest task edit                          # Open current task in editor
   fest task completed                     # Mark current task complete (Y/n)
+  fest task completed --yes               # Mark complete, no prompt (agents)
+  fest task completed --yes --json        # Mark complete, structured output
   fest task blocked --reason "need API"   # Mark task blocked (Y/n)
   fest task reset                         # Reset task to pending (Y/n)
+  fest task update 50%                    # Set progress to 50%
+  fest task unblock                       # Clear a blocker, resume work
 ```
 
 ### Options
@@ -5011,7 +5079,15 @@ Examples:
 
 ## fest task blocked
 
-Mark a task as blocked (requires confirmation)
+Mark a task as blocked
+
+### Synopsis
+
+Mark a task as blocked, pausing work and notifying the user.
+
+By default a confirmation prompt is shown; pass --yes to skip it for
+non-interactive or agent use. --json emits a structured result and requires
+--yes.
 
 ```
 fest task blocked [task] [flags]
@@ -5021,8 +5097,9 @@ fest task blocked [task] [flags]
 
 ```
   -h, --help            help for blocked
-      --json            output as JSON (blocks: interactive confirmation required)
+      --json            output as JSON (requires --yes)
       --reason string   reason for the blocker (required)
+  -y, --yes             skip the interactive confirmation prompt
 ```
 
 ### Options inherited from parent commands
@@ -5037,7 +5114,15 @@ fest task blocked [task] [flags]
 
 ## fest task completed
 
-Mark a task as complete (requires confirmation)
+Mark a task as complete
+
+### Synopsis
+
+Mark a task as complete.
+
+Quality gates are evaluated first and block completion on failure. By default a
+confirmation prompt is shown; pass --yes to skip it for non-interactive or agent
+use. --json emits a structured result and requires --yes.
 
 ```
 fest task completed [task] [flags]
@@ -5047,7 +5132,8 @@ fest task completed [task] [flags]
 
 ```
   -h, --help   help for completed
-      --json   output as JSON (blocks: interactive confirmation required)
+      --json   output as JSON (requires --yes)
+  -y, --yes    skip the interactive confirmation prompt
 ```
 
 ### Options inherited from parent commands
@@ -5086,7 +5172,15 @@ fest task edit [task] [flags]
 
 ## fest task reset
 
-Reset a task to pending (requires confirmation)
+Reset a task to pending
+
+### Synopsis
+
+Reset a task to pending, clearing all progress, time, and blocker data.
+
+By default a confirmation prompt is shown; pass --yes to skip it for
+non-interactive or agent use. --json emits a structured result and requires
+--yes.
 
 ```
 fest task reset [task] [flags]
@@ -5096,7 +5190,8 @@ fest task reset [task] [flags]
 
 ```
   -h, --help   help for reset
-      --json   output as JSON (blocks: interactive confirmation required)
+      --json   output as JSON (requires --yes)
+  -y, --yes    skip the interactive confirmation prompt
 ```
 
 ### Options inherited from parent commands
@@ -5123,6 +5218,72 @@ fest task show [task] [flags]
   -h, --help         help for show
       --json         output as JSON
       --no-context   hide task markdown content
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
+## fest task unblock
+
+Clear a task's blocker and resume work
+
+### Synopsis
+
+Clear a task's blocker, returning it to in_progress.
+
+This is a frictionless forward-motion signal and does not prompt for
+confirmation. When [task] is omitted the current task is auto-detected.
+
+```
+fest task unblock [task] [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for unblock
+      --json   output as JSON
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
+## fest task update
+
+Update a task's progress percentage
+
+### Synopsis
+
+Update a task's progress percentage (0-100).
+
+This is a frictionless forward-motion signal and does not prompt for
+confirmation. Progress must stay below 100%; use 'fest task completed' at
+100% so quality gates are evaluated. When [task] is omitted the current task
+is auto-detected.
+
+```
+fest task update [task] <percent> [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for update
+      --json   output as JSON
 ```
 
 ### Options inherited from parent commands
@@ -5286,21 +5447,28 @@ fest templates list [flags]
 
 ## fest types
 
-Discover and explore template types
+Discover types for fest create
 
 ### Synopsis
 
-Explore available template types at each festival level.
+List festival, phase, sequence, and task types available for create.
 
-Template types define the structure and purpose of festivals, phases,
-sequences, and tasks. Custom types can be added in .festival/templates/.
+Festival workflow types (standard, implementation, research, ritual) come from
+festival_types.yaml. Phase scaffold types come from the methodology templates
+tree under festivals/.festival/templates/phases/.
 
 Examples:
 ```bash
-  fest types list                        # List all available types
-  fest types list --level task           # List task-level types only
-  fest types show feature                # Show details about a type
+  fest types                             # Same as fest types list
+  fest types list --level festival       # Values for create festival --type
+  fest types list --level phase          # Values for create phase --type
+  fest types show standard               # Festival workflow type details
   fest types show implementation --level phase
+  fest types festival                    # Festival workflow types (alias)
+```
+
+```
+fest types [flags]
 ```
 
 ### Options
@@ -5325,14 +5493,13 @@ Discover festival types
 
 ### Synopsis
 
-Discover available festival types and their phase structures.
+Discover available festival workflow types and their phase structures.
 
-Festival types define the workflow structure for different kinds of projects:
-  - standard: Full planning and implementation phases
+These are the values for 'fest create festival --type'. Built-in types:
+  - standard: Full planning and implementation phases (default)
   - implementation: Direct implementation without planning
   - research: Research-focused workflow
-  - quick: Fast, minimal overhead workflow
-  - ritual: Simple repeating patterns
+  - ritual: Custom structure defined by the festival
 
 Examples:
 ```bash
@@ -5419,7 +5586,7 @@ Examples:
   fest types festival show standard           # Show standard type details
   fest types festival show implementation     # Show implementation type
   fest types festival show standard --phases  # Show only phases
-  fest types festival show quick --json       # JSON output
+  fest types festival show research --json    # JSON output
 ```
 
 ```
@@ -5450,19 +5617,20 @@ List available template types
 
 ### Synopsis
 
-List all template types available at each festival level.
+List types you can pass to fest create, grouped by level.
 
-Types are discovered from:
-  - Built-in templates (~/.obey/fest/templates/)
-  - Custom templates (.festival/templates/ in a festival)
+Sources:
+  - Festival workflow types from festival_types.yaml (create festival --type)
+  - Phase/sequence/task scaffold packages under the methodology templates tree
+    (~/.obey/fest/festivals/.festival/templates or campaign festivals/.festival/templates)
+  - Custom overrides in a festival's .festival/templates/
 
 Examples:
 ```bash
-  fest types list                  # List all types grouped by level
-  fest types list --level task     # List task-level types only
-  fest types list --custom         # Show only custom types
-  fest types list --all            # Include marker counts
-  fest types list --json           # Machine-readable output
+  fest types list                      # All levels
+  fest types list --level festival     # create festival --type values
+  fest types list --level phase        # create phase --type values
+  fest types list --json               # Machine-readable output
 ```
 
 ```
@@ -5495,16 +5663,15 @@ Show details about a template type
 
 ### Synopsis
 
-Display detailed information about a specific template type.
+Display detailed information about a specific type.
 
-Shows the type's level, description, number of markers, template files,
-and example usage.
+Shows the type's level, description, markers, template files, and example usage.
 
 Examples:
 ```bash
-  fest types show feature                   # Show feature type details
-  fest types show implementation --level phase  # Show phase-level implementation
-  fest types show simple --level task --json    # JSON output
+  fest types show standard                      # Festival workflow type
+  fest types show implementation --level phase  # Phase scaffold type
+  fest types show default --level task --json   # Task package
 ```
 
 ```
@@ -5551,6 +5718,7 @@ QUICK REFERENCE:
   fest understand checklist      Validation checklist before starting
   fest understand rules          Naming conventions for automation
   fest understand workflow       Just-in-time reading + workflow/gates
+  fest understand hooks          Lifecycle hooks schema, bindings, human gates
 ```
 
 The understand command helps you grasp WHEN and WHY to use specific
@@ -5741,6 +5909,38 @@ fest understand gates [flags]
 ```
   -h, --help   help for gates
       --json   output as JSON
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
+## fest understand hooks
+
+Lifecycle hooks schema, bindings, and human gates
+
+### Synopsis
+
+Learn how fest resolves hooks across machine, festivals, and festival
+layers; how step bindings fire; and non-bypassable human gates
+(approval: human-required).
+
+See also docs/concepts/hooks.md and docs/concepts/hook-evidence-contract.md.
+
+```
+fest understand hooks [flags]
+```
+
+### Options
+
+```
+  -h, --help   help for hooks
 ```
 
 ### Options inherited from parent commands
@@ -6629,10 +6829,11 @@ fest watch [festival-selector] [flags]
 ### Options
 
 ```
-      --collapsed   show collapsed tree with counters only
-      --goals       show goals for phases and sequences
-  -h, --help        help for watch
-      --summary     show aggregate summary instead of tree view
+      --collapsed       show collapsed tree with counters only
+      --goals           show goals for phases and sequences
+  -h, --help            help for watch
+      --show-feedback   show blocked-step feedback
+      --summary         show aggregate summary instead of tree view
 ```
 
 ### Options inherited from parent commands
@@ -6826,6 +7027,7 @@ Examples:
   fest workflow advance             # Complete current step and move to next
   fest workflow skip --reason "already completed externally" # Operator override
   fest workflow approve             # Approve a blocking checkpoint
+  fest workflow judge               # Run or re-run the configured approval judge
   fest workflow reject              # Reject checkpoint with feedback
   fest workflow reset               # Reset workflow or gate to step 1
   fest workflow show                # Display the current step details
@@ -6900,12 +7102,31 @@ After approval:
   - The workflow advances to the next step
 
 Auto approval:
-  Manual approval is the default. Use --auto only when an operator has explicitly
-  delegated this checkpoint decision to an external judge command.
+  Configuring hooks.definitions.approval_judge is the operator opt-in that
+  delegates blocking checkpoints away from human review. With that hook set,
+```bash
+  fest next auto-invokes the judge on blocking WORKFLOW.md / GATES.md steps.
 
-  Agents must not clear checkpoints themselves: --as agent is rejected. An
-  agent-actor decision is recorded only when the operator delegates via --auto
-  and the judge returns a verdict.
+  Use 'fest workflow judge' to re-run the judge explicitly after a rejection;
+  '--auto' remains a backwards-compatible alias. Agents must not clear checkpoints with --as agent;
+  agent-actor decisions are recorded only via the judge path.
+
+  Checkpoint classes:
+    artifact_review         — deliverables can be auto-judged when evidence is ready
+    operator_attestation    — human must approve; --auto is refused and plain
+                              manual approval requires an interactive TTY
+
+  Presentation-like steps require non-empty evidence (e.g. output_specs/PRESENTATION.md)
+  before the judge is invoked. Missing evidence blocks deterministically without a model call.
+
+  After a judge reject, re-submit with: fest workflow judge
+  Operator override: run --override-judge --summary "..." from a real terminal
+  and type APPROVE when prompted; records decision_actor=user_override.
+
+  When an approval judge is configured, non-interactive manual approve is
+  refused, including --override-judge and --judge-command, so agents cannot
+  mint decision_actor=user or user_override. Use a real terminal and type
+  APPROVE.
 
   The judge command receives JSON on stdin using schema fest.approval.judge/v1
   and must return JSON on stdout with decision "approve" or "reject" and a
@@ -6913,12 +7134,20 @@ Auto approval:
   decisions, and empty reasons fail closed and do not approve the checkpoint.
 
   The judge command is resolved as: --judge-command flag, else the
-  hooks.approval_judge.command hook in .festival/config.yaml. If neither is
+  hooks.definitions.approval_judge hook in .festival/config.yaml. If neither is
   set, --auto fails closed and leaves the checkpoint unchanged.
 
       hooks:
-        approval_judge:
-          command: ob judge
+        definitions:
+          approval_judge:
+            command: ob judge
+            timeout: 0
+
+  By default --auto launches the judge in the background and returns
+  immediately; the checkpoint stays blocked until the verdict lands, and
+  'fest show' renders the waiting-on-judge state while it runs. Use --wait
+  to block until the judge returns instead.
+```
 
 ```
 fest workflow approve [flags]
@@ -6929,9 +7158,11 @@ fest workflow approve [flags]
 ```
       --auto                     delegate this checkpoint decision to the configured approval judge command
   -h, --help                     help for approve
-      --judge-command string     approval judge command for --auto (overrides the .festival/config.yaml hooks.approval_judge.command hook)
+      --judge-command string     approval judge command for --auto (overrides the .festival/config.yaml hooks.definitions.approval_judge hook; requires an interactive TTY)
       --judge-timeout duration   maximum time to wait for the approval judge (0 waits until it returns)
-      --summary string           approval summary or rationale
+      --override-judge           operator override of a judge/readiness reject (requires --summary and an interactive TTY)
+      --summary string           approval summary or rationale (required with --override-judge)
+      --wait                     block until the judge returns instead of launching it in the background
 ```
 
 ### Options inherited from parent commands
@@ -7026,6 +7257,46 @@ fest workflow init [flags]
       --force                overwrite existing .workflow/workflow.yaml
   -h, --help                 help for init
       --workflow-id string   workflow_id to write into manifest (defaults to wf-<basename>)
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --phase string    specify phase directory (e.g., 001_INGEST)
+      --verbose         enable verbose output
+```
+---
+
+## fest workflow judge
+
+Run the approval judge for the current checkpoint
+
+### Synopsis
+
+Run the configured approval judge for the current blocking checkpoint.
+
+Use this after revising evidence following a judge rejection. A judge-owned
+rejection is reopened automatically; ordinary operator rejections still
+require 'fest workflow approve'. By default the judge runs in the background;
+use --wait when this command should wait for the verdict.
+
+The judge command is resolved from --judge-command or the
+hooks.definitions.approval_judge workspace configuration hook.
+
+```
+fest workflow judge [flags]
+```
+
+### Options
+
+```
+  -h, --help                     help for judge
+      --judge-command string     approval judge command (overrides hooks.definitions.approval_judge; requires an interactive TTY)
+      --judge-timeout duration   maximum time to wait for the approval judge (0 waits until it returns)
+      --wait                     block until the judge returns instead of launching it in the background
 ```
 
 ### Options inherited from parent commands
@@ -7331,6 +7602,9 @@ Shows:
   - Remaining steps
   - Checkpoint status if applicable
 
+Use --json for a stable machine-readable snapshot (schema fest.workflow.status/v1)
+that consumers can read without parsing the human-readable output.
+
 ```
 fest workflow status [flags]
 ```
@@ -7339,6 +7613,7 @@ fest workflow status [flags]
 
 ```
   -h, --help   help for status
+      --json   output as JSON
 ```
 
 ### Options inherited from parent commands

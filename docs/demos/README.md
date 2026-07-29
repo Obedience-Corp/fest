@@ -1,0 +1,27 @@
+# Canonical TUI recording
+
+The explorer demo is produced from the real Fest binary in a disposable PTY
+using the shared Obedience Corp fire palette. The committed GIF is the
+optimized delivery artifact; raw GIF, clean-fixture rerun, PTY transcript,
+frame captures, and build details remain in the private VHS evidence bundle.
+
+| Journey | Tape | Delivery GIF | Manifest |
+| --- | --- | --- | --- |
+| Explorer V3 | [fest-explorer-v3.tape](fest-explorer-v3.tape) | [README embed](../../README.md) | [fest-explorer-v3.manifest.json](fest-explorer-v3.manifest.json) |
+
+The private evidence run is `fest/fest-explorer-v3/20260719T105500Z`. Its
+manifest records source revision `e4b491d`, artifact hashes/metadata, the
+12-state PTY/pyte matrix, privacy PASS, and the secret-Gist handoff.
+
+## Reproduce
+
+Use a disposable fixture containing the branch binary and explorer state, then
+run the real VHS tape from the repository root:
+
+```sh
+FEST_VHS_ROOT=/path/to/fest-explorer-v3-fixture just vhs record docs/demos/fest-explorer-v3.tape
+```
+
+The tape sets a fake config directory and terminal identity. It writes raw
+output under `out/`; keep raw recordings and PTY evidence in the private
+bundle, and publish only the optimized GIF after the privacy scan passes.

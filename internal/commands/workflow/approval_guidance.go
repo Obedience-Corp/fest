@@ -1,0 +1,86 @@
+package workflow
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/ui"
+)
+
+func approvalRecoveryLines(ctx context.Context, step wf.WorkflowStep) []string {
+	return approvalRecoveryLinesFor(ctx, nil, step)
+}
+
+func approvalRecoveryLinesFor(ctx context.Context, nav *wf.Navigator, step wf.WorkflowStep) []string {
+	configured, err := approvalJudgeConfiguredFor(ctx, nav)
+	if err != nil {
+		return []string{
+			fmt.Sprintf("Approval judge configuration is invalid: %v", err),
+			"Fix .festival/config.yaml before approving this checkpoint.",
+		}
+	}
+	if wf.ClassifyCheckpoint(step) == wf.CheckpointClassOperatorAttestation {
+		return []string{
+			"Human attestation required: " + ui.Accent("fest workflow approve") + " (interactive)",
+		}
+	}
+	if !configured {
+		return []string{
+			"Operator approve: " + ui.Accent("fest workflow approve"),
+			"To enable auto-judge, configure hooks.definitions.approval_judge first.",
+		}
+	}
+	if nav != nil {
+		state := nav.GetWorkflowState()
+		stepState := state.GetStepState(step.Number)
+		if stepState != nil && stepState.Status == wf.StepStatusBlocked && !wf.IsJudgeRejection(stepState) {
+			return []string{
+				"Operator override: " + ui.Accent("fest workflow approve") + " (interactive)",
+			}
+		}
+	}
+	return []string{
+		"Operator override:       " + ui.Accent("fest workflow approve") + " (interactive)",
+		"Re-run approval judge:   " + ui.Accent("fest workflow judge"),
+	}
+}
+
+func approvalRecoveryTextFor(ctx context.Context, nav *wf.Navigator, step wf.WorkflowStep) string {
+	return strings.Join(approvalRecoveryLinesFor(ctx, nav, step), "\n")
+}
+
+func printApprovalRecoveryFor(ctx context.Context, nav *wf.Navigator, step wf.WorkflowStep) {
+	for _, line := range approvalRecoveryLinesFor(ctx, nav, step) {
+		fmt.Println(line)
+	}
+}
+
+// judgeFollowupLines renders a judge's itemized fixes as numbered, indented
+// lines under a header. Empty followups (a judge that gave only a reason)
+// produce no output so callers can print unconditionally.
+func judgeFollowupLines(followups []string) []string {
+	cleaned := make([]string, 0, len(followups))
+	for _, f := range followups {
+		if f = strings.TrimSpace(f); f != "" {
+			cleaned = append(cleaned, f)
+		}
+	}
+	if len(cleaned) == 0 {
+		return nil
+	}
+	lines := []string{"  " + ui.Label("Fixes the judge requires") + ":"}
+	for i, f := range cleaned {
+		lines = append(lines, fmt.Sprintf("    %d. %s", i+1, f))
+	}
+	return lines
+}
+
+// printJudgeFollowups writes the judge's itemized fixes to stdout. No-op when
+// the judge returned no followups.
+func printJudgeFollowups(followups []string) {
+	for _, line := range judgeFollowupLines(followups) {
+		fmt.Println(line)
+	}
+}

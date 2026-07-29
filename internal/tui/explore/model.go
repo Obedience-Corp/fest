@@ -108,8 +108,8 @@ func New(ctx context.Context, status string) Model {
 	ti.Placeholder = "filter..."
 	ti.CharLimit = 100
 	ti.Width = 40
-	ti.PromptStyle = lipgloss.NewStyle().Foreground(colorFocus)
-	ti.TextStyle = lipgloss.NewStyle().Foreground(colorText)
+	ti.PromptStyle = lipgloss.NewStyle().Foreground(colorFocus())
+	ti.TextStyle = lipgloss.NewStyle().Foreground(colorText())
 
 	vp := viewport.New(60, 20)
 
@@ -282,7 +282,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case previewLoadedMsg:
 		if msg.rendered == "" {
-			m.viewport.SetContent(dimStyle.Render("No preview available"))
+			m.viewport.SetContent(dimStyle().Render("No preview available"))
 		} else {
 			m.viewport.SetContent(msg.rendered)
 		}
@@ -606,7 +606,7 @@ func RunWithFestival(ctx context.Context, festivalPath string) (*FestivalItem, e
 func detectStatusFromPath(festivalPath string) string {
 	parent := filepath.Base(filepath.Dir(festivalPath))
 	grandparent := filepath.Base(filepath.Dir(filepath.Dir(festivalPath)))
-	if grandparent == "dungeon" {
+	if workspace.IsDungeonDirName(grandparent) {
 		return "dungeon/" + parent
 	}
 	return parent

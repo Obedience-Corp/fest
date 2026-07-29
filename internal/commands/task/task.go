@@ -16,9 +16,11 @@ func NewTaskCommand() *cobra.Command {
 		},
 		Long: `Commands for managing individual task status within a festival.
 
-These commands provide a simpler interface for viewing, editing, marking
-tasks complete, blocked, or resetting them. Each mutation requires
-interactive confirmation to ensure agents verify their work before proceeding.
+This is the single home for task state mutations. Consequential changes
+(completed, blocked, reset) prompt for confirmation to ensure agents verify
+their work; pass --yes to skip the prompt for non-interactive or agent use, and
+--json to emit a structured result (--json requires --yes). Progress signals
+(update, unblock) are frictionless and never prompt.
 
 Task Resolution:
   When [task] is omitted, the command auto-detects the current task:
@@ -35,8 +37,12 @@ Examples:
   fest task show 01_design.md             # Show specific task
   fest task edit                          # Open current task in editor
   fest task completed                     # Mark current task complete (Y/n)
+  fest task completed --yes               # Mark complete, no prompt (agents)
+  fest task completed --yes --json        # Mark complete, structured output
   fest task blocked --reason "need API"   # Mark task blocked (Y/n)
-  fest task reset                         # Reset task to pending (Y/n)`,
+  fest task reset                         # Reset task to pending (Y/n)
+  fest task update 50%                    # Set progress to 50%
+  fest task unblock                       # Clear a blocker, resume work`,
 	}
 
 	cmd.AddCommand(
@@ -45,6 +51,8 @@ Examples:
 		newCompletedCmd(),
 		newBlockedCmd(),
 		newResetCmd(),
+		newUpdateCmd(),
+		newUnblockCmd(),
 	)
 
 	return cmd

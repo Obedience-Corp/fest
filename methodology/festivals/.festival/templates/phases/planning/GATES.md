@@ -19,6 +19,8 @@ This gate verifies the planning phase achieved its goal and produced an approved
 2. Verify the plan covers all aspects of the planning objective
 3. Confirm the approach is feasible and the decomposition is appropriate
 
+**Checkpoint class:** artifact_review
+
 **Checkpoint:** APPROVAL REQUIRED — Confirm planning goal is met
 
 ---
@@ -32,6 +34,8 @@ This gate verifies the planning phase achieved its goal and produced an approved
 2. Verify any user feedback was incorporated
 3. Check that the plan was not scaffolded without approval
 
+**Checkpoint class:** operator_attestation
+
 **Checkpoint:** APPROVAL REQUIRED — Confirm user approved the plan
 
 ---
@@ -44,6 +48,8 @@ This gate verifies the planning phase achieved its goal and produced an approved
 1. Run `fest validate` and confirm it passes
 2. Verify no `[REPLACE: ...]` markers remain in any document
 3. Confirm phases are properly ordered with clear goals
+
+**Checkpoint class:** artifact_review
 
 **Checkpoint:** APPROVAL REQUIRED — Confirm structure is valid
 

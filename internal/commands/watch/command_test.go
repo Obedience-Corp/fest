@@ -18,9 +18,10 @@ func TestShowWatchOptionsAlwaysEnableInProgress(t *testing.T) {
 
 func TestShowWatchOptionsMapCommandFlags(t *testing.T) {
 	got := showWatchOptions(options{
-		summary:   true,
-		goals:     true,
-		collapsed: true,
+		summary:      true,
+		goals:        true,
+		showFeedback: true,
+		collapsed:    true,
 	})
 
 	if !got.Summary {
@@ -31,6 +32,9 @@ func TestShowWatchOptionsMapCommandFlags(t *testing.T) {
 	}
 	if !got.Collapsed {
 		t.Fatal("collapsed flag was not mapped")
+	}
+	if !got.ShowFeedback {
+		t.Fatal("show-feedback flag was not mapped")
 	}
 }
 
@@ -59,7 +63,7 @@ func TestWatchCommandDelegatesWithMappedOptions(t *testing.T) {
 			return nil
 		},
 	})
-	cmd.SetArgs([]string{"test-TT0001", "--goals", "--collapsed", "--summary"})
+	cmd.SetArgs([]string{"test-TT0001", "--goals", "--show-feedback", "--collapsed", "--summary"})
 
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("Execute() error = %v", err)
@@ -76,7 +80,7 @@ func TestWatchCommandDelegatesWithMappedOptions(t *testing.T) {
 	if !gotOptions.InProgress {
 		t.Fatal("watch options must enable in-progress expansion")
 	}
-	if !gotOptions.Goals || !gotOptions.Collapsed || !gotOptions.Summary {
+	if !gotOptions.Goals || !gotOptions.ShowFeedback || !gotOptions.Collapsed || !gotOptions.Summary {
 		t.Fatalf("watch options did not map flags: %#v", gotOptions)
 	}
 }

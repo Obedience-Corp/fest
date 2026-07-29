@@ -31,6 +31,8 @@ mod install '.justfiles/install.just'
 [doc('Linting (golangci-lint, gopls, vet)')]
 mod lint '.justfiles/lint.just'
 
+[doc('Record terminal workflows with VHS')]
+mod vhs '.justfiles/vhs.just'
 
 [private]
 default:
@@ -42,6 +44,31 @@ default:
 # Format Go code (whole-module scope, incl. build-tagged integration files)
 fmt:
     gofmt -w .
+
+# Run the full release gate before creating any channel tag.
+# Covers stable/dev command surfaces plus the containerized integration suite.
+gate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "=== gate: whitespace ==="
+    git diff --check
+    echo "=== gate: stable build ==="
+    just build quick-stable
+    echo "=== gate: dev build ==="
+    just build quick-dev
+    echo "=== gate: vet stable ==="
+    just lint vet
+    echo "=== gate: vet dev ==="
+    go vet -tags=dev ./...
+    echo "=== gate: vet integration ==="
+    go vet -tags=integration ./...
+    echo "=== gate: lint ==="
+    just lint all
+    echo "=== gate: stable tests ==="
+    just test all
+    echo "=== gate: dev unit tests ==="
+    go test -short -tags=dev ./...
+    echo "=== gate: PASSED ==="
 
 # Clean build artifacts with visual dashboard
 clean:

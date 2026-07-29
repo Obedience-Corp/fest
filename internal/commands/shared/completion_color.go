@@ -12,7 +12,7 @@ const ansiReset = "\x1b[0m"
 // colorCompletionDisplay renders the zsh compadd -d display cell for a completion:
 // the value followed by its status, colorized from the active theme palette.
 func colorCompletionDisplay(value, status string) string {
-	return value + " " + ui.StatusColorSequence(status) + status + ansiReset
+	return value + " " + ui.CompletionStatusColorSequence(status) + status + ansiReset
 }
 
 // OrderedSelectorNames returns completion names from picker candidates while

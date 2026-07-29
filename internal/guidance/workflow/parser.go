@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"regexp"
 	"strconv"
@@ -31,13 +32,34 @@ var (
 	checkpointRe = regexp.MustCompile(`(?s)\*\*Checkpoint:\*\*\s*(.+?)(?:\n\n|---|\n##|$)`)
 
 	// checkpointClassRe matches an explicit checkpoint class annotation.
-	checkpointClassRe = regexp.MustCompile(`(?i)\*\*Checkpoint class:\*\*\s*(\S+)`)
+	checkpointClassRe = regexp.MustCompile(`(?im)\*\*Checkpoint class:\*\*[ \t]*([^\r\n]*)`)
 
 	// evidenceRe matches an explicit evidence list for approval judging.
 	evidenceRe = regexp.MustCompile(`(?s)\*\*Evidence:\*\*\s*(.+?)(?:\n\n|\n\*\*|---|\n##|$)`)
 
-	// evidenceItemRe matches bullet evidence paths.
+	// evidenceItemRe matches a bullet evidence path: a single token on its own
+	// line. It is the ONLY definition of "this bullet is a path"; a `-`/`*`
+	// bullet it does not match is reported as unparsed rather than dropped.
+	//
+	// Non-bullet lines, other list markers, and empty bullets under
+	// **Evidence:** still match neither regex and are still ignored. Closing
+	// that would mean classifying every line in the block, which is a wider
+	// change than the silent drop this fixes.
 	evidenceItemRe = regexp.MustCompile(`(?m)^\s*[-*]\s+(\S+)\s*$`)
+
+	// evidenceBulletRe matches EVERY bullet under **Evidence:**. Each one is
+	// then classified against evidenceItemRe, so "not a path" is defined by
+	// that regex rather than by a second heuristic that can drift from it.
+	evidenceBulletRe = regexp.MustCompile(`(?m)^\s*[-*]\s+(.+?)\s*$`)
+
+	// hooksMarkerRe matches a per-step "**Hooks:**" line in GATES.md.
+	hooksMarkerRe = regexp.MustCompile(`(?im)\*\*Hooks:\*\*[ \t]*([^\r\n]*)`)
+
+	// approvalMarkerRe matches a per-step "**Approval:**" line in GATES.md.
+	approvalMarkerRe = regexp.MustCompile(`(?im)\*\*Approval:\*\*[ \t]*([^\r\n]*)`)
+
+	// hookListRe matches "pre: [a, b]" or "post: [x]" fragments.
+	hookListRe = regexp.MustCompile(`(?i)\b(pre|post)\s*:\s*\[([^\]]*)\]`)
 )
 
 // Parser parses WORKFLOW.md files and extracts steps.
@@ -118,8 +140,14 @@ func (p *Parser) ParseContent(ctx context.Context, content string) ([]WorkflowSt
 
 		// Extract checkpoint
 		step.Checkpoint, step.CheckpointText = p.parseCheckpoint(section)
-		step.CheckpointClass = p.parseCheckpointClass(section)
-		step.EvidencePaths = p.parseEvidencePaths(section)
+		checkpointClass, err := p.parseCheckpointClass(section)
+		if err != nil {
+			return nil, fmt.Errorf("step %d checkpoint class: %w", num, err)
+		}
+		step.CheckpointClass = checkpointClass
+		step.EvidencePaths, step.EvidenceUnparsed = p.parseEvidence(section)
+		step.Hooks = p.parseStepHooks(section)
+		step.Approval = p.parseApproval(section)
 
 		steps = append(steps, step)
 	}
@@ -196,38 +224,112 @@ func (p *Parser) parseCheckpoint(section string) (CheckpointType, string) {
 	}
 }
 
-func (p *Parser) parseCheckpointClass(section string) CheckpointClass {
+func (p *Parser) parseCheckpointClass(section string) (CheckpointClass, error) {
 	m := checkpointClassRe.FindStringSubmatch(section)
 	if len(m) < 2 {
-		return CheckpointClassUnspecified
+		return CheckpointClassUnspecified, nil
 	}
-	switch strings.ToLower(strings.TrimSpace(m[1])) {
-	case string(CheckpointClassArtifactReview), "artifact", "review":
-		return CheckpointClassArtifactReview
-	case string(CheckpointClassOperatorAttestation), "operator", "attestation", "user":
-		return CheckpointClassOperatorAttestation
+	value := strings.ToLower(strings.TrimSpace(m[1]))
+	switch value {
+	case string(CheckpointClassArtifactReview):
+		return CheckpointClassArtifactReview, nil
+	case string(CheckpointClassOperatorAttestation):
+		return CheckpointClassOperatorAttestation, nil
 	default:
-		return CheckpointClassUnspecified
+		return CheckpointClassUnspecified, fmt.Errorf(
+			"unsupported value %q (expected %q or %q)",
+			value,
+			CheckpointClassArtifactReview,
+			CheckpointClassOperatorAttestation,
+		)
 	}
 }
 
-func (p *Parser) parseEvidencePaths(section string) []string {
+// parseEvidence classifies every bullet under **Evidence:** exactly once: a
+// bullet is either a path or it is reported.
+//
+// One scan on purpose. Splitting this into a path pass and a separate
+// "not a path" pass meant two definitions of what a path is, and the readiness
+// gate's invariant -- no bullet is silently discarded -- held only while the
+// two happened to agree.
+func (p *Parser) parseEvidence(section string) (paths, unparsed []string) {
 	m := evidenceRe.FindStringSubmatch(section)
 	if len(m) < 2 {
+		return nil, nil
+	}
+	for _, bullet := range evidenceBulletRe.FindAllStringSubmatch(m[1], -1) {
+		if len(bullet) < 2 {
+			continue
+		}
+		text := strings.TrimSpace(bullet[1])
+		if text == "" {
+			continue
+		}
+		if item := evidenceItemRe.FindStringSubmatch(bullet[0]); len(item) >= 2 {
+			if path := strings.TrimSpace(item[1]); path != "" {
+				paths = append(paths, path)
+				continue
+			}
+		}
+		unparsed = append(unparsed, text)
+	}
+	return paths, unparsed
+}
+
+// parseStepHooks extracts pre/post hook name lists from a **Hooks:** marker.
+// Names only; malformed fragments yield empty lists (no panic).
+func (p *Parser) parseStepHooks(section string) StepHooks {
+	m := hooksMarkerRe.FindStringSubmatch(section)
+	if len(m) < 2 {
+		return StepHooks{}
+	}
+	value := strings.TrimSpace(m[1])
+	if value == "" {
+		return StepHooks{}
+	}
+	var hooks StepHooks
+	for _, match := range hookListRe.FindAllStringSubmatch(value, -1) {
+		if len(match) < 3 {
+			continue
+		}
+		names := splitHookNames(match[2])
+		switch strings.ToLower(match[1]) {
+		case "pre":
+			hooks.Pre = append(hooks.Pre, names...)
+		case "post":
+			hooks.Post = append(hooks.Post, names...)
+		}
+	}
+	return hooks
+}
+
+func splitHookNames(raw string) []string {
+	if strings.TrimSpace(raw) == "" {
 		return nil
 	}
-	var paths []string
-	for _, item := range evidenceItemRe.FindAllStringSubmatch(m[1], -1) {
-		if len(item) < 2 {
+	parts := strings.Split(raw, ",")
+	var names []string
+	for _, p := range parts {
+		name := strings.TrimSpace(p)
+		name = strings.Trim(name, `"'`)
+		if name == "" {
 			continue
 		}
-		path := strings.TrimSpace(item[1])
-		if path == "" {
+		// Names only — reject map-like or assignment fragments.
+		if strings.Contains(name, ":") || strings.ContainsAny(name, "{}") {
 			continue
 		}
-		paths = append(paths, path)
+		names = append(names, name)
 	}
-	return paths
+	return names
+}
+
+func (p *Parser) parseApproval(section string) string {
+	m := approvalMarkerRe.FindStringSubmatch(section)
+	if len(m) < 2 {
+		return ""
+	}
+	return strings.TrimSpace(m[1])
 }
 
 // ClassifyCheckpoint resolves the checkpoint class for a step.
@@ -236,6 +338,8 @@ func (p *Parser) parseEvidencePaths(section string) []string {
 // PRESENT / "wait for user response" steps remain artifact_review: the judge
 // reviews the presentation pack. Phrases that ask whether the user already
 // validated/approved are operator_attestation and cannot be auto-judged.
+// Ambiguous legacy checkpoints fail closed as operator_attestation; shipped
+// templates carry explicit classes so heuristics are compatibility-only.
 func ClassifyCheckpoint(step WorkflowStep) CheckpointClass {
 	if step.CheckpointClass == CheckpointClassArtifactReview ||
 		step.CheckpointClass == CheckpointClassOperatorAttestation {
@@ -264,7 +368,10 @@ func ClassifyCheckpoint(step WorkflowStep) CheckpointClass {
 			return CheckpointClassOperatorAttestation
 		}
 	}
-	return CheckpointClassArtifactReview
+	if IsPresentationStep(step) {
+		return CheckpointClassArtifactReview
+	}
+	return CheckpointClassOperatorAttestation
 }
 
 // IsPresentationStep reports whether the step is a PRESENT-style deliverable review.

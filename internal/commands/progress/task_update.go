@@ -4,6 +4,7 @@ package progress
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -23,6 +24,8 @@ func handleTaskUpdate(ctx context.Context, mgr *progress.Manager, festivalPath s
 	if err != nil {
 		return err
 	}
+
+	warnProgressDeprecation(os.Stderr, opts)
 
 	if err := lifecycle.EnforcePreActive(ctx, festivalPath, lifecycle.EnforceOptions{
 		TaskID: taskID,
@@ -183,6 +186,15 @@ func handleTaskUpdate(ctx context.Context, mgr *progress.Manager, festivalPath s
 		if err != nil {
 			return err
 		}
+		// Mirror `fest task update`: 100% must run through the gated completion
+		// path, not this deprecated shim. Without this, an agent still on the
+		// old flag could complete a task without quality-gate evaluation for the
+		// whole deprecation window, re-opening the ungated completion side-door
+		// that `fest task completed` exists to close.
+		if pct == 100 {
+			return errors.Validation("100% progress must be finalized with 'fest task completed'").
+				WithHint("run 'fest task completed --yes' to evaluate quality gates and complete the task")
+		}
 		if err := mgr.UpdateProgress(ctx, taskID, pct); err != nil {
 			return err
 		}
@@ -295,6 +307,29 @@ func statusForProgress(progressPct int) string {
 	default:
 		return progress.StatusPending
 	}
+}
+
+// warnProgressDeprecation prints a one-line deprecation notice to w when a
+// task-mutating progress flag is used. Task mutations now live under
+// 'fest task'; 'fest progress' is display-only. The action still runs for one
+// release so existing callers keep working. --in-progress is intentionally not
+// deprecated: it stays with the progress display surface.
+func warnProgressDeprecation(w io.Writer, opts *progressOptions) {
+	var replacement string
+	switch {
+	case opts.complete:
+		replacement = "fest task completed --yes"
+	case opts.update != "":
+		replacement = "fest task update <percent>"
+	case opts.blocker != "":
+		replacement = "fest task blocked --reason <msg> --yes"
+	case opts.clear:
+		replacement = "fest task unblock"
+	default:
+		return
+	}
+	_, _ = fmt.Fprintf(w, "%s this 'fest progress' task mutation is deprecated; use '%s' instead. It will be removed in a future release.\n",
+		ui.Warning("Warning:"), replacement)
 }
 
 // progressReasonFor returns a label for the lifecycle gate based on the

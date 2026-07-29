@@ -6,6 +6,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 )
 
 func TestBuildFestivalTree(t *testing.T) {
@@ -131,6 +134,71 @@ fest_tracking: true
 	}
 	if seq.Children[1].Name != "02_task.md" {
 		t.Errorf("expected task name '02_task.md', got '%s'", seq.Children[1].Name)
+	}
+}
+
+func TestRenderTreeStepShowsConciseJudgeFeedback(t *testing.T) {
+	step := buildStepNode(shared.WorkflowStepView{
+		Number:   2,
+		Name:     "REVIEW",
+		Status:   wf.StepStatusBlocked,
+		Feedback: `approval auto mode: schema_version=fest.approval.judge/v1 judge_command="ob judge" decision=reject reason="missing acceptance proof"`,
+		Judge:    &wf.JudgeState{Status: wf.JudgeRejected},
+	})
+	tree := &DisplayNode{
+		Name:     "festival",
+		NodeType: "festival",
+		Children: []*DisplayNode{{
+			Name:     "001_PHASE",
+			NodeType: "phase",
+			Status:   "blocked",
+			Stats:    StatusCounts{Total: 1, Blocked: 1},
+			Children: []*DisplayNode{step},
+		}},
+	}
+	defaultOutput := RenderTree(tree, DefaultTreeOptions())
+	if strings.Contains(defaultOutput, "Feedback:") {
+		t.Fatalf("tree should hide feedback by default:\n%s", defaultOutput)
+	}
+	opts := DefaultTreeOptions()
+	opts.ShowFeedback = true
+	output := RenderTree(tree, opts)
+
+	if !strings.Contains(output, "Feedback: missing acceptance proof") {
+		t.Fatalf("tree missing concise feedback:\n%s", output)
+	}
+	if !strings.Contains(output, "Judge: rejected") {
+		t.Fatalf("tree missing judge status:\n%s", output)
+	}
+	if strings.Contains(output, "schema_version") || strings.Contains(output, "judge_command") {
+		t.Fatalf("tree leaked judge metadata:\n%s", output)
+	}
+}
+
+func TestRenderTreeStepShowsWaitingJudgeIcon(t *testing.T) {
+	step := buildStepNode(shared.WorkflowStepView{
+		Number: 2,
+		Name:   "REVIEW",
+		Status: wf.StepStatusBlocked,
+		Judge:  &wf.JudgeState{Status: wf.JudgeRunning},
+	})
+	output := RenderTree(&DisplayNode{
+		Name:     "festival",
+		NodeType: "festival",
+		Children: []*DisplayNode{{
+			Name:     "001_PHASE",
+			NodeType: "phase",
+			Status:   "blocked",
+			Stats:    StatusCounts{Total: 1, Blocked: 1},
+			Children: []*DisplayNode{step},
+		}},
+	}, DefaultTreeOptions())
+
+	if !strings.Contains(output, "⚖ Step 2: REVIEW") {
+		t.Fatalf("tree missing purple waiting judge icon:\n%s", output)
+	}
+	if !strings.Contains(output, "Judge: waiting") {
+		t.Fatalf("tree missing waiting judge state:\n%s", output)
 	}
 }
 
@@ -359,6 +427,78 @@ func TestRenderTree_Collapsed(t *testing.T) {
 	}
 }
 
+func TestRenderTree_InProgressPreservesBlockedTaskStatus(t *testing.T) {
+	tree := &DisplayNode{
+		Name:   "test-festival",
+		Status: "blocked",
+		Stats:  StatusCounts{Total: 1, Blocked: 1},
+		Children: []*DisplayNode{{
+			Name:   "001_PHASE",
+			Status: "blocked",
+			Stats:  StatusCounts{Total: 1, Blocked: 1},
+			Children: []*DisplayNode{{
+				Name:   "01_sequence",
+				Status: "blocked",
+				Stats:  StatusCounts{Total: 1, Blocked: 1},
+				Children: []*DisplayNode{{
+					Name:     "01_blocked.md",
+					NodeType: "task",
+					Status:   "blocked",
+					Stats:    StatusCounts{Total: 1, Blocked: 1},
+				}},
+			}},
+		}},
+	}
+
+	opts := DefaultTreeOptions()
+	opts.InProgress = true
+	output := RenderTree(tree, opts)
+
+	if tree.Children[0].Children[0].Children[0].Status != "blocked" {
+		t.Fatalf("in-progress rendering changed blocked task status to %q", tree.Children[0].Children[0].Children[0].Status)
+	}
+	if !strings.Contains(output, "■") {
+		t.Errorf("blocked task should render the blocked icon, got %q", output)
+	}
+	if strings.Contains(output, "●") {
+		t.Errorf("blocked task should not render as in_progress, got %q", output)
+	}
+}
+
+func TestRenderTree_InProgressHighlightsPendingTask(t *testing.T) {
+	task := &DisplayNode{
+		Name:     "01_pending.md",
+		NodeType: "task",
+		Status:   "pending",
+		Stats:    StatusCounts{Total: 1, Pending: 1},
+	}
+	tree := &DisplayNode{
+		Name:   "test-festival",
+		Status: "pending",
+		Stats:  StatusCounts{Total: 1, Pending: 1},
+		Children: []*DisplayNode{{
+			Name:   "001_PHASE",
+			Status: "pending",
+			Stats:  StatusCounts{Total: 1, Pending: 1},
+			Children: []*DisplayNode{{
+				Name:     "01_sequence",
+				NodeType: "sequence",
+				Status:   "pending",
+				Stats:    StatusCounts{Total: 1, Pending: 1},
+				Children: []*DisplayNode{task},
+			}},
+		}},
+	}
+
+	opts := DefaultTreeOptions()
+	opts.InProgress = true
+	RenderTree(tree, opts)
+
+	if task.Status != "in_progress" {
+		t.Errorf("next pending task status = %q, want in_progress", task.Status)
+	}
+}
+
 func TestDetermineStatus(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -370,6 +510,7 @@ func TestDetermineStatus(t *testing.T) {
 		{"all completed", StatusCounts{Total: 5, Completed: 5}, "completed"},
 		{"in progress", StatusCounts{Total: 5, Completed: 2, InProgress: 1, Pending: 2}, "in_progress"},
 		{"some completed no in progress", StatusCounts{Total: 5, Completed: 2, Pending: 3}, "in_progress"},
+		{"blocked", StatusCounts{Total: 5, Blocked: 1, Pending: 4}, "blocked"},
 	}
 
 	for _, tt := range tests {

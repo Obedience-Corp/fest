@@ -216,18 +216,17 @@ func runAdvance(ctx context.Context) error {
 	// Handle blocked step
 	if stepState != nil && stepState.Status == wf.StepStatusBlocked {
 		feedback := ""
-		if stepState.Feedback != "" {
-			feedback = fmt.Sprintf(": %s", stepState.Feedback)
+		if note := wf.DisplayFeedback(stepState.Feedback); note != "" {
+			feedback = fmt.Sprintf(": %s", note)
 		}
-		return fmt.Errorf("step %d is blocked%s\n\nAddress the feedback, then re-submit with 'fest workflow approve --auto'\nOperator override: 'fest workflow approve' (interactive) or '--override-judge --summary \"...\"'\nOr use 'fest workflow reset' to start the phase workflow over", currentStepNum, feedback)
+		return fmt.Errorf("step %d is blocked%s\n\nAddress the feedback, then choose a valid approval route:\n%s\nOr use 'fest workflow reset' to start the phase workflow over", currentStepNum, feedback, approvalRecoveryTextFor(ctx, nav, step))
 	}
 
 	// Check for blocking checkpoint
 	if step.Checkpoint.IsBlocking() {
 		fmt.Printf("%s Step %d: %s — work complete\n", ui.Success("✓"), currentStepNum, step.Name)
 		fmt.Printf("%s CHECKPOINT: Awaiting approval\n\n", ui.Warning("⚠"))
-		fmt.Println("Auto-judge (when configured): " + ui.Accent("fest workflow approve --auto"))
-		fmt.Println("Operator approve (interactive): " + ui.Accent("fest workflow approve"))
+		printApprovalRecoveryFor(ctx, nav, step)
 		fmt.Println("To reject with feedback: " + ui.Accent("fest workflow reject --reason \"...\""))
 		return nil
 	}

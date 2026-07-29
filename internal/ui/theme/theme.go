@@ -6,6 +6,8 @@ import (
 	"context"
 
 	"github.com/Obedience-Corp/fest/internal/config"
+	"github.com/Obedience-Corp/fest/internal/ui"
+	sharedbrand "github.com/Obedience-Corp/obey-shared/brand"
 	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -49,72 +51,23 @@ type palette struct {
 	error       lipgloss.TerminalColor
 	selected    lipgloss.TerminalColor
 	border      lipgloss.TerminalColor
+	surface     lipgloss.TerminalColor
 }
 
-// adaptivePalette returns colors that auto-detect terminal background.
-func adaptivePalette() palette {
-	return palette{
-		text:        lipgloss.AdaptiveColor{Light: "#000000", Dark: "#FFFFFF"},
-		title:       lipgloss.AdaptiveColor{Light: "#005FAF", Dark: "#00D7FF"},
-		placeholder: lipgloss.AdaptiveColor{Light: "#808080", Dark: "#949494"},
-		focus:       lipgloss.AdaptiveColor{Light: "#FF8700", Dark: "#FFD700"},
-		error:       lipgloss.AdaptiveColor{Light: "#D70000", Dark: "#FF5F87"},
-		selected:    lipgloss.AdaptiveColor{Light: "#00AF00", Dark: "#00FF5F"},
-		border:      lipgloss.AdaptiveColor{Light: "#005FAF", Dark: "#00D7FF"},
-	}
-}
-
-// lightPalette returns colors optimized for light backgrounds.
-func lightPalette() palette {
-	return palette{
-		text:        lipgloss.Color("#000000"),
-		title:       lipgloss.Color("#005FAF"),
-		placeholder: lipgloss.Color("#666666"),
-		focus:       lipgloss.Color("#D75F00"),
-		error:       lipgloss.Color("#D70000"),
-		selected:    lipgloss.Color("#008700"),
-		border:      lipgloss.Color("#005FAF"),
-	}
-}
-
-// darkPalette returns colors optimized for dark backgrounds.
-func darkPalette() palette {
-	return palette{
-		text:        lipgloss.Color("#FFFFFF"),
-		title:       lipgloss.Color("#00D7FF"),
-		placeholder: lipgloss.Color("#949494"),
-		focus:       lipgloss.Color("#FFD700"),
-		error:       lipgloss.Color("#FF5F87"),
-		selected:    lipgloss.Color("#00FF5F"),
-		border:      lipgloss.Color("#00D7FF"),
-	}
-}
-
-// highContrastPalette returns maximum contrast colors for any background.
-// Uses pure white text with bright accent colors that work on colored backgrounds.
-func highContrastPalette() palette {
-	return palette{
-		text:        lipgloss.Color("#FFFFFF"), // Pure white
-		title:       lipgloss.Color("#00FFFF"), // Bright cyan
-		placeholder: lipgloss.Color("#AAAAAA"), // Light grey (visible on colors)
-		focus:       lipgloss.Color("#FFFF00"), // Bright yellow
-		error:       lipgloss.Color("#FF5555"), // Bright red
-		selected:    lipgloss.Color("#00FF00"), // Bright green
-		border:      lipgloss.Color("#00FFFF"), // Bright cyan
-	}
-}
-
-// getPalette returns the color palette for a theme name.
+// getPalette adapts shared semantic roles to huh's field-level theme shape.
+// The color values remain owned by obey-shared; this package only decides which
+// role each Huh element consumes.
 func getPalette(name ThemeName) palette {
-	switch name {
-	case ThemeLight:
-		return lightPalette()
-	case ThemeDark:
-		return darkPalette()
-	case ThemeHighContrast:
-		return highContrastPalette()
-	default:
-		return adaptivePalette()
+	p := ui.ResolveBrandPalette(sharedbrand.ParseMode(string(name)))
+	return palette{
+		text:        lipgloss.Color(p.TextPrimary),
+		title:       lipgloss.Color(p.Accent),
+		placeholder: lipgloss.Color(p.TextMuted),
+		focus:       lipgloss.Color(p.Focus),
+		error:       lipgloss.Color(p.StatusError),
+		selected:    lipgloss.Color(p.StatusSuccess),
+		border:      lipgloss.Color(p.Border),
+		surface:     lipgloss.Color(p.SurfaceBase),
 	}
 }
 
@@ -183,7 +136,7 @@ func buildTheme(p palette) *huh.Theme {
 
 	t.Focused.FocusedButton = lipgloss.NewStyle().
 		Background(p.focus).
-		Foreground(lipgloss.Color("#000000")).
+		Foreground(p.surface).
 		Bold(true).
 		Padding(0, 1)
 

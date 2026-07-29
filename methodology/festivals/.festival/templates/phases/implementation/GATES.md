@@ -19,6 +19,8 @@ This gate verifies the implementation phase achieved its goal and produced worki
 2. Verify each required deliverable exists and is functional
 3. Confirm the implementation solves the problem the phase was created for
 
+**Checkpoint class:** artifact_review
+
 **Checkpoint:** APPROVAL REQUIRED — Confirm phase goal is met
 
 ---
@@ -31,6 +33,8 @@ This gate verifies the implementation phase achieved its goal and produced worki
 1. Compare each sequence's output against its SEQUENCE_GOAL.md
 2. Verify all sequence-level quality gates passed
 3. Confirm no sequences were skipped or left incomplete
+
+**Checkpoint class:** artifact_review
 
 **Checkpoint:** APPROVAL REQUIRED — Confirm all sequence goals achieved
 
@@ -46,6 +50,8 @@ This gate verifies the implementation phase achieved its goal and produced worki
 3. Check for regressions introduced during implementation
 4. Verify no new warnings or linting issues
 
+**Checkpoint class:** artifact_review
+
 **Checkpoint:** APPROVAL REQUIRED — Confirm build and tests are green
 
 ---
@@ -58,6 +64,8 @@ This gate verifies the implementation phase achieved its goal and produced worki
 1. Confirm every task is marked complete
 2. Verify code review findings were incorporated or explicitly deferred with justification
 3. Check that iterate gates resolved all flagged issues
+
+**Checkpoint class:** artifact_review
 
 **Checkpoint:** APPROVAL REQUIRED — Confirm completeness
 

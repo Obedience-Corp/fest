@@ -14,9 +14,7 @@ import (
 func TestRunRejectWithRemediation_RecordsFailedGate(t *testing.T) {
 	festDir := setupGateRemediationFestival(t)
 	ctx := scope.WithFestival(context.Background(), festDir)
-	if err := os.Chdir(festDir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	t.Chdir(festDir)
 
 	if err := runRejectWithRemediation(ctx, "blockers found", "005_FIX_PR_302"); err != nil {
 		t.Fatalf("runRejectWithRemediation: %v", err)
@@ -48,9 +46,7 @@ func TestRunRejectWithRemediation_RecordsFailedGate(t *testing.T) {
 func TestRunRejectWithRemediation_ValidatesPhaseExists(t *testing.T) {
 	festDir := setupGateRemediationFestival(t)
 	ctx := scope.WithFestival(context.Background(), festDir)
-	if err := os.Chdir(festDir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	t.Chdir(festDir)
 
 	err := runRejectWithRemediation(ctx, "x", "999_DOES_NOT_EXIST")
 	if err == nil {
@@ -68,9 +64,7 @@ func TestRunRejectWithRemediation_ValidatesPhaseNameFormat(t *testing.T) {
 		t.Fatalf("mkdir: %v", err)
 	}
 	ctx := scope.WithFestival(context.Background(), festDir)
-	if err := os.Chdir(festDir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	t.Chdir(festDir)
 
 	err := runRejectWithRemediation(ctx, "x", "BAD_NAME_NO_NUMBER")
 	if err == nil {
@@ -81,9 +75,7 @@ func TestRunRejectWithRemediation_ValidatesPhaseNameFormat(t *testing.T) {
 func TestRunRejectWithRemediation_RejectsNonGateNavigator(t *testing.T) {
 	festDir := setupWorkflowCheckpointFestival(t)
 	ctx := scope.WithFestival(context.Background(), festDir)
-	if err := os.Chdir(festDir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	t.Chdir(festDir)
 
 	err := runRejectWithRemediation(ctx, "blockers", "005_FIX_PR_302")
 	if err == nil {
@@ -136,9 +128,7 @@ func TestValidateRemediationPhase_AcceptsSequenceDirs(t *testing.T) {
 func TestRunReject_DefaultBehaviorUnchanged(t *testing.T) {
 	festDir := setupGateRemediationFestival(t)
 	ctx := scope.WithFestival(context.Background(), festDir)
-	if err := os.Chdir(festDir); err != nil {
-		t.Fatalf("chdir: %v", err)
-	}
+	t.Chdir(festDir)
 
 	if err := runReject(ctx, "needs revision"); err != nil {
 		t.Fatalf("runReject: %v", err)

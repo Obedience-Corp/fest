@@ -11,6 +11,7 @@ import (
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workflow"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -65,6 +66,12 @@ func runRepair(ctx context.Context, opts *repairOptions) error {
 	if err != nil {
 		return errors.Wrap(err, "finding festivals root").
 			WithHint("run this command from within a festivals/ directory")
+	}
+	// Repair classifies and moves items based on a single-spelling dungeon
+	// scan; if both spellings exist the scan cannot see the other one, so refuse
+	// rather than reorganize against a partial view.
+	if err := workspace.CheckDungeonConflict(festivalsRoot); err != nil {
+		return err
 	}
 
 	plan, err := analyzeRepair(ctx, festivalsRoot)
@@ -185,7 +192,7 @@ func analyzeMoves(festivalsRoot string, plan *repairPlan) {
 	if err != nil || !info.IsDir() {
 		return
 	}
-	dungeonCompletedPath := filepath.Join(festivalsRoot, "dungeon", "completed")
+	dungeonCompletedPath := workspace.JoinDungeon(festivalsRoot, "completed")
 	if _, err := os.Stat(dungeonCompletedPath); os.IsNotExist(err) {
 		plan.moveDirs["completed"] = "dungeon/completed"
 	}
@@ -198,7 +205,7 @@ func analyzeMissingDirs(festivalsRoot string, plan *repairPlan) {
 		if isPlannedTarget(dirPath, plan) {
 			continue
 		}
-		fullPath := filepath.Join(festivalsRoot, dirPath)
+		fullPath := workspace.JoinStatus(festivalsRoot, dirPath)
 		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
 			plan.createDirs = append(plan.createDirs, dirPath)
 		}
@@ -291,7 +298,7 @@ func displayUnknownChildren(plan *repairPlan) {
 	}
 	fmt.Printf("  %s\n", ui.Warning("Unknown Dungeon Children (manual action needed):"))
 	for _, name := range plan.unknownChildren {
-		entryPath := filepath.Join(plan.festivalsRoot, "dungeon", name)
+		entryPath := workspace.JoinDungeon(plan.festivalsRoot, name)
 		count := countSubdirs(entryPath)
 		fmt.Printf("    %s  (contains %d items)\n", ui.Value(name+"/", ui.WarningColor), count)
 	}

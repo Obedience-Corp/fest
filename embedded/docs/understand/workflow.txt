@@ -53,7 +53,7 @@ Common commands:
   fest workflow show
   fest workflow advance
   fest workflow approve
-  fest workflow approve --auto
+  fest workflow judge
   fest workflow reject --reason "..."
   fest workflow reset
   fest workflow skip --reason "already completed externally"
@@ -61,11 +61,25 @@ Common commands:
 Approval Auto Mode
 ------------------
 
-Manual approval is the default. `fest workflow approve --auto` is an explicit
-operator delegation to an external judge command, not an inferred agent
-permission. There is no default judge command: configure one with the
-`hooks.approval_judge.command` hook in `.festival/config.yaml` or pass
-`--judge-command`; otherwise `--auto` fails closed.
+Blocking checkpoints can be delegated to an automation hook named
+`approval_judge`. Preferred declaration (festivals layer):
+
+  hooks:
+    definitions:
+      approval_judge:
+        command: ob judge
+        timeout: 0   # optional: approval_judge already defaults to no deadline
+
+When that definition is present and the step is not human-required:
+
+  • `fest next` auto-invokes the judge on each consecutive blocking checkpoint
+    and continues after approve (or stops after reject / fail-closed errors).
+  • `fest workflow judge` explicitly runs or re-runs the configured judge after
+    feedback is addressed; `fest workflow approve --auto` remains a compatible
+    alias.
+
+There is no default judge command: without a definition (or `--judge-command`),
+approval stays manual and fails closed for `--auto`.
 
 The judge command receives JSON on stdin using schema
 `fest.approval.judge/v1` and must return JSON on stdout with decision
@@ -73,7 +87,13 @@ The judge command receives JSON on stdin using schema
 non-zero exits, malformed JSON, unknown decisions, and empty reasons fail
 closed: fest does not approve the checkpoint and leaves the workflow state
 unchanged except for valid reject decisions, which block the step with the
-judge reason in the audit text.
+judge reason as concise feedback.
+
+Full hooks model (layers, bindings, fail policies, human gates):
+
+  fest understand hooks
+  docs/concepts/hooks.md
+  fest hooks list
 
 Auto-Routing Rules
 ------------------

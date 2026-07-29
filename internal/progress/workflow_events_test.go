@@ -76,6 +76,88 @@ func TestMaterializeWorkflowState_ResetClearsJudge(t *testing.T) {
 	}
 }
 
+func TestMaterializeWorkflowState_IgnoresSupersededJudgeEvents(t *testing.T) {
+	now := time.Now().UTC()
+	events := []ProgressEvent{
+		{Timestamp: now, Event: EventWorkflowInit, Phase: "001_INGEST", TotalSteps: 1},
+		{Timestamp: now.Add(time.Second), Event: EventWorkflowJudgeStarted, Phase: "001_INGEST", Step: 1, JudgeCommand: "old", JudgeRunID: "run-old"},
+		{Timestamp: now.Add(2 * time.Second), Event: EventWorkflowJudgeClaimed, Phase: "001_INGEST", Step: 1, JudgePid: 100, JudgeRunID: "run-old"},
+		{Timestamp: now.Add(3 * time.Second), Event: EventWorkflowJudgeStarted, Phase: "001_INGEST", Step: 1, JudgeCommand: "new", JudgeRunID: "run-new"},
+		{Timestamp: now.Add(4 * time.Second), Event: EventWorkflowJudgeClaimed, Phase: "001_INGEST", Step: 1, JudgePid: 200, JudgeRunID: "run-new"},
+		{Timestamp: now.Add(5 * time.Second), Event: EventWorkflowJudgeReturned, Phase: "001_INGEST", Step: 1, JudgeStatus: wf.JudgeApproved, JudgeDetail: "stale", JudgeRunID: "run-old"},
+	}
+
+	state := materializeWorkflowState(events).Phases["001_INGEST"]
+	judge := state.GetStepState(1).Judge
+	if judge == nil || judge.Status != wf.JudgeRunning || judge.RunID != "run-new" || judge.Pid != 200 {
+		t.Fatalf("stale event changed active lease: %+v", judge)
+	}
+}
+
+func TestMaterializeWorkflowState_ClearsJudgeAfterOperatorDecision(t *testing.T) {
+	now := time.Now().UTC()
+	events := []ProgressEvent{
+		{Timestamp: now, Event: EventWorkflowInit, Phase: "001_INGEST", TotalSteps: 1},
+		{Timestamp: now.Add(time.Second), Event: EventWorkflowStepStart, Phase: "001_INGEST", Step: 1},
+		{Timestamp: now.Add(2 * time.Second), Event: EventWorkflowJudgeStarted, Phase: "001_INGEST", Step: 1, JudgeCommand: "ob judge", JudgeRunID: "run-1"},
+		{Timestamp: now.Add(3 * time.Second), Event: EventWorkflowJudgeReturned, Phase: "001_INGEST", Step: 1, JudgeStatus: wf.JudgeRejected, JudgeDetail: "missing proof", JudgeRunID: "run-1"},
+		{Timestamp: now.Add(4 * time.Second), Event: EventWorkflowStepBlock, Phase: "001_INGEST", Step: 1, Feedback: "operator review required", DecisionActor: "user", DecisionSummary: "manual decision"},
+		{Timestamp: now.Add(5 * time.Second), Event: EventWorkflowJudgeCleared, Phase: "001_INGEST", Step: 1, JudgeRunID: "run-1"},
+		// A late detached verdict must not recreate the cleared judge state.
+		{Timestamp: now.Add(6 * time.Second), Event: EventWorkflowJudgeReturned, Phase: "001_INGEST", Step: 1, JudgeStatus: wf.JudgeApproved, JudgeDetail: "late verdict", JudgeRunID: "run-1"},
+	}
+
+	step := materializeWorkflowState(events).Phases["001_INGEST"].GetStepState(1)
+	if step == nil {
+		t.Fatal("expected step state")
+	}
+	if step.Judge != nil {
+		t.Fatalf("judge state = %+v, want nil after operator decision", step.Judge)
+	}
+	if step.Status != wf.StepStatusBlocked || step.DecisionActor != "user" {
+		t.Fatalf("step = %+v, want blocked operator decision", step)
+	}
+}
+
+func TestMaterializeWorkflowState_JudgeRejectionFollowupsRoundTrip(t *testing.T) {
+	now := time.Now().UTC()
+	followups := []string{
+		"Attach the actual test-run console output.",
+		"Include the ledger transition as captured output, not an assertion.",
+	}
+	events := []ProgressEvent{
+		{Timestamp: now, Event: EventWorkflowInit, Phase: "gate:001_IMPLEMENT", TotalSteps: 1},
+		{Timestamp: now.Add(time.Second), Event: EventWorkflowStepStart, Phase: "gate:001_IMPLEMENT", Step: 1},
+		{Timestamp: now.Add(2 * time.Second), Event: EventWorkflowJudgeStarted, Phase: "gate:001_IMPLEMENT", Step: 1, JudgeCommand: "ob judge", JudgeRunID: "run-1"},
+		{Timestamp: now.Add(3 * time.Second), Event: EventWorkflowJudgeReturned, Phase: "gate:001_IMPLEMENT", Step: 1, JudgeStatus: wf.JudgeRejected, JudgeDetail: "thin evidence", JudgeRunID: "run-1"},
+		{Timestamp: now.Add(4 * time.Second), Event: EventWorkflowStepBlock, Phase: "gate:001_IMPLEMENT", Step: 1, Feedback: "thin evidence", Followups: followups, DecisionActor: "agent", DecisionSummary: "thin evidence"},
+	}
+
+	step := materializeWorkflowState(events).Phases["gate:001_IMPLEMENT"].GetStepState(1)
+	if step == nil {
+		t.Fatal("expected step state")
+	}
+	if step.Status != wf.StepStatusBlocked {
+		t.Fatalf("status = %v, want blocked", step.Status)
+	}
+	if len(step.Followups) != len(followups) {
+		t.Fatalf("followups = %v, want %v", step.Followups, followups)
+	}
+	for i, f := range followups {
+		if step.Followups[i] != f {
+			t.Fatalf("followup[%d] = %q, want %q", i, step.Followups[i], f)
+		}
+	}
+
+	// A subsequent re-judge (JudgeRecheck) clears the stale fix list so the
+	// agent never re-reads fixes for evidence it has since revised.
+	events = append(events, ProgressEvent{Timestamp: now.Add(5 * time.Second), Event: EventWorkflowJudgeRecheck, Phase: "gate:001_IMPLEMENT", Step: 1})
+	step = materializeWorkflowState(events).Phases["gate:001_IMPLEMENT"].GetStepState(1)
+	if len(step.Followups) != 0 {
+		t.Fatalf("followups after recheck = %v, want empty", step.Followups)
+	}
+}
+
 func TestGenerateWorkflowEventsFromYAML_EmitsStepSkip(t *testing.T) {
 	now := time.Now().UTC()
 	phaseState := wf.NewWorkflowState(2)

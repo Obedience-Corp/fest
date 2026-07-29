@@ -149,24 +149,55 @@ func runShow(ctx context.Context, stepNum int) error {
 		sb.WriteString("\n\n")
 	}
 
+	// Delegated judge lifecycle (purple waiting-on-judge while running).
+	if stepState != nil && stepState.Judge != nil {
+		sb.WriteString(ui.Label("Judge: "))
+		switch stepState.Judge.Status {
+		case wf.JudgeRunning:
+			sb.WriteString(ui.ColoredText("waiting", ui.JudgeColor))
+		case wf.JudgeFailed:
+			sb.WriteString(ui.Error("failed (fails closed)"))
+			if detail := wf.DisplayFeedback(stepState.Judge.Detail); detail != "" {
+				sb.WriteString("\n  ")
+				sb.WriteString(detail)
+			}
+		case wf.JudgeApproved, wf.JudgeRejected:
+			sb.WriteString(ui.Dim(stepState.Judge.Status))
+		default:
+			sb.WriteString(stepState.Judge.Status)
+		}
+		sb.WriteString("\n\n")
+	}
+
 	// Show feedback/note metadata for blocked and skipped/completed-with-note states.
 	if stepState != nil && stepState.Feedback != "" {
-		label := ui.Error("Rejection Feedback:")
+		feedback := wf.DisplayFeedback(stepState.Feedback)
+		label := ui.Error("Feedback:")
 		if stepState.Status == wf.StepStatusSkipped || stepState.Status == wf.StepStatusCompleted {
 			label = ui.Warning("Operator Note:")
 		}
-		sb.WriteString(label)
-		sb.WriteString("\n  ")
-		sb.WriteString(stepState.Feedback)
-		sb.WriteString("\n\n")
+		if feedback != "" {
+			sb.WriteString(label)
+			sb.WriteString("\n  ")
+			sb.WriteString(feedback)
+			sb.WriteString("\n\n")
+		}
 	}
 
 	// Navigation hint
 	if isCurrent {
-		sb.WriteString(ui.Dim("When complete: "))
-		if step.Checkpoint.IsBlocking() {
-			sb.WriteString(ui.Accent("fest workflow approve"))
+		waitingOnJudge := stepState != nil && stepState.Judge != nil &&
+			stepState.Judge.Status == wf.JudgeRunning
+		if step.Checkpoint.IsBlocking() && !waitingOnJudge {
+			sb.WriteString(ui.Dim("Approval routes:\n  "))
+			sb.WriteString(strings.Join(approvalRecoveryLinesFor(ctx, nav, step), "\n  "))
 		} else {
+			sb.WriteString(ui.Dim("When complete: "))
+		}
+		if waitingOnJudge {
+			sb.WriteString(ui.Accent("fest next"))
+			sb.WriteString(ui.Dim(" after the judge returns"))
+		} else if !step.Checkpoint.IsBlocking() {
 			sb.WriteString(ui.Accent("fest workflow advance"))
 		}
 		sb.WriteString("\n")

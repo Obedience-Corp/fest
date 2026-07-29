@@ -24,6 +24,12 @@ func runFestivalListing(ctx context.Context, festivalsRoot, filterStatus string,
 	campaignRoot, _ := workspace.DetectCampaign(ctx, "")
 
 	if filterStatus != "" {
+		if filterStatus == "dungeon" || strings.HasPrefix(filterStatus, "dungeon/") {
+			if err := workspace.CheckDungeonConflict(festivalsRoot); err != nil {
+				return err
+			}
+		}
+
 		festivals, err := show.ListFestivalsByStatus(ctx, festivalsRoot, filterStatus, campaignRoot)
 		if err != nil {
 			return err
