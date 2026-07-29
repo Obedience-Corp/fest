@@ -5,52 +5,49 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sync"
 	"time"
 
-	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/watch"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
-// listPollingInterval matches show/progress watch fallback cadence.
-const listPollingInterval = 2 * time.Second
+// listPollingInterval is only used when filesystem watching is unavailable.
+// Keep the fallback deliberately slow so degraded watch mode does not cause
+// distracting terminal flashes.
+const listPollingInterval = 30 * time.Second
 
-// runListWatch continuously refreshes the multi-festival list board.
-// It does not cycle between festivals (that behavior stays on fest watch).
+// runListWatch refreshes the multi-festival list board when festival files
+// change. It does not cycle between festivals (that behavior stays on fest
+// watch).
 //
-// Filesystem events and the 2s progress ticker both paint through one mutex so
-// clear+write frames never interleave on stdout.
+// Recursive directory watches surface task progress and lifecycle changes. The
+// frame cache redraws only when the rendered board actually changes, avoiding
+// periodic or duplicate screen flashes.
 func runListWatch(ctx context.Context, festivalsDir, filterStatus string, opts *listOptions, campaignRoot string) error {
 	// Listing reads the dungeon; refuse against a both-spellings campaign so the
 	// watch view cannot silently omit festivals filed under the other spelling.
 	if err := workspace.CheckDungeonConflict(festivalsDir); err != nil {
 		return err
 	}
-	var renderMu sync.Mutex
-	// Hybrid path always polls for deep progress updates; footer reflects that.
+	session := &listFrameSession{}
 	paint := func() error {
-		renderMu.Lock()
-		defer renderMu.Unlock()
-		return renderListFrame(ctx, festivalsDir, filterStatus, opts, campaignRoot, true)
+		return session.render(ctx, festivalsDir, filterStatus, opts, campaignRoot, false)
 	}
 
-	if err := paint(); err != nil {
-		return err
-	}
-
-	watchPaths := listWatchPaths(festivalsDir)
+	changes := make(chan struct{}, 1)
 	w, err := watch.New(watch.Config{
-		Paths:    watchPaths,
-		Debounce: 100 * time.Millisecond,
-		MaxWait:  watch.DefaultMaxWait,
+		Paths:     []string{festivalsDir},
+		Recursive: true,
+		Debounce:  100 * time.Millisecond,
+		MaxWait:   watch.DefaultMaxWait,
 		OnError: func(err error) {
 			fmt.Fprintf(os.Stderr, "%s file watch error: %v\n", ui.Warning("Warning:"), err)
 		},
 	}, func() {
-		if err := paint(); err != nil {
-			fmt.Fprintf(os.Stderr, "%s could not refresh list view: %v\n", ui.Warning("Warning:"), err)
+		select {
+		case changes <- struct{}{}:
+		default:
 		}
 	})
 	if err != nil {
@@ -59,30 +56,42 @@ func runListWatch(ctx context.Context, festivalsDir, filterStatus string, opts *
 	}
 	defer func() { _ = w.Close() }()
 
-	// Also poll so progress/stats updates inside festival trees surface even
-	// though status-dir watches are non-recursive.
+	if err := paint(); err != nil {
+		return err
+	}
+
+	watchDone := make(chan error, 1)
+	go func() {
+		watchDone <- w.Watch(ctx)
+	}()
+
+	// This low-rate reconciliation recovers from missed filesystem events and
+	// adds directories that appeared during an OS watcher race. The frame cache
+	// means an unchanged board is never cleared or redrawn.
 	ticker := time.NewTicker(listPollingInterval)
 	defer ticker.Stop()
-
-	errCh := make(chan error, 1)
-	go func() {
-		errCh <- w.Watch(ctx)
-	}()
 
 	for {
 		select {
 		case <-ctx.Done():
 			fmt.Println()
 			return nil
-		case err := <-errCh:
+		case err := <-watchDone:
 			if err != nil && ctx.Err() == nil {
 				return err
 			}
 			fmt.Println()
 			return nil
-		case <-ticker.C:
+		case <-changes:
 			if err := paint(); err != nil {
-				fmt.Fprintf(os.Stderr, "%s could not refresh list view: %v\n", ui.Warning("Warning:"), err)
+				return err
+			}
+		case <-ticker.C:
+			if err := w.AddTree(festivalsDir); err != nil && !os.IsNotExist(err) {
+				fmt.Fprintf(os.Stderr, "%s could not reconcile festival watches: %v\n", ui.Warning("Warning:"), err)
+			}
+			if err := paint(); err != nil {
+				return err
 			}
 		}
 	}
@@ -91,8 +100,9 @@ func runListWatch(ctx context.Context, festivalsDir, filterStatus string, opts *
 func runListPollingMode(ctx context.Context, festivalsDir, filterStatus string, opts *listOptions, campaignRoot string) error {
 	ticker := time.NewTicker(listPollingInterval)
 	defer ticker.Stop()
+	session := &listFrameSession{}
 
-	if err := renderListFrame(ctx, festivalsDir, filterStatus, opts, campaignRoot, true); err != nil {
+	if err := session.render(ctx, festivalsDir, filterStatus, opts, campaignRoot, true); err != nil {
 		return err
 	}
 
@@ -102,36 +112,33 @@ func runListPollingMode(ctx context.Context, festivalsDir, filterStatus string, 
 			fmt.Println()
 			return nil
 		case <-ticker.C:
-			if err := renderListFrame(ctx, festivalsDir, filterStatus, opts, campaignRoot, true); err != nil {
+			if err := session.render(ctx, festivalsDir, filterStatus, opts, campaignRoot, true); err != nil {
 				return err
 			}
 		}
 	}
 }
 
-func renderListFrame(ctx context.Context, festivalsDir, filterStatus string, opts *listOptions, campaignRoot string, polling bool) error {
-	clearListScreen()
+type listFrameSession struct {
+	content  string
+	rendered bool
+}
+
+func (s *listFrameSession) render(ctx context.Context, festivalsDir, filterStatus string, opts *listOptions, campaignRoot string, polling bool) error {
 	content, err := formatListBoard(ctx, festivalsDir, filterStatus, opts, campaignRoot)
 	if err != nil {
 		return err
 	}
+	if s.rendered && s.content == content {
+		return nil
+	}
+
+	clearListScreen()
 	fmt.Print(content)
 	printListWatchFooter(polling, festivalsDir)
+	s.content = content
+	s.rendered = true
 	return nil
-}
-
-// listWatchPaths returns non-recursive fsnotify paths covering status buckets
-// where festivals appear, move, or leave. Deep progress file changes are
-// covered by the polling interval in runListWatch.
-func listWatchPaths(festivalsDir string) []string {
-	paths := []string{festivalsDir}
-	for _, status := range id.StatusDirectories {
-		paths = append(paths, workspace.JoinStatus(festivalsDir, status))
-	}
-	// dungeon root so moves into/out of dungeon tree are noticed even when a
-	// dated bucket path is new.
-	paths = append(paths, workspace.JoinDungeon(festivalsDir))
-	return paths
 }
 
 func clearListScreen() {

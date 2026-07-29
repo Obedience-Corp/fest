@@ -1,6 +1,6 @@
 ## fest types show
 
-Show details about a type
+Show details about a template type
 
 ### Synopsis
 
@@ -40,4 +40,3 @@ fest types show <type-name> [flags]
 ### SEE ALSO
 
 * [fest types](fest_types.md)	 - Discover types for fest create
-* [fest types list](fest_types_list.md)	 - List available types
