@@ -70,6 +70,17 @@ func TestCommitGuard_LargeFileKeptOutInStandaloneWorkspace(t *testing.T) {
 	status, err := tc.Exec("git", "-C", dir, "status", "--porcelain")
 	require.NoError(t, err)
 	assert.Contains(t, status, "?? render-output.bin", "the excluded file must remain untracked on disk")
+
+	// Exclude-everything: grow only the big file and commit again. The guard
+	// excludes the sole change, so nothing is left to commit; that must read
+	// as the guard's doing, not as the commit failing for no reason.
+	_, err = tc.Exec("sh", "-c", "truncate -s 513M "+dir+"/render-output.bin")
+	require.NoError(t, err)
+	out2, err := tc.RunFestInDir(dir+"/festivals/active/guard-festival",
+		"commit", "--no-tag", "-m", "only excluded changes")
+	require.Error(t, err, "an exclude-everything commit has nothing to commit")
+	assert.Contains(t, out2, "kept out of git by the size/bulk guard",
+		"the no-op must be attributed to the guard: %s", out2)
 }
 
 func TestCommitGuard_LargeFileKeptOutInLinkedSubmodule(t *testing.T) {
