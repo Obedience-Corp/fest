@@ -405,6 +405,13 @@ func listDungeon(ctx context.Context, festivalsDir string, opts *listOptions, ca
 			result[status] = festivalsToMapWithProgress(festivals, board.Progress)
 		}
 		result["total"] = board.Total
+		if len(board.Residents) > 0 {
+			residents := make(map[string]interface{}, len(board.Residents))
+			for status, cards := range board.Residents {
+				residents[status] = cards
+			}
+			result["residents"] = residents
+		}
 		return outputJSON(result)
 	}
 	fmt.Print(formatDungeonHuman(board.Festivals, board.Order, board.Progress, board.Total, opts.progress))
@@ -417,13 +424,17 @@ func listByStatus(ctx context.Context, festivalsDir, status string, opts *listOp
 		return err
 	}
 	if opts.json {
-		return outputJSON(map[string]interface{}{
+		payload := map[string]interface{}{
 			"status":    status,
 			"count":     len(board.Festivals),
 			"festivals": festivalsToMapWithProgress(board.Festivals, board.Progress),
-		})
+		}
+		if len(board.Residents) > 0 {
+			payload["residents"] = board.Residents
+		}
+		return outputJSON(payload)
 	}
-	fmt.Print(formatStatusHuman(status, board.Festivals, board.Progress, opts.progress))
+	fmt.Print(formatStatusHuman(status, board.Festivals, board.Residents, board.Progress, opts.progress))
 	return nil
 }
 
@@ -438,9 +449,16 @@ func listAll(ctx context.Context, festivalsDir string, opts *listOptions, campai
 			result[status] = festivalsToMapWithProgress(festivals, board.Progress)
 		}
 		result["total"] = board.Total
+		if len(board.Residents) > 0 {
+			residents := make(map[string]interface{}, len(board.Residents))
+			for status, cards := range board.Residents {
+				residents[status] = cards
+			}
+			result["residents"] = residents
+		}
 		return outputJSON(result)
 	}
-	fmt.Print(formatAllHuman(board.Festivals, board.Order, board.Progress, board.Total, opts.progress))
+	fmt.Print(formatAllHuman(board.Festivals, board.Residents, board.Order, board.Progress, board.Total, opts.progress))
 	return nil
 }
 
@@ -543,20 +561,32 @@ func formatDungeonHuman(allFestivals map[string][]*show.FestivalInfo, order []st
 	return show.FormatAllFestivals(allFestivals, order)
 }
 
-func formatStatusHuman(status string, festivals []*show.FestivalInfo, progressMap map[string]*progress.FestivalProgress, withProgress bool) string {
+func formatStatusHuman(status string, festivals []*show.FestivalInfo, residents []*show.ResidentCard, progressMap map[string]*progress.FestivalProgress, withProgress bool) string {
+	var out string
 	if withProgress {
-		return show.FormatFestivalListWithProgress(status, festivals, progressMap)
+		out = show.FormatFestivalListWithProgress(status, festivals, progressMap)
+	} else {
+		out = show.FormatFestivalList(status, festivals)
 	}
-	return show.FormatFestivalList(status, festivals)
+	// Empty when there are no residents, which keeps a resident-free stage
+	// byte-identical to the pre-rail output.
+	if block := show.FormatResidentList(status, residents); block != "" {
+		out += "\n" + block
+	}
+	return out
 }
 
-func formatAllHuman(allFestivals map[string][]*show.FestivalInfo, statusOrder []string, progressMap map[string]*progress.FestivalProgress, totalCount int, withProgress bool) string {
-	if totalCount == 0 {
+func formatAllHuman(allFestivals map[string][]*show.FestivalInfo, allResidents map[string][]*show.ResidentCard, statusOrder []string, progressMap map[string]*progress.FestivalProgress, totalCount int, withProgress bool) string {
+	if totalCount == 0 && len(allResidents) == 0 {
 		return ui.Warning("No festivals found.") + "\n" +
 			ui.Info("Create a festival with: fest create festival") + "\n"
 	}
-	if withProgress {
-		return show.FormatAllFestivalsWithProgress(allFestivals, statusOrder, progressMap)
+	if len(allResidents) == 0 {
+		// No residents anywhere: emit exactly what the pre-rail binary emitted.
+		if withProgress {
+			return show.FormatAllFestivalsWithProgress(allFestivals, statusOrder, progressMap)
+		}
+		return show.FormatAllFestivals(allFestivals, statusOrder)
 	}
-	return show.FormatAllFestivals(allFestivals, statusOrder)
+	return show.FormatAllWithResidents(allFestivals, allResidents, statusOrder, progressMap, withProgress)
 }

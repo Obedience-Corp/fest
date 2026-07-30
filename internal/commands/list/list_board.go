@@ -17,11 +17,13 @@ type multiStatusBoard struct {
 	Order     []string
 	Total     int
 	Progress  map[string]*progress.FestivalProgress
+	Residents map[string][]*show.ResidentCard
 }
 
 // statusBoard is the single-status collection model.
 type statusBoard struct {
 	Festivals []*show.FestivalInfo
+	Residents []*show.ResidentCard
 	Progress  map[string]*progress.FestivalProgress
 }
 
@@ -40,13 +42,13 @@ func formatListBoard(ctx context.Context, festivalsDir, filterStatus string, opt
 		if err != nil {
 			return "", err
 		}
-		return formatStatusHuman(filterStatus, board.Festivals, board.Progress, opts.progress), nil
+		return formatStatusHuman(filterStatus, board.Festivals, board.Residents, board.Progress, opts.progress), nil
 	}
 	board, err := collectAllBoard(ctx, festivalsDir, opts, campaignRoot)
 	if err != nil {
 		return "", err
 	}
-	return formatAllHuman(board.Festivals, board.Order, board.Progress, board.Total, opts.progress), nil
+	return formatAllHuman(board.Festivals, board.Residents, board.Order, board.Progress, board.Total, opts.progress), nil
 }
 
 func collectDungeonBoard(ctx context.Context, festivalsDir string, opts *listOptions, campaignRoot string) (multiStatusBoard, error) {
@@ -121,7 +123,11 @@ func collectStatusBoard(ctx context.Context, festivalsDir, status string, opts *
 	if opts.progress {
 		progressMap = fetchProgressForFestivals(ctx, festivals)
 	}
-	return statusBoard{Festivals: festivals, Progress: progressMap}, nil
+	return statusBoard{
+		Festivals: festivals,
+		Residents: show.ListResidentsByStatus(ctx, festivalsDir, status),
+		Progress:  progressMap,
+	}, nil
 }
 
 func collectAllBoard(ctx context.Context, festivalsDir string, opts *listOptions, campaignRoot string) (multiStatusBoard, error) {
@@ -135,10 +141,14 @@ func collectAllBoard(ctx context.Context, festivalsDir string, opts *listOptions
 
 	var totalCount int
 	allFestivals := make(map[string][]*show.FestivalInfo)
+	allResidents := make(map[string][]*show.ResidentCard)
 	statusOrder := make([]string, 0, len(statuses))
 	var allFestivalsList []*show.FestivalInfo
 
 	for _, status := range statuses {
+		if residents := show.ListResidentsByStatus(ctx, festivalsDir, status); len(residents) > 0 {
+			allResidents[status] = residents
+		}
 		festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status, campaignRoot)
 		if err != nil {
 			continue
@@ -150,9 +160,12 @@ func collectAllBoard(ctx context.Context, festivalsDir string, opts *listOptions
 		if len(festivals) > 0 {
 			applySorting(festivals, opts.sortBy, opts.alpha)
 			allFestivals[status] = festivals
-			statusOrder = append(statusOrder, status)
 			totalCount += len(festivals)
 			allFestivalsList = append(allFestivalsList, festivals...)
+		}
+		// A stage holding only residents still deserves a column.
+		if len(festivals) > 0 || len(allResidents[status]) > 0 {
+			statusOrder = append(statusOrder, status)
 		}
 	}
 
@@ -162,6 +175,7 @@ func collectAllBoard(ctx context.Context, festivalsDir string, opts *listOptions
 	}
 	return multiStatusBoard{
 		Festivals: allFestivals,
+		Residents: allResidents,
 		Order:     statusOrder,
 		Total:     totalCount,
 		Progress:  progressMap,

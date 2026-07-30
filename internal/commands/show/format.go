@@ -295,3 +295,83 @@ func renderPercentBar(progress float64) string {
 	opts.EmptyColor = ui.BorderColor
 	return ui.RenderProgressBar(opts)
 }
+
+// FormatResidentList renders the residents parked on a stage. It returns "" when
+// there are none, so a stage without residents stays byte-identical to the
+// pre-rail output: no header, no separator, no count.
+func FormatResidentList(status string, residents []*ResidentCard) string {
+	if len(residents) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	header := fmt.Sprintf("%s Residents (%d)", strings.ToUpper(status), len(residents))
+	sb.WriteString(ui.GetStatusStyle(status).Render(header))
+	sb.WriteString("\n")
+	sb.WriteString(ui.Dim(strings.Repeat("─", 40)))
+	sb.WriteString("\n")
+
+	width := 0
+	for _, r := range residents {
+		if len(r.Name) > width {
+			width = len(r.Name)
+		}
+	}
+	for _, r := range residents {
+		badge := ""
+		if r.Type != "" {
+			badge = ui.Dim(fmt.Sprintf("  [%s]", r.Type))
+		}
+		progress := ""
+		if p := r.Progress(); p != "" {
+			progress = ui.Dim("  " + p)
+		}
+		fmt.Fprintf(&sb, "  %-*s%s%s\n", width, r.Name, badge, progress)
+	}
+	return sb.String()
+}
+
+// FormatAllWithResidents renders every status with its festivals followed by its
+// residents. Only reached when at least one resident exists; a resident-free
+// campaign goes through FormatAllFestivals so its output is untouched.
+func FormatAllWithResidents(
+	allFestivals map[string][]*FestivalInfo,
+	allResidents map[string][]*ResidentCard,
+	statusOrder []string,
+	progressMap map[string]*progress.FestivalProgress,
+	withProgress bool,
+) string {
+	var sb strings.Builder
+
+	total := 0
+	for _, festivals := range allFestivals {
+		total += len(festivals)
+	}
+	residentTotal := 0
+	for _, residents := range allResidents {
+		residentTotal += len(residents)
+	}
+
+	sb.WriteString(ui.H1("All Festivals"))
+	sb.WriteString("\n")
+	fmt.Fprintf(&sb, "%s %s\n", ui.Label("Total"), ui.Value(fmt.Sprintf("%d", total)))
+	fmt.Fprintf(&sb, "%s %s\n", ui.Label("Residents"), ui.Value(fmt.Sprintf("%d", residentTotal)))
+	sb.WriteString(ui.Dim(strings.Repeat("─", 40)))
+	sb.WriteString("\n\n")
+
+	for _, status := range statusOrder {
+		festivals := allFestivals[status]
+		if withProgress {
+			sb.WriteString(FormatFestivalListWithProgress(status, festivals, progressMap))
+		} else {
+			sb.WriteString(FormatFestivalList(status, festivals))
+		}
+		if block := FormatResidentList(status, allResidents[status]); block != "" {
+			sb.WriteString("\n")
+			sb.WriteString(block)
+		}
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
+}
