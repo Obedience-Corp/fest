@@ -12,9 +12,10 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	hookslib "github.com/Obedience-Corp/fest/internal/hooks"
+	"github.com/Obedience-Corp/fest/internal/resident"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
-	hookslib "github.com/Obedience-Corp/fest/internal/hooks"
 	"github.com/Obedience-Corp/fest/internal/validator"
 	"github.com/spf13/cobra"
 )
@@ -36,8 +37,8 @@ const (
 	CodeUnfilledTemplate   = "unfilled_template"
 	CodeMissingGoal        = "missing_goal"
 	CodeNumberingGap       = "numbering_gap"
-	CodeHookShadowDrift  = "hook_shadow_drift"
-	CodeHookResolveError = "hook_resolve_error"
+	CodeHookShadowDrift    = "hook_shadow_drift"
+	CodeHookResolveError   = "hook_resolve_error"
 )
 
 // ValidationIssue represents a single validation problem
@@ -308,6 +309,20 @@ func runValidateAll(ctx context.Context, opts *validateOptions) error {
 
 	festivalPath, err := resolveFestivalPath(opts.path)
 	if err != nil {
+		// A lifecycle resident is camp's directory, not a broken festival. Report
+		// it and exit clean rather than telling the user their workitem is
+		// malformed. Only the marker-present branch is informational: a plain
+		// non-festival directory still errors exactly as before.
+		//
+		// Note the deliberate divergence from resident.Classify, which lets the
+		// workitem marker win outright. Here the marker is consulted only after
+		// the directory has already failed to look like a festival, so validate
+		// never takes validation away from something with real festival
+		// structure. Classification drives labelling; this drives whether to run
+		// checks, and the conservative choice differs.
+		if target, m := residentTarget(opts.path); m != nil {
+			return emitResidentInfo(opts, display, target, m)
+		}
 		return emitValidateError(opts, err)
 	}
 
@@ -512,7 +527,6 @@ func emitValidateError(opts *validateOptions, err error) error {
 	return err
 }
 
-
 // validateHooksChecks emits non-blocking warnings for shadow drift and undeclared bindings.
 func validateHooksChecks(ctx context.Context, festivalPath string, result *ValidationResult) {
 	eff, err := hookslib.LoadAndResolve(ctx, festivalPath)
@@ -540,3 +554,54 @@ func validateHooksChecks(ctx context.Context, festivalPath string, result *Valid
 		convertIssues(validator.ScanUndeclaredBindings(ctx, festivalPath, eff))...)
 }
 
+// residentTarget returns the path validate was aimed at and its workitem marker,
+// or a nil marker when the target is not a resident.
+func residentTarget(pathArg string) (string, *resident.Marker) {
+	target := pathArg
+	if target == "" {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", nil
+		}
+		target = cwd
+	}
+	abs, err := filepath.Abs(target)
+	if err != nil {
+		return target, nil
+	}
+	m, readErr := resident.Read(abs)
+	if readErr != nil {
+		return abs, nil
+	}
+	return abs, m
+}
+
+// residentResult builds the validate result for a resident: a clean pass carrying
+// one info-level issue, so --json consumers see the normal envelope.
+func residentResult(target string, m *resident.Marker) *ValidationResult {
+	label := m.Type
+	if label == "" {
+		label = "workitem"
+	}
+	return &ValidationResult{
+		OK:       true,
+		Action:   "validate",
+		Festival: filepath.Base(target),
+		Valid:    true,
+		Issues: []ValidationIssue{{
+			Level:   LevelInfo,
+			Code:    "lifecycle-resident",
+			Path:    target,
+			Message: "lifecycle resident (" + label + ") owned by camp; not a festival, nothing to validate",
+		}},
+	}
+}
+
+func emitResidentInfo(opts *validateOptions, display *ui.UI, target string, m *resident.Marker) error {
+	result := residentResult(target, m)
+	if opts.jsonOutput {
+		return emitValidateJSON(result)
+	}
+	display.Info("%s", result.Issues[0].Message)
+	return nil
+}

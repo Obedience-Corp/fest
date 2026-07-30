@@ -54,14 +54,14 @@ type hooksListJSON struct {
 }
 
 type hooksListHookJSON struct {
-	Name     string                   `json:"name"`
-	Source   string                   `json:"source"`
-	Enabled  bool                     `json:"enabled"`
-	Command  string                   `json:"command"`
-	Fail     string                   `json:"fail"`
-	Timeout  string                   `json:"timeout"`
-	Evidence string                   `json:"evidence"`
-	Shadows  []hooksListShadowJSON    `json:"shadows"`
+	Name     string                `json:"name"`
+	Source   string                `json:"source"`
+	Enabled  bool                  `json:"enabled"`
+	Command  string                `json:"command"`
+	Fail     string                `json:"fail"`
+	Timeout  string                `json:"timeout"`
+	Evidence string                `json:"evidence"`
+	Shadows  []hooksListShadowJSON `json:"shadows"`
 }
 
 type hooksListShadowJSON struct {
