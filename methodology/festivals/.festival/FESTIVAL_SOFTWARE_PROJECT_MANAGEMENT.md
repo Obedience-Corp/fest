@@ -108,6 +108,29 @@ festivals/
 
 The lifecycle flow is: `planning/ → ready/ → active/ → dungeon/completed/`
 
+### Lifecycle Residents
+
+`ready/` and `active/` can also hold **residents**: workitem directories that a
+user has moved onto the lifecycle board without turning them into festivals. A
+resident is not a festival and never gains phases, sequences, or tasks. It keeps
+its original workflow type, so a design item parked in `active/` is still a design
+item that simply lives on the board.
+
+Fest treats residents as read-only information:
+
+- `fest list` and `fest status list` show them as cards in the stage column, with a
+  type badge and, when the directory carries a standalone `WORKFLOW.md` run, its
+  step progress.
+- `fest go <name>` navigates into one, and completion offers it alongside festivals.
+- `fest validate` reports a resident and exits cleanly rather than complaining that
+  it is a malformed festival.
+
+Fest never creates, moves, or deletes a resident. Promoting a workitem onto the
+board, advancing it between stages, completing it, and returning it to its original
+home are all camp operations (`camp workitem promote --target ready|active`,
+`camp workitem demote`). Fest reads the `.workitem` marker camp writes; it never
+writes it.
+
 ## Festival Types
 
 Festivals come in four types, each designed for different kinds of work:
