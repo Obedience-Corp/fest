@@ -278,7 +278,7 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	if !noRoot && inSubmodule && ws != nil && ws.Type == scope.WorkspaceTypeCampaign && hasFestival {
 		rootHash, rootErr := commitFestivalAtRoot(ctx, ws, festivalPath, submoduleRelPath, result.CampaignTag, ref, rawMsg, report)
 		if rootErr != nil {
-			fmt.Fprintf(report, "%s %s\n", ui.Warning("campaign root commit skipped:"), rootErr.Error())
+			_, _ = fmt.Fprintf(report, "%s %s\n", ui.Warning("campaign root commit skipped:"), rootErr.Error())
 		} else if rootHash != "" {
 			result.CampaignHash = rootHash
 		}
