@@ -5,6 +5,7 @@ import (
 	"context"
 	stderrors "errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -20,6 +21,11 @@ import (
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
 )
+
+// errAllExcluded is returned when the staging guard kept every changed path
+// out of the index, so a follow-up commit would look like a bare "no changes"
+// failure after the user already saw exclusion lines on stderr.
+var errAllExcluded = stderrors.New("everything changed was kept out of git by the size/bulk guard; nothing left to commit")
 
 // Commit reference format prefix: FE (Festival component)
 const commitRefPrefix = "FE"
@@ -169,32 +175,37 @@ func runCommit(cmd *cobra.Command, args []string) error {
 		return outputResult(result)
 	}
 
+	// Guard outcomes and refusals go to the command's stderr so --json stdout
+	// stays a pure document.
+	report := cmd.ErrOrStderr()
+
 	// Auto-stage changes if enabled (default: true).
 	// When at campaign root (not in submodule), stage only festival-scoped paths.
 	if autoStage {
 		if inSubmodule {
 			// In submodule: stage all changes in the project repo
-			if err := stageAllChanges(ctx, primaryRepoPath); err != nil {
+			if err := stageAllChanges(ctx, primaryRepoPath, report); err != nil {
 				result.Success = false
 				result.Error = err.Error()
 				return outputResult(result)
 			}
 		} else if ws != nil && ws.Type == scope.WorkspaceTypeCampaign && hasFestival {
-			// At campaign root: stage only festival-scoped paths
+			// At campaign root: stage only festival-scoped paths (with outcome
+			// reporting so large/bulk exclusions are not silent).
 			paths, err := festivalScopedPaths(ctx, ws.Root, festivalPath, "")
 			if err != nil {
 				result.Success = false
 				result.Error = err.Error()
 				return outputResult(result)
 			}
-			if stageErr := commitkit.StageFiles(ctx, ws.Root, paths...); stageErr != nil {
+			if stageErr := stageFiles(ctx, ws.Root, report, paths...); stageErr != nil {
 				result.Success = false
-				result.Error = fmt.Sprintf("staging festival files: %v", stageErr)
+				result.Error = stageErr.Error()
 				return outputResult(result)
 			}
 		} else {
 			// Fallback: stage all (non-campaign workspace)
-			if err := stageAllChanges(ctx, primaryRepoPath); err != nil {
+			if err := stageAllChanges(ctx, primaryRepoPath, report); err != nil {
 				result.Success = false
 				result.Error = err.Error()
 				return outputResult(result)
@@ -265,9 +276,9 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	// Only when we're in a submodule (the campaign root commit is a second commit).
 	// When at the campaign root, the primary commit above already handled festival files.
 	if !noRoot && inSubmodule && ws != nil && ws.Type == scope.WorkspaceTypeCampaign && hasFestival {
-		rootHash, rootErr := commitFestivalAtRoot(ctx, ws, festivalPath, submoduleRelPath, result.CampaignTag, ref, rawMsg)
+		rootHash, rootErr := commitFestivalAtRoot(ctx, ws, festivalPath, submoduleRelPath, result.CampaignTag, ref, rawMsg, report)
 		if rootErr != nil {
-			fmt.Fprintf(os.Stderr, "%s %s\n", ui.Warning("campaign root commit skipped:"), rootErr.Error())
+			fmt.Fprintf(report, "%s %s\n", ui.Warning("campaign root commit skipped:"), rootErr.Error())
 		} else if rootHash != "" {
 			result.CampaignHash = rootHash
 		}
@@ -336,7 +347,8 @@ func currentGitRoot(ctx context.Context) (string, error) {
 // protection, and a typed refusal fest renders in its own voice. The repo is
 // passed explicitly because the guard resolves its thresholds from it; the
 // old form ran `git add -A` in whatever cwd fest happened to hold.
-func stageAllChanges(ctx context.Context, repoPath string) error {
+// report receives exclusion/unavailable lines (typically cmd.ErrOrStderr()).
+func stageAllChanges(ctx context.Context, repoPath string, report io.Writer) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
 	}
@@ -348,7 +360,43 @@ func stageAllChanges(ctx context.Context, repoPath string) error {
 		}
 		return errors.Wrap(err, "staging changes")
 	}
-	reportStageOutcome(os.Stderr, outcome)
+	reportStageOutcome(report, outcome)
+	return nothingLeftAfterExclusions(ctx, repoPath, outcome)
+}
+
+// stageFiles stages the given paths through commitkit with outcome reporting
+// and fest-rendered GuardBlockedError text — the same contract as stageAllChanges,
+// for festival-scoped and campaign-root path lists.
+func stageFiles(ctx context.Context, repoPath string, report io.Writer, files ...string) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled")
+	}
+	outcome, err := commitkit.StageFilesWithOutcome(ctx, repoPath, files...)
+	if err != nil {
+		var blocked *commitkit.GuardBlockedError
+		if stderrors.As(err, &blocked) {
+			return errors.New(guardRefusalMessage(blocked))
+		}
+		return errors.Wrap(err, "staging files")
+	}
+	reportStageOutcome(report, outcome)
+	return nothingLeftAfterExclusions(ctx, repoPath, outcome)
+}
+
+// nothingLeftAfterExclusions turns "guard excluded everything" into a clear
+// error instead of letting commitkit.Commit return a bare ErrNoChanges after
+// the user already saw exclusion lines on stderr.
+func nothingLeftAfterExclusions(ctx context.Context, repoPath string, outcome *commitkit.StageOutcome) error {
+	if outcome == nil || len(outcome.Excluded) == 0 {
+		return nil
+	}
+	has, err := commitkit.HasStagedChanges(ctx, repoPath)
+	if err != nil {
+		return errors.Wrap(err, "checking staged changes after guard exclusions")
+	}
+	if !has {
+		return errAllExcluded
+	}
 	return nil
 }
 
@@ -518,15 +566,22 @@ func festivalScopedPaths(ctx context.Context, campaignRoot, festivalPath, submod
 // commitCampaignRoot stages festival-scoped paths at the campaign root and
 // commits them. Returns the short hash of the campaign commit, or empty string
 // if there were no changes to commit. Errors from staging/committing are
-// returned; "no changes" is a silent skip.
-func commitCampaignRoot(ctx context.Context, campaignRoot string, paths []string, commitMessage string) (string, error) {
+// returned; "no changes" is a silent skip (including when the guard excluded
+// every path — already reported on report).
+func commitCampaignRoot(ctx context.Context, campaignRoot string, paths []string, commitMessage string, report io.Writer) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", errors.Wrap(err, "context cancelled")
 	}
 
-	if err := commitkit.StageFiles(ctx, campaignRoot, paths...); err != nil {
+	outcome, err := commitkit.StageFilesWithOutcome(ctx, campaignRoot, paths...)
+	if err != nil {
+		var blocked *commitkit.GuardBlockedError
+		if stderrors.As(err, &blocked) {
+			return "", errors.New(guardRefusalMessage(blocked))
+		}
 		return "", errors.Wrap(err, "staging festival files at campaign root")
 	}
+	reportStageOutcome(report, outcome)
 
 	hasChanges, err := commitkit.HasStagedChanges(ctx, campaignRoot)
 	if err != nil {
@@ -553,7 +608,7 @@ func commitCampaignRoot(ctx context.Context, campaignRoot string, paths []string
 // commitFestivalAtRoot orchestrates the campaign root commit for festival-scoped
 // files. It computes the scoped paths, builds a tagged message with "fest:" prefix,
 // and delegates to commitCampaignRoot.
-func commitFestivalAtRoot(ctx context.Context, ws *scope.WorkspaceInfo, festivalPath, submoduleRelPath, campaignTag, festRef, rawMsg string) (string, error) {
+func commitFestivalAtRoot(ctx context.Context, ws *scope.WorkspaceInfo, festivalPath, submoduleRelPath, campaignTag, festRef, rawMsg string, report io.Writer) (string, error) {
 	paths, err := festivalScopedPaths(ctx, ws.Root, festivalPath, submoduleRelPath)
 	if err != nil {
 		return "", err
@@ -569,7 +624,7 @@ func commitFestivalAtRoot(ctx context.Context, ws *scope.WorkspaceInfo, festival
 		rootMsg = fmt.Sprintf("[%s] %s", festRef, rootMsg)
 	}
 
-	return commitCampaignRoot(ctx, ws.Root, paths, rootMsg)
+	return commitCampaignRoot(ctx, ws.Root, paths, rootMsg, report)
 }
 
 // resolveProjectRelPath returns the current git repository's path relative to

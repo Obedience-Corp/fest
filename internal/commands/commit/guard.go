@@ -11,8 +11,8 @@ import (
 
 // Fest renders the staging guard's decisions in its own voice from camp's
 // typed data; no camp error text is parsed or echoed. The facts and the ways
-// out are the same ones camp names, so a user blocked in either tool reaches
-// the same remedies, with fest commit as the retry vehicle.
+// out are the same ones camp names. Until fest ships --commit-large, the
+// "commit it anyway" remedy points at camp commit --commit-large.
 
 // guardRefusalMessage is the result.Error text for a staging refusal: what was
 // refused, that nothing was staged, and every way out. A refusal is the one
@@ -36,7 +36,8 @@ func guardRefusalMessage(blocked *commitkit.GuardBlockedError) string {
 			files, formatBytes(total), worst.CommonPrefix)
 		fmt.Fprintf(&b, "  gitignore it        echo '%s/' >> .gitignore\n", worst.CommonPrefix)
 		fmt.Fprintf(&b, "  keep and sync it    camp artifacts add %s\n", worst.CommonPrefix)
-		fmt.Fprintf(&b, "  commit it anyway    fest commit --commit-large -m \"...\"\n")
+		// fest has no --commit-large yet; camp's flag is the working override.
+		fmt.Fprintf(&b, "  commit it anyway    camp commit --commit-large -m \"...\"\n")
 		fmt.Fprintf(&b, "  turn the guard off  camp settings set local.commit.guards.bulk off")
 	default:
 		fmt.Fprintf(&b, "%s over the %s limit would be committed; nothing was staged\n",
@@ -48,7 +49,7 @@ func guardRefusalMessage(blocked *commitkit.GuardBlockedError) string {
 			fmt.Fprintf(&b, "  keep and sync it    camp artifacts add %s\n",
 				filepath.ToSlash(filepath.Dir(v.Path)))
 		}
-		fmt.Fprintf(&b, "  commit it anyway    fest commit --commit-large -m \"...\"\n")
+		fmt.Fprintf(&b, "  commit it anyway    camp commit --commit-large -m \"...\"\n")
 		fmt.Fprintf(&b, "  handle it for me    camp settings set local.commit.guards.large_files auto")
 	}
 	return b.String()
@@ -67,7 +68,7 @@ func reportStageOutcome(w io.Writer, outcome *commitkit.StageOutcome) {
 		_, _ = fmt.Fprintf(w, "Staged without the size and bulk guard: %v\n", outcome.Unavailable)
 	}
 	for _, v := range outcome.Excluded {
-		_, _ = fmt.Fprintf(w, "Kept out of git: %s (%s, over the %s limit); commit it anyway with 'fest commit --commit-large'\n",
+		_, _ = fmt.Fprintf(w, "Kept out of git: %s (%s, over the %s limit); commit it anyway with 'camp commit --commit-large' or 'camp settings set local.commit.guards.large_files auto'\n",
 			v.Path, formatBytes(v.Size), formatBytes(outcome.Limits.MaxFileSize))
 	}
 	for _, v := range outcome.Reported {

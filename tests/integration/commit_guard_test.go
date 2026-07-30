@@ -58,7 +58,7 @@ func TestCommitGuard_LargeFileKeptOutInStandaloneWorkspace(t *testing.T) {
 
 	// The exclusion is said out loud with its undo, from fest's own renderer.
 	assert.Contains(t, out, "render-output.bin", "fest must name the file it kept out of git")
-	assert.Contains(t, out, "fest commit --commit-large", "the exclusion must carry its own undo")
+	assert.Contains(t, out, "camp commit --commit-large", "the exclusion must carry a working undo")
 
 	// The commit exists and carries the small file only.
 	committed, err := tc.Exec("git", "-C", dir, "ls-tree", "-r", "--name-only", "HEAD")
@@ -101,7 +101,7 @@ func TestCommitGuard_LargeFileKeptOutInLinkedSubmodule(t *testing.T) {
 		"commit", "--no-tag", "-m", "guarded project commit")
 	require.NoError(t, err, "the project commit must succeed without the big file: %s", out)
 	assert.Contains(t, out, "render-output.bin", "fest must name the file it kept out of the project repo")
-	assert.Contains(t, out, "fest commit --commit-large", "the exclusion must carry its own undo")
+	assert.Contains(t, out, "camp commit --commit-large", "the exclusion must carry a working undo")
 
 	committed, err := tc.Exec("git", "-C", "/guard-camp/projects/app", "ls-tree", "-r", "--name-only", "HEAD")
 	require.NoError(t, err)

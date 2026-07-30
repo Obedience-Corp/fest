@@ -9,9 +9,9 @@ import (
 
 // The refusal message is fest's one chance to explain a blocked commit, so
 // these tests pin the contract: every refusal names what was found, that
-// nothing was staged, and the same ways out camp names, with fest commit as
-// the retry vehicle. All assertions run against typed data rendered by fest;
-// none depend on camp's error strings.
+// nothing was staged, and working ways out (including camp commit
+// --commit-large until fest grows its own flag). All assertions run against
+// typed data rendered by fest; none depend on camp's error strings.
 
 func TestGuardRefusalMessageBulkNamesEveryWayOut(t *testing.T) {
 	blocked := &commitkit.GuardBlockedError{
@@ -29,7 +29,7 @@ func TestGuardRefusalMessageBulkNamesEveryWayOut(t *testing.T) {
 		"nothing was staged",
 		"echo 'node_modules/' >> .gitignore",
 		"camp artifacts add node_modules",
-		"fest commit --commit-large",
+		"camp commit --commit-large",
 		"camp settings set local.commit.guards.bulk off",
 	} {
 		if !strings.Contains(msg, want) {
@@ -54,7 +54,7 @@ func TestGuardRefusalMessageLargeFilesNamesEveryWayOut(t *testing.T) {
 		"media/clip.bin",
 		"nothing was staged",
 		"camp artifacts add media",
-		"fest commit --commit-large",
+		"camp commit --commit-large",
 		"camp settings set local.commit.guards.large_files auto",
 	} {
 		if !strings.Contains(msg, want) {
@@ -78,7 +78,7 @@ func TestReportStageOutcomeSaysWhatTheGuardDid(t *testing.T) {
 	out := b.String()
 	for _, want := range []string{
 		"Kept out of git: render.bin",
-		"fest commit --commit-large",
+		"camp commit --commit-large",
 		"Tracked file grew past 100.0 MB: fixtures/golden.json",
 	} {
 		if !strings.Contains(out, want) {

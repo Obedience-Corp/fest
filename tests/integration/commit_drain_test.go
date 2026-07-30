@@ -82,9 +82,9 @@ func ensureCampInContainer(t *testing.T, tc *TestContainer) {
 	if campBuildErr != nil {
 		t.Fatalf("building camp from the pinned dependency: %v", campBuildErr)
 	}
-	if _, err := tc.Exec("test", "-x", "/usr/local/bin/camp"); err == nil {
-		return
-	}
+	// Always install the host-built pinned binary. A preinstalled camp of a
+	// different version would silently drive the fixture against the wrong
+	// commitkit while fest links v0.4.0-rc.1.
 	require.NoError(t, tc.CopyToContainer(campHostPath, "/usr/local/bin/camp"))
 	_, err := tc.Exec("chmod", "+x", "/usr/local/bin/camp")
 	require.NoError(t, err)
