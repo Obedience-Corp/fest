@@ -56,9 +56,9 @@ func TestCommitFreshCampaign_FirstCommitSucceedsWithoutFestStateDirs(t *testing.
 	require.NoError(t, tc.WriteFile(camp+"/festivals/active/fresh-festival/NOTES.md", "# First run\n"))
 
 	// An unrelated dirty file at the campaign root: scoped staging must still
-	// be scoped after the fix. Dropping every path would leave commitkit an
-	// empty file list, which it reads as "stage the whole tree" — the failure
-	// mode a fix for this bug can easily introduce.
+	// be scoped after the fix. A filter that dropped too much and then fell
+	// back to staging the whole tree would sweep this file in, which is the
+	// failure mode a fix for this bug can easily introduce.
 	require.NoError(t, tc.WriteFile(camp+"/unrelated.txt", "not part of the festival\n"))
 
 	// Invoked through a shell, not RunFestInDir, so the quoted message survives

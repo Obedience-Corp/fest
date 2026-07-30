@@ -200,9 +200,10 @@ func runCommit(cmd *cobra.Command, args []string) error {
 				result.Error = err.Error()
 				return outputResult(result)
 			}
-			// An empty list means git cannot match any festival-scoped path;
-			// commitkit reads no files as "stage everything", the opposite of
-			// scoped staging.
+			// An empty list means git can match no festival-scoped path, so
+			// there is nothing to stage. Passing it on would fail the commit
+			// with commitkit's ErrNoFilesSpecified over paths that hold no
+			// user data; the commit proceeds on whatever is already staged.
 			if len(paths) > 0 {
 				if stageErr := stageFiles(ctx, ws.Root, report, paths...); stageErr != nil {
 					result.Success = false
@@ -625,8 +626,8 @@ func commitCampaignRoot(ctx context.Context, campaignRoot string, paths []string
 	}
 
 	// No matchable festival-scoped path is the same silent skip as no changes:
-	// there is nothing for the root commit to carry, and an empty list would
-	// otherwise reach commitkit as "stage everything".
+	// there is nothing for the root commit to carry, and commitkit would
+	// reject the empty list with ErrNoFilesSpecified rather than stage it.
 	if len(paths) == 0 {
 		return "", nil
 	}
