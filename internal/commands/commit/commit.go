@@ -200,10 +200,15 @@ func runCommit(cmd *cobra.Command, args []string) error {
 				result.Error = err.Error()
 				return outputResult(result)
 			}
-			if stageErr := stageFiles(ctx, ws.Root, report, paths...); stageErr != nil {
-				result.Success = false
-				result.Error = stageErr.Error()
-				return outputResult(result)
+			// An empty list means git cannot match any festival-scoped path;
+			// commitkit reads no files as "stage everything", the opposite of
+			// scoped staging.
+			if len(paths) > 0 {
+				if stageErr := stageFiles(ctx, ws.Root, report, paths...); stageErr != nil {
+					result.Success = false
+					result.Error = stageErr.Error()
+					return outputResult(result)
+				}
 			}
 		} else {
 			// Fallback: stage all (non-campaign workspace)
@@ -550,6 +555,11 @@ func isInSubmodule(campaignRoot string) (bool, string) {
 //   - .campaign/fest/ (navigation state)
 //   - festivals/.festival/.state/ (global festival event log)
 //   - The submodule pointer path (if submoduleRelPath is non-empty)
+//
+// Only paths git can match are returned. The two fest-owned state directories
+// appear the first time fest navigates in a campaign, so a campaign fresh from
+// `camp init` has neither, and a single unmatched pathspec fails the whole
+// `git add` — which made the first `fest commit` in a new campaign impossible.
 func festivalScopedPaths(ctx context.Context, campaignRoot, festivalPath, submoduleRelPath string) ([]string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, errors.Wrap(err, "context cancelled")
@@ -560,17 +570,48 @@ func festivalScopedPaths(ctx context.Context, campaignRoot, festivalPath, submod
 		return nil, errors.Wrap(err, "computing festival relative path")
 	}
 
-	paths := []string{
+	candidates := []string{
 		festivalRel,
 		filepath.Join(".campaign", "fest"),
 		filepath.Join("festivals", ".festival", ".state"),
 	}
 
 	if submoduleRelPath != "" {
-		paths = append(paths, submoduleRelPath)
+		candidates = append(candidates, submoduleRelPath)
 	}
 
-	return paths, nil
+	return matchablePaths(ctx, campaignRoot, candidates), nil
+}
+
+// matchablePaths keeps the pathspecs `git add` can resolve in the repository at
+// repoRoot, preserving the given order. A path present in the working tree
+// qualifies; a path that is gone but still tracked qualifies too, because
+// staging it is what records the deletion. Anything else is dropped: git
+// refuses the entire `git add` over one unmatched pathspec, so an absent
+// path would take the paths that do exist down with it.
+func matchablePaths(ctx context.Context, repoRoot string, candidates []string) []string {
+	matchable := make([]string, 0, len(candidates))
+	for _, path := range candidates {
+		if _, err := os.Lstat(filepath.Join(repoRoot, path)); err == nil {
+			matchable = append(matchable, path)
+			continue
+		}
+		if trackedInGit(ctx, repoRoot, path) {
+			matchable = append(matchable, path)
+		}
+	}
+	return matchable
+}
+
+// trackedInGit reports whether the index of the repository at repoRoot holds
+// any entry under path. A tracked path missing from the working tree is the
+// deletion case, which must still reach `git add`.
+func trackedInGit(ctx context.Context, repoRoot, path string) bool {
+	out, err := exec.CommandContext(ctx, "git", "-C", repoRoot, "ls-files", "--", path).Output()
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(string(out)) != ""
 }
 
 // commitCampaignRoot stages festival-scoped paths at the campaign root and
@@ -581,6 +622,13 @@ func festivalScopedPaths(ctx context.Context, campaignRoot, festivalPath, submod
 func commitCampaignRoot(ctx context.Context, campaignRoot string, paths []string, commitMessage string, report io.Writer) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", errors.Wrap(err, "context cancelled")
+	}
+
+	// No matchable festival-scoped path is the same silent skip as no changes:
+	// there is nothing for the root commit to carry, and an empty list would
+	// otherwise reach commitkit as "stage everything".
+	if len(paths) == 0 {
+		return "", nil
 	}
 
 	outcome, err := commitkit.StageFilesWithOutcome(ctx, campaignRoot, paths...)

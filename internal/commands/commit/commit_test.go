@@ -2,6 +2,8 @@ package commit
 
 import (
 	"context"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 )
@@ -73,10 +75,33 @@ func TestNewCommitCommand_CampaignTaggingIndependentOfSync(t *testing.T) {
 	}
 }
 
+// makeDirs creates each campaign-root-relative directory under root.
+func makeDirs(t *testing.T, root string, rel ...string) {
+	t.Helper()
+	for _, r := range rel {
+		if err := os.MkdirAll(filepath.Join(root, r), 0o755); err != nil {
+			t.Fatalf("creating %s: %v", r, err)
+		}
+	}
+}
+
+// livedInCampaign is a campaign fest has already navigated in: the festival,
+// both fest-owned state directories, and a project submodule all on disk.
+func livedInCampaign(t *testing.T) (root, festival string) {
+	t.Helper()
+	root = t.TempDir()
+	makeDirs(t, root,
+		filepath.Join("festivals", "active", "my-fest-FA0001"),
+		filepath.Join(".campaign", "fest"),
+		filepath.Join("festivals", ".festival", ".state"),
+		filepath.Join("projects", "fest"),
+	)
+	return root, filepath.Join(root, "festivals", "active", "my-fest-FA0001")
+}
+
 func TestFestivalScopedPaths_WithSubmodule(t *testing.T) {
-	root := "/campaign"
-	festival := filepath.Join(root, "festivals", "active", "my-fest-FA0001")
-	submodule := "projects/fest"
+	root, festival := livedInCampaign(t)
+	submodule := filepath.Join("projects", "fest")
 
 	paths, err := festivalScopedPaths(context.Background(), root, festival, submodule)
 	if err != nil {
@@ -87,7 +112,7 @@ func TestFestivalScopedPaths_WithSubmodule(t *testing.T) {
 		filepath.Join("festivals", "active", "my-fest-FA0001"),
 		filepath.Join(".campaign", "fest"),
 		filepath.Join("festivals", ".festival", ".state"),
-		"projects/fest",
+		filepath.Join("projects", "fest"),
 	}
 
 	if len(paths) != len(want) {
@@ -102,8 +127,7 @@ func TestFestivalScopedPaths_WithSubmodule(t *testing.T) {
 }
 
 func TestFestivalScopedPaths_NoSubmodule(t *testing.T) {
-	root := "/campaign"
-	festival := filepath.Join(root, "festivals", "active", "my-fest-FA0001")
+	root, festival := livedInCampaign(t)
 
 	paths, err := festivalScopedPaths(context.Background(), root, festival, "")
 	if err != nil {
@@ -116,14 +140,19 @@ func TestFestivalScopedPaths_NoSubmodule(t *testing.T) {
 
 	// Should not contain any submodule path
 	for _, p := range paths {
-		if p == "projects/fest" || p == "" {
+		if p == filepath.Join("projects", "fest") || p == "" {
 			t.Errorf("unexpected path in result: %q", p)
 		}
 	}
 }
 
 func TestFestivalScopedPaths_ExpectedContents(t *testing.T) {
-	root := "/home/user/campaign"
+	root := t.TempDir()
+	makeDirs(t, root,
+		filepath.Join("festivals", "ready", "deploy-v2-DP0003"),
+		filepath.Join(".campaign", "fest"),
+		filepath.Join("festivals", ".festival", ".state"),
+	)
 	festival := filepath.Join(root, "festivals", "ready", "deploy-v2-DP0003")
 
 	paths, err := festivalScopedPaths(context.Background(), root, festival, "")
@@ -147,6 +176,106 @@ func TestFestivalScopedPaths_ExpectedContents(t *testing.T) {
 		if !pathSet[e] {
 			t.Errorf("missing expected path %q in %v", e, paths)
 		}
+	}
+}
+
+// A campaign fresh from `camp init` has neither fest-owned state directory.
+// Listing them anyway aborts the whole `git add`, so the first fest commit in
+// a new campaign never happened.
+func TestFestivalScopedPaths_FreshCampaignOmitsAbsentStatePaths(t *testing.T) {
+	root := t.TempDir()
+	makeDirs(t, root, filepath.Join("festivals", "active", "my-fest-FA0001"))
+	festival := filepath.Join(root, "festivals", "active", "my-fest-FA0001")
+
+	paths, err := festivalScopedPaths(context.Background(), root, festival, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := []string{filepath.Join("festivals", "active", "my-fest-FA0001")}
+	if len(paths) != len(want) || paths[0] != want[0] {
+		t.Fatalf("got %v, want %v", paths, want)
+	}
+}
+
+// Only the absent paths are dropped: a campaign missing just one of the two
+// state directories still stages the other.
+func TestFestivalScopedPaths_PartialStatePaths(t *testing.T) {
+	root := t.TempDir()
+	makeDirs(t, root,
+		filepath.Join("festivals", "active", "my-fest-FA0001"),
+		filepath.Join(".campaign", "fest"),
+	)
+	festival := filepath.Join(root, "festivals", "active", "my-fest-FA0001")
+
+	paths, err := festivalScopedPaths(context.Background(), root, festival, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	want := []string{
+		filepath.Join("festivals", "active", "my-fest-FA0001"),
+		filepath.Join(".campaign", "fest"),
+	}
+	if len(paths) != len(want) {
+		t.Fatalf("got %d paths, want %d: %v", len(paths), len(want), paths)
+	}
+	for i, got := range paths {
+		if got != want[i] {
+			t.Errorf("paths[%d] = %q, want %q", i, got, want[i])
+		}
+	}
+}
+
+// Absence from the working tree is not absence from git: a tracked path the
+// user deleted must still be staged, because staging it is what records the
+// deletion.
+func TestFestivalScopedPaths_KeepsTrackedButDeletedPath(t *testing.T) {
+	root, festival := livedInCampaign(t)
+	navFile := filepath.Join(root, ".campaign", "fest", "navigation.json")
+	if err := os.WriteFile(navFile, []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"init"}, {"add", "--", ".campaign/fest"}} {
+		cmd := exec.Command("git", args...)
+		cmd.Dir = root
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v failed: %v\n%s", args, err, out)
+		}
+	}
+	if err := os.RemoveAll(filepath.Join(root, ".campaign", "fest")); err != nil {
+		t.Fatal(err)
+	}
+
+	paths, err := festivalScopedPaths(context.Background(), root, festival, "")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	found := false
+	for _, p := range paths {
+		if p == filepath.Join(".campaign", "fest") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("tracked-but-deleted %q must stay staged so the deletion is recorded, got %v",
+			filepath.Join(".campaign", "fest"), paths)
+	}
+}
+
+func TestMatchablePaths_ContextCancelled(t *testing.T) {
+	root := t.TempDir()
+	makeDirs(t, root, "present")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	// A path on disk needs no git call, so it survives cancellation; an absent
+	// one cannot be confirmed tracked and is dropped rather than guessed at.
+	paths := matchablePaths(ctx, root, []string{"present", "absent"})
+	if len(paths) != 1 || paths[0] != "present" {
+		t.Fatalf("got %v, want [present]", paths)
 	}
 }
 

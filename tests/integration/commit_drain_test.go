@@ -110,14 +110,6 @@ func TestCommitDrain_QueuedBookkeepingLandsBeforeTheFestivalCommit(t *testing.T)
 	camp := "/guard-drain"
 	require.NoError(t, tc.WriteFile(camp+"/festivals/active/guard-festival/fest.yaml", guardFestYAML))
 	require.NoError(t, tc.WriteFile(camp+"/festivals/active/guard-festival/NOTES.md", "# Progress\n"))
-	// Any campaign fest has navigated has these; a bare camp init does not,
-	// and fest's scoped staging lists them unconditionally (intent filed:
-	// fest-commit-fails-in-a-fresh-campaign). The fixture mirrors the lived-in
-	// shape rather than the bug.
-	_, err = tc.Exec("sh", "-c",
-		"mkdir -p "+camp+"/.campaign/fest "+camp+"/festivals/.festival/.state"+
-			" && touch "+camp+"/.campaign/fest/.gitkeep "+camp+"/festivals/.festival/.state/.gitkeep")
-	require.NoError(t, err)
 
 	// A baseline commit first: camp init leaves the branch unborn, and a
 	// deferred job cannot execute against no HEAD (intent filed:
