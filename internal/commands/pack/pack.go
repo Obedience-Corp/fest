@@ -86,8 +86,8 @@ Works from any directory (global scope); source path is explicit.`,
 				enc.SetIndent("", "  ")
 				return enc.Encode(info)
 			}
-			fmt.Fprintf(cmd.ErrOrStderr(), "wrote %s\n", output)
-			fmt.Fprintf(cmd.OutOrStdout(), "kind=%s id=%s name=%q\n", info.Kind, info.Bundle.ID, info.Bundle.Name)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "wrote %s\n", output)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "kind=%s id=%s name=%q\n", info.Kind, info.Bundle.ID, info.Bundle.Name)
 			return nil
 		},
 	}
@@ -156,10 +156,10 @@ go to stderr so --json still emits a single JSON document on stdout.`,
 				}
 				// Always send human validation summary to stderr so --json
 				// stdout remains a single JSON document.
-				fmt.Fprintf(cmd.ErrOrStderr(), "validate: score=%d valid=%v issues=%d\n",
+				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "validate: score=%d valid=%v issues=%d\n",
 					result.Score, result.Valid, len(result.Issues))
 				for _, issue := range result.Issues {
-					fmt.Fprintf(cmd.ErrOrStderr(), "  - %s: %s\n", issue.Code, issue.Message)
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "  - %s: %s\n", issue.Code, issue.Message)
 				}
 				if !result.Valid {
 					return festerrors.New(fmt.Sprintf("validation failed (score %d)", result.Score))
@@ -171,8 +171,8 @@ go to stderr so --json still emits a single JSON document on stdout.`,
 				enc.SetIndent("", "  ")
 				return enc.Encode(info)
 			}
-			fmt.Fprintf(cmd.ErrOrStderr(), "unbundled to %s\n", d)
-			fmt.Fprintf(cmd.OutOrStdout(), "kind=%s id=%s name=%q\n", info.Kind, info.Bundle.ID, info.Bundle.Name)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "unbundled to %s\n", d)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "kind=%s id=%s name=%q\n", info.Kind, info.Bundle.ID, info.Bundle.Name)
 			return nil
 		},
 	}
