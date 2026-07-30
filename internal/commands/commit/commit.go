@@ -2,7 +2,6 @@
 package commit
 
 import (
-	"bytes"
 	"context"
 	stderrors "errors"
 	"fmt"
@@ -320,29 +319,6 @@ func isGitRepo(ctx context.Context) (bool, error) {
 	return true, nil
 }
 
-func executeGitCommit(ctx context.Context, repoPath, message string) (string, error) {
-	if err := ctx.Err(); err != nil {
-		return "", errors.Wrap(err, "context cancelled")
-	}
-	cmd := exec.CommandContext(ctx, "git", "-C", repoPath, "commit", "-m", message)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Run(); err != nil {
-		return "", errors.Wrap(err, "git commit failed")
-	}
-
-	// Get the commit hash
-	hashCmd := exec.CommandContext(ctx, "git", "-C", repoPath, "rev-parse", "--short", "HEAD")
-	var out bytes.Buffer
-	hashCmd.Stdout = &out
-	if err := hashCmd.Run(); err != nil {
-		return "", errors.Wrap(err, "failed to get commit hash")
-	}
-
-	return strings.TrimSpace(out.String()), nil
-}
-
 func currentGitRoot(ctx context.Context) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", errors.Wrap(err, "context cancelled")
@@ -481,9 +457,18 @@ func commitWithCampaignSupport(ctx context.Context, ws *scope.WorkspaceInfo, rep
 		}
 	}
 
-	hash, err := executeGitCommit(ctx, repoPath, commitMessage)
+	// commitkit.Commit captures git's output internally, which is the --json
+	// contract: nothing but the encoded document may reach stdout. The same
+	// pair already commits the campaign root in commitCampaignRoot.
+	if err := commitkit.Commit(ctx, repoPath, commitkit.CommitOptions{Message: commitMessage}); err != nil {
+		if stderrors.Is(err, commitkit.ErrNoChanges) {
+			return errors.New("no changes to commit")
+		}
+		return errors.Wrap(err, "committing")
+	}
+	hash, err := commitkit.ShortHash(ctx, repoPath)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "getting commit hash")
 	}
 	result.Hash = hash
 	result.Message = commitMessage
