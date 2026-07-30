@@ -67,6 +67,7 @@ Run 'fest understand' to learn the methodology before executing tasks.
 * [fest migrate](fest_migrate.md)	 - Migrate festival documents
 * [fest move](fest_move.md)	 - Move files between festival and linked project
 * [fest next](fest_next.md)	 - Find the next task to work on
+* [fest pack](fest_pack.md)	 - Pack a festival or ritual directory into a .festival bundle
 * [fest parse](fest_parse.md)	 - Parse festival documents into structured output
 * [fest plugins](fest_plugins.md)	 - List discovered fest plugins
 * [fest progress](fest_progress.md)	 - Track and display festival execution progress
@@ -86,6 +87,7 @@ Run 'fest understand' to learn the methodology before executing tasks.
 * [fest task](fest_task.md)	 - Manage task status (show, edit, complete, block, reset)
 * [fest templates](fest_templates.md)	 - Manage agent-created templates within a festival
 * [fest types](fest_types.md)	 - Discover types for fest create
+* [fest unbundle](fest_unbundle.md)	 - Unbundle a .festival archive into a directory
 * [fest understand](fest_understand.md)	 - Learn methodology FIRST - run before executing festival tasks
 * [fest unlink](fest_unlink.md)	 - Remove festival-project link (context-aware)
 * [fest validate](fest_validate.md)	 - Check festival structure - find missing task files and issues
