@@ -4,6 +4,7 @@ package commit
 import (
 	"bytes"
 	"context"
+	stderrors "errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -174,7 +175,7 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	if autoStage {
 		if inSubmodule {
 			// In submodule: stage all changes in the project repo
-			if err := stageAllChanges(ctx); err != nil {
+			if err := stageAllChanges(ctx, primaryRepoPath); err != nil {
 				result.Success = false
 				result.Error = err.Error()
 				return outputResult(result)
@@ -194,7 +195,7 @@ func runCommit(cmd *cobra.Command, args []string) error {
 			}
 		} else {
 			// Fallback: stage all (non-campaign workspace)
-			if err := stageAllChanges(ctx); err != nil {
+			if err := stageAllChanges(ctx, primaryRepoPath); err != nil {
 				result.Success = false
 				result.Error = err.Error()
 				return outputResult(result)
@@ -354,15 +355,24 @@ func currentGitRoot(ctx context.Context) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// stageAllChanges runs git add -A to stage all changes
-func stageAllChanges(ctx context.Context) error {
+// stageAllChanges stages everything in the repository at repoPath through
+// camp's staging guard: lock retry with stale-lock cleanup, size and bulk
+// protection, and a typed refusal fest renders in its own voice. The repo is
+// passed explicitly because the guard resolves its thresholds from it; the
+// old form ran `git add -A` in whatever cwd fest happened to hold.
+func stageAllChanges(ctx context.Context, repoPath string) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
 	}
-	cmd := exec.CommandContext(ctx, "git", "add", "-A")
-	if err := cmd.Run(); err != nil {
-		return errors.Wrap(err, "git add failed")
+	outcome, err := commitkit.StageAllWithOutcome(ctx, repoPath)
+	if err != nil {
+		var blocked *commitkit.GuardBlockedError
+		if stderrors.As(err, &blocked) {
+			return errors.New(guardRefusalMessage(blocked))
+		}
+		return errors.Wrap(err, "staging changes")
 	}
+	reportStageOutcome(os.Stderr, outcome)
 	return nil
 }
 
