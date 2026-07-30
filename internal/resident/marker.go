@@ -59,3 +59,57 @@ func IsResident(dir string) bool {
 	m, err := Read(dir)
 	return err == nil && m != nil
 }
+
+// Festival marker filenames. A directory carrying any of these is fest's.
+const (
+	FestivalGoalFile     = "FESTIVAL_GOAL.md"
+	FestivalOverviewFile = "FESTIVAL_OVERVIEW.md"
+	FestivalConfigFile   = "fest.yaml"
+)
+
+// DirKind classifies a directory found under a festivals/ lifecycle folder.
+type DirKind int
+
+const (
+	// KindNeither is a directory with no festival markers and no workitem marker.
+	KindNeither DirKind = iota
+	// KindFestival is fest's own directory.
+	KindFestival
+	// KindResident is a workitem camp promoted onto the rail.
+	KindResident
+)
+
+func (k DirKind) String() string {
+	switch k {
+	case KindFestival:
+		return "festival"
+	case KindResident:
+		return "resident"
+	default:
+		return "neither"
+	}
+}
+
+// IsFestivalDir reports whether dir carries a festival marker. This is the single
+// implementation; scope and the command packages delegate here.
+func IsFestivalDir(dir string) bool {
+	for _, name := range []string{FestivalGoalFile, FestivalOverviewFile, FestivalConfigFile} {
+		if info, err := os.Stat(filepath.Join(dir, name)); err == nil && !info.IsDir() {
+			return true
+		}
+	}
+	return false
+}
+
+// Classify decides what a lifecycle directory is. The workitem marker wins over
+// festival markers: camp writes .workitem only when it has actually promoted the
+// directory, whereas a stale fest.yaml proves nothing about the current owner.
+func Classify(dir string) DirKind {
+	if IsResident(dir) {
+		return KindResident
+	}
+	if IsFestivalDir(dir) {
+		return KindFestival
+	}
+	return KindNeither
+}

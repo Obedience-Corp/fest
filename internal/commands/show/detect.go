@@ -12,6 +12,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
+	"github.com/Obedience-Corp/fest/internal/resident"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
@@ -168,24 +169,7 @@ func festivalDirsUnderStatus(statusDir string, deep bool) []festivalDir {
 
 // isValidFestival checks if a directory is a valid festival root.
 func isValidFestival(dir string) bool {
-	// Check for FESTIVAL_GOAL.md or FESTIVAL_OVERVIEW.md
-	goalPath := filepath.Join(dir, FestivalGoalFile)
-	if info, err := os.Stat(goalPath); err == nil && !info.IsDir() {
-		return true
-	}
-
-	overviewPath := filepath.Join(dir, FestivalOverviewFile)
-	if info, err := os.Stat(overviewPath); err == nil && !info.IsDir() {
-		return true
-	}
-
-	// Also check for fest.yaml as a fallback
-	configPath := filepath.Join(dir, FestivalConfigFile)
-	if info, err := os.Stat(configPath); err == nil && !info.IsDir() {
-		return true
-	}
-
-	return false
+	return resident.IsFestivalDir(dir)
 }
 
 // FindFestivalByName searches for a festival by name in all status directories.

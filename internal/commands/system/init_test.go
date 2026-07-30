@@ -14,11 +14,11 @@ func TestResolveDisplayRoot(t *testing.T) {
 	workspaceRoot := "/home/user/campaigns/my-campaign/festivals/active/fest-F0001/feedback"
 
 	tests := []struct {
-		name                   string
-		campaignRoot           string
-		campaignErr            error
-		festivalWorkspaceRoot  string
-		want                   string
+		name                  string
+		campaignRoot          string
+		campaignErr           error
+		festivalWorkspaceRoot string
+		want                  string
 	}{
 		{
 			name:                  "prefers campaign root when detected",

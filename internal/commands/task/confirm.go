@@ -38,13 +38,13 @@ func resolveConfirmation(yes, jsonOut bool, taskID, action, command string) (nee
 		if encErr := shared.EncodeJSON(os.Stdout, result); encErr != nil {
 			return false, errors.Wrap(encErr, "encoding JSON output")
 		}
-		return false, errors.Validation("confirmation required for " + action).
+		return false, errors.Validation("confirmation required for "+action).
 			WithField("task", taskID).
 			WithHint("pass --yes for non-interactive use")
 	}
 
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
-		return false, errors.Validation("confirmation required for " + action).
+		return false, errors.Validation("confirmation required for "+action).
 			WithField("task", taskID).
 			WithHint("pass --yes for non-interactive use")
 	}

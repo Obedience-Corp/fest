@@ -147,3 +147,78 @@ func TestPackageIsReadOnly(t *testing.T) {
 		t.Error("reading the marker must not modify it")
 	}
 }
+
+func TestIsFestivalDir(t *testing.T) {
+	for _, marker := range []string{FestivalGoalFile, FestivalOverviewFile, FestivalConfigFile} {
+		t.Run(marker, func(t *testing.T) {
+			dir := t.TempDir()
+			if IsFestivalDir(dir) {
+				t.Fatal("empty dir should not read as a festival")
+			}
+			if err := os.WriteFile(filepath.Join(dir, marker), []byte("x"), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			if !IsFestivalDir(dir) {
+				t.Errorf("%s should mark a festival directory", marker)
+			}
+		})
+	}
+
+	t.Run("a directory named like a marker does not count", func(t *testing.T) {
+		dir := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(dir, FestivalGoalFile), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if IsFestivalDir(dir) {
+			t.Error("a directory named FESTIVAL_GOAL.md is not a festival marker")
+		}
+	})
+}
+
+func TestClassify(t *testing.T) {
+	tests := []struct {
+		name    string
+		files   map[string]string
+		wantStr string
+		want    DirKind
+	}{
+		{"empty", nil, "neither", KindNeither},
+		{"festival", map[string]string{FestivalConfigFile: "version: \"1.0\"\n"}, "festival", KindFestival},
+		{"resident", map[string]string{MarkerFilename: "kind: workitem\nid: x\ntype: design\n"}, "resident", KindResident},
+		{
+			// The workitem marker wins: camp writes it only on a real promote,
+			// while a stale fest.yaml proves nothing about the current owner.
+			name: "both markers classify as resident",
+			files: map[string]string{
+				MarkerFilename:     "kind: workitem\nid: x\ntype: design\n",
+				FestivalConfigFile: "version: \"1.0\"\n",
+			},
+			wantStr: "resident",
+			want:    KindResident,
+		},
+		{
+			name:    "wrong-kind sidecar plus festival marker is a festival",
+			files:   map[string]string{MarkerFilename: "kind: other\n", FestivalConfigFile: "version: \"1.0\"\n"},
+			wantStr: "festival",
+			want:    KindFestival,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			dir := t.TempDir()
+			for name, body := range tc.files {
+				if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			got := Classify(dir)
+			if got != tc.want {
+				t.Errorf("Classify = %v, want %v", got, tc.want)
+			}
+			if got.String() != tc.wantStr {
+				t.Errorf("String = %q, want %q", got.String(), tc.wantStr)
+			}
+		})
+	}
+}

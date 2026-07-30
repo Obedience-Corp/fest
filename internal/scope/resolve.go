@@ -8,6 +8,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
+	"github.com/Obedience-Corp/fest/internal/resident"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
@@ -205,25 +206,7 @@ func findFestivalByName(festivalsRoot, name string) (string, error) {
 
 // isValidFestival checks if a directory is a valid festival root.
 func isValidFestival(dir string) bool {
-	// Check for FESTIVAL_GOAL.md
-	goalPath := filepath.Join(dir, "FESTIVAL_GOAL.md")
-	if info, err := os.Stat(goalPath); err == nil && !info.IsDir() {
-		return true
-	}
-
-	// Check for FESTIVAL_OVERVIEW.md
-	overviewPath := filepath.Join(dir, "FESTIVAL_OVERVIEW.md")
-	if info, err := os.Stat(overviewPath); err == nil && !info.IsDir() {
-		return true
-	}
-
-	// Check for fest.yaml as fallback
-	configPath := filepath.Join(dir, "fest.yaml")
-	if info, err := os.Stat(configPath); err == nil && !info.IsDir() {
-		return true
-	}
-
-	return false
+	return resident.IsFestivalDir(dir)
 }
 
 // festivalScopeError returns an actionable error for festival scope failures.
