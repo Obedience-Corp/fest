@@ -35,17 +35,26 @@ func runFestivalListing(ctx context.Context, festivalsRoot, filterStatus string,
 			return err
 		}
 
+		residents := show.ListResidentsByStatus(ctx, festivalsRoot, filterStatus)
+
 		if opts.json {
 			result := map[string]any{
 				"status":    filterStatus,
 				"count":     len(festivals),
 				"festivals": festivals,
 			}
+			// Additive: absent when the stage holds no residents.
+			if len(residents) > 0 {
+				result["residents"] = residents
+			}
 			if err := shared.EncodeJSON(os.Stdout, result); err != nil {
 				return errors.Wrap(err, "encoding JSON output")
 			}
 		} else {
 			fmt.Println(show.FormatFestivalList(filterStatus, festivals))
+			if block := show.FormatResidentList(filterStatus, residents); block != "" {
+				fmt.Println(block)
+			}
 		}
 	} else {
 		fmt.Println("Use 'fest list --all' to see all festivals grouped by status")

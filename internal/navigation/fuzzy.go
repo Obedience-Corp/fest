@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/resident"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
@@ -122,7 +123,7 @@ func CollectNavigationTargets(festivalsDir string) []FuzzyTarget {
 			festivalName := entry.Name()
 			festivalPath := filepath.Join(statusPath, festivalName)
 
-			if !isNavigableFestivalDir(festivalName) {
+			if !isNavigableFestivalDir(festivalName) && !isNavigableResident(status, festivalPath) {
 				continue // Skip non-festival directories
 			}
 
@@ -165,7 +166,7 @@ func CollectFestivalsInStatus(festivalsDir, status string) []FuzzyTarget {
 		}
 		name := entry.Name()
 		path := filepath.Join(statusPath, name)
-		if !isNavigableFestivalDir(name) {
+		if !isNavigableFestivalDir(name) && !isNavigableResident(status, path) {
 			continue
 		}
 		targets = append(targets, FuzzyTarget{
@@ -180,6 +181,17 @@ func CollectFestivalsInStatus(festivalsDir, status string) []FuzzyTarget {
 func isNavigableFestivalDir(name string) bool {
 	_, err := id.ExtractLogicalIDFromDirName(name)
 	return err == nil
+}
+
+// isNavigableResident lets a lifecycle resident be a navigation target even though
+// its name carries no logical id. Only the working stages qualify: a resident in
+// festivals/.dungeon/ is terminal, and navigation parity there is out of scope for
+// v1, matching camp's rail.
+func isNavigableResident(status, dir string) bool {
+	if status != "ready" && status != "active" {
+		return false
+	}
+	return resident.IsResident(dir)
 }
 
 func statusNavigationPriority(status string) int {
