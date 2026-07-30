@@ -149,16 +149,11 @@ func collectAllBoard(ctx context.Context, festivalsDir string, opts *listOptions
 		if residents := show.ListResidentsByStatus(ctx, festivalsDir, status); len(residents) > 0 {
 			allResidents[status] = residents
 		}
-		festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status, campaignRoot)
-		if err != nil {
-			continue
-		}
-		festivals, err = applyFilters(festivals, opts)
+		festivals, err := collectStatusFestivals(ctx, festivalsDir, status, opts, campaignRoot)
 		if err != nil {
 			return multiStatusBoard{}, err
 		}
 		if len(festivals) > 0 {
-			applySorting(festivals, opts.sortBy, opts.alpha)
 			allFestivals[status] = festivals
 			totalCount += len(festivals)
 			allFestivalsList = append(allFestivalsList, festivals...)
@@ -180,4 +175,20 @@ func collectAllBoard(ctx context.Context, festivalsDir string, opts *listOptions
 		Total:     totalCount,
 		Progress:  progressMap,
 	}, nil
+}
+
+// collectStatusFestivals lists, filters, and sorts one status's festivals. An
+// unreadable status directory yields none rather than failing the whole board,
+// matching the previous inline behavior.
+func collectStatusFestivals(ctx context.Context, festivalsDir, status string, opts *listOptions, campaignRoot string) ([]*show.FestivalInfo, error) {
+	festivals, err := show.ListFestivalsByStatus(ctx, festivalsDir, status, campaignRoot)
+	if err != nil {
+		return nil, nil
+	}
+	festivals, err = applyFilters(festivals, opts)
+	if err != nil {
+		return nil, err
+	}
+	applySorting(festivals, opts.sortBy, opts.alpha)
+	return festivals, nil
 }
