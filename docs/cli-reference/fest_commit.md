@@ -63,6 +63,7 @@ fest commit [flags]
 
 ```
       --auto-write        run configured commit message writer
+      --commit-large      commit over-threshold files instead of keeping them out of git
       --festival string   festival name or ID (overrides auto-detection)
   -h, --help              help for commit
       --json              output result as JSON

@@ -419,6 +419,7 @@ fest commit [flags]
 
 ```
       --auto-write        run configured commit message writer
+      --commit-large      commit over-threshold files instead of keeping them out of git
       --festival string   festival name or ID (overrides auto-detection)
   -h, --help              help for commit
       --json              output result as JSON
@@ -3364,6 +3365,46 @@ fest next [flags]
 ```
 ---
 
+## fest pack
+
+Pack a festival or ritual directory into a .festival bundle
+
+### Synopsis
+
+Pack a festival/ritual tree into a portable .festival ZIP.
+
+Does not execute or promote the festival. Out-of-root file links are vendored
+into .artifacts/; in-root links are left unchanged.
+
+Works from any directory (global scope); source path is explicit.
+
+```
+fest pack [source-dir] [flags]
+```
+
+### Options
+
+```
+      --creator string   bundle.creator (default "fest")
+  -h, --help             help for pack
+      --json             print info.json on stdout
+      --kind string      bundle kind (festival|ritual); inferred when empty
+      --name string      bundle name
+      --no-sent-record   skip .bundles/sent on source
+  -o, --output string    output .festival path (required)
+      --strict           fail if out-of-root links are missing
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
 ## fest parse
 
 Parse festival documents into structured output
@@ -5685,6 +5726,47 @@ fest types show <type-name> [flags]
       --json           Output as JSON
   -l, --level string   Filter by level (disambiguate if same name at multiple levels)
   -t, --template       Show raw template content
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
+## fest unbundle
+
+Unbundle a .festival archive into a directory
+
+### Synopsis
+
+Extract a Festival Bundle into a live directory.
+
+Does NOT run, promote, or activate the festival. Use fest ritual run or normal
+fest workflow separately after unbundle if execution is desired.
+
+Optional --validate runs in-process festival validation on the destination
+(this binary's validator, not a PATH-installed fest). Validation diagnostics
+go to stderr so --json still emits a single JSON document on stdout.
+
+```
+fest unbundle [path.festival] [flags]
+```
+
+### Options
+
+```
+  -d, --dest string          destination directory (required)
+      --force                allow non-empty destination
+  -h, --help                 help for unbundle
+      --json                 print info.json on stdout
+      --no-received-record   skip .bundles/received
+      --no-verify            skip content-hash verification
+      --validate             run in-process fest validate on destination after unbundle
 ```
 
 ### Options inherited from parent commands
