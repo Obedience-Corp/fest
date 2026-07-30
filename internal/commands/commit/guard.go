@@ -64,14 +64,14 @@ func reportStageOutcome(w io.Writer, outcome *commitkit.StageOutcome) {
 		return
 	}
 	if outcome.Unavailable != nil {
-		fmt.Fprintf(w, "Staged without the size and bulk guard: %v\n", outcome.Unavailable)
+		_, _ = fmt.Fprintf(w, "Staged without the size and bulk guard: %v\n", outcome.Unavailable)
 	}
 	for _, v := range outcome.Excluded {
-		fmt.Fprintf(w, "Kept out of git: %s (%s, over the %s limit); commit it anyway with 'fest commit --commit-large'\n",
+		_, _ = fmt.Fprintf(w, "Kept out of git: %s (%s, over the %s limit); commit it anyway with 'fest commit --commit-large'\n",
 			v.Path, formatBytes(v.Size), formatBytes(outcome.Limits.MaxFileSize))
 	}
 	for _, v := range outcome.Reported {
-		fmt.Fprintf(w, "Tracked file grew past %s: %s (%s); committed as usual\n",
+		_, _ = fmt.Fprintf(w, "Tracked file grew past %s: %s (%s); committed as usual\n",
 			formatBytes(outcome.Limits.MaxFileSize), v.Path, formatBytes(v.Size))
 	}
 }
