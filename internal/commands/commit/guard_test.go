@@ -10,7 +10,8 @@ import (
 // The refusal message is fest's one chance to explain a blocked commit, so
 // these tests pin the contract: every refusal names what was found, that
 // nothing was staged, and working ways out (including camp commit
-// --commit-large until fest grows its own flag). All assertions run against
+// commit-it-anyway retry that works where the refusal happened). All
+// assertions run against
 // typed data rendered by fest; none depend on camp's error strings.
 
 func TestGuardRefusalMessageBulkNamesEveryWayOut(t *testing.T) {
@@ -21,7 +22,7 @@ func TestGuardRefusalMessageBulkNamesEveryWayOut(t *testing.T) {
 		},
 	}
 
-	msg := guardRefusalMessage(blocked)
+	msg := guardRefusalMessage(blocked, "fest commit --commit-large")
 
 	for _, want := range []string{
 		"1204 untracked files",
@@ -29,7 +30,7 @@ func TestGuardRefusalMessageBulkNamesEveryWayOut(t *testing.T) {
 		"nothing was staged",
 		"echo 'node_modules/' >> .gitignore",
 		"camp artifacts add node_modules",
-		"camp commit --commit-large",
+		"fest commit --commit-large",
 		"camp settings set local.commit.guards.bulk off",
 	} {
 		if !strings.Contains(msg, want) {
@@ -47,7 +48,7 @@ func TestGuardRefusalMessageLargeFilesNamesEveryWayOut(t *testing.T) {
 		Limits: commitkit.GuardLimits{MaxFileSize: 100 << 20},
 	}
 
-	msg := guardRefusalMessage(blocked)
+	msg := guardRefusalMessage(blocked, "camp commit --commit-large")
 
 	for _, want := range []string{
 		"1 file over the 100.0 MB limit",
@@ -73,12 +74,12 @@ func TestReportStageOutcomeSaysWhatTheGuardDid(t *testing.T) {
 			{Kind: commitkit.TrackedGrowth, Path: "fixtures/golden.json", Size: 150 << 20},
 		},
 		Limits: commitkit.GuardLimits{MaxFileSize: 100 << 20},
-	})
+	}, "fest commit --commit-large")
 
 	out := b.String()
 	for _, want := range []string{
 		"Kept out of git: render.bin",
-		"camp commit --commit-large",
+		"fest commit --commit-large",
 		"Tracked file grew past 100.0 MB: fixtures/golden.json",
 	} {
 		if !strings.Contains(out, want) {
@@ -89,8 +90,8 @@ func TestReportStageOutcomeSaysWhatTheGuardDid(t *testing.T) {
 
 func TestReportStageOutcomeIsSilentWhenThereIsNothingToSay(t *testing.T) {
 	var b strings.Builder
-	reportStageOutcome(&b, nil)
-	reportStageOutcome(&b, &commitkit.StageOutcome{})
+	reportStageOutcome(&b, nil, "fest commit --commit-large")
+	reportStageOutcome(&b, &commitkit.StageOutcome{}, "fest commit --commit-large")
 	if b.Len() != 0 {
 		t.Errorf("an uneventful stage must print nothing, got:\n%s", b.String())
 	}

@@ -58,7 +58,7 @@ func TestCommitGuard_LargeFileKeptOutInStandaloneWorkspace(t *testing.T) {
 
 	// The exclusion is said out loud with its undo, from fest's own renderer.
 	assert.Contains(t, out, "render-output.bin", "fest must name the file it kept out of git")
-	assert.Contains(t, out, "camp commit --commit-large", "the exclusion must carry a working undo")
+	assert.Contains(t, out, "fest commit --commit-large", "the exclusion must carry fest's own working undo")
 
 	// The commit exists and carries the small file only.
 	committed, err := tc.Exec("git", "-C", dir, "ls-tree", "-r", "--name-only", "HEAD")
@@ -81,6 +81,17 @@ func TestCommitGuard_LargeFileKeptOutInStandaloneWorkspace(t *testing.T) {
 	require.Error(t, err, "an exclude-everything commit has nothing to commit")
 	assert.Contains(t, out2, "kept out of git by the size/bulk guard",
 		"the no-op must be attributed to the guard: %s", out2)
+
+	// The advertised retry must actually work: the same commit with
+	// --commit-large forces the excluded file into git, exactly as camp's
+	// own flag would.
+	out3, err := tc.RunFestInDir(dir+"/festivals/active/guard-festival",
+		"commit", "--no-tag", "--commit-large", "-m", "committed anyway")
+	require.NoError(t, err, "the --commit-large retry must succeed: %s", out3)
+	committed2, err := tc.Exec("git", "-C", dir, "ls-tree", "-r", "--name-only", "HEAD")
+	require.NoError(t, err)
+	assert.Contains(t, committed2, "render-output.bin",
+		"--commit-large must force the over-threshold file into the commit")
 }
 
 func TestCommitGuard_LargeFileKeptOutInLinkedSubmodule(t *testing.T) {
@@ -112,7 +123,7 @@ func TestCommitGuard_LargeFileKeptOutInLinkedSubmodule(t *testing.T) {
 		"commit", "--no-tag", "-m", "guarded project commit")
 	require.NoError(t, err, "the project commit must succeed without the big file: %s", out)
 	assert.Contains(t, out, "render-output.bin", "fest must name the file it kept out of the project repo")
-	assert.Contains(t, out, "camp commit --commit-large", "the exclusion must carry a working undo")
+	assert.Contains(t, out, "fest commit --commit-large", "the exclusion must carry fest's own working undo")
 
 	committed, err := tc.Exec("git", "-C", "/guard-camp/projects/app", "ls-tree", "-r", "--name-only", "HEAD")
 	require.NoError(t, err)

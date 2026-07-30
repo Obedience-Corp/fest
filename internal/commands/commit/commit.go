@@ -39,6 +39,7 @@ var (
 	autoStage        bool
 	autoWrite        bool
 	noRoot           bool
+	commitLarge      bool
 	syncSubmoduleRef bool // deprecated: kept for backward compat
 )
 
@@ -108,6 +109,7 @@ Examples:
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "output result as JSON")
 	cmd.Flags().BoolVar(&autoStage, "stage", true, "auto-stage all changes before commit")
 	cmd.Flags().BoolVar(&autoWrite, "auto-write", false, "run configured commit message writer")
+	cmd.Flags().BoolVar(&commitLarge, "commit-large", false, "commit over-threshold files instead of keeping them out of git")
 	cmd.Flags().BoolVar(&noRoot, "no-root", false, "skip campaign root commit (project commit only)")
 	cmd.Flags().BoolVar(&syncSubmoduleRef, "sync-submodule-ref", false, "deprecated: campaign root commit is now automatic")
 	_ = cmd.Flags().MarkDeprecated("sync-submodule-ref", "campaign root commit is now automatic; use --no-root to skip")
@@ -348,19 +350,24 @@ func currentGitRoot(ctx context.Context) (string, error) {
 // passed explicitly because the guard resolves its thresholds from it; the
 // old form ran `git add -A` in whatever cwd fest happened to hold.
 // report receives exclusion/unavailable lines (typically cmd.ErrOrStderr()).
+//
+// The --commit-large override rides through StageAllWithOptions to the same
+// guard decision camp's own flag reaches, so a refusal here can truthfully
+// offer `fest commit --commit-large` as the retry.
 func stageAllChanges(ctx context.Context, repoPath string, report io.Writer) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
 	}
-	outcome, err := commitkit.StageAllWithOutcome(ctx, repoPath)
+	outcome, err := commitkit.StageAllWithOptions(ctx, repoPath,
+		commitkit.StageOptions{CommitLarge: commitLarge})
 	if err != nil {
 		var blocked *commitkit.GuardBlockedError
 		if stderrors.As(err, &blocked) {
-			return errors.New(guardRefusalMessage(blocked))
+			return errors.New(guardRefusalMessage(blocked, "fest commit --commit-large"))
 		}
 		return errors.Wrap(err, "staging changes")
 	}
-	reportStageOutcome(report, outcome)
+	reportStageOutcome(report, outcome, "fest commit --commit-large")
 	return nothingLeftAfterExclusions(ctx, repoPath, outcome)
 }
 
@@ -375,11 +382,14 @@ func stageFiles(ctx context.Context, repoPath string, report io.Writer, files ..
 	if err != nil {
 		var blocked *commitkit.GuardBlockedError
 		if stderrors.As(err, &blocked) {
-			return errors.New(guardRefusalMessage(blocked))
+			// commitkit exports no options form for file-list staging, so
+			// fest's flag cannot reach this branch; camp's own flag is the
+			// retry that works at a campaign root.
+			return errors.New(guardRefusalMessage(blocked, "camp commit --commit-large"))
 		}
 		return errors.Wrap(err, "staging files")
 	}
-	reportStageOutcome(report, outcome)
+	reportStageOutcome(report, outcome, "camp commit --commit-large")
 	return nothingLeftAfterExclusions(ctx, repoPath, outcome)
 }
 
@@ -577,11 +587,11 @@ func commitCampaignRoot(ctx context.Context, campaignRoot string, paths []string
 	if err != nil {
 		var blocked *commitkit.GuardBlockedError
 		if stderrors.As(err, &blocked) {
-			return "", errors.New(guardRefusalMessage(blocked))
+			return "", errors.New(guardRefusalMessage(blocked, "camp commit --commit-large"))
 		}
 		return "", errors.Wrap(err, "staging festival files at campaign root")
 	}
-	reportStageOutcome(report, outcome)
+	reportStageOutcome(report, outcome, "camp commit --commit-large")
 
 	hasChanges, err := commitkit.HasStagedChanges(ctx, campaignRoot)
 	if err != nil {
