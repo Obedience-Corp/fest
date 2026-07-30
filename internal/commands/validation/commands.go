@@ -313,6 +313,13 @@ func runValidateAll(ctx context.Context, opts *validateOptions) error {
 		// it and exit clean rather than telling the user their workitem is
 		// malformed. Only the marker-present branch is informational: a plain
 		// non-festival directory still errors exactly as before.
+		//
+		// Note the deliberate divergence from resident.Classify, which lets the
+		// workitem marker win outright. Here the marker is consulted only after
+		// the directory has already failed to look like a festival, so validate
+		// never takes validation away from something with real festival
+		// structure. Classification drives labelling; this drives whether to run
+		// checks, and the conservative choice differs.
 		if target, m := residentTarget(opts.path); m != nil {
 			return emitResidentInfo(opts, display, target, m)
 		}

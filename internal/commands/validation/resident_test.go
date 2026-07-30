@@ -113,3 +113,25 @@ func TestEmitResidentInfo_JSONShape(t *testing.T) {
 		}
 	}
 }
+
+// A directory with both markers keeps being validated as a festival. This
+// diverges from resident.Classify (where the workitem marker wins) on purpose:
+// classification drives labelling, while this path decides whether to run checks,
+// and validate should never stop checking something with real festival structure.
+func TestValidate_BothMarkersStillValidatesAsFestival(t *testing.T) {
+	dir := t.TempDir()
+	writeResidentMarker(t, dir, "design")
+	if err := os.WriteFile(filepath.Join(dir, "FESTIVAL_OVERVIEW.md"), []byte("# F\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// resolveFestivalPath succeeds for this directory, so the resident intercept
+	// is never consulted.
+	got, err := resolveFestivalPath(dir)
+	if err != nil {
+		t.Fatalf("a directory with festival structure must still resolve: %v", err)
+	}
+	if got == "" {
+		t.Fatal("expected a resolved festival path")
+	}
+}
