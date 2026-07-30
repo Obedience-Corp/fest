@@ -569,16 +569,14 @@ func residentTarget(pathArg string) (string, *resident.Marker) {
 	return abs, m
 }
 
-// emitResidentInfo reports a resident through the normal validate result shape so
-// --json consumers see the same envelope, with a single info-level issue.
-func emitResidentInfo(opts *validateOptions, display *ui.UI, target string, m *resident.Marker) error {
+// residentResult builds the validate result for a resident: a clean pass carrying
+// one info-level issue, so --json consumers see the normal envelope.
+func residentResult(target string, m *resident.Marker) *ValidationResult {
 	label := m.Type
 	if label == "" {
 		label = "workitem"
 	}
-	message := "lifecycle resident (" + label + ") owned by camp; not a festival, nothing to validate"
-
-	result := &ValidationResult{
+	return &ValidationResult{
 		OK:       true,
 		Action:   "validate",
 		Festival: filepath.Base(target),
@@ -587,12 +585,16 @@ func emitResidentInfo(opts *validateOptions, display *ui.UI, target string, m *r
 			Level:   LevelInfo,
 			Code:    "lifecycle-resident",
 			Path:    target,
-			Message: message,
+			Message: "lifecycle resident (" + label + ") owned by camp; not a festival, nothing to validate",
 		}},
 	}
+}
+
+func emitResidentInfo(opts *validateOptions, display *ui.UI, target string, m *resident.Marker) error {
+	result := residentResult(target, m)
 	if opts.jsonOutput {
 		return emitValidateJSON(result)
 	}
-	display.Info("%s", message)
+	display.Info("%s", result.Issues[0].Message)
 	return nil
 }
