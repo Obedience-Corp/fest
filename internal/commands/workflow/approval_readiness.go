@@ -88,11 +88,16 @@ func checkApprovalReadinessWithInspector(
 	}
 
 	if explicitEvidence && len(status.missing) > 0 {
-		return festerrors.Validation("approval readiness failed: listed evidence missing or empty").
+		// Name the paths in the message, not only the structured field: this
+		// text is what the operator reads in the terminal and what gets
+		// recorded as the step's rejection reason. "listed evidence missing or
+		// empty" alone sends them back to GATES.md to work out which one.
+		missing := strings.Join(status.missing, ", ")
+		return festerrors.Validation("approval readiness failed: listed evidence missing or empty: " + missing).
 			WithField("step", step.Number).
 			WithField("step_name", step.Name).
-			WithField("missing", strings.Join(status.missing, ", ")).
-			WithHint("create every file listed under **Evidence:**, then re-submit with 'fest workflow judge'")
+			WithField("missing", missing).
+			WithHint("create every file listed under **Evidence:**, then re-submit with 'fest workflow judge': " + missing)
 	}
 
 	if presentationRequired && !status.presentationFound {
