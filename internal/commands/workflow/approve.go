@@ -83,9 +83,6 @@ type approvalJudgeRequest struct {
 	// the readiness gate validated. Additive to fest.approval.judge/v1: an older
 	// judge ignores it and sees only Document, as before.
 	Evidence []string `json:"evidence,omitempty"`
-	// EvidenceFiles is optional embedded content when the resolved hook uses
-	// evidence: embed. Omitted in the default paths mode.
-	EvidenceFiles []hooks.EvidenceFile `json:"evidence_files,omitempty"`
 	// CampaignRoot is the campaign directory containing this festival, so a
 	// judge can resolve working dirs and read the repositories the phase
 	// actually changed. Empty when no campaign root is found.
@@ -836,9 +833,7 @@ func judgeApproval(ctx context.Context, nav *wf.Navigator, step wf.WorkflowStep,
 	// not just the step definition. Without this the judge sees only Document
 	// and rejects (no evidence) or approves on the agent's self-report.
 	req.Evidence = resolveExistingEvidencePaths(nav.Ctx.PhasePath, step)
-	files, source := resolveJudgeHookContext(ctx, nav, opts.JudgeCommand, req.Evidence)
-	req.EvidenceFiles = files
-	opts.Source = source
+	opts.Source = resolveJudgeHookSource(ctx, nav, opts.JudgeCommand)
 	stepNum := step.Number
 	opts.OnHookRuns = func(runs []hooks.HookRun) {
 		emitJudgeHookRuns(ctx, nav, stepNum, runs)
@@ -847,33 +842,26 @@ func judgeApproval(ctx context.Context, nav *wf.Navigator, step wf.WorkflowStep,
 	return evaluateApprovalJudge(ctx, req, opts)
 }
 
-// resolveJudgeHookContext resolves the approval_judge hook once for both the
-// evidence: embed opt-in and the audit-event source layer. Best-effort:
-// resolve failures leave path-only mode and the festivals-layer default.
-func resolveJudgeHookContext(ctx context.Context, nav *wf.Navigator, judgeCommand string, present []string) ([]hooks.EvidenceFile, hooks.Layer) {
+// resolveJudgeHookSource resolves which config layer declared the approval_judge
+// hook being run, for the judge's wf_hook_run audit event. Best-effort: resolve
+// failures and a command mismatch both fall back to the festivals-layer default.
+func resolveJudgeHookSource(ctx context.Context, nav *wf.Navigator, judgeCommand string) hooks.Layer {
 	source := hooks.LayerFestivals
 	if nav == nil || nav.Ctx == nil || nav.Ctx.FestivalPath == "" {
-		return nil, source
+		return source
 	}
 	eff, err := hooks.LoadAndResolve(ctx, nav.Ctx.FestivalPath)
 	if err != nil || eff == nil {
-		return nil, source
+		return source
 	}
 	h, ok := eff.Hooks[hooks.ApprovalJudgeName]
 	if !ok {
-		return nil, source
+		return source
 	}
 	if h.Command == judgeCommand {
 		source = h.Source
 	}
-	if h.Evidence != hooks.EvidenceEmbed || len(present) == 0 {
-		return nil, source
-	}
-	files, err := hooks.BuildEvidenceFiles(nav.Ctx.PhasePath, present, hooks.EvidenceEmbedCapBytes)
-	if err != nil || len(files) == 0 {
-		return nil, source
-	}
-	return files, source
+	return source
 }
 
 func evaluateApprovalJudge(ctx context.Context, req approvalJudgeRequest, opts approvalJudgeOptions) (*approvalJudgeResponse, string, error) {

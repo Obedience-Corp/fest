@@ -4,12 +4,16 @@ import "gopkg.in/yaml.v3"
 
 // HookDefinition is a single declared hook. Redeclaring a name at a more
 // specific layer replaces this whole definition (no field-level merge).
+//
+// Unrecognized keys are ignored rather than rejected. The retired `evidence:`
+// knob is the reason this matters: a config still carrying it keeps judging
+// instead of failing to load, which is the right trade when the alternative is
+// breaking every gate for an operator who has not pulled the cleanup yet.
 type HookDefinition struct {
-	Command  string `yaml:"command" json:"command"`                       // required
-	Fail     string `yaml:"fail,omitempty" json:"fail,omitempty"`         // "closed" (default) | "open"
-	Timeout  string `yaml:"timeout,omitempty" json:"timeout,omitempty"`   // e.g. "120s"; parsed in internal/hooks
-	Evidence string `yaml:"evidence,omitempty" json:"evidence,omitempty"` // "paths" (default) | "embed"
-	Enabled  *bool  `yaml:"enabled,omitempty" json:"enabled,omitempty"`   // nil = enabled; per-hook switch (D1)
+	Command string `yaml:"command" json:"command"`                     // required
+	Fail    string `yaml:"fail,omitempty" json:"fail,omitempty"`       // "closed" (default) | "open"
+	Timeout string `yaml:"timeout,omitempty" json:"timeout,omitempty"` // e.g. "120s"; parsed in internal/hooks
+	Enabled *bool  `yaml:"enabled,omitempty" json:"enabled,omitempty"` // nil = enabled; per-hook switch (D1)
 }
 
 // HooksConfig holds optional hooks configuration shared by machine (JSON),

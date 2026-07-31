@@ -54,14 +54,13 @@ type hooksListJSON struct {
 }
 
 type hooksListHookJSON struct {
-	Name     string                `json:"name"`
-	Source   string                `json:"source"`
-	Enabled  bool                  `json:"enabled"`
-	Command  string                `json:"command"`
-	Fail     string                `json:"fail"`
-	Timeout  string                `json:"timeout"`
-	Evidence string                `json:"evidence"`
-	Shadows  []hooksListShadowJSON `json:"shadows"`
+	Name    string                `json:"name"`
+	Source  string                `json:"source"`
+	Enabled bool                  `json:"enabled"`
+	Command string                `json:"command"`
+	Fail    string                `json:"fail"`
+	Timeout string                `json:"timeout"`
+	Shadows []hooksListShadowJSON `json:"shadows"`
 }
 
 type hooksListShadowJSON struct {
@@ -129,14 +128,13 @@ func buildHooksListView(eff *hooks.Effective) hooksListJSON {
 	for _, name := range names {
 		h := eff.Hooks[name]
 		entry := hooksListHookJSON{
-			Name:     name,
-			Source:   string(h.Source),
-			Enabled:  h.Enabled,
-			Command:  h.Command,
-			Fail:     string(h.Fail),
-			Timeout:  h.Timeout.String(),
-			Evidence: string(h.Evidence),
-			Shadows:  []hooksListShadowJSON{},
+			Name:    name,
+			Source:  string(h.Source),
+			Enabled: h.Enabled,
+			Command: h.Command,
+			Fail:    string(h.Fail),
+			Timeout: h.Timeout.String(),
+			Shadows: []hooksListShadowJSON{},
 		}
 		for _, s := range h.Shadowed {
 			entry.Shadows = append(entry.Shadows, hooksListShadowJSON{
@@ -174,8 +172,8 @@ func printHooksListText(view hooksListJSON) {
 		if !h.Enabled {
 			enabled = "disabled"
 		}
-		fmt.Printf("%s   [%s]   %s   fail=%s  timeout=%s   evidence=%s\n",
-			h.Name, h.Source, enabled, h.Fail, h.Timeout, h.Evidence)
+		fmt.Printf("%s   [%s]   %s   fail=%s  timeout=%s\n",
+			h.Name, h.Source, enabled, h.Fail, h.Timeout)
 		fmt.Printf("  command: %s\n", h.Command)
 		if len(h.Shadows) > 0 {
 			fmt.Println("  shadows:")

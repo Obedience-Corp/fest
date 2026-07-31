@@ -25,13 +25,6 @@ const (
 	FailOpen   FailPolicy = "open"
 )
 
-type EvidenceMode string
-
-const (
-	EvidencePaths EvidenceMode = "paths"
-	EvidenceEmbed EvidenceMode = "embed"
-)
-
 // DefaultTimeout is applied to newly declared hooks when timeout is unset.
 const DefaultTimeout = 120 * time.Second
 
@@ -56,7 +49,6 @@ type ResolvedHook struct {
 	Command  string
 	Fail     FailPolicy
 	Timeout  time.Duration
-	Evidence EvidenceMode
 	Enabled  bool
 	Source   Layer         // the layer the winning definition came from
 	Shadowed []ShadowedDef // upper-layer definitions this one replaced, when they DIFFER
@@ -163,16 +155,6 @@ func resolveOne(name string, src Layer, def config.HookDefinition) (ResolvedHook
 			WithField("hook", name).WithField("fail", def.Fail).
 			WithHint("fail must be closed or open")
 	}
-	switch def.Evidence {
-	case "", string(EvidencePaths):
-		rh.Evidence = EvidencePaths
-	case string(EvidenceEmbed):
-		rh.Evidence = EvidenceEmbed
-	default:
-		return rh, festerrors.Validation("invalid hook evidence mode").
-			WithField("hook", name).WithField("evidence", def.Evidence).
-			WithHint("evidence must be paths or embed")
-	}
 	rh.Timeout = defaultTimeoutFor(name)
 	if def.Timeout != "" {
 		d, err := time.ParseDuration(def.Timeout)
@@ -189,7 +171,7 @@ func resolveOne(name string, src Layer, def config.HookDefinition) (ResolvedHook
 }
 
 func defsEqual(a, b config.HookDefinition) bool {
-	if a.Command != b.Command || a.Fail != b.Fail || a.Timeout != b.Timeout || a.Evidence != b.Evidence {
+	if a.Command != b.Command || a.Fail != b.Fail || a.Timeout != b.Timeout {
 		return false
 	}
 	return boolPtrEqual(a.Enabled, b.Enabled)

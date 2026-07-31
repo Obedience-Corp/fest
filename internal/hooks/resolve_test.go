@@ -25,17 +25,6 @@ func TestResolve_InvalidFail(t *testing.T) {
 	}
 }
 
-func TestResolve_InvalidEvidence(t *testing.T) {
-	_, err := Resolve(nil, &config.HooksConfig{
-		Definitions: map[string]config.HookDefinition{
-			"x": {Command: "true", Evidence: "blob"},
-		},
-	}, nil)
-	if err == nil || !strings.Contains(err.Error(), "invalid hook evidence mode") {
-		t.Fatalf("err = %v", err)
-	}
-}
-
 func TestResolve_InvalidTimeout(t *testing.T) {
 	_, err := Resolve(nil, &config.HooksConfig{
 		Definitions: map[string]config.HookDefinition{
@@ -191,7 +180,7 @@ func TestResolve_DefaultsApplied(t *testing.T) {
 		t.Fatalf("Resolve: %v", err)
 	}
 	h := eff.Hooks["only"]
-	if h.Fail != FailClosed || h.Timeout != 120*time.Second || h.Evidence != EvidencePaths || !h.Enabled {
+	if h.Fail != FailClosed || h.Timeout != 120*time.Second || !h.Enabled {
 		t.Fatalf("defaults wrong: %+v", h)
 	}
 }

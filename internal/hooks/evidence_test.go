@@ -3,7 +3,6 @@ package hooks
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -56,34 +55,5 @@ func TestWithinRoot_AndResolve(t *testing.T) {
 	got := ResolvePhaseRelative(root, []string{"ok.txt", "empty.txt", "missing.txt", "ok.txt", "/abs"})
 	if len(got) != 1 || got[0] != "ok.txt" {
 		t.Fatalf("got = %v", got)
-	}
-}
-
-func TestBuildEvidenceFiles_CapAndTruncate(t *testing.T) {
-	root := t.TempDir()
-	if err := os.WriteFile(filepath.Join(root, "a.txt"), []byte("aaaa"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(root, "b.txt"), []byte("bbbbbbbb"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	files, err := BuildEvidenceFiles(root, []string{"a.txt", "b.txt"}, 6)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(files) != 2 {
-		t.Fatalf("files = %+v", files)
-	}
-	if files[0].Truncated || files[0].Content != "aaaa" {
-		t.Fatalf("a = %+v", files[0])
-	}
-	if !files[1].Truncated || !strings.Contains(files[1].Content, "TRUNCATED") {
-		t.Fatalf("b = %+v", files[1])
-	}
-
-	// exact budget
-	files, err = BuildEvidenceFiles(root, []string{"a.txt"}, 4)
-	if err != nil || len(files) != 1 || files[0].Truncated {
-		t.Fatalf("exact: %v %+v", err, files)
 	}
 }
