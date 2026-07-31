@@ -93,7 +93,7 @@ func checkApprovalReadinessWithInspector(
 		// recorded as the step's rejection reason. "listed evidence missing or
 		// empty" alone sends them back to GATES.md to work out which one.
 		missing := strings.Join(status.missing, ", ")
-		return festerrors.Validation("approval readiness failed: listed evidence missing or empty: " + missing).
+		return festerrors.Validation("approval readiness failed: listed evidence missing or empty: "+missing).
 			WithField("step", step.Number).
 			WithField("step_name", step.Name).
 			WithField("missing", missing).
