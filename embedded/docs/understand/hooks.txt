@@ -5,7 +5,7 @@ Hooks are named commands bound to festival lifecycle events. The approval
 judge is one hook among them, not a special case.
 
 Read the full guide: docs/concepts/hooks.md
-Evidence transport: docs/concepts/hook-evidence-contract.md
+Judge orientation contract: docs/concepts/hook-evidence-contract.md
 
 Declaration layers (least → most specific)
 -----------------------------------------
@@ -31,7 +31,6 @@ Schema sketch
         command: ob judge    # required
         fail: closed         # closed | open
         timeout: 0           # 0 = no deadline (approval_judge default)
-        evidence: paths      # paths | embed
         enabled: true
 
 Bindings (names only)
