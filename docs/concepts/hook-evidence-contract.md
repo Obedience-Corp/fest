@@ -118,6 +118,40 @@ sends where the work landed:
   itself, which the judge already sees through `phase_path`. A declaration that
   was present but rejected is reported on stderr rather than dropped silently.
 
+## What the audit trail can and cannot tell you
+
+Inlining had one virtue nobody designed for: the judge's inputs were fixed, so
+the prompt was derivable from the request and the record showed exactly what a
+decision rested on.
+
+An inspecting judge chooses what to open. Two runs of the same checkpoint can
+consult different files, and nothing fest observes distinguishes them. That is a
+real cost of this contract, accepted deliberately rather than absorbed quietly.
+
+What the ledger records, on `wf_judge_started`:
+
+| Field | Meaning |
+| --- | --- |
+| `judge_evidence_offered` | deliverable paths the judge was **pointed at** |
+| `judge_working_dirs_offered` | working dirs the judge was **pointed at** |
+
+**Offered, not read.** The names are deliberate. fest knows what it put in the
+prompt; it does not know what the judge opened, and a field named `read` would
+claim provenance the record does not have.
+
+Two rejected alternatives, so the choice is not relitigated from scratch:
+
+- **Have the judge report what it read.** Self-reported by the component under
+  audit. A judge that fabricates an inspection fabricates the list too, so it
+  reads like provenance while being model-authored. Worse than recording less.
+- **Capture real tool calls from the daemon session.** The only unfakeable
+  option, since the daemon sees actual invocations. Also the most expensive, and
+  it couples the judge audit trail to session internals. Worth revisiting if a
+  disputed verdict ever needs adjudicating; not worth paying for in advance.
+
+The offer is recorded at launch rather than on return, so a judge that crashes
+or times out still leaves behind what it was asked to look at.
+
 ## Failure semantics
 
 - The transport never aborts solely because an evidence path is missing.

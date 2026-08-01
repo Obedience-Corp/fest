@@ -56,6 +56,10 @@ type WorkflowEvent struct {
 	JudgeDetail      string
 	JudgePid         int
 	JudgeRunID       string
+	// What the judge was pointed at, never what it read. See the ledger field
+	// comments in internal/progress/events.go.
+	JudgeEvidenceOffered    []string
+	JudgeWorkingDirsOffered []string
 
 	// Hook-run fields (wf_hook_run). Hook runs are events, never decisions (D9).
 	HookName       string
@@ -898,16 +902,30 @@ func EmitResetEvents(phaseName string) []WorkflowEvent {
 
 // EmitJudgeStartedEvents generates events for a delegated judge run starting
 // on a blocking checkpoint.
-func EmitJudgeStartedEvents(phaseName string, step int, command, runID string, pid int) []WorkflowEvent {
+func EmitJudgeStartedEvents(phaseName string, step int, command, runID string, pid int, offered JudgeInputs) []WorkflowEvent {
 	return []WorkflowEvent{{
-		EventType:    "wf_judge_started",
-		Phase:        phaseName,
-		Step:         step,
-		JudgeStatus:  JudgeRunning,
-		JudgeCommand: command,
-		JudgePid:     pid,
-		JudgeRunID:   runID,
+		EventType:               "wf_judge_started",
+		Phase:                   phaseName,
+		Step:                    step,
+		JudgeStatus:             JudgeRunning,
+		JudgeCommand:            command,
+		JudgePid:                pid,
+		JudgeRunID:              runID,
+		JudgeEvidenceOffered:    offered.Evidence,
+		JudgeWorkingDirsOffered: offered.WorkingDirs,
 	}}
+}
+
+// JudgeInputs is what a judge run was pointed at when it started.
+//
+// It is deliberately not "what the judge read". Once the judge opens files
+// itself, two runs of the same checkpoint can consult different things, and
+// nothing fest can see distinguishes them. Recording the offer is honest and
+// cheap; recording a self-reported read list would look like provenance while
+// being authored by the thing under audit.
+type JudgeInputs struct {
+	Evidence    []string
+	WorkingDirs []string
 }
 
 // EmitHookRunEvents generates one wf_hook_run event per hook runner record so

@@ -114,7 +114,7 @@ func TestReconcileJudgeBeforeLaunch_RecordsDeadLease(t *testing.T) {
 	if err := nav.Advance(ctx); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
-	if err := nav.BeginJudge(ctx, 2, "fake judge", "stale-run", 99999999); err != nil {
+	if err := nav.BeginJudge(ctx, 2, "fake judge", "stale-run", 99999999, wf.JudgeInputs{}); err != nil {
 		t.Fatalf("BeginJudge: %v", err)
 	}
 
@@ -156,7 +156,7 @@ func TestOperatorDecisionClearsJudgeAcrossEventReload(t *testing.T) {
 	if err := nav.Advance(ctx); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
-	if err := nav.BeginJudge(ctx, 2, "fake judge", "run-1", 123); err != nil {
+	if err := nav.BeginJudge(ctx, 2, "fake judge", "run-1", 123, wf.JudgeInputs{}); err != nil {
 		t.Fatalf("BeginJudge: %v", err)
 	}
 	if recorded, err := nav.RecordJudgeOutcome(ctx, 2, "run-1", wf.JudgeRejected, "missing proof"); err != nil || !recorded {
@@ -199,7 +199,7 @@ func TestOperatorDecisionClearsLegacyEmptyRunIDJudgeAcrossEventReload(t *testing
 	if err := nav.Advance(ctx); err != nil {
 		t.Fatalf("Advance: %v", err)
 	}
-	if err := nav.BeginJudge(ctx, 2, "legacy judge", "", 123); err != nil {
+	if err := nav.BeginJudge(ctx, 2, "legacy judge", "", 123, wf.JudgeInputs{}); err != nil {
 		t.Fatalf("BeginJudge: %v", err)
 	}
 	if recorded, err := nav.RecordJudgeOutcome(ctx, 2, "", wf.JudgeRejected, "legacy rejection"); err != nil || !recorded {

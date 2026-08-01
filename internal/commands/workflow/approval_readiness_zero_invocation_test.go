@@ -170,3 +170,42 @@ func TestPrepareAutoJudgeReadiness_NonEmptyDeliverablePasses(t *testing.T) {
 		t.Fatalf("readiness must pass for a non-empty deliverable: %v", err)
 	}
 }
+
+// The ledger records what the judge was pointed at, never what it read. Once
+// the judge opens files itself, nothing fest can see distinguishes two runs
+// that consulted different things, so the record must not imply it knows.
+func TestJudgeInputsOffered_RecordsDeclaredEvidence(t *testing.T) {
+	nav, phasePath := writeEvidenceGateFestival(t, "output_specs/PRESENTATION.md")
+	step := evidenceGateStep(t, nav)
+
+	outputs := filepath.Join(phasePath, "output_specs")
+	if err := os.MkdirAll(outputs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(outputs, "PRESENTATION.md"), []byte("real work\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	offered := judgeInputsOffered(nav, step)
+	if len(offered.Evidence) != 1 || offered.Evidence[0] != "output_specs/PRESENTATION.md" {
+		t.Fatalf("Evidence = %v, want the declared deliverable", offered.Evidence)
+	}
+}
+
+// A deliverable that does not exist is not offered, because the judge is never
+// pointed at it: resolveExistingEvidencePaths drops it and the readiness gate
+// blocks the run before it starts.
+func TestJudgeInputsOffered_OmitsMissingDeliverables(t *testing.T) {
+	nav, _ := writeEvidenceGateFestival(t, "output_specs/PRESENTATION.md")
+	step := evidenceGateStep(t, nav)
+
+	if offered := judgeInputsOffered(nav, step); len(offered.Evidence) != 0 {
+		t.Fatalf("Evidence = %v, want nothing offered when the deliverable is absent", offered.Evidence)
+	}
+}
+
+func TestJudgeInputsOffered_NilNavigatorIsEmpty(t *testing.T) {
+	if offered := judgeInputsOffered(nil, wf.WorkflowStep{}); len(offered.Evidence) != 0 || len(offered.WorkingDirs) != 0 {
+		t.Fatalf("offered = %+v, want empty", offered)
+	}
+}

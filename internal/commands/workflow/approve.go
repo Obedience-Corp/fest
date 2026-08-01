@@ -675,7 +675,7 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 				return err
 			}
 		}
-		if err := fresh.BeginJudge(ctx, currentStepNum, opts.JudgeCommand, runID, os.Getpid()); err != nil {
+		if err := fresh.BeginJudge(ctx, currentStepNum, opts.JudgeCommand, runID, os.Getpid(), judgeInputsOffered(fresh, step)); err != nil {
 			return festerrors.Wrap(err, "recording judge start")
 		}
 		nav = fresh
@@ -840,6 +840,25 @@ func judgeApproval(ctx context.Context, nav *wf.Navigator, step wf.WorkflowStep,
 	}
 
 	return evaluateApprovalJudge(ctx, req, opts)
+}
+
+// judgeInputsOffered computes what a judge run is about to be pointed at, for
+// the wf_judge_started ledger entry. It mirrors what judgeApproval puts on the
+// request, so the record and the prompt agree.
+//
+// Recorded at launch rather than on return: a judge that crashes or times out
+// still leaves behind what it was asked to look at, which is when knowing is
+// most useful.
+func judgeInputsOffered(nav *wf.Navigator, step wf.WorkflowStep) wf.JudgeInputs {
+	if nav == nil || nav.Ctx == nil {
+		return wf.JudgeInputs{}
+	}
+	offered := wf.JudgeInputs{Evidence: resolveExistingEvidencePaths(nav.Ctx.PhasePath, step)}
+	dirs, _ := collectPhaseWorkingDirs(nav.Ctx.PhasePath)
+	for _, d := range dirs {
+		offered.WorkingDirs = append(offered.WorkingDirs, d.Path)
+	}
+	return offered
 }
 
 // resolveJudgeHookSource resolves which config layer declared the approval_judge
