@@ -44,6 +44,19 @@ Run `fest --help` for the full command reference.
     └── orchestration/                         # Multi-agent orchestration patterns
 ```
 
+## Lifecycle Residents
+
+The `ready/` and `active/` directories can contain more than festivals. A workitem
+directory that a user has moved onto the lifecycle board appears there as a
+**resident**: still its original type, never gaining phases or sequences, and never
+mutated by fest.
+
+You will see residents as cards in `fest list` and `fest status list`, as targets in
+`fest go`, and as an informational note in `fest validate` rather than an error. All
+resident mechanics — putting one on the board, moving it between stages, completing
+it, or sending it home — belong to camp, not fest. See camp's `workitem promote` and
+`workitem demote` documentation for those.
+
 ## Templates
 
 Templates are used by `fest create` commands to scaffold festival structure. You don't need to read them — the CLI renders them with the correct variables when you create festivals, phases, sequences, and tasks.
