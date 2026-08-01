@@ -433,4 +433,4 @@ Fest is one half of the Festival product. The other half is [camp](https://githu
 
 ## License
 
-Functional Source License 1.1 (FSL-1.1-ALv2) - See [LICENSE](LICENSE) for details.
+Apache License 2.0 - See [LICENSE](LICENSE) for details.
