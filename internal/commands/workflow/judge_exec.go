@@ -133,7 +133,7 @@ func launchApproveAutoLocked(ctx context.Context, nav *wf.Navigator, currentStep
 
 	// Persist the run lease before starting a child. The child will not evaluate
 	// until the parent durably claims this lease with its PID.
-	if err := nav.BeginJudge(ctx, currentStepNum, opts.JudgeCommand, runID, 0); err != nil {
+	if err := nav.BeginJudge(ctx, currentStepNum, opts.JudgeCommand, runID, 0, judgeInputsOffered(nav, step)); err != nil {
 		_ = os.Remove(payloadPath)
 		return festerrors.Wrap(err, "recording judge lease")
 	}

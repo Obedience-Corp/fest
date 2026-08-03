@@ -130,7 +130,6 @@ hooks:
       command: ob judge   # required
       fail: closed        # closed (default) | open
       timeout: 0          # 0 = no deadline (the approval_judge default)
-      evidence: paths     # paths (default) | embed
       enabled: true
 ```
 
@@ -146,7 +145,7 @@ fest hooks list
 fest hooks list --json
 ```
 
-Full guide: [docs/concepts/hooks.md](concepts/hooks.md). Evidence transport:
+Full guide: [docs/concepts/hooks.md](concepts/hooks.md). Judge orientation contract:
 [docs/concepts/hook-evidence-contract.md](concepts/hook-evidence-contract.md).
 
 ## Environment Variables

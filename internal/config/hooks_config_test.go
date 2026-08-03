@@ -47,7 +47,6 @@ hooks:
       command: ob judge
       fail: closed
       timeout: 120s
-      evidence: paths
       enabled: false
     linter:
       command: just lint
@@ -73,7 +72,7 @@ hooks:
 	if !ok {
 		t.Fatal("missing approval_judge definition")
 	}
-	if def.Command != "ob judge" || def.Fail != "closed" || def.Timeout != "120s" || def.Evidence != "paths" {
+	if def.Command != "ob judge" || def.Fail != "closed" || def.Timeout != "120s" {
 		t.Fatalf("approval_judge fields = %+v", def)
 	}
 	if def.Enabled == nil || *def.Enabled {
@@ -81,6 +80,39 @@ hooks:
 	}
 	if cfg.Hooks.Definitions["linter"].Command != "just lint" {
 		t.Fatalf("linter.command = %q", cfg.Hooks.Definitions["linter"].Command)
+	}
+}
+
+// The retired evidence: knob must load as an ignored key, not a parse error.
+// Rejecting it would stop every gate for an operator whose config still
+// carries it, which is a worse failure than silently doing nothing.
+func TestLoadWorkspaceConfig_RetiredEvidenceKeyIsIgnored(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, DotFestivalDir)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	data := `version: "1.0"
+hooks:
+  definitions:
+    approval_judge:
+      command: ob judge
+      evidence: embed
+`
+	if err := os.WriteFile(filepath.Join(dir, WorkspaceConfigFileName), []byte(data), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := LoadWorkspaceConfig(root)
+	if err != nil {
+		t.Fatalf("LoadWorkspaceConfig: %v", err)
+	}
+	def, ok := cfg.Hooks.Definitions["approval_judge"]
+	if !ok {
+		t.Fatal("missing approval_judge definition")
+	}
+	if def.Command != "ob judge" {
+		t.Fatalf("command = %q, want the definition to load intact", def.Command)
 	}
 }
 

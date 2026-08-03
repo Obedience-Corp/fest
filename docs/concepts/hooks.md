@@ -6,7 +6,7 @@ is one hook among them, not a special case.
 
 Related:
 
-- Evidence transport details: [hook-evidence-contract.md](./hook-evidence-contract.md)
+- What the judge receives: [hook-evidence-contract.md](./hook-evidence-contract.md)
 - Inspect resolution: `fest hooks list` / `fest hooks list --json`
 - Learn in-terminal: `fest understand hooks`
 
@@ -49,7 +49,6 @@ hooks:
       command: ob judge    # required; cwd = festival root
       fail: closed         # closed (default) | open
       timeout: 0           # 0 = no deadline; default 120s, except approval_judge
-      evidence: paths      # paths (default) | embed
       enabled: true        # per-hook switch
 ```
 
@@ -177,9 +176,10 @@ affected steps.
 
 ## Evidence
 
-Default is read-by-approver (`evidence: paths`): the request carries paths; the
-approver reads files. Opt-in `evidence: embed` may attach capped file contents.
-See [hook-evidence-contract.md](./hook-evidence-contract.md).
+The request carries **paths, not content**. fest guarantees the listed
+deliverables exist and are non-empty, and the approver reads them itself. There
+is no embedded-content mode. See
+[hook-evidence-contract.md](./hook-evidence-contract.md).
 
 The approval judge protocol remains `fest.approval.judge/v1` (JSON stdin/stdout).
 

@@ -310,8 +310,8 @@ func (n *Navigator) GetContextFiles(ctx context.Context) ([]string, error) {
 // the current step, before the judge command executes, so concurrent watchers
 // (fest show --watch, fest progress) can render the waiting-on-judge state
 // and a crashed or timed-out judge still leaves a trace.
-func (n *Navigator) BeginJudge(ctx context.Context, step int, command, runID string, pid int) error {
-	return n.recordJudge(ctx, EmitJudgeStartedEvents(n.stateKey(), step, command, runID, pid), func(at time.Time) bool {
+func (n *Navigator) BeginJudge(ctx context.Context, step int, command, runID string, pid int, offered JudgeInputs) error {
+	return n.recordJudge(ctx, EmitJudgeStartedEvents(n.stateKey(), step, command, runID, pid, offered), func(at time.Time) bool {
 		n.workflowState.BeginJudge(step, command, runID, pid, at)
 		return true
 	})

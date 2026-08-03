@@ -96,6 +96,12 @@ type ProgressEvent struct {
 	JudgeDetail      string   `json:"judge_detail,omitempty"`
 	JudgePid         int      `json:"judge_pid,omitempty"`
 	JudgeRunID       string   `json:"judge_run_id,omitempty"`
+	// JudgeEvidenceOffered and JudgeWorkingDirsOffered record what the judge
+	// was POINTED AT, not what it read. An inspecting judge chooses its own
+	// inputs, so the ledger cannot claim to know what it opened; naming these
+	// "offered" keeps the record from implying provenance it does not have.
+	JudgeEvidenceOffered    []string `json:"judge_evidence_offered,omitempty"`
+	JudgeWorkingDirsOffered []string `json:"judge_working_dirs_offered,omitempty"`
 
 	// Hook-run event fields (wf_hook_run).
 	HookName     string `json:"hook_name,omitempty"`
