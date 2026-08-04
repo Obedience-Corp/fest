@@ -10,9 +10,11 @@ This gate verifies the research phase achieved its goal and produced actionable 
 
 ## Before you submit any step below
 
-The judge reads what this phase wrote down. It cannot browse your repositories,
-and on a provider without tool access it cannot open anything at all, so work
-that is real but only visible in a working directory does not reach it.
+Whether the judge can open your repositories depends on its provider:
+CLI-backed judges read the declared working directories themselves, while
+judges without tool access see only what this phase wrote down. Writing the
+essentials here keeps the gate independent of which judge you drew, and leaves
+the festival a durable record after the worktree is gone.
 
 Write the phase's evidence into `output_specs/` before submitting the first
 step. These are picked up automatically; you do not need to list them:
