@@ -13,6 +13,11 @@ one-shot completion. It can open files, walk directories, and read a diff. The
 whole design rests on that assumption, so it is worth stating plainly rather
 than leaving it implied by the schema.
 
+That assumption is not universally true, and the consumer side checks it. See
+[When the judge cannot inspect](#when-the-judge-cannot-inspect) below: fest
+always sends orientation, but `ob judge` falls back to inlining content for
+providers that get no tools.
+
 Sending content instead of paths costs something and buys nothing:
 
 - fest has to guess what matters before the judge has looked at anything.
@@ -41,7 +46,7 @@ The concrete type is `approvalJudgeRequest` in
 | `actions` | when set | The step's declared actions |
 | `output` | when set | What the step was supposed to produce |
 | `evidence` | when non-empty | Phase-relative deliverables that exist and are non-empty |
-| `campaign_root` | when detected | Campaign directory, the one absolute path in the request |
+| `campaign_root` | when detected | Campaign directory; the root the campaign-relative `working_dirs` join against |
 | `working_dirs` | when declared | Where the phase's work actually landed |
 
 `document` names a file, it does not carry one. For a `WORKFLOW.md` checkpoint
@@ -104,9 +109,13 @@ sends where the work landed:
   `..`-escaping values are rejected.
 - Paths stay relative deliberately. A judge request is rendered into a prompt
   that reaches a model provider and is recorded in ledgers and transcripts; an
-  absolute path per working dir would put the operator's home directory and
-  username into all of them. `campaign_root` is the single absolute path, and
-  the judge joins.
+  absolute path per working dir would repeat the operator's home directory and
+  username across all of them. One absolute root plus relative entries keeps
+  that to a single occurrence, and the judge joins.
+- To be precise about what is absolute: `campaign_root`, `festival_path`, and
+  `phase_path` are all absolute, because each is a filesystem location fest
+  resolved. What stays relative is the *repeated* material, `working_dirs[].path`
+  and `evidence[]`, which is where per-entry absolute paths would multiply.
 - `campaign_root` comes from `workspace.DetectCampaign`, so it honors `CAMP_ROOT`
   and matches the root the rest of fest resolves. Empty when detection fails,
   which leaves the relative paths intact.
@@ -151,6 +160,37 @@ Two rejected alternatives, so the choice is not relitigated from scratch:
 
 The offer is recorded at launch rather than on return, so a judge that crashes
 or times out still leaves behind what it was asked to look at.
+
+## When the judge cannot inspect
+
+Orientation assumes the judge can open a file. That is a property of the
+provider, not of fest, and it is not universally true: only CLI-backed providers
+(`claude-code`, `codex`, `grok`) get a populated tool set for the judge session.
+A chat provider such as `ollama` is handed paths it has no way to reach.
+
+Measured behavior on that path was not a clean failure. The model approved with
+high confidence while inventing the file's contents, which is worse than a
+rejection: it advances unreviewed work behind a confident-looking record.
+
+**fest's side of the contract does not change.** It always sends orientation.
+The check lives in the consumer, `ob judge`, which selects on
+`config.ProviderUsesBinary`:
+
+| provider kind | what the judge receives |
+| --- | --- |
+| CLI-backed | the path manifest described above, no content |
+| everything else | deliverable content inlined, under per-file and aggregate byte caps |
+
+Two consequences worth knowing:
+
+- A campaign configured for `ollama` never exercises the orientation path. Any
+  validation done only against the configured default is validating the
+  fallback.
+- The fallback is not the retired `evidence: embed` knob returning. It is not
+  configurable and there is no key to set. Capability decides, not preference.
+
+Implementers of a different judge consumer should make the same check rather
+than assuming the manifest is openable.
 
 ## Failure semantics
 
