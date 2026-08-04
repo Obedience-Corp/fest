@@ -645,3 +645,60 @@ fest_parent: 001_PLAN
 		t.Errorf("Step 1 has %d actions, want 2", len(steps[0].Actions))
 	}
 }
+
+// Gate steps whose names contain neither GOAL nor COMPLETE used to fall through
+// to nil evidence, so the judge received only the step definition and could do
+// nothing but reject. These are the step names fest actually ships.
+func TestDefaultEvidencePaths_ArtifactReviewGateStepsGetPhaseArtifacts(t *testing.T) {
+	shipped := []string{
+		"SEQUENCE OUTCOMES", "QUALITY", "COVERAGE", "STRUCTURE",
+		"INCORPORATION", "ACTIONABILITY", "DOCUMENTATION", "FOLLOW-UP",
+		"EVIDENCE",
+	}
+	for _, name := range shipped {
+		t.Run(name, func(t *testing.T) {
+			got := DefaultEvidencePaths(WorkflowStep{
+				Name:            name,
+				CheckpointClass: CheckpointClassArtifactReview,
+			})
+			if len(got) == 0 {
+				t.Fatalf("gate step %q resolved to no evidence; the judge would see only its own step definition", name)
+			}
+			if got[0] != "PHASE_GOAL.md" {
+				t.Errorf("expected phase artifacts for %q, got %v", name, got)
+			}
+		})
+	}
+}
+
+// operator_attestation is a human gate; checkAutoJudgeAllowed refuses to
+// auto-judge it, so it must not start pulling evidence.
+func TestDefaultEvidencePaths_OperatorAttestationStaysEmpty(t *testing.T) {
+	got := DefaultEvidencePaths(WorkflowStep{
+		Name:            "APPROVAL",
+		CheckpointClass: CheckpointClassOperatorAttestation,
+	})
+	if len(got) != 0 {
+		t.Errorf("operator_attestation must not resolve evidence, got %v", got)
+	}
+}
+
+// An unclassed non-gate step keeps the previous nil behavior, so this change
+// stays scoped to phase gates.
+func TestDefaultEvidencePaths_UnclassedStepUnchanged(t *testing.T) {
+	if got := DefaultEvidencePaths(WorkflowStep{Name: "EXTRACT"}); len(got) != 0 {
+		t.Errorf("unclassed step should resolve no evidence, got %v", got)
+	}
+}
+
+// Explicit **Evidence:** still wins over any default.
+func TestDefaultEvidencePaths_ExplicitStillWinsForGateSteps(t *testing.T) {
+	got := DefaultEvidencePaths(WorkflowStep{
+		Name:            "QUALITY",
+		CheckpointClass: CheckpointClassArtifactReview,
+		EvidencePaths:   []string{"output_specs/QUALITY.md"},
+	})
+	if len(got) != 1 || got[0] != "output_specs/QUALITY.md" {
+		t.Errorf("explicit evidence must win, got %v", got)
+	}
+}

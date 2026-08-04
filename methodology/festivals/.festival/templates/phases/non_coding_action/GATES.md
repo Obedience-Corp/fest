@@ -8,6 +8,32 @@ fest_parent: [REPLACE: PHASE_ID]
 
 This gate verifies the non-coding action phase achieved its goal and produced documented results.
 
+## Before you submit any step below
+
+The judge reads what this phase wrote down. It cannot browse your repositories,
+and on a provider without tool access it cannot open anything at all, so work
+that is real but only visible in a working directory does not reach it.
+
+Write the phase's evidence into `output_specs/` before submitting the first
+step. These are picked up automatically; you do not need to list them:
+
+| File | What belongs in it |
+| --- | --- |
+| `output_specs/requirements.md` | each required outcome from PHASE_GOAL.md, with the raw command output that verifies it |
+| `output_specs/context.md` | where the work landed: commits, PRs, branches, build provenance |
+| `output_specs/constraints.md` | each quality standard, with its proof |
+| `output_specs/PRESENTATION.md` | the summary, and anything that needs a human decision |
+
+Paste real terminal output, not summaries of it. "All tests pass" is an
+assertion; the test run is evidence. A gate that rejects for missing evidence is
+usually correct, and the fix is to attach the artifact rather than to re-run the
+judge.
+
+Only add an `**Evidence:**` list to a step when you want to name files beyond
+these. Every path in such a list must exist and be non-empty or the step blocks
+before the judge runs, which is why the conventional files above are left
+implicit.
+
 ---
 
 ## Step 1: PHASE GOAL — Verify Goal Achievement

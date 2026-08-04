@@ -502,3 +502,25 @@ func TestEvaluateApprovalJudge_PassesWorkDir(t *testing.T) {
 		t.Fatalf("WorkDir = %q, want /festival/root", gotDir)
 	}
 }
+
+// DefaultEvidencePaths now resolves phase artifacts for artifact_review gate
+// steps. That must not turn into a readiness requirement: defaults are hints
+// filtered to existing files, while an explicit **Evidence:** list is a promise
+// every file is present. If this test ever fails, every phase gate whose
+// artifacts are incomplete will hard-block before the judge runs.
+func TestCheckApprovalReadiness_GateStepDefaultsDoNotBlock(t *testing.T) {
+	step := wf.WorkflowStep{
+		Number:          3,
+		Name:            "QUALITY",
+		Checkpoint:      wf.CheckpointUserApproval,
+		CheckpointClass: wf.CheckpointClassArtifactReview,
+		// No EvidencePaths: the paths come from DefaultEvidencePaths.
+	}
+	// Inspector reports every conventional artifact as absent.
+	err := checkApprovalReadinessWithInspector("/phase", step, func(_, _ string) (bool, error) {
+		return false, nil
+	})
+	if err != nil {
+		t.Fatalf("gate step with default evidence must not block readiness, got %v", err)
+	}
+}
