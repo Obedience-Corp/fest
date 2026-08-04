@@ -403,22 +403,52 @@ func DefaultEvidencePaths(step WorkflowStep) []string {
 	name := strings.ToUpper(step.Name)
 	switch {
 	case strings.Contains(name, "PHASE GOAL") || strings.Contains(name, "GOAL"):
-		return []string{
-			"PHASE_GOAL.md",
-			"output_specs/purpose.md",
-			"output_specs/requirements.md",
-			"output_specs/constraints.md",
-			"output_specs/context.md",
-			"output_specs/PRESENTATION.md",
-		}
+		return phaseArtifactEvidence()
 	case strings.Contains(name, "COMPLETE"):
 		return []string{
 			"output_specs/context.md",
 			"output_specs/requirements.md",
 			"output_specs/PRESENTATION.md",
 		}
+	case step.CheckpointClass == CheckpointClassArtifactReview:
+		// Every other phase-gate step lands here. Without this the switch fell
+		// through to nil, so a gate whose name happened not to contain GOAL or
+		// COMPLETE was handed only its own step definition and could do nothing
+		// but reject: it was asked whether the work met its goal while holding
+		// the question and none of the answer. Of the 19 gate steps fest ships,
+		// 10 were in that position, including QUALITY, SEQUENCE OUTCOMES and,
+		// most tellingly, EVIDENCE.
+		//
+		// Keying on the declared checkpoint class rather than on more step-name
+		// substrings means a phase type that adds a gate step gets evidence
+		// without anyone remembering to extend a list here. operator_attestation
+		// is deliberately excluded: checkAutoJudgeAllowed refuses to auto-judge
+		// it, so it never reaches a judge that would need evidence.
+		//
+		// These are defaults, not an **Evidence:** declaration, and the
+		// difference is load-bearing. Defaults skip the readiness gate
+		// (approval_readiness.go: the early return for non-presentation steps
+		// with no explicit EvidencePaths) and are filtered to files that exist
+		// and are non-empty before sending. Declaring these paths explicitly in
+		// the shipped templates would instead make every one of them mandatory
+		// and hard-block every phase whose artifacts are not all present.
+		return phaseArtifactEvidence()
 	default:
 		return nil
+	}
+}
+
+// phaseArtifactEvidence is the conventional set of phase-level artifacts a gate
+// judge reads. Paths that do not exist are dropped downstream, so listing the
+// full set costs nothing when a phase produced only some of them.
+func phaseArtifactEvidence() []string {
+	return []string{
+		"PHASE_GOAL.md",
+		"output_specs/purpose.md",
+		"output_specs/requirements.md",
+		"output_specs/constraints.md",
+		"output_specs/context.md",
+		"output_specs/PRESENTATION.md",
 	}
 }
 
