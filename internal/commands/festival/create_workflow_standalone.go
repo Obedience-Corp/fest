@@ -23,6 +23,22 @@ import (
 //
 // Festival-only flags (--position, --path, --festival) are rejected here so
 // users get an explicit error rather than confusing silent ignores.
+// rejectBlockingCheckpoints fails standalone creation for steps the
+// standalone runtime refuses to advance past, so `fest create workflow`
+// cannot mint a workflow that is unrunnable from birth (advance rejects a
+// blocking checkpoint at execution time with the same message).
+func rejectBlockingCheckpoints(input *WorkflowInput) error {
+	for i, step := range input.Steps {
+		if strings.TrimSpace(step.Checkpoint) == "approval_required" {
+			return errors.Validation("standalone workflows do not support blocking checkpoints").
+				WithField("step", i+1).
+				WithField("step_name", step.Name).
+				WithHint("use checkpoint \"verification\" or \"none\", or create the workflow inside a festival phase (--path) where 'fest workflow approve' is available")
+		}
+	}
+	return nil
+}
+
 func runStandaloneCreateWorkflow(ctx context.Context, opts *CreateWorkflowOptions, res *standalone.Result, cwd string) error {
 	if err := rejectFestivalOnlyFlags(opts); err != nil {
 		return emitWorkflowError(opts, err)
@@ -39,6 +55,9 @@ func runStandaloneCreateWorkflow(ctx context.Context, opts *CreateWorkflowOption
 		return emitWorkflowError(opts, err)
 	}
 	if err := validateWorkflowInput(input); err != nil {
+		return emitWorkflowError(opts, err)
+	}
+	if err := rejectBlockingCheckpoints(input); err != nil {
 		return emitWorkflowError(opts, err)
 	}
 
