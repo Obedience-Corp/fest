@@ -94,6 +94,51 @@ func TestCommitGuard_LargeFileKeptOutInStandaloneWorkspace(t *testing.T) {
 		"--commit-large must force the over-threshold file into the commit")
 }
 
+// The campaign-root branch stages a synthesized path list (the festival
+// directory, .campaign/fest, festivals/.festival/.state) rather than sweeping
+// the worktree, and camp's guard deliberately skips explicit path lists:
+// naming a path is read as the user's own intent, so only sweep forms are
+// checked (camp internal/git/stageguard.go, isStageEverything). The list fest
+// builds is not something the user named, so nothing on this branch is
+// guarded today: an over-threshold file inside a festival directory reaches
+// git with no exclusion and no report.
+//
+// This test pins that as the observed truth rather than as the desired one.
+// Closing the gap needs a camp-side way to guard a synthesized list; when that
+// lands, this test should fail and be rewritten as the exclusion assertion its
+// two neighbours already make.
+func TestCommitGuard_CampaignRootFileListIsNotGuarded(t *testing.T) {
+	tc := GetSharedContainer(t)
+	ensureGuardGit(t, tc)
+
+	dir := "/guard-root"
+	// .campaign is what makes this a campaign workspace rather than a bare
+	// repo, which is what routes the commit down the file-list branch.
+	_, err := tc.Exec("sh", "-c",
+		"mkdir -p "+dir+"/festivals/.festival "+dir+"/.campaign && cd "+dir+" && git init -q")
+	require.NoError(t, err)
+	require.NoError(t, tc.WriteFile(dir+"/festivals/active/guard-festival/fest.yaml", guardFestYAML))
+
+	festDir := dir + "/festivals/active/guard-festival"
+	_, err = tc.Exec("sh", "-c",
+		"truncate -s 512M "+festDir+"/render-output.bin && echo notes > "+festDir+"/notes.md")
+	require.NoError(t, err)
+
+	out, err := tc.RunFestInDir(festDir, "commit", "--no-tag", "-m", "campaign root festival commit")
+	require.NoError(t, err, "the campaign root commit must succeed: %s", out)
+
+	assert.NotContains(t, out, "Kept out of git",
+		"the guard does not run on an explicit path list, so nothing is reported as excluded")
+
+	committed, err := tc.Exec("git", "-C", dir, "ls-tree", "-r", "--name-only", "HEAD")
+	require.NoError(t, err)
+	assert.Contains(t, committed, "festivals/active/guard-festival/notes.md",
+		"the ordinary festival file must be committed")
+	assert.Contains(t, committed, "festivals/active/guard-festival/render-output.bin",
+		"the over-threshold file reaches git unguarded on the file-list branch; "+
+			"if this now fails, camp guards synthesized lists and this test should assert exclusion instead")
+}
+
 func TestCommitGuard_LargeFileKeptOutInLinkedSubmodule(t *testing.T) {
 	tc := GetSharedContainer(t)
 	ensureGuardGit(t, tc)
