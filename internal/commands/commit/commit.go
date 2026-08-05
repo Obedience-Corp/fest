@@ -369,33 +369,38 @@ func stageAllChanges(ctx context.Context, repoPath string, report io.Writer) err
 	if err != nil {
 		var blocked *commitkit.GuardBlockedError
 		if stderrors.As(err, &blocked) {
-			return errors.New(guardRefusalMessage(blocked, "fest commit --commit-large"))
+			return errors.New(guardRefusalMessage(blocked))
 		}
 		return errors.Wrap(err, "staging changes")
 	}
-	reportStageOutcome(report, outcome, "fest commit --commit-large")
+	reportStageOutcome(report, outcome)
 	return nothingLeftAfterExclusions(ctx, repoPath, outcome)
 }
 
 // stageFiles stages the given paths through commitkit with outcome reporting
 // and fest-rendered GuardBlockedError text — the same contract as stageAllChanges,
 // for festival-scoped and campaign-root path lists.
+//
+// The options form carries --commit-large so fest's flag reaches the guard on
+// the same terms the stage-all branch gets. It does not reach a guard today:
+// camp only guards sweep forms, reading an explicit path list as the user's own
+// intent, so a synthesized list like this one is staged unchecked and the
+// refusal branch below cannot fire. The wiring and the retry it names are the
+// right ones the moment camp can guard a list fest built rather than the user.
 func stageFiles(ctx context.Context, repoPath string, report io.Writer, files ...string) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
 	}
-	outcome, err := commitkit.StageFilesWithOutcome(ctx, repoPath, files...)
+	outcome, err := commitkit.StageFilesWithOptions(ctx, repoPath,
+		commitkit.StageOptions{CommitLarge: commitLarge}, files...)
 	if err != nil {
 		var blocked *commitkit.GuardBlockedError
 		if stderrors.As(err, &blocked) {
-			// commitkit exports no options form for file-list staging, so
-			// fest's flag cannot reach this branch; camp's own flag is the
-			// retry that works at a campaign root.
-			return errors.New(guardRefusalMessage(blocked, "camp commit --commit-large"))
+			return errors.New(guardRefusalMessage(blocked))
 		}
 		return errors.Wrap(err, "staging files")
 	}
-	reportStageOutcome(report, outcome, "camp commit --commit-large")
+	reportStageOutcome(report, outcome)
 	return nothingLeftAfterExclusions(ctx, repoPath, outcome)
 }
 
@@ -632,15 +637,16 @@ func commitCampaignRoot(ctx context.Context, campaignRoot string, paths []string
 		return "", nil
 	}
 
-	outcome, err := commitkit.StageFilesWithOutcome(ctx, campaignRoot, paths...)
+	outcome, err := commitkit.StageFilesWithOptions(ctx, campaignRoot,
+		commitkit.StageOptions{CommitLarge: commitLarge}, paths...)
 	if err != nil {
 		var blocked *commitkit.GuardBlockedError
 		if stderrors.As(err, &blocked) {
-			return "", errors.New(guardRefusalMessage(blocked, "camp commit --commit-large"))
+			return "", errors.New(guardRefusalMessage(blocked))
 		}
 		return "", errors.Wrap(err, "staging festival files at campaign root")
 	}
-	reportStageOutcome(report, outcome, "camp commit --commit-large")
+	reportStageOutcome(report, outcome)
 
 	hasChanges, err := commitkit.HasStagedChanges(ctx, campaignRoot)
 	if err != nil {

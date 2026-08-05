@@ -12,17 +12,20 @@ import (
 // Fest renders the staging guard's decisions in its own voice from camp's
 // typed data; no camp error text is parsed or echoed. The facts and the ways
 // out are the same ones camp names, and every printed remedy must be runnable
-// on the branch that printed it: the retry command is supplied per call site,
-// because fest's --commit-large reaches only the stage-all branches
-// (commitkit exports no options form for file-list staging), while a
-// campaign-root refusal can always retry through camp's own flag.
+// on the branch that printed it. Every stage fest performs now passes its own
+// --commit-large through commitkit's options forms, so one retry command is
+// right everywhere: fest's own flag, on the command the user already ran.
+
+// commitLargeRetry is the commit-it-anyway command named by every refusal and
+// exclusion fest prints. Naming camp here instead would hand the user a second
+// binary to rerun for a decision fest's own flag already overrides.
+const commitLargeRetry = "fest commit --commit-large"
 
 // guardRefusalMessage is the result.Error text for a staging refusal: what was
 // refused, that nothing was staged, and every way out. A refusal is the one
 // moment the guard spends the user's attention, so the message has to pay for
-// it rather than saying a bare "staging refused". retryCmd is the
-// commit-it-anyway command that actually works where the refusal happened.
-func guardRefusalMessage(blocked *commitkit.GuardBlockedError, retryCmd string) string {
+// it rather than saying a bare "staging refused".
+func guardRefusalMessage(blocked *commitkit.GuardBlockedError) string {
 	var b strings.Builder
 	switch blocked.Kind {
 	case commitkit.Bulk:
@@ -40,7 +43,7 @@ func guardRefusalMessage(blocked *commitkit.GuardBlockedError, retryCmd string) 
 			files, formatBytes(total), worst.CommonPrefix)
 		fmt.Fprintf(&b, "  gitignore it        echo '%s/' >> .gitignore\n", worst.CommonPrefix)
 		fmt.Fprintf(&b, "  keep and sync it    camp artifacts add %s\n", worst.CommonPrefix)
-		fmt.Fprintf(&b, "  commit it anyway    %s -m \"...\"\n", retryCmd)
+		fmt.Fprintf(&b, "  commit it anyway    %s -m \"...\"\n", commitLargeRetry)
 		fmt.Fprintf(&b, "  turn the guard off  camp settings set local.commit.guards.bulk off")
 	default:
 		fmt.Fprintf(&b, "%s over the %s limit would be committed; nothing was staged\n",
@@ -52,7 +55,7 @@ func guardRefusalMessage(blocked *commitkit.GuardBlockedError, retryCmd string) 
 			fmt.Fprintf(&b, "  keep and sync it    camp artifacts add %s\n",
 				filepath.ToSlash(filepath.Dir(v.Path)))
 		}
-		fmt.Fprintf(&b, "  commit it anyway    %s -m \"...\"\n", retryCmd)
+		fmt.Fprintf(&b, "  commit it anyway    %s -m \"...\"\n", commitLargeRetry)
 		fmt.Fprintf(&b, "  handle it for me    camp settings set local.commit.guards.large_files auto")
 	}
 	return b.String()
@@ -63,10 +66,7 @@ func guardRefusalMessage(blocked *commitkit.GuardBlockedError, retryCmd string) 
 // file, a flagged tracked file, or a guard that could not run are each one
 // line here rather than a silent diff surprise. Written to stderr by callers
 // so a machine-read stdout stays pure.
-// retryCmd is the commit-it-anyway command that actually works on the branch
-// that staged (camp commit refuses outside a campaign, so the standalone
-// branches must name fest's own flag).
-func reportStageOutcome(w io.Writer, outcome *commitkit.StageOutcome, retryCmd string) {
+func reportStageOutcome(w io.Writer, outcome *commitkit.StageOutcome) {
 	if outcome == nil {
 		return
 	}
@@ -75,7 +75,7 @@ func reportStageOutcome(w io.Writer, outcome *commitkit.StageOutcome, retryCmd s
 	}
 	for _, v := range outcome.Excluded {
 		_, _ = fmt.Fprintf(w, "Kept out of git: %s (%s, over the %s limit); commit it anyway with '%s' or 'camp settings set local.commit.guards.large_files auto'\n",
-			v.Path, formatBytes(v.Size), formatBytes(outcome.Limits.MaxFileSize), retryCmd)
+			v.Path, formatBytes(v.Size), formatBytes(outcome.Limits.MaxFileSize), commitLargeRetry)
 	}
 	for _, v := range outcome.Reported {
 		_, _ = fmt.Fprintf(w, "Tracked file grew past %s: %s (%s); committed as usual\n",
