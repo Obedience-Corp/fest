@@ -266,7 +266,7 @@ func TestWatcher_OnChangeNeverOverlaps(t *testing.T) {
 		time.Sleep(2 * time.Millisecond)
 	}
 
-	// cancelPendingTimer waits on dispatchMu for any in-flight onChange and
+	// cancelPendingTimer waits on the dispatcher for any in-flight onChange and
 	// neutralizes pending timers, so once it returns no callback runs or will
 	// run. That release/acquire also orders every onChange write to plainCounter
 	// before the reads below, keeping the canary honest under -race.
