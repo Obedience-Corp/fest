@@ -48,11 +48,54 @@ type Config struct {
 	OnError func(error)
 }
 
+// dispatcher owns a change callback and the state that keeps its invocations
+// serialized. Every scheduler in this package routes its callback through a
+// dispatcher rather than calling onChange directly, so the invariant holds
+// uniformly: the fsnotify debounce timers and the polling fallback both obey
+// it, and two schedulers sharing one dispatcher serialize against each other
+// instead of overlapping silently.
+type dispatcher struct {
+	onChange func()
+
+	// mu is held for the whole onChange call, so invocations never overlap even
+	// when a scheduler fires faster than a slow render completes. stopped is set
+	// under mu by stop: once that returns, no onChange is in flight and none can
+	// start, so nothing fires after the owner has torn the dispatcher down.
+	mu      sync.Mutex
+	stopped bool
+}
+
+func newDispatcher(onChange func()) *dispatcher {
+	return &dispatcher{onChange: onChange}
+}
+
+// dispatch runs onChange unless the dispatcher has been stopped, blocking until
+// any concurrent dispatch on the same dispatcher has finished.
+func (d *dispatcher) dispatch() {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.stopped {
+		return
+	}
+	d.onChange()
+}
+
+// stop permanently disables dispatch. It waits for any in-flight onChange to
+// finish, so once stop returns no callback is running and none can start.
+func (d *dispatcher) stop() {
+	d.mu.Lock()
+	d.stopped = true
+	d.mu.Unlock()
+}
+
 // Watcher monitors files for changes and calls a callback when changes occur.
 type Watcher struct {
-	config   Config
-	onChange func()
-	watcher  *fsnotify.Watcher
+	config  Config
+	watcher *fsnotify.Watcher
+
+	// dispatcher serializes the change callback and gates it off at Close, so
+	// renders never overlap and none fires after Close or Watch return.
+	dispatcher *dispatcher
 
 	mu           sync.Mutex
 	timer        *time.Timer
@@ -66,14 +109,6 @@ type Watcher struct {
 	// live timer handle with nil, and fire a second time; the generation check
 	// makes that stale func a no-op so only the newest schedule ever fires.
 	gen uint64
-
-	// dispatchMu serializes onChange invocations so renders never overlap, even
-	// when MaxWait fires callbacks mid-storm faster than a slow render completes.
-	// stopped is set under dispatchMu by cancelPendingTimer: once that returns,
-	// no onChange is in flight and none can start, so nothing fires after Close
-	// or Watch return.
-	dispatchMu sync.Mutex
-	stopped    bool
 }
 
 // ErrNoWatchablePaths is returned when none of the specified paths can be watched.
@@ -83,6 +118,12 @@ var ErrNoWatchablePaths = os.ErrNotExist
 // The onChange callback is debounced according to config.Debounce.
 // Returns ErrNoWatchablePaths if none of the specified paths exist or can be watched.
 func New(cfg Config, onChange func()) (*Watcher, error) {
+	return newWatcher(cfg, newDispatcher(onChange))
+}
+
+// newWatcher builds a watcher around an existing dispatcher, so a caller that
+// may also run the polling fallback can hand both paths the same one.
+func newWatcher(cfg Config, d *dispatcher) (*Watcher, error) {
 	if cfg.Debounce == 0 {
 		cfg.Debounce = DefaultDebounce
 	}
@@ -93,10 +134,10 @@ func New(cfg Config, onChange func()) (*Watcher, error) {
 	}
 
 	w := &Watcher{
-		config:   cfg,
-		onChange: onChange,
-		watcher:  fsw,
-		watched:  make(map[string]struct{}),
+		config:     cfg,
+		watcher:    fsw,
+		dispatcher: d,
+		watched:    make(map[string]struct{}),
 	}
 
 	// Add all paths to the watcher.
@@ -254,9 +295,9 @@ func (w *Watcher) scheduleCallback() {
 // dispatch runs the onChange callback for a scheduled timer generation.
 // A timer whose generation was superseded (by a newer schedule or by a cancel)
 // is a no-op, so the newest schedule owns the callback and stale timers can
-// neither double-fire nor clobber the live timer handle. Invocations are
-// serialized through dispatchMu so onChange never overlaps itself, and the
-// stopped gate prevents any callback after cancelPendingTimer has returned.
+// neither double-fire nor clobber the live timer handle. The dispatcher then
+// serializes the callback, so onChange never overlaps itself and never runs
+// once cancelPendingTimer has stopped it.
 func (w *Watcher) dispatch(gen uint64) {
 	w.mu.Lock()
 	if w.gen != gen {
@@ -267,18 +308,13 @@ func (w *Watcher) dispatch(gen uint64) {
 	w.timer = nil
 	w.mu.Unlock()
 
-	w.dispatchMu.Lock()
-	defer w.dispatchMu.Unlock()
-	if w.stopped {
-		return
-	}
-	w.onChange()
+	w.dispatcher.dispatch()
 }
 
 // cancelPendingTimer cancels any pending debounced callback and permanently
 // disables further dispatch. Bumping gen neutralizes any timer whose Stop()
-// lost the race, and setting stopped under dispatchMu (which waits for any
-// in-flight onChange to finish) guarantees no callback fires after this returns.
+// lost the race, and stopping the dispatcher (which waits for any in-flight
+// onChange to finish) guarantees no callback fires after this returns.
 func (w *Watcher) cancelPendingTimer() {
 	w.mu.Lock()
 	if w.timer != nil {
@@ -289,9 +325,7 @@ func (w *Watcher) cancelPendingTimer() {
 	w.gen++
 	w.mu.Unlock()
 
-	w.dispatchMu.Lock()
-	w.stopped = true
-	w.dispatchMu.Unlock()
+	w.dispatcher.stop()
 }
 
 // Close releases all resources associated with the watcher.
@@ -302,12 +336,17 @@ func (w *Watcher) Close() error {
 
 // WatchWithFallback attempts file watching, falling back to polling if it fails.
 // This is a convenience function that combines New, Watch, and polling fallback.
+// Only one of the two paths ever runs, but both are handed the same dispatcher,
+// so onChange obeys the same serialization and stop invariants either way.
 func WatchWithFallback(ctx context.Context, cfg Config, onChange func()) error {
-	w, err := New(cfg, onChange)
+	d := newDispatcher(onChange)
+
+	w, err := newWatcher(cfg, d)
 	if err != nil {
 		// Fallback to polling if configured
 		if cfg.FallbackPoll > 0 {
-			return runPolling(ctx, cfg.FallbackPoll, onChange)
+			defer d.stop()
+			return runPolling(ctx, cfg.FallbackPoll, d)
 		}
 		return err
 	}
@@ -316,8 +355,13 @@ func WatchWithFallback(ctx context.Context, cfg Config, onChange func()) error {
 	return w.Watch(ctx)
 }
 
-// runPolling runs a simple polling loop as fallback.
-func runPolling(ctx context.Context, interval time.Duration, onChange func()) error {
+// runPolling runs a simple polling loop as fallback, firing every tick through
+// d rather than calling the callback directly. That puts the fallback under the
+// same invariant as the fsnotify path: the callback never overlaps itself, never
+// overlaps a Watcher sharing the dispatcher, and stops once d is stopped.
+// Stopping d belongs to whoever owns it; runPolling dispatches inline on its own
+// goroutine, so no callback is in flight when it returns.
+func runPolling(ctx context.Context, interval time.Duration, d *dispatcher) error {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -326,7 +370,7 @@ func runPolling(ctx context.Context, interval time.Duration, onChange func()) er
 		case <-ctx.Done():
 			return nil
 		case <-ticker.C:
-			onChange()
+			d.dispatch()
 		}
 	}
 }
