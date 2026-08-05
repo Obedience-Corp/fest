@@ -1,6 +1,10 @@
 package deps
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/Obedience-Corp/fest/internal/progress"
+)
 
 // TopologicalSort returns tasks in dependency order using Kahn's algorithm.
 // Returns an error if a cycle is detected.
@@ -217,19 +221,28 @@ func (g *Graph) GetParallelGroups() [][]*Task {
 	return groups
 }
 
-// GetReadyTasks returns tasks that are ready to execute (all dependencies complete)
+// IsComplete reports whether a task's status means no further work is expected.
+// It accepts both the progress package's "completed" and the shorter "complete"
+// that older festival state and hand-edited frontmatter may still carry.
+func (t *Task) IsComplete() bool {
+	return t.Status == progress.StatusCompleted || t.Status == "complete" || t.Status == "skipped"
+}
+
+// GetReadyTasks returns tasks that are ready to execute right now: not already
+// complete, not blocked, and with every hard dependency complete. Soft
+// dependencies do not gate readiness.
 func (g *Graph) GetReadyTasks() []*Task {
 	var ready []*Task
 
 	for _, task := range g.Tasks {
-		if task.Status == "complete" {
+		if task.IsComplete() || task.Status == progress.StatusBlocked {
 			continue
 		}
 
-		deps := g.GetDependencies(task.ID)
+		deps := g.GetRequiredDependencies(task.ID)
 		allComplete := true
 		for _, dep := range deps {
-			if dep.Status != "complete" {
+			if !dep.IsComplete() {
 				allComplete = false
 				break
 			}

@@ -94,6 +94,19 @@ func (g *Graph) GetDependencies(taskID string) []*Task {
 	return deps
 }
 
+// GetRequiredDependencies returns only the hard dependencies for a task.
+// Soft dependencies (SoftDeps in frontmatter) express a preferred order but do
+// not block execution, so readiness checks must not count them.
+func (g *Graph) GetRequiredDependencies(taskID string) []*Task {
+	var deps []*Task
+	for _, edge := range g.Edges {
+		if edge.To.ID == taskID && edge.Required {
+			deps = append(deps, edge.From)
+		}
+	}
+	return deps
+}
+
 // GetDependents returns all tasks that depend on this task
 func (g *Graph) GetDependents(taskID string) []*Task {
 	return g.Outgoing[taskID]

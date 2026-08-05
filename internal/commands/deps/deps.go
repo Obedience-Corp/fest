@@ -19,6 +19,7 @@ var (
 	jsonOutput   bool
 	showAll      bool
 	criticalPath bool
+	readyOnly    bool
 )
 
 // NewDepsCommand creates the deps command
@@ -39,13 +40,21 @@ Examples:
   fest deps 02_implement       # Show deps for specific task
   fest deps --all              # Show all deps in festival
   fest deps --json             # Output as JSON
-  fest deps --critical-path    # Show critical path through the DAG`,
+  fest deps --critical-path    # Show critical path through the DAG
+  fest deps --ready            # Show every task that is unblocked right now
+  fest deps --ready --all --json   # The whole festival's ready set, for orchestrators
+
+The --ready set is the execution front: tasks whose hard dependencies are all
+complete and which are not themselves complete or blocked. Unlike 'fest next',
+which returns a single step, --ready returns every task that could be started
+now, so an orchestrator can fan them out concurrently.`,
 		RunE: runDeps,
 	}
 
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 	cmd.Flags().BoolVar(&showAll, "all", false, "show all dependencies in festival")
 	cmd.Flags().BoolVar(&criticalPath, "critical-path", false, "show the critical path")
+	cmd.Flags().BoolVar(&readyOnly, "ready", false, "show only tasks that are unblocked right now")
 
 	return cmd
 }
@@ -86,6 +95,11 @@ func runDeps(cmd *cobra.Command, args []string) error {
 	if len(args) > 0 {
 		taskName := args[0]
 		return showTaskDeps(graph, taskName)
+	}
+
+	// Show the ready set if requested
+	if readyOnly {
+		return showReady(graph, festivalPath)
 	}
 
 	// Show critical path if requested
@@ -238,6 +252,52 @@ func printDepTree(graph *deps.Graph, task *deps.Task, indent string, visited map
 	}
 }
 
+// ReadyOutput is the machine-readable shape of the ready set. It is a stable
+// contract: orchestrators fan out over tasks and need the count to decide
+// whether there is anything to do at all.
+type ReadyOutput struct {
+	Count int          `json:"count"`
+	Tasks []*deps.Task `json:"tasks"`
+}
+
+func showReady(graph *deps.Graph, festivalPath string) error {
+	ready := graph.GetReadyTasks()
+
+	if jsonOutput {
+		output := ReadyOutput{Count: len(ready), Tasks: ready}
+		if output.Tasks == nil {
+			output.Tasks = []*deps.Task{}
+		}
+		if err := shared.EncodeJSON(os.Stdout, output); err != nil {
+			return errors.Wrap(err, "encoding JSON output")
+		}
+		return nil
+	}
+
+	fmt.Println(ui.H1("Ready Tasks"))
+
+	if len(ready) == 0 {
+		fmt.Println(ui.Info("Nothing is unblocked right now."))
+		fmt.Println(ui.Info("Every task is complete, blocked, or waiting on a dependency."))
+		return nil
+	}
+
+	fmt.Println(ui.Info("These tasks have all dependencies satisfied and can start now."))
+	fmt.Println()
+
+	for _, task := range ready {
+		fmt.Printf("  - %s %s\n",
+			ui.Value(task.Name, ui.TaskColor),
+			ui.Dim(relativeToFestival(festivalPath, task.Path)),
+		)
+	}
+
+	fmt.Println()
+	fmt.Printf("%s %s\n", ui.Label("Ready"), ui.Value(fmt.Sprintf("%d tasks", len(ready))))
+
+	return nil
+}
+
 func showCriticalPath(graph *deps.Graph) error {
 	path := graph.CriticalPath()
 
@@ -273,6 +333,16 @@ func showCriticalPath(graph *deps.Graph) error {
 	fmt.Printf("%s %s\n", ui.Label("Critical path length"), ui.Value(fmt.Sprintf("%d tasks", len(path))))
 
 	return nil
+}
+
+// relativeToFestival trims the festival root off a task path for display.
+// JSON output keeps the absolute path so orchestrators can act on it directly.
+func relativeToFestival(festivalPath, taskPath string) string {
+	rel, err := filepath.Rel(festivalPath, taskPath)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return taskPath
+	}
+	return rel
 }
 
 func findSequencePath(cwd, festivalPath string) string {
