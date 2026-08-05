@@ -203,9 +203,9 @@ func TestWatcher_MaxWaitFiresDuringSustainedChanges(t *testing.T) {
 
 	w := &Watcher{
 		config: cfg,
-		onChange: func() {
+		dispatcher: newDispatcher(func() {
 			callCount.Add(1)
-		},
+		}),
 	}
 	defer w.cancelPendingTimer()
 
@@ -242,7 +242,7 @@ func TestWatcher_OnChangeNeverOverlaps(t *testing.T) {
 	}
 
 	w := &Watcher{config: cfg}
-	w.onChange = func() {
+	w.dispatcher = newDispatcher(func() {
 		n := inFlight.Add(1)
 		for {
 			m := maxInFlight.Load()
@@ -255,7 +255,7 @@ func TestWatcher_OnChangeNeverOverlaps(t *testing.T) {
 		// this callback is still running, exercising the serialization path.
 		time.Sleep(15 * time.Millisecond)
 		inFlight.Add(-1)
-	}
+	})
 
 	// Sustained events reset the trailing debounce forever; MaxWait keeps firing
 	// callbacks mid-storm, so without serialization these would overlap.
@@ -286,8 +286,8 @@ func TestWatcher_DispatchIgnoresStaleGeneration(t *testing.T) {
 	// Debounce is long enough that no AfterFunc timer fires on its own; the test
 	// drives dispatch directly to exercise the generation guard deterministically.
 	w := &Watcher{
-		config:   Config{Debounce: time.Hour},
-		onChange: func() { calls.Add(1) },
+		config:     Config{Debounce: time.Hour},
+		dispatcher: newDispatcher(func() { calls.Add(1) }),
 	}
 
 	w.scheduleCallback() // gen == 1
@@ -389,9 +389,9 @@ func TestRunPolling(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
 	defer cancel()
 
-	err := runPolling(ctx, 50*time.Millisecond, func() {
+	err := runPolling(ctx, 50*time.Millisecond, newDispatcher(func() {
 		callCount.Add(1)
-	})
+	}))
 
 	if err != nil {
 		t.Errorf("runPolling() error = %v", err)
@@ -400,5 +400,204 @@ func TestRunPolling(t *testing.T) {
 	// Should have been called 2-3 times (at 50ms and 100ms, maybe 150ms)
 	if count := callCount.Load(); count < 2 {
 		t.Errorf("expected at least 2 polling callbacks, got %d", count)
+	}
+}
+
+func TestRunPolling_ReturnsOnContextCancel(t *testing.T) {
+	var callCount atomic.Int32
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runPolling(ctx, 10*time.Millisecond, newDispatcher(func() {
+			callCount.Add(1)
+		}))
+	}()
+
+	time.Sleep(50 * time.Millisecond)
+	cancel()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("runPolling() returned error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("runPolling() did not return after context cancellation")
+	}
+
+	// runPolling dispatches inline on its own goroutine, so its return means no
+	// callback is in flight and the ticker is stopped: the count must be frozen.
+	settled := callCount.Load()
+	time.Sleep(50 * time.Millisecond)
+	if got := callCount.Load(); got != settled {
+		t.Errorf("polling fired %d more callbacks after returning, want 0", got-settled)
+	}
+}
+
+func TestRunPolling_StoppedDispatcherSilencesTicks(t *testing.T) {
+	var callCount atomic.Int32
+
+	d := newDispatcher(func() { callCount.Add(1) })
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- runPolling(ctx, 10*time.Millisecond, d)
+	}()
+
+	time.Sleep(60 * time.Millisecond)
+	d.stop()
+	stoppedAt := callCount.Load()
+	if stoppedAt == 0 {
+		t.Fatal("expected polling callbacks before stop, got none")
+	}
+
+	// Ticks keep arriving, but a stopped dispatcher must swallow every one, the
+	// same gate Close relies on for the fsnotify path.
+	time.Sleep(60 * time.Millisecond)
+	if got := callCount.Load(); got != stoppedAt {
+		t.Errorf("polling fired %d callbacks after the dispatcher stopped, want 0", got-stoppedAt)
+	}
+
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("runPolling() did not return after context cancellation")
+	}
+}
+
+func TestRunPolling_SharedDispatcherNeverOverlapsWatcher(t *testing.T) {
+	var inFlight atomic.Int32
+	var maxInFlight atomic.Int32
+	// plainCounter is deliberately unsynchronized: if a polling tick and a
+	// watcher debounce timer ever run the callback concurrently, the
+	// read-modify-write races and -race fails the test.
+	var plainCounter int
+
+	d := newDispatcher(func() {
+		n := inFlight.Add(1)
+		for {
+			m := maxInFlight.Load()
+			if n <= m || maxInFlight.CompareAndSwap(m, n) {
+				break
+			}
+		}
+		plainCounter++
+		// Run slower than either scheduler's cadence so the other one fires while
+		// this callback is still in the critical section.
+		time.Sleep(15 * time.Millisecond)
+		inFlight.Add(-1)
+	})
+
+	// The watcher and the polling fallback share one dispatcher, which is the
+	// arrangement WatchWithFallback hands out and the case the old free-function
+	// runPolling could not serialize.
+	w := &Watcher{
+		config:     Config{Debounce: 5 * time.Millisecond, MaxWait: 10 * time.Millisecond},
+		dispatcher: d,
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	polling := make(chan error, 1)
+	go func() {
+		polling <- runPolling(ctx, 2*time.Millisecond, d)
+	}()
+
+	storm := 400 * time.Millisecond
+	deadline := time.Now().Add(storm)
+	for time.Now().Before(deadline) {
+		w.scheduleCallback()
+		time.Sleep(2 * time.Millisecond)
+	}
+
+	cancel()
+	select {
+	case err := <-polling:
+		if err != nil {
+			t.Fatalf("runPolling() returned error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("runPolling() did not return after context cancellation")
+	}
+
+	// cancelPendingTimer waits on the dispatcher for any in-flight callback and
+	// neutralizes pending timers, so once it returns nothing runs or will run.
+	// That release/acquire also orders every callback write to plainCounter
+	// before the reads below, keeping the canary honest under -race.
+	w.cancelPendingTimer()
+
+	if got := maxInFlight.Load(); got > 1 {
+		t.Fatalf("callback overlapped: max concurrent invocations = %d, want <= 1", got)
+	}
+	if plainCounter == 0 {
+		t.Fatal("expected at least one callback during the storm, got none")
+	}
+}
+
+func TestDispatcher(t *testing.T) {
+	tests := []struct {
+		name      string
+		run       func(d *dispatcher)
+		wantCalls int32
+	}{
+		{
+			name:      "dispatch runs the callback",
+			run:       func(d *dispatcher) { d.dispatch() },
+			wantCalls: 1,
+		},
+		{
+			name: "repeated dispatch runs the callback each time",
+			run: func(d *dispatcher) {
+				d.dispatch()
+				d.dispatch()
+			},
+			wantCalls: 2,
+		},
+		{
+			name: "dispatch after stop is inert",
+			run: func(d *dispatcher) {
+				d.stop()
+				d.dispatch()
+			},
+			wantCalls: 0,
+		},
+		{
+			name: "stop is idempotent",
+			run: func(d *dispatcher) {
+				d.stop()
+				d.stop()
+				d.dispatch()
+			},
+			wantCalls: 0,
+		},
+		{
+			name: "stop mid-sequence silences only later dispatches",
+			run: func(d *dispatcher) {
+				d.dispatch()
+				d.stop()
+				d.dispatch()
+			},
+			wantCalls: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var calls atomic.Int32
+			d := newDispatcher(func() { calls.Add(1) })
+
+			tt.run(d)
+
+			if got := calls.Load(); got != tt.wantCalls {
+				t.Errorf("callback invocations = %d, want %d", got, tt.wantCalls)
+			}
+		})
 	}
 }
