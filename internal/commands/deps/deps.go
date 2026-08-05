@@ -97,8 +97,12 @@ func runDeps(cmd *cobra.Command, args []string) error {
 		return showTaskDeps(graph, taskName)
 	}
 
-	// Show the ready set if requested
+	// Show the ready set if requested. Readiness is the only view that depends
+	// on execution state, so it is the only one that pays for loading it.
 	if readyOnly {
+		if err := deps.ApplyProgress(cmd.Context(), graph, festivalPath); err != nil {
+			return err
+		}
 		return showReady(graph, festivalPath)
 	}
 
@@ -255,16 +259,21 @@ func printDepTree(graph *deps.Graph, task *deps.Task, indent string, visited map
 // ReadyOutput is the machine-readable shape of the ready set. It is a stable
 // contract: orchestrators fan out over tasks and need the count to decide
 // whether there is anything to do at all.
+//
+// GatesEvaluated is always false today and is carried explicitly so a consumer
+// can tell "no gate blocks this" from "gates were never checked". A phase can
+// be held by an approval checkpoint that only the navigator resolves.
 type ReadyOutput struct {
-	Count int          `json:"count"`
-	Tasks []*deps.Task `json:"tasks"`
+	Count          int          `json:"count"`
+	GatesEvaluated bool         `json:"gates_evaluated"`
+	Tasks          []*deps.Task `json:"tasks"`
 }
 
 func showReady(graph *deps.Graph, festivalPath string) error {
-	ready := graph.GetReadyTasks()
+	ready := graph.GetExecutionFront()
 
 	if jsonOutput {
-		output := ReadyOutput{Count: len(ready), Tasks: ready}
+		output := ReadyOutput{Count: len(ready), GatesEvaluated: false, Tasks: ready}
 		if output.Tasks == nil {
 			output.Tasks = []*deps.Task{}
 		}
@@ -294,6 +303,7 @@ func showReady(graph *deps.Graph, festivalPath string) error {
 
 	fmt.Println()
 	fmt.Printf("%s %s\n", ui.Label("Ready"), ui.Value(fmt.Sprintf("%d tasks", len(ready))))
+	fmt.Println(ui.Dim("Phase quality gates are not evaluated here. Check 'fest next' before dispatching."))
 
 	return nil
 }

@@ -221,6 +221,46 @@ func (g *Graph) GetParallelGroups() [][]*Task {
 	return groups
 }
 
+// GetExecutionFront returns the tasks that may be started right now, respecting
+// phase order.
+//
+// GetReadyTasks answers a narrower question: whose dependencies are satisfied.
+// It has no notion of phases, because the resolver only creates edges within a
+// sequence plus whatever the frontmatter declares. On a real festival that means
+// tasks from phases 004, 005 and 006 can all report ready at once while 004 is
+// still open, which is not an execution front, it is every unblocked leaf in the
+// festival.
+//
+// This keeps only the earliest phase that still has ready work. It is
+// deliberately a separate function: GetReadyTasks has another caller in the
+// guidance selector, and narrowing it there would change task selection.
+//
+// This does not evaluate phase quality gates. A phase can be blocked on an
+// approval checkpoint that only the navigator knows about, so callers that
+// dispatch work must still honour `fest next`.
+func (g *Graph) GetExecutionFront() []*Task {
+	ready := g.GetReadyTasks()
+	if len(ready) == 0 {
+		return ready
+	}
+
+	earliest := ""
+	for _, task := range ready {
+		if earliest == "" || task.PhasePath < earliest {
+			earliest = task.PhasePath
+		}
+	}
+
+	front := make([]*Task, 0, len(ready))
+	for _, task := range ready {
+		if task.PhasePath == earliest {
+			front = append(front, task)
+		}
+	}
+
+	return front
+}
+
 // IsComplete reports whether a task's status means no further work is expected.
 // It accepts both the progress package's "completed" and the shorter "complete"
 // that older festival state and hand-edited frontmatter may still carry.

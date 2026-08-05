@@ -2,6 +2,7 @@ package progress
 
 import (
 	"bufio"
+	"bytes"
 	"os"
 	"regexp"
 	"strings"
@@ -187,4 +188,22 @@ func statusFromCounts(counts CheckboxCounts) string {
 	}
 
 	return StatusPending
+}
+
+// HasCheckboxes reports whether a document contains any markdown checkbox.
+//
+// ParseTaskStatus returns StatusPending both for a document whose checkboxes
+// are all unticked and for a document that has none at all. Callers that treat
+// checkbox state as a status source must distinguish those cases, or every
+// checkbox-free task reads as pending forever.
+func HasCheckboxes(content []byte) bool {
+	counts := CheckboxCounts{}
+	scanner := bufio.NewScanner(bytes.NewReader(content))
+	for scanner.Scan() {
+		addCheckboxCounts(&counts, scanner.Text())
+		if counts.Total > 0 {
+			return true
+		}
+	}
+	return false
 }

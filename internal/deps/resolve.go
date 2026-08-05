@@ -158,7 +158,7 @@ func (r *Resolver) loadSequenceTasks(seqPath, phasePath string) ([]*Task, error)
 			SequencePath:  seqPath,
 			PhasePath:     phasePath,
 			ParallelGroup: num,
-			Status:        progress.ParseTaskStatus(taskPath),
+			Status:        "pending",
 		}
 
 		// Try to parse task file for additional metadata

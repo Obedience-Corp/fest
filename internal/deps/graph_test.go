@@ -360,3 +360,47 @@ func TestGraph_GetReadyTasks_SoftDepsDoNotBlock(t *testing.T) {
 		}
 	}
 }
+
+func TestGraph_GetExecutionFront_StopsAtEarliestOpenPhase(t *testing.T) {
+	g := NewGraph()
+	// Three phases, one unblocked task each. GetReadyTasks reports all three,
+	// which is every unblocked leaf in the festival, not an execution front.
+	g.AddTask(&Task{ID: "p4", Number: 1, Status: "pending", PhasePath: "/f/004_PROBE"})
+	g.AddTask(&Task{ID: "p5", Number: 1, Status: "pending", PhasePath: "/f/005_TEST"})
+	g.AddTask(&Task{ID: "p6", Number: 1, Status: "pending", PhasePath: "/f/006_DOCS"})
+
+	if got := len(g.GetReadyTasks()); got != 3 {
+		t.Fatalf("GetReadyTasks() = %d, want 3 (it is phase-blind by design)", got)
+	}
+
+	front := g.GetExecutionFront()
+	if len(front) != 1 || front[0].ID != "p4" {
+		t.Errorf("GetExecutionFront() = %v, want only the earliest open phase (p4)", front)
+	}
+}
+
+func TestGraph_GetExecutionFront_KeepsSiblingsInSamePhase(t *testing.T) {
+	g := NewGraph()
+	g.AddTask(&Task{ID: "a", Number: 1, Status: "pending", PhasePath: "/f/004_PROBE"})
+	g.AddTask(&Task{ID: "b", Number: 1, Status: "pending", PhasePath: "/f/004_PROBE"})
+	g.AddTask(&Task{ID: "later", Number: 1, Status: "pending", PhasePath: "/f/005_TEST"})
+
+	front := g.GetExecutionFront()
+	if len(front) != 2 {
+		t.Fatalf("GetExecutionFront() = %d tasks, want 2 parallel siblings in the earliest phase", len(front))
+	}
+	for _, task := range front {
+		if task.PhasePath != "/f/004_PROBE" {
+			t.Errorf("task %s from %s leaked past the earliest open phase", task.ID, task.PhasePath)
+		}
+	}
+}
+
+func TestGraph_GetExecutionFront_EmptyWhenNothingReady(t *testing.T) {
+	g := NewGraph()
+	g.AddTask(&Task{ID: "done", Number: 1, Status: "completed", PhasePath: "/f/001_A"})
+
+	if front := g.GetExecutionFront(); len(front) != 0 {
+		t.Errorf("GetExecutionFront() = %v, want empty", front)
+	}
+}
