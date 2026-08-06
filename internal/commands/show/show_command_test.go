@@ -367,3 +367,19 @@ func captureShowStdoutAllowError(t *testing.T, fn func() error) (string, error) 
 	}
 	return buf.String(), runErr
 }
+
+func TestNotInFestivalHint_LeadsWithDiscovery(t *testing.T) {
+	// The hint must teach selector discovery before selector usage: an agent
+	// outside a festival has no way to know a valid <selector> without
+	// `fest list` (intent fest-show-bare-invocation-outside-20260724).
+	err := notInFestivalError()
+	hint := err.Error()
+	listIdx := strings.Index(hint, "fest list")
+	selIdx := strings.Index(hint, "--festival <selector>")
+	if listIdx < 0 || selIdx < 0 {
+		t.Fatalf("hint must mention both fest list and --festival: %v", hint)
+	}
+	if listIdx > selIdx {
+		t.Fatalf("fest list should come before --festival in the hint: %v", hint)
+	}
+}

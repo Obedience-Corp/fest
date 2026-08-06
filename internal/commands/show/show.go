@@ -330,7 +330,7 @@ func showCycleExtraKeys() map[byte]ExtraKeyHandler {
 
 func notInFestivalError() error {
 	return errors.NotFound("festival").WithOp("show").
-		WithHint("navigate to a festival directory, use 'fest link' to link a project, pass --festival <selector>, or run from a terminal in a campaign workspace to cycle festivals")
+		WithHint("run 'fest list' to see festivals, then 'fest show <name>' or pass --festival <selector>; or navigate to a festival directory, use 'fest link' to link a project, or run from a terminal in a campaign workspace to cycle festivals")
 }
 
 func runShow(ctx context.Context, target string, opts *showOptions) error {

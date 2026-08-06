@@ -135,3 +135,44 @@ func TestBuildStandaloneWorkflowInput_FromInlineSteps(t *testing.T) {
 		t.Errorf("Steps = %+v", got.Steps)
 	}
 }
+
+func TestRejectBlockingCheckpoints(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   *WorkflowInput
+		wantErr bool
+	}{
+		{
+			name: "approval_required step rejected",
+			input: &WorkflowInput{Title: "t", Steps: []WorkflowStepInput{
+				{Name: "PLAN", Goal: "g", Checkpoint: "none"},
+				{Name: "GATE", Goal: "g", Checkpoint: "approval_required"},
+			}},
+			wantErr: true,
+		},
+		{
+			name: "non-blocking checkpoints allowed",
+			input: &WorkflowInput{Title: "t", Steps: []WorkflowStepInput{
+				{Name: "A", Goal: "g", Checkpoint: "verification"},
+				{Name: "B", Goal: "g", Checkpoint: "documentation"},
+				{Name: "C", Goal: "g", Checkpoint: "none"},
+				{Name: "D", Goal: "g"},
+			}},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := rejectBlockingCheckpoints(tt.input)
+			if tt.wantErr && err == nil {
+				t.Fatal("expected rejection, got nil")
+			}
+			if !tt.wantErr && err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if tt.wantErr && !strings.Contains(err.Error(), "blocking checkpoints") {
+				t.Fatalf("error should name blocking checkpoints: %v", err)
+			}
+		})
+	}
+}
