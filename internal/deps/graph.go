@@ -1,6 +1,10 @@
 package deps
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/Obedience-Corp/fest/internal/progress"
+)
 
 // TopologicalSort returns tasks in dependency order using Kahn's algorithm.
 // Returns an error if a cycle is detected.
@@ -217,19 +221,68 @@ func (g *Graph) GetParallelGroups() [][]*Task {
 	return groups
 }
 
-// GetReadyTasks returns tasks that are ready to execute (all dependencies complete)
+// GetExecutionFront returns the tasks that may be started right now, respecting
+// phase order.
+//
+// GetReadyTasks answers a narrower question: whose dependencies are satisfied.
+// It has no notion of phases, because the resolver only creates edges within a
+// sequence plus whatever the frontmatter declares. On a real festival that means
+// tasks from phases 004, 005 and 006 can all report ready at once while 004 is
+// still open, which is not an execution front, it is every unblocked leaf in the
+// festival.
+//
+// This keeps only the earliest phase that still has ready work. It is
+// deliberately a separate function: GetReadyTasks has another caller in the
+// guidance selector, and narrowing it there would change task selection.
+//
+// This does not evaluate phase quality gates. A phase can be blocked on an
+// approval checkpoint that only the navigator knows about, so callers that
+// dispatch work must still honour `fest next`.
+func (g *Graph) GetExecutionFront() []*Task {
+	ready := g.GetReadyTasks()
+	if len(ready) == 0 {
+		return ready
+	}
+
+	earliest := ""
+	for _, task := range ready {
+		if earliest == "" || task.PhasePath < earliest {
+			earliest = task.PhasePath
+		}
+	}
+
+	front := make([]*Task, 0, len(ready))
+	for _, task := range ready {
+		if task.PhasePath == earliest {
+			front = append(front, task)
+		}
+	}
+
+	return front
+}
+
+// IsComplete reports whether a task's status means no further work is expected.
+// It accepts both the progress package's "completed" and the shorter "complete"
+// that older festival state and hand-edited frontmatter may still carry.
+func (t *Task) IsComplete() bool {
+	return t.Status == progress.StatusCompleted || t.Status == "complete" || t.Status == "skipped"
+}
+
+// GetReadyTasks returns tasks that are ready to execute right now: not already
+// complete, not blocked, and with every hard dependency complete. Soft
+// dependencies do not gate readiness.
 func (g *Graph) GetReadyTasks() []*Task {
 	var ready []*Task
 
 	for _, task := range g.Tasks {
-		if task.Status == "complete" {
+		if task.IsComplete() || task.Status == progress.StatusBlocked {
 			continue
 		}
 
-		deps := g.GetDependencies(task.ID)
+		deps := g.GetRequiredDependencies(task.ID)
 		allComplete := true
 		for _, dep := range deps {
-			if dep.Status != "complete" {
+			if !dep.IsComplete() {
 				allComplete = false
 				break
 			}

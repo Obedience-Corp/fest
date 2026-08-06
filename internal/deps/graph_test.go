@@ -257,3 +257,150 @@ func TestGraph_GetReadyTasks(t *testing.T) {
 		t.Errorf("GetReadyTasks() after completion = %v, want [task-2]", ready)
 	}
 }
+
+func TestTask_IsComplete(t *testing.T) {
+	tests := []struct {
+		name   string
+		status string
+		want   bool
+	}{
+		{"progress package completed", "completed", true},
+		{"legacy complete", "complete", true},
+		{"skipped counts as done", "skipped", true},
+		{"pending", "pending", false},
+		{"in_progress", "in_progress", false},
+		{"blocked", "blocked", false},
+		{"empty status", "", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			task := &Task{ID: "t", Status: tt.status}
+			if got := task.IsComplete(); got != tt.want {
+				t.Errorf("IsComplete() with status %q = %v, want %v", tt.status, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGraph_GetReadyTasks_StatusVariants(t *testing.T) {
+	tests := []struct {
+		name          string
+		depStatus     string
+		wantDependent bool
+	}{
+		{"dependency completed unblocks dependent", "completed", true},
+		{"legacy complete unblocks dependent", "complete", true},
+		{"pending dependency blocks dependent", "pending", false},
+		{"in_progress dependency blocks dependent", "in_progress", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewGraph()
+			dep := &Task{ID: "dep", Number: 1, Status: tt.depStatus}
+			dependent := &Task{ID: "dependent", Number: 2, Status: "pending"}
+			g.AddTask(dep)
+			g.AddTask(dependent)
+			g.AddDependency(dep, dependent, DepImplicit, true)
+
+			ready := g.GetReadyTasks()
+
+			var sawDependent bool
+			for _, task := range ready {
+				if task.ID == "dependent" {
+					sawDependent = true
+				}
+			}
+
+			if sawDependent != tt.wantDependent {
+				t.Errorf("dependent ready = %v, want %v (dependency status %q)",
+					sawDependent, tt.wantDependent, tt.depStatus)
+			}
+		})
+	}
+}
+
+func TestGraph_GetReadyTasks_ExcludesBlocked(t *testing.T) {
+	g := NewGraph()
+	g.AddTask(&Task{ID: "task-1", Number: 1, Status: "blocked"})
+	g.AddTask(&Task{ID: "task-2", Number: 2, Status: "pending"})
+
+	ready := g.GetReadyTasks()
+
+	if len(ready) != 1 || ready[0].ID != "task-2" {
+		t.Errorf("GetReadyTasks() = %v, want only task-2 (blocked task must be excluded)", ready)
+	}
+}
+
+func TestGraph_GetReadyTasks_SoftDepsDoNotBlock(t *testing.T) {
+	g := NewGraph()
+	soft := &Task{ID: "soft", Number: 1, Status: "pending"}
+	hard := &Task{ID: "hard", Number: 2, Status: "pending"}
+	target := &Task{ID: "target", Number: 3, Status: "pending"}
+	g.AddTask(soft)
+	g.AddTask(hard)
+	g.AddTask(target)
+
+	// A soft edge expresses preferred order only.
+	g.AddDependency(soft, target, DepExplicit, false)
+
+	ready := g.GetReadyTasks()
+	if len(ready) != 3 {
+		t.Fatalf("GetReadyTasks() = %d tasks, want 3 (a soft dependency must not block)", len(ready))
+	}
+
+	// A hard edge on the same target must still block it.
+	g.AddDependency(hard, target, DepExplicit, true)
+
+	ready = g.GetReadyTasks()
+	for _, task := range ready {
+		if task.ID == "target" {
+			t.Error("target should be blocked by its hard dependency")
+		}
+	}
+}
+
+func TestGraph_GetExecutionFront_StopsAtEarliestOpenPhase(t *testing.T) {
+	g := NewGraph()
+	// Three phases, one unblocked task each. GetReadyTasks reports all three,
+	// which is every unblocked leaf in the festival, not an execution front.
+	g.AddTask(&Task{ID: "p4", Number: 1, Status: "pending", PhasePath: "/f/004_PROBE"})
+	g.AddTask(&Task{ID: "p5", Number: 1, Status: "pending", PhasePath: "/f/005_TEST"})
+	g.AddTask(&Task{ID: "p6", Number: 1, Status: "pending", PhasePath: "/f/006_DOCS"})
+
+	if got := len(g.GetReadyTasks()); got != 3 {
+		t.Fatalf("GetReadyTasks() = %d, want 3 (it is phase-blind by design)", got)
+	}
+
+	front := g.GetExecutionFront()
+	if len(front) != 1 || front[0].ID != "p4" {
+		t.Errorf("GetExecutionFront() = %v, want only the earliest open phase (p4)", front)
+	}
+}
+
+func TestGraph_GetExecutionFront_KeepsSiblingsInSamePhase(t *testing.T) {
+	g := NewGraph()
+	g.AddTask(&Task{ID: "a", Number: 1, Status: "pending", PhasePath: "/f/004_PROBE"})
+	g.AddTask(&Task{ID: "b", Number: 1, Status: "pending", PhasePath: "/f/004_PROBE"})
+	g.AddTask(&Task{ID: "later", Number: 1, Status: "pending", PhasePath: "/f/005_TEST"})
+
+	front := g.GetExecutionFront()
+	if len(front) != 2 {
+		t.Fatalf("GetExecutionFront() = %d tasks, want 2 parallel siblings in the earliest phase", len(front))
+	}
+	for _, task := range front {
+		if task.PhasePath != "/f/004_PROBE" {
+			t.Errorf("task %s from %s leaked past the earliest open phase", task.ID, task.PhasePath)
+		}
+	}
+}
+
+func TestGraph_GetExecutionFront_EmptyWhenNothingReady(t *testing.T) {
+	g := NewGraph()
+	g.AddTask(&Task{ID: "done", Number: 1, Status: "completed", PhasePath: "/f/001_A"})
+
+	if front := g.GetExecutionFront(); len(front) != 0 {
+		t.Errorf("GetExecutionFront() = %v, want empty", front)
+	}
+}
