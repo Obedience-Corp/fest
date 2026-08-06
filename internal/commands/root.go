@@ -35,6 +35,7 @@ import (
 	ritualcmd "github.com/Obedience-Corp/fest/internal/commands/ritual"
 	scaffoldcmd "github.com/Obedience-Corp/fest/internal/commands/scaffold"
 	searchcmd "github.com/Obedience-Corp/fest/internal/commands/search"
+	tokenscmd "github.com/Obedience-Corp/fest/internal/commands/tokens"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/commands/status"
@@ -307,6 +308,10 @@ func init() {
 	searchCmd := searchcmd.NewSearchCommand()
 	searchCmd.GroupID = "query"
 	rootCmd.AddCommand(searchCmd)
+
+	tokensCmd := tokenscmd.NewTokensCommand()
+	tokensCmd.GroupID = "query"
+	rootCmd.AddCommand(tokensCmd)
 
 	idCmd := idcmd.NewIDCommand()
 	idCmd.GroupID = "query"
