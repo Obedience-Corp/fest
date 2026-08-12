@@ -210,6 +210,13 @@ func materializeState(events []ProgressEvent) map[string]*TaskProgress {
 			if e.Percent > 0 && task.Status == StatusPending {
 				task.Status = StatusInProgress
 			}
+			// Mirror the live UpdateProgress mutation so the task_start
+			// first-start predicate (StartedAt == nil) is stable across
+			// process restarts.
+			if e.Percent > 0 && task.StartedAt == nil {
+				ts := e.Timestamp
+				task.StartedAt = &ts
+			}
 
 		case EventBlocked:
 			task.Status = StatusBlocked

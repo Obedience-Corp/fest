@@ -2,6 +2,7 @@ package progress
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -86,11 +87,24 @@ func (m *Manager) UpdateProgress(ctx context.Context, taskID string, progress in
 		}
 	}
 
+	// The first progress above zero is the first start signal, so the
+	// task_start stage runs here too: without it a progress update would
+	// permanently disarm start anchors (StartedAt set, hooks never fired).
+	var stage *startHookStage
+	if task.StartedAt == nil && progress > 0 {
+		var err error
+		stage, err = m.beginTaskStartHooks(ctx, taskID)
+		if err != nil {
+			return err
+		}
+	}
+
 	now := time.Now().UTC()
 
-	// Start tracking time on first progress update
-	// Use current time - we only track actual work time, not time since file creation
-	if task.StartedAt == nil {
+	// Start tracking time on the first progress update above zero.
+	// Use current time - we only track actual work time, not time since
+	// file creation. A zero update records no work start.
+	if progress > 0 && task.StartedAt == nil {
 		task.StartedAt = &now
 	}
 
@@ -139,6 +153,9 @@ func (m *Manager) UpdateProgress(ctx context.Context, taskID string, progress in
 		return err
 	}
 	m.SyncFrontmatterStatus(taskID, task.Status)
+	if err := m.finishTaskStartHooks(ctx, stage); err != nil {
+		return err
+	}
 	if progress == 100 {
 		// Propagation is best-effort: a failure here should not block
 		// the progress update that already succeeded above.
@@ -224,30 +241,12 @@ func (m *Manager) MarkInProgress(ctx context.Context, taskID string) error {
 		}
 	}
 
-	firstStart := task.StartedAt == nil
-	var (
-		req     LifecycleHookRequest
-		planned []hooks.PlannedHook
-		runner  *hooks.Runner
-	)
-	if firstStart {
+	var stage *startHookStage
+	if task.StartedAt == nil {
 		var err error
-		req, planned, err = m.planTaskStartHooks(ctx, taskID)
+		stage, err = m.beginTaskStartHooks(ctx, taskID)
 		if err != nil {
 			return err
-		}
-		if len(planned) > 0 {
-			runner = newLifecycleHookRunner(m.store.FestivalPath())
-			preRuns, blocked, err := RunLifecycleStage(ctx, m.store, runner, req, planned, hooks.TimingPre)
-			if saveErr := m.store.SaveEvents(ctx); saveErr != nil && err == nil {
-				err = saveErr
-			}
-			if err != nil {
-				return errors.Wrap(err, "running task start pre hooks")
-			}
-			if blocked {
-				return BlockedHookError(hooks.VerbTaskStart, preRuns)
-			}
 		}
 	}
 
@@ -273,15 +272,59 @@ func (m *Manager) MarkInProgress(ctx context.Context, taskID string) error {
 		return err
 	}
 	m.SyncFrontmatterStatus(taskID, task.Status)
+	return m.finishTaskStartHooks(ctx, stage)
+}
 
-	if firstStart && len(planned) > 0 {
-		_, _, postErr := RunLifecycleStage(ctx, m.store, runner, req, planned, hooks.TimingPost)
-		if saveErr := m.store.SaveEvents(ctx); saveErr != nil && postErr == nil {
-			postErr = saveErr
-		}
-		if postErr != nil {
-			return errors.Wrap(postErr, "running task start post hooks")
-		}
+// startHookStage carries one first-start transition's planned task_start
+// bindings between the pre and post timings.
+type startHookStage struct {
+	req     LifecycleHookRequest
+	planned []hooks.PlannedHook
+	runner  *hooks.Runner
+}
+
+// beginTaskStartHooks plans the task's start-stage bindings and runs the pre
+// timing. A nil stage with nil error means nothing is bound. On a blocked pre
+// the caller must not apply the transition.
+func (m *Manager) beginTaskStartHooks(ctx context.Context, taskID string) (*startHookStage, error) {
+	req, planned, err := m.planTaskStartHooks(ctx, taskID)
+	if err != nil {
+		return nil, err
+	}
+	if len(planned) == 0 {
+		return nil, nil
+	}
+	stage := &startHookStage{req: req, planned: planned, runner: newLifecycleHookRunner(m.store.FestivalPath())}
+	preRuns, blocked, err := RunLifecycleStage(ctx, m.store, stage.runner, stage.req, stage.planned, hooks.TimingPre)
+	if saveErr := m.store.SaveEvents(ctx); saveErr != nil && err == nil {
+		err = saveErr
+	}
+	if err != nil {
+		return nil, errors.Wrap(err, "running task start pre hooks")
+	}
+	if blocked {
+		return nil, BlockedHookError(hooks.VerbTaskStart, preRuns)
+	}
+	return stage, nil
+}
+
+// finishTaskStartHooks runs the post timing after the start transition has
+// been applied. A fail-closed post failure keeps the task started; it is
+// recorded in the audit trail and warned to stderr, matching the completion
+// path's operator visibility.
+func (m *Manager) finishTaskStartHooks(ctx context.Context, stage *startHookStage) error {
+	if stage == nil {
+		return nil
+	}
+	_, postBlocked, postErr := RunLifecycleStage(ctx, m.store, stage.runner, stage.req, stage.planned, hooks.TimingPost)
+	if saveErr := m.store.SaveEvents(ctx); saveErr != nil && postErr == nil {
+		postErr = saveErr
+	}
+	if postErr != nil {
+		return errors.Wrap(postErr, "running task start post hooks")
+	}
+	if postBlocked {
+		fmt.Fprintln(os.Stderr, "Warning: a fail-closed task_start post hook failed; the task remains started (see wf_hook_run in the festival audit trail)")
 	}
 	return nil
 }

@@ -141,7 +141,7 @@ Bindings only reference names. They never set `command`, `fail`, or `timeout`.
 
 | Verb | When |
 | --- | --- |
-| `task_start` | first transition into `in_progress` (`fest task in-progress`, `fest status set ... in_progress`) |
+| `task_start` | first transition into work (`fest task in-progress`, `fest status set ... in_progress`, or the first `--progress` above zero) |
 | `task_complete` | `fest task completed` |
 | `sequence_complete` | sequence completion |
 | `phase_complete` | phase completion |
@@ -150,11 +150,15 @@ Bindings only reference names. They never set `command`, `fail`, or `timeout`.
 Timings: **pre** (before the verb applies) and **post** (after the transition
 has already been applied).
 
-`task_start` fires only on the **first** start (no recorded start time yet):
-resuming a blocked task or re-marking an in-progress task never re-fires it. A
-`fail: closed` pre failure leaves the task unstarted. Numeric progress updates
-(`fest task update --progress N`) flip status without firing lifecycle hooks —
-the same rule terminal verbs already follow.
+`task_start` fires on the **first** transition into work, whichever surface
+causes it: `fest task in-progress`, `fest status set ... in_progress`, or the
+first `fest task update --progress N` above zero. Resuming a blocked task or
+re-marking an in-progress task never re-fires it; `fest task reset` clears the
+recorded start, so a reset task re-anchors on its next start. A `fail: closed`
+pre failure blocks the transition and leaves the task untouched. A `fail:
+closed` post failure keeps the task started and is recorded in the audit trail
+plus a stderr warning. Completion by progress (`--progress 100`) still bypasses
+`task_complete` hooks; only the terminal completion surfaces run those.
 
 Orchestration:
 

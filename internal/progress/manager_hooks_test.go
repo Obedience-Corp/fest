@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Obedience-Corp/fest/internal/hooks"
 )
@@ -343,5 +344,112 @@ func TestMarkInProgress_NoStartBindingsRunsNoHooks(t *testing.T) {
 	}
 	if len(called) != 0 {
 		t.Fatalf("completion-stage bindings must not run at start: %v", called)
+	}
+}
+
+func TestUpdateProgress_FirstProgressFiresStartHooks(t *testing.T) {
+	festDir := setupStartHookFestival(t, "hooks:\n  start:\n    pre: [start-anchor]\n    post: [start-notify]\n")
+	var called []string
+	fakeLifecycleRunner(t, 0, &called)
+
+	mgr, err := NewManager(context.Background(), festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	if err := mgr.UpdateProgress(context.Background(), "001_PHASE/01_seq/01_task.md", 10); err != nil {
+		t.Fatalf("UpdateProgress: %v", err)
+	}
+	if len(called) != 2 || called[0] != "test-start-anchor" || called[1] != "test-start-notify" {
+		t.Fatalf("hook exec calls = %v", called)
+	}
+	task, exists := mgr.GetTaskProgress("001_PHASE/01_seq/01_task.md")
+	if !exists || task.Status != StatusInProgress || task.StartedAt == nil {
+		t.Fatalf("task not started: exists=%v task=%+v", exists, task)
+	}
+
+	// Neither a later progress update nor an explicit in-progress re-fires.
+	if err := mgr.UpdateProgress(context.Background(), "001_PHASE/01_seq/01_task.md", 20); err != nil {
+		t.Fatalf("second UpdateProgress: %v", err)
+	}
+	if err := mgr.MarkInProgress(context.Background(), "001_PHASE/01_seq/01_task.md"); err != nil {
+		t.Fatalf("MarkInProgress: %v", err)
+	}
+	if len(called) != 2 {
+		t.Fatalf("start hooks re-fired after first progress: %v", called)
+	}
+}
+
+func TestUpdateProgress_BlockedStartPreLeavesTaskUntouched(t *testing.T) {
+	festDir := setupStartHookFestival(t, "hooks:\n  start:\n    pre: [start-anchor]\n")
+	var called []string
+	fakeLifecycleRunner(t, 1, &called)
+
+	mgr, err := NewManager(context.Background(), festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	err = mgr.UpdateProgress(context.Background(), "001_PHASE/01_seq/01_task.md", 10)
+	if err == nil {
+		t.Fatal("blocked start pre hook must fail UpdateProgress")
+	}
+	if !strings.Contains(err.Error(), "blocked by fail-closed hook") {
+		t.Fatalf("error = %v", err)
+	}
+	if task, exists := mgr.GetTaskProgress("001_PHASE/01_seq/01_task.md"); exists &&
+		(task.Status == StatusInProgress || task.Progress != 0 || task.StartedAt != nil) {
+		t.Fatalf("blocked start pre must leave the task untouched: %+v", task)
+	}
+	events := readEventsFile(t, festDir)
+	if strings.Contains(events, `"event":"progress"`) {
+		t.Fatalf("progress event must not be recorded on a blocked start:\n%s", events)
+	}
+	if !strings.Contains(events, `"hook_verb":"task_start"`) || !strings.Contains(events, `"hook_blocked":true`) {
+		t.Fatalf("blocked task_start event missing:\n%s", events)
+	}
+}
+
+func TestUpdateProgress_ZeroProgressKeepsStartAnchorArmed(t *testing.T) {
+	festDir := setupStartHookFestival(t, "hooks:\n  start:\n    pre: [start-anchor]\n")
+	var called []string
+	fakeLifecycleRunner(t, 0, &called)
+
+	mgr, err := NewManager(context.Background(), festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	if err := mgr.UpdateProgress(context.Background(), "001_PHASE/01_seq/01_task.md", 0); err != nil {
+		t.Fatalf("UpdateProgress(0): %v", err)
+	}
+	if len(called) != 0 {
+		t.Fatalf("zero progress must not fire start hooks: %v", called)
+	}
+	if task, exists := mgr.GetTaskProgress("001_PHASE/01_seq/01_task.md"); exists && task.StartedAt != nil {
+		t.Fatalf("zero progress must not record a start: %+v", task)
+	}
+
+	// The anchor still fires when work actually begins.
+	if err := mgr.MarkInProgress(context.Background(), "001_PHASE/01_seq/01_task.md"); err != nil {
+		t.Fatalf("MarkInProgress: %v", err)
+	}
+	if len(called) != 1 {
+		t.Fatalf("start anchor lost after zero progress update: %v", called)
+	}
+}
+
+func TestMaterializeState_ProgressEventSetsStartedAt(t *testing.T) {
+	ts := time.Date(2026, 8, 12, 10, 0, 0, 0, time.UTC)
+	tasks := materializeState([]ProgressEvent{
+		{Timestamp: ts, Event: EventProgress, Task: "t1", Percent: 10},
+	})
+	task := tasks["t1"]
+	if task == nil || task.StartedAt == nil || !task.StartedAt.Equal(ts) {
+		t.Fatalf("progress replay must set StartedAt: %+v", task)
+	}
+	// Zero progress replay records no start, matching the live path.
+	tasks = materializeState([]ProgressEvent{
+		{Timestamp: ts, Event: EventProgress, Task: "t1", Percent: 0},
+	})
+	if task := tasks["t1"]; task == nil || task.StartedAt != nil {
+		t.Fatalf("zero progress replay must not set StartedAt: %+v", task)
 	}
 }
