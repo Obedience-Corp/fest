@@ -107,7 +107,7 @@ type ProgressEvent struct {
 	HookName     string `json:"hook_name,omitempty"`
 	HookLayer    string `json:"hook_layer,omitempty"`  // machine|festivals|festival
 	HookTiming   string `json:"hook_timing,omitempty"` // pre|post
-	HookVerb     string `json:"hook_verb,omitempty"`   // task_complete|sequence_complete|phase_complete|gate_approve
+	HookVerb     string `json:"hook_verb,omitempty"`   // task_start|task_complete|sequence_complete|phase_complete|gate_approve
 	HookOutcome  string `json:"hook_outcome,omitempty"`
 	HookSkip     string `json:"hook_skip,omitempty"`
 	HookExitCode int    `json:"hook_exit_code,omitempty"`

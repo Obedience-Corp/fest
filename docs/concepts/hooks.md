@@ -1,8 +1,8 @@
 # Lifecycle Hooks
 
 fest hooks are **named commands** bound to festival lifecycle events (task
-complete, sequence complete, phase complete, gate approve). The approval judge
-is one hook among them, not a special case.
+start, task complete, sequence complete, phase complete, gate approve). The
+approval judge is one hook among them, not a special case.
 
 Related:
 
@@ -116,8 +116,16 @@ fest_type: task
 hooks:
   pre: [lint]
   post: [approval_judge, notify]
+  start: # task documents only; runs around task_start
+    pre: [anchor]
+    post: [announce]
 ---
 ```
+
+Bare `pre`/`post` bind around the step's **terminal** verb (`task_complete`,
+`sequence_complete`, `phase_complete`, `gate_approve`). The nested `start:`
+stage binds around **`task_start`** and is only honored on task documents;
+`fest validate` warns when it appears on a goal document.
 
 ### GATES.md body markers
 
@@ -133,6 +141,7 @@ Bindings only reference names. They never set `command`, `fail`, or `timeout`.
 
 | Verb | When |
 | --- | --- |
+| `task_start` | first transition into `in_progress` (`fest task in-progress`, `fest status set ... in_progress`) |
 | `task_complete` | `fest task completed` |
 | `sequence_complete` | sequence completion |
 | `phase_complete` | phase completion |
@@ -140,6 +149,12 @@ Bindings only reference names. They never set `command`, `fail`, or `timeout`.
 
 Timings: **pre** (before the verb applies) and **post** (after the transition
 has already been applied).
+
+`task_start` fires only on the **first** start (no recorded start time yet):
+resuming a blocked task or re-marking an in-progress task never re-fires it. A
+`fail: closed` pre failure leaves the task unstarted. Numeric progress updates
+(`fest task update --progress N`) flip status without firing lifecycle hooks —
+the same rule terminal verbs already follow.
 
 Orchestration:
 

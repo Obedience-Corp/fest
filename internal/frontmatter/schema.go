@@ -232,7 +232,19 @@ type Frontmatter struct {
 
 // StepHooks binds already-declared hooks to a step's lifecycle by name.
 // Bindings never declare; they only reference names resolved from config.
+// Pre/Post bind around the step's terminal verb (task_complete,
+// sequence_complete, phase_complete, gate_approve). Start binds around the
+// task_start verb and is only honored on task documents.
 type StepHooks struct {
+	Pre   []string        `yaml:"pre,omitempty" json:"pre,omitempty"`
+	Post  []string        `yaml:"post,omitempty" json:"post,omitempty"`
+	Start *StepHooksStage `yaml:"start,omitempty" json:"start,omitempty"`
+}
+
+// StepHooksStage is a nested pre/post binding pair for a non-terminal verb.
+// A pointer field so an absent stage round-trips as absent through
+// parse -> mutate -> inject cycles instead of materializing as "start: {}".
+type StepHooksStage struct {
 	Pre  []string `yaml:"pre,omitempty" json:"pre,omitempty"`
 	Post []string `yaml:"post,omitempty" json:"post,omitempty"`
 }
@@ -240,6 +252,14 @@ type StepHooks struct {
 // HookBindings returns the step's pre/post hook name lists (may be empty).
 func (f Frontmatter) HookBindings() StepHooks {
 	return f.Hooks
+}
+
+// StartBindings returns the start-stage hook name lists, nil-safe.
+func (h StepHooks) StartBindings() (pre, post []string) {
+	if h.Start == nil {
+		return nil, nil
+	}
+	return h.Start.Pre, h.Start.Post
 }
 
 // Validate checks if the frontmatter is valid

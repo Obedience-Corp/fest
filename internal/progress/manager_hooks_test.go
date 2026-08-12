@@ -156,3 +156,192 @@ func TestPropagateSequenceCompletion_PassingHooksCompleteGoalOnce(t *testing.T) 
 		t.Fatalf("pre/post sequence events missing:\n%s", events)
 	}
 }
+
+func setupStartHookFestival(t *testing.T, taskFrontmatter string) string {
+	t.Helper()
+	dir := t.TempDir()
+
+	festYAML := `version: "1.0"
+name: start-hooks-test
+id: SHK-001
+metadata:
+  id: SHK-001
+hooks:
+  definitions:
+    start-anchor:
+      command: test-start-anchor
+    start-notify:
+      command: test-start-notify
+`
+	if err := os.WriteFile(filepath.Join(dir, "fest.yaml"), []byte(festYAML), 0o644); err != nil {
+		t.Fatalf("write fest.yaml: %v", err)
+	}
+	seqDir := filepath.Join(dir, "001_PHASE", "01_seq")
+	if err := os.MkdirAll(seqDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, ".fest"), 0o755); err != nil {
+		t.Fatalf("mkdir .fest: %v", err)
+	}
+	task := "---\nfest_type: task\nfest_id: 01_task\n" + taskFrontmatter + "---\n# Task body\n"
+	if err := os.WriteFile(filepath.Join(seqDir, "01_task.md"), []byte(task), 0o644); err != nil {
+		t.Fatalf("write task: %v", err)
+	}
+
+	t.Setenv("HOME", t.TempDir())
+	return dir
+}
+
+func fakeLifecycleRunnerPerCommand(t *testing.T, exits map[string]int, called *[]string) {
+	t.Helper()
+	orig := newLifecycleHookRunner
+	t.Cleanup(func() { newLifecycleHookRunner = orig })
+	newLifecycleHookRunner = func(workDir string) *hooks.Runner {
+		r := hooks.NewRunner(workDir)
+		r.Exec = func(ctx context.Context, command string, stdin []byte, dir string) hooks.CommandResult {
+			if called != nil {
+				*called = append(*called, command)
+			}
+			res := hooks.CommandResult{ExitCode: exits[command]}
+			if res.ExitCode != 0 {
+				res.Err = context.Canceled
+			}
+			return res
+		}
+		return r
+	}
+}
+
+func TestMarkInProgress_BlockedStartPreLeavesTaskUnstarted(t *testing.T) {
+	festDir := setupStartHookFestival(t, "hooks:\n  start:\n    pre: [start-anchor]\n")
+	var called []string
+	fakeLifecycleRunner(t, 1, &called)
+
+	mgr, err := NewManager(context.Background(), festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	err = mgr.MarkInProgress(context.Background(), "001_PHASE/01_seq/01_task.md")
+	if err == nil {
+		t.Fatal("blocked start pre hook must fail MarkInProgress")
+	}
+	if !strings.Contains(err.Error(), "blocked by fail-closed hook") {
+		t.Fatalf("error = %v", err)
+	}
+	if task, exists := mgr.GetTaskProgress("001_PHASE/01_seq/01_task.md"); exists && task.Status == StatusInProgress {
+		t.Fatal("blocked start pre hook must leave the task unstarted")
+	}
+	if len(called) != 1 {
+		t.Fatalf("hook exec calls = %v", called)
+	}
+	events := readEventsFile(t, festDir)
+	if !strings.Contains(events, `"hook_verb":"task_start"`) || !strings.Contains(events, `"hook_blocked":true`) {
+		t.Fatalf("blocked task_start event missing:\n%s", events)
+	}
+	if strings.Contains(events, `"event":"started"`) {
+		t.Fatalf("started event must not be recorded on a blocked start:\n%s", events)
+	}
+}
+
+func TestMarkInProgress_StartHooksRunAroundTransition(t *testing.T) {
+	festDir := setupStartHookFestival(t, "hooks:\n  start:\n    pre: [start-anchor]\n    post: [start-notify]\n")
+	var called []string
+	fakeLifecycleRunner(t, 0, &called)
+
+	mgr, err := NewManager(context.Background(), festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	if err := mgr.MarkInProgress(context.Background(), "001_PHASE/01_seq/01_task.md"); err != nil {
+		t.Fatalf("MarkInProgress: %v", err)
+	}
+
+	task, exists := mgr.GetTaskProgress("001_PHASE/01_seq/01_task.md")
+	if !exists || task.Status != StatusInProgress {
+		t.Fatalf("task not in progress: exists=%v task=%+v", exists, task)
+	}
+	if len(called) != 2 || called[0] != "test-start-anchor" || called[1] != "test-start-notify" {
+		t.Fatalf("hook exec calls = %v", called)
+	}
+	events := readEventsFile(t, festDir)
+	if !strings.Contains(events, `"hook_verb":"task_start"`) ||
+		!strings.Contains(events, `"hook_timing":"pre"`) ||
+		!strings.Contains(events, `"hook_timing":"post"`) {
+		t.Fatalf("task_start pre/post events missing:\n%s", events)
+	}
+	if !strings.Contains(events, `"event":"started"`) {
+		t.Fatalf("started event missing:\n%s", events)
+	}
+
+	// Re-entering in_progress must not re-fire start hooks.
+	if err := mgr.MarkInProgress(context.Background(), "001_PHASE/01_seq/01_task.md"); err != nil {
+		t.Fatalf("second MarkInProgress: %v", err)
+	}
+	if len(called) != 2 {
+		t.Fatalf("start hooks re-fired on second start: %v", called)
+	}
+}
+
+func TestMarkInProgress_HumanGateSkipsStartHooks(t *testing.T) {
+	festDir := setupStartHookFestival(t, "approval: human-required\nhooks:\n  start:\n    pre: [start-anchor]\n")
+	var called []string
+	fakeLifecycleRunner(t, 0, &called)
+
+	mgr, err := NewManager(context.Background(), festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	if err := mgr.MarkInProgress(context.Background(), "001_PHASE/01_seq/01_task.md"); err != nil {
+		t.Fatalf("MarkInProgress: %v", err)
+	}
+	if len(called) != 0 {
+		t.Fatalf("human-gated step must not exec hooks: %v", called)
+	}
+	task, exists := mgr.GetTaskProgress("001_PHASE/01_seq/01_task.md")
+	if !exists || task.Status != StatusInProgress {
+		t.Fatalf("task not in progress: exists=%v task=%+v", exists, task)
+	}
+	events := readEventsFile(t, festDir)
+	if !strings.Contains(events, `"hook_skip":"human-gate"`) {
+		t.Fatalf("human-gate skip record missing:\n%s", events)
+	}
+}
+
+func TestMarkInProgress_FailedClosedStartPostKeepsTaskStarted(t *testing.T) {
+	festDir := setupStartHookFestival(t, "hooks:\n  start:\n    post: [start-notify]\n")
+	var called []string
+	fakeLifecycleRunnerPerCommand(t, map[string]int{"test-start-notify": 1}, &called)
+
+	mgr, err := NewManager(context.Background(), festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	if err := mgr.MarkInProgress(context.Background(), "001_PHASE/01_seq/01_task.md"); err != nil {
+		t.Fatalf("failed post hook must not fail MarkInProgress: %v", err)
+	}
+	task, exists := mgr.GetTaskProgress("001_PHASE/01_seq/01_task.md")
+	if !exists || task.Status != StatusInProgress {
+		t.Fatalf("task must stay started: exists=%v task=%+v", exists, task)
+	}
+	events := readEventsFile(t, festDir)
+	if !strings.Contains(events, `"hook_outcome":"fail"`) {
+		t.Fatalf("failed post hook audit record missing:\n%s", events)
+	}
+}
+
+func TestMarkInProgress_NoStartBindingsRunsNoHooks(t *testing.T) {
+	festDir := setupStartHookFestival(t, "hooks:\n  pre: [start-anchor]\n")
+	var called []string
+	fakeLifecycleRunner(t, 0, &called)
+
+	mgr, err := NewManager(context.Background(), festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	if err := mgr.MarkInProgress(context.Background(), "001_PHASE/01_seq/01_task.md"); err != nil {
+		t.Fatalf("MarkInProgress: %v", err)
+	}
+	if len(called) != 0 {
+		t.Fatalf("completion-stage bindings must not run at start: %v", called)
+	}
+}

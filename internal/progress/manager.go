@@ -204,7 +204,11 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 	return nil
 }
 
-// MarkInProgress marks a task as in progress
+// MarkInProgress marks a task as in progress. On the first start (no
+// StartedAt yet) the task document's start-stage hook bindings run around
+// the transition (task_start verb): a blocked pre stage leaves the task
+// unstarted; the post stage runs after the status is applied. Re-entering
+// in_progress later never re-fires start hooks.
 func (m *Manager) MarkInProgress(ctx context.Context, taskID string) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
@@ -217,6 +221,33 @@ func (m *Manager) MarkInProgress(ctx context.Context, taskID string) error {
 	if !exists {
 		task = &TaskProgress{
 			TaskID: taskID,
+		}
+	}
+
+	firstStart := task.StartedAt == nil
+	var (
+		req     LifecycleHookRequest
+		planned []hooks.PlannedHook
+		runner  *hooks.Runner
+	)
+	if firstStart {
+		var err error
+		req, planned, err = m.planTaskStartHooks(ctx, taskID)
+		if err != nil {
+			return err
+		}
+		if len(planned) > 0 {
+			runner = newLifecycleHookRunner(m.store.FestivalPath())
+			preRuns, blocked, err := RunLifecycleStage(ctx, m.store, runner, req, planned, hooks.TimingPre)
+			if saveErr := m.store.SaveEvents(ctx); saveErr != nil && err == nil {
+				err = saveErr
+			}
+			if err != nil {
+				return errors.Wrap(err, "running task start pre hooks")
+			}
+			if blocked {
+				return BlockedHookError(hooks.VerbTaskStart, preRuns)
+			}
 		}
 	}
 
@@ -242,7 +273,54 @@ func (m *Manager) MarkInProgress(ctx context.Context, taskID string) error {
 		return err
 	}
 	m.SyncFrontmatterStatus(taskID, task.Status)
+
+	if firstStart && len(planned) > 0 {
+		_, _, postErr := RunLifecycleStage(ctx, m.store, runner, req, planned, hooks.TimingPost)
+		if saveErr := m.store.SaveEvents(ctx); saveErr != nil && postErr == nil {
+			postErr = saveErr
+		}
+		if postErr != nil {
+			return errors.Wrap(postErr, "running task start post hooks")
+		}
+	}
 	return nil
+}
+
+// planTaskStartHooks reads the task document and plans its start-stage
+// bindings for the task_start verb. A missing task file yields no bindings:
+// progress can track tasks whose documents do not exist.
+func (m *Manager) planTaskStartHooks(ctx context.Context, taskID string) (LifecycleHookRequest, []hooks.PlannedHook, error) {
+	req := LifecycleHookRequest{
+		FestivalPath: m.store.FestivalPath(),
+		Phase:        taskPhaseCoordinate(taskID),
+		Task:         taskID,
+		Level:        hooks.LevelTask,
+		Verb:         hooks.VerbTaskStart,
+	}
+	taskPath := filepath.Join(m.store.FestivalPath(), taskID)
+	if !strings.HasSuffix(taskPath, ".md") {
+		taskPath += ".md"
+	}
+	content, err := os.ReadFile(taskPath)
+	if err != nil {
+		return req, nil, nil
+	}
+	req.Pre, req.Post, req.HumanGate = StartHookBindingsFromFrontmatter(content)
+	planned, err := PlanLifecycleHooks(ctx, req)
+	if err != nil {
+		return req, nil, errors.Wrap(err, "planning task start hooks")
+	}
+	return req, planned, nil
+}
+
+// taskPhaseCoordinate derives the audit-event phase coordinate from a
+// festival-relative task ID (its first path segment; empty for root-level ids).
+func taskPhaseCoordinate(taskID string) string {
+	parts := strings.Split(filepath.ToSlash(taskID), "/")
+	if len(parts) < 2 {
+		return ""
+	}
+	return parts[0]
 }
 
 // ReportBlocker reports a blocker for a task

@@ -18,6 +18,10 @@ const CodeHooksUndeclaredBinding = "hooks_undeclared_binding"
 // CodeHooksConfigError warns when hook configuration cannot be loaded or resolved.
 const CodeHooksConfigError = "hooks_config_error"
 
+// CodeHooksStartBindingPlacement warns when hooks.start bindings appear on a
+// document where the task_start verb never fires.
+const CodeHooksStartBindingPlacement = "hooks_start_binding_placement"
+
 // IssuesForUndeclaredBindings builds non-blocking warnings for undeclared bound names.
 func IssuesForUndeclaredBindings(path string, planned []hooks.PlannedHook) []Issue {
 	var issues []Issue
@@ -109,16 +113,39 @@ func scanFrontmatterBindings(path, rel string, eff *hooks.Effective) []Issue {
 	if err != nil || fm == nil {
 		return nil
 	}
-	if len(fm.Hooks.Pre) == 0 && len(fm.Hooks.Post) == 0 {
+	startPre, startPost := fm.Hooks.StartBindings()
+	if len(fm.Hooks.Pre) == 0 && len(fm.Hooks.Post) == 0 &&
+		len(startPre) == 0 && len(startPost) == 0 {
 		return nil
 	}
 	level := hooks.LevelTask
+	goalDoc := false
 	switch filepath.Base(path) {
 	case "SEQUENCE_GOAL.md":
 		level = hooks.LevelSequence
+		goalDoc = true
 	case "PHASE_GOAL.md", "FESTIVAL_GOAL.md":
 		level = hooks.LevelPhase
+		goalDoc = true
 	}
-	planned := eff.PlanBindings(level, fm.Hooks.Pre, fm.Hooks.Post)
-	return IssuesForUndeclaredBindings(rel, planned)
+	var issues []Issue
+	if len(fm.Hooks.Pre) > 0 || len(fm.Hooks.Post) > 0 {
+		planned := eff.PlanBindings(level, fm.Hooks.Pre, fm.Hooks.Post)
+		issues = append(issues, IssuesForUndeclaredBindings(rel, planned)...)
+	}
+	if len(startPre) > 0 || len(startPost) > 0 {
+		if goalDoc {
+			issues = append(issues, Issue{
+				Level:   LevelWarning,
+				Code:    CodeHooksStartBindingPlacement,
+				Path:    rel,
+				Message: "hooks.start bindings only run on task documents (task_start never fires here)",
+				Fix:     "Move the start bindings to a task document or remove them",
+			})
+		} else {
+			planned := eff.PlanBindings(hooks.LevelTask, startPre, startPost)
+			issues = append(issues, IssuesForUndeclaredBindings(rel, planned)...)
+		}
+	}
+	return issues
 }

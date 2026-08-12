@@ -85,3 +85,65 @@ body
 		t.Fatalf("user_key not preserved: %+v", fm.Extra)
 	}
 }
+
+func TestParse_StartHookBindings(t *testing.T) {
+	content := []byte(`---
+fest_type: task
+fest_id: t1
+fest_status: pending
+fest_created: 2026-07-19T00:00:00Z
+hooks:
+  pre: [lint-check]
+  start:
+    pre: [anchor]
+    post: [notify]
+---
+
+# Body
+`)
+	fm, _, err := Parse(content)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	pre, post := fm.Hooks.StartBindings()
+	if len(pre) != 1 || pre[0] != "anchor" {
+		t.Fatalf("start pre = %+v", pre)
+	}
+	if len(post) != 1 || post[0] != "notify" {
+		t.Fatalf("start post = %+v", post)
+	}
+	if len(fm.Hooks.Pre) != 1 || fm.Hooks.Pre[0] != "lint-check" {
+		t.Fatalf("completion pre must be untouched by start stage: %+v", fm.Hooks.Pre)
+	}
+}
+
+func TestParse_AbsentStartStageStaysAbsentOnInject(t *testing.T) {
+	content := []byte(`---
+fest_type: task
+fest_id: t1
+fest_status: pending
+fest_created: 2026-07-19T00:00:00Z
+hooks:
+  pre: [lint-check]
+---
+body
+`)
+	fm, body, err := Parse(content)
+	if err != nil {
+		t.Fatalf("Parse: %v", err)
+	}
+	if pre, post := fm.Hooks.StartBindings(); pre != nil || post != nil {
+		t.Fatalf("absent start stage must be nil, got %+v %+v", pre, post)
+	}
+	fm.Status = StatusInProgress
+	out, err := Inject(body, fm)
+	if err != nil {
+		t.Fatalf("Inject: %v", err)
+	}
+	if strings.Contains(string(out), "start:") {
+		t.Fatalf("absent start stage materialized on inject:\n%s", out)
+	}
+	if !strings.Contains(string(out), "pre:") {
+		t.Fatalf("existing bindings lost on inject:\n%s", out)
+	}
+}
