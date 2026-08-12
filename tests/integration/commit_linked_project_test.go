@@ -182,3 +182,64 @@ metadata:
 	assert.Contains(t, rootLog, "FE-FC0001")
 	assert.Contains(t, rootLog, "fest: fix: preserve explicit festival path")
 }
+
+// A linked project is the implementation target, not a requirement that every
+// festival commit contain project changes. Close-out and evidence commits often
+// change only festival files; a clean project must not prevent those files from
+// reaching the campaign-root commit.
+func TestCommitFromLinkedFestivalAllowsFestivalOnlyChanges(t *testing.T) {
+	tc := GetSharedContainer(t)
+	ensureGuardGit(t, tc)
+
+	const (
+		campaign = "/commit-festival-only-campaign"
+		festival = campaign + "/festivals/active/festival-only-FO0001"
+		project  = campaign + "/projects/app"
+	)
+
+	_, err := tc.Exec("sh", "-c", strings.Join([]string{
+		"mkdir -p /commit-festival-only-src && cd /commit-festival-only-src && git init -q",
+		"echo initial > app.txt && git add -A && git commit -q -m initial",
+		"mkdir -p " + campaign + "/festivals/.festival " + campaign + "/.campaign",
+		"cd " + campaign + " && git init -q",
+		"git submodule add -q /commit-festival-only-src projects/app",
+		"git add -A && git commit -q -m 'campaign baseline'",
+	}, " && "))
+	require.NoError(t, err)
+
+	require.NoError(t, tc.WriteFile(festival+"/fest.yaml", `version: "1.0"
+metadata:
+  id: FO0001
+  name: festival-only
+`))
+	out, err := tc.RunFestInDir(festival, "link", project)
+	require.NoError(t, err, "festival link must be created: %s", out)
+	require.NoError(t, tc.WriteFile(festival+"/EVIDENCE.md", "festival-only evidence\n"))
+
+	projectBefore, err := tc.Exec("git", "-C", project, "rev-parse", "HEAD")
+	require.NoError(t, err)
+	out, err = tc.Exec("sh", "-c", "cd "+festival+" && /fest commit -m 'docs: festival-only evidence'")
+	require.NoError(t, err, "a clean linked project must not block festival-only work: %s", out)
+
+	projectAfter, err := tc.Exec("git", "-C", project, "rev-parse", "HEAD")
+	require.NoError(t, err)
+	assert.Equal(t, projectBefore, projectAfter, "a clean project must remain unchanged")
+
+	rootLog, err := tc.Exec("git", "-C", campaign, "log", "-1", "--format=%s")
+	require.NoError(t, err)
+	assert.Contains(t, rootLog, "FE-FO0001")
+	assert.Contains(t, rootLog, "fest: docs: festival-only evidence")
+
+	rootFiles, err := tc.Exec("git", "-C", campaign, "show", "--name-only", "--format=", "HEAD")
+	require.NoError(t, err)
+	assert.Contains(t, rootFiles, "festivals/active/festival-only-FO0001/EVIDENCE.md")
+
+	rootBefore, err := tc.Exec("git", "-C", campaign, "rev-parse", "HEAD")
+	require.NoError(t, err)
+	out, err = tc.Exec("sh", "-c", "cd "+festival+" && /fest commit -m 'docs: nothing left'")
+	require.Error(t, err, "no changes in either repository must still fail")
+	assert.Contains(t, out, "no changes to commit")
+	rootAfter, err := tc.Exec("git", "-C", campaign, "rev-parse", "HEAD")
+	require.NoError(t, err)
+	assert.Equal(t, rootBefore, rootAfter, "a no-op must not create a commit")
+}

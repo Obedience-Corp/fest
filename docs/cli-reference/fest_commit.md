@@ -13,9 +13,9 @@ The fest commit command wraps git commit and automatically:
   1. Stages changes and prepends the festival reference to the commit message
   2. Creates a campaign root commit for festival-scoped files (task docs, progress, state)
 
-When a festival or sequence has a linked project, two commits are created even
-when this command is run from inside the festival:
-  - Project commit: stages all project changes
+When a festival or sequence has a linked project, up to two commits are created
+even when this command is run from inside the festival:
+  - Project commit: stages all project changes (skipped when the project is clean)
   - Campaign root commit: stages only festival directory, .campaign/fest/,
     festivals/.festival/.state/, and the submodule pointer
 

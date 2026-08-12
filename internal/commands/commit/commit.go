@@ -63,9 +63,9 @@ The fest commit command wraps git commit and automatically:
   1. Stages changes and prepends the festival reference to the commit message
   2. Creates a campaign root commit for festival-scoped files (task docs, progress, state)
 
-When a festival or sequence has a linked project, two commits are created even
-when this command is run from inside the festival:
-  - Project commit: stages all project changes
+When a festival or sequence has a linked project, up to two commits are created
+even when this command is run from inside the festival:
+  - Project commit: stages all project changes (skipped when the project is clean)
   - Campaign root commit: stages only festival directory, .campaign/fest/,
     festivals/.festival/.state/, and the submodule pointer
 
@@ -296,28 +296,59 @@ func runCommit(cmd *cobra.Command, args []string) error {
 		festMessage = fmt.Sprintf("[%s] %s", ref, rawMsg)
 	}
 
-	// Execute commit with campaign tag support.
-	if err := commitWithCampaignSupport(ctx, ws, primaryRepoPath, ref, rawMsg, festMessage, result); err != nil {
-		result.Success = false
-		result.Error = err.Error()
-		return outputResult(result)
+	// A clean linked project is valid when the festival itself changed (for
+	// example, close-out evidence). Skip only that project commit and continue
+	// to the scoped campaign-root commit below. All other modes retain the
+	// ordinary no-changes error from commitWithCampaignSupport.
+	primaryCommitted := true
+	if projectCommit {
+		hasProjectChanges, hasErr := commitkit.HasStagedChanges(ctx, primaryRepoPath)
+		if hasErr != nil {
+			result.Error = errors.Wrap(hasErr, "checking staged project changes").Error()
+			return outputResult(result)
+		}
+		primaryCommitted = hasProjectChanges
 	}
 
-	result.Success = true
+	if primaryCommitted {
+		if err := commitWithCampaignSupport(ctx, ws, primaryRepoPath, ref, rawMsg, festMessage, result); err != nil {
+			result.Error = err.Error()
+			return outputResult(result)
+		}
+	} else {
+		result.Message, result.CampaignTag = campaignCommitMessage(ctx, ws, ref, rawMsg, festMessage)
+	}
+
 	result.TaskRef = ref
 
 	// Campaign root commit: after a project commit, stage festival-scoped files
 	// and any tracked submodule pointer separately. Without a project target,
 	// the primary campaign-root commit above already handled festival files.
+	if noRoot && projectCommit && !primaryCommitted {
+		result.Error = "no changes to commit"
+		return outputResult(result)
+	}
 	if !noRoot && projectCommit && ws != nil && ws.Type == scope.WorkspaceTypeCampaign && hasFestival {
 		rootHash, rootErr := commitFestivalAtRoot(ctx, ws, festivalPath, submoduleRelPath, result.CampaignTag, ref, rawMsg, report)
 		if rootErr != nil {
+			if !primaryCommitted {
+				result.Error = rootErr.Error()
+				return outputResult(result)
+			}
 			_, _ = fmt.Fprintf(report, "%s %s\n", ui.Warning("campaign root commit skipped:"), rootErr.Error())
 		} else if rootHash != "" {
 			result.CampaignHash = rootHash
+			if !primaryCommitted {
+				result.Hash = rootHash
+				result.Message = festivalRootCommitMessage(result.CampaignTag, ref, rawMsg)
+			}
+		} else if !primaryCommitted {
+			result.Error = "no changes to commit"
+			return outputResult(result)
 		}
 	}
 
+	result.Success = true
 	return outputResult(result)
 }
 
@@ -703,25 +734,8 @@ func loadFestivalID(festivalPath, campaignRoot string) (string, error) {
 // festival refs into a single name-style tag: [{campaign-name}:{cid}-FE-{fid}].
 // Campaign detection or sync failures degrade gracefully — the commit still proceeds.
 func commitWithCampaignSupport(ctx context.Context, ws *scope.WorkspaceInfo, repoPath, festRef, rawMsg, festMessage string, result *CommitResult) error {
-	commitMessage := festMessage
-
-	if ws != nil && ws.Type == scope.WorkspaceTypeCampaign {
-		cid, err := commitkit.DetectCampaign(ctx)
-		if err == nil && cid != "" {
-			name, _ := commitkit.DetectCampaignName(ctx)
-			if festRef != "" {
-				// festRef is "FE-<id>"; pass the bare id (the formatter re-adds FE-).
-				festID := strings.TrimPrefix(festRef, commitRefPrefix+"-")
-				tag := commitkit.FormatContextTagsFullNamed(name, cid, "", festID, "")
-				commitMessage = tag + " " + rawMsg
-				result.CampaignTag = tag
-			} else {
-				tag := commitkit.FormatContextTagsFullNamed(name, cid, "", "", "")
-				commitMessage = tag + " " + festMessage
-				result.CampaignTag = tag
-			}
-		}
-	}
+	commitMessage, campaignTag := campaignCommitMessage(ctx, ws, festRef, rawMsg, festMessage)
+	result.CampaignTag = campaignTag
 
 	// commitkit.Commit captures git's output internally, which is the --json
 	// contract: nothing but the encoded document may reach stdout. The same
@@ -740,6 +754,34 @@ func commitWithCampaignSupport(ctx context.Context, ws *scope.WorkspaceInfo, rep
 	result.Message = commitMessage
 
 	return nil
+}
+
+// campaignCommitMessage builds the shared campaign/festival tag without
+// requiring a project commit. Festival-only commits use the same tag for the
+// campaign-root commit even when the linked project has nothing staged.
+func campaignCommitMessage(ctx context.Context, ws *scope.WorkspaceInfo, festRef, rawMsg, festMessage string) (string, string) {
+	commitMessage := festMessage
+	var campaignTag string
+
+	if ws != nil && ws.Type == scope.WorkspaceTypeCampaign {
+		cid, err := commitkit.DetectCampaign(ctx)
+		if err == nil && cid != "" {
+			name, _ := commitkit.DetectCampaignName(ctx)
+			if festRef != "" {
+				// festRef is "FE-<id>"; pass the bare id (the formatter re-adds FE-).
+				festID := strings.TrimPrefix(festRef, commitRefPrefix+"-")
+				tag := commitkit.FormatContextTagsFullNamed(name, cid, "", festID, "")
+				commitMessage = tag + " " + rawMsg
+				campaignTag = tag
+			} else {
+				tag := commitkit.FormatContextTagsFullNamed(name, cid, "", "", "")
+				commitMessage = tag + " " + festMessage
+				campaignTag = tag
+			}
+		}
+	}
+
+	return commitMessage, campaignTag
 }
 
 // festivalScopedPaths returns the campaign-root-relative paths that should be
@@ -866,17 +908,18 @@ func commitFestivalAtRoot(ctx context.Context, ws *scope.WorkspaceInfo, festival
 		return "", err
 	}
 
-	// Build the campaign root commit message with "fest:" prefix.
+	return commitCampaignRoot(ctx, ws.Root, paths, festivalRootCommitMessage(campaignTag, festRef, rawMsg), report)
+}
+
+func festivalRootCommitMessage(campaignTag, festRef, rawMsg string) string {
 	rootMsg := "fest: " + rawMsg
-
-	// Apply the same campaign tag used for the project commit.
 	if campaignTag != "" {
-		rootMsg = campaignTag + " " + rootMsg
-	} else if festRef != "" {
-		rootMsg = fmt.Sprintf("[%s] %s", festRef, rootMsg)
+		return campaignTag + " " + rootMsg
 	}
-
-	return commitCampaignRoot(ctx, ws.Root, paths, rootMsg, report)
+	if festRef != "" {
+		return fmt.Sprintf("[%s] %s", festRef, rootMsg)
+	}
+	return rootMsg
 }
 
 func detectCurrentTaskRef(ctx context.Context) (string, error) {
