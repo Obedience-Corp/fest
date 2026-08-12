@@ -16,7 +16,10 @@ import (
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
+	"github.com/Obedience-Corp/fest/internal/guidance/selection"
 	"github.com/Obedience-Corp/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/navigation"
+	"github.com/Obedience-Corp/fest/internal/pathutil"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
@@ -60,13 +63,15 @@ The fest commit command wraps git commit and automatically:
   1. Stages changes and prepends the festival reference to the commit message
   2. Creates a campaign root commit for festival-scoped files (task docs, progress, state)
 
-When run from a linked project directory, two commits are created:
+When a festival or sequence has a linked project, two commits are created even
+when this command is run from inside the festival:
   - Project commit: stages all project changes
   - Campaign root commit: stages only festival directory, .campaign/fest/,
     festivals/.festival/.state/, and the submodule pointer
 
-When run from a festival directory, one commit is created at the campaign root
-with only festival-scoped files staged (not git add -A).
+The sequence's fest_working_dir is preferred over the festival navigation link
+and legacy fest.yaml project_path. A festival with no linked project creates one
+campaign-root commit containing only festival-scoped files (not git add -A).
 
 Use --no-root to skip the campaign root commit.
 
@@ -77,13 +82,13 @@ Reference format: [FE-{id}]
 Detection priority:
   1. Explicit --task flag value
   2. Task fest_ref from current directory (if inside festival task)
-  3. Festival ID from fest.yaml metadata
-  4. Explicit --festival flag (name or ID)
+  3. Explicit --festival flag (path, name, or ID)
+  4. Festival ID from fest.yaml metadata
 
 Examples:
   fest commit -m "Implement feature"
-  # In linked project → [FE-CS0001] Implement feature
-  # In festival task  → [FE-FEST-a3b2c1] Implement feature
+  # In linked project or sequence → [FE-CS0001] Implement feature
+  # In festival task              → [FE-FEST-a3b2c1] Implement feature
 
   fest commit --task FEST-b4c5d6 -m "Related work"
   # → [FE-FEST-b4c5d6] Related work
@@ -104,7 +109,7 @@ Examples:
 
 	cmd.Flags().StringVarP(&message, "message", "m", "", "commit message (required unless --auto-write)")
 	cmd.Flags().StringVar(&taskRef, "task", "", "task reference ID to use (e.g., FEST-a3b2c1)")
-	cmd.Flags().StringVar(&festivalFlag, "festival", "", "festival name or ID (overrides auto-detection)")
+	cmd.Flags().StringVar(&festivalFlag, "festival", "", "festival path, name, or ID (overrides auto-detection)")
 	cmd.Flags().BoolVar(&noTag, "no-tag", false, "don't prepend task reference")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "output result as JSON")
 	cmd.Flags().BoolVar(&autoStage, "stage", true, "auto-stage all changes before commit")
@@ -148,14 +153,19 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	// Resolve workspace for campaign integration (nil-safe: ok if absent).
 	ws, _ := scope.WorkspaceFrom(ctx)
 
-	// Determine if we're in a project submodule vs campaign root.
-	var inSubmodule bool
-	var submoduleRelPath string
-	if ws != nil && ws.Type == scope.WorkspaceTypeCampaign {
-		inSubmodule, submoduleRelPath = isInSubmodule(ws.Root)
-	}
-
 	festivalPath, hasFestival := scope.FestivalFrom(ctx)
+	if festivalFlag != "" {
+		var resolveErr error
+		festivalPath, resolveErr = resolveFestivalFlagPath(ctx, ws, festivalFlag)
+		if resolveErr != nil {
+			result.Success = false
+			result.Error = resolveErr.Error()
+			return outputResult(result)
+		}
+		hasFestival = true
+		ctx = scope.WithFestival(ctx, festivalPath)
+		cmd.SetContext(ctx)
+	}
 
 	// Check if we're in a git repository
 	inRepo, err := isGitRepo(ctx)
@@ -177,6 +187,22 @@ func runCommit(cmd *cobra.Command, args []string) error {
 		return outputResult(result)
 	}
 
+	// A sequence's working directory and a festival's project link are explicit
+	// commit targets. Resolve them while the caller is still in the festival so
+	// the command can preserve festival context without requiring a manual cd.
+	projectCommit := false
+	var submoduleRelPath string
+	if ws != nil && ws.Type == scope.WorkspaceTypeCampaign {
+		primaryRepoPath, projectCommit, submoduleRelPath, err = resolveCommitTarget(
+			ctx, ws.Root, primaryRepoPath, festivalPath, hasFestival,
+		)
+		if err != nil {
+			result.Success = false
+			result.Error = err.Error()
+			return outputResult(result)
+		}
+	}
+
 	// Guard outcomes and refusals go to the command's stderr so --json stdout
 	// stays a pure document.
 	report := cmd.ErrOrStderr()
@@ -184,8 +210,8 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	// Auto-stage changes if enabled (default: true).
 	// When at campaign root (not in submodule), stage only festival-scoped paths.
 	if autoStage {
-		if inSubmodule {
-			// In submodule: stage all changes in the project repo
+		if projectCommit {
+			// In a project: stage all changes in the project repo.
 			if err := stageAllChanges(ctx, primaryRepoPath, report); err != nil {
 				result.Success = false
 				result.Error = err.Error()
@@ -280,10 +306,10 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	result.Success = true
 	result.TaskRef = ref
 
-	// Campaign root commit: stage festival-scoped files and commit separately.
-	// Only when we're in a submodule (the campaign root commit is a second commit).
-	// When at the campaign root, the primary commit above already handled festival files.
-	if !noRoot && inSubmodule && ws != nil && ws.Type == scope.WorkspaceTypeCampaign && hasFestival {
+	// Campaign root commit: after a project commit, stage festival-scoped files
+	// and any tracked submodule pointer separately. Without a project target,
+	// the primary campaign-root commit above already handled festival files.
+	if !noRoot && projectCommit && ws != nil && ws.Type == scope.WorkspaceTypeCampaign && hasFestival {
 		rootHash, rootErr := commitFestivalAtRoot(ctx, ws, festivalPath, submoduleRelPath, result.CampaignTag, ref, rawMsg, report)
 		if rootErr != nil {
 			_, _ = fmt.Fprintf(report, "%s %s\n", ui.Warning("campaign root commit skipped:"), rootErr.Error())
@@ -339,15 +365,131 @@ func isGitRepo(ctx context.Context) (bool, error) {
 }
 
 func currentGitRoot(ctx context.Context) (string, error) {
+	return gitRootAt(ctx, "")
+}
+
+func gitRootAt(ctx context.Context, dir string) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", errors.Wrap(err, "context cancelled")
 	}
-	cmd := exec.CommandContext(ctx, "git", "rev-parse", "--show-toplevel")
+	args := []string{"rev-parse", "--show-toplevel"}
+	if dir != "" {
+		args = append([]string{"-C", dir}, args...)
+	}
+	cmd := exec.CommandContext(ctx, "git", args...)
 	out, err := cmd.Output()
 	if err != nil {
 		return "", errors.Wrap(err, "finding git root")
 	}
 	return strings.TrimSpace(string(out)), nil
+}
+
+// resolveCommitTarget selects the repository that owns implementation changes.
+// A caller already inside a project stays there. A caller inside a festival is
+// redirected using the nearest sequence's fest_working_dir, then the festival
+// navigation link, then the legacy fest.yaml project_path fallback.
+func resolveCommitTarget(
+	ctx context.Context,
+	campaignRoot string,
+	currentRepo string,
+	festivalPath string,
+	hasFestival bool,
+) (repoPath string, project bool, submoduleRelPath string, err error) {
+	if filepath.Clean(currentRepo) != filepath.Clean(campaignRoot) {
+		return currentRepo, true, gitlinkRelPath(ctx, campaignRoot, currentRepo), nil
+	}
+	if !hasFestival || festivalPath == "" {
+		return currentRepo, false, "", nil
+	}
+
+	target, declared, err := festivalProjectTarget(campaignRoot, festivalPath)
+	if err != nil {
+		return "", false, "", err
+	}
+	if !declared {
+		return currentRepo, false, "", nil
+	}
+
+	info, statErr := os.Stat(target)
+	if statErr != nil {
+		return "", false, "", errors.Wrap(statErr, "finding linked project").WithField("path", target)
+	}
+	if !info.IsDir() {
+		return "", false, "", errors.Validation("linked project is not a directory").WithField("path", target)
+	}
+
+	targetRepo, rootErr := gitRootAt(ctx, target)
+	if rootErr != nil {
+		return "", false, "", errors.Wrap(rootErr, "resolving linked project repository").WithField("path", target)
+	}
+	if filepath.Clean(targetRepo) == filepath.Clean(campaignRoot) {
+		return currentRepo, false, "", nil
+	}
+
+	return targetRepo, true, gitlinkRelPath(ctx, campaignRoot, targetRepo), nil
+}
+
+// festivalProjectTarget returns the explicit implementation directory for the
+// caller's current sequence or festival. The bool distinguishes "not linked"
+// from an invalid declared link, which must fail loudly rather than committing
+// the wrong repository.
+func festivalProjectTarget(campaignRoot, festivalPath string) (string, bool, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", false, errors.Wrap(err, "getting working directory")
+	}
+
+	if rel, relErr := filepath.Rel(festivalPath, cwd); relErr == nil && rel != "." && !pathEscapesRoot(rel) {
+		parts := strings.Split(rel, string(os.PathSeparator))
+		if len(parts) >= 2 {
+			sequencePath := filepath.Join(festivalPath, parts[0], parts[1])
+			if workingDir := selection.ExtractWorkingDir(sequencePath); workingDir != "" {
+				_, absolute, resolveErr := pathutil.ResolveProjectPathValue(workingDir, campaignRoot)
+				if resolveErr != nil {
+					return "", true, errors.Wrap(resolveErr, "resolving fest_working_dir")
+				}
+				return absolute, true, nil
+			}
+		}
+	}
+
+	if nav, navErr := navigation.LoadNavigation(); navErr == nil {
+		if linked := nav.GetLinkedProject(filepath.Base(festivalPath)); linked != "" {
+			return linked, true, nil
+		}
+	}
+
+	cfg, cfgErr := config.LoadFestivalConfig(festivalPath, campaignRoot)
+	if cfgErr != nil {
+		return "", false, errors.Wrap(cfgErr, "loading festival config")
+	}
+	if cfg.ProjectPath == "" {
+		return "", false, nil
+	}
+	_, absolute, resolveErr := pathutil.ResolveProjectPathValue(cfg.ProjectPath, campaignRoot)
+	if resolveErr != nil {
+		return "", true, errors.Wrap(resolveErr, "resolving project_path")
+	}
+	return absolute, true, nil
+}
+
+func pathEscapesRoot(rel string) bool {
+	return rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator))
+}
+
+// gitlinkRelPath returns the campaign-relative path only when the target is a
+// tracked submodule. Worktrees and external repositories still receive the
+// project commit, but are not offered to the campaign-root staging path list.
+func gitlinkRelPath(ctx context.Context, campaignRoot, repoPath string) string {
+	rel, err := filepath.Rel(campaignRoot, repoPath)
+	if err != nil || pathEscapesRoot(rel) || rel == "." {
+		return ""
+	}
+	out, err := exec.CommandContext(ctx, "git", "-C", campaignRoot, "ls-files", "--stage", "--", rel).Output()
+	if err != nil || !strings.HasPrefix(strings.TrimSpace(string(out)), "160000 ") {
+		return ""
+	}
+	return rel
 }
 
 // stageAllChanges stages everything in the repository at repoPath through
@@ -454,6 +596,43 @@ func detectFestivalIDFromFlag(ctx context.Context, flag string) (string, error) 
 	if !ok || ws == nil {
 		return "", errors.NotFound("workspace")
 	}
+	festivalPath, err := resolveFestivalFlagPath(ctx, ws, flag)
+	if err != nil {
+		return "", err
+	}
+	return loadFestivalID(festivalPath, ws.Root)
+}
+
+// resolveFestivalFlagPath resolves every form accepted by --festival. Paths
+// are validated directly; names and IDs are searched across lifecycle status
+// directories. Keeping this resolution at command entry lets the same context
+// drive tag detection, project targeting, and the campaign-root commit.
+func resolveFestivalFlagPath(ctx context.Context, ws *scope.WorkspaceInfo, flag string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", errors.Wrap(err, "context cancelled")
+	}
+	if ws == nil {
+		return "", errors.NotFound("workspace")
+	}
+
+	if filepath.IsAbs(flag) {
+		return validateFestivalFlagPath(flag, ws.Root)
+	}
+
+	// A relative path can be relative to the caller or the campaign root. Only
+	// treat it as a path when it exists or contains an explicit path separator;
+	// a bare value remains eligible for the name/ID search below.
+	cwd, cwdErr := os.Getwd()
+	if cwdErr == nil {
+		for _, candidate := range []string{filepath.Join(cwd, flag), filepath.Join(ws.Root, flag)} {
+			if info, statErr := os.Stat(candidate); statErr == nil && info.IsDir() {
+				return validateFestivalFlagPath(candidate, ws.Root)
+			}
+		}
+	}
+	if strings.ContainsRune(flag, os.PathSeparator) {
+		return "", errors.NotFound(fmt.Sprintf("festival path %q", flag))
+	}
 
 	// Search status directories for a matching festival.
 	for _, status := range id.StatusDirectories {
@@ -470,22 +649,40 @@ func detectFestivalIDFromFlag(ctx context.Context, flag string) (string, error) 
 
 			// Match by directory name (e.g., "obey-alignment-OA0001")
 			if entry.Name() == flag {
-				return loadFestivalID(festivalPath, ws.Root)
+				return festivalPath, nil
 			}
 
 			// Match by ID suffix (e.g., directory ends with "-OA0001")
 			if strings.HasSuffix(entry.Name(), "-"+flag) {
-				return loadFestivalID(festivalPath, ws.Root)
+				return festivalPath, nil
 			}
 
 			// Match by loading config and comparing metadata.id
 			if fid, err := loadFestivalID(festivalPath, ws.Root); err == nil && fid == flag {
-				return fid, nil
+				return festivalPath, nil
 			}
 		}
 	}
 
 	return "", errors.NotFound(fmt.Sprintf("festival matching flag %q", flag))
+}
+
+func validateFestivalFlagPath(path, campaignRoot string) (string, error) {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return "", errors.Wrap(err, "resolving festival path")
+	}
+	info, err := os.Stat(absPath)
+	if err != nil {
+		return "", errors.Wrap(err, "finding festival path").WithField("path", absPath)
+	}
+	if !info.IsDir() {
+		return "", errors.Validation("festival path is not a directory").WithField("path", absPath)
+	}
+	if _, err := loadFestivalID(absPath, campaignRoot); err != nil {
+		return "", errors.Wrap(err, "validating festival path").WithField("path", absPath)
+	}
+	return absPath, nil
 }
 
 // loadFestivalID loads fest.yaml from the given festival directory and returns
@@ -543,16 +740,6 @@ func commitWithCampaignSupport(ctx context.Context, ws *scope.WorkspaceInfo, rep
 	result.Message = commitMessage
 
 	return nil
-}
-
-// isInSubmodule returns true and the submodule-relative path if the current
-// working directory is inside a git submodule of the campaign root.
-func isInSubmodule(campaignRoot string) (bool, string) {
-	relPath, err := resolveProjectRelPath(campaignRoot)
-	if err != nil {
-		return false, ""
-	}
-	return true, relPath
 }
 
 // festivalScopedPaths returns the campaign-root-relative paths that should be
@@ -690,38 +877,6 @@ func commitFestivalAtRoot(ctx context.Context, ws *scope.WorkspaceInfo, festival
 	}
 
 	return commitCampaignRoot(ctx, ws.Root, paths, rootMsg, report)
-}
-
-// resolveProjectRelPath returns the current git repository's path relative to
-// campaignRoot. Used to identify which submodule pointer to update.
-func resolveProjectRelPath(campaignRoot string) (string, error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", errors.Wrap(err, "getting working directory")
-	}
-
-	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
-	cmd.Dir = cwd
-	out, err := cmd.Output()
-	if err != nil {
-		return "", errors.Wrap(err, "finding git root")
-	}
-	gitRoot := strings.TrimSpace(string(out))
-
-	if gitRoot == campaignRoot {
-		return "", errors.New("current directory is the campaign root, not a submodule")
-	}
-
-	relPath, err := filepath.Rel(campaignRoot, gitRoot)
-	if err != nil {
-		return "", errors.Wrap(err, "computing relative project path")
-	}
-
-	if strings.HasPrefix(relPath, "..") {
-		return "", errors.New("project is outside the campaign root")
-	}
-
-	return relPath, nil
 }
 
 func detectCurrentTaskRef(ctx context.Context) (string, error) {
