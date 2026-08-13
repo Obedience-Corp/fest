@@ -198,6 +198,12 @@ func materializeState(events []ProgressEvent) map[string]*TaskProgress {
 		case EventCompleted:
 			task.Status = StatusCompleted
 			ts := e.Timestamp
+			// A completion can be the task's first work signal (for example,
+			// UpdateProgress(100) or a direct MarkComplete). Mirror the live
+			// mutation so replay does not re-arm task_start hooks.
+			if task.StartedAt == nil {
+				task.StartedAt = &ts
+			}
 			task.CompletedAt = &ts
 			task.Progress = 100
 			task.TimeSpentMinutes = e.Minutes

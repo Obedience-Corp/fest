@@ -180,6 +180,15 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 		}
 	}
 
+	var stage *startHookStage
+	if task.StartedAt == nil {
+		var err error
+		stage, err = m.beginTaskStartHooks(ctx, taskID)
+		if err != nil {
+			return err
+		}
+	}
+
 	now := time.Now().UTC()
 
 	// Set start time if not already set - use current time
@@ -210,6 +219,9 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 		return err
 	}
 	m.SyncFrontmatterStatus(taskID, task.Status)
+	if err := m.finishTaskStartHooks(ctx, stage); err != nil {
+		return err
+	}
 	// Campaign ledger: high-intent task completion (D003/D006). Does not
 	// alter progress_events.jsonl content beyond the save already done.
 	m.emitLedger(ctx, ledgerkit.KindCompleted, taskID, "", map[string]any{
@@ -391,11 +403,6 @@ func (m *Manager) ReportBlocker(ctx context.Context, taskID, message string) err
 	task.Status = StatusBlocked
 	task.BlockerMessage = message
 	task.BlockedAt = &now
-
-	// Start tracking time if not already
-	if task.StartedAt == nil {
-		task.StartedAt = &now
-	}
 
 	// Queue blocked event
 	m.store.QueueEvent(&ProgressEvent{

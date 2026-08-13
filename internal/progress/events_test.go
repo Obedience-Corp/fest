@@ -111,6 +111,18 @@ func TestMaterializeState_TimeSpent(t *testing.T) {
 	}
 }
 
+func TestMaterializeState_CompletedEventSetsStartedAt(t *testing.T) {
+	ts := time.Date(2026, 8, 12, 10, 0, 0, 0, time.UTC)
+	tasks := materializeState([]ProgressEvent{
+		{Timestamp: ts, Event: EventCompleted, Task: "01_task.md"},
+	})
+
+	task := tasks["01_task.md"]
+	if task == nil || task.StartedAt == nil || !task.StartedAt.Equal(ts) {
+		t.Fatalf("completion replay must set StartedAt: %+v", task)
+	}
+}
+
 func TestGenerateEventsFromState(t *testing.T) {
 	now := time.Now().UTC()
 	earlier := now.Add(-1 * time.Hour)
