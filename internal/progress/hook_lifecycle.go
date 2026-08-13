@@ -92,6 +92,18 @@ func StepHookBindingsFromFrontmatter(content []byte) (pre, post []string, humanG
 	return fm.Hooks.Pre, fm.Hooks.Post, strings.EqualFold(strings.TrimSpace(fm.Approval), "human-required")
 }
 
+// StartHookBindingsFromFrontmatter extracts the start-stage hook bindings
+// (hooks.start.pre / hooks.start.post) and human-gate flag from a task
+// document's frontmatter. Unparseable frontmatter yields no bindings.
+func StartHookBindingsFromFrontmatter(content []byte) (pre, post []string, humanGate bool) {
+	fm, _, err := frontmatter.Parse(content)
+	if err != nil || fm == nil {
+		return nil, nil, false
+	}
+	pre, post = fm.Hooks.StartBindings()
+	return pre, post, strings.EqualFold(strings.TrimSpace(fm.Approval), "human-required")
+}
+
 // BlockedHookError names the fail-closed hook that blocked a lifecycle verb.
 func BlockedHookError(verb hooks.Verb, runs []hooks.HookRun) error {
 	for _, run := range runs {

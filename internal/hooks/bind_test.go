@@ -88,14 +88,14 @@ func TestPlanBindings_Empty(t *testing.T) {
 
 func TestV1Verbs_ClosedSet(t *testing.T) {
 	verbs := V1Verbs()
-	if len(verbs) != 4 {
-		t.Fatalf("want exactly 4 verbs, got %v", verbs)
+	if len(verbs) != 5 {
+		t.Fatalf("want exactly 5 verbs, got %v", verbs)
 	}
 	seen := map[Verb]bool{}
 	for _, v := range verbs {
 		seen[v] = true
 	}
-	for _, need := range []Verb{VerbTaskComplete, VerbSequenceComplete, VerbPhaseComplete, VerbGateApprove} {
+	for _, need := range []Verb{VerbTaskStart, VerbTaskComplete, VerbSequenceComplete, VerbPhaseComplete, VerbGateApprove} {
 		if !seen[need] {
 			t.Fatalf("missing verb %s", need)
 		}

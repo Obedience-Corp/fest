@@ -19,6 +19,7 @@ const (
 type Verb string
 
 const (
+	VerbTaskStart        Verb = "task_start"
 	VerbTaskComplete     Verb = "task_complete"
 	VerbSequenceComplete Verb = "sequence_complete"
 	VerbPhaseComplete    Verb = "phase_complete"
@@ -35,6 +36,7 @@ type Event struct {
 // V1Verbs is the closed set of lifecycle verbs supported in v1.
 func V1Verbs() []Verb {
 	return []Verb{
+		VerbTaskStart,
 		VerbTaskComplete,
 		VerbSequenceComplete,
 		VerbPhaseComplete,

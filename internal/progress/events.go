@@ -107,7 +107,7 @@ type ProgressEvent struct {
 	HookName     string `json:"hook_name,omitempty"`
 	HookLayer    string `json:"hook_layer,omitempty"`  // machine|festivals|festival
 	HookTiming   string `json:"hook_timing,omitempty"` // pre|post
-	HookVerb     string `json:"hook_verb,omitempty"`   // task_complete|sequence_complete|phase_complete|gate_approve
+	HookVerb     string `json:"hook_verb,omitempty"`   // task_start|task_complete|sequence_complete|phase_complete|gate_approve
 	HookOutcome  string `json:"hook_outcome,omitempty"`
 	HookSkip     string `json:"hook_skip,omitempty"`
 	HookExitCode int    `json:"hook_exit_code,omitempty"`
@@ -198,6 +198,12 @@ func materializeState(events []ProgressEvent) map[string]*TaskProgress {
 		case EventCompleted:
 			task.Status = StatusCompleted
 			ts := e.Timestamp
+			// A completion can be the task's first work signal (for example,
+			// UpdateProgress(100) or a direct MarkComplete). Mirror the live
+			// mutation so replay does not re-arm task_start hooks.
+			if task.StartedAt == nil {
+				task.StartedAt = &ts
+			}
 			task.CompletedAt = &ts
 			task.Progress = 100
 			task.TimeSpentMinutes = e.Minutes
@@ -209,6 +215,13 @@ func materializeState(events []ProgressEvent) map[string]*TaskProgress {
 			task.Progress = e.Percent
 			if e.Percent > 0 && task.Status == StatusPending {
 				task.Status = StatusInProgress
+			}
+			// Mirror the live UpdateProgress mutation so the task_start
+			// first-start predicate (StartedAt == nil) is stable across
+			// process restarts.
+			if e.Percent > 0 && task.StartedAt == nil {
+				ts := e.Timestamp
+				task.StartedAt = &ts
 			}
 
 		case EventBlocked:
