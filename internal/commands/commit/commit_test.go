@@ -5,7 +5,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
+
+	"github.com/Obedience-Corp/fest/internal/scope"
 )
 
 func TestFormatCommitRef(t *testing.T) {
@@ -72,6 +75,55 @@ func TestNewCommitCommand_CampaignTaggingIndependentOfSync(t *testing.T) {
 	}
 	if syncFlag.DefValue != "false" {
 		t.Errorf("--sync-submodule-ref default = %q, want %q", syncFlag.DefValue, "false")
+	}
+}
+
+func TestRunCommit_CleanProjectWithoutFestivalReturnsNoChanges(t *testing.T) {
+	campaign := t.TempDir()
+	project := filepath.Join(campaign, "projects", "app")
+	if err := os.MkdirAll(filepath.Join(campaign, ".campaign"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(project, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, repo := range []string{campaign, project} {
+		cmd := exec.Command("git", "init", "-q", repo)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git init %s: %v\n%s", repo, err, out)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(project, "app.txt"), []byte("initial\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{
+		{"-C", project, "add", "app.txt"},
+		{"-C", project, "-c", "user.name=Fest Test", "-c", "user.email=fest@example.com", "commit", "-q", "-m", "initial"},
+	} {
+		cmd := exec.Command("git", args...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+
+	t.Chdir(project)
+	cmd := NewCommitCommand()
+	cmd.SetContext(scope.WithWorkspace(context.Background(), &scope.WorkspaceInfo{
+		Root: campaign,
+		Type: scope.WorkspaceTypeCampaign,
+	}))
+	message = "chore: no changes"
+	autoStage = true
+	autoWrite = false
+	noRoot = false
+	noTag = true
+	jsonOut = false
+	festivalFlag = ""
+	taskRef = ""
+
+	err := runCommit(cmd, nil)
+	if err == nil || !strings.Contains(err.Error(), "no changes to commit") {
+		t.Fatalf("runCommit error = %v, want no changes to commit", err)
 	}
 }
 

@@ -347,6 +347,10 @@ func runCommit(cmd *cobra.Command, args []string) error {
 			return outputResult(result)
 		}
 	}
+	if !primaryCommitted && result.Hash == "" {
+		result.Error = "no changes to commit"
+		return outputResult(result)
+	}
 
 	result.Success = true
 	return outputResult(result)
