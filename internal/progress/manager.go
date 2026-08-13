@@ -87,13 +87,27 @@ func (m *Manager) UpdateProgress(ctx context.Context, taskID string, progress in
 		}
 	}
 
+	// A 100% update is a completion transition, so the task_complete verb
+	// runs here too: without it UpdateProgress(100) would complete a task
+	// with its completion bindings silently skipped. Hooks fire only on an
+	// actual transition into completed; replaying 100 on an already-completed
+	// task never re-fires them.
+	var completeStage *taskHookStage
+	if progress == 100 && task.Status != StatusCompleted {
+		var err error
+		completeStage, err = m.beginTaskHooks(ctx, taskID, hooks.VerbTaskComplete)
+		if err != nil {
+			return err
+		}
+	}
+
 	// The first progress above zero is the first start signal, so the
 	// task_start stage runs here too: without it a progress update would
 	// permanently disarm start anchors (StartedAt set, hooks never fired).
-	var stage *startHookStage
+	var startStage *taskHookStage
 	if task.StartedAt == nil && progress > 0 {
 		var err error
-		stage, err = m.beginTaskStartHooks(ctx, taskID)
+		startStage, err = m.beginTaskHooks(ctx, taskID, hooks.VerbTaskStart)
 		if err != nil {
 			return err
 		}
@@ -153,7 +167,10 @@ func (m *Manager) UpdateProgress(ctx context.Context, taskID string, progress in
 		return err
 	}
 	m.SyncFrontmatterStatus(taskID, task.Status)
-	if err := m.finishTaskStartHooks(ctx, stage); err != nil {
+	if err := m.finishTaskHooks(ctx, startStage, "started"); err != nil {
+		return err
+	}
+	if err := m.finishTaskHooks(ctx, completeStage, "completed"); err != nil {
 		return err
 	}
 	if progress == 100 {
@@ -180,10 +197,21 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 		}
 	}
 
-	var stage *startHookStage
+	// Completion bindings run around the transition here so every completion
+	// surface shares them (task completed command, status set, progress 100).
+	// Pre ordering preserves the historical 'fest task completed' flow:
+	// task_complete pre, then first-start task_start pre, mutation,
+	// task_start post, task_complete post. An explicit re-completion of an
+	// already-completed task re-fires its bindings, matching the historical
+	// command behavior.
+	completeStage, err := m.beginTaskHooks(ctx, taskID, hooks.VerbTaskComplete)
+	if err != nil {
+		return err
+	}
+
+	var startStage *taskHookStage
 	if task.StartedAt == nil {
-		var err error
-		stage, err = m.beginTaskStartHooks(ctx, taskID)
+		startStage, err = m.beginTaskHooks(ctx, taskID, hooks.VerbTaskStart)
 		if err != nil {
 			return err
 		}
@@ -219,7 +247,10 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 		return err
 	}
 	m.SyncFrontmatterStatus(taskID, task.Status)
-	if err := m.finishTaskStartHooks(ctx, stage); err != nil {
+	if err := m.finishTaskHooks(ctx, startStage, "started"); err != nil {
+		return err
+	}
+	if err := m.finishTaskHooks(ctx, completeStage, "completed"); err != nil {
 		return err
 	}
 	// Campaign ledger: high-intent task completion (D003/D006). Does not
@@ -253,10 +284,10 @@ func (m *Manager) MarkInProgress(ctx context.Context, taskID string) error {
 		}
 	}
 
-	var stage *startHookStage
+	var stage *taskHookStage
 	if task.StartedAt == nil {
 		var err error
-		stage, err = m.beginTaskStartHooks(ctx, taskID)
+		stage, err = m.beginTaskHooks(ctx, taskID, hooks.VerbTaskStart)
 		if err != nil {
 			return err
 		}
@@ -284,47 +315,74 @@ func (m *Manager) MarkInProgress(ctx context.Context, taskID string) error {
 		return err
 	}
 	m.SyncFrontmatterStatus(taskID, task.Status)
-	return m.finishTaskStartHooks(ctx, stage)
+	return m.finishTaskHooks(ctx, stage, "started")
 }
 
-// startHookStage carries one first-start transition's planned task_start
-// bindings between the pre and post timings.
-type startHookStage struct {
+// taskHookStage carries one task transition's planned lifecycle bindings
+// between the pre and post timings.
+type taskHookStage struct {
 	req     LifecycleHookRequest
 	planned []hooks.PlannedHook
 	runner  *hooks.Runner
+	label   string // human wording for error text, e.g. "task start"
 }
 
-// beginTaskStartHooks plans the task's start-stage bindings and runs the pre
-// timing. A nil stage with nil error means nothing is bound. On a blocked pre
-// the caller must not apply the transition.
-func (m *Manager) beginTaskStartHooks(ctx context.Context, taskID string) (*startHookStage, error) {
-	req, planned, err := m.planTaskStartHooks(ctx, taskID)
+// beginTaskHooks plans the task document's bindings for verb and runs the
+// pre timing. task_start plans the nested start-stage bindings; task_complete
+// plans the bare pre/post bindings. A nil stage with nil error means nothing
+// is bound. On a blocked pre the caller must not apply the transition. A
+// missing task file yields no bindings: progress can track tasks whose
+// documents do not exist.
+func (m *Manager) beginTaskHooks(ctx context.Context, taskID string, verb hooks.Verb) (*taskHookStage, error) {
+	req := LifecycleHookRequest{
+		FestivalPath: m.store.FestivalPath(),
+		Phase:        taskPhaseCoordinate(taskID),
+		Task:         taskID,
+		Level:        hooks.LevelTask,
+		Verb:         verb,
+	}
+	label := "task start"
+	if verb == hooks.VerbTaskComplete {
+		label = "task completion"
+	}
+	taskPath := filepath.Join(m.store.FestivalPath(), taskID)
+	if !strings.HasSuffix(taskPath, ".md") {
+		taskPath += ".md"
+	}
+	content, err := os.ReadFile(taskPath)
 	if err != nil {
-		return nil, err
+		return nil, nil
+	}
+	if verb == hooks.VerbTaskStart {
+		req.Pre, req.Post, req.HumanGate = StartHookBindingsFromFrontmatter(content)
+	} else {
+		req.Pre, req.Post, req.HumanGate = StepHookBindingsFromFrontmatter(content)
+	}
+	planned, err := PlanLifecycleHooks(ctx, req)
+	if err != nil {
+		return nil, errors.Wrap(err, "planning "+label+" hooks")
 	}
 	if len(planned) == 0 {
 		return nil, nil
 	}
-	stage := &startHookStage{req: req, planned: planned, runner: newLifecycleHookRunner(m.store.FestivalPath())}
+	stage := &taskHookStage{req: req, planned: planned, runner: newLifecycleHookRunner(m.store.FestivalPath()), label: label}
 	preRuns, blocked, err := RunLifecycleStage(ctx, m.store, stage.runner, stage.req, stage.planned, hooks.TimingPre)
 	if saveErr := m.store.SaveEvents(ctx); saveErr != nil && err == nil {
 		err = saveErr
 	}
 	if err != nil {
-		return nil, errors.Wrap(err, "running task start pre hooks")
+		return nil, errors.Wrap(err, "running "+label+" pre hooks")
 	}
 	if blocked {
-		return nil, BlockedHookError(hooks.VerbTaskStart, preRuns)
+		return nil, BlockedHookError(verb, preRuns)
 	}
 	return stage, nil
 }
 
-// finishTaskStartHooks runs the post timing after the start transition has
-// been applied. A fail-closed post failure keeps the task started; it is
-// recorded in the audit trail and warned to stderr, matching the completion
-// path's operator visibility.
-func (m *Manager) finishTaskStartHooks(ctx context.Context, stage *startHookStage) error {
+// finishTaskHooks runs the post timing after the transition has been applied.
+// A fail-closed post failure keeps the transition applied (appliedState names
+// it in the warning); it is recorded in the audit trail and warned to stderr.
+func (m *Manager) finishTaskHooks(ctx context.Context, stage *taskHookStage, appliedState string) error {
 	if stage == nil {
 		return nil
 	}
@@ -333,39 +391,12 @@ func (m *Manager) finishTaskStartHooks(ctx context.Context, stage *startHookStag
 		postErr = saveErr
 	}
 	if postErr != nil {
-		return errors.Wrap(postErr, "running task start post hooks")
+		return errors.Wrap(postErr, "running "+stage.label+" post hooks")
 	}
 	if postBlocked {
-		fmt.Fprintln(os.Stderr, "Warning: a fail-closed task_start post hook failed; the task remains started (see wf_hook_run in the festival audit trail)")
+		fmt.Fprintf(os.Stderr, "Warning: a fail-closed %s post hook failed; the task remains %s (see wf_hook_run in the festival audit trail)\n", string(stage.req.Verb), appliedState)
 	}
 	return nil
-}
-
-// planTaskStartHooks reads the task document and plans its start-stage
-// bindings for the task_start verb. A missing task file yields no bindings:
-// progress can track tasks whose documents do not exist.
-func (m *Manager) planTaskStartHooks(ctx context.Context, taskID string) (LifecycleHookRequest, []hooks.PlannedHook, error) {
-	req := LifecycleHookRequest{
-		FestivalPath: m.store.FestivalPath(),
-		Phase:        taskPhaseCoordinate(taskID),
-		Task:         taskID,
-		Level:        hooks.LevelTask,
-		Verb:         hooks.VerbTaskStart,
-	}
-	taskPath := filepath.Join(m.store.FestivalPath(), taskID)
-	if !strings.HasSuffix(taskPath, ".md") {
-		taskPath += ".md"
-	}
-	content, err := os.ReadFile(taskPath)
-	if err != nil {
-		return req, nil, nil
-	}
-	req.Pre, req.Post, req.HumanGate = StartHookBindingsFromFrontmatter(content)
-	planned, err := PlanLifecycleHooks(ctx, req)
-	if err != nil {
-		return req, nil, errors.Wrap(err, "planning task start hooks")
-	}
-	return req, planned, nil
 }
 
 // taskPhaseCoordinate derives the audit-event phase coordinate from a

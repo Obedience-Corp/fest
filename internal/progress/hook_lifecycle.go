@@ -2,6 +2,7 @@ package progress
 
 import (
 	"context"
+	stderrors "errors"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -104,13 +105,16 @@ func StartHookBindingsFromFrontmatter(content []byte) (pre, post []string, human
 	return pre, post, strings.EqualFold(strings.TrimSpace(fm.Approval), "human-required")
 }
 
+// blockedHookMessage identifies a BlockedHookError in an error chain.
+const blockedHookMessage = "blocked by fail-closed hook"
+
 // BlockedHookError names the fail-closed hook that blocked a lifecycle verb.
 func BlockedHookError(verb hooks.Verb, runs []hooks.HookRun) error {
 	for _, run := range runs {
 		if !run.Blocked {
 			continue
 		}
-		e := errors.Validation("blocked by fail-closed hook").
+		e := errors.Validation(blockedHookMessage).
 			WithField("hook", run.Name).
 			WithField("verb", string(verb)).
 			WithField("outcome", string(run.Outcome)).
@@ -120,5 +124,20 @@ func BlockedHookError(verb hooks.Verb, runs []hooks.HookRun) error {
 		}
 		return e
 	}
-	return errors.Validation("blocked by fail-closed hook").WithField("verb", string(verb))
+	return errors.Validation(blockedHookMessage).WithField("verb", string(verb))
+}
+
+// BlockedHookName reports whether err (or anything in its chain) is a
+// BlockedHookError, returning the offending hook's name when recorded so
+// command surfaces can render it without re-running hook logic.
+func BlockedHookName(err error) (string, bool) {
+	for cur := err; cur != nil; cur = stderrors.Unwrap(cur) {
+		e, ok := cur.(*errors.Error)
+		if !ok || e.Message != blockedHookMessage {
+			continue
+		}
+		name, _ := e.Fields["hook"].(string)
+		return name, true
+	}
+	return "", false
 }

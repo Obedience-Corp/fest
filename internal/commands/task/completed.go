@@ -3,32 +3,17 @@ package task
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/gates"
-	"github.com/Obedience-Corp/fest/internal/hooks"
 	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/spf13/cobra"
 )
-
-// newTaskHookRunner is an injectable seam so tests can fake hook execution.
-var newTaskHookRunner = hooks.NewRunner
-
-// blockedHookName returns the first fail-closed hook that blocked the verb.
-func blockedHookName(runs []hooks.HookRun) string {
-	for _, run := range runs {
-		if run.Blocked {
-			return run.Name
-		}
-	}
-	return ""
-}
 
 var (
 	completedJSON bool
@@ -141,60 +126,28 @@ func runCompleted(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	hookReq := progress.LifecycleHookRequest{
-		FestivalPath: festivalPath,
-		Phase:        filepath.Base(phasePath),
-		Task:         taskID,
-		Level:        hooks.LevelTask,
-		Verb:         hooks.VerbTaskComplete,
-	}
-	if content, readErr := os.ReadFile(taskFilePath); readErr == nil {
-		hookReq.Pre, hookReq.Post, hookReq.HumanGate = progress.StepHookBindingsFromFrontmatter(content)
-	}
-	planned, err := progress.PlanLifecycleHooks(ctx, hookReq)
-	if err != nil {
-		return err
-	}
-	runner := newTaskHookRunner(festivalPath)
-	preRuns, preBlocked, preErr := progress.RunLifecycleStage(ctx, mgr.Store(), runner, hookReq, planned, hooks.TimingPre)
-	if saveErr := mgr.Store().SaveEvents(ctx); saveErr != nil && preErr == nil {
-		preErr = saveErr
-	}
-	if preErr != nil {
-		return errors.Wrap(preErr, "running pre-completion hooks")
-	}
-	if preBlocked {
-		blockErr := progress.BlockedHookError(hooks.VerbTaskComplete, preRuns)
-		if completedJSON {
-			result := map[string]any{
-				"success":     false,
-				"task":        taskID,
-				"blocked":     true,
-				"failed_hook": blockedHookName(preRuns),
-				"message":     "Task completion blocked by fail-closed hook",
-			}
-			if encErr := shared.EncodeJSON(os.Stdout, result); encErr != nil {
-				return errors.Wrap(encErr, "encoding JSON output")
-			}
-		} else {
-			fmt.Println()
-			fmt.Println(ui.Error("Task completion BLOCKED by fail-closed hook: " + blockedHookName(preRuns)))
-		}
-		return blockErr
-	}
-
+	// Completion hooks (task_complete pre/post) run inside MarkComplete so
+	// every completion surface shares them; this command only renders a
+	// blocked-hook outcome.
 	if err := mgr.MarkComplete(ctx, taskID); err != nil {
+		if hookName, blocked := progress.BlockedHookName(err); blocked {
+			if completedJSON {
+				result := map[string]any{
+					"success":     false,
+					"task":        taskID,
+					"blocked":     true,
+					"failed_hook": hookName,
+					"message":     "Task completion blocked by fail-closed hook",
+				}
+				if encErr := shared.EncodeJSON(os.Stdout, result); encErr != nil {
+					return errors.Wrap(encErr, "encoding JSON output")
+				}
+			} else {
+				fmt.Println()
+				fmt.Println(ui.Error("Task completion BLOCKED by fail-closed hook: " + hookName))
+			}
+		}
 		return err
-	}
-
-	_, postBlocked, postErr := progress.RunLifecycleStage(ctx, mgr.Store(), runner, hookReq, planned, hooks.TimingPost)
-	if saveErr := mgr.Store().SaveEvents(ctx); saveErr != nil && postErr == nil {
-		postErr = saveErr
-	}
-	if postErr != nil {
-		fmt.Fprintf(os.Stderr, "Warning: post-completion hooks: %v\n", postErr)
-	} else if postBlocked {
-		fmt.Fprintln(os.Stderr, "Warning: a fail-closed post hook failed; the task remains completed (see wf_hook_run in the festival audit trail)")
 	}
 
 	if completedJSON {

@@ -173,6 +173,10 @@ hooks:
       command: test-start-anchor
     start-notify:
       command: test-start-notify
+    complete-check:
+      command: test-complete-check
+    complete-announce:
+      command: test-complete-announce
 `
 	if err := os.WriteFile(filepath.Join(dir, "fest.yaml"), []byte(festYAML), 0o644); err != nil {
 		t.Fatalf("write fest.yaml: %v", err)
@@ -560,5 +564,203 @@ func TestMaterializeState_ProgressEventSetsStartedAt(t *testing.T) {
 	})
 	if task := tasks["t1"]; task == nil || task.StartedAt != nil {
 		t.Fatalf("zero progress replay must not set StartedAt: %+v", task)
+	}
+}
+
+func TestMarkComplete_CompletionHooksRunAroundTransition(t *testing.T) {
+	festDir := setupStartHookFestival(t, "hooks:\n  pre: [complete-check]\n  post: [complete-announce]\n")
+	var called []string
+	fakeLifecycleRunner(t, 0, &called)
+
+	mgr, err := NewManager(context.Background(), festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	if err := mgr.MarkComplete(context.Background(), "001_PHASE/01_seq/01_task.md"); err != nil {
+		t.Fatalf("MarkComplete: %v", err)
+	}
+
+	task, exists := mgr.GetTaskProgress("001_PHASE/01_seq/01_task.md")
+	if !exists || task.Status != StatusCompleted {
+		t.Fatalf("task not completed: exists=%v task=%+v", exists, task)
+	}
+	if len(called) != 2 || called[0] != "test-complete-check" || called[1] != "test-complete-announce" {
+		t.Fatalf("hook exec calls = %v", called)
+	}
+	events := readEventsFile(t, festDir)
+	if !strings.Contains(events, `"hook_verb":"task_complete"`) ||
+		!strings.Contains(events, `"hook_timing":"pre"`) ||
+		!strings.Contains(events, `"hook_timing":"post"`) {
+		t.Fatalf("task_complete pre/post events missing:\n%s", events)
+	}
+	if !strings.Contains(events, `"event":"completed"`) {
+		t.Fatalf("completed event missing:\n%s", events)
+	}
+}
+
+func TestMarkComplete_BlockedCompletePreLeavesTaskIncomplete(t *testing.T) {
+	festDir := setupStartHookFestival(t, "hooks:\n  pre: [complete-check]\n")
+	var called []string
+	fakeLifecycleRunner(t, 1, &called)
+
+	mgr, err := NewManager(context.Background(), festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	err = mgr.MarkComplete(context.Background(), "001_PHASE/01_seq/01_task.md")
+	if err == nil {
+		t.Fatal("blocked completion pre hook must fail MarkComplete")
+	}
+	if !strings.Contains(err.Error(), "blocked by fail-closed hook") {
+		t.Fatalf("error = %v", err)
+	}
+	if task, exists := mgr.GetTaskProgress("001_PHASE/01_seq/01_task.md"); exists && task.Status == StatusCompleted {
+		t.Fatal("blocked completion pre hook must leave the task incomplete")
+	}
+	if len(called) != 1 {
+		t.Fatalf("hook exec calls = %v", called)
+	}
+	events := readEventsFile(t, festDir)
+	if !strings.Contains(events, `"hook_verb":"task_complete"`) || !strings.Contains(events, `"hook_blocked":true`) {
+		t.Fatalf("blocked task_complete event missing:\n%s", events)
+	}
+	if strings.Contains(events, `"event":"completed"`) {
+		t.Fatalf("completed event must not be recorded on a blocked completion:\n%s", events)
+	}
+}
+
+func TestMarkComplete_StartAndCompletionHookOrder(t *testing.T) {
+	festDir := setupStartHookFestival(t,
+		"hooks:\n  pre: [complete-check]\n  post: [complete-announce]\n  start:\n    pre: [start-anchor]\n    post: [start-notify]\n")
+	var called []string
+	fakeLifecycleRunner(t, 0, &called)
+
+	mgr, err := NewManager(context.Background(), festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	if err := mgr.MarkComplete(context.Background(), "001_PHASE/01_seq/01_task.md"); err != nil {
+		t.Fatalf("MarkComplete: %v", err)
+	}
+
+	// Historical 'fest task completed' order: complete pre, start pre,
+	// transition, start post, complete post.
+	want := []string{"test-complete-check", "test-start-anchor", "test-start-notify", "test-complete-announce"}
+	if len(called) != len(want) {
+		t.Fatalf("hook exec calls = %v", called)
+	}
+	for i := range want {
+		if called[i] != want[i] {
+			t.Fatalf("hook order = %v, want %v", called, want)
+		}
+	}
+}
+
+func TestMarkComplete_FailClosedCompletePostKeepsTaskCompleted(t *testing.T) {
+	festDir := setupStartHookFestival(t, "hooks:\n  post: [complete-announce]\n")
+	var called []string
+	fakeLifecycleRunnerPerCommand(t, map[string]int{"test-complete-announce": 1}, &called)
+
+	mgr, err := NewManager(context.Background(), festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	if err := mgr.MarkComplete(context.Background(), "001_PHASE/01_seq/01_task.md"); err != nil {
+		t.Fatalf("failed post hook must not fail MarkComplete: %v", err)
+	}
+	task, exists := mgr.GetTaskProgress("001_PHASE/01_seq/01_task.md")
+	if !exists || task.Status != StatusCompleted {
+		t.Fatalf("task must stay completed: exists=%v task=%+v", exists, task)
+	}
+	events := readEventsFile(t, festDir)
+	if !strings.Contains(events, `"hook_outcome":"fail"`) {
+		t.Fatalf("failed post hook audit record missing:\n%s", events)
+	}
+}
+
+func TestUpdateProgress_HundredFiresCompletionHooks(t *testing.T) {
+	festDir := setupStartHookFestival(t, "hooks:\n  pre: [complete-check]\n  post: [complete-announce]\n")
+	var called []string
+	fakeLifecycleRunner(t, 0, &called)
+
+	mgr, err := NewManager(context.Background(), festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	if err := mgr.UpdateProgress(context.Background(), "001_PHASE/01_seq/01_task.md", 100); err != nil {
+		t.Fatalf("UpdateProgress(100): %v", err)
+	}
+
+	task, exists := mgr.GetTaskProgress("001_PHASE/01_seq/01_task.md")
+	if !exists || task.Status != StatusCompleted {
+		t.Fatalf("task not completed: exists=%v task=%+v", exists, task)
+	}
+	if len(called) != 2 || called[0] != "test-complete-check" || called[1] != "test-complete-announce" {
+		t.Fatalf("hook exec calls = %v", called)
+	}
+	events := readEventsFile(t, festDir)
+	if !strings.Contains(events, `"hook_verb":"task_complete"`) {
+		t.Fatalf("task_complete events missing:\n%s", events)
+	}
+}
+
+func TestUpdateProgress_HundredBlockedPreLeavesTaskUntouchedByCompletion(t *testing.T) {
+	festDir := setupStartHookFestival(t, "hooks:\n  pre: [complete-check]\n")
+	var called []string
+	fakeLifecycleRunner(t, 1, &called)
+
+	mgr, err := NewManager(context.Background(), festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	err = mgr.UpdateProgress(context.Background(), "001_PHASE/01_seq/01_task.md", 100)
+	if err == nil {
+		t.Fatal("blocked completion pre hook must fail UpdateProgress(100)")
+	}
+	if task, exists := mgr.GetTaskProgress("001_PHASE/01_seq/01_task.md"); exists && task.Status == StatusCompleted {
+		t.Fatal("blocked completion pre hook must leave the task incomplete")
+	}
+	events := readEventsFile(t, festDir)
+	if strings.Contains(events, `"event":"completed"`) {
+		t.Fatalf("completed event must not be recorded on a blocked completion:\n%s", events)
+	}
+}
+
+func TestUpdateProgress_RepeatHundredDoesNotRefireCompletionHooks(t *testing.T) {
+	festDir := setupStartHookFestival(t, "hooks:\n  pre: [complete-check]\n  post: [complete-announce]\n")
+	var called []string
+	fakeLifecycleRunner(t, 0, &called)
+
+	mgr, err := NewManager(context.Background(), festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	if err := mgr.UpdateProgress(context.Background(), "001_PHASE/01_seq/01_task.md", 100); err != nil {
+		t.Fatalf("first UpdateProgress(100): %v", err)
+	}
+	fired := len(called)
+
+	if err := mgr.UpdateProgress(context.Background(), "001_PHASE/01_seq/01_task.md", 100); err != nil {
+		t.Fatalf("second UpdateProgress(100): %v", err)
+	}
+	if len(called) != fired {
+		t.Fatalf("completion hooks re-fired on already-completed task: %v", called)
+	}
+}
+
+func TestUpdateProgress_MidProgressRunsNoCompletionHooks(t *testing.T) {
+	festDir := setupStartHookFestival(t, "hooks:\n  pre: [complete-check]\n  post: [complete-announce]\n")
+	var called []string
+	fakeLifecycleRunner(t, 0, &called)
+
+	mgr, err := NewManager(context.Background(), festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	if err := mgr.UpdateProgress(context.Background(), "001_PHASE/01_seq/01_task.md", 50); err != nil {
+		t.Fatalf("UpdateProgress(50): %v", err)
+	}
+	if len(called) != 0 {
+		t.Fatalf("completion bindings must not run mid-progress: %v", called)
 	}
 }
