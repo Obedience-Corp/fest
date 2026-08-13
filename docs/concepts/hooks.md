@@ -142,7 +142,7 @@ Bindings only reference names. They never set `command`, `fail`, or `timeout`.
 | Verb | When |
 | --- | --- |
 | `task_start` | first transition into work (`fest task in-progress`, a direct completion, or the first `--progress` above zero) |
-| `task_complete` | `fest task completed` |
+| `task_complete` | any transition into completed (`fest task completed`, `fest status set ... completed`, a programmatic 100% progress update) |
 | `sequence_complete` | sequence completion |
 | `phase_complete` | phase completion |
 | `gate_approve` | GATES.md blocking approval checkpoint |
@@ -159,8 +159,16 @@ was already started or re-marking it in progress never re-fires the hook;
 next start. A `fail: closed`
 pre failure blocks the transition and leaves the task untouched. A `fail:
 closed` post failure keeps the task started and is recorded in the audit trail
-plus a stderr warning. Completion by progress (`--progress 100`) still bypasses
-`task_complete` hooks; only the terminal completion surfaces run those.
+plus a stderr warning.
+
+`task_complete` fires on **every** completion surface, not just `fest task
+completed`: `fest status set ... completed` and programmatic 100% progress
+updates run the same bindings. Completion hooks fire on the transition into
+completed; repeating a 100% progress update on an already-completed task never
+re-fires them, while explicitly re-completing via `fest task completed` does
+(matching its historical behavior). When an unstarted task is completed
+directly, the pre order is `task_complete` pre, then `task_start` pre; after
+the transition, `task_start` post runs before `task_complete` post.
 
 Orchestration:
 

@@ -1,16 +1,17 @@
 package task
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/Obedience-Corp/fest/internal/hooks"
 )
 
-func setupHookedFestival(t *testing.T, taskFrontmatterExtra string) (string, string) {
+// setupHookedFestival builds an active festival whose fest.yaml declares one
+// hook definition named "checker" running checkerCommand. Completion hooks now
+// execute inside progress.Manager, so these tests drive the real runner with
+// real commands (true/false) instead of faking an exec seam.
+func setupHookedFestival(t *testing.T, taskFrontmatterExtra, checkerCommand string) (string, string) {
 	t.Helper()
 	festDir, taskRel := setupActiveFestival(t)
 
@@ -25,7 +26,7 @@ metadata:
 hooks:
   definitions:
     checker:
-      command: test-checker
+      command: ` + checkerCommand + `
 `
 	if err := os.WriteFile(filepath.Join(festDir, "fest.yaml"), []byte(festYAML), 0o644); err != nil {
 		t.Fatalf("write fest.yaml: %v", err)
@@ -41,26 +42,6 @@ hooks:
 	return festDir, taskRel
 }
 
-func fakeTaskRunner(t *testing.T, exitCode int, called *[]string) {
-	t.Helper()
-	orig := newTaskHookRunner
-	t.Cleanup(func() { newTaskHookRunner = orig })
-	newTaskHookRunner = func(workDir string) *hooks.Runner {
-		r := hooks.NewRunner(workDir)
-		r.Exec = func(ctx context.Context, command string, stdin []byte, dir string) hooks.CommandResult {
-			if called != nil {
-				*called = append(*called, command)
-			}
-			res := hooks.CommandResult{ExitCode: exitCode}
-			if exitCode != 0 {
-				res.Err = context.Canceled // any non-nil error stands in for exec failure
-			}
-			return res
-		}
-		return r
-	}
-}
-
 func readHookEvents(t *testing.T, festDir string) string {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(festDir, ".fest", "progress_events.jsonl"))
@@ -74,9 +55,7 @@ func readHookEvents(t *testing.T, festDir string) string {
 }
 
 func TestRunCompleted_PreHookBlockedRefusesCompletion(t *testing.T) {
-	festDir, taskRel := setupHookedFestival(t, "hooks:\n  pre: [checker]\n")
-	var called []string
-	fakeTaskRunner(t, 1, &called)
+	festDir, taskRel := setupHookedFestival(t, "hooks:\n  pre: [checker]\n", "false")
 	resetTaskFlags()
 	completedYes = true
 
@@ -89,9 +68,6 @@ func TestRunCompleted_PreHookBlockedRefusesCompletion(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "blocked by fail-closed hook") {
 		t.Fatalf("err = %v", err)
-	}
-	if len(called) != 1 {
-		t.Fatalf("hook exec calls = %v", called)
 	}
 
 	taskID := canonicalTaskID(t, festDir, taskRel)
@@ -109,9 +85,7 @@ func TestRunCompleted_PreHookBlockedRefusesCompletion(t *testing.T) {
 }
 
 func TestRunCompleted_UndeclaredBindingSkipsAndCompletes(t *testing.T) {
-	festDir, taskRel := setupHookedFestival(t, "hooks:\n  pre: [ghost]\n")
-	var called []string
-	fakeTaskRunner(t, 0, &called)
+	festDir, taskRel := setupHookedFestival(t, "hooks:\n  pre: [ghost]\n", "false")
 	resetTaskFlags()
 	completedYes = true
 
@@ -122,8 +96,11 @@ func TestRunCompleted_UndeclaredBindingSkipsAndCompletes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("undeclared binding must skip, not fail: %v", err)
 	}
-	if len(called) != 0 {
-		t.Fatalf("undeclared hook must never exec: %v", called)
+
+	taskID := canonicalTaskID(t, festDir, taskRel)
+	task, ok := taskStatus(t, festDir, taskID)
+	if !ok || task.Status != "completed" {
+		t.Fatalf("task not completed: %+v", task)
 	}
 
 	events := readHookEvents(t, festDir)
@@ -133,9 +110,8 @@ func TestRunCompleted_UndeclaredBindingSkipsAndCompletes(t *testing.T) {
 }
 
 func TestRunCompleted_HumanGateSkipsAutomationHooks(t *testing.T) {
-	festDir, taskRel := setupHookedFestival(t, "hooks:\n  pre: [checker]\napproval: human-required\n")
-	var called []string
-	fakeTaskRunner(t, 1, &called) // would block if it ever ran
+	// checker would block if it ever ran; the human gate must skip it.
+	festDir, taskRel := setupHookedFestival(t, "hooks:\n  pre: [checker]\napproval: human-required\n", "false")
 	resetTaskFlags()
 	completedYes = true
 
@@ -146,8 +122,11 @@ func TestRunCompleted_HumanGateSkipsAutomationHooks(t *testing.T) {
 	if err != nil {
 		t.Fatalf("human-gate step must skip automation hooks: %v", err)
 	}
-	if len(called) != 0 {
-		t.Fatalf("automation hooks must never exec on a human gate: %v", called)
+
+	taskID := canonicalTaskID(t, festDir, taskRel)
+	task, ok := taskStatus(t, festDir, taskID)
+	if !ok || task.Status != "completed" {
+		t.Fatalf("task not completed: %+v", task)
 	}
 
 	events := readHookEvents(t, festDir)
@@ -157,9 +136,7 @@ func TestRunCompleted_HumanGateSkipsAutomationHooks(t *testing.T) {
 }
 
 func TestRunCompleted_PostHookRunsAfterCompletion(t *testing.T) {
-	festDir, taskRel := setupHookedFestival(t, "hooks:\n  post: [checker]\n")
-	var called []string
-	fakeTaskRunner(t, 0, &called)
+	festDir, taskRel := setupHookedFestival(t, "hooks:\n  post: [checker]\n", "true")
 	resetTaskFlags()
 	completedYes = true
 
@@ -169,9 +146,6 @@ func TestRunCompleted_PostHookRunsAfterCompletion(t *testing.T) {
 	})
 	if err != nil {
 		t.Fatalf("runCompleted: %v", err)
-	}
-	if len(called) != 1 {
-		t.Fatalf("post hook exec calls = %v", called)
 	}
 
 	taskID := canonicalTaskID(t, festDir, taskRel)
