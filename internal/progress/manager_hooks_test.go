@@ -764,3 +764,133 @@ func TestUpdateProgress_MidProgressRunsNoCompletionHooks(t *testing.T) {
 		t.Fatalf("completion bindings must not run mid-progress: %v", called)
 	}
 }
+
+// fakeLifecycleRunnerFunc routes each hook exec through fn, so tests can
+// give individual commands side effects (like sabotaging the events dir).
+func fakeLifecycleRunnerFunc(t *testing.T, fn func(command string) hooks.CommandResult, called *[]string) {
+	t.Helper()
+	orig := newLifecycleHookRunner
+	t.Cleanup(func() { newLifecycleHookRunner = orig })
+	newLifecycleHookRunner = func(workDir string) *hooks.Runner {
+		r := hooks.NewRunner(workDir)
+		r.Exec = func(ctx context.Context, command string, stdin []byte, dir string) hooks.CommandResult {
+			if called != nil {
+				*called = append(*called, command)
+			}
+			return fn(command)
+		}
+		return r
+	}
+}
+
+// breakEventsDir makes the store's SaveEvents fail with a real I/O error by
+// replacing the .fest directory with a plain file; restoreEventsDir undoes it.
+func breakEventsDir(t *testing.T, festDir string) {
+	t.Helper()
+	fest := filepath.Join(festDir, ".fest")
+	if err := os.Rename(fest, fest+"-hidden"); err != nil {
+		t.Fatalf("hide .fest: %v", err)
+	}
+	if err := os.WriteFile(fest, []byte("not a dir"), 0o644); err != nil {
+		t.Fatalf("shadow .fest: %v", err)
+	}
+}
+
+func restoreEventsDir(t *testing.T, festDir string) {
+	t.Helper()
+	fest := filepath.Join(festDir, ".fest")
+	if err := os.Remove(fest); err != nil {
+		t.Fatalf("remove shadow: %v", err)
+	}
+	if err := os.Rename(fest+"-hidden", fest); err != nil {
+		t.Fatalf("restore .fest: %v", err)
+	}
+}
+
+func TestMarkComplete_PostInfraFailureStillRunsRemainingSideEffects(t *testing.T) {
+	festDir := setupStartHookFestival(t, "hooks:\n  post: [complete-announce]\n  start:\n    post: [start-notify]\n")
+	seqDir := filepath.Join(festDir, "001_PHASE", "01_seq")
+	seqGoal := "---\nfest_type: sequence_goal\nfest_id: 01_seq\n---\n# Sequence Goal\n"
+	if err := os.WriteFile(filepath.Join(seqDir, "SEQUENCE_GOAL.md"), []byte(seqGoal), 0o644); err != nil {
+		t.Fatalf("write sequence goal: %v", err)
+	}
+
+	// The start post hook breaks the events dir so its stage hits a real
+	// SaveEvents infrastructure error; the complete post hook repairs it,
+	// proving the later stage still ran and letting propagation proceed.
+	var called []string
+	fakeLifecycleRunnerFunc(t, func(command string) hooks.CommandResult {
+		switch command {
+		case "test-start-notify":
+			breakEventsDir(t, festDir)
+		case "test-complete-announce":
+			restoreEventsDir(t, festDir)
+		}
+		return hooks.CommandResult{}
+	}, &called)
+
+	mgr, err := NewManager(context.Background(), festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	err = mgr.MarkComplete(context.Background(), "001_PHASE/01_seq/01_task.md")
+	if err == nil {
+		t.Fatal("start post infra failure must surface as an error")
+	}
+	if !strings.Contains(err.Error(), "task start post hooks") {
+		t.Fatalf("error = %v", err)
+	}
+
+	// The task completed before the failing post stage.
+	task, exists := mgr.GetTaskProgress("001_PHASE/01_seq/01_task.md")
+	if !exists || task.Status != StatusCompleted {
+		t.Fatalf("task must stay completed: exists=%v task=%+v", exists, task)
+	}
+	// The task_complete post stage still ran after the start post failure.
+	if len(called) != 2 || called[0] != "test-start-notify" || called[1] != "test-complete-announce" {
+		t.Fatalf("hook exec calls = %v", called)
+	}
+	// Parent propagation still ran: the sequence goal completed.
+	if got := seqGoalStatus(t, festDir); got != "completed" {
+		t.Fatalf("sequence goal status = %q, want completed (propagation skipped)", got)
+	}
+}
+
+func TestUpdateProgress_HundredPostInfraFailureStillPropagates(t *testing.T) {
+	festDir := setupStartHookFestival(t, "hooks:\n  post: [complete-announce]\n  start:\n    post: [start-notify]\n")
+	seqDir := filepath.Join(festDir, "001_PHASE", "01_seq")
+	seqGoal := "---\nfest_type: sequence_goal\nfest_id: 01_seq\n---\n# Sequence Goal\n"
+	if err := os.WriteFile(filepath.Join(seqDir, "SEQUENCE_GOAL.md"), []byte(seqGoal), 0o644); err != nil {
+		t.Fatalf("write sequence goal: %v", err)
+	}
+
+	var called []string
+	fakeLifecycleRunnerFunc(t, func(command string) hooks.CommandResult {
+		switch command {
+		case "test-start-notify":
+			breakEventsDir(t, festDir)
+		case "test-complete-announce":
+			restoreEventsDir(t, festDir)
+		}
+		return hooks.CommandResult{}
+	}, &called)
+
+	mgr, err := NewManager(context.Background(), festDir)
+	if err != nil {
+		t.Fatalf("NewManager: %v", err)
+	}
+	err = mgr.UpdateProgress(context.Background(), "001_PHASE/01_seq/01_task.md", 100)
+	if err == nil {
+		t.Fatal("start post infra failure must surface as an error")
+	}
+	task, exists := mgr.GetTaskProgress("001_PHASE/01_seq/01_task.md")
+	if !exists || task.Status != StatusCompleted {
+		t.Fatalf("task must stay completed: exists=%v task=%+v", exists, task)
+	}
+	if len(called) != 2 || called[1] != "test-complete-announce" {
+		t.Fatalf("hook exec calls = %v", called)
+	}
+	if got := seqGoalStatus(t, festDir); got != "completed" {
+		t.Fatalf("sequence goal status = %q, want completed (propagation skipped)", got)
+	}
+}

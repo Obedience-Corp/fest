@@ -127,25 +127,29 @@ func runCompleted(cmd *cobra.Command, args []string) error {
 	}
 
 	// Completion hooks (task_complete pre/post) run inside MarkComplete so
-	// every completion surface shares them; this command only renders a
-	// blocked-hook outcome.
+	// every completion surface shares them; this command only renders the
+	// outcome. In JSON mode every failure emits a structured document, not
+	// just the blocked-pre path: a post-stage failure leaves the task
+	// completed, so agents need machine-readable output to tell the two apart.
 	if err := mgr.MarkComplete(ctx, taskID); err != nil {
-		if hookName, blocked := progress.BlockedHookName(err); blocked {
-			if completedJSON {
-				result := map[string]any{
-					"success":     false,
-					"task":        taskID,
-					"blocked":     true,
-					"failed_hook": hookName,
-					"message":     "Task completion blocked by fail-closed hook",
-				}
-				if encErr := shared.EncodeJSON(os.Stdout, result); encErr != nil {
-					return errors.Wrap(encErr, "encoding JSON output")
-				}
-			} else {
-				fmt.Println()
-				fmt.Println(ui.Error("Task completion BLOCKED by fail-closed hook: " + hookName))
+		hookName, blocked := progress.BlockedHookName(err)
+		if completedJSON {
+			result := map[string]any{
+				"success": false,
+				"task":    taskID,
+				"blocked": blocked,
+				"message": err.Error(),
 			}
+			if blocked {
+				result["failed_hook"] = hookName
+				result["message"] = "Task completion blocked by fail-closed hook"
+			}
+			if encErr := shared.EncodeJSON(os.Stdout, result); encErr != nil {
+				return errors.Wrap(encErr, "encoding JSON output")
+			}
+		} else if blocked {
+			fmt.Println()
+			fmt.Println(ui.Error("Task completion BLOCKED by fail-closed hook: " + hookName))
 		}
 		return err
 	}

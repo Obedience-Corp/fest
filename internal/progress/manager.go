@@ -167,18 +167,21 @@ func (m *Manager) UpdateProgress(ctx context.Context, taskID string, progress in
 		return err
 	}
 	m.SyncFrontmatterStatus(taskID, task.Status)
-	if err := m.finishTaskHooks(ctx, startStage, "started"); err != nil {
-		return err
-	}
-	if err := m.finishTaskHooks(ctx, completeStage, "completed"); err != nil {
-		return err
+	// The transition is applied; every remaining side effect must still be
+	// attempted when a post stage fails. A start post failure must not skip
+	// the task_complete post stage, and neither may skip parent propagation:
+	// otherwise a completed task leaves its sequence goal permanently stalled.
+	// The first post error is returned after all side effects have run.
+	postErr := m.finishTaskHooks(ctx, startStage, "started")
+	if err := m.finishTaskHooks(ctx, completeStage, "completed"); postErr == nil {
+		postErr = err
 	}
 	if progress == 100 {
 		// Propagation is best-effort: a failure here should not block
 		// the progress update that already succeeded above.
 		_ = m.PropagateCompletion(ctx, taskID)
 	}
-	return nil
+	return postErr
 }
 
 // MarkComplete marks a task as complete
@@ -247,11 +250,16 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 		return err
 	}
 	m.SyncFrontmatterStatus(taskID, task.Status)
-	if err := m.finishTaskHooks(ctx, startStage, "started"); err != nil {
-		return err
-	}
-	if err := m.finishTaskHooks(ctx, completeStage, "completed"); err != nil {
-		return err
+	// The completion is applied; every remaining side effect must still be
+	// attempted when a post stage fails. A start post failure must not skip
+	// the task_complete post stage, and neither may skip the ledger emit or
+	// parent propagation: otherwise a completed task leaves its sequence goal
+	// permanently stalled. The first post error is returned after all side
+	// effects have run, preserving the historical contract that ledger and
+	// propagation always follow a successful completion mutation.
+	postErr := m.finishTaskHooks(ctx, startStage, "started")
+	if err := m.finishTaskHooks(ctx, completeStage, "completed"); postErr == nil {
+		postErr = err
 	}
 	// Campaign ledger: high-intent task completion (D003/D006). Does not
 	// alter progress_events.jsonl content beyond the save already done.
@@ -261,7 +269,7 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 	// Propagation is best-effort: a failure here should not block
 	// the task completion that already succeeded above.
 	_ = m.PropagateCompletion(ctx, taskID)
-	return nil
+	return postErr
 }
 
 // MarkInProgress marks a task as in progress. On the first start (no
