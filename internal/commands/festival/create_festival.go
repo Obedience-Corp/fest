@@ -49,7 +49,7 @@ type CreateFestivalOptions struct {
 	Seed        string // Inline seed/input-spec content for the ingest phase
 	SeedFile    string // File whose contents seed the ingest phase
 	SkipMarkers bool   // Skip marker processing
-	DryRun      bool   // Show markers without creating file
+	DryRun      bool   // Preview the scaffold tree without writing anything
 	JSONOutput  bool
 	Dest        string // "planning" (default) or "ritual" (for ritual-type festivals)
 	AgentMode   bool   // Strict mode for AI agents
@@ -94,6 +94,20 @@ type markerOccurrenceInfo struct {
 	MarkerType string `json:"marker_type"`
 	Content    string `json:"content"`
 }
+
+type festivalCoreTemplate struct {
+	Template string
+	Output   string
+}
+
+var festivalCoreTemplates = []festivalCoreTemplate{
+	{Template: "festival/OVERVIEW.md", Output: "FESTIVAL_OVERVIEW.md"},
+	{Template: "festival/GOAL.md", Output: "FESTIVAL_GOAL.md"},
+	{Template: "festival/RULES.md", Output: "FESTIVAL_RULES.md"},
+	{Template: "festival/TODO.md", Output: "TODO.md"},
+}
+
+var festivalGatePhaseTypes = []string{"planning", "implementation", "research", "review", "non_coding_action"}
 
 // createConfig holds all resolved configuration for festival creation.
 // It is populated by resolveCreateConfig() and passed to subsequent pipeline stages.
@@ -150,7 +164,7 @@ func NewCreateFestivalCommand() *cobra.Command {
 	cmd.Flags().StringVar(&opts.Seed, "seed", "", "Inline seed content written to the ingest phase input_specs/ (requires a type with an ingest phase)")
 	cmd.Flags().StringVar(&opts.SeedFile, "seed-file", "", "File whose contents seed the ingest phase input_specs/ (mutually exclusive with --seed)")
 	cmd.Flags().BoolVar(&opts.SkipMarkers, "skip-markers", false, "Skip REPLACE marker processing")
-	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "Show template markers without creating file")
+	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "Preview the festival file tree without writing anything")
 	cmd.Flags().BoolVar(&opts.JSONOutput, "json", false, "Emit JSON output")
 	cmd.Flags().StringVar(&opts.Dest, "dest", "planning", "Destination under festivals/: planning or ritual (use 'fest promote' to advance to active)")
 	cmd.Flags().BoolVar(&opts.AgentMode, "agent", false, "Strict mode: process markers, auto-validate, rollback on blocking errors, JSON output")
@@ -277,7 +291,6 @@ type createResult struct {
 	linkSkipReason    string
 	markersFilled     int
 	markersTotal      int
-	allMarkers        []map[string]any
 	validationResult  *ValidationSummary
 	registered        bool
 	seedPath          string
@@ -303,6 +316,10 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 		return emitCreateFestivalError(opts, err)
 	}
 
+	if opts.DryRun {
+		return previewCreateFestival(ctx, cfg)
+	}
+
 	if err := scaffoldFestivalDirectory(ctx, cfg); err != nil {
 		return emitCreateFestivalError(opts, err)
 	}
@@ -324,13 +341,11 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 	res.copiedGates = copiedGates
 
 	// Seed before the initial-size snapshot so seeded content is part of the
-	// creation baseline, not later counted as post-create growth. Skipped on
-	// dry-run. The seed file is registered in res.created after marker processing
-	// so user content is never marker-substituted.
-	if !opts.DryRun {
-		if err := writeSeedFile(cfg, res); err != nil {
-			return emitCreateFestivalCreatedError(ctx, cfg, res, err)
-		}
+	// creation baseline, not later counted as post-create growth. The seed file
+	// is registered in res.created after marker processing so user content is
+	// never marker-substituted.
+	if err := writeSeedFile(cfg, res); err != nil {
+		return emitCreateFestivalCreatedError(ctx, cfg, res, err)
 	}
 
 	recordInitialSize(ctx, cfg, res.festConfig)
@@ -341,14 +356,6 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 
 	if res.seedPath != "" {
 		res.created = append(res.created, res.seedPath)
-	}
-
-	if opts.DryRun && res.markersTotal > 0 {
-		result := &MarkerResult{Markers: res.allMarkers, Total: res.markersTotal}
-		if err := PrintDryRunMarkers(result, opts.JSONOutput); err != nil {
-			return emitCreateFestivalCreatedError(ctx, cfg, res, err)
-		}
-		return nil
 	}
 
 	if err := validateIfConfigured(ctx, cfg, res); err != nil {
@@ -368,7 +375,7 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 	writeContractEntries(cfg.campaignRoot)
 
 	// Campaign ledger: festival created (high-intent). Dry-run already returned.
-	if !opts.DryRun && cfg.destDir != "" {
+	if cfg.destDir != "" {
 		emit := campledger.NewFromFestival(ctx, cfg.destDir, campledger.WarnToStderr())
 		emit.Emit(ctx, ledgerkit.KindCreated, campledger.FestivalScope(cfg.destDir, ""),
 			campledger.WithPayload(map[string]any{
@@ -402,15 +409,8 @@ func renderFestivalTemplates(ctx context.Context, cfg *createConfig) ([]string, 
 	mgr := tpl.NewManager()
 	var created []string
 
-	core := []struct{ Template, Out string }{
-		{"festival/OVERVIEW.md", "FESTIVAL_OVERVIEW.md"},
-		{"festival/GOAL.md", "FESTIVAL_GOAL.md"},
-		{"festival/RULES.md", "FESTIVAL_RULES.md"},
-		{"festival/TODO.md", "TODO.md"},
-	}
-
-	for _, c := range core {
-		outPath, err := renderCoreFile(ctx, cfg, mgr, c.Template, c.Out)
+	for _, coreTemplate := range festivalCoreTemplates {
+		outPath, err := renderCoreFile(ctx, cfg, mgr, coreTemplate.Template, coreTemplate.Output)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -489,10 +489,8 @@ func renderOrCopyTemplate(mgr *tpl.Manager, t *tpl.Template, tmplCtx *tpl.Contex
 func copyGateTemplates(ctx context.Context, cfg *createConfig) ([]string, []string, error) {
 	gatesDir := filepath.Join(cfg.destDir, "gates")
 	srcPhasesDir := filepath.Join(cfg.tmplRoot, "phases")
-	phaseTypes := []string{"planning", "implementation", "research", "review", "non_coding_action"}
-
 	var copiedGates, created []string
-	for _, phaseType := range phaseTypes {
+	for _, phaseType := range festivalGatePhaseTypes {
 		srcGatesDir := filepath.Join(srcPhasesDir, phaseType, "gates")
 		if _, err := os.Stat(srcGatesDir); os.IsNotExist(err) {
 			continue
@@ -830,7 +828,7 @@ func processAllMarkers(ctx context.Context, cfg *createConfig, res *createResult
 			Markers:     cfg.opts.Markers,
 			MarkersFile: cfg.opts.MarkersFile,
 			SkipMarkers: cfg.skipMarkers,
-			DryRun:      cfg.opts.DryRun,
+			DryRun:      false,
 			JSONOutput:  cfg.opts.JSONOutput,
 		})
 		if err != nil {
@@ -839,7 +837,6 @@ func processAllMarkers(ctx context.Context, cfg *createConfig, res *createResult
 		if markerResult != nil {
 			res.markersFilled += markerResult.Filled
 			res.markersTotal += markerResult.Total
-			res.allMarkers = append(res.allMarkers, markerResult.Markers...)
 		}
 	}
 	return nil
