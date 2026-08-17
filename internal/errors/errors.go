@@ -100,6 +100,20 @@ func (e *Error) chainMessage() string {
 	}
 }
 
+// Message renders err without its "Hint:" line, for callers that splice an
+// error into a line of their own.
+//
+// A hint is advice about what the operator should do next, so it only reads
+// correctly as the last line of a failure. Embedded mid-message — in a warning
+// the command then recovers from, say — it interrupts the sentence and offers a
+// next step for something that is already being handled.
+func Message(err error) string {
+	if err == nil {
+		return ""
+	}
+	return stripHintLines(err.Error())
+}
+
 // stripHintLines removes rendered "Hint: ..." lines from a cause's text.
 func stripHintLines(msg string) string {
 	if !strings.Contains(msg, "\nHint: ") {
