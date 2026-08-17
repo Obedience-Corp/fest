@@ -56,16 +56,21 @@ type Error struct {
 	Err     error                  `json:"-"`
 	Fields  map[string]interface{} `json:"fields,omitempty"`
 	Hint    string                 `json:"hint,omitempty"` // actionable suggestion
+
+	// hintFromClass marks a Hint that a constructor attached from the error
+	// class alone, with no knowledge of what actually failed. Those lose to any
+	// hint chosen for the specific failure, wherever it sits in the chain.
+	// Unexported so it cannot be set from outside: WithHint is how a caller
+	// says "this one is mine".
+	hintFromClass bool
 }
 
 // Error returns the error string with context, followed by exactly one hint.
 //
-// The hint is the outermost one in the chain, because that is the layer closest
-// to what the operator actually typed: "run 'fest sync' manually" beats the
-// generic advice attached wherever the failure originated. Inner hints are
-// deliberately not printed. Rendering a cause with %v would otherwise splice
-// its "Hint:" line into the middle of this one's message, so a two-layer error
-// printed two hints and a three-layer error printed three.
+// Which hint that is, is resolveHint's decision; see it for the precedence and
+// why. Inner hints are deliberately not printed: rendering a cause with %v
+// would splice its "Hint:" line into the middle of this one's message, so a
+// two-layer error printed two hints and a three-layer error printed three.
 func (e *Error) Error() string {
 	msg := e.chainMessage()
 	if hint := e.resolveHint(); hint != "" {
@@ -116,8 +121,9 @@ func stripHintLines(msg string) string {
 	return strings.TrimRight(strings.Join(kept, "\n"), "\n")
 }
 
-// resolveHint returns the hint to show: the innermost one in the chain, falling
-// back outward when the inner layers carry none.
+// resolveHint returns the hint to show: the innermost hint that says something
+// about this particular failure, falling back to a class-level hint only when
+// no layer offers better, and outward when a layer carries none.
 //
 // Innermost wins because that layer knows what actually failed, while outer
 // layers only know what was being attempted. A TLS verification failure inside
@@ -125,10 +131,44 @@ func stripHintLines(msg string) string {
 // certificates", and the outer one can only offer "check your internet
 // connection", which is actively misleading on a machine whose network is fine.
 // The outer context is not lost, because the message chain already carries it.
+//
+// Specific beats inner, though, or innermost-wins inverts its own purpose.
+// Several constructors attach a catch-all hint from the error class alone —
+// Validation hands out "Run 'fest help'" to every caller — so a chain whose
+// innermost layer happens to be a Validation would surface that over an outer
+// hint written for the actual operation. Real case: a sync failure reported
+// "Run 'fest help' for more information" instead of the connection advice the
+// call site attached, which is the same "check file permissions" dead end that
+// visible hints were meant to remove.
 func (e *Error) resolveHint() string {
+	if h := e.specificHint(); h != "" {
+		return h
+	}
+	return e.fallbackHint()
+}
+
+// specificHint returns the innermost hint that was chosen for this failure
+// rather than for its class: an explicit WithHint, or one a constructor derived
+// from the failure itself.
+func (e *Error) specificHint() string {
 	var inner *Error
 	if e.Err != nil && errors.As(e.Err, &inner) {
-		if h := inner.resolveHint(); h != "" {
+		if h := inner.specificHint(); h != "" {
+			return h
+		}
+	}
+	if e.hintFromClass {
+		return ""
+	}
+	return e.Hint
+}
+
+// fallbackHint returns the innermost class-level hint, used only when nothing
+// in the chain offers something more specific.
+func (e *Error) fallbackHint() string {
+	var inner *Error
+	if e.Err != nil && errors.As(e.Err, &inner) {
+		if h := inner.fallbackHint(); h != "" {
 			return h
 		}
 	}
@@ -227,14 +267,19 @@ func (e *Error) WithFields(fields map[string]interface{}) *Error {
 }
 
 // WithHint adds an actionable suggestion to the error.
+// A hint set here is about this call site, so it outranks the catch-all a
+// constructor may have attached from the error class — including one further in
+// the chain.
 func (e *Error) WithHint(hint string) *Error {
 	e.Hint = hint
+	e.hintFromClass = false
 	return e
 }
 
 // WithHintf adds a formatted actionable suggestion to the error.
 func (e *Error) WithHintf(format string, args ...interface{}) *Error {
 	e.Hint = fmt.Sprintf(format, args...)
+	e.hintFromClass = false
 	return e
 }
 
@@ -265,22 +310,24 @@ func hintForResource(resource string) string {
 // Validation creates a VALIDATION error with a helpful hint.
 func Validation(message string) *Error {
 	return &Error{
-		Code:    ErrCodeValidation,
-		Message: message,
-		Fields:  make(map[string]interface{}),
-		Hint:    HintSeeHelp,
+		Code:          ErrCodeValidation,
+		Message:       message,
+		Fields:        make(map[string]interface{}),
+		Hint:          HintSeeHelp,
+		hintFromClass: true,
 	}
 }
 
 // IO creates an IO error with permission check hint.
 func IO(op string, err error) *Error {
 	return &Error{
-		Code:    ErrCodeIO,
-		Message: "I/O operation failed",
-		Op:      op,
-		Err:     err,
-		Fields:  make(map[string]interface{}),
-		Hint:    HintCheckPermissions,
+		Code:          ErrCodeIO,
+		Message:       "I/O operation failed",
+		Op:            op,
+		Err:           err,
+		Fields:        make(map[string]interface{}),
+		Hint:          HintCheckPermissions,
+		hintFromClass: true,
 	}
 }
 
@@ -339,31 +386,34 @@ func containsAny(haystack string, needles ...string) bool {
 // Config creates a CONFIG error with configuration check hint.
 func Config(message string) *Error {
 	return &Error{
-		Code:    ErrCodeConfig,
-		Message: message,
-		Fields:  make(map[string]interface{}),
-		Hint:    HintCheckConfig,
+		Code:          ErrCodeConfig,
+		Message:       message,
+		Fields:        make(map[string]interface{}),
+		Hint:          HintCheckConfig,
+		hintFromClass: true,
 	}
 }
 
 // Template creates a TEMPLATE error with template check hint.
 func Template(message string) *Error {
 	return &Error{
-		Code:    ErrCodeTemplate,
-		Message: message,
-		Fields:  make(map[string]interface{}),
-		Hint:    HintCheckTemplate,
+		Code:          ErrCodeTemplate,
+		Message:       message,
+		Fields:        make(map[string]interface{}),
+		Hint:          HintCheckTemplate,
+		hintFromClass: true,
 	}
 }
 
 // Parse creates a PARSE error with configuration check hint.
 func Parse(message string, err error) *Error {
 	return &Error{
-		Code:    ErrCodeParse,
-		Message: message,
-		Err:     err,
-		Fields:  make(map[string]interface{}),
-		Hint:    HintCheckConfig,
+		Code:          ErrCodeParse,
+		Message:       message,
+		Err:           err,
+		Fields:        make(map[string]interface{}),
+		Hint:          HintCheckConfig,
+		hintFromClass: true,
 	}
 }
 
