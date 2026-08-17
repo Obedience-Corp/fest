@@ -83,7 +83,7 @@ func runSearch(ctx context.Context, query string, opts *searchOptions) error {
 	festivalsDir, err := workspace.FindFestivals(cwd)
 	if err != nil || festivalsDir == "" {
 		return errors.NotFound("festivals workspace").
-			WithField("hint", "run from a project with a festivals/ directory")
+			WithHint("run from a project with a festivals/ directory")
 	}
 
 	targets := collectSearchTargets(ctx, festivalsDir, opts.status)

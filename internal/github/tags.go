@@ -87,7 +87,7 @@ func ResolveLatestTag(repoURL, channel string) (string, error) {
 	cmd := exec.Command("git", "ls-remote", "--tags", repoURL)
 	output, err := cmd.Output()
 	if err != nil {
-		return "", errors.IO("listing remote tags", err).WithField("url", repoURL)
+		return "", errors.Network("listing remote tags", err, gitStderr(err)).WithField("url", repoURL)
 	}
 
 	tag, err := selectLatestTag(parseLsRemoteTags(string(output)), channel)

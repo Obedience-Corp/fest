@@ -494,7 +494,7 @@ func (d *Downloader) GetRemoteSHA() (string, error) {
 	cmd := exec.Command("git", "ls-remote", d.repoURL, refSpec)
 	output, err := cmd.Output()
 	if err != nil {
-		return "", errors.IO("getting remote SHA", err).WithField("url", d.repoURL)
+		return "", errors.Network("getting remote SHA", err, gitStderr(err)).WithField("url", d.repoURL)
 	}
 
 	// Output format: "<sha>\t<refspec>"

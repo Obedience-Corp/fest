@@ -122,7 +122,7 @@ Reports:
 
 			// Check if index exists
 			if _, err := os.Stat(indexPath); os.IsNotExist(err) {
-				return errors.NotFound("index file").WithField("path", indexPath).WithField("hint", "run 'fest index write' to generate it")
+				return errors.NotFound("index file").WithField("path", indexPath).WithHint("run 'fest index write' to generate it")
 			}
 
 			result, err := index.ValidateFromFile(festivalRoot, indexPath)
@@ -192,7 +192,7 @@ func newIndexShowCommand() *cobra.Command {
 
 			// Check if index exists
 			if _, err := os.Stat(indexPath); os.IsNotExist(err) {
-				return errors.NotFound("index file").WithField("path", indexPath).WithField("hint", "run 'fest index write' to generate it")
+				return errors.NotFound("index file").WithField("path", indexPath).WithHint("run 'fest index write' to generate it")
 			}
 
 			idx, err := index.LoadIndex(indexPath)

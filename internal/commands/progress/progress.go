@@ -155,7 +155,7 @@ func runProgress(ctx context.Context, opts *progressOptions) error {
 
 	if loc.Festival == nil {
 		return errors.NotFound("festival").
-			WithField("hint", "run from inside a festival directory")
+			WithHint("run from inside a festival directory")
 	}
 
 	// Create progress manager. Mutation flows install the lifecycle gate so

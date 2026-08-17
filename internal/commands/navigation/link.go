@@ -306,7 +306,7 @@ func runUnlink(ctx context.Context, jsonOutput bool) error {
 
 		if festivalName == "" {
 			return errors.NotFound("link").
-				WithField("hint", "run from inside a festival or linked project directory")
+				WithHint("run from inside a festival or linked project directory")
 		}
 	}
 

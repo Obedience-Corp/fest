@@ -271,7 +271,7 @@ func promoteCore(ctx context.Context, festival *show.FestivalInfo, confirm bool,
 			}
 			return "", errors.Validation("invalid dungeon status").
 				WithField("value", opts.dungeon).
-				WithField("hint", "valid values: completed, archived, someday")
+				WithHint("valid values: completed, archived, someday")
 		}
 		nextStatus = resolved
 	} else {
@@ -291,7 +291,7 @@ func promoteCore(ctx context.Context, festival *show.FestivalInfo, confirm bool,
 			}
 			return "", errors.Validation("cannot promote festival").
 				WithField("status", currentStatus).
-				WithField("hint", "only planning, ready, and active festivals can be promoted")
+				WithHint("only planning, ready, and active festivals can be promoted")
 		}
 
 		// Validate readiness unless forced (skip for dungeon moves)

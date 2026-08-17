@@ -167,7 +167,7 @@ or lifecycle status changes (similar to fest watch, but without cycling). Ctrl+C
 			}
 			if opts.watch && opts.json {
 				return errors.Validation("--watch cannot be combined with --json").
-					WithField("hint", "use one-shot fest list --json for agents; --watch is human terminal output")
+					WithHint("use one-shot fest list --json for agents; --watch is human terminal output")
 			}
 			if opts.watch && !listStdoutIsTerminal() {
 				return errors.Validation("--watch requires an interactive terminal")
@@ -209,7 +209,7 @@ func runList(ctx context.Context, filterStatus string, opts *listOptions) error 
 	festivalsDir, err := workspace.FindFestivals(cwd)
 	if err != nil || festivalsDir == "" {
 		return errors.NotFound("festivals workspace").
-			WithField("hint", "run from a project with a festivals/ directory or use 'fest init --register'")
+			WithHint("run from a project with a festivals/ directory or use 'fest init --register'")
 	}
 
 	campaignRoot, _ := workspace.DetectCampaign(ctx, "")

@@ -74,7 +74,7 @@ func runCreate(ctx context.Context, name, fromFile string) error {
 	festivalPath, err := shared.ResolveFestivalPath(cwd, "")
 	if err != nil {
 		return errors.Wrap(err, "detecting festival").
-			WithField("hint", "run from within a festival directory")
+			WithHint("run from within a festival directory")
 	}
 
 	store := template.NewAgentTemplateStore(festivalPath)
@@ -158,7 +158,7 @@ func runApply(ctx context.Context, name, varsJSON, output string, preview bool) 
 	festivalPath, err := shared.ResolveFestivalPath(cwd, "")
 	if err != nil {
 		return errors.Wrap(err, "detecting festival").
-			WithField("hint", "run from within a festival directory")
+			WithHint("run from within a festival directory")
 	}
 
 	store := template.NewAgentTemplateStore(festivalPath)
@@ -228,7 +228,7 @@ func runList(ctx context.Context, jsonOutput bool) error {
 	festivalPath, err := shared.ResolveFestivalPath(cwd, "")
 	if err != nil {
 		return errors.Wrap(err, "detecting festival").
-			WithField("hint", "run from within a festival directory")
+			WithHint("run from within a festival directory")
 	}
 
 	store := template.NewAgentTemplateStore(festivalPath)

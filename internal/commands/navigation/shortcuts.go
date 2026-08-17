@@ -67,7 +67,7 @@ func runGoMap(ctx context.Context, name, path string, jsonOutput bool) error {
 	if !isValidShortcutName(name) {
 		return errors.Validation("invalid shortcut name").
 			WithField("name", name).
-			WithField("hint", "use 1-20 alphanumeric characters or underscores")
+			WithHint("use 1-20 alphanumeric characters or underscores")
 	}
 
 	// Resolve path
@@ -379,7 +379,7 @@ func runGoProject(ctx context.Context) error {
 	loc, err := show.DetectCurrentLocation(ctx, cwd)
 	if err != nil {
 		return errors.NotFound("festival").
-			WithField("hint", "run from inside a festival directory")
+			WithHint("run from inside a festival directory")
 	}
 
 	if loc.Festival == nil {
@@ -396,7 +396,7 @@ func runGoProject(ctx context.Context) error {
 	if !found {
 		return errors.NotFound("project link").
 			WithField("festival", loc.Festival.Name).
-			WithField("hint", "use 'fest link <path>' to create a link")
+			WithHint("use 'fest link <path>' to create a link")
 	}
 
 	// Print the path for shell function to use
@@ -459,7 +459,7 @@ func runGoFest() error {
 	}
 
 	return errors.NotFound("festival link").
-		WithField("hint", "current directory is not in a linked project")
+		WithHint("current directory is not in a linked project")
 }
 
 // findFestivalPath searches for a festival by name in the festivals directory

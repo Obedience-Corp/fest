@@ -137,7 +137,7 @@ func handleTaskStatusSet(ctx context.Context, display *ui.UI, cwd, newStatus str
 	festivalPath, err := shared.ResolveFestivalPath(cwd, "")
 	if err != nil {
 		return errors.Wrap(err, "not inside a festival").
-			WithField("hint", "navigate to a festival directory or use 'fest link'")
+			WithHint("navigate to a festival directory or use 'fest link'")
 	}
 
 	// Determine task ID from flag
@@ -277,14 +277,14 @@ func findTaskByName(festivalPath, taskName string) (string, error) {
 	if len(matches) == 0 {
 		return "", errors.NotFound("task").
 			WithField("name", taskName).
-			WithField("hint", "use full path like '001/01/01_task.md'")
+			WithHint("use full path like '001/01/01_task.md'")
 	}
 
 	if len(matches) > 1 {
 		return "", errors.Validation("ambiguous task name").
 			WithField("name", taskName).
 			WithField("matches", strings.Join(matches, ", ")).
-			WithField("hint", "use full path to disambiguate")
+			WithHint("use full path to disambiguate")
 	}
 
 	return matches[0], nil
@@ -348,7 +348,7 @@ func handlePhaseStatusSet(ctx context.Context, display *ui.UI, cwd, newStatus st
 	festivalPath, err := shared.ResolveFestivalPath(cwd, "")
 	if err != nil {
 		return errors.Wrap(err, "not inside a festival").
-			WithField("hint", "navigate to a festival directory or use 'fest link'")
+			WithHint("navigate to a festival directory or use 'fest link'")
 	}
 
 	// Find the phase directory
@@ -409,7 +409,7 @@ func resolvePhase(festivalPath, phaseInput string) (string, string, error) {
 	if len(matches) == 0 {
 		return "", "", errors.NotFound("phase").
 			WithField("input", phaseInput).
-			WithField("hint", "use phase number like '001' or full name like '001_CRITICAL'")
+			WithHint("use phase number like '001' or full name like '001_CRITICAL'")
 	}
 
 	if len(matches) > 1 {
@@ -479,7 +479,7 @@ func handleSequenceStatusSet(ctx context.Context, display *ui.UI, cwd, newStatus
 	festivalPath, err := shared.ResolveFestivalPath(cwd, "")
 	if err != nil {
 		return errors.Wrap(err, "not inside a festival").
-			WithField("hint", "navigate to a festival directory or use 'fest link'")
+			WithHint("navigate to a festival directory or use 'fest link'")
 	}
 
 	// Find the sequence directory
@@ -615,14 +615,14 @@ func findSequenceGlobally(festivalPath, seqInput string) (string, string, error)
 	if len(matches) == 0 {
 		return "", "", errors.NotFound("sequence").
 			WithField("input", seqInput).
-			WithField("hint", "use phase/sequence format like '001/01_api_design'")
+			WithHint("use phase/sequence format like '001/01_api_design'")
 	}
 
 	if len(matches) > 1 {
 		return "", "", errors.Validation("ambiguous sequence").
 			WithField("input", seqInput).
 			WithField("matches", strings.Join(matches, ", ")).
-			WithField("hint", "use phase/sequence format to disambiguate")
+			WithHint("use phase/sequence format to disambiguate")
 	}
 
 	parts := strings.SplitN(matches[0], "/", 2)

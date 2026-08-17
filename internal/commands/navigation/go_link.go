@@ -226,7 +226,7 @@ func linkProjectToFestival(ctx context.Context, cwd string, force bool) error {
 	// Find festivals directory
 	festivalsDir, err := workspace.FindFestivals(cwd)
 	if err != nil || festivalsDir == "" {
-		return festErrors.NotFound("festivals directory").WithField("hint", "run 'fest init' first")
+		return festErrors.NotFound("festivals directory").WithHint("run 'fest init' first")
 	}
 
 	// Collect all festivals from active/ and planning/
@@ -236,7 +236,7 @@ func linkProjectToFestival(ctx context.Context, cwd string, force bool) error {
 	}
 
 	if len(festivals) == 0 {
-		return festErrors.NotFound("festivals").WithField("hint", "create a festival with 'fest create festival'")
+		return festErrors.NotFound("festivals").WithHint("create a festival with 'fest create festival'")
 	}
 
 	// Build options for picker with color-coded status
@@ -383,7 +383,7 @@ func selectProjectDirectory(ctx context.Context, festivalPath, festivalName stri
 
 	if len(entries) == 0 {
 		return "", festErrors.NotFound("project directories").
-			WithField("hint", "no directories found in projects/")
+			WithHint("no directories found in projects/")
 	}
 
 	// Build options — show project label (with monorepo@sub notation)

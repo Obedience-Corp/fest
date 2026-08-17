@@ -3,7 +3,9 @@ package errors
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 )
 
 // ErrAlreadyPrinted is a sentinel error indicating the message was already
@@ -20,6 +22,7 @@ const (
 	ErrCodeParse      = "PARSE"
 	ErrCodeInternal   = "INTERNAL"
 	ErrCodePermission = "PERMISSION"
+	ErrCodeNetwork    = "NETWORK"
 )
 
 // Standard hints for common error scenarios.
@@ -33,6 +36,10 @@ const (
 	HintCheckTemplate         = "Run 'fest validate' to check for template issues"
 	HintRunInit               = "Run 'fest init' to initialize a festival workspace"
 	HintCheckPermissions      = "Check file/directory permissions and try again"
+	HintCheckNetwork          = "Check that the remote is reachable from this machine, then try again"
+	HintCheckTLS              = "The remote was reached but its certificate could not be verified. Install CA certificates (e.g. the ca-certificates package) or set GIT_SSL_CAINFO to a CA bundle"
+	HintCheckDNS              = "The hostname did not resolve. Check DNS and your network connection"
+	HintCheckAuth             = "The remote refused access. Check credentials, or use a public URL if the repository is public"
 	HintUseForce              = "Use --force to skip confirmation prompts"
 	HintNavigateToFestival    = "Navigate to a festival directory first"
 	HintUseInteractiveMode    = "Use 'fest tui' for interactive mode"
@@ -51,23 +58,81 @@ type Error struct {
 	Hint    string                 `json:"hint,omitempty"` // actionable suggestion
 }
 
-// Error returns the error string with context.
+// Error returns the error string with context, followed by exactly one hint.
+//
+// The hint is the outermost one in the chain, because that is the layer closest
+// to what the operator actually typed: "run 'fest sync' manually" beats the
+// generic advice attached wherever the failure originated. Inner hints are
+// deliberately not printed. Rendering a cause with %v would otherwise splice
+// its "Hint:" line into the middle of this one's message, so a two-layer error
+// printed two hints and a three-layer error printed three.
 func (e *Error) Error() string {
-	var msg string
-	if e.Op != "" && e.Err != nil {
-		msg = fmt.Sprintf("%s: %s: %v", e.Op, e.Message, e.Err)
-	} else if e.Op != "" {
-		msg = fmt.Sprintf("%s: %s", e.Op, e.Message)
-	} else if e.Err != nil {
-		msg = fmt.Sprintf("%s: %v", e.Message, e.Err)
-	} else {
-		msg = e.Message
-	}
-
-	if e.Hint != "" {
-		msg = fmt.Sprintf("%s\nHint: %s", msg, e.Hint)
+	msg := e.chainMessage()
+	if hint := e.resolveHint(); hint != "" {
+		msg = fmt.Sprintf("%s\nHint: %s", msg, hint)
 	}
 	return msg
+}
+
+// chainMessage renders this error and its causes with every nested "Hint:" line
+// removed, so only Error() decides which single hint is shown.
+//
+// It strips the rendered text rather than recursing into nested *Error values.
+// Recursion via errors.As looked equivalent and was not: errors.As searches the
+// whole chain, so a plain fmt.Errorf sitting between two *Error layers was
+// skipped and its message silently vanished from the output. Stripping works
+// for any chain shape and cannot drop a layer.
+func (e *Error) chainMessage() string {
+	cause := ""
+	if e.Err != nil {
+		cause = stripHintLines(e.Err.Error())
+	}
+
+	switch {
+	case e.Op != "" && cause != "":
+		return fmt.Sprintf("%s: %s: %s", e.Op, e.Message, cause)
+	case e.Op != "":
+		return fmt.Sprintf("%s: %s", e.Op, e.Message)
+	case cause != "":
+		return fmt.Sprintf("%s: %s", e.Message, cause)
+	default:
+		return e.Message
+	}
+}
+
+// stripHintLines removes rendered "Hint: ..." lines from a cause's text.
+func stripHintLines(msg string) string {
+	if !strings.Contains(msg, "\nHint: ") {
+		return msg
+	}
+	lines := strings.Split(msg, "\n")
+	kept := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if strings.HasPrefix(line, "Hint: ") {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.TrimRight(strings.Join(kept, "\n"), "\n")
+}
+
+// resolveHint returns the hint to show: the innermost one in the chain, falling
+// back outward when the inner layers carry none.
+//
+// Innermost wins because that layer knows what actually failed, while outer
+// layers only know what was being attempted. A TLS verification failure inside
+// 'fest init' is the worked example: the inner layer can say "install CA
+// certificates", and the outer one can only offer "check your internet
+// connection", which is actively misleading on a machine whose network is fine.
+// The outer context is not lost, because the message chain already carries it.
+func (e *Error) resolveHint() string {
+	var inner *Error
+	if e.Err != nil && errors.As(e.Err, &inner) {
+		if h := inner.resolveHint(); h != "" {
+			return h
+		}
+	}
+	return e.Hint
 }
 
 // Unwrap returns the wrapped error.
@@ -217,6 +282,58 @@ func IO(op string, err error) *Error {
 		Fields:  make(map[string]interface{}),
 		Hint:    HintCheckPermissions,
 	}
+}
+
+// Network creates a NETWORK error for an operation that failed to reach a
+// remote. It exists so remote failures stop being reported as IO errors, whose
+// hint tells the operator to check file permissions: on a machine that simply
+// has no route to GitHub, that hint sends them to the one place the problem is
+// not. detail carries the remote's own message (git's stderr, say), which is
+// where the real cause lives.
+func Network(op string, err error, detail string) *Error {
+	message := "could not reach the remote"
+	if d := strings.TrimSpace(detail); d != "" {
+		message = message + ": " + d
+	}
+	return &Error{
+		Code:    ErrCodeNetwork,
+		Message: message,
+		Op:      op,
+		Err:     err,
+		Fields:  make(map[string]interface{}),
+		Hint:    networkHint(detail),
+	}
+}
+
+// networkHint picks the hint that matches what the remote actually said.
+//
+// "check your connection" is the right advice for exactly one of these causes.
+// A machine with a working network and no CA bundle, which is the normal state
+// on minimal and embedded systems, fails TLS verification and needs to be told
+// about certificates, not about its connection. Sending someone to debug a
+// network that is already up costs them the whole session.
+func networkHint(detail string) string {
+	d := strings.ToLower(detail)
+	switch {
+	case containsAny(d, "certificate", "ssl", "tls", "cafile", "self-signed", "self signed"):
+		return HintCheckTLS
+	case containsAny(d, "could not resolve host", "name or service not known", "temporary failure in name resolution"):
+		return HintCheckDNS
+	case containsAny(d, "authentication failed", "permission denied", "could not read username",
+		"could not read password", "access denied", "403", "terminal prompts disabled"):
+		return HintCheckAuth
+	default:
+		return HintCheckNetwork
+	}
+}
+
+func containsAny(haystack string, needles ...string) bool {
+	for _, n := range needles {
+		if strings.Contains(haystack, n) {
+			return true
+		}
+	}
+	return false
 }
 
 // Config creates a CONFIG error with configuration check hint.

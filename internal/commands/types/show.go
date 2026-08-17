@@ -95,7 +95,7 @@ func findType(registry *types.Registry, name, levelFilter string) (*types.TypeIn
 		}
 		return nil, errors.Validation(
 			fmt.Sprintf("type '%s' exists at multiple levels: %s", name, strings.Join(levels, ", ")),
-		).WithField("hint", "use --level to specify which one")
+		).WithHint("use --level to specify which one")
 	}
 
 	return matches[0], nil

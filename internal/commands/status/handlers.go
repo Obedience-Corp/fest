@@ -244,7 +244,7 @@ func dispatchByLocationType(ctx context.Context, display *ui.UI, cwd, newStatus 
 	default:
 		return errors.Validation("unknown context").
 			WithField("type", loc.Type).
-			WithField("hint", "use --phase, --sequence, or --task to specify level")
+			WithHint("use --phase, --sequence, or --task to specify level")
 	}
 }
 
