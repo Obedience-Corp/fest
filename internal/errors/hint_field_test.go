@@ -97,8 +97,10 @@ func TestNetworkErrorReportsCauseAndNetworkHint(t *testing.T) {
 	if !strings.Contains(msg, "Could not resolve host") {
 		t.Errorf("error does not carry the remote's own message:\n%s", msg)
 	}
-	if !strings.Contains(msg, HintCheckNetwork) {
-		t.Errorf("error does not carry the network hint:\n%s", msg)
+	// The detail names a DNS failure, so the hint must be the DNS one rather
+	// than the generic fallback.
+	if !strings.Contains(msg, HintCheckDNS) {
+		t.Errorf("error does not carry the DNS hint:\n%s", msg)
 	}
 	if strings.Contains(msg, HintCheckPermissions) {
 		t.Errorf("a network failure must not tell the operator to check permissions:\n%s", msg)
@@ -130,12 +132,14 @@ func TestNestedErrorsPrintExactlyOneHint(t *testing.T) {
 	if got := strings.Count(msg, "Hint:"); got != 1 {
 		t.Errorf("rendered %d hints, want exactly 1:\n%s", got, msg)
 	}
-	// The outermost hint wins: it is the layer closest to what was typed.
-	if !strings.Contains(msg, "run 'fest sync' manually") {
-		t.Errorf("outermost hint missing:\n%s", msg)
+	// The INNERMOST hint wins: that layer knows what actually failed, while the
+	// outer one only knows what was being attempted. Here the specific "could
+	// not resolve host" guidance beats a generic "run fest sync manually".
+	if !strings.Contains(msg, HintCheckDNS) {
+		t.Errorf("innermost hint missing:\n%s", msg)
 	}
-	if strings.Contains(msg, HintCheckNetwork) {
-		t.Errorf("inner hint should not also render:\n%s", msg)
+	if strings.Contains(msg, "run 'fest sync' manually") {
+		t.Errorf("outer generic hint should not displace the specific one:\n%s", msg)
 	}
 	// The cause chain still reaches the operator.
 	if !strings.Contains(msg, "Could not resolve host") {
@@ -150,7 +154,7 @@ func TestBareWrapKeepsTheInnerHint(t *testing.T) {
 	outer := Wrap(inner, "auto-sync failed")
 
 	msg := outer.Error()
-	if !strings.Contains(msg, HintCheckNetwork) {
+	if !strings.Contains(msg, HintCheckDNS) {
 		t.Errorf("bare Wrap dropped the inner hint:\n%s", msg)
 	}
 	if got := strings.Count(msg, "Hint:"); got != 1 {
@@ -186,6 +190,88 @@ func TestInterveningPlainErrorKeepsItsMessage(t *testing.T) {
 		if !strings.Contains(msg, want) {
 			t.Errorf("message lost %q:\n%s", want, msg)
 		}
+	}
+	if got := strings.Count(msg, "Hint:"); got != 1 {
+		t.Errorf("rendered %d hints, want exactly 1:\n%s", got, msg)
+	}
+}
+
+// "Check your connection" is right for one cause out of several. A machine with
+// a working network and no CA bundle, the normal state on minimal and embedded
+// systems, fails TLS verification; telling that operator to check their network
+// sends them to debug something that is already working.
+func TestNetworkHintMatchesWhatTheRemoteSaid(t *testing.T) {
+	tests := []struct {
+		name   string
+		detail string
+		want   string
+	}{
+		{
+			name:   "missing CA bundle",
+			detail: "unable to access 'https://github.com/x/y': server certificate verification failed. CAfile: none CRLfile: none",
+			want:   HintCheckTLS,
+		},
+		{
+			name:   "self-signed certificate",
+			detail: "SSL certificate problem: self-signed certificate in certificate chain",
+			want:   HintCheckTLS,
+		},
+		{
+			name:   "dns failure",
+			detail: "unable to access 'https://github.com/x/y': Could not resolve host: github.com",
+			want:   HintCheckDNS,
+		},
+		{
+			name:   "auth refused",
+			detail: "Authentication failed for 'https://github.com/x/y'",
+			want:   HintCheckAuth,
+		},
+		{
+			name:   "credential prompt suppressed",
+			detail: "could not read Username for 'https://github.com': terminal prompts disabled",
+			want:   HintCheckAuth,
+		},
+		{
+			name:   "unrecognized stays generic",
+			detail: "the remote end hung up unexpectedly",
+			want:   HintCheckNetwork,
+		},
+		{
+			name:   "no detail at all stays generic",
+			detail: "",
+			want:   HintCheckNetwork,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := Network("listing remote tags", os.ErrClosed, tt.detail)
+			if e.Hint != tt.want {
+				t.Errorf("hint = %q\nwant   %q\nfor detail: %s", e.Hint, tt.want, tt.detail)
+			}
+			// Whatever the classification, never the permissions advice.
+			if strings.Contains(e.Error(), HintCheckPermissions) {
+				t.Errorf("remote failure carried the permissions hint:\n%s", e.Error())
+			}
+		})
+	}
+}
+
+// The reason innermost wins, stated as a test: on a machine whose network is
+// fine but which has no CA bundle, the outer layer's "check your internet
+// connection" sends the operator to debug something that already works. The
+// inner layer knows it was a certificate and can say so.
+func TestSpecificInnerHintBeatsGenericOuterHint(t *testing.T) {
+	inner := Network("listing remote tags", os.ErrClosed,
+		"unable to access 'https://github.com/x/y': server certificate verification failed. CAfile: none")
+	outer := Wrap(inner, "auto-sync failed").WithHint("check your internet connection or run 'fest sync' manually")
+
+	msg := outer.Error()
+	if !strings.Contains(msg, HintCheckTLS) {
+		t.Errorf("a certificate failure must produce the TLS hint:\n%s", msg)
+	}
+	if strings.Contains(msg, "check your internet connection") {
+		t.Errorf("the misleading connection hint displaced the specific one:\n%s", msg)
 	}
 	if got := strings.Count(msg, "Hint:"); got != 1 {
 		t.Errorf("rendered %d hints, want exactly 1:\n%s", got, msg)

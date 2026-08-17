@@ -36,7 +36,10 @@ const (
 	HintCheckTemplate         = "Run 'fest validate' to check for template issues"
 	HintRunInit               = "Run 'fest init' to initialize a festival workspace"
 	HintCheckPermissions      = "Check file/directory permissions and try again"
-	HintCheckNetwork          = "Check your network connection and that the remote is reachable, then try again"
+	HintCheckNetwork          = "Check that the remote is reachable from this machine, then try again"
+	HintCheckTLS              = "The remote was reached but its certificate could not be verified. Install CA certificates (e.g. the ca-certificates package) or set GIT_SSL_CAINFO to a CA bundle"
+	HintCheckDNS              = "The hostname did not resolve. Check DNS and your network connection"
+	HintCheckAuth             = "The remote refused access. Check credentials, or use a public URL if the repository is public"
 	HintUseForce              = "Use --force to skip confirmation prompts"
 	HintNavigateToFestival    = "Navigate to a festival directory first"
 	HintUseInteractiveMode    = "Use 'fest tui' for interactive mode"
@@ -113,18 +116,23 @@ func stripHintLines(msg string) string {
 	return strings.TrimRight(strings.Join(kept, "\n"), "\n")
 }
 
-// resolveHint returns the hint to show: this error's own, or failing that the
-// nearest one from its causes, so wrapping an error with a bare Wrap() does not
-// discard the guidance the inner layer had.
+// resolveHint returns the hint to show: the innermost one in the chain, falling
+// back outward when the inner layers carry none.
+//
+// Innermost wins because that layer knows what actually failed, while outer
+// layers only know what was being attempted. A TLS verification failure inside
+// 'fest init' is the worked example: the inner layer can say "install CA
+// certificates", and the outer one can only offer "check your internet
+// connection", which is actively misleading on a machine whose network is fine.
+// The outer context is not lost, because the message chain already carries it.
 func (e *Error) resolveHint() string {
-	if e.Hint != "" {
-		return e.Hint
-	}
 	var inner *Error
 	if e.Err != nil && errors.As(e.Err, &inner) {
-		return inner.resolveHint()
+		if h := inner.resolveHint(); h != "" {
+			return h
+		}
 	}
-	return ""
+	return e.Hint
 }
 
 // Unwrap returns the wrapped error.
@@ -293,8 +301,39 @@ func Network(op string, err error, detail string) *Error {
 		Op:      op,
 		Err:     err,
 		Fields:  make(map[string]interface{}),
-		Hint:    HintCheckNetwork,
+		Hint:    networkHint(detail),
 	}
+}
+
+// networkHint picks the hint that matches what the remote actually said.
+//
+// "check your connection" is the right advice for exactly one of these causes.
+// A machine with a working network and no CA bundle, which is the normal state
+// on minimal and embedded systems, fails TLS verification and needs to be told
+// about certificates, not about its connection. Sending someone to debug a
+// network that is already up costs them the whole session.
+func networkHint(detail string) string {
+	d := strings.ToLower(detail)
+	switch {
+	case containsAny(d, "certificate", "ssl", "tls", "cafile", "self-signed", "self signed"):
+		return HintCheckTLS
+	case containsAny(d, "could not resolve host", "name or service not known", "temporary failure in name resolution"):
+		return HintCheckDNS
+	case containsAny(d, "authentication failed", "permission denied", "could not read username",
+		"could not read password", "access denied", "403", "terminal prompts disabled"):
+		return HintCheckAuth
+	default:
+		return HintCheckNetwork
+	}
+}
+
+func containsAny(haystack string, needles ...string) bool {
+	for _, n := range needles {
+		if strings.Contains(haystack, n) {
+			return true
+		}
+	}
+	return false
 }
 
 // Config creates a CONFIG error with configuration check hint.
