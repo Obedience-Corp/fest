@@ -3,21 +3,31 @@
 // code rather than Go string literals.
 package shell
 
-import "github.com/Obedience-Corp/fest/internal/errors"
+import (
+	"strings"
+
+	"github.com/Obedience-Corp/fest/internal/errors"
+)
 
 // SupportedShells lists the shells with integration support.
-var SupportedShells = []string{"zsh", "bash", "fish"}
+var SupportedShells = []string{"zsh", "bash", "fish", "sh"}
 
-// Generate returns the shell integration script for the given shell. bash and
-// zsh share one script that self-detects the running shell at runtime.
+// Generate returns the shell integration script for the given shell.
+//
+// bash and zsh share the POSIX core with sh and add their own completion
+// machinery on top; the shells differ only in what they can hook, not in what
+// fgo, fls, and fest do.
 func Generate(shellType string) (string, error) {
 	switch shellType {
 	case "zsh", "bash":
-		return bashZshScript, nil
+		return posixCoreScript + "\n" + bashZshCompletionsScript, nil
+	case "sh":
+		return posixCoreScript, nil
 	case "fish":
 		return fishScript, nil
 	default:
-		return "", errors.Validation("unsupported shell - supported: zsh, bash, fish").WithField("shell", shellType)
+		return "", errors.Validation("unsupported shell - supported: "+strings.Join(SupportedShells, ", ")).
+			WithField("shell", shellType)
 	}
 }
 

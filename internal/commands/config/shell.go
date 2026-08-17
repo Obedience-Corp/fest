@@ -34,7 +34,14 @@ SETUP (one-time):
   # For fish, add to ~/.config/fish/config.fish:
   fest shell-init fish | source
 
+  # For dash, busybox ash, or any other POSIX sh, add to ~/.profile:
+  eval "$(fest shell-init sh)"
+
 After setup, reload your shell or run: source ~/.zshrc
+
+fgo, fls, and fest work identically in every supported shell. Only tab
+completion differs: POSIX sh has no programmable completion to hook, so
+'fest shell-init sh' installs the helpers without it.
 
 USAGE - fgo (navigation):
   fgo              Smart navigation (linked project ↔ festival, or festivals root)
@@ -60,8 +67,11 @@ USAGE - fls (listing):
   fgo 2            # Go to phase 002
   fls              # List all festivals
   fls active       # List active festivals`,
-		Args: cobra.ExactArgs(1),
-		RunE: runShellInit,
+		// Derived from the supported list rather than written out, so adding a
+		// shell cannot leave 'fest shell-init <TAB>' advertising a stale set.
+		ValidArgs: shell.SupportedShells,
+		Args:      cobra.ExactArgs(1),
+		RunE:      runShellInit,
 	}
 
 	return cmd
