@@ -64,6 +64,8 @@ gate:
     go vet -tags=integration ./...
     echo "=== gate: lint ==="
     just lint all
+    echo "=== gate: docs ==="
+    just docs-check
     echo "=== gate: stable tests ==="
     just test all
     echo "=== gate: dev unit tests ==="
@@ -86,6 +88,23 @@ docs:
     set -euo pipefail
     just build quick
     ./{{bin_dir}}/{{binary_name}} gendocs --output docs/cli-reference --format markdown --single
+
+# Fail when the committed CLI reference no longer matches the code.
+# Generates into a temp dir rather than the working tree, so running the gate
+# never leaves modified files behind.
+docs-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    just build quick
+    tmp="$(mktemp -d)"
+    trap 'rm -rf "$tmp"' EXIT
+    ./{{bin_dir}}/{{binary_name}} gendocs --output "$tmp" --format markdown --single
+    if ! diff -ru docs/cli-reference "$tmp" >/dev/null 2>&1; then
+        echo "FAIL: docs/cli-reference is stale. Run 'just docs' and commit the result." >&2
+        diff -ru docs/cli-reference "$tmp" | head -40 >&2
+        exit 1
+    fi
+    echo "docs/cli-reference is up to date"
 
 # Uninstall fest from $GOBIN
 uninstall:

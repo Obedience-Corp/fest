@@ -86,6 +86,7 @@ Run 'fest understand' to learn the methodology before executing tasks.
 * [fest system](fest_system.md)	 - Manage fest tool configuration and templates
 * [fest task](fest_task.md)	 - Manage task status (show, edit, complete, block, reset)
 * [fest templates](fest_templates.md)	 - Manage agent-created templates within a festival
+* [fest tokens](fest_tokens.md)	 - Count planning-corpus tokens for a festival or the whole workspace
 * [fest types](fest_types.md)	 - Discover types for fest create
 * [fest unbundle](fest_unbundle.md)	 - Unbundle a .festival archive into a directory
 * [fest understand](fest_understand.md)	 - Learn methodology FIRST - run before executing festival tasks
