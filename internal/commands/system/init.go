@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/Obedience-Corp/fest/internal/bundled"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/config"
 	festcontract "github.com/Obedience-Corp/fest/internal/contract"
@@ -118,6 +119,15 @@ func RunInit(ctx context.Context, targetPath string, opts *InitOptions) error {
 		sourceDir = filepath.Join(config.ConfigDir(), "festivals")
 	}
 
+	// An explicit --from names a directory the operator expects to exist.
+	// Syncing writes to the config dir instead, so it could never satisfy this
+	// path; say what is missing rather than attempt an unrelated download.
+	if opts.From != "" && !fileops.Exists(sourceDir) {
+		return errors.NotFound("source directory").
+			WithField("path", sourceDir).
+			WithHint("--from must point at an existing festival template directory")
+	}
+
 	// Check if source exists - if not, auto-sync to populate it
 	if !fileops.Exists(sourceDir) {
 		display.Info("Template cache not found, syncing from GitHub...")
@@ -126,10 +136,25 @@ func RunInit(ctx context.Context, targetPath string, opts *InitOptions) error {
 		syncOpts := &syncOptions{
 			dryRun: false,
 		}
-		if err := runSync(ctx, nil, syncOpts); err != nil {
-			return errors.Wrap(err, "auto-sync failed").
-				WithField("path", sourceDir).
-				WithHint("check your internet connection or run 'fest sync' manually")
+		syncErr := runSync(ctx, nil, syncOpts)
+		if syncErr != nil {
+			// Templates only ever existed after a successful sync, so a machine
+			// that cannot reach GitHub could not run 'fest init' at all. The
+			// same scaffold ships inside the binary; use it and let sync become
+			// the way to update the methodology rather than to obtain it.
+			if !usesBundledMethodology(ctx) {
+				return errors.Wrap(syncErr, "auto-sync failed").
+					WithField("path", sourceDir).
+					WithHint("check your internet connection or run 'fest sync' manually")
+			}
+			display.Warning("Could not reach the methodology repository: %s", errors.Message(syncErr))
+			display.Info("Using the methodology bundled with this fest build.")
+			display.Info("Run 'fest sync' once the network is available to pick up newer templates.")
+			if err := bundled.Seed(ctx, sourceDir); err != nil {
+				return errors.Wrap(err, "seeding bundled methodology").
+					WithField("path", sourceDir).
+					WithHint("could not reach GitHub and could not write the bundled copy; check permissions on " + sourceDir)
+			}
 		}
 
 		// Verify sync worked
