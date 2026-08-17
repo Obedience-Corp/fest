@@ -77,7 +77,7 @@ func runInit(ctx context.Context, criteria []string, force bool) error {
 	festivalPath, err := shared.ResolveFestivalPath(cwd, "")
 	if err != nil {
 		return errors.Wrap(err, "detecting festival").
-			WithField("hint", "run from within a festival directory")
+			WithHint("run from within a festival directory")
 	}
 
 	store := feedback.NewStore(festivalPath)
@@ -162,7 +162,7 @@ func runCriteriaAdd(ctx context.Context, criteria []string) error {
 	festivalPath, err := shared.ResolveFestivalPath(cwd, "")
 	if err != nil {
 		return errors.Wrap(err, "detecting festival").
-			WithField("hint", "run from within a festival directory")
+			WithHint("run from within a festival directory")
 	}
 
 	store := feedback.NewStore(festivalPath)
@@ -230,7 +230,7 @@ func runAdd(ctx context.Context, criteria, observation, jsonInput, task, severit
 	festivalPath, err := shared.ResolveFestivalPath(cwd, "")
 	if err != nil {
 		return errors.Wrap(err, "detecting festival").
-			WithField("hint", "run from within a festival directory")
+			WithHint("run from within a festival directory")
 	}
 
 	store := feedback.NewStore(festivalPath)
@@ -247,7 +247,7 @@ func runAdd(ctx context.Context, criteria, observation, jsonInput, task, severit
 		// Use flags
 		if criteria == "" || observation == "" {
 			return errors.Validation("criteria and observation are required").
-				WithField("hint", "use --criteria and --observation, or --json")
+				WithHint("use --criteria and --observation, or --json")
 		}
 		obs = &feedback.Observation{
 			Criteria:    criteria,
@@ -311,7 +311,7 @@ func runView(ctx context.Context, criteria, severity string, jsonOutput, summary
 	festivalPath, err := shared.ResolveFestivalPath(cwd, "")
 	if err != nil {
 		return errors.Wrap(err, "detecting festival").
-			WithField("hint", "run from within a festival directory")
+			WithHint("run from within a festival directory")
 	}
 
 	store := feedback.NewStore(festivalPath)
@@ -399,7 +399,7 @@ func runExport(ctx context.Context, format string) error {
 	festivalPath, err := shared.ResolveFestivalPath(cwd, "")
 	if err != nil {
 		return errors.Wrap(err, "detecting festival").
-			WithField("hint", "run from within a festival directory")
+			WithHint("run from within a festival directory")
 	}
 
 	store := feedback.NewStore(festivalPath)

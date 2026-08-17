@@ -97,7 +97,7 @@ func runUpdate(ctx context.Context, targetPath string, opts *updateOptions) erro
 	checksumFile := filepath.Join(stateDir, ".fest-checksums.json")
 	if !fileops.Exists(checksumFile) {
 		if !opts.force {
-			return errors.NotFound("checksum file").WithField("path", checksumFile).WithField("hint", "run 'fest init' first")
+			return errors.NotFound("checksum file").WithField("path", checksumFile).WithHint("run 'fest init' first")
 		}
 		// --force: bootstrap checksums from current state
 		display.Warning("No checksum file found — bootstrapping from current state (--force)")
@@ -121,7 +121,7 @@ func runUpdate(ctx context.Context, targetPath string, opts *updateOptions) erro
 	// Get source directory (.festival only)
 	sourceDir := filepath.Join(config.ConfigDir(), "festivals", ".festival")
 	if !fileops.Exists(sourceDir) {
-		return errors.NotFound(".festival templates").WithField("path", sourceDir).WithField("hint", "run 'fest system sync' first")
+		return errors.NotFound(".festival templates").WithField("path", sourceDir).WithHint("run 'fest system sync' first")
 	}
 
 	display.Info("Analyzing .festival methodology files...")

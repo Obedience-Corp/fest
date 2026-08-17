@@ -34,7 +34,7 @@ func selectFestivalForStatus(ctx context.Context, cwd, newStatus string) (*show.
 	}
 	if festivalsDir == "" {
 		return nil, errors.NotFound("festivals directory").
-			WithField("hint", "navigate to a workspace with festivals/ directory")
+			WithHint("navigate to a workspace with festivals/ directory")
 	}
 
 	// Configure selector with appropriate title

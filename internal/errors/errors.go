@@ -3,7 +3,9 @@ package errors
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 )
 
 // ErrAlreadyPrinted is a sentinel error indicating the message was already
@@ -20,6 +22,7 @@ const (
 	ErrCodeParse      = "PARSE"
 	ErrCodeInternal   = "INTERNAL"
 	ErrCodePermission = "PERMISSION"
+	ErrCodeNetwork    = "NETWORK"
 )
 
 // Standard hints for common error scenarios.
@@ -33,6 +36,7 @@ const (
 	HintCheckTemplate         = "Run 'fest validate' to check for template issues"
 	HintRunInit               = "Run 'fest init' to initialize a festival workspace"
 	HintCheckPermissions      = "Check file/directory permissions and try again"
+	HintCheckNetwork          = "Check your network connection and that the remote is reachable, then try again"
 	HintUseForce              = "Use --force to skip confirmation prompts"
 	HintNavigateToFestival    = "Navigate to a festival directory first"
 	HintUseInteractiveMode    = "Use 'fest tui' for interactive mode"
@@ -51,23 +55,76 @@ type Error struct {
 	Hint    string                 `json:"hint,omitempty"` // actionable suggestion
 }
 
-// Error returns the error string with context.
+// Error returns the error string with context, followed by exactly one hint.
+//
+// The hint is the outermost one in the chain, because that is the layer closest
+// to what the operator actually typed: "run 'fest sync' manually" beats the
+// generic advice attached wherever the failure originated. Inner hints are
+// deliberately not printed. Rendering a cause with %v would otherwise splice
+// its "Hint:" line into the middle of this one's message, so a two-layer error
+// printed two hints and a three-layer error printed three.
 func (e *Error) Error() string {
-	var msg string
-	if e.Op != "" && e.Err != nil {
-		msg = fmt.Sprintf("%s: %s: %v", e.Op, e.Message, e.Err)
-	} else if e.Op != "" {
-		msg = fmt.Sprintf("%s: %s", e.Op, e.Message)
-	} else if e.Err != nil {
-		msg = fmt.Sprintf("%s: %v", e.Message, e.Err)
-	} else {
-		msg = e.Message
-	}
-
-	if e.Hint != "" {
-		msg = fmt.Sprintf("%s\nHint: %s", msg, e.Hint)
+	msg := e.chainMessage()
+	if hint := e.resolveHint(); hint != "" {
+		msg = fmt.Sprintf("%s\nHint: %s", msg, hint)
 	}
 	return msg
+}
+
+// chainMessage renders this error and its causes with every nested "Hint:" line
+// removed, so only Error() decides which single hint is shown.
+//
+// It strips the rendered text rather than recursing into nested *Error values.
+// Recursion via errors.As looked equivalent and was not: errors.As searches the
+// whole chain, so a plain fmt.Errorf sitting between two *Error layers was
+// skipped and its message silently vanished from the output. Stripping works
+// for any chain shape and cannot drop a layer.
+func (e *Error) chainMessage() string {
+	cause := ""
+	if e.Err != nil {
+		cause = stripHintLines(e.Err.Error())
+	}
+
+	switch {
+	case e.Op != "" && cause != "":
+		return fmt.Sprintf("%s: %s: %s", e.Op, e.Message, cause)
+	case e.Op != "":
+		return fmt.Sprintf("%s: %s", e.Op, e.Message)
+	case cause != "":
+		return fmt.Sprintf("%s: %s", e.Message, cause)
+	default:
+		return e.Message
+	}
+}
+
+// stripHintLines removes rendered "Hint: ..." lines from a cause's text.
+func stripHintLines(msg string) string {
+	if !strings.Contains(msg, "\nHint: ") {
+		return msg
+	}
+	lines := strings.Split(msg, "\n")
+	kept := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if strings.HasPrefix(line, "Hint: ") {
+			continue
+		}
+		kept = append(kept, line)
+	}
+	return strings.TrimRight(strings.Join(kept, "\n"), "\n")
+}
+
+// resolveHint returns the hint to show: this error's own, or failing that the
+// nearest one from its causes, so wrapping an error with a bare Wrap() does not
+// discard the guidance the inner layer had.
+func (e *Error) resolveHint() string {
+	if e.Hint != "" {
+		return e.Hint
+	}
+	var inner *Error
+	if e.Err != nil && errors.As(e.Err, &inner) {
+		return inner.resolveHint()
+	}
+	return ""
 }
 
 // Unwrap returns the wrapped error.
@@ -216,6 +273,27 @@ func IO(op string, err error) *Error {
 		Err:     err,
 		Fields:  make(map[string]interface{}),
 		Hint:    HintCheckPermissions,
+	}
+}
+
+// Network creates a NETWORK error for an operation that failed to reach a
+// remote. It exists so remote failures stop being reported as IO errors, whose
+// hint tells the operator to check file permissions: on a machine that simply
+// has no route to GitHub, that hint sends them to the one place the problem is
+// not. detail carries the remote's own message (git's stderr, say), which is
+// where the real cause lives.
+func Network(op string, err error, detail string) *Error {
+	message := "could not reach the remote"
+	if d := strings.TrimSpace(detail); d != "" {
+		message = message + ": " + d
+	}
+	return &Error{
+		Code:    ErrCodeNetwork,
+		Message: message,
+		Op:      op,
+		Err:     err,
+		Fields:  make(map[string]interface{}),
+		Hint:    HintCheckNetwork,
 	}
 }
 

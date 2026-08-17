@@ -302,13 +302,13 @@ func handleStatusListOutsideFestival(ctx context.Context, cwd, filterStatus stri
 	festivalsDir := findFestivalsRoot(cwd)
 	if festivalsDir == "" {
 		return errors.NotFound("festival or festivals directory").
-			WithField("hint", "navigate to a festival directory to list phases/sequences/tasks")
+			WithHint("navigate to a festival directory to list phases/sequences/tasks")
 	}
 	if opts.entityType == "festival" || opts.entityType == "" {
 		return runFestivalListing(ctx, festivalsDir, filterStatus, opts)
 	}
 	return errors.NotFound("festival").
-		WithField("hint", "navigate to a festival directory to list phases/sequences/tasks")
+		WithHint("navigate to a festival directory to list phases/sequences/tasks")
 }
 
 // routeStatusListByType routes the status list command based on entity type.

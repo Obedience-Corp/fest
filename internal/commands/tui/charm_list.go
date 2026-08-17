@@ -72,7 +72,7 @@ func StartGoListTUI(ctx context.Context) (string, error) {
 	// Check if we have any options
 	if len(opts) == 0 {
 		return "", festErrors.Validation("no shortcuts or links configured").
-			WithField("hint", "use 'fest go map <name>' to create shortcuts or 'fest link <path>' to link festivals")
+			WithHint("use 'fest go map <name>' to create shortcuts or 'fest link <path>' to link festivals")
 	}
 
 	// Run the selector

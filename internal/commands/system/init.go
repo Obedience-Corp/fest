@@ -129,14 +129,14 @@ func RunInit(ctx context.Context, targetPath string, opts *InitOptions) error {
 		if err := runSync(ctx, nil, syncOpts); err != nil {
 			return errors.Wrap(err, "auto-sync failed").
 				WithField("path", sourceDir).
-				WithField("hint", "check your internet connection or run 'fest sync' manually")
+				WithHint("check your internet connection or run 'fest sync' manually")
 		}
 
 		// Verify sync worked
 		if !fileops.Exists(sourceDir) {
 			return errors.NotFound("source directory after sync").
 				WithField("path", sourceDir).
-				WithField("hint", "sync completed but templates not found - check 'fest sync' output")
+				WithHint("sync completed but templates not found - check 'fest sync' output")
 		}
 	}
 

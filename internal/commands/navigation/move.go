@@ -158,7 +158,7 @@ func runMove(ctx context.Context, source, destination string, opts *moveOptions)
 		if !opts.force {
 			return errors.Validation("destination already exists").
 				WithField("path", destPath).
-				WithField("hint", "use --force to overwrite")
+				WithHint("use --force to overwrite")
 		}
 	}
 
@@ -241,7 +241,7 @@ func detectLocation(ctx context.Context, cwd string) (*LocationInfo, error) {
 
 		if cfg.ProjectPath == "" {
 			return nil, errors.Validation("festival has no linked project").
-				WithField("hint", "set project_path in fest.yaml")
+				WithHint("set project_path in fest.yaml")
 		}
 
 		// Compute relative path within festival
@@ -264,7 +264,7 @@ func detectLocation(ctx context.Context, cwd string) (*LocationInfo, error) {
 	festivalName := nav.FindFestivalForPath(cwd)
 	if festivalName == "" {
 		return nil, errors.Validation("not in a festival or linked project directory").
-			WithField("hint", "run from festival or linked project, or set up a link")
+			WithHint("run from festival or linked project, or set up a link")
 	}
 
 	// Find the festival's path

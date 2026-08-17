@@ -178,7 +178,7 @@ func (s *Store) LoadConfig(ctx context.Context) (*Config, error) {
 	data, err := os.ReadFile(configPath)
 	if os.IsNotExist(err) {
 		return nil, errors.NotFound("feedback configuration").
-			WithField("hint", "run 'fest feedback init' first")
+			WithHint("run 'fest feedback init' first")
 	}
 	if err != nil {
 		return nil, errors.IO("reading config file", err).WithField("path", configPath)

@@ -43,7 +43,7 @@ func resolveFestivalFromPath(cwd, pathArg string) (string, error) {
 	festivalsRoot := findFestivalsRoot(cwd)
 	if festivalsRoot == "" {
 		return "", errors.NotFound("festivals directory").
-			WithField("hint", "navigate to a workspace with festivals/ directory")
+			WithHint("navigate to a workspace with festivals/ directory")
 	}
 
 	// Search in all status directories
@@ -87,7 +87,7 @@ func resolveFestivalFromPath(cwd, pathArg string) (string, error) {
 
 	return "", errors.NotFound("festival").
 		WithField("name", pathArg).
-		WithField("hint", "festival not found in active, planning, completed, or dungeon/*")
+		WithHint("festival not found in active, planning, completed, or dungeon/*")
 }
 
 // isValidFestivalDir checks if a directory is a valid festival root.
