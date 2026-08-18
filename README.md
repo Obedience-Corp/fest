@@ -11,10 +11,11 @@
 </p>
 
 <p align="center">
-  <img src="docs/images/fest-explorer-v3.gif" alt="Fest explorer TUI using the shared Obedience Corp fire palette" width="520">
+  <img src="docs/images/fest-loop.gif" alt="fest next printing the next task, then fest watch showing the festival tree fill in as tasks complete and the progress bar climbs to 27%" width="700">
 </p>
+<p align="center"><em><code>fest next</code> hands the agent its next task; <code>fest watch</code> shows the tree fill in as the work lands.</em></p>
 
-<p align="center"><em><a href="https://github.com/Festival-Examples/example-camp-hardening-festival">See the festival behind this demo &rarr;</a></em></p>
+<p align="center"><em><a href="https://github.com/Festival-Examples/example-camp-hardening-festival">Browse a complete festival end to end &rarr;</a></em></p>
 
 **Fest is a template-driven agent orchestrator.** You describe work as structured documents scaffolded from templates you control, and agents execute them through a tracked loop: `fest next` hands the agent its next task with full context, quality gates and approval judges check the work, and progress lands in git. Festival Methodology transforms high-level objectives into structured, executable work that AI agents complete autonomously; fest is the CLI that makes it happen.
 

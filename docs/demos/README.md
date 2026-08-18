@@ -1,13 +1,13 @@
-# Canonical TUI recording
+# TUI recordings
 
-The explorer demo is produced from the real Fest binary in a disposable PTY
-using the shared Obedience Corp fire palette. The committed GIF is the
-optimized delivery artifact; raw GIF, clean-fixture rerun, PTY transcript,
-frame captures, and build details remain in the private VHS evidence bundle.
+These are fest's own local VHS tapes, recorded from the real binary against a
+disposable fixture. The README hero is not one of them: it comes from the
+shared [termcast](https://github.com/Obedience-Corp/termcast) festival content
+pack, so that camp, fest, and the Festival docs site all publish one palette
+and one fixture. See [Reproduce](#reproduce) below.
 
 | Journey | Tape | Delivery GIF | Manifest |
 | --- | --- | --- | --- |
-| Explorer V3 | [fest-explorer-v3.tape](fest-explorer-v3.tape) | [README embed](../../README.md) | [fest-explorer-v3.manifest.json](fest-explorer-v3.manifest.json) |
 | Create what? menu | [fest-create-menu.tape](fest-create-menu.tape) | [fest-create-menu.gif](fest-create-menu.gif) | — |
 | Festival create wizard | [fest-create-festival-wizard.tape](fest-create-festival-wizard.tape) | [fest-create-festival-wizard.gif](fest-create-festival-wizard.gif) | — |
 
@@ -42,19 +42,24 @@ cp out/fest-create-*.gif docs/demos/
 Use `tui.theme: dark` in the fixture config so adaptive background detection does not
 pick a light palette inside VHS/ttyd (which looks uncolored on the dark demo theme).
 
-The private evidence run is `fest/fest-explorer-v3/20260719T105500Z`. Its
-manifest records source revision `e4b491d`, artifact hashes/metadata, the
-12-state PTY/pyte matrix, privacy PASS, and the secret-Gist handoff.
-
 ## Reproduce
 
-Use a disposable fixture containing the branch binary and explorer state, then
-run the real VHS tape from the repository root:
+The README hero (`docs/images/fest-loop.gif`) is the `fest-loop` tape in the
+termcast festival pack. Its seed plans a real festival in a throwaway campaign
+under `/tmp/campaigns` with a redirected `HOME`, and builds the newest released
+fest tag with no build tags, so the recording is the stable command surface a
+reader can actually install:
 
 ```sh
-FEST_VHS_ROOT=/path/to/fest-explorer-v3-fixture just vhs record docs/demos/fest-explorer-v3.tape
+cd /path/to/termcast
+node bin/termcast.mjs tui fest-loop --width 860
+cp out/tui-fest-loop-opt.gif /path/to/fest/docs/images/fest-loop.gif
 ```
 
-The tape sets a fake config directory and terminal identity. It writes raw
-output under `out/`; keep raw recordings and PTY evidence in the private
-bundle, and publish only the optimized GIF after the privacy scan passes.
+Pass `FEST_SRC=/path/to/fest` to record an unreleased change instead of the
+released tag; the build stays tag-free either way.
+
+The local create-TUI tapes above run from a disposable fixture containing the
+branch binary and a `fest init` workspace. They write raw output under `out/`;
+publish only the optimized GIF, and keep raw recordings and PTY evidence out of
+the repository.
