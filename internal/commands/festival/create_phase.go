@@ -327,17 +327,38 @@ func renderPhaseGoalContent(ctx context.Context, cfg *phaseConfig) (string, erro
 
 // writePhaseGoal prepares and writes the PHASE_GOAL.md file with frontmatter and markers.
 func writePhaseGoal(ctx context.Context, cfg *phaseConfig, content string) (*phaseResult, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, errors.Wrap(err, "context cancelled").WithOp("writePhaseGoal")
+	}
+
+	content, err := buildPhaseGoalContent(cfg, content)
+	if err != nil {
+		return nil, err
+	}
+
 	if err := os.MkdirAll(cfg.phaseDir, 0755); err != nil {
 		return nil, errors.IO("creating phase dir", err).WithField("path", cfg.phaseDir)
 	}
 
+	goalPath := filepath.Join(cfg.phaseDir, "PHASE_GOAL.md")
+	if err := os.WriteFile(goalPath, []byte(content), 0644); err != nil {
+		return nil, errors.IO("writing phase goal", err).WithField("path", goalPath)
+	}
+
+	return &phaseResult{goalPath: goalPath}, nil
+}
+
+// buildPhaseGoalContent produces the exact PHASE_GOAL.md bytes writePhaseGoal
+// would write, with no filesystem writes, so a dry-run preview can report the
+// phase markers a real create would leave behind.
+func buildPhaseGoalContent(cfg *phaseConfig, content string) (string, error) {
 	content = stripTemplateFrontmatter(content)
 
 	parentFestivalID := filepath.Base(cfg.absPath)
 	fm := frontmatter.NewPhaseFrontmatter(cfg.phaseID, cfg.opts.Name, parentFestivalID, cfg.newNumber, frontmatter.PhaseType(cfg.opts.PhaseType))
 	contentWithFM, fmErr := frontmatter.InjectString(content, fm)
 	if fmErr != nil {
-		return nil, errors.Wrap(fmErr, "injecting frontmatter")
+		return "", errors.Wrap(fmErr, "injecting frontmatter")
 	}
 	content = contentWithFM
 
@@ -349,12 +370,7 @@ func writePhaseGoal(ctx context.Context, cfg *phaseConfig, content string) (*pha
 		}
 	}
 
-	goalPath := filepath.Join(cfg.phaseDir, "PHASE_GOAL.md")
-	if err := os.WriteFile(goalPath, []byte(content), 0644); err != nil {
-		return nil, errors.IO("writing phase goal", err).WithField("path", goalPath)
-	}
-
-	return &phaseResult{goalPath: goalPath}, nil
+	return content, nil
 }
 
 // copyPhaseStructure copies additional phase structure files from the template directory.

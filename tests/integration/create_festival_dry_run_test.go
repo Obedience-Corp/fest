@@ -14,13 +14,24 @@ import (
 )
 
 type createFestivalPreviewResult struct {
-	OK           bool              `json:"ok"`
-	Action       string            `json:"action"`
-	DryRun       bool              `json:"dry_run"`
-	Festival     map[string]string `json:"festival"`
-	TargetPath   string            `json:"target_path"`
-	PlannedPaths []string          `json:"planned_paths"`
-	Tree         string            `json:"tree"`
+	OK              bool                          `json:"ok"`
+	Action          string                        `json:"action"`
+	DryRun          bool                          `json:"dry_run"`
+	Festival        map[string]string             `json:"festival"`
+	TargetPath      string                        `json:"target_path"`
+	PlannedPaths    []string                      `json:"planned_paths"`
+	Tree            string                        `json:"tree"`
+	Markers         []createFestivalPreviewMarker `json:"markers"`
+	MarkersTotal    int                           `json:"markers_total"`
+	MarkersFilled   int                           `json:"markers_filled"`
+	MarkersUnfilled int                           `json:"markers_unfilled"`
+}
+
+type createFestivalPreviewMarker struct {
+	File   string `json:"file"`
+	Line   int    `json:"line"`
+	Hint   string `json:"hint"`
+	Filled bool   `json:"filled"`
 }
 
 func TestCreateFestivalDryRunPreviewsTreeWithoutWorkspaceWrites(t *testing.T) {
@@ -47,6 +58,8 @@ func TestCreateFestivalDryRunPreviewsTreeWithoutWorkspaceWrites(t *testing.T) {
 	require.Contains(t, humanOutput, "002_PLAN/")
 	require.Contains(t, humanOutput, "FESTIVAL_GOAL.md")
 	require.Contains(t, humanOutput, "gates/")
+	require.Contains(t, humanOutput, "Replace Markers in Template",
+		"human dry-run must list the markers a real create would leave")
 	require.Equal(t, before, snapshotFestivalWorkspace(t, tc, festivalsPath),
 		"human dry-run must leave every workspace path and file byte unchanged")
 
@@ -71,6 +84,18 @@ func TestCreateFestivalDryRunPreviewsTreeWithoutWorkspaceWrites(t *testing.T) {
 	require.NotEmpty(t, preview.PlannedPaths)
 	require.Contains(t, preview.Tree, "001_INGEST/")
 	require.Contains(t, preview.Tree, "input_specs/")
+	require.NotEmpty(t, preview.Markers, "agent dry-run must report template markers")
+	require.Equal(t, len(preview.Markers), preview.MarkersTotal,
+		"markers must list every marker the create would contain")
+	require.Equal(t, preview.MarkersTotal, preview.MarkersUnfilled)
+	require.Zero(t, preview.MarkersFilled)
+	for _, marker := range preview.Markers {
+		require.NotEmpty(t, marker.Hint, "every reported marker needs a hint to fill")
+		require.Positive(t, marker.Line)
+		require.False(t, marker.Filled, "no marker input was supplied")
+		require.Contains(t, preview.PlannedPaths, marker.File,
+			"every marker file must also be a planned path")
+	}
 	require.Equal(t, before, snapshotFestivalWorkspace(t, tc, festivalsPath),
 		"agent dry-run must leave every workspace path and file byte unchanged")
 
@@ -118,6 +143,89 @@ func TestCreateFestivalDryRunWithZeroMarkersDoesNotRegisterFestival(t *testing.T
 	eventsExist, err := tc.CheckFileExists(filepath.Join(festivalsPath, ".festival", ".state", "festival_events.jsonl"))
 	require.NoError(t, err)
 	require.False(t, eventsExist, "dry-run must not register the previewed festival")
+}
+
+func TestCreateFestivalDryRunAppliesMarkersFileWithoutWorkspaceWrites(t *testing.T) {
+	tc := GetSharedContainer(t)
+	festivalsPath := setupWorkspace(t, tc, "/marker-preview-campaign")
+	installPreviewTemplates(t, tc, festivalsPath)
+
+	before := snapshotFestivalWorkspace(t, tc, festivalsPath)
+	discovery, err := tc.RunFestInDir(
+		festivalsPath,
+		"create", "festival",
+		"--name", "marker-preview",
+		"--type", "standard",
+		"--dry-run",
+		"--json",
+	)
+	require.NoError(t, err, "marker discovery dry-run should succeed: %s", discovery)
+
+	var discovered createFestivalPreviewResult
+	require.NoError(t, json.Unmarshal([]byte(discovery), &discovered), "dry-run should emit JSON: %s", discovery)
+	require.NotEmpty(t, discovered.Markers, "dry-run is the documented way to discover markers")
+
+	values := make(map[string]string, len(discovered.Markers))
+	for _, marker := range discovered.Markers {
+		values[marker.Hint] = "resolved: " + marker.Hint
+	}
+	encoded, err := json.Marshal(values)
+	require.NoError(t, err)
+	markersFile := "/tmp/marker-preview-markers.json"
+	require.NoError(t, writeFileInContainer(tc, markersFile, string(encoded)))
+
+	filled, err := tc.RunFestInDir(
+		festivalsPath,
+		"create", "festival",
+		"--name", "marker-preview",
+		"--type", "standard",
+		"--dry-run",
+		"--json",
+		"--markers-file", markersFile,
+	)
+	require.NoError(t, err, "markers-file dry-run should succeed: %s", filled)
+
+	var filledPreview createFestivalPreviewResult
+	require.NoError(t, json.Unmarshal([]byte(filled), &filledPreview), "dry-run should emit JSON: %s", filled)
+	require.Zero(t, filledPreview.MarkersUnfilled, "a complete markers file leaves nothing unfilled")
+	require.Equal(t, discovered.MarkersTotal, filledPreview.MarkersTotal)
+	require.Equal(t, discovered.MarkersTotal, filledPreview.MarkersFilled)
+	require.Len(t, filledPreview.Markers, discovered.MarkersTotal,
+		"the verification pass must still report the whole marker set")
+	for _, marker := range filledPreview.Markers {
+		require.True(t, marker.Filled, "marker %q should be covered by the markers file", marker.Hint)
+	}
+	require.Equal(t, previewMarkerHints(discovered), previewMarkerHints(filledPreview),
+		"supplying markers must not change which markers are reported")
+
+	require.Equal(t, before, snapshotFestivalWorkspace(t, tc, festivalsPath),
+		"marker discovery and marker verification must both leave the workspace unchanged")
+
+	createOutput, err := tc.RunFestInDir(
+		festivalsPath,
+		"create", "festival",
+		"--name", "marker-preview",
+		"--type", "standard",
+		"--markers-file", markersFile,
+	)
+	require.NoError(t, err, "create with the previewed markers should succeed: %s", createOutput)
+
+	created := filepath.Join(festivalsPath, "planning", "marker-preview-"+discovered.Festival["id"])
+	remaining, err := tc.runCommand([]string{
+		"sh", "-c", "grep -rl '\\[REPLACE:' " + created + "/*.md " + created + "/*/PHASE_GOAL.md || true",
+	})
+	require.NoError(t, err)
+	require.Empty(t, strings.TrimSpace(remaining),
+		"the markers a dry-run reported must be exactly the markers a create fills")
+}
+
+// previewMarkerHints lists the reported marker hints in report order.
+func previewMarkerHints(preview createFestivalPreviewResult) []string {
+	hints := make([]string, 0, len(preview.Markers))
+	for _, marker := range preview.Markers {
+		hints = append(hints, marker.Hint)
+	}
+	return hints
 }
 
 func installPreviewTemplates(t *testing.T, tc *TestContainer, festivalsPath string) {
