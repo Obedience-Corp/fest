@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
-	"github.com/Obedience-Corp/fest/internal/pathutil"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
 )
@@ -25,13 +24,17 @@ type festivalPreview struct {
 }
 
 type createFestivalPreviewResult struct {
-	OK           bool              `json:"ok"`
-	Action       string            `json:"action"`
-	DryRun       bool              `json:"dry_run"`
-	Festival     map[string]string `json:"festival"`
-	TargetPath   string            `json:"target_path"`
-	PlannedPaths []string          `json:"planned_paths"`
-	Tree         string            `json:"tree"`
+	OK              bool                    `json:"ok"`
+	Action          string                  `json:"action"`
+	DryRun          bool                    `json:"dry_run"`
+	Festival        map[string]string       `json:"festival"`
+	TargetPath      string                  `json:"target_path"`
+	PlannedPaths    []string                `json:"planned_paths"`
+	Tree            string                  `json:"tree"`
+	Markers         []festivalPreviewMarker `json:"markers"`
+	MarkersTotal    int                     `json:"markers_total"`
+	MarkersFilled   int                     `json:"markers_filled"`
+	MarkersUnfilled int                     `json:"markers_unfilled"`
 }
 
 type festivalPreviewTreeNode struct {
@@ -47,9 +50,12 @@ func previewCreateFestival(ctx context.Context, cfg *createConfig) error {
 		return emitCreateFestivalError(cfg.opts, err)
 	}
 
-	displayPath := func(path string) string {
-		return pathutil.DisplayPath(path, cfg.campaignRoot)
+	markerPreview, err := buildFestivalMarkerPreview(ctx, cfg)
+	if err != nil {
+		return emitCreateFestivalError(cfg.opts, err)
 	}
+
+	displayPath := createDisplayPathFunc(cfg)
 	tree := renderFestivalPreviewTree(cfg.dirName, preview.entries)
 	plannedPaths := make([]string, 0, len(preview.entries))
 	for _, entry := range preview.entries {
@@ -61,13 +67,17 @@ func previewCreateFestival(ctx context.Context, cfg *createConfig) error {
 	}
 
 	result := createFestivalPreviewResult{
-		OK:           true,
-		Action:       "create_festival_preview",
-		DryRun:       true,
-		Festival:     festivalMapForConfig(cfg),
-		TargetPath:   displayPath(cfg.destDir),
-		PlannedPaths: plannedPaths,
-		Tree:         tree,
+		OK:              true,
+		Action:          "create_festival_preview",
+		DryRun:          true,
+		Festival:        festivalMapForConfig(cfg),
+		TargetPath:      displayPath(cfg.destDir),
+		PlannedPaths:    plannedPaths,
+		Tree:            tree,
+		Markers:         markerPreview.unfilled,
+		MarkersTotal:    markerPreview.total,
+		MarkersFilled:   markerPreview.filled,
+		MarkersUnfilled: len(markerPreview.unfilled),
 	}
 
 	if cfg.opts.JSONOutput {
@@ -79,6 +89,7 @@ func previewCreateFestival(ctx context.Context, cfg *createConfig) error {
 	fmt.Println(ui.H2("Dry Run — No Files Created"))
 	fmt.Printf("Would create %s%c\n", result.TargetPath, filepath.Separator)
 	fmt.Println(tree)
+	printFestivalPreviewMarkers(markerPreview)
 	return nil
 }
 
@@ -203,7 +214,50 @@ func collectTemplateTree(ctx context.Context, root, relativeRoot string) ([]fest
 }
 
 func collectGatePreviewEntries(ctx context.Context, tmplRoot string) ([]festivalPreviewEntry, error) {
+	plan, err := collectGateTemplatePlan(ctx, tmplRoot)
+	if err != nil {
+		return nil, err
+	}
+
 	var planned []festivalPreviewEntry
+	for _, group := range plan.groups {
+		planned = append(planned,
+			festivalPreviewEntry{path: "gates", isDir: true},
+			festivalPreviewEntry{path: filepath.Join("gates", group.phaseType), isDir: true},
+		)
+		for _, file := range group.files {
+			planned = append(planned, festivalPreviewEntry{path: file.dest})
+		}
+	}
+	return planned, nil
+}
+
+// gateTemplateFile pairs a gate template source with the festival-relative path
+// creation would copy it to.
+type gateTemplateFile struct {
+	source string
+	dest   string
+}
+
+// gateTemplateGroup holds the gate templates creation would copy for one phase
+// type. The group exists even when it carries no files, because creation still
+// makes the gates/<phase type>/ directory.
+type gateTemplateGroup struct {
+	phaseType string
+	files     []gateTemplateFile
+}
+
+// gateTemplatePlan describes the gate directories creation would make and the
+// gate templates it would copy into them, in copy order.
+type gateTemplatePlan struct {
+	groups []gateTemplateGroup
+}
+
+// collectGateTemplatePlan resolves the gate work copyGateTemplates would do,
+// without touching the destination. Both the preview tree and the preview marker
+// report read from it so they cannot drift from the real copy.
+func collectGateTemplatePlan(ctx context.Context, tmplRoot string) (*gateTemplatePlan, error) {
+	plan := &gateTemplatePlan{}
 	for _, phaseType := range festivalGatePhaseTypes {
 		if err := ctx.Err(); err != nil {
 			return nil, errors.Wrap(err, "context cancelled")
@@ -218,17 +272,19 @@ func collectGatePreviewEntries(ctx context.Context, tmplRoot string) ([]festival
 			return nil, errors.IO("reading gate template directory", err).WithField("path", sourceDir)
 		}
 
-		planned = append(planned,
-			festivalPreviewEntry{path: "gates", isDir: true},
-			festivalPreviewEntry{path: filepath.Join("gates", phaseType), isDir: true},
-		)
+		group := gateTemplateGroup{phaseType: phaseType}
 		for _, entry := range entries {
-			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".md") {
-				planned = append(planned, festivalPreviewEntry{path: filepath.Join("gates", phaseType, entry.Name())})
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+				continue
 			}
+			group.files = append(group.files, gateTemplateFile{
+				source: filepath.Join(sourceDir, entry.Name()),
+				dest:   filepath.Join("gates", phaseType, entry.Name()),
+			})
 		}
+		plan.groups = append(plan.groups, group)
 	}
-	return planned, nil
+	return plan, nil
 }
 
 func deduplicateFestivalPreviewEntries(entries []festivalPreviewEntry) []festivalPreviewEntry {

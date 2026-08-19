@@ -49,7 +49,7 @@ type CreateFestivalOptions struct {
 	Seed        string // Inline seed/input-spec content for the ingest phase
 	SeedFile    string // File whose contents seed the ingest phase
 	SkipMarkers bool   // Skip marker processing
-	DryRun      bool   // Preview the scaffold tree without writing anything
+	DryRun      bool   // Preview the scaffold tree and its template markers without writing anything
 	JSONOutput  bool
 	Dest        string // "planning" (default) or "ritual" (for ritual-type festivals)
 	AgentMode   bool   // Strict mode for AI agents
@@ -164,7 +164,7 @@ func NewCreateFestivalCommand() *cobra.Command {
 	cmd.Flags().StringVar(&opts.Seed, "seed", "", "Inline seed content written to the ingest phase input_specs/ (requires a type with an ingest phase)")
 	cmd.Flags().StringVar(&opts.SeedFile, "seed-file", "", "File whose contents seed the ingest phase input_specs/ (mutually exclusive with --seed)")
 	cmd.Flags().BoolVar(&opts.SkipMarkers, "skip-markers", false, "Skip REPLACE marker processing")
-	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "Preview the festival file tree without writing anything")
+	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "Preview the festival file tree and its template markers without writing anything")
 	cmd.Flags().BoolVar(&opts.JSONOutput, "json", false, "Emit JSON output")
 	cmd.Flags().StringVar(&opts.Dest, "dest", "planning", "Destination under festivals/: planning or ritual (use 'fest promote' to advance to active)")
 	cmd.Flags().BoolVar(&opts.AgentMode, "agent", false, "Strict mode: process markers, auto-validate, rollback on blocking errors, JSON output")
@@ -428,21 +428,43 @@ func renderFestivalTemplates(ctx context.Context, cfg *createConfig) ([]string, 
 	return created, copiedGates, nil
 }
 
-// renderCoreFile renders a single core festival file from a template.
+// renderCoreFile renders a single core festival file from a template and writes
+// it into the festival directory.
 // Returns the output path, or empty string if the template was not found.
 func renderCoreFile(ctx context.Context, cfg *createConfig, mgr *tpl.Manager, templateName, outName string) (string, error) {
-	tpath := filepath.Join(cfg.tmplRoot, templateName)
-	if _, err := os.Stat(tpath); err != nil {
+	content, found, err := buildCoreFileContent(ctx, cfg, mgr, templateName, outName)
+	if err != nil {
+		return "", err
+	}
+	if !found {
 		if !cfg.opts.JSONOutput {
 			cfg.display.Warning("Template not found, skipping: %s", templateName)
 		}
 		return "", nil
 	}
 
+	outPath := filepath.Join(cfg.destDir, outName)
+	if err := os.WriteFile(outPath, []byte(content), 0644); err != nil {
+		return "", errors.IO("writing file", err).WithField("path", outPath)
+	}
+	return outPath, nil
+}
+
+// buildCoreFileContent produces the exact bytes renderCoreFile would write, with
+// no filesystem writes. The dry-run preview relies on this to report the markers
+// a real create would leave behind.
+// Returns found=false when the template is absent.
+func buildCoreFileContent(ctx context.Context, cfg *createConfig, mgr *tpl.Manager, templateName, outName string) (string, bool, error) {
+	tpath := filepath.Join(cfg.tmplRoot, templateName)
+	info, err := os.Stat(tpath)
+	if err != nil || info.IsDir() {
+		return "", false, nil
+	}
+
 	loader := tpl.NewLoader()
-	t, err := loader.Load(ctx, tpath)
-	if err != nil {
-		return "", errors.Wrap(err, "loading template").WithField("template", templateName)
+	t, loadErr := loader.Load(ctx, tpath)
+	if loadErr != nil {
+		return "", false, errors.Wrap(loadErr, "loading template").WithField("template", templateName)
 	}
 
 	content := renderOrCopyTemplate(mgr, t, cfg.tmplCtx)
@@ -452,24 +474,26 @@ func renderCoreFile(ctx context.Context, cfg *createConfig, mgr *tpl.Manager, te
 		fm.Status = frontmatter.StatusPlanning
 		contentWithFM, fmErr := frontmatter.InjectString(content, fm)
 		if fmErr != nil {
-			return "", errors.Wrap(fmErr, "injecting frontmatter")
+			return "", false, errors.Wrap(fmErr, "injecting frontmatter")
 		}
 		content = contentWithFM
 	}
 
-	if !cfg.skipMarkers {
-		renderer := tpl.NewRenderer()
-		rendered, renderErr := renderer.RenderWithMarkerReplacement(content, cfg.tmplCtx, nil)
-		if renderErr == nil {
-			content = rendered
-		}
-	}
+	return applyFestivalMarkerRendering(cfg, content), true, nil
+}
 
-	outPath := filepath.Join(cfg.destDir, outName)
-	if err := os.WriteFile(outPath, []byte(content), 0644); err != nil {
-		return "", errors.IO("writing file", err).WithField("path", outPath)
+// applyFestivalMarkerRendering fills the markers a festival-level template
+// context can resolve, leaving the rest for --markers input or a human.
+func applyFestivalMarkerRendering(cfg *createConfig, content string) string {
+	if cfg.skipMarkers {
+		return content
 	}
-	return outPath, nil
+	renderer := tpl.NewRenderer()
+	rendered, err := renderer.RenderWithMarkerReplacement(content, cfg.tmplCtx, nil)
+	if err != nil {
+		return content
+	}
+	return rendered
 }
 
 // renderOrCopyTemplate renders a template if it contains variables, otherwise returns content as-is.
@@ -518,14 +542,7 @@ func copyGateTemplates(ctx context.Context, cfg *createConfig) ([]string, []stri
 				return nil, nil, errors.IO("reading gate template", err).WithField("path", srcPath)
 			}
 
-			processed := string(content)
-			if !cfg.skipMarkers {
-				renderer := tpl.NewRenderer()
-				rendered, renderErr := renderer.RenderWithMarkerReplacement(processed, cfg.tmplCtx, nil)
-				if renderErr == nil {
-					processed = rendered
-				}
-			}
+			processed := applyFestivalMarkerRendering(cfg, string(content))
 
 			if err := os.WriteFile(destPath, []byte(processed), 0644); err != nil {
 				return nil, nil, errors.IO("writing gate template", err).WithField("path", destPath)
@@ -670,22 +687,7 @@ func autoScaffoldPhases(ctx context.Context, cfg *createConfig, created []string
 	var autoPhasesCreated []string
 	autoPhases := cfg.festivalType.GetAutoPhases()
 	for i, phaseSpec := range autoPhases {
-		phaseContext := ""
-		if cfg.seedRequested && phaseSpec.Type == "ingest" {
-			phaseContext = "Seeded input is available in input_specs/seed.md and should be transformed into structured output specs for planning."
-		}
-		phaseOpts := &CreatePhaseOptions{
-			After:       i,
-			Name:        phaseSpec.Name,
-			PhaseType:   mapPhaseSpecType(phaseSpec.Type),
-			Description: phaseSpec.Description,
-			Context:     phaseContext,
-			Path:        cfg.destDir,
-			SkipMarkers: cfg.skipMarkers,
-			JSONOutput:  false,
-			AgentMode:   false,
-			Quiet:       true,
-		}
+		phaseOpts := autoPhaseOptions(cfg, i, phaseSpec)
 
 		if phaseErr := RunCreatePhase(ctx, phaseOpts); phaseErr != nil {
 			if !cfg.opts.JSONOutput {
@@ -699,6 +701,28 @@ func autoScaffoldPhases(ctx context.Context, cfg *createConfig, created []string
 		created = append(created, filepath.Join(cfg.destDir, phaseID, "PHASE_GOAL.md"))
 	}
 	return created, autoPhasesCreated
+}
+
+// autoPhaseOptions builds the create-phase options an auto-scaffolded phase runs
+// with. The dry-run preview builds its phase template context from the same
+// options so the markers it reports match the ones a real create would leave.
+func autoPhaseOptions(cfg *createConfig, index int, phaseSpec types.PhaseSpec) *CreatePhaseOptions {
+	phaseContext := ""
+	if cfg.seedRequested && phaseSpec.Type == "ingest" {
+		phaseContext = "Seeded input is available in input_specs/seed.md and should be transformed into structured output specs for planning."
+	}
+	return &CreatePhaseOptions{
+		After:       index,
+		Name:        phaseSpec.Name,
+		PhaseType:   mapPhaseSpecType(phaseSpec.Type),
+		Description: phaseSpec.Description,
+		Context:     phaseContext,
+		Path:        cfg.destDir,
+		SkipMarkers: cfg.skipMarkers,
+		JSONOutput:  false,
+		AgentMode:   false,
+		Quiet:       true,
+	}
 }
 
 // resolveAndValidateSeed resolves --seed/--seed-file content and verifies the
