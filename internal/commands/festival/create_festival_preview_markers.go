@@ -13,12 +13,17 @@ import (
 	"github.com/Obedience-Corp/fest/internal/ui"
 )
 
-// festivalPreviewMarker is one template marker a real create would leave
-// unfilled in a planned file.
+// festivalPreviewMarker is one template marker a real create would contain.
+// Filled reports whether the supplied --markers/--markers-file input resolves
+// it, so a caller sees the whole marker set on every run instead of only the
+// part its own input failed to cover. The resolved value is deliberately not
+// echoed back: the caller already holds it, and template values are unbounded
+// user text.
 type festivalPreviewMarker struct {
-	File string `json:"file"`
-	Hint string `json:"hint"`
-	Line int    `json:"line"`
+	File   string `json:"file"`
+	Line   int    `json:"line"`
+	Hint   string `json:"hint"`
+	Filled bool   `json:"filled"`
 
 	// rel is the festival-relative form of File, used for human output only.
 	rel string
@@ -27,9 +32,21 @@ type festivalPreviewMarker struct {
 // festivalMarkerPreview reports the markers a real create would produce, derived
 // from templates rendered in memory.
 type festivalMarkerPreview struct {
-	unfilled []festivalPreviewMarker
+	markers  []festivalPreviewMarker
 	total    int
 	filled   int
+	unfilled int
+}
+
+// unfilledMarkers returns the markers still needing a value.
+func (p *festivalMarkerPreview) unfilledMarkers() []festivalPreviewMarker {
+	remaining := make([]festivalPreviewMarker, 0, p.unfilled)
+	for _, marker := range p.markers {
+		if !marker.Filled {
+			remaining = append(remaining, marker)
+		}
+	}
+	return remaining
 }
 
 // previewMarkerSource is one planned file with the exact content a real create
@@ -59,7 +76,7 @@ func buildFestivalMarkerPreview(ctx context.Context, cfg *createConfig) (*festiv
 	}
 
 	displayPath := createDisplayPathFunc(cfg)
-	preview := &festivalMarkerPreview{unfilled: []festivalPreviewMarker{}}
+	preview := &festivalMarkerPreview{markers: []festivalPreviewMarker{}}
 	for _, source := range sources {
 		found := markers.Parse(source.content)
 		if len(found) == 0 {
@@ -67,15 +84,18 @@ func buildFestivalMarkerPreview(ctx context.Context, cfg *createConfig) (*festiv
 		}
 		preview.total += len(found)
 		for _, value := range markers.ApplyInput(found, input) {
-			if value.Value != value.Marker.FullMatch {
+			filled := value.Value != value.Marker.FullMatch
+			if filled {
 				preview.filled++
-				continue
+			} else {
+				preview.unfilled++
 			}
-			preview.unfilled = append(preview.unfilled, festivalPreviewMarker{
-				File: displayPath(filepath.Join(cfg.destDir, source.rel)),
-				Hint: value.Marker.Hint,
-				Line: value.Marker.LineNumber,
-				rel:  filepath.ToSlash(source.rel),
+			preview.markers = append(preview.markers, festivalPreviewMarker{
+				File:   displayPath(filepath.Join(cfg.destDir, source.rel)),
+				Line:   value.Marker.LineNumber,
+				Hint:   value.Marker.Hint,
+				Filled: filled,
+				rel:    filepath.ToSlash(source.rel),
 			})
 		}
 	}
@@ -234,22 +254,24 @@ func previewPhaseConfig(cfg *createConfig, index int, phaseSpec types.PhaseSpec)
 	}
 }
 
-// printFestivalPreviewMarkers reports the markers a real create would leave, so
-// a human can see what they will need to fill before creating anything.
+// printFestivalPreviewMarkers reports the markers a real create would contain,
+// so a human sees both the overall state and what they still need to fill.
 func printFestivalPreviewMarkers(preview *festivalMarkerPreview) {
 	if preview.total == 0 {
 		return
 	}
 
 	fmt.Println()
-	if len(preview.unfilled) == 0 {
-		fmt.Println(ui.H2("Replace Markers in Template"))
-		fmt.Printf("  %s\n", ui.Success(fmt.Sprintf("All %d markers would be filled by the supplied marker values.", preview.total)))
+	fmt.Println(ui.H2("Replace Markers in Template"))
+	fmt.Printf("  %s\n", ui.Info(previewMarkerSummary(preview)))
+
+	remaining := preview.unfilledMarkers()
+	if len(remaining) == 0 {
 		return
 	}
 
-	fmt.Println(ui.H2("Replace Markers in Template"))
-	for _, group := range groupPreviewMarkers(preview.unfilled) {
+	fmt.Println()
+	for _, group := range groupPreviewMarkers(remaining) {
 		fmt.Printf("  %s %s\n", ui.Value(group.file), ui.Info(fmt.Sprintf("(%d)", len(group.markers))))
 		for i, marker := range group.markers {
 			fmt.Printf("    %s %s\n",
@@ -258,8 +280,19 @@ func printFestivalPreviewMarkers(preview *festivalMarkerPreview) {
 		}
 	}
 	fmt.Println()
-	fmt.Println(ui.Info(fmt.Sprintf("%d of %d markers would be filled.", preview.filled, preview.total)))
 	fmt.Println(ui.Info("Use --markers '{\"hint\": \"value\", ...}' or --markers-file to fill the rest."))
+}
+
+// previewMarkerSummary states the marker totals in one line.
+func previewMarkerSummary(preview *festivalMarkerPreview) string {
+	switch {
+	case preview.unfilled == 0:
+		return fmt.Sprintf("%d markers, %d filled", preview.total, preview.filled)
+	case preview.filled == 0:
+		return fmt.Sprintf("%d markers, %d unfilled", preview.total, preview.unfilled)
+	default:
+		return fmt.Sprintf("%d markers, %d filled, %d unfilled", preview.total, preview.filled, preview.unfilled)
+	}
 }
 
 // previewMarkerGroup collects the unfilled markers of one planned file.

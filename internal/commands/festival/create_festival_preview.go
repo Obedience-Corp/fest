@@ -24,13 +24,15 @@ type festivalPreview struct {
 }
 
 type createFestivalPreviewResult struct {
-	OK              bool                    `json:"ok"`
-	Action          string                  `json:"action"`
-	DryRun          bool                    `json:"dry_run"`
-	Festival        map[string]string       `json:"festival"`
-	TargetPath      string                  `json:"target_path"`
-	PlannedPaths    []string                `json:"planned_paths"`
-	Tree            string                  `json:"tree"`
+	OK           bool              `json:"ok"`
+	Action       string            `json:"action"`
+	DryRun       bool              `json:"dry_run"`
+	Festival     map[string]string `json:"festival"`
+	TargetPath   string            `json:"target_path"`
+	PlannedPaths []string          `json:"planned_paths"`
+	Tree         string            `json:"tree"`
+	// Markers lists every template marker the create would contain, filled or
+	// not, so one dry-run reports the whole set regardless of supplied input.
 	Markers         []festivalPreviewMarker `json:"markers"`
 	MarkersTotal    int                     `json:"markers_total"`
 	MarkersFilled   int                     `json:"markers_filled"`
@@ -74,10 +76,10 @@ func previewCreateFestival(ctx context.Context, cfg *createConfig) error {
 		TargetPath:      displayPath(cfg.destDir),
 		PlannedPaths:    plannedPaths,
 		Tree:            tree,
-		Markers:         markerPreview.unfilled,
+		Markers:         markerPreview.markers,
 		MarkersTotal:    markerPreview.total,
 		MarkersFilled:   markerPreview.filled,
-		MarkersUnfilled: len(markerPreview.unfilled),
+		MarkersUnfilled: markerPreview.unfilled,
 	}
 
 	if cfg.opts.JSONOutput {

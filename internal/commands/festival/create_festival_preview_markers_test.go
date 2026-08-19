@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -151,6 +152,22 @@ func previewHints(preview createFestivalPreviewResult) []string {
 	return hints
 }
 
+// previewFilledHints returns the hints the preview reports as filled.
+func previewFilledHints(preview createFestivalPreviewResult) []string {
+	var hints []string
+	for _, marker := range preview.Markers {
+		if marker.Filled {
+			hints = append(hints, marker.Hint)
+		}
+	}
+	return hints
+}
+
+// countFilledPreviewMarkers counts the markers flagged filled.
+func countFilledPreviewMarkers(preview createFestivalPreviewResult) int {
+	return len(previewFilledHints(preview))
+}
+
 func TestPreviewMarkersRejectsBadInput(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -273,6 +290,9 @@ func TestPreviewReportsMarkersWithoutWriting(t *testing.T) {
 				if marker.Line <= 0 {
 					t.Fatalf("marker %q reported line %d", marker.Hint, marker.Line)
 				}
+				if marker.Filled {
+					t.Fatalf("marker %q reported filled with no marker input", marker.Hint)
+				}
 			}
 
 			planning := filepath.Join(festivalsDir, "planning")
@@ -300,30 +320,42 @@ func TestPreviewReportsMarkersWithoutWriting(t *testing.T) {
 
 func TestPreviewAppliesSuppliedMarkerValues(t *testing.T) {
 	tests := []struct {
-		name         string
-		useFile      bool
-		values       map[string]string
-		wantFilled   int
-		wantUnfilled int
+		name            string
+		useFile         bool
+		values          map[string]string
+		wantFilled      int
+		wantUnfilled    int
+		wantFilledHints []string
 	}{
 		{
-			name:         "complete markers file fills everything",
-			useFile:      true,
-			values:       completeStandardMarkerValues(),
-			wantFilled:   6,
-			wantUnfilled: 0,
+			name:            "complete markers file fills everything",
+			useFile:         true,
+			values:          completeStandardMarkerValues(),
+			wantFilled:      6,
+			wantUnfilled:    0,
+			wantFilledHints: nil,
 		},
 		{
-			name:         "partial inline markers leave the rest",
-			values:       map[string]string{"Desired end state": "A working preview"},
-			wantFilled:   1,
-			wantUnfilled: 5,
+			name:            "partial markers file yields mixed filled flags",
+			useFile:         true,
+			values:          map[string]string{"Desired end state": "A working preview", "Ingest scope": "The regression report"},
+			wantFilled:      2,
+			wantUnfilled:    4,
+			wantFilledHints: []string{"Desired end state", "Ingest scope"},
 		},
 		{
-			name:         "unrelated hints fill nothing",
-			values:       map[string]string{"Not a real hint": "ignored"},
-			wantFilled:   0,
-			wantUnfilled: 6,
+			name:            "partial inline markers leave the rest",
+			values:          map[string]string{"Desired end state": "A working preview"},
+			wantFilled:      1,
+			wantUnfilled:    5,
+			wantFilledHints: []string{"Desired end state"},
+		},
+		{
+			name:            "unrelated hints fill nothing",
+			values:          map[string]string{"Not a real hint": "ignored"},
+			wantFilled:      0,
+			wantUnfilled:    6,
+			wantFilledHints: nil,
 		},
 	}
 
@@ -361,8 +393,21 @@ func TestPreviewAppliesSuppliedMarkerValues(t *testing.T) {
 			if preview.MarkersUnfilled != tt.wantUnfilled {
 				t.Fatalf("markers_unfilled = %d, want %d", preview.MarkersUnfilled, tt.wantUnfilled)
 			}
-			if len(preview.Markers) != tt.wantUnfilled {
-				t.Fatalf("markers list has %d entries, want %d", len(preview.Markers), tt.wantUnfilled)
+			if len(preview.Markers) != 6 {
+				t.Fatalf("markers list has %d entries, want every marker (6)", len(preview.Markers))
+			}
+			if got := countFilledPreviewMarkers(preview); got != tt.wantFilled {
+				t.Fatalf("%d markers flagged filled, want %d (markers_filled reported %d)",
+					got, tt.wantFilled, preview.MarkersFilled)
+			}
+			if tt.wantFilledHints != nil {
+				got := previewFilledHints(preview)
+				sort.Strings(got)
+				want := append([]string(nil), tt.wantFilledHints...)
+				sort.Strings(want)
+				if !equalStringSlices(got, want) {
+					t.Fatalf("filled hints = %v, want %v", got, want)
+				}
 			}
 		})
 	}
@@ -390,7 +435,7 @@ func TestPreviewHumanOutputListsMarkers(t *testing.T) {
 		"Current state and its problems",
 		"001_INGEST/PHASE_GOAL.md",
 		"Ingest scope",
-		"0 of 6 markers would be filled.",
+		"6 markers, 6 unfilled",
 	} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("human dry-run output is missing %q:\n%s", want, output)
@@ -398,33 +443,66 @@ func TestPreviewHumanOutputListsMarkers(t *testing.T) {
 	}
 }
 
-func TestPreviewHumanOutputReportsFullyFilledPlan(t *testing.T) {
-	newPreviewMarkerWorkspace(t)
-
-	encoded, err := json.Marshal(completeStandardMarkerValues())
-	if err != nil {
-		t.Fatalf("encoding marker values: %v", err)
+func TestPreviewHumanOutputSummarizesMarkerState(t *testing.T) {
+	tests := []struct {
+		name         string
+		values       map[string]string
+		wantSummary  string
+		wantListed   bool
+		wantHintText string
+	}{
+		{
+			name:        "complete plan lists nothing to fill",
+			values:      completeStandardMarkerValues(),
+			wantSummary: "6 markers, 6 filled",
+		},
+		{
+			name:         "partial plan reports both counts and lists the rest",
+			values:       map[string]string{"Desired end state": "A working preview", "Ingest scope": "The regression report"},
+			wantSummary:  "6 markers, 2 filled, 4 unfilled",
+			wantListed:   true,
+			wantHintText: "Current state and its problems",
+		},
 	}
 
-	output, err := capturePreviewStdout(t, func() error {
-		return RunCreateFestival(context.Background(), &CreateFestivalOptions{
-			Name:    "filled-human-preview",
-			Goal:    "Prove a complete marker plan reports zero unfilled",
-			Type:    "standard",
-			Dest:    "planning",
-			Markers: string(encoded),
-			DryRun:  true,
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			newPreviewMarkerWorkspace(t)
+
+			encoded, err := json.Marshal(tt.values)
+			if err != nil {
+				t.Fatalf("encoding marker values: %v", err)
+			}
+
+			output, err := capturePreviewStdout(t, func() error {
+				return RunCreateFestival(context.Background(), &CreateFestivalOptions{
+					Name:    "summary-human-preview",
+					Goal:    "Prove the human summary reports marker state",
+					Type:    "standard",
+					Dest:    "planning",
+					Markers: string(encoded),
+					DryRun:  true,
+				})
+			})
+			if err != nil {
+				t.Fatalf("dry-run failed: %v (output: %s)", err, output)
+			}
+
+			if !strings.Contains(output, tt.wantSummary) {
+				t.Fatalf("human dry-run output is missing summary %q:\n%s", tt.wantSummary, output)
+			}
+			if listed := strings.Contains(output, "[line "); listed != tt.wantListed {
+				t.Fatalf("human dry-run listed markers = %v, want %v:\n%s", listed, tt.wantListed, output)
+			}
+			if tt.wantHintText != "" && !strings.Contains(output, tt.wantHintText) {
+				t.Fatalf("human dry-run output is missing unfilled hint %q:\n%s", tt.wantHintText, output)
+			}
+			for hint := range tt.values {
+				if strings.Contains(output, hint) {
+					t.Fatalf("human dry-run listed the already filled hint %q:\n%s", hint, output)
+				}
+			}
 		})
-	})
-	if err != nil {
-		t.Fatalf("dry-run failed: %v (output: %s)", err, output)
-	}
-
-	if !strings.Contains(output, "All 6 markers would be filled") {
-		t.Fatalf("human dry-run output does not report a complete plan:\n%s", output)
-	}
-	if strings.Contains(output, "[line ") {
-		t.Fatalf("human dry-run listed unfilled markers for a complete plan:\n%s", output)
 	}
 }
 
