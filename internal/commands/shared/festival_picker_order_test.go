@@ -197,3 +197,45 @@ func TestFestivalPickerItemsFallbackBroadensWithinWatchableSet(t *testing.T) {
 		t.Fatal("fallback should broaden from empty active to ready")
 	}
 }
+
+// The broadening lives in CollectFestivalPickCandidates so completion and picker
+// surfaces built on the same options never disagree about what exists.
+func TestCollectFestivalPickCandidatesBroadensToFallbackStatuses(t *testing.T) {
+	festivals := t.TempDir()
+	writeFestival(t, filepath.Join(festivals, ".dungeon", "completed", "2026-08-19", "cans-CA0001"))
+
+	candidates := CollectFestivalPickCandidates(festivals, FestivalPickerOptions{
+		PreferredStatuses:        BrowseFestivalPickerStatuses,
+		FallbackStatuses:         DungeonFestivalPickerStatuses,
+		OrderByStatusThenRecency: true,
+	})
+
+	if len(candidates) != 1 {
+		t.Fatalf("expected the completed festival via fallback, got %#v", candidates)
+	}
+	if candidates[0].Name != "cans-CA0001" {
+		t.Fatalf("candidate = %q, want cans-CA0001", candidates[0].Name)
+	}
+	if candidates[0].Status != "dungeon/completed" {
+		t.Fatalf("status = %q, want dungeon/completed", candidates[0].Status)
+	}
+}
+
+func TestCollectFestivalPickCandidatesPrefersWorkingStatuses(t *testing.T) {
+	festivals := t.TempDir()
+	writeFestival(t, filepath.Join(festivals, "active", "live-LV0001"))
+	writeFestival(t, filepath.Join(festivals, ".dungeon", "completed", "2026-08-19", "cans-CA0001"))
+
+	candidates := CollectFestivalPickCandidates(festivals, FestivalPickerOptions{
+		PreferredStatuses:        BrowseFestivalPickerStatuses,
+		FallbackStatuses:         DungeonFestivalPickerStatuses,
+		OrderByStatusThenRecency: true,
+	})
+
+	if len(candidates) != 1 {
+		t.Fatalf("expected only the active festival, got %#v", candidates)
+	}
+	if candidates[0].Name != "live-LV0001" {
+		t.Fatalf("candidate = %q, want live-LV0001", candidates[0].Name)
+	}
+}
