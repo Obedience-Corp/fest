@@ -41,9 +41,9 @@ type FestivalPickerOptions struct {
 	// status child directories are navigable even before they have festival markers.
 	IncludeUnmarkedFestivalDirectories bool
 	PreferredStatuses                  []string
-	// FallbackStatuses bounds the empty-result broadening in FestivalPickerItems:
-	// when PreferredStatuses yields nothing, it broadens to these rather than the
-	// unbounded default set.
+	// FallbackStatuses bounds the empty-result broadening in
+	// CollectFestivalPickCandidates: when PreferredStatuses yields nothing, it
+	// broadens to these rather than the unbounded default set.
 	FallbackStatuses []string
 	// OrderByStatusThenRecency sorts by status priority, then newest-modified, then name.
 	OrderByStatusThenRecency bool
@@ -179,8 +179,26 @@ func ListFestivalPickCandidates(ctx context.Context, cwd string, opts FestivalPi
 	return CollectFestivalPickCandidates(festivalsDir, opts), nil
 }
 
-// CollectFestivalPickCandidates gathers festival picker/completion candidates from festivalsDir.
+// CollectFestivalPickCandidates gathers festival picker/completion candidates from
+// festivalsDir. When PreferredStatuses yields nothing it broadens once to
+// FallbackStatuses, so every surface built on these options — pickers, the show
+// cycle, and shell completions alike — agrees on what a campaign has to offer.
+//
+// Broadening requires an explicit FallbackStatuses. A caller that names
+// PreferredStatuses and no fallback has opted out: promote and watch completion
+// must never offer a dungeoned festival as a target, so an empty preferred result
+// stays empty rather than falling through to the unbounded default set.
 func CollectFestivalPickCandidates(festivalsDir string, opts FestivalPickerOptions) []FestivalPickCandidate {
+	candidates := collectOrderedPickCandidates(festivalsDir, opts)
+	if len(candidates) > 0 || len(opts.PreferredStatuses) == 0 || len(opts.FallbackStatuses) == 0 {
+		return candidates
+	}
+	broadened := opts
+	broadened.PreferredStatuses = opts.FallbackStatuses
+	return collectOrderedPickCandidates(festivalsDir, broadened)
+}
+
+func collectOrderedPickCandidates(festivalsDir string, opts FestivalPickerOptions) []FestivalPickCandidate {
 	statuses := normalizeCandidateStatuses(opts.PreferredStatuses)
 	if len(statuses) == 0 {
 		statuses = defaultCandidateStatuses()

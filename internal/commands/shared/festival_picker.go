@@ -25,6 +25,12 @@ var WorkingFestivalPickerStatuses = []string{"active", "ready", "planning"}
 // from watch/progress pickers that target active execution context.
 var BrowseFestivalPickerStatuses = []string{"active", "ready", "planning", "ritual"}
 
+// DungeonFestivalPickerStatuses is the browse fallback for a campaign whose only
+// festivals are dungeoned. A campaign that just completed its single festival
+// still has something worth showing, so browse-oriented surfaces broaden to the
+// dungeon rather than reporting that no festival exists.
+var DungeonFestivalPickerStatuses = []string{"dungeon/completed", "dungeon/archived", "dungeon/someday"}
+
 type FestivalPickOutcome int
 
 const (
@@ -67,15 +73,10 @@ func PickFestivalPath(ctx context.Context, festivalsDir string, opts FestivalPic
 	return path, err
 }
 
-// FestivalPickerItems returns picker items for festival candidates.
+// FestivalPickerItems returns picker items for festival candidates, including the
+// FallbackStatuses broadening applied by CollectFestivalPickCandidates.
 func FestivalPickerItems(festivalsDir string, opts FestivalPickerOptions) []picker.Item {
-	candidates := CollectFestivalPickCandidates(festivalsDir, opts)
-	if len(candidates) == 0 && len(opts.PreferredStatuses) > 0 {
-		opts.PreferredStatuses = opts.FallbackStatuses
-		candidates = CollectFestivalPickCandidates(festivalsDir, opts)
-	}
-
-	return festivalPickerItemsFromCandidates(candidates)
+	return festivalPickerItemsFromCandidates(CollectFestivalPickCandidates(festivalsDir, opts))
 }
 
 func festivalPickerItemsFromCandidates(candidates []FestivalPickCandidate) []picker.Item {

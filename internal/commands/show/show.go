@@ -287,14 +287,10 @@ func runShowCycle(ctx context.Context, cwd string, opts *showOptions, campaignRo
 }
 
 // browseCycleTargets returns the festival directories cycled by bare `fest show`,
-// ordered by status (active, ready, planning, ritual) then recency.
+// ordered by status (active, ready, planning, ritual) then recency, falling back
+// to dungeoned festivals when the campaign has no working-status festival left.
 func browseCycleTargets(festivalsDir string) []string {
-	items := shared.FestivalPickerItems(festivalsDir, shared.FestivalPickerOptions{
-		IncludeStatusDirectories: false,
-		PreferredStatuses:        shared.BrowseFestivalPickerStatuses,
-		FallbackStatuses:         shared.BrowseFestivalPickerStatuses,
-		OrderByStatusThenRecency: true,
-	})
+	items := shared.FestivalPickerItems(festivalsDir, showPickerOptions())
 	paths := make([]string, 0, len(items))
 	for _, item := range items {
 		if item.Value != "" {
@@ -494,14 +490,15 @@ func completeShowFestivalSelector(_ *cobra.Command, args []string, toComplete st
 	return selectors, cobra.ShellCompDirectiveNoFileComp
 }
 
-// showPickerOptions is the candidate set for `fest show completions` and
-// `fest show pick`: browseable festivals ordered by status then recency, matching
-// the bare-`fest show` cycle.
+// showPickerOptions is the candidate set shared by the bare-`fest show` cycle,
+// `fest show completions`, and `fest show pick`: browseable festivals ordered by
+// status then recency, broadening to the dungeon only when no working-status
+// festival exists so an all-completed campaign still shows its work.
 func showPickerOptions() shared.FestivalPickerOptions {
 	return shared.FestivalPickerOptions{
 		IncludeStatusDirectories: false,
 		PreferredStatuses:        shared.BrowseFestivalPickerStatuses,
-		FallbackStatuses:         shared.BrowseFestivalPickerStatuses,
+		FallbackStatuses:         shared.DungeonFestivalPickerStatuses,
 		OrderByStatusThenRecency: true,
 	}
 }

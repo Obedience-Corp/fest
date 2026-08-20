@@ -49,3 +49,47 @@ func TestBrowseCycleTargets_ReturnsBrowseableFestival(t *testing.T) {
 		t.Fatalf("cycle target = %q, want the active festival directory", paths[0])
 	}
 }
+
+func TestDungeonFestivalPickerStatuses_Order(t *testing.T) {
+	want := []string{"dungeon/completed", "dungeon/archived", "dungeon/someday"}
+	got := shared.DungeonFestivalPickerStatuses
+	if len(got) != len(want) {
+		t.Fatalf("DungeonFestivalPickerStatuses = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("DungeonFestivalPickerStatuses[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+// A campaign that completed its only festival still has work worth showing, so
+// bare `fest show` broadens to the dungeon instead of reporting no festival.
+func TestBrowseCycleTargets_FallsBackToDungeonedFestival(t *testing.T) {
+	festivalsDir := filepath.Join(t.TempDir(), "festivals")
+	writeFestival(t, filepath.Join(festivalsDir, ".dungeon", "completed", "2026-08-19", "cans-CA0001"))
+
+	paths := browseCycleTargets(festivalsDir)
+	if len(paths) != 1 {
+		t.Fatalf("expected the completed festival as the sole cycle target, got %v", paths)
+	}
+	if filepath.Base(paths[0]) != "cans-CA0001" {
+		t.Fatalf("cycle target = %q, want the completed festival directory", paths[0])
+	}
+}
+
+// The dungeon is a fallback, not an addition: a campaign with live work must not
+// have completed festivals injected into its cycle.
+func TestBrowseCycleTargets_PrefersWorkingStatusOverDungeon(t *testing.T) {
+	festivalsDir := filepath.Join(t.TempDir(), "festivals")
+	writeFestival(t, filepath.Join(festivalsDir, "active", "launch-readiness-LR0001"))
+	writeFestival(t, filepath.Join(festivalsDir, ".dungeon", "completed", "2026-08-19", "cans-CA0001"))
+
+	paths := browseCycleTargets(festivalsDir)
+	if len(paths) != 1 {
+		t.Fatalf("expected only the active festival, got %v", paths)
+	}
+	if filepath.Base(paths[0]) != "launch-readiness-LR0001" {
+		t.Fatalf("cycle target = %q, want the active festival directory", paths[0])
+	}
+}

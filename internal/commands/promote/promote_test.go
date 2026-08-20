@@ -537,3 +537,22 @@ func TestPromoteCore_InvalidDungeonJSONExitsNonZeroWithBody(t *testing.T) {
 	}
 	assertJSONFailureBody(t, out)
 }
+
+// A completed festival is not a promote target: promote's picker options carry no
+// FallbackStatuses, so an all-dungeon campaign offers nothing rather than
+// suggesting work that is already finished.
+func TestPromotePickerOptionsExcludeDungeonWhenNoWorkingFestival(t *testing.T) {
+	festivals := t.TempDir()
+	dir := filepath.Join(festivals, ".dungeon", "completed", "2026-08-19", "cans-CA0001")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "FESTIVAL_GOAL.md"), []byte("# Goal\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	candidates := shared.CollectFestivalPickCandidates(festivals, promotePickerOptions())
+	if len(candidates) != 0 {
+		t.Fatalf("promote completion offered a dungeoned festival: %#v", candidates)
+	}
+}
