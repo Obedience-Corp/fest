@@ -239,3 +239,20 @@ func TestCollectFestivalPickCandidatesPrefersWorkingStatuses(t *testing.T) {
 		t.Fatalf("candidate = %q, want live-LV0001", candidates[0].Name)
 	}
 }
+
+// A caller that sets PreferredStatuses without FallbackStatuses has opted out of
+// broadening entirely: an empty preferred result must stay empty rather than
+// falling through to the unbounded default set.
+func TestCollectFestivalPickCandidatesWithoutFallbackNeverBroadens(t *testing.T) {
+	festivals := t.TempDir()
+	writeFestival(t, filepath.Join(festivals, ".dungeon", "completed", "2026-08-19", "cans-CA0001"))
+
+	candidates := CollectFestivalPickCandidates(festivals, FestivalPickerOptions{
+		PreferredStatuses:        []string{"active", "ready", "planning"},
+		OrderByStatusThenRecency: true,
+	})
+
+	if len(candidates) != 0 {
+		t.Fatalf("preferred-only options leaked candidates outside their set: %#v", candidates)
+	}
+}

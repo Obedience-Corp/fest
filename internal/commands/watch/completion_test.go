@@ -128,3 +128,18 @@ func containsString(values []string, target string) bool {
 	}
 	return false
 }
+
+// The dungeon stays out of watch completion even when the campaign has no
+// watchable festival left, which is when an unbounded fallback would surface it.
+func TestWatchCompletionExcludesDungeonWhenNoWorkingFestival(t *testing.T) {
+	festivals := t.TempDir()
+	makeWatchTestFestival(t, filepath.Join(festivals, "dungeon", "completed", "2026-05-01", "old-work-OW0001"))
+
+	working := shared.CollectFestivalPickCandidates(festivals, shared.FestivalPickerOptions{
+		IncludeStatusDirectories: false,
+		PreferredStatuses:        watchPickerStatuses,
+	})
+	if len(working) != 0 {
+		t.Fatalf("watch completion must stay empty rather than offer dungeon festivals: %v", candidateNames(working))
+	}
+}

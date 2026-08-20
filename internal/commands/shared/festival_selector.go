@@ -183,9 +183,14 @@ func ListFestivalPickCandidates(ctx context.Context, cwd string, opts FestivalPi
 // festivalsDir. When PreferredStatuses yields nothing it broadens once to
 // FallbackStatuses, so every surface built on these options — pickers, the show
 // cycle, and shell completions alike — agrees on what a campaign has to offer.
+//
+// Broadening requires an explicit FallbackStatuses. A caller that names
+// PreferredStatuses and no fallback has opted out: promote and watch completion
+// must never offer a dungeoned festival as a target, so an empty preferred result
+// stays empty rather than falling through to the unbounded default set.
 func CollectFestivalPickCandidates(festivalsDir string, opts FestivalPickerOptions) []FestivalPickCandidate {
 	candidates := collectOrderedPickCandidates(festivalsDir, opts)
-	if len(candidates) > 0 || len(opts.PreferredStatuses) == 0 {
+	if len(candidates) > 0 || len(opts.PreferredStatuses) == 0 || len(opts.FallbackStatuses) == 0 {
 		return candidates
 	}
 	broadened := opts
