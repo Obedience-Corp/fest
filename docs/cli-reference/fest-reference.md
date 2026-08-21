@@ -381,9 +381,12 @@ campaign-root commit containing only festival-scoped files (not git add -A).
 
 Use --no-root to skip the campaign root commit.
 
-Reference format: [FE-{id}]
+Reference format: [FE-{id}-PH-{phase}-SQ-{sequence}]
   - FE: Festival component identifier
   - {id}: Task ref (FEST-xxxxxx) or festival ID (e.g., CS0001)
+  - PH/SQ: Phase and sequence the commit belongs to, added when the position
+    is unambiguous. The current directory decides it; otherwise the single
+    in-progress sequence does. Parallel sequences leave both segments off.
 
 Detection priority:
   1. Explicit --task flag value
@@ -402,6 +405,9 @@ Examples:
 
   fest commit --festival OA0001 -m "Work from unlinked dir"
   # → [FE-OA0001] Work from unlinked dir
+
+  fest commit -m "Update scaffold"
+  # Inside 001_IMPLEMENT/02_camp_pilot → [FE-CC0008-PH-001-SQ-02] Update scaffold
 
   fest commit --no-tag -m "No reference"
   # → No reference
