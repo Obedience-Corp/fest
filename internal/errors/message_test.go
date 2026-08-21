@@ -47,6 +47,43 @@ func TestMessageKeepsTheWholeChain(t *testing.T) {
 	}
 }
 
+// Fields are JSON metadata. The terminal path is Error(), which never splices
+// them in — so a readiness block that puts the missing path only in WithField
+// hides it from the operator. Put identifying facts in the message or Hint.
+func TestErrorStringOmitsFields(t *testing.T) {
+	err := Validation("missing required deliverable").
+		WithField("path", "SEQUENCE_GOAL.md").
+		WithHint("add the file and retry")
+
+	got := err.Error()
+	if strings.Contains(got, "SEQUENCE_GOAL.md") {
+		t.Errorf("Error() rendered a WithField value; fields are JSON-only: %q", got)
+	}
+	if !strings.Contains(got, "missing required deliverable") {
+		t.Errorf("Error() dropped the message: %q", got)
+	}
+	if !strings.Contains(got, "Hint: add the file and retry") {
+		t.Errorf("Error() dropped the hint: %q", got)
+	}
+}
+
+// Leaf helpers may return fmt.Errorf. The command boundary lifts them with Wrap
+// so the operator still sees the leaf text.
+func TestWrapLiftsFmtErrorfCause(t *testing.T) {
+	leaf := fmt.Errorf("fest_working_dir must be relative, got %q", "/abs")
+	got := Wrap(leaf, "normalizing working dir").WithOp("validate").Error()
+	for _, want := range []string{
+		"validate",
+		"normalizing working dir",
+		"fest_working_dir must be relative",
+		"/abs",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("Wrap of fmt.Errorf lost %q: %q", want, got)
+		}
+	}
+}
+
 func TestMessageOnPlainAndNilErrors(t *testing.T) {
 	if got := Message(nil); got != "" {
 		t.Errorf("Message(nil) = %q, want empty", got)

@@ -22,3 +22,5 @@ with sign-offs before merge.
 - Run the repo gates before opening a PR: `go build ./...`, `go vet ./...`,
   `go test ./...`, and `just lint` where available.
 - Match the surrounding code's conventions; see the README for project layout.
+- Error construction is scoped, not "never `fmt.Errorf`": see
+  [docs/contributing.md](docs/contributing.md#error-handling) (fest#342).
