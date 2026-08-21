@@ -94,7 +94,7 @@ func resolvedVersion() string {
 		return version
 	}
 
-	return cmdOutputOr("dev", "git", "describe", "--tags", "--exact-match", "HEAD")
+	return cmdOutputOr("dev", "git", "describe", "--tags", "--always", "--dirty")
 }
 
 func cmdOutputOr(fallback, name string, args ...string) string {

@@ -77,6 +77,75 @@ just clean
 just deps
 ```
 
+### Build Profiles
+
+Every build carries a compile-time profile. The stable profile is the default;
+the dev profile is selected with the `dev` build tag and unlocks the dev-only
+command surface.
+
+```bash
+just build quick-stable   # stable profile
+just build quick-dev      # dev profile (-tags dev)
+just install dev          # install the dev profile to $GOBIN
+```
+
+A dev-profile build defaults to the `dev` methodology sync channel, so
+`fest system sync` pulls dev tags without needing `--channel dev`. A stable
+build defaults to the `stable` channel unless its version carries a `-dev.`
+pre-release suffix.
+
+### Version Stamping
+
+The build stamps the version, commit, and build date into the binary through
+ldflags. The version defaults to `git describe --tags --always --dirty`, so a
+build reports where it actually came from:
+
+| HEAD state | Reported version |
+| ---------- | ---------------- |
+| exactly on a tag | `v0.6.2` |
+| commits past a tag | `v0.6.2-5-gabcdef0` |
+| uncommitted changes | `v0.6.2-5-gabcdef0-dirty` |
+| no tag reachable | `abcdef0` (the abbreviated commit) |
+| no tag reachable, uncommitted changes | `abcdef0-dirty` |
+| no git repository | `dev` |
+
+Set `VERSION` to override it: `VERSION=v9.9.9 just build quick-stable`.
+
+Builds that carry no ldflags at all fall back to the module version the Go
+toolchain records, so `go install github.com/Obedience-Corp/fest/cmd/fest@v0.6.2`
+reports `v0.6.2` and stays on the stable channel. A bare `go build` from a
+checkout has no module version to recover and reports `dev`. Only the version is
+recovered this way. Commit and build date stay `unknown`, because Go's VCS
+stamping can walk out of a git worktree into the surrounding repository and
+report a commit from a different project.
+
+Release packaging refuses to run from a dirty worktree (`just release release`
+and the per-OS packaging recipes), so a `-dirty` version can never reach a
+published tarball.
+
+`fest version` reports that stamp plus the build profile:
+
+```
+fest v0.6.2-5-gabcdef0
+commit: abcdef0
+built: 2026-08-21T12:19:40Z
+go: go1.26.7
+platform: darwin/arm64
+profile: stable
+```
+
+Binaries shipped inside a festival bundle carry one extra line naming the
+suite release they were packaged in. The festival release build stamps it with
+`-X github.com/Obedience-Corp/fest/internal/version.Bundle=<suite tag>`:
+
+```
+fest v0.5.1
+bundle: festival v0.2.17
+```
+
+The line is absent from builds made outside a festival bundle. `fest version
+--json` mirrors all of this, omitting `bundle` when it is unset.
+
 ---
 
 ## Running Tests
