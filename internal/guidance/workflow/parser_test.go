@@ -186,6 +186,33 @@ func TestParser_ParseContent_StepDetails(t *testing.T) {
 	}
 }
 
+func TestParser_ParseContent_ASCIIHyphenStepHeader(t *testing.T) {
+	content := `## Step 1: PHASE GOAL - Verify Goal Achievement
+
+**Question:** Does the implementation satisfy the PHASE_GOAL.md objectives?
+
+**Actions:**
+1. Re-read PHASE_GOAL.md
+
+**Checkpoint:** APPROVAL REQUIRED - Confirm phase goal is met
+`
+
+	parser := NewParser()
+	steps, err := parser.ParseContent(context.Background(), content)
+	if err != nil {
+		t.Fatalf("ParseContent() error = %v", err)
+	}
+	if len(steps) != 1 {
+		t.Fatalf("ParseContent() got %d steps, want 1", len(steps))
+	}
+	if steps[0].Name != "PHASE GOAL" {
+		t.Errorf("Step.Name = %q, want PHASE GOAL", steps[0].Name)
+	}
+	if steps[0].Checkpoint != CheckpointUserApproval {
+		t.Errorf("Step.Checkpoint = %v, want CheckpointUserApproval", steps[0].Checkpoint)
+	}
+}
+
 func TestParser_ParseContent_NestedActions(t *testing.T) {
 	content := `## Step 1: DECOMPOSE — Break Down Goals
 
