@@ -81,66 +81,6 @@ func TestResolvedVersion(t *testing.T) {
 	})
 }
 
-func TestConfigureIntegrationEnvironment(t *testing.T) {
-	t.Run("sets Colima defaults for integration commands", func(t *testing.T) {
-		home := t.TempDir()
-		socket := filepath.Join(home, ".colima", "default", "docker.sock")
-		if err := os.MkdirAll(filepath.Dir(socket), 0o755); err != nil {
-			t.Fatalf("mkdir socket dir: %v", err)
-		}
-		if err := os.WriteFile(socket, []byte{}, 0o644); err != nil {
-			t.Fatalf("write socket placeholder: %v", err)
-		}
-
-		t.Setenv("HOME", home)
-		t.Setenv("DOCKER_HOST", "")
-		t.Setenv("TESTCONTAINERS_RYUK_DISABLED", "")
-
-		if err := configureIntegrationEnvironment([]string{"integration"}); err != nil {
-			t.Fatalf("configureIntegrationEnvironment() error = %v", err)
-		}
-
-		if got := os.Getenv("DOCKER_HOST"); got != "unix://"+socket {
-			t.Fatalf("DOCKER_HOST = %q, want %q", got, "unix://"+socket)
-		}
-		if got := os.Getenv("TESTCONTAINERS_RYUK_DISABLED"); got != "true" {
-			t.Fatalf("TESTCONTAINERS_RYUK_DISABLED = %q, want %q", got, "true")
-		}
-	})
-
-	t.Run("preserves existing docker host", func(t *testing.T) {
-		t.Setenv("DOCKER_HOST", "unix:///tmp/docker.sock")
-		t.Setenv("TESTCONTAINERS_RYUK_DISABLED", "")
-
-		if err := configureIntegrationEnvironment([]string{"all"}); err != nil {
-			t.Fatalf("configureIntegrationEnvironment() error = %v", err)
-		}
-
-		if got := os.Getenv("DOCKER_HOST"); got != "unix:///tmp/docker.sock" {
-			t.Fatalf("DOCKER_HOST = %q, want %q", got, "unix:///tmp/docker.sock")
-		}
-		if got := os.Getenv("TESTCONTAINERS_RYUK_DISABLED"); got != "true" {
-			t.Fatalf("TESTCONTAINERS_RYUK_DISABLED = %q, want %q", got, "true")
-		}
-	})
-
-	t.Run("skips non-integration commands", func(t *testing.T) {
-		t.Setenv("DOCKER_HOST", "")
-		t.Setenv("TESTCONTAINERS_RYUK_DISABLED", "")
-
-		if err := configureIntegrationEnvironment([]string{"build"}); err != nil {
-			t.Fatalf("configureIntegrationEnvironment() error = %v", err)
-		}
-
-		if got := os.Getenv("DOCKER_HOST"); got != "" {
-			t.Fatalf("DOCKER_HOST = %q, want empty", got)
-		}
-		if got := os.Getenv("TESTCONTAINERS_RYUK_DISABLED"); got != "" {
-			t.Fatalf("TESTCONTAINERS_RYUK_DISABLED = %q, want empty", got)
-		}
-	})
-}
-
 func TestRequestedCommand(t *testing.T) {
 	tests := []struct {
 		name string
@@ -161,6 +101,11 @@ func TestRequestedCommand(t *testing.T) {
 			name: "no command",
 			args: []string{"-v"},
 			want: "",
+		},
+		{
+			name: "doctor command",
+			args: []string{"-v", "integration-doctor", "start"},
+			want: "integration-doctor",
 		},
 	}
 
