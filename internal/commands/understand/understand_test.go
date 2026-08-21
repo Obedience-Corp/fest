@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	understanddocs "github.com/Obedience-Corp/fest/embedded/docs/understand"
+	"github.com/Obedience-Corp/fest/internal/hooks"
 )
 
 func captureOutput(fn func()) string {
@@ -136,6 +137,7 @@ func TestEmbeddedDocs_LoadSuccessfully(t *testing.T) {
 		"planning.txt",
 		"chains.txt",
 		"rituals.txt",
+		"hooks.txt",
 	}
 
 	for _, name := range docNames {
@@ -182,5 +184,24 @@ func TestRules_EmbeddedDocContainsStatusDirectories(t *testing.T) {
 	}
 	if !strings.Contains(content, "ready/") {
 		t.Error("rules.txt missing ready/ in status directories")
+	}
+}
+
+func TestHooks_EmbeddedDocListsEveryV1Verb(t *testing.T) {
+	content := understanddocs.Load("hooks.txt")
+	var verbsLine string
+	for _, line := range strings.Split(content, "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "v1 verbs:") {
+			verbsLine = line
+			break
+		}
+	}
+	if verbsLine == "" {
+		t.Fatal("hooks.txt missing v1 verbs line")
+	}
+	for _, verb := range hooks.V1Verbs() {
+		if !strings.Contains(verbsLine, string(verb)) {
+			t.Errorf("v1 verbs line omits %q: %s", verb, verbsLine)
+		}
 	}
 }

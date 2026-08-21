@@ -41,12 +41,16 @@ Frontmatter on PHASE_GOAL / SEQUENCE_GOAL / task docs:
   hooks:
     pre: [lint]
     post: [approval_judge]
+    start:                 # task documents only; task_start
+      pre: [anchor]
+      post: [announce]
 
 GATES.md step markers:
 
   **Hooks:** post: [approval_judge]
 
-v1 verbs: task_complete, sequence_complete, phase_complete, gate_approve.
+v1 verbs: task_start, task_complete, sequence_complete, phase_complete, gate_approve.
+Bare pre/post bind the terminal verb; start binds task_start (task docs only).
 pre runs before the verb; post runs after the transition is already applied.
 fail:closed pre-hooks block the verb (completion/approval not applied).
 fail:closed post-hooks short-circuit remaining post-hooks and warn; they do
