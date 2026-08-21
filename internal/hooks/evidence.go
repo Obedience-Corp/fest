@@ -67,7 +67,18 @@ func WithinRoot(phasePath, relativePath string) (bool, error) {
 // non-empty regular files under phasePath, preserving order and dropping
 // duplicates, absolute/escaping paths, and unreadable/missing files.
 func ResolvePhaseRelative(phasePath string, paths []string) []string {
-	seen := map[string]struct{}{}
+	return ResolvePhaseRelativeWithInspector(phasePath, paths, WithinRoot)
+}
+
+// ResolvePhaseRelativeWithInspector is the inspector-injectable form of
+// ResolvePhaseRelative. Production uses WithinRoot; approval tests stub the
+// containment check so they can pin present-set rules without a real tree.
+func ResolvePhaseRelativeWithInspector(
+	phasePath string,
+	paths []string,
+	inspect func(phasePath, relativePath string) (bool, error),
+) []string {
+	seen := make(map[string]struct{}, len(paths))
 	var present []string
 	for _, p := range paths {
 		rel, err := NormalizeEvidencePath(p)
@@ -77,7 +88,7 @@ func ResolvePhaseRelative(phasePath string, paths []string) []string {
 		if _, ok := seen[rel]; ok {
 			continue
 		}
-		ok, err := WithinRoot(phasePath, rel)
+		ok, err := inspect(phasePath, rel)
 		if err != nil || !ok {
 			continue
 		}
