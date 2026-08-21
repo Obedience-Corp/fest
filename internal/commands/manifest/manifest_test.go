@@ -194,8 +194,8 @@ func TestManifest_JSONMarshal(t *testing.T) {
 }
 
 func TestRestrictedPaths(t *testing.T) {
-	if len(RestrictedPaths) != 9 {
-		t.Errorf("expected 9 restricted commands, got %d", len(RestrictedPaths))
+	if len(RestrictedPaths) != 12 {
+		t.Errorf("expected 12 restricted commands, got %d", len(RestrictedPaths))
 	}
 }
 

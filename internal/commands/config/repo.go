@@ -51,6 +51,10 @@ For local paths, a symlink will be created instead.`,
 		Example: `  fest config add myconfig https://github.com/user/fest-config
   fest config add local /path/to/my/config
   fest config add work git@github.com:company/fest-templates.git`,
+		Annotations: map[string]string{
+			"agent_allowed": "false",
+			"agent_reason":  "Installs an arbitrary repository or path as the active fest configuration source (templates, policies, hooks); requires human judgment",
+		},
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runConfigAdd(cmd.Context(), args[0], args[1])
@@ -93,6 +97,10 @@ func newConfigSyncCommand() *cobra.Command {
 If no name is provided, syncs all configured repos.`,
 		Example: `  fest config sync myconfig
   fest config sync  # syncs all repos`,
+		Annotations: map[string]string{
+			"agent_allowed": "false",
+			"agent_reason":  "Pulls updates into a configured source repository; requires human judgment",
+		},
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
@@ -156,6 +164,10 @@ The active config repo is symlinked at ~/.obey/fest/active and its
 contents are used for templates, policies, plugins, and extensions.`,
 		Example: `  fest config use myconfig
   fest config use work`,
+		Annotations: map[string]string{
+			"agent_allowed": "false",
+			"agent_reason":  "Switches the active configuration source, changing which policies and hooks apply; requires human judgment",
+		},
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runConfigUse(cmd.Context(), args[0])
