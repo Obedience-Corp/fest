@@ -1,11 +1,40 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"os"
 	"os/exec"
 	"strings"
 	"testing"
+
+	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 )
+
+func TestExitCode_UserStopIsZero(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{name: "nil", err: nil, want: 0},
+		{name: "canceled", err: context.Canceled, want: 0},
+		{name: "wrapped canceled", err: errors.Join(errors.New("watch"), context.Canceled), want: 0},
+		{name: "deadline", err: context.DeadlineExceeded, want: 1},
+		{name: "already printed", err: festerrors.ErrAlreadyPrinted, want: 1},
+		{name: "plain", err: errors.New("boom"), want: 1},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := exitCode(tt.err); got != tt.want {
+				t.Fatalf("exitCode(%v) = %d, want %d", tt.err, got, tt.want)
+			}
+		})
+	}
+}
 
 func TestMainHelp(t *testing.T) {
 	// Test that help command works

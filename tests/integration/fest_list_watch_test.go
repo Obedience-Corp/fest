@@ -26,7 +26,7 @@ func TestFestListWatchInitialFrameAndCancel(t *testing.T) {
 
 	output, exitCode := runFestListWatchBounded(t, container, workspaceRoot, 2, "--watch")
 
-	require.Contains(t, []int{124, 143}, exitCode, "list --watch should stay running until the bounded timeout")
+	require.Contains(t, []int{0, 124, 143}, exitCode, "list --watch should stay running until the bounded timeout")
 	require.Contains(t, output, "ACTIVE Festivals", "default board should render the active status section")
 	require.Contains(t, output, "READY Festivals", "default board should render the ready status section")
 	require.Contains(t, output, "list-watch-active-LW0001", "default board should include the active fixture festival")
@@ -44,7 +44,7 @@ func TestFestListWatchFilterPreservesStatusMembership(t *testing.T) {
 
 	output, exitCode := runFestListWatchBounded(t, container, workspaceRoot, 2, "active", "--watch")
 
-	require.Contains(t, []int{124, 143}, exitCode, "filtered list --watch should stay running until the bounded timeout")
+	require.Contains(t, []int{0, 124, 143}, exitCode, "filtered list --watch should stay running until the bounded timeout")
 	require.Contains(t, output, activeName, "active filter should include the active fixture festival")
 	require.NotContains(t, output, readyName, "active filter should exclude the ready fixture festival")
 	require.NotContains(t, output, "READY Festivals", "single-status watch should not render other status headers")
@@ -76,8 +76,26 @@ func TestFestListWatchDoesNotRedrawWhileIdle(t *testing.T) {
 
 	output, exitCode := runFestListWatchBounded(t, container, workspaceRoot, 4, "active", "--watch")
 
-	require.Contains(t, []int{124, 143}, exitCode, "watch process should be stopped by the bounded timeout")
+	require.Contains(t, []int{0, 124, 143}, exitCode, "watch process should be stopped by the bounded timeout")
 	require.Equal(t, 1, strings.Count(output, "\x1b[H\x1b[2J"), "an idle watch should render only its initial frame")
+}
+
+func TestFestListWatchCtrlCExitsZero(t *testing.T) {
+	container := GetSharedContainer(t)
+	workspaceRoot, _, _ := setupListWatchFixture(t, container)
+
+	// Foreground watch under a TTY, then SIGINT the child. After NotifyContext
+	// the process must exit 0 (user stop), not 130 (default SIGINT death).
+	script := fmt.Sprintf(
+		"cd %s && /fest list --watch & pid=$!; sleep 1; if ! kill -0 $pid 2>/dev/null; then wait $pid; echo DIED_EARLY:$?; exit 1; fi; kill -INT $pid; wait $pid; echo EXIT:$?",
+		shellQuote(workspaceRoot),
+	)
+	output, exitCode := runContainerScriptTTY(t, container, script)
+
+	require.Equal(t, 0, exitCode, "SIGINT script should itself succeed; output:\n%s", output)
+	require.NotContains(t, output, "DIED_EARLY", "list --watch must still be running when SIGINT is sent")
+	require.Contains(t, output, "EXIT:0", "Ctrl+C should cancel context and exit 0, not die by signal")
+	require.Contains(t, output, "Ctrl+C to quit", "watch must have rendered before the signal")
 }
 
 func TestFestListWatchRefreshesOnTaskProgressChange(t *testing.T) {
@@ -91,7 +109,7 @@ func TestFestListWatchRefreshesOnTaskProgressChange(t *testing.T) {
 
 	output, exitCode := runContainerScriptTTY(t, container, script)
 
-	require.Contains(t, []int{124, 143}, exitCode, "watch process should be stopped by the bounded timeout")
+	require.Contains(t, []int{0, 124, 143}, exitCode, "watch process should be stopped by the bounded timeout")
 	require.Contains(t, output, "[0%]", "initial frame should render 0%% before the task is completed")
 	require.Contains(t, output, "[100%]", "task completion should refresh the board to 100%%")
 	clears := strings.Count(output, "\x1b[H\x1b[2J")
@@ -110,7 +128,7 @@ func TestFestListWatchRefreshesOnValidLifecycleChange(t *testing.T) {
 
 	output, exitCode := runContainerScriptTTY(t, container, script)
 
-	require.Contains(t, []int{124, 143}, exitCode, "watch process should be stopped by the bounded timeout")
+	require.Contains(t, []int{0, 124, 143}, exitCode, "watch process should be stopped by the bounded timeout")
 	require.Contains(t, output, "READY Festivals (1)", "initial frame should include the ready festival")
 	require.Contains(t, output, "READY Festivals (0)", "ready-to-active transition should refresh ready membership")
 	clears := strings.Count(output, "\x1b[H\x1b[2J")

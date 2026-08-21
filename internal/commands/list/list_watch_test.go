@@ -1,8 +1,12 @@
 package list
 
 import (
+	"context"
+	"errors"
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 )
@@ -62,6 +66,113 @@ func TestFormatAllHuman_NoResidentsKeepsLegacyPath(t *testing.T) {
 	}
 	if strings.Contains(strings.ToLower(out), "resident") {
 		t.Errorf("resident-free output mentions residents: %q", out)
+	}
+}
+
+func TestWaitListWatchEvents_CanceledContextReturnsNil(t *testing.T) {
+	restore := silenceStdout(t)
+	defer restore()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := waitListWatchEvents(ctx, nil, nil, nil, nil, nil); err != nil {
+		t.Fatalf("waitListWatchEvents(canceled) = %v, want nil (Ctrl+C is a clean user stop)", err)
+	}
+}
+
+func TestWaitListWatchEvents_CancelDuringWatchReturnsNil(t *testing.T) {
+	restore := silenceStdout(t)
+	defer restore()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	watchDone := make(chan error)
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- waitListWatchEvents(ctx, watchDone, nil, nil, nil, nil)
+	}()
+
+	time.Sleep(20 * time.Millisecond)
+	cancel()
+
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("waitListWatchEvents() after cancel = %v, want nil", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("waitListWatchEvents() did not return after context cancel")
+	}
+}
+
+func TestWaitListWatchEvents_WatcherErrorReturnedWhenLive(t *testing.T) {
+	restore := silenceStdout(t)
+	defer restore()
+
+	watchDone := make(chan error, 1)
+	want := errors.New("watch failed")
+	watchDone <- want
+	err := waitListWatchEvents(context.Background(), watchDone, nil, nil, nil, nil)
+	if !errors.Is(err, want) {
+		t.Fatalf("waitListWatchEvents() = %v, want %v", err, want)
+	}
+}
+
+func TestWaitListWatchEvents_WatcherExitOnCancelIsNil(t *testing.T) {
+	restore := silenceStdout(t)
+	defer restore()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	watchDone := make(chan error, 1)
+	watchDone <- errors.New("watcher closed after cancel")
+	if err := waitListWatchEvents(ctx, watchDone, nil, nil, nil, nil); err != nil {
+		t.Fatalf("canceled watch with watcher error = %v, want nil", err)
+	}
+}
+
+func TestWaitListWatchEvents_OnChangeError(t *testing.T) {
+	restore := silenceStdout(t)
+	defer restore()
+
+	changes := make(chan struct{}, 1)
+	changes <- struct{}{}
+	want := errors.New("paint failed")
+	err := waitListWatchEvents(context.Background(), nil, changes, nil, func() error {
+		return want
+	}, nil)
+	if !errors.Is(err, want) {
+		t.Fatalf("waitListWatchEvents() = %v, want paint error", err)
+	}
+}
+
+func TestWaitListWatchEvents_OnTickError(t *testing.T) {
+	restore := silenceStdout(t)
+	defer restore()
+
+	tick := make(chan time.Time, 1)
+	tick <- time.Now()
+	want := errors.New("reconcile failed")
+	err := waitListWatchEvents(context.Background(), nil, nil, tick, nil, func() error {
+		return want
+	})
+	if !errors.Is(err, want) {
+		t.Fatalf("waitListWatchEvents() = %v, want tick error", err)
+	}
+}
+
+func silenceStdout(t *testing.T) func() {
+	t.Helper()
+	orig := os.Stdout
+	devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+	if err != nil {
+		t.Fatalf("open os.DevNull: %v", err)
+	}
+	os.Stdout = devNull
+	return func() {
+		os.Stdout = orig
+		_ = devNull.Close()
 	}
 }
 

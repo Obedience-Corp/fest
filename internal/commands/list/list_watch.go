@@ -71,6 +71,34 @@ func runListWatch(ctx context.Context, festivalsDir, filterStatus string, opts *
 	ticker := time.NewTicker(listPollingInterval)
 	defer ticker.Stop()
 
+	return waitListWatchEvents(ctx, watchDone, changes, ticker.C, paint, func() error {
+		if err := w.AddTree(festivalsDir); err != nil && !os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "%s could not reconcile festival watches: %v\n", ui.Warning("Warning:"), err)
+		}
+		return paint()
+	})
+}
+
+func runListPollingMode(ctx context.Context, festivalsDir, filterStatus string, opts *listOptions, campaignRoot string) error {
+	ticker := time.NewTicker(listPollingInterval)
+	defer ticker.Stop()
+	session := &listFrameSession{}
+
+	if err := session.render(ctx, festivalsDir, filterStatus, opts, campaignRoot, true); err != nil {
+		return err
+	}
+
+	return waitListWatchEvents(ctx, nil, nil, ticker.C, nil, func() error {
+		return session.render(ctx, festivalsDir, filterStatus, opts, campaignRoot, true)
+	})
+}
+
+// waitListWatchEvents drives the list --watch select loop until ctx is
+// cancelled or the filesystem watcher exits.
+//
+// A cancelled context is a user stop (SIGINT/SIGTERM wired at Execute): return
+// nil so the process exits 0 instead of dying by signal.
+func waitListWatchEvents(ctx context.Context, watchDone <-chan error, changes <-chan struct{}, tick <-chan time.Time, onChange, onTick func() error) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -83,36 +111,17 @@ func runListWatch(ctx context.Context, festivalsDir, filterStatus string, opts *
 			fmt.Println()
 			return nil
 		case <-changes:
-			if err := paint(); err != nil {
+			if onChange == nil {
+				continue
+			}
+			if err := onChange(); err != nil {
 				return err
 			}
-		case <-ticker.C:
-			if err := w.AddTree(festivalsDir); err != nil && !os.IsNotExist(err) {
-				fmt.Fprintf(os.Stderr, "%s could not reconcile festival watches: %v\n", ui.Warning("Warning:"), err)
+		case <-tick:
+			if onTick == nil {
+				continue
 			}
-			if err := paint(); err != nil {
-				return err
-			}
-		}
-	}
-}
-
-func runListPollingMode(ctx context.Context, festivalsDir, filterStatus string, opts *listOptions, campaignRoot string) error {
-	ticker := time.NewTicker(listPollingInterval)
-	defer ticker.Stop()
-	session := &listFrameSession{}
-
-	if err := session.render(ctx, festivalsDir, filterStatus, opts, campaignRoot, true); err != nil {
-		return err
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			fmt.Println()
-			return nil
-		case <-ticker.C:
-			if err := session.render(ctx, festivalsDir, filterStatus, opts, campaignRoot, true); err != nil {
+			if err := onTick(); err != nil {
 				return err
 			}
 		}
