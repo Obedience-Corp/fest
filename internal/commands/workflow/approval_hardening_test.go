@@ -432,6 +432,27 @@ func TestResolveExistingEvidencePaths_HonorsExplicitEvidence(t *testing.T) {
 	}
 }
 
+func TestResolveExistingEvidencePaths_DedupesAfterNormalize(t *testing.T) {
+	step := wf.WorkflowStep{
+		Number:        2,
+		Name:          "REVIEW",
+		Checkpoint:    wf.CheckpointUserApproval,
+		EvidencePaths: []string{"output_specs/review.md", "./output_specs/review.md", "output_specs/demo.txt"},
+	}
+	var inspected []string
+	got := resolveExistingEvidencePathsWithInspector("/phase", step, func(_, path string) (bool, error) {
+		inspected = append(inspected, path)
+		return true, nil
+	})
+	want := []string{"output_specs/review.md", "output_specs/demo.txt"}
+	if strings.Join(got, "|") != strings.Join(want, "|") {
+		t.Fatalf("evidence = %v, want %v", got, want)
+	}
+	if strings.Join(inspected, "|") != strings.Join(want, "|") {
+		t.Fatalf("inspected %v, want one call per normalized path", inspected)
+	}
+}
+
 func TestJudgeApproval_AttachesDeliverableEvidenceToRequest(t *testing.T) {
 	dir := setupWorkflowFestival(t)
 	phaseDir := filepath.Join(dir, "001_INGEST")

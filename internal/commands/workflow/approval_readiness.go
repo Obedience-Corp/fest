@@ -168,24 +168,7 @@ func resolveExistingEvidencePathsWithInspector(
 	if len(paths) == 0 {
 		return nil
 	}
-	var present []string
-	seen := make(map[string]struct{}, len(paths))
-	for _, rawPath := range paths {
-		rel, err := normalizeEvidencePath(rawPath)
-		if err != nil {
-			continue
-		}
-		if _, dup := seen[rel]; dup {
-			continue
-		}
-		ok, err := inspect(phasePath, rel)
-		if err != nil || !ok {
-			continue
-		}
-		seen[rel] = struct{}{}
-		present = append(present, rel)
-	}
-	return present
+	return hooks.ResolvePhaseRelativeWithInspector(phasePath, paths, inspect)
 }
 
 func normalizeEvidencePath(path string) (string, error) {

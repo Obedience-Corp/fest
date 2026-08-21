@@ -59,8 +59,8 @@ readiness gate already confirmed exists as a non-empty regular file. It is a
 starting point, not a boundary: a judge is free to read anything else under
 `phase_path`, `festival_path`, or a working dir, and often should.
 
-Resolution rules, applied by `internal/hooks` (`NormalizeEvidencePath`,
-`WithinRoot`):
+Resolution rules, applied by `hooks.ResolvePhaseRelative` (which composes
+`NormalizeEvidencePath` and `WithinRoot`):
 
 1. Each path is **phase-relative**. Absolute paths are rejected.
 2. Paths are cleaned with `filepath.Clean`. Paths that escape the phase
