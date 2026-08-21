@@ -136,3 +136,43 @@ func PrintDryRunMarkers(result *MarkerResult, jsonOutput bool) error {
 
 	return nil
 }
+
+// markerResultFromContent reports REPLACE markers in already-rendered content
+// without touching the filesystem. Used by create --dry-run previews.
+func markerResultFromContent(content string) *MarkerResult {
+	found := markers.Parse(content)
+	if len(found) == 0 {
+		return &MarkerResult{Total: 0}
+	}
+	return &MarkerResult{
+		Markers: markers.MarkersToJSON(found),
+		Total:   len(found),
+	}
+}
+
+// emitCreateDryRun prints the sequence/task create preview. planned is the
+// relative paths a real create would write; nothing is created here.
+func emitCreateDryRun(jsonOutput bool, planned []string, result *MarkerResult) error {
+	if result == nil {
+		result = &MarkerResult{}
+	}
+	if jsonOutput {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(map[string]any{
+			"ok":            true,
+			"action":        "dry_run",
+			"dry_run":       true,
+			"planned_paths": planned,
+			"markers":       result.Markers,
+			"count":         result.Total,
+		})
+	}
+
+	fmt.Println()
+	fmt.Println(ui.H2("Dry Run: No Files Created"))
+	for _, path := range planned {
+		fmt.Printf("Would create %s\n", path)
+	}
+	return PrintDryRunMarkers(result, false)
+}
