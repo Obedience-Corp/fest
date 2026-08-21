@@ -3,6 +3,7 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 
 	"github.com/Obedience-Corp/fest/internal/version"
 	"github.com/spf13/cobra"
@@ -25,28 +26,39 @@ Examples:
 		jsonOut, _ := cmd.Flags().GetBool("json")
 
 		info := version.Get()
+		out := cmd.OutOrStdout()
 
 		if short {
-			fmt.Println(info.Version)
+			_, _ = fmt.Fprintln(out, info.Version)
 			return
 		}
 
 		if jsonOut {
-			out, err := json.MarshalIndent(info, "", "  ")
+			encoded, err := json.MarshalIndent(info, "", "  ")
 			if err != nil {
 				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Error: %v\n", err)
 				return
 			}
-			fmt.Println(string(out))
+			_, _ = fmt.Fprintln(out, string(encoded))
 			return
 		}
 
-		fmt.Printf("fest %s\n", info.Version)
-		fmt.Printf("commit: %s\n", info.Commit)
-		fmt.Printf("built: %s\n", info.BuildDate)
-		fmt.Printf("go: %s\n", info.GoVersion)
-		fmt.Printf("platform: %s\n", info.Platform)
+		writeVersionInfo(out, info)
 	},
+}
+
+// writeVersionInfo renders the human-readable version report. The bundle line
+// appears only for binaries stamped by a festival release build.
+func writeVersionInfo(w io.Writer, info version.Info) {
+	_, _ = fmt.Fprintf(w, "fest %s\n", info.Version)
+	if info.Bundle != "" {
+		_, _ = fmt.Fprintf(w, "bundle: festival %s\n", info.Bundle)
+	}
+	_, _ = fmt.Fprintf(w, "commit: %s\n", info.Commit)
+	_, _ = fmt.Fprintf(w, "built: %s\n", info.BuildDate)
+	_, _ = fmt.Fprintf(w, "go: %s\n", info.GoVersion)
+	_, _ = fmt.Fprintf(w, "platform: %s\n", info.Platform)
+	_, _ = fmt.Fprintf(w, "profile: %s\n", info.Profile)
 }
 
 func init() {

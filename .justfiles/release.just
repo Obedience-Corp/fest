@@ -10,7 +10,7 @@ main_path := "cmd/fest/main.go"
 bin_dir := "bin"
 build_tags := env_var_or_default("BUILD_TAGS", "")
 version_pkg := "github.com/Obedience-Corp/fest/internal/version"
-version := env_var_or_default("VERSION", `git describe --tags --exact-match HEAD 2>/dev/null || echo "dev"`)
+version := env_var_or_default("VERSION", `git describe --tags --always --dirty 2>/dev/null || echo "dev"`)
 commit := `git rev-parse --short HEAD 2>/dev/null || echo "unknown"`
 build_date := `date -u +"%Y-%m-%dT%H:%M:%SZ"`
 ldflags := "-s -w -X " + version_pkg + ".Version=" + version + " -X " + version_pkg + ".Commit=" + commit + " -X " + version_pkg + ".BuildDate=" + build_date
@@ -26,6 +26,22 @@ notes tag repo="Obedience-Corp/fest":
     go run ./tools/release-notes --repo "{{repo}}" --tag "{{tag}}" --output dist/release-notes.md
 
 # --- Build & packaging ---
+
+# Refuse to package from a worktree with uncommitted changes.
+# The packaged binaries stamp `git describe --dirty`, so a dirty tree ships a
+# version string that matches no commit anyone can check out.
+[private, no-cd]
+_require_clean_tree:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -n "$(git status --porcelain)" ]; then
+        echo "Error: refusing to package a release from a dirty worktree." >&2
+        echo "Release builds stamp 'git describe --dirty', so these packages would report a version that matches no commit." >&2
+        echo "Uncommitted changes:" >&2
+        git status --short >&2
+        echo "Commit or stash them, then run this recipe again." >&2
+        exit 1
+    fi
 
 # Build for macOS Intel
 [private, no-cd]
@@ -88,7 +104,7 @@ sign: build-darwin build-darwin-arm64
 
 # Create macOS release packages
 [no-cd]
-darwin: build-darwin sign
+darwin: _require_clean_tree build-darwin sign
     #!/usr/bin/env bash
     set -euo pipefail
     echo "Creating macOS release package..."
@@ -99,7 +115,7 @@ darwin: build-darwin sign
 
 # Create Linux release package
 [no-cd]
-linux: build-linux
+linux: _require_clean_tree build-linux
     #!/usr/bin/env bash
     set -euo pipefail
     echo "Creating Linux release package..."
@@ -108,7 +124,7 @@ linux: build-linux
 
 # Create Windows release package
 [no-cd]
-windows: build-windows
+windows: _require_clean_tree build-windows
     #!/usr/bin/env bash
     set -euo pipefail
     echo "Creating Windows release package..."
@@ -117,7 +133,7 @@ windows: build-windows
 
 # Create all release packages
 [no-cd]
-release: darwin linux windows
+release: _require_clean_tree darwin linux windows
     #!/usr/bin/env bash
     set -euo pipefail
     echo "✅ All release packages created in dist/"
