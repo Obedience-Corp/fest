@@ -158,34 +158,11 @@ func RunCreateSequence(ctx context.Context, opts *CreateSequenceOptions) error {
 		return emitCreateSequenceError(opts, err)
 	}
 
-	// Auto-detect last sequence number when --after is not specified (default -1)
-	if opts.After == -1 {
-		parser := festival.NewParser()
-		sequences, parseErr := parser.ParseSequences(ctx, absPath)
-		if parseErr == nil && len(sequences) > 0 {
-			maxNum := 0
-			for _, s := range sequences {
-				if s.Number > maxNum {
-					maxNum = s.Number
-				}
-			}
-			opts.After = maxNum
-		} else {
-			// No existing sequences or parse error - insert at beginning
-			opts.After = 0
-		}
-	}
-
-	// Insert sequence
-	ren := festival.NewRenumberer(festival.RenumberOptions{AutoApprove: true, Quiet: true})
-	if err := ren.InsertSequence(ctx, absPath, opts.After, opts.Name); err != nil {
-		return emitCreateSequenceError(opts, errors.Wrap(err, "inserting sequence"))
-	}
-
-	// Compute new sequence id
+	opts.After = resolveSequenceInsertAfter(ctx, absPath, opts.After)
 	newNumber := opts.After + 1
 	seqID := tpl.FormatSequenceID(newNumber, opts.Name)
 	seqDir := filepath.Join(absPath, seqID)
+	goalPath := filepath.Join(seqDir, "SEQUENCE_GOAL.md")
 
 	// Load vars
 	vars := map[string]any{}
@@ -209,108 +186,46 @@ func RunCreateSequence(ctx context.Context, opts *CreateSequenceOptions) error {
 		tmplCtx.SetCustom(k, v)
 	}
 
-	// Render or copy SEQUENCE_GOAL template
-	catalog, _ := tpl.LoadCatalog(ctx, tmplRoot)
-	mgr := tpl.NewManager()
-	var content string
-	var renderErr error
-	if catalog != nil {
-		content, renderErr = mgr.RenderByID(ctx, catalog, "SEQUENCE_GOAL", tmplCtx)
+	content, err := renderSequenceGoalContent(ctx, tmplRoot, tmplCtx, opts.Name)
+	if err != nil {
+		return emitCreateSequenceError(opts, err)
 	}
-	if renderErr != nil || content == "" {
-		// Fall back to default filename
-		tpath := filepath.Join(tmplRoot, "sequences", "GOAL.md")
-		if _, err := os.Stat(tpath); err == nil {
-			loader := tpl.NewLoader()
-			t, err := loader.Load(ctx, tpath)
-			if err != nil {
-				return emitCreateSequenceError(opts, errors.Wrap(err, "loading sequence goal template"))
-			}
-			// Render if it appears templated; else copy
-			if strings.Contains(t.Content, "{{") {
-				out, err := mgr.Render(t, tmplCtx)
-				if err != nil {
-					return emitCreateSequenceError(opts, errors.Wrap(err, "rendering sequence goal"))
-				}
-				content = out
-			} else {
-				content = t.Content
-			}
-		}
+	content, err = finalizeSequenceGoalContent(content, seqID, opts.Name, filepath.Base(absPath), newNumber, tmplCtx, festivalPath, effectiveSkipMarkers)
+	if err != nil {
+		return emitCreateSequenceError(opts, err)
 	}
 
-	// Ensure dir and write file
+	if opts.DryRun {
+		planned := filepath.ToSlash(filepath.Join(seqID, "SEQUENCE_GOAL.md"))
+		return emitCreateDryRun(opts.JSONOutput, []string{planned}, markerResultFromContent(content))
+	}
+
+	ren := festival.NewRenumberer(festival.RenumberOptions{AutoApprove: true, Quiet: true})
+	if err := ren.InsertSequence(ctx, absPath, opts.After, opts.Name); err != nil {
+		return emitCreateSequenceError(opts, errors.Wrap(err, "inserting sequence"))
+	}
 	if err := os.MkdirAll(seqDir, 0755); err != nil {
 		return emitCreateSequenceError(opts, errors.IO("creating sequence dir", err).WithField("path", seqDir))
 	}
-	goalPath := filepath.Join(seqDir, "SEQUENCE_GOAL.md")
-
-	// If no template content was found, create a minimal placeholder
-	// Note: Sequence metadata (status, parent, order) is in frontmatter, not in markdown
-	if content == "" {
-		content = fmt.Sprintf("# Sequence Goal: %s\n\n## Objective\n\n[REPLACE: Describe the sequence objective]\n\n## Tasks\n\n- [ ] [REPLACE: Task 1]\n- [ ] [REPLACE: Task 2]\n", opts.Name)
+	if err := os.WriteFile(goalPath, []byte(content), 0644); err != nil {
+		return emitCreateSequenceError(opts, errors.IO("writing sequence goal", err).WithField("path", goalPath))
 	}
 
 	var markersFilled, markersTotal int
-	if content != "" {
-		// Inject frontmatter if content doesn't already have it
-		if !strings.HasPrefix(strings.TrimSpace(content), "---") {
-			parentPhaseID := filepath.Base(absPath)
-			fm := frontmatter.NewSequenceFrontmatter(seqID, opts.Name, parentPhaseID, newNumber)
-			contentWithFM, fmErr := frontmatter.InjectString(content, fm)
-			if fmErr != nil {
-				return emitCreateSequenceError(opts, errors.Wrap(fmErr, "injecting frontmatter"))
-			}
-			content = contentWithFM
-		}
-
-		// Auto-fill [REPLACE: ...] markers from context (before writing)
-		// This fills Category A (structure) markers automatically
-		if !effectiveSkipMarkers {
-			renderer := tpl.NewRenderer()
-			// Load config markers for Category B markers
-			var configMarkers map[string]string
-			if festivalPath != "" {
-				festCfg, cfgErr := config.LoadFestivalConfig(festivalPath, "")
-				if cfgErr == nil && festCfg != nil {
-					configMarkers = extractConfigMarkers(festCfg)
-				}
-			}
-			renderedContent, renderErr := renderer.RenderWithMarkerReplacement(content, tmplCtx, configMarkers)
-			if renderErr == nil {
-				content = renderedContent
-			}
-		}
-
-		if err := os.WriteFile(goalPath, []byte(content), 0644); err != nil {
-			return emitCreateSequenceError(opts, errors.IO("writing sequence goal", err).WithField("path", goalPath))
-		}
-
-		// Process REPLACE markers in the created file
-		markerResult, err := ProcessMarkers(ctx, MarkerOptions{
-			FilePath:    goalPath,
-			Markers:     opts.Markers,
-			MarkersFile: opts.MarkersFile,
-			SkipMarkers: effectiveSkipMarkers,
-			DryRun:      opts.DryRun,
-			JSONOutput:  opts.JSONOutput,
-		})
-		if err != nil {
-			return emitCreateSequenceError(opts, errors.Wrap(err, "processing markers"))
-		}
-
-		// For dry-run, output markers and exit
-		if opts.DryRun && markerResult != nil {
-			if err := PrintDryRunMarkers(markerResult, opts.JSONOutput); err != nil {
-				return emitCreateSequenceError(opts, err)
-			}
-			return nil
-		}
-
-		if markerResult != nil {
-			markersFilled = markerResult.Filled
-			markersTotal = markerResult.Total
-		}
+	markerResult, err := ProcessMarkers(ctx, MarkerOptions{
+		FilePath:    goalPath,
+		Markers:     opts.Markers,
+		MarkersFile: opts.MarkersFile,
+		SkipMarkers: effectiveSkipMarkers,
+		DryRun:      false,
+		JSONOutput:  opts.JSONOutput,
+	})
+	if err != nil {
+		return emitCreateSequenceError(opts, errors.Wrap(err, "processing markers"))
+	}
+	if markerResult != nil {
+		markersFilled = markerResult.Filled
+		markersTotal = markerResult.Total
 	}
 
 	// Run post-create validation if configured
@@ -445,4 +360,85 @@ func emitCreateSequenceJSON(opts *CreateSequenceOptions, res createSequenceResul
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(res)
+}
+
+// resolveSequenceInsertAfter maps the --after default (-1) to append-at-end.
+// Parse failure falls back to 0 (insert at beginning), matching historical
+// create-sequence behavior.
+func resolveSequenceInsertAfter(ctx context.Context, phaseDir string, after int) int {
+	if after != -1 {
+		return after
+	}
+	parser := festival.NewParser()
+	sequences, parseErr := parser.ParseSequences(ctx, phaseDir)
+	if parseErr == nil && len(sequences) > 0 {
+		maxNum := 0
+		for _, s := range sequences {
+			if s.Number > maxNum {
+				maxNum = s.Number
+			}
+		}
+		return maxNum
+	}
+	return 0
+}
+
+func renderSequenceGoalContent(ctx context.Context, tmplRoot string, tmplCtx *tpl.Context, name string) (string, error) {
+	catalog, _ := tpl.LoadCatalog(ctx, tmplRoot)
+	mgr := tpl.NewManager()
+	var content string
+	var renderErr error
+	if catalog != nil {
+		content, renderErr = mgr.RenderByID(ctx, catalog, "SEQUENCE_GOAL", tmplCtx)
+	}
+	if renderErr != nil || content == "" {
+		tpath := filepath.Join(tmplRoot, "sequences", "GOAL.md")
+		if _, err := os.Stat(tpath); err == nil {
+			loader := tpl.NewLoader()
+			t, err := loader.Load(ctx, tpath)
+			if err != nil {
+				return "", errors.Wrap(err, "loading sequence goal template")
+			}
+			if strings.Contains(t.Content, "{{") {
+				out, err := mgr.Render(t, tmplCtx)
+				if err != nil {
+					return "", errors.Wrap(err, "rendering sequence goal")
+				}
+				content = out
+			} else {
+				content = t.Content
+			}
+		}
+	}
+	if content == "" {
+		content = fmt.Sprintf("# Sequence Goal: %s\n\n## Objective\n\n[REPLACE: Describe the sequence objective]\n\n## Tasks\n\n- [ ] [REPLACE: Task 1]\n- [ ] [REPLACE: Task 2]\n", name)
+	}
+	return content, nil
+}
+
+func finalizeSequenceGoalContent(content, seqID, name, parentPhaseID string, newNumber int, tmplCtx *tpl.Context, festivalPath string, skipMarkers bool) (string, error) {
+	if !strings.HasPrefix(strings.TrimSpace(content), "---") {
+		fm := frontmatter.NewSequenceFrontmatter(seqID, name, parentPhaseID, newNumber)
+		contentWithFM, fmErr := frontmatter.InjectString(content, fm)
+		if fmErr != nil {
+			return "", errors.Wrap(fmErr, "injecting frontmatter")
+		}
+		content = contentWithFM
+	}
+	if skipMarkers {
+		return content, nil
+	}
+	renderer := tpl.NewRenderer()
+	var configMarkers map[string]string
+	if festivalPath != "" {
+		festCfg, cfgErr := config.LoadFestivalConfig(festivalPath, "")
+		if cfgErr == nil && festCfg != nil {
+			configMarkers = extractConfigMarkers(festCfg)
+		}
+	}
+	rendered, err := renderer.RenderWithMarkerReplacement(content, tmplCtx, configMarkers)
+	if err == nil {
+		content = rendered
+	}
+	return content, nil
 }

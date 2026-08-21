@@ -13,7 +13,6 @@ import (
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/festival"
-	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -241,6 +240,10 @@ func RunCreateTask(ctx context.Context, opts *CreateTaskOptions) error {
 	}
 	opts.After = after
 
+	if opts.DryRun {
+		return previewCreateTask(ctx, opts, absPath, festivalPath, tmplRoot, catalog, mgr, loader, vars, effectiveSkipMarkers)
+	}
+
 	// Track all created tasks for output
 	var createdTasks []map[string]any
 	var createdPaths []string
@@ -267,117 +270,32 @@ func RunCreateTask(ctx context.Context, opts *CreateTaskOptions) error {
 			}
 		}
 
-		// Compute new task id
 		newNumber := currentAfter + 1
 		taskID := tpl.FormatTaskID(newNumber, name)
 		taskPath := filepath.Join(absPath, taskID)
 
-		// Build full template context with hierarchy (festival → phase → sequence → task)
-		tmplCtx, ctxErr := tpl.BuildTaskContext(absPath, festivalPath, newNumber, name)
-		if ctxErr != nil {
-			// Fall back to minimal context
-			tmplCtx = tpl.NewContext()
-			tmplCtx.SetTask(newNumber, name)
-			tmplCtx.ComputeStructureVariables()
+		content, err := buildTaskFileContent(ctx, absPath, festivalPath, tmplRoot, catalog, mgr, loader, name, newNumber, vars, effectiveSkipMarkers)
+		if err != nil {
+			return emitCreateTaskError(opts, err)
 		}
-		for k, v := range vars {
-			tmplCtx.SetCustom(k, v)
+		if err := os.WriteFile(taskPath, []byte(content), 0644); err != nil {
+			return emitCreateTaskError(opts, errors.IO("writing task", err).WithField("path", taskPath))
 		}
 
-		// Render or copy TASK template
-		var content string
-		var renderErr error
-		if catalog != nil {
-			content, renderErr = mgr.RenderByID(ctx, catalog, "TASK", tmplCtx)
+		markerResult, err := ProcessMarkers(ctx, MarkerOptions{
+			FilePath:    taskPath,
+			Markers:     opts.Markers,
+			MarkersFile: opts.MarkersFile,
+			SkipMarkers: effectiveSkipMarkers,
+			DryRun:      false,
+			JSONOutput:  opts.JSONOutput,
+		})
+		if err != nil {
+			return emitCreateTaskError(opts, errors.Wrap(err, "processing markers"))
 		}
-		if renderErr != nil || content == "" {
-			// Fall back to default filename
-			tpath := filepath.Join(tmplRoot, "tasks", "TASK.md")
-			if _, err := os.Stat(tpath); err == nil {
-				t, err := loader.Load(ctx, tpath)
-				if err != nil {
-					return emitCreateTaskError(opts, errors.Wrap(err, "loading task template"))
-				}
-				// Render if it appears templated; else copy
-				if strings.Contains(t.Content, "{{") {
-					out, err := mgr.Render(t, tmplCtx)
-					if err != nil {
-						return emitCreateTaskError(opts, errors.Wrap(err, "rendering task"))
-					}
-					content = out
-				} else {
-					content = t.Content
-				}
-			}
-		}
-
-		// If no template content was found, create a minimal placeholder
-		// Note: Task metadata (number, status, autonomy) is in frontmatter, not in markdown
-		if content == "" {
-			content = fmt.Sprintf("# Task: %s\n\n## Objective\n\n[REPLACE: Describe the task objective]\n\n## Steps\n\n1. [REPLACE: Step 1]\n2. [REPLACE: Step 2]\n\n## Definition of Done\n\n- [ ] [REPLACE: Completion criterion]\n", name)
-		}
-
-		// Write task file (the file was created by InsertTask, but we need to write content)
-		if content != "" {
-			// Inject frontmatter if content doesn't already have it
-			if !strings.HasPrefix(strings.TrimSpace(content), "---") {
-				parentSequenceID := filepath.Base(absPath)
-				fm := frontmatter.NewTaskFrontmatter(taskID, name, parentSequenceID, newNumber, frontmatter.AutonomyMedium)
-				contentWithFM, fmErr := frontmatter.InjectString(content, fm)
-				if fmErr != nil {
-					return emitCreateTaskError(opts, errors.Wrap(fmErr, "injecting frontmatter"))
-				}
-				content = contentWithFM
-			}
-
-			// Auto-fill [REPLACE: ...] markers from context (before writing)
-			// This fills Category A (structure) markers automatically
-			if !effectiveSkipMarkers {
-				renderer := tpl.NewRenderer()
-				// Load config markers for Category B markers (lint_command, test_command, etc.)
-				var configMarkers map[string]string
-				if festivalPath != "" {
-					festCfg, cfgErr := config.LoadFestivalConfig(festivalPath, "")
-					if cfgErr == nil && festCfg != nil {
-						configMarkers = extractConfigMarkers(festCfg)
-					}
-				}
-				renderedContent, renderErr := renderer.RenderWithMarkerReplacement(content, tmplCtx, configMarkers)
-				if renderErr == nil {
-					content = renderedContent
-				}
-			}
-
-			if err := os.WriteFile(taskPath, []byte(content), 0644); err != nil {
-				return emitCreateTaskError(opts, errors.IO("writing task", err).WithField("path", taskPath))
-			}
-
-			// Process REPLACE markers in the created file
-			markerResult, err := ProcessMarkers(ctx, MarkerOptions{
-				FilePath:    taskPath,
-				Markers:     opts.Markers,
-				MarkersFile: opts.MarkersFile,
-				SkipMarkers: effectiveSkipMarkers,
-				DryRun:      opts.DryRun,
-				JSONOutput:  opts.JSONOutput,
-			})
-			if err != nil {
-				return emitCreateTaskError(opts, errors.Wrap(err, "processing markers"))
-			}
-
-			// For dry-run, output markers and exit
-			if opts.DryRun && markerResult != nil {
-				if err := PrintDryRunMarkers(markerResult, opts.JSONOutput); err != nil {
-					return emitCreateTaskError(opts, err)
-				}
-				return nil
-			}
-
-			// Track marker results for reporting
-			if markerResult != nil && markerResult.Total > 0 {
-				totalMarkersFilled += markerResult.Filled
-				totalMarkersCount += markerResult.Total
-			}
+		if markerResult != nil && markerResult.Total > 0 {
+			totalMarkersFilled += markerResult.Filled
+			totalMarkersCount += markerResult.Total
 		}
 
 		// Track created task
