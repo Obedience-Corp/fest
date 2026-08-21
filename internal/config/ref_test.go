@@ -15,6 +15,16 @@ func setVersion(t *testing.T, v string) {
 	t.Cleanup(func() { version.Version = original })
 }
 
+// profileChannel returns the channel a release-profile fallback resolves to for
+// the build profile these tests were compiled with, so the expectations hold
+// under both `go test ./...` and `go test -tags dev ./...`.
+func profileChannel() string {
+	if version.Profile == "dev" {
+		return "dev"
+	}
+	return "stable"
+}
+
 func TestResolveRefIntent_CLIFlags(t *testing.T) {
 	setVersion(t, "v0.2.0") // stable build
 
@@ -64,11 +74,12 @@ func TestResolveRefIntent_ConfigDriven(t *testing.T) {
 	})
 
 	t.Run("config channel mode falls back to release profile when Channel empty", func(t *testing.T) {
-		setVersion(t, "v0.2.0") // stable
+		setVersion(t, "v0.2.0") // stable version string
 		repo := Repository{SyncMode: "channel", Channel: ""}
 		got := ResolveRefIntent("", "", "", repo)
-		if got.Mode != SyncModeChannel || got.Value != "stable" {
-			t.Errorf("got %+v, want {SyncModeChannel, stable}", got)
+		want := profileChannel()
+		if got.Mode != SyncModeChannel || got.Value != want {
+			t.Errorf("got %+v, want {SyncModeChannel, %s}", got, want)
 		}
 	})
 
@@ -121,11 +132,12 @@ func TestResolveRefIntent_BackwardCompat(t *testing.T) {
 	})
 
 	t.Run("empty SyncMode with default branch falls through to release profile", func(t *testing.T) {
-		setVersion(t, "v0.2.0") // stable
+		setVersion(t, "v0.2.0") // stable version string
 		repo := Repository{Branch: DefaultBranch, SyncMode: ""}
 		got := ResolveRefIntent("", "", "", repo)
-		if got.Mode != SyncModeChannel || got.Value != "stable" {
-			t.Errorf("got %+v, want {SyncModeChannel, stable}", got)
+		want := profileChannel()
+		if got.Mode != SyncModeChannel || got.Value != want {
+			t.Errorf("got %+v, want {SyncModeChannel, %s}", got, want)
 		}
 	})
 
@@ -140,12 +152,13 @@ func TestResolveRefIntent_BackwardCompat(t *testing.T) {
 }
 
 func TestResolveRefIntent_DefaultConfig(t *testing.T) {
-	t.Run("default config with stable build resolves to stable channel", func(t *testing.T) {
+	t.Run("default config resolves to the release-profile channel", func(t *testing.T) {
 		setVersion(t, "v0.2.0")
 		cfg := DefaultConfig()
 		got := ResolveRefIntent("", "", "", cfg.Repository)
-		if got.Mode != SyncModeChannel || got.Value != "stable" {
-			t.Errorf("got %+v, want {SyncModeChannel, stable}", got)
+		want := profileChannel()
+		if got.Mode != SyncModeChannel || got.Value != want {
+			t.Errorf("got %+v, want {SyncModeChannel, %s}", got, want)
 		}
 	})
 
