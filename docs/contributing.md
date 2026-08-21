@@ -149,21 +149,21 @@ Identifying facts (path, name, id) that the operator needs must be in the
 message or `WithHint`, not only in a field.
 
 ```go
-// Good — operator-facing, facts in the message
+// Good: operator-facing, facts in the message
 return festerrors.NotFound("festival").
     WithOp("validate").
     WithHintf("path: %s", festivalPath)
 
-// Good — leaf helper; caller will wrap before main
+// Good: leaf helper; caller will wrap before main
 return fmt.Errorf("fest_working_dir must be relative, got %q", raw)
 
-// Good — lift a leaf error at the command boundary
+// Good: lift a leaf error at the command boundary
 return festerrors.Wrap(err, "normalizing working dir").WithOp("validate")
 
-// Bad — operator-facing fmt.Errorf (no code, hint, or JSON fields)
+// Bad: operator-facing fmt.Errorf (no code, hint, or JSON fields)
 return fmt.Errorf("festival not found: %s", festivalPath)
 
-// Bad — the only copy of the path lives in a field the terminal never prints
+// Bad: the only copy of the path lives in a field the terminal never prints
 return festerrors.Validation("missing required deliverable").
     WithField("path", "SEQUENCE_GOAL.md")
 ```

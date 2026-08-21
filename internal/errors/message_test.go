@@ -48,7 +48,7 @@ func TestMessageKeepsTheWholeChain(t *testing.T) {
 }
 
 // Fields are JSON metadata. The terminal path is Error(), which never splices
-// them in — so a readiness block that puts the missing path only in WithField
+// them in, so a readiness block that puts the missing path only in WithField
 // hides it from the operator. Put identifying facts in the message or Hint.
 func TestErrorStringOmitsFields(t *testing.T) {
 	err := Validation("missing required deliverable").
