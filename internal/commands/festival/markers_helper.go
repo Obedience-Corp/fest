@@ -170,7 +170,7 @@ func emitCreateDryRun(jsonOutput bool, planned []string, result *MarkerResult) e
 	}
 
 	fmt.Println()
-	fmt.Println(ui.H2("Dry Run — No Files Created"))
+	fmt.Println(ui.H2("Dry Run: No Files Created"))
 	for _, path := range planned {
 		fmt.Printf("Would create %s\n", path)
 	}

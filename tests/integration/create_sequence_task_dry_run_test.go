@@ -59,7 +59,7 @@ func TestCreateSequenceAndTaskDryRunWritesNothing(t *testing.T) {
 		"--no-prompt",
 	)
 	require.NoError(t, err, "human sequence dry-run should succeed: %s", humanOutput)
-	require.Contains(t, humanOutput, "Dry Run — No Files Created")
+	require.Contains(t, humanOutput, "Dry Run: No Files Created")
 	require.Contains(t, humanOutput, seqRel+"/SEQUENCE_GOAL.md")
 	require.Equal(t, before, snapshotFestivalWorkspace(t, tc, festivalsPath),
 		"human sequence dry-run must not create the previewed directory")
@@ -104,7 +104,7 @@ func TestCreateSequenceAndTaskDryRunWritesNothing(t *testing.T) {
 		"--no-color",
 	)
 	require.NoError(t, err, "human task dry-run should succeed: %s", humanOutput)
-	require.Contains(t, humanOutput, "Dry Run — No Files Created")
+	require.Contains(t, humanOutput, "Dry Run: No Files Created")
 	require.Contains(t, humanOutput, taskRel)
 	require.Equal(t, before, snapshotFestivalWorkspace(t, tc, festivalsPath),
 		"human task dry-run must not create the previewed file")
