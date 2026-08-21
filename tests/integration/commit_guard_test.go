@@ -79,8 +79,12 @@ func TestCommitGuard_LargeFileKeptOutInStandaloneWorkspace(t *testing.T) {
 	out2, err := tc.RunFestInDir(dir+"/festivals/active/guard-festival",
 		"commit", "--no-tag", "-m", "only excluded changes")
 	require.Error(t, err, "an exclude-everything commit has nothing to commit")
-	assert.Contains(t, out2, "kept out of git by the size/bulk guard",
+	assert.Contains(t, out2, "kept out of git by the staging guard",
 		"the no-op must be attributed to the guard: %s", out2)
+	assert.Contains(t, out2, "render-output.bin",
+		"the no-op must name what was held back: %s", out2)
+	assert.Contains(t, out2, "fest commit --commit-large",
+		"the no-op must carry the flag that commits it anyway: %s", out2)
 
 	// The advertised retry must actually work: the same commit with
 	// --commit-large forces the excluded file into git, exactly as camp's
@@ -178,4 +182,57 @@ func TestCommitGuard_LargeFileKeptOutInLinkedSubmodule(t *testing.T) {
 	status, err := tc.Exec("git", "-C", "/guard-camp/projects/app", "status", "--porcelain")
 	require.NoError(t, err)
 	assert.Contains(t, status, "?? render-output.bin", "the excluded file must remain on disk, untracked")
+}
+
+// A nested git repository is kept out of the commit by camp's guard, and fest
+// must say so. The failure this guards against is silence: the commit succeeds,
+// the foreign checkout is absent, and nothing on stderr explains why. It is a
+// separate outcome field from the size exclusions above and was dropped on the
+// floor once already when the guard grew it.
+func TestCommitGuard_NestedRepoReportedAndOverridable(t *testing.T) {
+	tc := GetSharedContainer(t)
+	ensureGuardGit(t, tc)
+
+	dir := "/guard-nested"
+	_, err := tc.Exec("sh", "-c",
+		"mkdir -p "+dir+"/festivals/.festival && cd "+dir+" && git init -q")
+	require.NoError(t, err)
+	require.NoError(t, tc.WriteFile(dir+"/festivals/active/guard-festival/fest.yaml", guardFestYAML))
+
+	// The parent directory must be tracked first, or git reports the parent as
+	// the untracked entry and never names the nested repository at all.
+	_, err = tc.Exec("sh", "-c",
+		"mkdir -p "+dir+"/work && echo base > "+dir+"/work/notes.md && "+
+			"git -C "+dir+" add -A && git -C "+dir+" commit -q -m base")
+	require.NoError(t, err)
+
+	_, err = tc.Exec("sh", "-c",
+		"mkdir -p "+dir+"/work/vendored && cd "+dir+"/work/vendored && git init -q && "+
+			"echo lib > lib.txt && git add -A && git commit -q -m vendored && "+
+			"echo edited >> "+dir+"/work/notes.md")
+	require.NoError(t, err)
+
+	out, err := tc.RunFestInDir(dir+"/festivals/active/guard-festival",
+		"commit", "--no-tag", "-m", "edit beside a nested repo")
+	require.NoError(t, err, "the commit must succeed without the nested repo: %s", out)
+
+	assert.Contains(t, out, "work/vendored", "fest must name the nested repository it kept out")
+	assert.Contains(t, out, "not declared in .gitmodules", "fest must say why it was held back")
+	assert.Contains(t, out, "fest commit --commit-nested", "the exclusion must carry fest's own working undo")
+
+	committed, err := tc.Exec("git", "-C", dir, "ls-tree", "-r", "--name-only", "HEAD")
+	require.NoError(t, err)
+	assert.Contains(t, committed, "work/notes.md", "the ordinary edit must be committed")
+	assert.NotContains(t, committed, "work/vendored", "the nested repo must stay out of history")
+
+	// The advertised retry must actually work, recording the checkout as a
+	// gitlink rather than as files.
+	out2, err := tc.RunFestInDir(dir+"/festivals/active/guard-festival",
+		"commit", "--no-tag", "--commit-nested", "-m", "embed the nested repo")
+	require.NoError(t, err, "the --commit-nested retry must succeed: %s", out2)
+
+	gitlink, err := tc.Exec("git", "-C", dir, "ls-tree", "-r", "HEAD")
+	require.NoError(t, err)
+	assert.True(t, strings.Contains(gitlink, "160000 commit") && strings.Contains(gitlink, "work/vendored"),
+		"--commit-nested must record the nested repo as a gitlink: %s", gitlink)
 }
