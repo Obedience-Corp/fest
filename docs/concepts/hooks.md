@@ -141,7 +141,7 @@ Bindings only reference names. They never set `command`, `fail`, or `timeout`.
 
 | Verb | When |
 | --- | --- |
-| `task_start` | first transition into work (`fest task in-progress`, a direct completion, or the first `--progress` above zero) |
+| `task_start` | first transition into work (`fest status set --task ... in_progress`, a direct completion, or the first `fest task update` above zero) |
 | `task_complete` | any transition into completed (`fest task completed`, `fest status set ... completed`, a programmatic 100% progress update) |
 | `sequence_complete` | sequence completion |
 | `phase_complete` | phase completion |
@@ -151,8 +151,8 @@ Timings: **pre** (before the verb applies) and **post** (after the transition
 has already been applied).
 
 `task_start` fires on the **first** transition into work, whichever surface
-causes it: `fest task in-progress`, `fest status set ... in_progress`, a direct
-completion, or the first `fest task update --progress N` above zero. Reporting
+causes it: `fest status set --task ... in_progress`, `fest progress --in-progress`,
+a direct completion, or the first `fest task update` above zero. Reporting
 a blocker before work begins leaves the start hook armed. Resuming a task that
 was already started or re-marking it in progress never re-fires the hook;
 `fest task reset` clears the recorded start, so a reset task re-anchors on its
