@@ -52,6 +52,31 @@ The concrete type is `approvalJudgeRequest` in
 `document` names a file, it does not carry one. For a `WORKFLOW.md` checkpoint
 it is only the step definition, which is why `evidence` exists.
 
+## Verdict shape
+
+The judge writes JSON on stdout. Required fields are unchanged
+(`schema_version`, `decision`, `reason`). `evidence_status` is additive so a
+stale binary is diagnosable from the ledger instead of looking like every
+other reject:
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `schema_version` | yes | `fest.approval.judge/v1` |
+| `decision` | yes | `approve` or `reject` |
+| `reason` | yes | Free-text justification |
+| `evidence_status` | no | `none` (loaded no deliverables), `insufficient` (loaded files that did not support approval), `ok` (loaded files) |
+
+`ob judge` overlays `evidence_status` from the files it actually loaded. It
+does not trust a model-authored value. fest records the status on the
+approval audit string *before* `reason=` so `DisplayFeedback` can still
+unquote the reason.
+
+When fest sent a non-empty `evidence` list and the verdict omits
+`evidence_status`, fest warns on stderr that the binary may predate the
+evidence field (the OC0001 stale-`ob` failure mode). When fest sent evidence
+and the verdict is `approve` with `evidence_status=none`, fest fails closed:
+a judge that attests it saw nothing cannot verify the claim.
+
 ## Evidence is a starting manifest
 
 `evidence` lists phase-relative deliverable files, and every entry is one the
@@ -201,7 +226,11 @@ than assuming the manifest is openable.
 
 ## Compatibility
 
-- The `fest.approval.judge/v1` decision protocol is unchanged.
+- The `fest.approval.judge/v1` decision protocol is unchanged: `decision` and
+  `reason` remain required.
+- `evidence_status` on the verdict is additive. An older judge omits it, and
+  fest warns rather than failing closed, except `approve` + `evidence_status=none`
+  when evidence was sent (see [Verdict shape](#verdict-shape)).
 - `evidence`, `campaign_root`, and `working_dirs` are omitted when empty.
 - fest emits no field a judge cannot act on. There is no embedded-content mode:
   a `hooks.definitions.<name>.evidence` key in a config is an unrecognized key

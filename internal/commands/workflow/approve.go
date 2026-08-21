@@ -81,7 +81,9 @@ type approvalJudgeRequest struct {
 	// evidence, beyond Document (which is only the step definition for a
 	// WORKFLOW.md checkpoint). These are the same existing, non-empty artifacts
 	// the readiness gate validated. Additive to fest.approval.judge/v1: an older
-	// judge ignores it and sees only Document, as before.
+	// judge ignores it and sees only Document, as before. fest warns when this
+	// list is non-empty and the verdict omits evidence_status, and fails closed
+	// if that verdict is approve with evidence_status=none.
 	Evidence []string `json:"evidence,omitempty"`
 	// CampaignRoot is the campaign directory containing this festival, so a
 	// judge can resolve working dirs and read the repositories the phase
@@ -109,6 +111,9 @@ type approvalJudgeResponse struct {
 	Reason        string   `json:"reason"`
 	Confidence    *float64 `json:"confidence,omitempty"`
 	Followups     []string `json:"followups,omitempty"`
+	// EvidenceStatus is additive. An older judge omits it. Known values:
+	// none, insufficient, ok. Unknown values are treated as omitted.
+	EvidenceStatus string `json:"evidence_status,omitempty"`
 }
 
 type approvalJudgeRunner func(ctx context.Context, command string, stdin []byte, dir string) ([]byte, error)
@@ -920,6 +925,9 @@ func evaluateApprovalJudge(ctx context.Context, req approvalJudgeRequest, opts a
 	if err != nil {
 		return nil, "", err
 	}
+	if err := reportJudgeEvidenceStatus(os.Stderr, req, decision); err != nil {
+		return nil, "", err
+	}
 
 	audit := approvalJudgeAudit(opts.JudgeCommand, decision)
 	return decision, audit, nil
@@ -1010,6 +1018,7 @@ func parseApprovalJudgeResponse(out []byte) (*approvalJudgeResponse, error) {
 	resp.SchemaVersion = strings.TrimSpace(resp.SchemaVersion)
 	resp.Decision = strings.ToLower(strings.TrimSpace(resp.Decision))
 	resp.Reason = strings.TrimSpace(resp.Reason)
+	resp.EvidenceStatus = normalizeEvidenceStatus(resp.EvidenceStatus)
 
 	if resp.SchemaVersion != approvalJudgeSchemaVersion {
 		return nil, festerrors.Validation("approval judge returned unsupported schema").
@@ -1030,6 +1039,12 @@ func parseApprovalJudgeResponse(out []byte) (*approvalJudgeResponse, error) {
 }
 
 func approvalJudgeAudit(command string, decision *approvalJudgeResponse) string {
-	return fmt.Sprintf("approval auto mode: schema_version=%s judge_command=%q decision=%s reason=%q",
-		approvalJudgeSchemaVersion, command, decision.Decision, decision.Reason)
+	status := evidenceStatusUnacknowledged
+	if decision != nil && decision.EvidenceStatus != "" {
+		status = decision.EvidenceStatus
+	}
+	// evidence_status sits before reason= so DisplayFeedback can still unquote
+	// the trailing reason field. Do not append after reason.
+	return fmt.Sprintf("approval auto mode: schema_version=%s judge_command=%q decision=%s evidence_status=%s reason=%q",
+		approvalJudgeSchemaVersion, command, decision.Decision, status, decision.Reason)
 }
