@@ -1,9 +1,7 @@
 package commands
 
 import (
-	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	// bginit must initialize before the bubbletea subtree below; its path sorts first here so gofmt keeps it.
@@ -79,22 +77,6 @@ var rootCmd = &cobra.Command{
 	Version:       fmt.Sprintf("%s (built %s, commit %s)", version.Version, version.BuildDate, version.Commit),
 	SilenceErrors: true,
 	SilenceUsage:  true,
-}
-
-// Execute runs the root command
-func Execute() error {
-	os.Args = normalizeAutoWriteAlias(os.Args)
-
-	// Try git-style plugin dispatch for unknown subcommands.
-	// A fest-<name> binary on PATH becomes "fest <name> [args...]".
-	if err := dispatchPlugin(); err != nil {
-		if errors.Is(err, errPluginHandled) {
-			return nil
-		}
-		return err
-	}
-
-	return rootCmd.Execute()
 }
 
 func init() {
