@@ -302,7 +302,7 @@ func TestPositionSummary(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := positionSummary(tt.pos.Phase, tt.pos.Sequence); got != tt.want {
+			if got := positionSummary(tt.pos); got != tt.want {
 				t.Errorf("positionSummary() = %q, want %q", got, tt.want)
 			}
 		})

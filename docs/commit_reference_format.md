@@ -24,7 +24,7 @@ The `{ID}` portion varies by context:
 
 | ID Type | Format | Example | Source |
 |---------|--------|---------|--------|
-| Task Reference | `FEST-xxxxxx` | `FEST-a3b2c1` | `fest_ref` field in task frontmatter |
+| Task Reference | `FEST-` plus six digits | `FEST-123456` | `fest_ref` field in task frontmatter |
 | Festival ID | `XX0000` | `CS0001` | `metadata.id` field in fest.yaml |
 
 ### Position Segments
@@ -48,7 +48,7 @@ A sequence number is therefore never emitted on its own.
 
 ```
 [FE-CS0001] Add user authentication
-[FE-FEST-a3b2c1] Fix login validation bug
+[FE-FEST-123456] Fix login validation bug
 [FE-TODO0001] Update documentation
 [FE-CC0008-PH-001-SQ-02] Update camp scaffold
 [FE-CC0008-PH-001] Close out the implementation phase
@@ -115,14 +115,27 @@ fest commit -m "Add feature"
 
 When working inside a festival's task directory, `fest commit` uses the **task reference** for more granular tracing.
 
+A task reference needs a working directory at least one level *below* the
+sequence directory, because that is where `fest commit` looks for the task
+document whose `fest_ref` it reads. Standing in the sequence directory itself
+yields the festival ID instead.
+
 ```bash
-# Under ~/festivals/active/client-sync/01_setup/01_auth
+# In the sequence directory itself
+# ~/festivals/active/client-sync/01_setup/01_auth
 fest commit -m "Implement OAuth flow"
-# → [FE-FEST-a3b2c1-PH-01-SQ-01] Implement OAuth flow
+# → [FE-CS0001-PH-01-SQ-01] Implement OAuth flow
+
+# One level deeper, where a task document is in reach
+# ~/festivals/active/client-sync/01_setup/01_auth/oauth
+fest commit -m "Implement OAuth flow"
+# → [FE-FEST-123456-PH-01-SQ-01] Implement OAuth flow
 ```
 
-The phase and sequence come from the same directory walk, so a task reference
-and a position always agree on where the commit happened.
+The reference and the position are two separate walks of the same path with
+different depth thresholds: the position needs only the first two segments
+below the festival root, while the task reference needs a third. That is why a
+commit can carry a phase and sequence but still fall back to the festival ID.
 
 ## Design Rationale
 
@@ -161,7 +174,7 @@ Use standard git tools to find commits by reference:
 git log --grep="FE-CS0001"
 
 # Find commits for a specific task
-git log --grep="FE-FEST-a3b2c1"
+git log --grep="FE-FEST-123456"
 
 # Find every commit made inside one phase
 git log --grep="FE-CC0008-PH-001"
@@ -182,7 +195,9 @@ The standardized format enables automation:
 - name: Get Festival Context
   run: |
     COMMIT_MSG=$(git log -1 --format=%s)
-    if [[ $COMMIT_MSG =~ FE-([A-Za-z0-9]+) ]]; then
+    # Stop at the next tag segment so a task ref (FE-FEST-123456) is captured
+    # whole instead of truncating to "FEST".
+    if [[ $COMMIT_MSG =~ FE-((FEST-)?[A-Za-z0-9]+)(-PH-|-SQ-|-WI-|-NT-|\]|$) ]]; then
       echo "FEST_ID=${BASH_REMATCH[1]}" >> $GITHUB_ENV
     fi
     if [[ $COMMIT_MSG =~ -PH-([0-9]+) ]]; then

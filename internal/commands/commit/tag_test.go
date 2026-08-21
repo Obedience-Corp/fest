@@ -54,9 +54,9 @@ func TestCampaignTagComponents(t *testing.T) {
 		},
 		{
 			name:    "task reference carries a position too",
-			festRef: "FE-FEST-a3b2c1",
+			festRef: "FE-FEST-123456",
 			pos:     position{Phase: "001", Sequence: "02"},
-			want:    "[obey-campaign:8deed8b4-FE-FEST-a3b2c1-PH-001-SQ-02]",
+			want:    "[obey-campaign:8deed8b4-FE-FEST-123456-PH-001-SQ-02]",
 		},
 	}
 
@@ -89,7 +89,7 @@ func TestCampaignTagComponents_UnpositionedMatchesLegacyEmitter(t *testing.T) {
 	}{
 		{name: "no festival reference"},
 		{name: "festival reference", festRef: "FE-CC0008", festID: "CC0008"},
-		{name: "task reference", festRef: "FE-FEST-a3b2c1", festID: "FEST-a3b2c1"},
+		{name: "task reference", festRef: "FE-FEST-123456", festID: "FEST-123456"},
 	}
 
 	for _, tt := range tests {

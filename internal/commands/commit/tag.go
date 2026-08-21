@@ -22,6 +22,10 @@ func formatCommitRef(id string) string {
 // "FE-{id}" reference for the tags campaign formatting does not build. The
 // segments are dependent: a sequence is only meaningful under a phase, so it
 // is dropped when the phase is unknown.
+//
+// This mirrors the dependency rule in camp's FormatTag rather than delegating
+// to it, because FormatTag returns "" without a CampaignID and these are
+// exactly the tags built when there is no campaign to supply one.
 func festRefWithPosition(festRef string, pos position) string {
 	if festRef == "" || pos.Phase == "" {
 		return festRef

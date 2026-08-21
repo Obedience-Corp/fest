@@ -129,7 +129,7 @@ func positionFromProgress(ctx context.Context, festivalPath string) position {
 // "001_IMPLEMENT/02_camp_pilot/01_task.md". Legacy keys are bare filenames
 // with no directories and carry no position.
 func positionFromTaskKey(key string) (position, bool) {
-	parts := strings.Split(filepath.ToSlash(key), "/")
+	parts := strings.Split(strings.ReplaceAll(key, `\`, "/"), "/")
 	if len(parts) < 3 {
 		return position{}, false
 	}
@@ -150,12 +150,12 @@ func numberedDirPrefix(name string) string {
 }
 
 // positionSummary renders a resolved position for human output.
-func positionSummary(phase, sequence string) string {
-	if phase == "" {
+func positionSummary(pos position) string {
+	if pos.Phase == "" {
 		return ""
 	}
-	if sequence == "" {
-		return "phase " + phase
+	if pos.Sequence == "" {
+		return "phase " + pos.Phase
 	}
-	return "phase " + phase + ", sequence " + sequence
+	return "phase " + pos.Phase + ", sequence " + pos.Sequence
 }

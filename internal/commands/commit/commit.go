@@ -25,11 +25,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// errAllExcluded is returned when the staging guard kept every changed path
-// out of the index, so a follow-up commit would look like a bare "no changes"
-// failure after the user already saw exclusion lines on stderr.
-var errAllExcluded = stderrors.New("everything changed was kept out of git by the size/bulk guard; nothing left to commit")
-
 var (
 	message          string
 	taskRef          string
@@ -40,6 +35,7 @@ var (
 	autoWrite        bool
 	noRoot           bool
 	commitLarge      bool
+	commitNested     bool
 	syncSubmoduleRef bool // deprecated: kept for backward compat
 )
 
@@ -72,12 +68,16 @@ campaign-root commit containing only festival-scoped files (not git add -A).
 
 Use --no-root to skip the campaign root commit.
 
-Reference format: [FE-{id}-PH-{phase}-SQ-{sequence}]
+Reference format: [FE-{id}]
   - FE: Festival component identifier
-  - {id}: Task ref (FEST-xxxxxx) or festival ID (e.g., CS0001)
-  - PH/SQ: Phase and sequence the commit belongs to, added when the position
-    is unambiguous. The current directory decides it; otherwise the single
-    in-progress sequence does. Parallel sequences leave both segments off.
+  - {id}: Task ref (FEST-123456) or festival ID (e.g., CS0001)
+
+Optional position segments: [FE-{id}-PH-{phase}-SQ-{sequence}]
+  PH- and SQ- are additive: they record the phase and sequence the commit
+  belongs to, and appear only when that position is unambiguous. The current
+  directory decides it; otherwise the single in-progress sequence does.
+  Parallel sequences leave both segments off, and SQ- is never emitted
+  without PH-.
 
 Detection priority:
   1. Explicit --task flag value
@@ -88,10 +88,10 @@ Detection priority:
 Examples:
   fest commit -m "Implement feature"
   # In linked project or sequence → [FE-CS0001] Implement feature
-  # In festival task              → [FE-FEST-a3b2c1] Implement feature
+  # In festival task              → [FE-FEST-123456] Implement feature
 
-  fest commit --task FEST-b4c5d6 -m "Related work"
-  # → [FE-FEST-b4c5d6] Related work
+  fest commit --task FEST-234567 -m "Related work"
+  # → [FE-FEST-234567] Related work
 
   fest commit --festival OA0001 -m "Work from unlinked dir"
   # → [FE-OA0001] Work from unlinked dir
@@ -111,13 +111,14 @@ Examples:
 	}
 
 	cmd.Flags().StringVarP(&message, "message", "m", "", "commit message (required unless --auto-write)")
-	cmd.Flags().StringVar(&taskRef, "task", "", "task reference ID to use (e.g., FEST-a3b2c1)")
+	cmd.Flags().StringVar(&taskRef, "task", "", "task reference ID to use (e.g., FEST-123456)")
 	cmd.Flags().StringVar(&festivalFlag, "festival", "", "festival path, name, or ID (overrides auto-detection)")
 	cmd.Flags().BoolVar(&noTag, "no-tag", false, "don't prepend task reference")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "output result as JSON")
 	cmd.Flags().BoolVar(&autoStage, "stage", true, "auto-stage all changes before commit")
 	cmd.Flags().BoolVar(&autoWrite, "auto-write", false, "run configured commit message writer")
 	cmd.Flags().BoolVar(&commitLarge, "commit-large", false, "commit over-threshold files instead of keeping them out of git")
+	cmd.Flags().BoolVar(&commitNested, "commit-nested", false, "commit undeclared nested git repositories as gitlinks instead of keeping them out of git")
 	cmd.Flags().BoolVar(&noRoot, "no-root", false, "skip campaign root commit (project commit only)")
 	cmd.Flags().BoolVar(&syncSubmoduleRef, "sync-submodule-ref", false, "deprecated: campaign root commit is now automatic")
 	_ = cmd.Flags().MarkDeprecated("sync-submodule-ref", "campaign root commit is now automatic; use --no-root to skip")
@@ -375,7 +376,7 @@ func outputResult(result *CommitResult) error {
 			if result.TaskRef != "" {
 				fmt.Printf("%s %s\n", ui.Label("Task"), ui.Value(result.TaskRef, ui.TaskColor))
 			}
-			if summary := positionSummary(result.Phase, result.Sequence); summary != "" {
+			if summary := positionSummary(position{Phase: result.Phase, Sequence: result.Sequence}); summary != "" {
 				fmt.Printf("%s %s\n", ui.Label("Position"), ui.Value(summary))
 			}
 			if result.CampaignTag != "" {
@@ -551,7 +552,7 @@ func stageAllChanges(ctx context.Context, repoPath string, report io.Writer) err
 		return errors.Wrap(err, "context cancelled")
 	}
 	outcome, err := commitkit.StageAllWithOptions(ctx, repoPath,
-		commitkit.StageOptions{CommitLarge: commitLarge})
+		commitkit.StageOptions{CommitLarge: commitLarge, CommitNested: commitNested})
 	if err != nil {
 		var blocked *commitkit.GuardBlockedError
 		if stderrors.As(err, &blocked) {
@@ -578,7 +579,7 @@ func stageFiles(ctx context.Context, repoPath string, report io.Writer, files ..
 		return errors.Wrap(err, "context cancelled")
 	}
 	outcome, err := commitkit.StageFilesWithOptions(ctx, repoPath,
-		commitkit.StageOptions{CommitLarge: commitLarge}, files...)
+		commitkit.StageOptions{CommitLarge: commitLarge, CommitNested: commitNested}, files...)
 	if err != nil {
 		var blocked *commitkit.GuardBlockedError
 		if stderrors.As(err, &blocked) {
@@ -594,7 +595,7 @@ func stageFiles(ctx context.Context, repoPath string, report io.Writer, files ..
 // error instead of letting commitkit.Commit return a bare ErrNoChanges after
 // the user already saw exclusion lines on stderr.
 func nothingLeftAfterExclusions(ctx context.Context, repoPath string, outcome *commitkit.StageOutcome) error {
-	if outcome == nil || len(outcome.Excluded) == 0 {
+	if outcome == nil || (len(outcome.Excluded) == 0 && len(outcome.NestedRepos) == 0) {
 		return nil
 	}
 	has, err := commitkit.HasStagedChanges(ctx, repoPath)
@@ -602,7 +603,7 @@ func nothingLeftAfterExclusions(ctx context.Context, repoPath string, outcome *c
 		return errors.Wrap(err, "checking staged changes after guard exclusions")
 	}
 	if !has {
-		return errAllExcluded
+		return errors.New(allExcludedMessage(outcome))
 	}
 	return nil
 }
@@ -847,7 +848,7 @@ func commitCampaignRoot(ctx context.Context, campaignRoot string, paths []string
 	}
 
 	outcome, err := commitkit.StageFilesWithOptions(ctx, campaignRoot,
-		commitkit.StageOptions{CommitLarge: commitLarge}, paths...)
+		commitkit.StageOptions{CommitLarge: commitLarge, CommitNested: commitNested}, paths...)
 	if err != nil {
 		var blocked *commitkit.GuardBlockedError
 		if stderrors.As(err, &blocked) {
