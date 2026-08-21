@@ -316,6 +316,43 @@ func TestFestivalScopedPaths_KeepsTrackedButDeletedPath(t *testing.T) {
 	}
 }
 
+func TestHasStagedPathChanges_ContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := hasStagedPathChanges(ctx, t.TempDir(), []string{"festivals"})
+	if err == nil {
+		t.Fatal("expected cancelled context error")
+	}
+}
+
+func TestHasStagedPathChanges_EmptyPaths(t *testing.T) {
+	got, err := hasStagedPathChanges(context.Background(), t.TempDir(), nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got {
+		t.Fatal("empty path list must not report staged changes")
+	}
+}
+
+func TestCommitOnlyPaths_ContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err := commitOnlyPaths(ctx, t.TempDir(), "fest: test", []string{"festivals"})
+	if err == nil {
+		t.Fatal("expected cancelled context error")
+	}
+}
+
+func TestCommitOnlyPaths_EmptyPaths(t *testing.T) {
+	err := commitOnlyPaths(context.Background(), t.TempDir(), "fest: test", nil)
+	if err == nil {
+		t.Fatal("expected error for empty path list")
+	}
+}
+
 func TestMatchablePaths_ContextCancelled(t *testing.T) {
 	root := t.TempDir()
 	makeDirs(t, root, "present")
