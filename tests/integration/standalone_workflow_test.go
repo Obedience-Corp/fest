@@ -278,8 +278,14 @@ func TestStandaloneWorkflow_TopLevelShowAndWatch(t *testing.T) {
 **Goal:** render second.
 `))
 
-		output, exitCode := runStandaloneFestWatchBounded(t, container, dir)
-		require.Contains(t, []int{124, 143}, exitCode, "watch should stay running until bounded timeout after initial render")
+		// `timeout` stops the watch with SIGTERM, and since fest#367 a signal
+		// is a clean stop rather than death by signal, so 0 joins 124 and 143
+		// as a valid way for a watch that stayed up to end. Exit code alone can
+		// no longer tell "ran until the bound" from "exited immediately", so the
+		// elapsed seconds carry that half of the assertion.
+		output, exitCode, elapsed := runStandaloneFestWatchBounded(t, container, dir)
+		require.Contains(t, []int{0, 124, 143}, exitCode, "watch should end cleanly at the bounded timeout after initial render")
+		require.GreaterOrEqual(t, elapsed, 1, "watch should stay running until the bounded timeout, not exit immediately")
 		require.Contains(t, output, "Workflow Progress")
 		require.Contains(t, output, "Step 1: First")
 		require.Contains(t, output, "Step 2: Second")
@@ -305,8 +311,9 @@ func TestStandaloneWorkflow_TopLevelShowAndWatch(t *testing.T) {
 **Goal:** render second.
 `))
 
-		output, exitCode := runStandaloneFestWatchWithAdvance(t, container, dir)
-		require.Contains(t, []int{124, 143}, exitCode, "watch should stay running until bounded timeout after refresh")
+		output, exitCode, elapsed := runStandaloneFestWatchWithAdvance(t, container, dir)
+		require.Contains(t, []int{0, 124, 143}, exitCode, "watch should end cleanly at the bounded timeout after refresh")
+		require.GreaterOrEqual(t, elapsed, 2, "watch should stay running past the advance until the bounded timeout")
 		require.Contains(t, output, "Workflow Progress")
 		require.Contains(t, output, "Mode: tracked")
 		require.Contains(t, output, "Progress: 1/2")
@@ -316,12 +323,12 @@ func TestStandaloneWorkflow_TopLevelShowAndWatch(t *testing.T) {
 	})
 }
 
-func runStandaloneFestWatchBounded(t *testing.T, tc *TestContainer, cwd string) (string, int) {
+func runStandaloneFestWatchBounded(t *testing.T, tc *TestContainer, cwd string) (string, int, int) {
 	t.Helper()
 
 	outputPath := "/tmp/fest-standalone-watch-output"
-	cmd := "cd " + shellQuote(cwd) + " && rm -f " + outputPath + " && set +e; timeout 2s /fest watch"
-	cmd += " > " + outputPath + " 2>&1; code=$?; cat " + outputPath + "; printf '\\n__FEST_STANDALONE_WATCH_EXIT_CODE:%d\\n' \"$code\""
+	cmd := "cd " + shellQuote(cwd) + " && rm -f " + outputPath + " && set +e; start=$(date +%s); timeout 2s /fest watch"
+	cmd += " > " + outputPath + " 2>&1; code=$?; elapsed=$(( $(date +%s) - start )); cat " + outputPath + "; printf '\\n__FEST_STANDALONE_WATCH_EXIT_CODE:%d %d\\n' \"$code\" \"$elapsed\""
 
 	output, err := tc.runCommand([]string{"sh", "-c", cmd})
 	require.NoError(t, err, "fest watch should start")
@@ -330,22 +337,24 @@ func runStandaloneFestWatchBounded(t *testing.T, tc *TestContainer, cwd string) 
 	idx := strings.LastIndex(output, marker)
 	require.NotEqual(t, -1, idx, "bounded watch output should include exit marker: %s", output)
 
-	codeText := strings.Fields(strings.TrimSpace(output[idx+len(marker):]))
-	require.NotEmpty(t, codeText, "bounded watch exit code should be present")
-	exitCode, err := strconv.Atoi(codeText[0])
+	fields := strings.Fields(strings.TrimSpace(output[idx+len(marker):]))
+	require.Len(t, fields, 2, "bounded watch marker should carry an exit code and an elapsed second count")
+	exitCode, err := strconv.Atoi(fields[0])
 	require.NoError(t, err, "bounded watch exit code should parse")
+	elapsed, err := strconv.Atoi(fields[1])
+	require.NoError(t, err, "bounded watch elapsed seconds should parse")
 
-	return output[:idx], exitCode
+	return output[:idx], exitCode, elapsed
 }
 
-func runStandaloneFestWatchWithAdvance(t *testing.T, tc *TestContainer, cwd string) (string, int) {
+func runStandaloneFestWatchWithAdvance(t *testing.T, tc *TestContainer, cwd string) (string, int, int) {
 	t.Helper()
 
 	outputPath := "/tmp/fest-standalone-watch-bootstrap-output"
 	advancePath := "/tmp/fest-standalone-watch-bootstrap-advance"
 	cmd := "rm -f " + outputPath + " " + advancePath
 	cmd += "; (cd " + shellQuote(cwd) + " && sleep 0.5 && /fest workflow advance > " + advancePath + " 2>&1) &"
-	cmd += " (cd " + shellQuote(cwd) + " && timeout 3s /fest watch > " + outputPath + " 2>&1); code=$?; wait || true; cat " + outputPath + "; printf '\\n__FEST_STANDALONE_WATCH_EXIT_CODE:%d\\n' \"$code\""
+	cmd += " start=$(date +%s); (cd " + shellQuote(cwd) + " && timeout 3s /fest watch > " + outputPath + " 2>&1); code=$?; elapsed=$(( $(date +%s) - start )); wait || true; cat " + outputPath + "; printf '\\n__FEST_STANDALONE_WATCH_EXIT_CODE:%d %d\\n' \"$code\" \"$elapsed\""
 
 	output, err := tc.runCommand([]string{"sh", "-c", cmd})
 	require.NoError(t, err, "fest watch should start and background advance should finish")
@@ -354,10 +363,12 @@ func runStandaloneFestWatchWithAdvance(t *testing.T, tc *TestContainer, cwd stri
 	idx := strings.LastIndex(output, marker)
 	require.NotEqual(t, -1, idx, "bounded watch output should include exit marker: %s", output)
 
-	codeText := strings.Fields(strings.TrimSpace(output[idx+len(marker):]))
-	require.NotEmpty(t, codeText, "bounded watch exit code should be present")
-	exitCode, err := strconv.Atoi(codeText[0])
+	fields := strings.Fields(strings.TrimSpace(output[idx+len(marker):]))
+	require.Len(t, fields, 2, "bounded watch marker should carry an exit code and an elapsed second count")
+	exitCode, err := strconv.Atoi(fields[0])
 	require.NoError(t, err, "bounded watch exit code should parse")
+	elapsed, err := strconv.Atoi(fields[1])
+	require.NoError(t, err, "bounded watch elapsed seconds should parse")
 
-	return output[:idx], exitCode
+	return output[:idx], exitCode, elapsed
 }
