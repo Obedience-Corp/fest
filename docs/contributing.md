@@ -202,17 +202,44 @@ func (v *Validator) Validate(path string) ([]Issue, error) {
 
 ### Error Handling
 
-Use the `internal/errors` package for structured errors:
+fest does **not** ban `fmt.Errorf`. The campaign-wide "never `fmt.Errorf`" line
+is scoped here (Obedience-Corp/fest#342).
+
+`internal/errors` (`festerrors` at the process boundary) is required for
+**operator-facing** failures: command handlers that return to `cmd/fest/main.go`
+(printed as `Error: %v`), quality gates, and validation the operator sees.
+`fmt.Errorf` / `errors.New` are allowed in **leaf helpers** (path utilities,
+parsers, evaluators) whose callers wrap with `Wrap` / `Wrapf` / `IO` / `Parse`
+before returning to a command. Sentinels such as `ErrAlreadyPrinted` stay
+plain.
+
+`Error()` never renders `WithField` values. Those fields are for JSON.
+Identifying facts (path, name, id) that the operator needs must be in the
+message or `WithHint`, not only in a field.
 
 ```go
-// Good - structured error with context
-return errors.NotFound("festival").
+// Good: operator-facing, facts in the message
+return festerrors.NotFound("festival").
     WithOp("validate").
-    WithField("path", festivalPath)
+    WithHintf("path: %s", festivalPath)
 
-// Bad - plain error
+// Good: leaf helper; caller will wrap before main
+return fmt.Errorf("fest_working_dir must be relative, got %q", raw)
+
+// Good: lift a leaf error at the command boundary
+return festerrors.Wrap(err, "normalizing working dir").WithOp("validate")
+
+// Bad: operator-facing fmt.Errorf (no code, hint, or JSON fields)
 return fmt.Errorf("festival not found: %s", festivalPath)
+
+// Bad: the only copy of the path lives in a field the terminal never prints
+return festerrors.Validation("missing required deliverable").
+    WithField("path", "SEQUENCE_GOAL.md")
 ```
+
+Do not convert the existing `internal/` `fmt.Errorf` sites in drive-by PRs, and
+do not add a repo-wide lint forbid. Migrate a package when you are already
+changing it.
 
 Error codes:
 

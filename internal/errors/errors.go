@@ -1,4 +1,14 @@
-// Package errors provides structured error types for fest CLI.
+// Package errors provides structured error types for the fest CLI.
+//
+// Construction policy (Obedience-Corp/fest#342): use this package at
+// operator-facing boundaries. cmd/fest prints `Error: %v` for anything that
+// reaches main, so identifying facts (path, name, id) must live in the message
+// or Hint. Error() never renders Fields; those exist for JSON consumers.
+//
+// fmt.Errorf is allowed in leaf helpers (pathutil, parsers, evaluators) whose
+// callers wrap with Wrap, Wrapf, IO, or Parse before returning to a command.
+// Do not add a repo-wide lint forbid on fmt.Errorf. Migrate a package when you
+// are already changing it.
 package errors
 
 import (
