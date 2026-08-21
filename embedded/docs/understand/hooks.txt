@@ -58,11 +58,12 @@ Hook process context
 --------------------
 
 Executed hooks receive fest.hook.context/v1 JSON on stdin and FEST_*
-environment variables (FEST_TASK, FEST_VERB, FEST_LEVEL, FEST_TIMING,
-FEST_FESTIVAL, FEST_FESTIVAL_PATH, FEST_HOOK_NAME, FEST_HOOK=1) so
-commands can render coordinates without scraping the TUI. Callers that
-already supply stdin (the approval judge) keep that stdin; env is still
-set. See docs/concepts/hooks.md.
+environment variables (FEST_HOOK=1, FEST_HOOK_SCHEMA, FEST_HOOK_NAME,
+FEST_TASK, FEST_VERB, FEST_LEVEL, FEST_TIMING, FEST_PHASE, FEST_STEP,
+FEST_FESTIVAL_PATH, FEST_FESTIVAL) so commands can render coordinates
+without scraping the TUI. Callers that already supply stdin (the
+approval judge) keep that stdin; env is still set. See
+docs/concepts/hooks.md.
 
 Human gates (not hooks)
 -----------------------
