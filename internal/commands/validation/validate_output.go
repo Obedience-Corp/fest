@@ -155,7 +155,7 @@ func printValidationResult(display *ui.UI, festivalPath string, result *Validati
 	fmt.Println(strings.Repeat("═", 60))
 	switch {
 	case result.Valid && result.MarkersPending:
-		fmt.Println(ui.Info("  STRUCTURE VALID — MARKERS PENDING"))
+		fmt.Println(ui.Info("  STRUCTURE VALID, MARKERS PENDING"))
 	case result.Valid:
 		fmt.Println(ui.Success("  VALIDATION PASSED"))
 	case hasFailures:
@@ -203,7 +203,7 @@ func printMarkerValidationSection(display *ui.UI, issues []ValidationIssue, mark
 
 	fmt.Println()
 	fmt.Println(ui.Info("Unfilled markers are expected right after scaffolding."))
-	fmt.Println(ui.Info("Fill them with real task content — do not paste filler to restore the score."))
+	fmt.Println(ui.Info("Fill them with real task content: do not paste filler to restore the score."))
 	fmt.Println()
 
 	if len(issues) > 0 {
@@ -231,7 +231,7 @@ func printAgentReflection(display *ui.UI, result *ValidationResult) {
 	if result.Valid && result.MarkersPending {
 		display.Info("Structure is valid. Unfilled markers are expected right after scaffolding.")
 		fmt.Println()
-		fmt.Println(ui.Info("  Fill markers as you write real task content — do not paste filler to restore the score."))
+		fmt.Println(ui.Info("  Fill markers as you write real task content: do not paste filler to restore the score."))
 		fmt.Println(ui.Dim("     Run 'fest markers list' to see remaining placeholders."))
 		return
 	}

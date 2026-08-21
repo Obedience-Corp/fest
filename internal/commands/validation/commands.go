@@ -192,7 +192,7 @@ AI agents execute TASK FILES, not goals. If your sequences only have
 SEQUENCE_GOAL.md without task files, agents won't know HOW to execute.
 
 Unfilled template markers after scaffolding are expected. Fill them as you
-write real content — do not paste filler to restore a score. Missing files,
+write real content: do not paste filler to restore a score. Missing files,
 missing task files, and missing quality gates still fail validation.
 
 Use --fix to automatically apply safe fixes (like adding quality gates).`,
@@ -451,10 +451,6 @@ func toValidatorResult(result *ValidationResult) *validator.Result {
 	return &validator.Result{Issues: issues}
 }
 
-func calculateScore(result *ValidationResult) int {
-	return validator.CalculateScore(toValidatorResult(result))
-}
-
 func addSuggestions(result *ValidationResult) {
 	hasMissingTasks := false
 	hasMissingGates := false
@@ -487,7 +483,7 @@ func addSuggestions(result *ValidationResult) {
 	}
 	if hasUnfilledTemplates {
 		result.Suggestions = append(result.Suggestions,
-			"Structure can be valid with markers pending — fill them with real content, not filler",
+			"Structure can be valid with markers pending: fill them with real content, not filler",
 			"Run 'fest markers list' to see all unfilled template markers",
 			"Use 'fest markers fill' or edit files manually to replace markers with actual content")
 	}
