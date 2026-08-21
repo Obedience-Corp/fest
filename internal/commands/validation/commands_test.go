@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/Obedience-Corp/fest/internal/validator"
 )
 
 func setupTestFestival(t *testing.T, opts testFestivalOpts) string {
@@ -448,6 +450,32 @@ func TestFinalizeValidationResult(t *testing.T) {
 			wantValid:    false,
 			wantBlocking: true,
 		},
+		{
+			name: "implementation marker errors are pending not blocking",
+			result: &ValidationResult{
+				Issues: []ValidationIssue{{
+					Level:   LevelError,
+					Code:    CodeUnfilledTemplate,
+					Message: "File contains 12 unfilled template markers ([REPLACE:)",
+					Path:    "002_IMPLEMENT/01_seq/01_task.md",
+				}},
+			},
+			wantValid:    true,
+			wantBlocking: false,
+		},
+		{
+			name: "planning marker warnings are pending not invalid",
+			result: &ValidationResult{
+				Issues: []ValidationIssue{{
+					Level:   LevelWarning,
+					Code:    CodeUnfilledTemplate,
+					Message: "File contains 4 unfilled template markers ([REPLACE:)",
+					Path:    "001_PLANNING/01_seq/01_task.md",
+				}},
+			},
+			wantValid:    true,
+			wantBlocking: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -461,5 +489,51 @@ func TestFinalizeValidationResult(t *testing.T) {
 				t.Fatalf("validationHasBlockingFailures() = %v, want %v", got, tt.wantBlocking)
 			}
 		})
+	}
+}
+
+func TestFinalizeValidationResult_ScaffoldCliffDoesNotZeroScore(t *testing.T) {
+	issues := make([]ValidationIssue, 0, 47)
+	for i := 0; i < 47; i++ {
+		issues = append(issues, ValidationIssue{
+			Level:   LevelError,
+			Code:    CodeUnfilledTemplate,
+			Path:    fmt.Sprintf("002_IMPLEMENT/01_seq/%02d_task.md", i+1),
+			Message: fmt.Sprintf("File contains %d unfilled template markers ([REPLACE:)", 10),
+		})
+	}
+	result := &ValidationResult{Issues: issues}
+	finalizeValidationResult(result)
+
+	wantScore := 100 - validator.MarkerPendingPenalty
+	if result.Score != wantScore {
+		t.Fatalf("Score = %d, want %d (old per-file errors would floor at 0)", result.Score, wantScore)
+	}
+	if !result.Valid {
+		t.Fatal("Valid = false, want true when only markers are pending")
+	}
+	if !result.MarkersPending {
+		t.Fatal("MarkersPending = false, want true")
+	}
+	if validationHasBlockingFailures(result) {
+		t.Fatal("markers pending should not be a blocking failure for fest validate")
+	}
+
+	result.Issues = append(result.Issues, ValidationIssue{
+		Level:   LevelError,
+		Code:    CodeMissingFile,
+		Path:    "FESTIVAL_OVERVIEW.md",
+		Message: "missing required file",
+	})
+	finalizeValidationResult(result)
+	wantScore = 100 - 15 - validator.MarkerPendingPenalty
+	if result.Score != wantScore {
+		t.Fatalf("Score with missing file = %d, want %d", result.Score, wantScore)
+	}
+	if result.Valid {
+		t.Fatal("Valid = true, want false when a required file is missing")
+	}
+	if !validationHasBlockingFailures(result) {
+		t.Fatal("missing file should remain blocking")
 	}
 }

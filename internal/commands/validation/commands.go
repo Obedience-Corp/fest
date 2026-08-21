@@ -76,26 +76,32 @@ type MarkerInfo struct {
 
 // ValidationResult represents the complete validation result
 type ValidationResult struct {
-	OK           bool              `json:"ok"`
-	Action       string            `json:"action"`
-	Festival     string            `json:"festival"`
-	Valid        bool              `json:"valid"`
-	Score        int               `json:"score"`
-	Issues       []ValidationIssue `json:"issues,omitempty"`
-	Warnings     []string          `json:"warnings,omitempty"`
-	Checklist    *Checklist        `json:"checklist,omitempty"`
-	FixesApplied []FixApplied      `json:"fixes_applied,omitempty"`
-	Suggestions  []string          `json:"suggestions,omitempty"`
-	MarkerInfo   *MarkerInfo       `json:"marker_info,omitempty"`
+	OK             bool              `json:"ok"`
+	Action         string            `json:"action"`
+	Festival       string            `json:"festival"`
+	Valid          bool              `json:"valid"`
+	Score          int               `json:"score"`
+	MarkersPending bool              `json:"markers_pending"`
+	Issues         []ValidationIssue `json:"issues,omitempty"`
+	Warnings       []string          `json:"warnings,omitempty"`
+	Checklist      *Checklist        `json:"checklist,omitempty"`
+	FixesApplied   []FixApplied      `json:"fixes_applied,omitempty"`
+	Suggestions    []string          `json:"suggestions,omitempty"`
+	MarkerInfo     *MarkerInfo       `json:"marker_info,omitempty"`
 }
 
 func finalizeValidationResult(result *ValidationResult) {
-	result.Score = calculateScore(result)
+	canonical := toValidatorResult(result)
+	result.Score = validator.CalculateScore(canonical)
+	result.MarkersPending = canonical.HasPendingMarkers()
 	result.Valid = validationResultIsClean(result)
 }
 
 func validationResultIsClean(result *ValidationResult) bool {
 	for _, issue := range result.Issues {
+		if validator.IsPendingMarker(issue.Code) {
+			continue
+		}
 		if issue.Level == LevelError || issue.Level == LevelWarning {
 			return false
 		}
@@ -110,7 +116,7 @@ func validationResultIsClean(result *ValidationResult) bool {
 
 func validationHasBlockingFailures(result *ValidationResult) bool {
 	for _, issue := range result.Issues {
-		if issue.Level == LevelError {
+		if issue.Level == LevelError && !validator.IsPendingMarker(issue.Code) {
 			return true
 		}
 	}
@@ -179,10 +185,15 @@ this command validates METHODOLOGY COMPLIANCE:
   • Implementation sequences have TASK FILES (not just goals)
   • Quality gates are present in implementation sequences
   • Naming conventions are followed
-  • Templates have been filled out (no [FILL:] markers)
+  • Unfilled [REPLACE:]/[FILL:] markers are reported as "markers pending"
+    (they do not fail structure validation or zero the score)
 
 AI agents execute TASK FILES, not goals. If your sequences only have
 SEQUENCE_GOAL.md without task files, agents won't know HOW to execute.
+
+Unfilled template markers after scaffolding are expected. Fill them as you
+write real content: do not paste filler to restore a score. Missing files,
+missing task files, and missing quality gates still fail validation.
 
 Use --fix to automatically apply safe fixes (like adding quality gates).`,
 		Args: cobra.MaximumNArgs(1),
@@ -429,32 +440,15 @@ func validateAutoLinkChecks(ctx context.Context, festivalPath string, result *Va
 	result.Issues = append(result.Issues, convertIssues(issues)...)
 }
 
-// Score calculation
-
-func calculateScore(result *ValidationResult) int {
-	if len(result.Issues) == 0 {
-		return 100
+func toValidatorResult(result *ValidationResult) *validator.Result {
+	if result == nil {
+		return &validator.Result{}
 	}
-
-	errorCount := 0
-	warningCount := 0
-
-	for _, issue := range result.Issues {
-		switch issue.Level {
-		case LevelError:
-			errorCount++
-		case LevelWarning:
-			warningCount++
-		}
+	issues := make([]validator.Issue, len(result.Issues))
+	for i, issue := range result.Issues {
+		issues[i] = validator.Issue{Level: issue.Level, Code: issue.Code}
 	}
-
-	// Base score of 100, minus 15 per error, minus 5 per warning
-	score := 100 - (errorCount * 15) - (warningCount * 5)
-	if score < 0 {
-		score = 0
-	}
-
-	return score
+	return &validator.Result{Issues: issues}
 }
 
 func addSuggestions(result *ValidationResult) {
@@ -489,6 +483,7 @@ func addSuggestions(result *ValidationResult) {
 	}
 	if hasUnfilledTemplates {
 		result.Suggestions = append(result.Suggestions,
+			"Structure can be valid with markers pending: fill them with real content, not filler",
 			"Run 'fest markers list' to see all unfilled template markers",
 			"Use 'fest markers fill' or edit files manually to replace markers with actual content")
 	}
