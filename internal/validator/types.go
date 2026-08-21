@@ -83,10 +83,43 @@ func NewResult(action, festival string) *Result {
 	}
 }
 
-// HasErrors returns true if the result contains at least one error-level issue
+// HasErrors returns true if the result contains at least one error-level issue.
+// This includes unfilled-template findings, which remain error-level in
+// implementation phases so fest next can still block on them.
 func (r *Result) HasErrors() bool {
+	if r == nil {
+		return false
+	}
 	for _, is := range r.Issues {
 		if is.Level == LevelError {
+			return true
+		}
+	}
+	return false
+}
+
+// HasStructuralErrors reports error-level issues that are not pending
+// template markers. Missing files, missing tasks, and missing gates fail
+// structure validation; unfilled [REPLACE] markers do not.
+func (r *Result) HasStructuralErrors() bool {
+	if r == nil {
+		return false
+	}
+	for _, is := range r.Issues {
+		if is.Level == LevelError && !IsPendingMarker(is.Code) {
+			return true
+		}
+	}
+	return false
+}
+
+// HasPendingMarkers reports whether any unfilled-template issues are present.
+func (r *Result) HasPendingMarkers() bool {
+	if r == nil {
+		return false
+	}
+	for _, is := range r.Issues {
+		if IsPendingMarker(is.Code) {
 			return true
 		}
 	}

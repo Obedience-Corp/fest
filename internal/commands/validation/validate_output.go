@@ -128,6 +128,8 @@ func printValidationResult(display *ui.UI, festivalPath string, result *Validati
 	fmt.Println()
 	fmt.Printf("%s %s\n", ui.Label("Score"), ui.Value(fmt.Sprintf("%d/100", result.Score)))
 	switch {
+	case result.Valid && result.MarkersPending:
+		fmt.Println(ui.Info("Festival structure is valid; template markers are still pending"))
 	case result.Valid:
 		fmt.Println(ui.Success("Festival structure is valid"))
 	case hasFailures:
@@ -152,6 +154,8 @@ func printValidationResult(display *ui.UI, festivalPath string, result *Validati
 	fmt.Println()
 	fmt.Println(strings.Repeat("═", 60))
 	switch {
+	case result.Valid && result.MarkersPending:
+		fmt.Println(ui.Info("  STRUCTURE VALID — MARKERS PENDING"))
 	case result.Valid:
 		fmt.Println(ui.Success("  VALIDATION PASSED"))
 	case hasFailures:
@@ -176,10 +180,9 @@ func printValidationSection(display *ui.UI, title string, issues []ValidationIss
 }
 
 func printMarkerValidationSection(display *ui.UI, issues []ValidationIssue, markerInfo *MarkerInfo) {
-	printSectionHeader("Markers", issues)
-	fmt.Println(ui.Dim("Template completion status"))
-
 	if len(issues) == 0 {
+		printSectionHeader("Markers", issues)
+		fmt.Println(ui.Dim("Template completion status"))
 		if markerInfo != nil && markerInfo.TotalCount > 0 {
 			display.Success("All template markers have been filled (%d markers found)", markerInfo.TotalCount)
 		} else {
@@ -188,16 +191,19 @@ func printMarkerValidationSection(display *ui.UI, issues []ValidationIssue, mark
 		return
 	}
 
-	// Show error with count
+	// Pending, not blocked: unfilled markers after scaffold are expected.
+	fmt.Printf("\n%s %s\n", ui.StateIcon("pending"), ui.H2("Markers"))
+	fmt.Println(ui.Dim("Scaffolded, markers pending (not structurally broken)"))
+
 	if markerInfo != nil {
-		display.Error("Found %d unfilled markers in %d files", markerInfo.TotalCount, markerInfo.TotalFiles)
+		display.Warning("Found %d unfilled markers in %d files", markerInfo.TotalCount, markerInfo.TotalFiles)
 	} else {
-		display.Error("Files contain unfilled template markers")
+		display.Warning("Files contain unfilled template markers")
 	}
 
 	fmt.Println()
-	fmt.Println(ui.Info("Template markers are placeholders that must be replaced with actual content."))
-	fmt.Println(ui.Info("A festival with unfilled markers is incomplete."))
+	fmt.Println(ui.Info("Unfilled markers are expected right after scaffolding."))
+	fmt.Println(ui.Info("Fill them with real task content — do not paste filler to restore the score."))
 	fmt.Println()
 
 	if len(issues) > 0 {
@@ -221,6 +227,14 @@ func printMarkerValidationSection(display *ui.UI, issues []ValidationIssue, mark
 func printAgentReflection(display *ui.UI, result *ValidationResult) {
 	fmt.Println()
 	fmt.Println(ui.H2("Agent Self-Check"))
+
+	if result.Valid && result.MarkersPending {
+		display.Info("Structure is valid. Unfilled markers are expected right after scaffolding.")
+		fmt.Println()
+		fmt.Println(ui.Info("  Fill markers as you write real task content — do not paste filler to restore the score."))
+		fmt.Println(ui.Dim("     Run 'fest markers list' to see remaining placeholders."))
+		return
+	}
 
 	if !result.Valid || result.Score < 100 {
 		display.Warning("Before continuing, reflect on these questions:")

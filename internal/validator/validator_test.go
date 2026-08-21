@@ -289,6 +289,37 @@ func TestCalculateScore(t *testing.T) {
 			},
 			wantScore: 80, // 100 - 15 - 5
 		},
+		{
+			name: "many unfilled markers cap at one pending penalty",
+			issues: []Issue{
+				{Level: LevelError, Code: CodeUnfilledTemplate},
+				{Level: LevelError, Code: CodeUnfilledTemplate},
+				{Level: LevelError, Code: CodeUnfilledTemplate},
+				{Level: LevelError, Code: CodeUnfilledTemplate},
+				{Level: LevelError, Code: CodeUnfilledTemplate},
+				{Level: LevelError, Code: CodeUnfilledTemplate},
+				{Level: LevelError, Code: CodeUnfilledTemplate},
+			},
+			wantScore: 100 - MarkerPendingPenalty,
+		},
+		{
+			name: "markers pending plus structural error",
+			issues: []Issue{
+				{Level: LevelError, Code: CodeMissingFile},
+				{Level: LevelError, Code: CodeUnfilledTemplate},
+				{Level: LevelError, Code: CodeUnfilledTemplate},
+			},
+			wantScore: 100 - 15 - MarkerPendingPenalty,
+		},
+		{
+			name: "planning-phase marker warnings do not stack",
+			issues: []Issue{
+				{Level: LevelWarning, Code: CodeUnfilledTemplate},
+				{Level: LevelWarning, Code: CodeUnfilledTemplate},
+				{Level: LevelWarning, Code: CodeUnfilledTemplate},
+			},
+			wantScore: 100 - MarkerPendingPenalty,
+		},
 	}
 
 	for _, tt := range tests {
@@ -299,5 +330,54 @@ func TestCalculateScore(t *testing.T) {
 				t.Errorf("CalculateScore() = %d, want %d", score, tt.wantScore)
 			}
 		})
+	}
+}
+
+func TestHasStructuralErrorsIgnoresPendingMarkers(t *testing.T) {
+	markersOnly := &Result{Issues: []Issue{
+		{Level: LevelError, Code: CodeUnfilledTemplate, Path: "a.md"},
+		{Level: LevelError, Code: CodeUnfilledTemplate, Path: "b.md"},
+	}}
+	if !markersOnly.HasErrors() {
+		t.Fatal("HasErrors() should still be true so fest next can block on implementation markers")
+	}
+	if markersOnly.HasStructuralErrors() {
+		t.Fatal("HasStructuralErrors() should be false when only markers are pending")
+	}
+	if !markersOnly.HasPendingMarkers() {
+		t.Fatal("HasPendingMarkers() = false, want true")
+	}
+
+	broken := &Result{Issues: []Issue{
+		{Level: LevelError, Code: CodeMissingFile, Path: "FESTIVAL_OVERVIEW.md"},
+		{Level: LevelError, Code: CodeUnfilledTemplate, Path: "a.md"},
+	}}
+	if !broken.HasStructuralErrors() {
+		t.Fatal("HasStructuralErrors() should be true when a file is missing")
+	}
+}
+
+func TestQuickValidate_MarkersPendingIsStructurallyValid(t *testing.T) {
+	dir := setupTemplateTestFestival(t, "implementation", "# Task\n\n[REPLACE: placeholder text]\n")
+	_ = os.WriteFile(filepath.Join(dir, "001_PHASE", "01_seq", "SEQUENCE_GOAL.md"), []byte("# Sequence Goal\nDo the thing.\n"), 0644)
+
+	result, err := QuickValidate(context.Background(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.HasPendingMarkers() {
+		t.Fatal("expected pending markers")
+	}
+	if result.HasStructuralErrors() {
+		t.Fatalf("unexpected structural errors: %+v", result.Issues)
+	}
+	if !result.Valid {
+		t.Fatalf("Valid = false, want true for markers-only festival; issues=%+v", result.Issues)
+	}
+	if result.OK {
+		t.Fatal("OK should stay false while marker errors remain so create --agent still blocks")
+	}
+	if result.Score != 100-MarkerPendingPenalty {
+		t.Fatalf("Score = %d, want %d", result.Score, 100-MarkerPendingPenalty)
 	}
 }

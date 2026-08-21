@@ -91,10 +91,7 @@ func QuickValidate(ctx context.Context, festivalPath string) (*Result, error) {
 	}
 	result.Issues = append(result.Issues, templateIssues...)
 
-	// Calculate score based on issues
-	result.Score = CalculateScore(result)
-	result.Valid = !result.HasErrors()
-	result.OK = result.Valid
+	finalizeCanonicalResult(result)
 
 	return result, nil
 }
@@ -157,10 +154,18 @@ func FullValidate(ctx context.Context, festivalPath string) (*Result, error) {
 		result.Issues = append(result.Issues, autoLinkIssues...)
 	}
 
-	// Calculate score based on issues
-	result.Score = CalculateScore(result)
-	result.Valid = !result.HasErrors()
-	result.OK = result.Valid
+	finalizeCanonicalResult(result)
 
 	return result, nil
+}
+
+// finalizeCanonicalResult sets Score/Valid/OK.
+// Valid follows structural errors only: unfilled template markers are a
+// pending state, not a failed festival structure. OK remains false when
+// any error-level issue exists (including markers) so fest create --agent
+// still rolls back on leftover placeholders.
+func finalizeCanonicalResult(result *Result) {
+	result.Score = CalculateScore(result)
+	result.Valid = !result.HasStructuralErrors()
+	result.OK = !result.HasErrors()
 }
