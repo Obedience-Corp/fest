@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -156,6 +157,43 @@ func TestRunGateHookStage_HumanGateSkipsAutomation(t *testing.T) {
 	events := readGateEvents(t, festivalPath)
 	if !strings.Contains(events, `"hook_skip":"human-gate"`) {
 		t.Fatalf("human-gate skip event missing:\n%s", events)
+	}
+}
+
+func TestRunGateHookStage_PassesContextStdin(t *testing.T) {
+	nav, _ := writeHookedGateFestival(t, "\n**Hooks:** pre: [gate-check]\n")
+	var got []byte
+	orig := newGateHookRunner
+	t.Cleanup(func() { newGateHookRunner = orig })
+	newGateHookRunner = func(workDir string) *hooks.Runner {
+		r := hooks.NewRunner(workDir)
+		r.Exec = func(ctx context.Context, command string, stdin []byte, dir string) hooks.CommandResult {
+			got = append([]byte(nil), stdin...)
+			return hooks.CommandResult{ExitCode: 0}
+		}
+		return r
+	}
+
+	step := nav.GetSteps()[0]
+	blocked, err := runGateHookStage(context.Background(), nav, 1, step, hooks.TimingPre)
+	if err != nil || blocked {
+		t.Fatalf("blocked=%v err=%v", blocked, err)
+	}
+	var payload hooks.Payload
+	if err := json.Unmarshal(got, &payload); err != nil {
+		t.Fatalf("stdin is not context JSON: %v (%q)", err, got)
+	}
+	if payload.Verb != string(hooks.VerbGateApprove) || payload.Level != string(hooks.LevelGate) {
+		t.Fatalf("payload = %+v", payload)
+	}
+	if payload.Phase != "001_IMPLEMENT" || payload.Step != 1 {
+		t.Fatalf("phase/step = %+v", payload)
+	}
+	if payload.Hook != "gate-check" || payload.Timing != string(hooks.TimingPre) {
+		t.Fatalf("hook/timing = %+v", payload)
+	}
+	if payload.FestivalID != "GHK-001" {
+		t.Fatalf("festival id = %q, want GHK-001 from fest.yaml metadata", payload.FestivalID)
 	}
 }
 

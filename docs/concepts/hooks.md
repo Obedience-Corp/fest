@@ -184,6 +184,38 @@ Orchestration:
 - Undeclared bound names: **skip + warn** (not an error). Scaffolded templates
   may bind `approval_judge` while config is still empty.
 
+## Hook process context
+
+Every executed automation hook receives the lifecycle coordinates so commands
+such as `camp buzz post --from-hook` can render task/verb/festival without
+scraping the TUI.
+
+1. **Environment.** Extra `FEST_*` variables are appended to the process
+   environment (they override inherited values of the same name):
+
+   | Variable | Meaning |
+   | --- | --- |
+   | `FEST_HOOK=1` | This process is a fest lifecycle hook |
+   | `FEST_HOOK_SCHEMA` | `fest.hook.context/v1` |
+   | `FEST_HOOK_NAME` | Bound hook name |
+   | `FEST_TASK` | Task or goal coordinate (when applicable) |
+   | `FEST_VERB` | `task_start`, `task_complete`, `sequence_complete`, `phase_complete`, `gate_approve` |
+   | `FEST_LEVEL` | `task`, `sequence`, `phase`, `gate` |
+   | `FEST_TIMING` | `pre` or `post` |
+   | `FEST_PHASE` | Phase directory name |
+   | `FEST_STEP` | 1-based gate step (omitted when 0) |
+   | `FEST_FESTIVAL_PATH` | Festival root |
+   | `FEST_FESTIVAL` | `metadata.id` from `fest.yaml` when known |
+
+2. **Stdin JSON.** The same fields as a `fest.hook.context/v1` object, one line.
+   Empty optional fields are omitted.
+
+Callers that already supply stdin (the approval judge's
+`fest.approval.judge/v1` payload) keep that stdin. Lifecycle verbs that used to
+pass `nil` now get the context object. Hooks that ignore stdin still see `FEST_*`.
+
+cwd remains the festival root.
+
 ## Human gates
 
 ```yaml

@@ -3,6 +3,7 @@ package hooks
 import (
 	"bytes"
 	"context"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -49,15 +50,30 @@ type CommandResult struct {
 // Runner executes hooks. The exec seam is injectable for tests.
 type Runner struct {
 	WorkDir string // festival root; hook cwd
+	Coord   Coord  // lifecycle location copied onto stdin/env when stdin is nil
 	Exec    func(ctx context.Context, command string, stdin []byte, dir string) CommandResult
+
+	// execEnv is the extra FEST_* environment for the in-flight defaultExec
+	// call. Hooks run sequentially, so this is not a concurrency seam.
+	execEnv []string
 }
 
 // NewRunner creates a runner with the default process-exec seam.
 func NewRunner(workDir string) *Runner {
-	return &Runner{WorkDir: workDir, Exec: defaultExec}
+	r := &Runner{WorkDir: workDir}
+	r.Exec = r.defaultExec
+	return r
 }
 
 func defaultExec(ctx context.Context, command string, stdin []byte, dir string) CommandResult {
+	return runHookCommand(ctx, command, stdin, dir, nil)
+}
+
+func (r *Runner) defaultExec(ctx context.Context, command string, stdin []byte, dir string) CommandResult {
+	return runHookCommand(ctx, command, stdin, dir, r.execEnv)
+}
+
+func runHookCommand(ctx context.Context, command string, stdin []byte, dir string, extraEnv []string) CommandResult {
 	fields := strings.Fields(command)
 	if len(fields) == 0 {
 		return CommandResult{ExitCode: -1, Err: festerrors.Validation("hook command is empty")}
@@ -68,6 +84,9 @@ func defaultExec(ctx context.Context, command string, stdin []byte, dir string) 
 	}
 	if stdin != nil {
 		cmd.Stdin = bytes.NewReader(stdin)
+	}
+	if len(extraEnv) > 0 {
+		cmd.Env = append(os.Environ(), extraEnv...)
 	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
@@ -104,7 +123,7 @@ func (r *Runner) Run(ctx context.Context, level Level, verb Verb, planned []Plan
 		return nil, false, festerrors.Validation("hooks runner is nil")
 	}
 	if r.Exec == nil {
-		r.Exec = defaultExec
+		r.Exec = r.defaultExec
 	}
 	var runs []HookRun
 	blocked := false
@@ -167,6 +186,11 @@ func (r *Runner) runOne(ctx context.Context, level Level, verb Verb, p PlannedHo
 		runCtx, cancel = context.WithTimeout(ctx, p.Hook.Timeout)
 	}
 	defer cancel()
+	payload := BuildPayload(r.Coord, level, verb, p)
+	if stdin == nil {
+		stdin = payload.JSON()
+	}
+	r.execEnv = payload.Env()
 	start := time.Now()
 	res := r.Exec(runCtx, p.Hook.Command, stdin, r.WorkDir)
 	run.Duration = time.Since(start)
