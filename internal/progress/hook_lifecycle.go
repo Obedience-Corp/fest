@@ -17,6 +17,7 @@ var newLifecycleHookRunner = hooks.NewRunner
 // through the hook runner (spec 03, D4).
 type LifecycleHookRequest struct {
 	FestivalPath string
+	FestivalID   string // optional; loaded from fest.yaml when empty
 	Phase        string // audit-event coordinate
 	Step         int    // audit-event coordinate (0 outside workflow steps)
 	Task         string // audit-event coordinate (task or sequence id, when applicable)
@@ -25,6 +26,21 @@ type LifecycleHookRequest struct {
 	Pre          []string
 	Post         []string
 	HumanGate    bool // approval: human-required on the step (spec 04)
+}
+
+// Coord is the hook-process location derived from this request.
+func (req LifecycleHookRequest) Coord() hooks.Coord {
+	id := strings.TrimSpace(req.FestivalID)
+	if id == "" {
+		id = hooks.FestivalID(req.FestivalPath)
+	}
+	return hooks.Coord{
+		FestivalPath: req.FestivalPath,
+		FestivalID:   id,
+		Phase:        req.Phase,
+		Step:         req.Step,
+		Task:         req.Task,
+	}
 }
 
 // PlanLifecycleHooks resolves the effective hook set and plans the request's
@@ -56,6 +72,9 @@ func PlanLifecycleHooks(ctx context.Context, req LifecycleHookRequest) ([]hooks.
 func RunLifecycleStage(ctx context.Context, store *Store, runner *hooks.Runner, req LifecycleHookRequest, planned []hooks.PlannedHook, timing hooks.Timing) ([]hooks.HookRun, bool, error) {
 	if len(planned) == 0 {
 		return nil, false, nil
+	}
+	if runner != nil {
+		runner.Coord = req.Coord()
 	}
 	var (
 		runs    []hooks.HookRun

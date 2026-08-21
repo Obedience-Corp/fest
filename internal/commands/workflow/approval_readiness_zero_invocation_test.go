@@ -94,7 +94,7 @@ fest_type: phase_gate
 // afterward only reports that one happened.
 func refuseJudgeInvocation(t *testing.T) {
 	t.Helper()
-	withApprovalJudgeRunner(t, func(_ context.Context, command string, _ []byte, _ string) ([]byte, error) {
+	withApprovalJudgeRunner(t, func(_ context.Context, command string, _ []byte, _ string, _ []string) ([]byte, error) {
 		t.Fatalf("judge %q invoked for a checkpoint that should have blocked at readiness", command)
 		return nil, nil
 	})

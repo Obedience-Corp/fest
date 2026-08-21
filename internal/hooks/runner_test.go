@@ -1,7 +1,9 @@
 package hooks
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -205,6 +207,114 @@ func TestDefaultExec_FailureCarriesStderrTail(t *testing.T) {
 	}
 	if !strings.Contains(res.Err.Error(), "not found") && !strings.Contains(res.Err.Error(), "exit") {
 		t.Fatalf("err should carry diagnostics: %v", res.Err)
+	}
+}
+
+func TestRunner_FillsContextStdinWhenNil(t *testing.T) {
+	var got []byte
+	r := NewRunner("")
+	r.Coord = Coord{
+		FestivalPath: "/fest",
+		FestivalID:   "AB0001",
+		Phase:        "001_PHASE",
+		Task:         "001_PHASE/01_seq/01_task.md",
+	}
+	r.Exec = func(ctx context.Context, command string, stdin []byte, dir string) CommandResult {
+		got = append([]byte(nil), stdin...)
+		return CommandResult{ExitCode: 0}
+	}
+	planned := []PlannedHook{{
+		Name: "buzz_status", Timing: TimingPost,
+		Hook: ResolvedHook{Command: "camp-buzz"},
+	}}
+	if _, _, err := r.Run(context.Background(), LevelTask, VerbTaskComplete, planned, nil); err != nil {
+		t.Fatal(err)
+	}
+	var payload Payload
+	if err := json.Unmarshal(got, &payload); err != nil {
+		t.Fatalf("stdin is not JSON: %v (%q)", err, got)
+	}
+	if payload.SchemaVersion != ContextSchemaVersion {
+		t.Fatalf("schema = %q", payload.SchemaVersion)
+	}
+	if payload.Task != "001_PHASE/01_seq/01_task.md" {
+		t.Fatalf("task = %q", payload.Task)
+	}
+	if payload.Verb != string(VerbTaskComplete) || payload.Level != string(LevelTask) {
+		t.Fatalf("verb/level = %+v", payload)
+	}
+	if payload.Hook != "buzz_status" || payload.Timing != string(TimingPost) {
+		t.Fatalf("hook/timing = %+v", payload)
+	}
+	if payload.FestivalID != "AB0001" || payload.FestivalPath != "/fest" {
+		t.Fatalf("festival = %+v", payload)
+	}
+}
+
+func TestRunner_PreservesCallerStdin(t *testing.T) {
+	want := []byte(`{"schema_version":"fest.approval.judge/v1"}` + "\n")
+	var got []byte
+	r := NewRunner("")
+	r.Coord = Coord{Task: "must-not-overwrite"}
+	r.Exec = func(ctx context.Context, command string, stdin []byte, dir string) CommandResult {
+		got = append([]byte(nil), stdin...)
+		return CommandResult{ExitCode: 0}
+	}
+	planned := []PlannedHook{{
+		Name: "approval_judge", Timing: TimingPost,
+		Hook: ResolvedHook{Command: "ob-judge"},
+	}}
+	if _, _, err := r.Run(context.Background(), LevelGate, VerbGateApprove, planned, want); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, want) {
+		t.Fatalf("stdin = %q, want caller payload", got)
+	}
+}
+
+func TestRunner_DefaultExecInjectsEnvAndStdin(t *testing.T) {
+	r := NewRunner(t.TempDir())
+	r.Coord = Coord{Task: "001/01/task.md", FestivalID: "AB0001"}
+	planned := []PlannedHook{{
+		Name: "dump", Timing: TimingPre,
+		Hook: ResolvedHook{Command: "/bin/cat"},
+	}}
+	runs, _, err := r.Run(context.Background(), LevelTask, VerbTaskStart, planned, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(runs) != 1 || runs[0].Outcome != OutcomePass {
+		t.Fatalf("runs = %+v", runs)
+	}
+	var payload Payload
+	if err := json.Unmarshal(runs[0].Stdout, &payload); err != nil {
+		t.Fatalf("cat stdout is not context JSON: %v (%q)", err, runs[0].Stdout)
+	}
+	if payload.Task != "001/01/task.md" || payload.Verb != string(VerbTaskStart) {
+		t.Fatalf("payload = %+v", payload)
+	}
+
+	r = NewRunner(t.TempDir())
+	r.Coord = Coord{Task: "001/01/task.md", FestivalID: "AB0001"}
+	planned = []PlannedHook{{
+		Name: "dump-env", Timing: TimingPre,
+		Hook: ResolvedHook{Command: "/usr/bin/env"},
+	}}
+	runs, _, err = r.Run(context.Background(), LevelTask, VerbTaskStart, planned, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := string(runs[0].Stdout)
+	for _, want := range []string{
+		"FEST_HOOK=1",
+		"FEST_TASK=001/01/task.md",
+		"FEST_FESTIVAL=AB0001",
+		"FEST_VERB=task_start",
+		"FEST_HOOK_NAME=dump-env",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("env dump missing %q:\n%s", want, out)
+		}
 	}
 }
 

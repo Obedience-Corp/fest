@@ -61,6 +61,10 @@ type approvalJudgeOptions struct {
 	// Source is the config layer the resolved judge definition came from,
 	// recorded on the judge's wf_hook_run audit event.
 	Source hooks.Layer
+	// Coord is the lifecycle location for this judge run. It seeds the same
+	// FEST_* environment every other hook process receives (spec: hook
+	// process context); the judge keeps its own fest.approval.judge/v1 stdin.
+	Coord hooks.Coord
 	// OnHookRuns receives the judge execution's runner records so callers can
 	// persist them to the festival audit trail (D9).
 	OnHookRuns func([]hooks.HookRun)
@@ -116,7 +120,7 @@ type approvalJudgeResponse struct {
 	EvidenceStatus string `json:"evidence_status,omitempty"`
 }
 
-type approvalJudgeRunner func(ctx context.Context, command string, stdin []byte, dir string) ([]byte, error)
+type approvalJudgeRunner func(ctx context.Context, command string, stdin []byte, dir string, env []string) ([]byte, error)
 
 var runApprovalJudgeCommand approvalJudgeRunner = runApprovalJudgeCommandDefault
 
@@ -839,6 +843,12 @@ func judgeApproval(ctx context.Context, nav *wf.Navigator, step wf.WorkflowStep,
 	// and rejects (no evidence) or approves on the agent's self-report.
 	req.Evidence = resolveExistingEvidencePaths(nav.Ctx.PhasePath, step)
 	opts.Source = resolveJudgeHookSource(ctx, nav, opts.JudgeCommand)
+	opts.Coord = hooks.Coord{
+		FestivalPath: nav.Ctx.FestivalPath,
+		FestivalID:   hooks.FestivalID(nav.Ctx.FestivalPath),
+		Phase:        nav.Ctx.PhaseName,
+		Step:         step.Number,
+	}
 	stepNum := step.Number
 	opts.OnHookRuns = func(runs []hooks.HookRun) {
 		emitJudgeHookRuns(ctx, nav, stepNum, runs)
@@ -906,7 +916,7 @@ func evaluateApprovalJudge(ctx context.Context, req approvalJudgeRequest, opts a
 	defer cancel()
 
 	// Execute through the hooks runner seam so there is one command path.
-	out, judgeRuns, err := runApprovalJudgeViaHooks(judgeCtx, opts.JudgeCommand, append(stdin, '\n'), opts.WorkDir, opts.Source)
+	out, judgeRuns, err := runApprovalJudgeViaHooks(judgeCtx, opts.JudgeCommand, append(stdin, '\n'), opts.WorkDir, opts.Source, opts.Coord)
 	if opts.OnHookRuns != nil && len(judgeRuns) > 0 {
 		opts.OnHookRuns(judgeRuns)
 	}
@@ -933,7 +943,7 @@ func evaluateApprovalJudge(ctx context.Context, req approvalJudgeRequest, opts a
 	return decision, audit, nil
 }
 
-func runApprovalJudgeCommandDefault(ctx context.Context, command string, stdin []byte, dir string) ([]byte, error) {
+func runApprovalJudgeCommandDefault(ctx context.Context, command string, stdin []byte, dir string, env []string) ([]byte, error) {
 	fields := strings.Fields(command)
 	if len(fields) == 0 {
 		return nil, festerrors.Validation("approval judge command is empty")
@@ -943,6 +953,9 @@ func runApprovalJudgeCommandDefault(ctx context.Context, command string, stdin [
 		cmd.Dir = dir
 	}
 	cmd.Stdin = bytes.NewReader(stdin)
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), env...)
+	}
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
@@ -959,21 +972,16 @@ func runApprovalJudgeCommandDefault(ctx context.Context, command string, stdin [
 // there is a single command-execution path. The package var
 // runApprovalJudgeCommand remains injectable for tests. The returned runs are
 // the runner's audit records for the execution.
-func runApprovalJudgeViaHooks(ctx context.Context, command string, stdin []byte, dir string, source hooks.Layer) ([]byte, []hooks.HookRun, error) {
+//
+// The judge keeps its own fest.approval.judge/v1 stdin (never the generic
+// fest.hook.context/v1 payload), but it still gets the same FEST_* env as
+// every other lifecycle hook process: r.Exec is overridden below so the
+// runner's own Coord/execEnv plumbing never fires, so the env has to be
+// built here and threaded through the runApprovalJudgeCommand seam
+// explicitly.
+func runApprovalJudgeViaHooks(ctx context.Context, command string, stdin []byte, dir string, source hooks.Layer, coord hooks.Coord) ([]byte, []hooks.HookRun, error) {
 	if source == "" {
 		source = hooks.LayerFestivals
-	}
-	r := hooks.NewRunner(dir)
-	r.Exec = func(ctx context.Context, command string, stdin []byte, dir string) hooks.CommandResult {
-		out, err := runApprovalJudgeCommand(ctx, command, stdin, dir)
-		res := hooks.CommandResult{Stdout: out, Err: err}
-		if err != nil {
-			res.ExitCode = 1
-			if ee, ok := err.(*exec.ExitError); ok {
-				res.ExitCode = ee.ExitCode()
-			}
-		}
-		return res
 	}
 	planned := []hooks.PlannedHook{{
 		Name:   hooks.ApprovalJudgeName,
@@ -986,6 +994,20 @@ func runApprovalJudgeViaHooks(ctx context.Context, command string, stdin []byte,
 			Source:  source,
 		},
 	}}
+	extraEnv := hooks.BuildPayload(coord, hooks.LevelGate, hooks.VerbGateApprove, planned[0]).Env()
+	r := hooks.NewRunner(dir)
+	r.Coord = coord
+	r.Exec = func(ctx context.Context, command string, stdin []byte, dir string) hooks.CommandResult {
+		out, err := runApprovalJudgeCommand(ctx, command, stdin, dir, extraEnv)
+		res := hooks.CommandResult{Stdout: out, Err: err}
+		if err != nil {
+			res.ExitCode = 1
+			if ee, ok := err.(*exec.ExitError); ok {
+				res.ExitCode = ee.ExitCode()
+			}
+		}
+		return res
+	}
 	runs, _, err := r.Run(ctx, hooks.LevelGate, hooks.VerbGateApprove, planned, stdin)
 	if err != nil {
 		return nil, runs, err

@@ -481,7 +481,7 @@ func TestJudgeApproval_AttachesDeliverableEvidenceToRequest(t *testing.T) {
 	}
 
 	var captured approvalJudgeRequest
-	withApprovalJudgeRunner(t, func(_ context.Context, _ string, stdin []byte, _ string) ([]byte, error) {
+	withApprovalJudgeRunner(t, func(_ context.Context, _ string, stdin []byte, _ string, _ []string) ([]byte, error) {
 		if err := json.Unmarshal(stdin, &captured); err != nil {
 			t.Fatalf("unmarshal judge request: %v", err)
 		}
@@ -508,7 +508,7 @@ func TestJudgeApproval_AttachesDeliverableEvidenceToRequest(t *testing.T) {
 
 func TestEvaluateApprovalJudge_PassesWorkDir(t *testing.T) {
 	var gotDir string
-	withApprovalJudgeRunner(t, func(ctx context.Context, command string, stdin []byte, dir string) ([]byte, error) {
+	withApprovalJudgeRunner(t, func(ctx context.Context, command string, stdin []byte, dir string, env []string) ([]byte, error) {
 		gotDir = dir
 		return []byte(`{"schema_version":"fest.approval.judge/v1","decision":"approve","reason":"ok"}`), nil
 	})

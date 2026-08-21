@@ -44,6 +44,9 @@ func runGateHookStage(ctx context.Context, nav *wf.Navigator, stepNum int, step 
 		return false, nil
 	}
 	runner := newGateHookRunner(nav.Ctx.FestivalPath)
+	if runner != nil {
+		runner.Coord = req.Coord()
+	}
 	var (
 		runs    []hooks.HookRun
 		blocked bool

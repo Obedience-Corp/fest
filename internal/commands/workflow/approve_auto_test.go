@@ -1,6 +1,7 @@
 package workflow
 
 import (
+	"bytes"
 	"context"
 	stderrors "errors"
 	"os/exec"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/config"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/hooks"
 	"github.com/Obedience-Corp/fest/internal/scope"
 )
 
@@ -23,9 +25,9 @@ func withApprovalJudgeRunner(t *testing.T, runner approvalJudgeRunner) {
 	})
 }
 
-// wrap legacy test runners that ignore dir.
+// wrap legacy test runners that ignore dir and env.
 func judgeRunner(fn func(ctx context.Context, command string, stdin []byte) ([]byte, error)) approvalJudgeRunner {
-	return func(ctx context.Context, command string, stdin []byte, dir string) ([]byte, error) {
+	return func(ctx context.Context, command string, stdin []byte, dir string, env []string) ([]byte, error) {
 		return fn(ctx, command, stdin)
 	}
 }
@@ -347,13 +349,64 @@ func TestWorkflowStateApproveWithAuditRecordsAuditAndDecision(t *testing.T) {
 }
 
 func TestRunApprovalJudgeCommandDefaultEmptyCommand(t *testing.T) {
-	_, err := runApprovalJudgeCommandDefault(context.Background(), " ", nil, "")
+	_, err := runApprovalJudgeCommandDefault(context.Background(), " ", nil, "", nil)
 	if err == nil {
 		t.Fatal("expected empty command error")
 	}
 	var execErr *exec.Error
 	if stderrors.As(err, &execErr) {
 		t.Fatalf("empty command should be validation, got exec error: %v", err)
+	}
+}
+
+// TestRunApprovalJudgeViaHooks_SetsFestEnvAndKeepsJudgeStdin covers the gap
+// obey-agent flagged on PR #375: runApprovalJudgeViaHooks overrides
+// hooks.Runner.Exec, so the runner's own Coord/execEnv plumbing never fires
+// for the judge process. FEST_* env has to be built and threaded through the
+// runApprovalJudgeCommand seam explicitly, while the caller-supplied
+// fest.approval.judge/v1 stdin must still pass through unchanged.
+func TestRunApprovalJudgeViaHooks_SetsFestEnvAndKeepsJudgeStdin(t *testing.T) {
+	var gotEnv []string
+	var gotStdin []byte
+	withApprovalJudgeRunner(t, func(ctx context.Context, command string, stdin []byte, dir string, env []string) ([]byte, error) {
+		gotStdin = append([]byte(nil), stdin...)
+		gotEnv = append([]string(nil), env...)
+		return []byte(`{"schema_version":"fest.approval.judge/v1","decision":"approve","reason":"ok"}`), nil
+	})
+
+	judgeStdin := []byte(`{"schema_version":"fest.approval.judge/v1"}` + "\n")
+	coord := hooks.Coord{
+		FestivalPath: "/campaign/festivals/active/example",
+		FestivalID:   "EX0001",
+		Phase:        "001_PLAN",
+		Step:         3,
+	}
+	out, _, err := runApprovalJudgeViaHooks(context.Background(), "judge-cmd", judgeStdin, "", hooks.LayerFestivals, coord)
+	if err != nil {
+		t.Fatalf("runApprovalJudgeViaHooks: %v", err)
+	}
+	if !strings.Contains(string(out), "approve") {
+		t.Fatalf("judge output = %q", out)
+	}
+	if !bytes.Equal(gotStdin, judgeStdin) {
+		t.Fatalf("stdin = %q, want caller's judge payload unchanged", gotStdin)
+	}
+
+	env := strings.Join(gotEnv, "\n")
+	for _, want := range []string{
+		"FEST_HOOK=1",
+		"FEST_HOOK_NAME=approval_judge",
+		"FEST_VERB=gate_approve",
+		"FEST_LEVEL=gate",
+		"FEST_TIMING=post",
+		"FEST_PHASE=001_PLAN",
+		"FEST_STEP=3",
+		"FEST_FESTIVAL_PATH=/campaign/festivals/active/example",
+		"FEST_FESTIVAL=EX0001",
+	} {
+		if !strings.Contains(env, want) {
+			t.Fatalf("judge env missing %q:\n%s", want, env)
+		}
 	}
 }
 
