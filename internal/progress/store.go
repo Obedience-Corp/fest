@@ -85,7 +85,8 @@ type FestivalProgressData struct {
 	Tasks       map[string]*TaskProgress `yaml:"tasks"`
 }
 
-// Store manages progress persistence
+// Store manages progress persistence.
+// Cross-process writers are serialized via ProgressLockFile (see withExclusiveLock).
 type Store struct {
 	festivalPath  string
 	data          *FestivalProgressData

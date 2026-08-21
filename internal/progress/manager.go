@@ -79,109 +79,111 @@ func (m *Manager) UpdateProgress(ctx context.Context, taskID string, progress in
 			WithField("progress", progress)
 	}
 
-	task, exists := m.store.GetTask(taskID)
-	if !exists {
-		task = &TaskProgress{
-			TaskID: taskID,
-			Status: StatusPending,
+	return m.store.withExclusiveLock(ctx, func() error {
+		task, exists := m.store.GetTask(taskID)
+		if !exists {
+			task = &TaskProgress{
+				TaskID: taskID,
+				Status: StatusPending,
+			}
 		}
-	}
 
-	// A 100% update is a completion transition, so the task_complete verb
-	// runs here too: without it UpdateProgress(100) would complete a task
-	// with its completion bindings silently skipped. Hooks fire only on an
-	// actual transition into completed; replaying 100 on an already-completed
-	// task never re-fires them.
-	var completeStage *taskHookStage
-	if progress == 100 && task.Status != StatusCompleted {
-		var err error
-		completeStage, err = m.beginTaskHooks(ctx, taskID, hooks.VerbTaskComplete)
-		if err != nil {
+		// A 100% update is a completion transition, so the task_complete verb
+		// runs here too: without it UpdateProgress(100) would complete a task
+		// with its completion bindings silently skipped. Hooks fire only on an
+		// actual transition into completed; replaying 100 on an already-completed
+		// task never re-fires them.
+		var completeStage *taskHookStage
+		if progress == 100 && task.Status != StatusCompleted {
+			var err error
+			completeStage, err = m.beginTaskHooks(ctx, taskID, hooks.VerbTaskComplete)
+			if err != nil {
+				return err
+			}
+		}
+
+		// The first progress above zero is the first start signal, so the
+		// task_start stage runs here too: without it a progress update would
+		// permanently disarm start anchors (StartedAt set, hooks never fired).
+		var startStage *taskHookStage
+		if task.StartedAt == nil && progress > 0 {
+			var err error
+			startStage, err = m.beginTaskHooks(ctx, taskID, hooks.VerbTaskStart)
+			if err != nil {
+				return err
+			}
+		}
+
+		now := time.Now().UTC()
+
+		// Start tracking time on the first progress update above zero.
+		// Use current time - we only track actual work time, not time since
+		// file creation. A zero update records no work start.
+		if progress > 0 && task.StartedAt == nil {
+			task.StartedAt = &now
+		}
+
+		// If progress > 0, mark as in progress
+		if progress > 0 && task.Status == StatusPending {
+			task.Status = StatusInProgress
+		}
+
+		// If progress is 100, mark as completed
+		if progress == 100 {
+			task.Status = StatusCompleted
+			task.CompletedAt = &now
+
+			// Calculate time spent
+			if task.StartedAt != nil {
+				task.TimeSpentMinutes = int(now.Sub(*task.StartedAt).Minutes())
+			}
+
+			// Queue completed event
+			m.store.QueueEvent(&ProgressEvent{
+				Timestamp: now,
+				Event:     EventCompleted,
+				Task:      taskID,
+				Minutes:   task.TimeSpentMinutes,
+			})
+		} else {
+			// Queue progress event
+			m.store.QueueEvent(&ProgressEvent{
+				Timestamp: now,
+				Event:     EventProgress,
+				Task:      taskID,
+				Percent:   progress,
+			})
+		}
+
+		task.Progress = progress
+
+		// Clear blocker if task is progressing
+		if progress > 0 && task.BlockerMessage != "" {
+			task.BlockerMessage = ""
+			task.BlockedAt = nil
+		}
+
+		m.store.SetTask(task)
+		if err := m.store.Save(ctx); err != nil {
 			return err
 		}
-	}
-
-	// The first progress above zero is the first start signal, so the
-	// task_start stage runs here too: without it a progress update would
-	// permanently disarm start anchors (StartedAt set, hooks never fired).
-	var startStage *taskHookStage
-	if task.StartedAt == nil && progress > 0 {
-		var err error
-		startStage, err = m.beginTaskHooks(ctx, taskID, hooks.VerbTaskStart)
-		if err != nil {
-			return err
+		m.SyncFrontmatterStatus(taskID, task.Status)
+		// The transition is applied; every remaining side effect must still be
+		// attempted when a post stage fails. A start post failure must not skip
+		// the task_complete post stage, and neither may skip parent propagation:
+		// otherwise a completed task leaves its sequence goal permanently stalled.
+		// The first post error is returned after all side effects have run.
+		postErr := m.finishTaskHooks(ctx, startStage, "started")
+		if err := m.finishTaskHooks(ctx, completeStage, "completed"); postErr == nil {
+			postErr = err
 		}
-	}
-
-	now := time.Now().UTC()
-
-	// Start tracking time on the first progress update above zero.
-	// Use current time - we only track actual work time, not time since
-	// file creation. A zero update records no work start.
-	if progress > 0 && task.StartedAt == nil {
-		task.StartedAt = &now
-	}
-
-	// If progress > 0, mark as in progress
-	if progress > 0 && task.Status == StatusPending {
-		task.Status = StatusInProgress
-	}
-
-	// If progress is 100, mark as completed
-	if progress == 100 {
-		task.Status = StatusCompleted
-		task.CompletedAt = &now
-
-		// Calculate time spent
-		if task.StartedAt != nil {
-			task.TimeSpentMinutes = int(now.Sub(*task.StartedAt).Minutes())
+		if progress == 100 {
+			// Propagation is best-effort: a failure here should not block
+			// the progress update that already succeeded above.
+			_ = m.PropagateCompletion(ctx, taskID)
 		}
-
-		// Queue completed event
-		m.store.QueueEvent(&ProgressEvent{
-			Timestamp: now,
-			Event:     EventCompleted,
-			Task:      taskID,
-			Minutes:   task.TimeSpentMinutes,
-		})
-	} else {
-		// Queue progress event
-		m.store.QueueEvent(&ProgressEvent{
-			Timestamp: now,
-			Event:     EventProgress,
-			Task:      taskID,
-			Percent:   progress,
-		})
-	}
-
-	task.Progress = progress
-
-	// Clear blocker if task is progressing
-	if progress > 0 && task.BlockerMessage != "" {
-		task.BlockerMessage = ""
-		task.BlockedAt = nil
-	}
-
-	m.store.SetTask(task)
-	if err := m.store.Save(ctx); err != nil {
-		return err
-	}
-	m.SyncFrontmatterStatus(taskID, task.Status)
-	// The transition is applied; every remaining side effect must still be
-	// attempted when a post stage fails. A start post failure must not skip
-	// the task_complete post stage, and neither may skip parent propagation:
-	// otherwise a completed task leaves its sequence goal permanently stalled.
-	// The first post error is returned after all side effects have run.
-	postErr := m.finishTaskHooks(ctx, startStage, "started")
-	if err := m.finishTaskHooks(ctx, completeStage, "completed"); postErr == nil {
-		postErr = err
-	}
-	if progress == 100 {
-		// Propagation is best-effort: a failure here should not block
-		// the progress update that already succeeded above.
-		_ = m.PropagateCompletion(ctx, taskID)
-	}
-	return postErr
+		return postErr
+	})
 }
 
 // MarkComplete marks a task as complete
@@ -193,83 +195,85 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 		return err
 	}
 
-	task, exists := m.store.GetTask(taskID)
-	if !exists {
-		task = &TaskProgress{
-			TaskID: taskID,
+	return m.store.withExclusiveLock(ctx, func() error {
+		task, exists := m.store.GetTask(taskID)
+		if !exists {
+			task = &TaskProgress{
+				TaskID: taskID,
+			}
 		}
-	}
 
-	// Completion bindings run around the transition here so every completion
-	// surface shares them (task completed command, status set, progress 100).
-	// Pre ordering preserves the historical 'fest task completed' flow:
-	// task_complete pre, then first-start task_start pre, mutation,
-	// task_start post, task_complete post. An explicit re-completion of an
-	// already-completed task re-fires its bindings, matching the historical
-	// command behavior.
-	completeStage, err := m.beginTaskHooks(ctx, taskID, hooks.VerbTaskComplete)
-	if err != nil {
-		return err
-	}
-
-	var startStage *taskHookStage
-	if task.StartedAt == nil {
-		startStage, err = m.beginTaskHooks(ctx, taskID, hooks.VerbTaskStart)
+		// Completion bindings run around the transition here so every completion
+		// surface shares them (task completed command, status set, progress 100).
+		// Pre ordering preserves the historical 'fest task completed' flow:
+		// task_complete pre, then first-start task_start pre, mutation,
+		// task_start post, task_complete post. An explicit re-completion of an
+		// already-completed task re-fires its bindings, matching the historical
+		// command behavior.
+		completeStage, err := m.beginTaskHooks(ctx, taskID, hooks.VerbTaskComplete)
 		if err != nil {
 			return err
 		}
-	}
 
-	now := time.Now().UTC()
+		var startStage *taskHookStage
+		if task.StartedAt == nil {
+			startStage, err = m.beginTaskHooks(ctx, taskID, hooks.VerbTaskStart)
+			if err != nil {
+				return err
+			}
+		}
 
-	// Set start time if not already set - use current time
-	// We track actual work time, not elapsed time since file creation
-	if task.StartedAt == nil {
-		task.StartedAt = &now
-	}
+		now := time.Now().UTC()
 
-	task.Status = StatusCompleted
-	task.Progress = 100
-	task.CompletedAt = &now
-	task.TimeSpentMinutes = int(now.Sub(*task.StartedAt).Minutes())
+		// Set start time if not already set - use current time
+		// We track actual work time, not elapsed time since file creation
+		if task.StartedAt == nil {
+			task.StartedAt = &now
+		}
 
-	// Clear any blocker
-	task.BlockerMessage = ""
-	task.BlockedAt = nil
+		task.Status = StatusCompleted
+		task.Progress = 100
+		task.CompletedAt = &now
+		task.TimeSpentMinutes = int(now.Sub(*task.StartedAt).Minutes())
 
-	// Queue completed event
-	m.store.QueueEvent(&ProgressEvent{
-		Timestamp: now,
-		Event:     EventCompleted,
-		Task:      taskID,
-		Minutes:   task.TimeSpentMinutes,
+		// Clear any blocker
+		task.BlockerMessage = ""
+		task.BlockedAt = nil
+
+		// Queue completed event
+		m.store.QueueEvent(&ProgressEvent{
+			Timestamp: now,
+			Event:     EventCompleted,
+			Task:      taskID,
+			Minutes:   task.TimeSpentMinutes,
+		})
+
+		m.store.SetTask(task)
+		if err := m.store.Save(ctx); err != nil {
+			return err
+		}
+		m.SyncFrontmatterStatus(taskID, task.Status)
+		// The completion is applied; every remaining side effect must still be
+		// attempted when a post stage fails. A start post failure must not skip
+		// the task_complete post stage, and neither may skip the ledger emit or
+		// parent propagation: otherwise a completed task leaves its sequence goal
+		// permanently stalled. The first post error is returned after all side
+		// effects have run, preserving the historical contract that ledger and
+		// propagation always follow a successful completion mutation.
+		postErr := m.finishTaskHooks(ctx, startStage, "started")
+		if err := m.finishTaskHooks(ctx, completeStage, "completed"); postErr == nil {
+			postErr = err
+		}
+		// Campaign ledger: high-intent task completion (D003/D006). Does not
+		// alter progress_events.jsonl content beyond the save already done.
+		m.emitLedger(ctx, ledgerkit.KindCompleted, taskID, "", map[string]any{
+			"status": "completed",
+		})
+		// Propagation is best-effort: a failure here should not block
+		// the task completion that already succeeded above.
+		_ = m.PropagateCompletion(ctx, taskID)
+		return postErr
 	})
-
-	m.store.SetTask(task)
-	if err := m.store.Save(ctx); err != nil {
-		return err
-	}
-	m.SyncFrontmatterStatus(taskID, task.Status)
-	// The completion is applied; every remaining side effect must still be
-	// attempted when a post stage fails. A start post failure must not skip
-	// the task_complete post stage, and neither may skip the ledger emit or
-	// parent propagation: otherwise a completed task leaves its sequence goal
-	// permanently stalled. The first post error is returned after all side
-	// effects have run, preserving the historical contract that ledger and
-	// propagation always follow a successful completion mutation.
-	postErr := m.finishTaskHooks(ctx, startStage, "started")
-	if err := m.finishTaskHooks(ctx, completeStage, "completed"); postErr == nil {
-		postErr = err
-	}
-	// Campaign ledger: high-intent task completion (D003/D006). Does not
-	// alter progress_events.jsonl content beyond the save already done.
-	m.emitLedger(ctx, ledgerkit.KindCompleted, taskID, "", map[string]any{
-		"status": "completed",
-	})
-	// Propagation is best-effort: a failure here should not block
-	// the task completion that already succeeded above.
-	_ = m.PropagateCompletion(ctx, taskID)
-	return postErr
 }
 
 // MarkInProgress marks a task as in progress. On the first start (no
@@ -285,45 +289,47 @@ func (m *Manager) MarkInProgress(ctx context.Context, taskID string) error {
 		return err
 	}
 
-	task, exists := m.store.GetTask(taskID)
-	if !exists {
-		task = &TaskProgress{
-			TaskID: taskID,
+	return m.store.withExclusiveLock(ctx, func() error {
+		task, exists := m.store.GetTask(taskID)
+		if !exists {
+			task = &TaskProgress{
+				TaskID: taskID,
+			}
 		}
-	}
 
-	var stage *taskHookStage
-	if task.StartedAt == nil {
-		var err error
-		stage, err = m.beginTaskHooks(ctx, taskID, hooks.VerbTaskStart)
-		if err != nil {
+		var stage *taskHookStage
+		if task.StartedAt == nil {
+			var err error
+			stage, err = m.beginTaskHooks(ctx, taskID, hooks.VerbTaskStart)
+			if err != nil {
+				return err
+			}
+		}
+
+		now := time.Now().UTC()
+
+		// Set start time if not already set
+		// For MarkInProgress, use current time (user explicitly starting work)
+		if task.StartedAt == nil {
+			task.StartedAt = &now
+		}
+
+		task.Status = StatusInProgress
+
+		// Queue started event
+		m.store.QueueEvent(&ProgressEvent{
+			Timestamp: now,
+			Event:     EventStarted,
+			Task:      taskID,
+		})
+
+		m.store.SetTask(task)
+		if err := m.store.Save(ctx); err != nil {
 			return err
 		}
-	}
-
-	now := time.Now().UTC()
-
-	// Set start time if not already set
-	// For MarkInProgress, use current time (user explicitly starting work)
-	if task.StartedAt == nil {
-		task.StartedAt = &now
-	}
-
-	task.Status = StatusInProgress
-
-	// Queue started event
-	m.store.QueueEvent(&ProgressEvent{
-		Timestamp: now,
-		Event:     EventStarted,
-		Task:      taskID,
+		m.SyncFrontmatterStatus(taskID, task.Status)
+		return m.finishTaskHooks(ctx, stage, "started")
 	})
-
-	m.store.SetTask(task)
-	if err := m.store.Save(ctx); err != nil {
-		return err
-	}
-	m.SyncFrontmatterStatus(taskID, task.Status)
-	return m.finishTaskHooks(ctx, stage, "started")
 }
 
 // taskHookStage carries one task transition's planned lifecycle bindings
@@ -430,38 +436,40 @@ func (m *Manager) ReportBlocker(ctx context.Context, taskID, message string) err
 		return errors.Validation("blocker message required")
 	}
 
-	task, exists := m.store.GetTask(taskID)
-	if !exists {
-		task = &TaskProgress{
-			TaskID: taskID,
-			Status: StatusPending,
+	return m.store.withExclusiveLock(ctx, func() error {
+		task, exists := m.store.GetTask(taskID)
+		if !exists {
+			task = &TaskProgress{
+				TaskID: taskID,
+				Status: StatusPending,
+			}
 		}
-	}
 
-	now := time.Now().UTC()
-	task.Status = StatusBlocked
-	task.BlockerMessage = message
-	task.BlockedAt = &now
+		now := time.Now().UTC()
+		task.Status = StatusBlocked
+		task.BlockerMessage = message
+		task.BlockedAt = &now
 
-	// Queue blocked event
-	m.store.QueueEvent(&ProgressEvent{
-		Timestamp: now,
-		Event:     EventBlocked,
-		Task:      taskID,
-		Reason:    message,
+		// Queue blocked event
+		m.store.QueueEvent(&ProgressEvent{
+			Timestamp: now,
+			Event:     EventBlocked,
+			Task:      taskID,
+			Reason:    message,
+		})
+
+		m.store.SetTask(task)
+		if err := m.store.Save(ctx); err != nil {
+			return err
+		}
+		m.SyncFrontmatterStatus(taskID, task.Status)
+		m.emitLedger(ctx, ledgerkit.KindTransitioned, taskID, message, map[string]any{
+			"from":   string(StatusPending),
+			"to":     "blocked",
+			"target": "blocked",
+		})
+		return nil
 	})
-
-	m.store.SetTask(task)
-	if err := m.store.Save(ctx); err != nil {
-		return err
-	}
-	m.SyncFrontmatterStatus(taskID, task.Status)
-	m.emitLedger(ctx, ledgerkit.KindTransitioned, taskID, message, map[string]any{
-		"from":   string(StatusPending),
-		"to":     "blocked",
-		"target": "blocked",
-	})
-	return nil
 }
 
 // ResetTask resets a task back to pending status, clearing all progress data.
@@ -473,40 +481,42 @@ func (m *Manager) ResetTask(ctx context.Context, taskID string) error {
 		return err
 	}
 
-	task, exists := m.store.GetTask(taskID)
-	if !exists {
-		task = &TaskProgress{
-			TaskID: taskID,
+	return m.store.withExclusiveLock(ctx, func() error {
+		task, exists := m.store.GetTask(taskID)
+		if !exists {
+			task = &TaskProgress{
+				TaskID: taskID,
+			}
 		}
-	}
 
-	now := time.Now().UTC()
+		now := time.Now().UTC()
 
-	task.Status = StatusPending
-	task.Progress = 0
-	task.StartedAt = nil
-	task.CompletedAt = nil
-	task.TimeSpentMinutes = 0
-	task.BlockerMessage = ""
-	task.BlockedAt = nil
+		task.Status = StatusPending
+		task.Progress = 0
+		task.StartedAt = nil
+		task.CompletedAt = nil
+		task.TimeSpentMinutes = 0
+		task.BlockerMessage = ""
+		task.BlockedAt = nil
 
-	// Queue reset event
-	m.store.QueueEvent(&ProgressEvent{
-		Timestamp: now,
-		Event:     EventReset,
-		Task:      taskID,
+		// Queue reset event
+		m.store.QueueEvent(&ProgressEvent{
+			Timestamp: now,
+			Event:     EventReset,
+			Task:      taskID,
+		})
+
+		m.store.SetTask(task)
+		if err := m.store.Save(ctx); err != nil {
+			return err
+		}
+		m.SyncFrontmatterStatus(taskID, task.Status)
+		m.emitLedger(ctx, ledgerkit.KindTransitioned, taskID, "", map[string]any{
+			"to":     "pending",
+			"target": "reset",
+		})
+		return nil
 	})
-
-	m.store.SetTask(task)
-	if err := m.store.Save(ctx); err != nil {
-		return err
-	}
-	m.SyncFrontmatterStatus(taskID, task.Status)
-	m.emitLedger(ctx, ledgerkit.KindTransitioned, taskID, "", map[string]any{
-		"to":     "pending",
-		"target": "reset",
-	})
-	return nil
 }
 
 // emitLedger best-effort appends a campaign ledger event for a high-intent
@@ -536,37 +546,39 @@ func (m *Manager) ClearBlocker(ctx context.Context, taskID string) error {
 		return err
 	}
 
-	task, exists := m.store.GetTask(taskID)
-	if !exists {
-		return errors.NotFound("task").WithField("taskID", taskID)
-	}
+	return m.store.withExclusiveLock(ctx, func() error {
+		task, exists := m.store.GetTask(taskID)
+		if !exists {
+			return errors.NotFound("task").WithField("taskID", taskID)
+		}
 
-	if task.BlockerMessage == "" {
-		return nil // No blocker to clear
-	}
+		if task.BlockerMessage == "" {
+			return nil // No blocker to clear
+		}
 
-	now := time.Now().UTC()
-	task.BlockerMessage = ""
-	task.BlockedAt = nil
+		now := time.Now().UTC()
+		task.BlockerMessage = ""
+		task.BlockedAt = nil
 
-	// Return to in_progress if was blocked
-	if task.Status == StatusBlocked {
-		task.Status = StatusInProgress
-	}
+		// Return to in_progress if was blocked
+		if task.Status == StatusBlocked {
+			task.Status = StatusInProgress
+		}
 
-	// Queue unblocked event
-	m.store.QueueEvent(&ProgressEvent{
-		Timestamp: now,
-		Event:     EventUnblocked,
-		Task:      taskID,
+		// Queue unblocked event
+		m.store.QueueEvent(&ProgressEvent{
+			Timestamp: now,
+			Event:     EventUnblocked,
+			Task:      taskID,
+		})
+
+		m.store.SetTask(task)
+		if err := m.store.Save(ctx); err != nil {
+			return err
+		}
+		m.SyncFrontmatterStatus(taskID, task.Status)
+		return nil
 	})
-
-	m.store.SetTask(task)
-	if err := m.store.Save(ctx); err != nil {
-		return err
-	}
-	m.SyncFrontmatterStatus(taskID, task.Status)
-	return nil
 }
 
 // GetTaskProgress retrieves progress for a specific task
