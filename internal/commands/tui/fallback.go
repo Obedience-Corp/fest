@@ -27,6 +27,11 @@ func NewTUICommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tui",
 		Short: "Interactive UI for creating festivals, phases, sequences, and tasks",
+		Annotations: map[string]string{
+			"agent_allowed": "false",
+			"agent_reason":  "Full interactive TUI",
+			"interactive":   "true",
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runTUI(cmd.Context())
 		},

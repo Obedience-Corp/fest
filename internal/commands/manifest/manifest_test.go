@@ -12,7 +12,6 @@ import (
 func newMockCommandTree() *cobra.Command {
 	root := &cobra.Command{Use: "fest"}
 
-	// A restricted command
 	restricted := &cobra.Command{
 		Use: "restricted-cmd",
 		Annotations: map[string]string{
@@ -22,12 +21,10 @@ func newMockCommandTree() *cobra.Command {
 		},
 	}
 
-	// An allowed command (no annotations)
 	allowed := &cobra.Command{
 		Use: "allowed-cmd",
 	}
 
-	// A parent with a restricted child
 	parent := &cobra.Command{
 		Use: "parent",
 	}
@@ -44,107 +41,123 @@ func newMockCommandTree() *cobra.Command {
 	parent.AddCommand(restrictedChild)
 	parent.AddCommand(allowedChild)
 
+	hidden := &cobra.Command{
+		Use:    "hidden-cmd",
+		Hidden: true,
+		Annotations: map[string]string{
+			"agent_allowed": "true",
+		},
+	}
+	help := &cobra.Command{Use: "help"}
+	completion := &cobra.Command{Use: "completion"}
+	completion.AddCommand(&cobra.Command{Use: "bash"})
+
 	root.AddCommand(restricted)
 	root.AddCommand(allowed)
 	root.AddCommand(parent)
+	root.AddCommand(hidden)
+	root.AddCommand(help)
+	root.AddCommand(completion)
 
 	return root
 }
 
-func TestWalkCommands_CollectsAnnotatedCommands(t *testing.T) {
-	root := newMockCommandTree()
-
+func walkMap(t *testing.T, root *cobra.Command) map[string]CommandEntry {
+	t.Helper()
 	var entries []CommandEntry
 	WalkCommands(root, "", &entries)
-
-	if len(entries) == 0 {
-		t.Fatal("WalkCommands returned no entries from annotated command tree")
+	out := make(map[string]CommandEntry, len(entries))
+	for _, entry := range entries {
+		out[entry.Path] = entry
 	}
+	return out
+}
 
-	// Should collect exactly 2: restricted-cmd and parent restricted-child
-	if len(entries) != 2 {
-		t.Errorf("expected 2 annotated commands, got %d", len(entries))
+func TestWalkCommands_EmitsExhaustiveAllowlist(t *testing.T) {
+	got := walkMap(t, newMockCommandTree())
+
+	wantPaths := []string{
+		"restricted-cmd",
+		"allowed-cmd",
+		"parent",
+		"parent restricted-child",
+		"parent allowed-child",
+	}
+	if len(got) != len(wantPaths) {
+		t.Fatalf("expected %d commands, got %d: %v", len(wantPaths), len(got), keys(got))
+	}
+	for _, path := range wantPaths {
+		if _, ok := got[path]; !ok {
+			t.Errorf("missing command %q", path)
+		}
 	}
 }
 
-func TestWalkCommands_IgnoresUnannotatedCommands(t *testing.T) {
-	root := newMockCommandTree()
+func TestWalkCommands_UnannotatedDefaultAllowed(t *testing.T) {
+	got := walkMap(t, newMockCommandTree())
 
-	var entries []CommandEntry
-	WalkCommands(root, "", &entries)
-
-	for _, entry := range entries {
-		if entry.Path == "allowed-cmd" {
-			t.Error("unannotated command 'allowed-cmd' should not appear in manifest")
+	for _, path := range []string{"allowed-cmd", "parent", "parent allowed-child"} {
+		entry, ok := got[path]
+		if !ok {
+			t.Fatalf("unannotated command %q missing from v2 manifest", path)
 		}
-		if entry.Path == "parent allowed-child" {
-			t.Error("unannotated command 'parent allowed-child' should not appear in manifest")
+		if !entry.AgentAllowed {
+			t.Errorf("unannotated command %q should default to agent_allowed=true", path)
+		}
+	}
+}
+
+func TestWalkCommands_OmitsHiddenHelpAndCompletion(t *testing.T) {
+	got := walkMap(t, newMockCommandTree())
+	for _, path := range []string{"hidden-cmd", "help", "completion", "completion bash"} {
+		if _, ok := got[path]; ok {
+			t.Errorf("command %q should be omitted from the agent manifest", path)
 		}
 	}
 }
 
 func TestWalkCommands_BuildsCorrectSubcommandPaths(t *testing.T) {
-	root := newMockCommandTree()
-
-	var entries []CommandEntry
-	WalkCommands(root, "", &entries)
-
-	pathMap := make(map[string]bool)
-	for _, entry := range entries {
-		pathMap[entry.Path] = true
-	}
-
-	if !pathMap["restricted-cmd"] {
+	got := walkMap(t, newMockCommandTree())
+	if _, ok := got["restricted-cmd"]; !ok {
 		t.Error("expected top-level path 'restricted-cmd' not found")
 	}
-	if !pathMap["parent restricted-child"] {
+	if _, ok := got["parent restricted-child"]; !ok {
 		t.Error("expected subcommand path 'parent restricted-child' not found")
 	}
 }
 
 func TestWalkCommands_ExtractsAnnotationFields(t *testing.T) {
-	root := newMockCommandTree()
+	got := walkMap(t, newMockCommandTree())
 
-	var entries []CommandEntry
-	WalkCommands(root, "", &entries)
-
-	// Find the restricted-cmd entry
-	var found bool
-	for _, entry := range entries {
-		if entry.Path == "restricted-cmd" {
-			found = true
-			if entry.AgentAllowed {
-				t.Error("expected agent_allowed=false")
-			}
-			if entry.Reason != "Test restriction reason" {
-				t.Errorf("expected reason 'Test restriction reason', got %q", entry.Reason)
-			}
-			if !entry.Interactive {
-				t.Error("expected interactive=true")
-			}
-			break
-		}
-	}
-	if !found {
+	restricted, ok := got["restricted-cmd"]
+	if !ok {
 		t.Fatal("restricted-cmd not found in entries")
 	}
+	if restricted.AgentAllowed {
+		t.Error("expected agent_allowed=false")
+	}
+	if restricted.Reason != "Test restriction reason" {
+		t.Errorf("expected reason 'Test restriction reason', got %q", restricted.Reason)
+	}
+	if !restricted.Interactive {
+		t.Error("expected interactive=true")
+	}
 
-	// Find the child entry - should NOT have interactive set
-	for _, entry := range entries {
-		if entry.Path == "parent restricted-child" {
-			if entry.Interactive {
-				t.Error("child command should not have interactive=true")
-			}
-			if entry.Reason != "Child restriction reason" {
-				t.Errorf("expected reason 'Child restriction reason', got %q", entry.Reason)
-			}
-		}
+	child, ok := got["parent restricted-child"]
+	if !ok {
+		t.Fatal("parent restricted-child not found")
+	}
+	if child.Interactive {
+		t.Error("child command should not have interactive=true")
+	}
+	if child.Reason != "Child restriction reason" {
+		t.Errorf("expected reason 'Child restriction reason', got %q", child.Reason)
 	}
 }
 
 func TestManifest_JSONMarshal(t *testing.T) {
 	m := Manifest{
-		Version: 1,
+		Version: AgentGatingVersion,
 		CLI:     "fest",
 		Commands: []CommandEntry{
 			{
@@ -166,8 +179,8 @@ func TestManifest_JSONMarshal(t *testing.T) {
 		t.Fatalf("failed to parse marshaled manifest: %v", err)
 	}
 
-	if parsed.Version != 1 {
-		t.Errorf("expected version 1, got %d", parsed.Version)
+	if parsed.Version != AgentGatingVersion {
+		t.Errorf("expected version %d, got %d", AgentGatingVersion, parsed.Version)
 	}
 	if parsed.CLI != "fest" {
 		t.Errorf("expected cli 'fest', got %q", parsed.CLI)
@@ -180,20 +193,16 @@ func TestManifest_JSONMarshal(t *testing.T) {
 	}
 }
 
-func TestExpectedRestrictedCommands(t *testing.T) {
-	expected := []string{
-		"tui",
-		"create",
-		"config",
-		"shell-init",
-		"wizard fill",
-		"workflow skip",
-		"system config",
-		"system sync",
-		"system update",
+func TestRestrictedPaths(t *testing.T) {
+	if len(RestrictedPaths) != 9 {
+		t.Errorf("expected 9 restricted commands, got %d", len(RestrictedPaths))
 	}
+}
 
-	if len(expected) != 9 {
-		t.Errorf("expected 9 restricted commands, got %d", len(expected))
+func keys(m map[string]CommandEntry) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
 	}
+	return out
 }
