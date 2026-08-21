@@ -12,6 +12,13 @@ func TestDisplayFeedbackStripsLegacyJudgeAudit(t *testing.T) {
 	}
 }
 
+func TestDisplayFeedbackStripsJudgeAuditWithEvidenceStatus(t *testing.T) {
+	got := DisplayFeedback(`approval auto mode: schema_version=fest.approval.judge/v1 judge_command="ob judge" decision=reject evidence_status=insufficient reason="missing \"proof\""`)
+	if got != `missing "proof"` {
+		t.Fatalf("DisplayFeedback() = %q, want concise reason with evidence_status present", got)
+	}
+}
+
 func TestDisplayFeedbackPreservesReasonTextContainingReasonField(t *testing.T) {
 	got := DisplayFeedback(`approval auto mode: schema_version=fest.approval.judge/v1 judge_command="ob judge" decision=reject reason="the note says reason=needs more evidence"`)
 	if got != `the note says reason=needs more evidence` {
