@@ -105,6 +105,8 @@ docs-check:
         exit 1
     fi
     echo "docs/cli-reference is up to date"
+    echo "=== concept CLI examples ==="
+    go test ./internal/commands -run TestHooksConceptDocCitesRealCLI -count=1
 
 # Uninstall fest from $GOBIN
 uninstall:
