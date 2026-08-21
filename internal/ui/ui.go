@@ -5,7 +5,15 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"golang.org/x/term"
 )
+
+// stdinIsTerminal reports whether stdin is an interactive TTY.
+// Overridden in tests so Confirm can be exercised without a real terminal.
+var stdinIsTerminal = func() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
+}
 
 // UI handles user interface operations
 type UI struct {
@@ -49,8 +57,13 @@ func (u *UI) Error(format string, args ...interface{}) {
 	fmt.Fprintln(os.Stderr, Error("✗ "+message))
 }
 
-// Confirm asks for yes/no confirmation
+// Confirm asks for yes/no confirmation. Non-TTY stdin returns false without
+// blocking so agent shells and piped invocations cannot hang on [Y/n].
 func (u *UI) Confirm(format string, args ...interface{}) bool {
+	if !stdinIsTerminal() {
+		return false
+	}
+
 	message := fmt.Sprintf(format, args...)
 	fmt.Printf("%s [Y/n]: ", message)
 

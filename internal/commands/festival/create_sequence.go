@@ -86,7 +86,10 @@ NEXT STEPS after creating a sequence:
   # Add quality gates
   fest gates apply --approve
 
-Run 'fest validate tasks' to verify task files exist.`,
+Run 'fest validate tasks' to verify task files exist.
+
+The optional "Create task files now?" prompt is skipped when stdin is not a
+TTY (agent shells). Pass --json or --no-prompt to skip it explicitly.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if cmd.Flags().NFlag() == 0 {
 				return shared.StartCreateSequenceTUI(cmd.Context())
@@ -107,7 +110,7 @@ Run 'fest validate tasks' to verify task files exist.`,
 	cmd.Flags().BoolVar(&opts.SkipMarkers, "skip-markers", false, "Skip REPLACE marker processing")
 	cmd.Flags().BoolVar(&opts.DryRun, "dry-run", false, "Show template markers without creating file")
 	cmd.Flags().BoolVar(&opts.JSONOutput, "json", false, "Emit JSON output")
-	cmd.Flags().BoolVar(&opts.NoPrompt, "no-prompt", false, "Skip interactive prompts")
+	cmd.Flags().BoolVar(&opts.NoPrompt, "no-prompt", false, "Skip interactive prompts (also skipped when stdin is not a TTY)")
 	cmd.Flags().BoolVar(&opts.AgentMode, "agent", false, "Strict mode: require markers, auto-validate, block on errors, JSON output")
 	return cmd
 }
@@ -410,8 +413,9 @@ func RunCreateSequence(ctx context.Context, opts *CreateSequenceOptions) error {
 	fmt.Printf("  %s %s\n", ui.Value("fest show plan"), ui.Dim("View the execution plan"))
 	fmt.Println()
 
-	// Blocking prompt (skip if --no-prompt, --json, or --skip-markers)
-	if !opts.NoPrompt && !opts.JSONOutput && !opts.SkipMarkers {
+	// Optional prompt: skip --no-prompt / --json / --skip-markers, and when
+	// stdin is not a TTY so agent shells cannot hang on [Y/n] (issue #343).
+	if shouldPromptCreateTaskFiles(opts) {
 		if display.Confirm("Create task files now?") {
 			fmt.Println()
 			fmt.Println(ui.H2("Create Tasks"))
