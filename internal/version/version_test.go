@@ -6,16 +6,24 @@ import (
 	"testing"
 )
 
-// devProfile reports whether this test binary was compiled with the dev build
-// profile, so the table cases below assert the same behaviour under both
-// `go test ./...` and `go test -tags dev ./...`.
-func devProfile() bool { return Profile == "dev" }
+// requireStableProfile skips a test whose expectations only hold without the
+// dev build tag. The dev profile forces every build onto the dev channel, so
+// the version-string rules below are unobservable there; profile_dev_test.go
+// covers that case instead.
+func requireStableProfile(t *testing.T) {
+	t.Helper()
+	if Profile != "stable" {
+		t.Skipf("version-string rules are only observable in the stable profile; Profile = %q forces every build onto the dev channel (see profile_dev_test.go)", Profile)
+	}
+}
 
 func TestIsDevBuild(t *testing.T) {
+	requireStableProfile(t)
+
 	tests := []struct {
-		name           string
-		version        string
-		wantWhenStable bool
+		name    string
+		version string
+		want    bool
 	}{
 		{"empty version", "", false},
 		{"stable release", "v0.2.0", false},
@@ -36,19 +44,20 @@ func TestIsDevBuild(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			Version = tt.version
-			want := tt.wantWhenStable || devProfile()
-			if got := IsDevBuild(); got != want {
-				t.Errorf("IsDevBuild() = %v, want %v (Version=%q, Profile=%q)", got, want, tt.version, Profile)
+			if got := IsDevBuild(); got != tt.want {
+				t.Errorf("IsDevBuild() = %v, want %v (Version=%q, Profile=%q)", got, tt.want, tt.version, Profile)
 			}
 		})
 	}
 }
 
 func TestDefaultChannel(t *testing.T) {
+	requireStableProfile(t)
+
 	tests := []struct {
-		name           string
-		version        string
-		wantWhenStable string
+		name    string
+		version string
+		want    string
 	}{
 		{"empty version returns stable channel", "", "stable"},
 		{"stable returns stable channel", "v0.2.0", "stable"},
@@ -67,12 +76,8 @@ func TestDefaultChannel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			Version = tt.version
-			want := tt.wantWhenStable
-			if devProfile() {
-				want = "dev"
-			}
-			if got := DefaultChannel(); got != want {
-				t.Errorf("DefaultChannel() = %q, want %q (Version=%q, Profile=%q)", got, want, tt.version, Profile)
+			if got := DefaultChannel(); got != tt.want {
+				t.Errorf("DefaultChannel() = %q, want %q (Version=%q, Profile=%q)", got, tt.want, tt.version, Profile)
 			}
 		})
 	}
@@ -147,6 +152,31 @@ func TestInfoJSONOmitsEmptyBundle(t *testing.T) {
 			}
 			if !strings.Contains(string(encoded), `"version"`) {
 				t.Errorf("version key missing from %s", encoded)
+			}
+		})
+	}
+}
+
+func TestVersionFromBuildInfo(t *testing.T) {
+	tests := []struct {
+		name        string
+		current     string
+		mainVersion string
+		want        string
+	}{
+		{"no module version recorded", "dev", "", "dev"},
+		{"unreleased module build", "dev", "(devel)", "dev"},
+		{"go install of a tag", "dev", "v0.6.2", "v0.6.2"},
+		{"go install of a pre-release tag", "dev", "v0.7.0-dev.1", "v0.7.0-dev.1"},
+		{"ldflag version wins over the module version", "v9.9.9", "v0.6.2", "v9.9.9"},
+		{"ldflag version wins over an empty module version", "v9.9.9", "", "v9.9.9"},
+		{"ldflag describe output wins", "v0.6.2-5-gabcdef0", "v0.6.2", "v0.6.2-5-gabcdef0"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := versionFromBuildInfo(tt.current, tt.mainVersion); got != tt.want {
+				t.Errorf("versionFromBuildInfo(%q, %q) = %q, want %q", tt.current, tt.mainVersion, got, tt.want)
 			}
 		})
 	}

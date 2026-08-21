@@ -4,6 +4,7 @@ package version
 
 import (
 	"runtime"
+	"runtime/debug"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/features"
@@ -24,6 +25,31 @@ var (
 	// outside a festival bundle.
 	Bundle = ""
 )
+
+// init recovers the version for binaries built without ldflags, so a
+// `go install ...@v0.6.2` reports v0.6.2 rather than dev. Commit and BuildDate
+// are deliberately left alone: Go's VCS stamping can walk out of a git worktree
+// into the surrounding repository and report a commit from a different project.
+func init() {
+	info, ok := debug.ReadBuildInfo()
+	if !ok {
+		return
+	}
+	Version = versionFromBuildInfo(Version, info.Main.Version)
+}
+
+// versionFromBuildInfo picks the version to report given the current value and
+// the module version the toolchain recorded. An ldflag-set version always wins,
+// and the module version is only used when it names a real release.
+func versionFromBuildInfo(current, mainVersion string) string {
+	if current != "dev" {
+		return current
+	}
+	if mainVersion == "" || mainVersion == "(devel)" {
+		return current
+	}
+	return mainVersion
+}
 
 // Info contains all version information
 type Info struct {

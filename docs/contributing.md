@@ -106,9 +106,22 @@ build reports where it actually came from:
 | commits past a tag | `v0.6.2-5-gabcdef0` |
 | uncommitted changes | `v0.6.2-5-gabcdef0-dirty` |
 | no tag reachable | `abcdef0` (the abbreviated commit) |
+| no tag reachable, uncommitted changes | `abcdef0-dirty` |
 | no git repository | `dev` |
 
 Set `VERSION` to override it: `VERSION=v9.9.9 just build quick-stable`.
+
+Builds that carry no ldflags at all fall back to the module version the Go
+toolchain records, so `go install github.com/Obedience-Corp/fest/cmd/fest@v0.6.2`
+reports `v0.6.2` and stays on the stable channel. A bare `go build` from a
+checkout has no module version to recover and reports `dev`. Only the version is
+recovered this way. Commit and build date stay `unknown`, because Go's VCS
+stamping can walk out of a git worktree into the surrounding repository and
+report a commit from a different project.
+
+Release packaging refuses to run from a dirty worktree (`just release release`
+and the per-OS packaging recipes), so a `-dirty` version can never reach a
+published tarball.
 
 `fest version` reports that stamp plus the build profile:
 
