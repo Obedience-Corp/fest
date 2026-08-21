@@ -38,7 +38,7 @@ implicit.
 
 ---
 
-## Step 1: PHASE GOAL — Verify Goal Achievement
+## Step 1: PHASE GOAL - Verify Goal Achievement
 
 **Question:** Does the plan address the stated planning objective? Is the planned approach sound and complete?
 
@@ -49,11 +49,11 @@ implicit.
 
 **Checkpoint class:** artifact_review
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm planning goal is met
+**Checkpoint:** APPROVAL REQUIRED - Confirm planning goal is met
 
 ---
 
-## Step 2: APPROVAL — Verify User Sign-Off
+## Step 2: APPROVAL - Verify User Sign-Off
 
 **Question:** Did the user explicitly approve the plan?
 
@@ -64,11 +64,11 @@ implicit.
 
 **Checkpoint class:** operator_attestation
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm user approved the plan
+**Checkpoint:** APPROVAL REQUIRED - Confirm user approved the plan
 
 ---
 
-## Step 3: STRUCTURE — Verify Festival Integrity
+## Step 3: STRUCTURE - Verify Festival Integrity
 
 **Question:** Is the scaffolded festival structurally valid?
 
@@ -79,7 +79,7 @@ implicit.
 
 **Checkpoint class:** artifact_review
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm structure is valid
+**Checkpoint:** APPROVAL REQUIRED - Confirm structure is valid
 
 ---
 

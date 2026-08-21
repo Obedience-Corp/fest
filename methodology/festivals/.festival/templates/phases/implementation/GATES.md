@@ -38,7 +38,7 @@ implicit.
 
 ---
 
-## Step 1: PHASE GOAL — Verify Goal Achievement
+## Step 1: PHASE GOAL - Verify Goal Achievement
 
 **Question:** Does the implementation satisfy the PHASE_GOAL.md objectives? Were all required deliverables produced?
 
@@ -49,11 +49,11 @@ implicit.
 
 **Checkpoint class:** artifact_review
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm phase goal is met
+**Checkpoint:** APPROVAL REQUIRED - Confirm phase goal is met
 
 ---
 
-## Step 2: SEQUENCE OUTCOMES — Verify Sequence Goals Met
+## Step 2: SEQUENCE OUTCOMES - Verify Sequence Goals Met
 
 **Question:** Did each sequence achieve its stated goal? Do actual results match each SEQUENCE_GOAL?
 
@@ -64,11 +64,11 @@ implicit.
 
 **Checkpoint class:** artifact_review
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm all sequence goals achieved
+**Checkpoint:** APPROVAL REQUIRED - Confirm all sequence goals achieved
 
 ---
 
-## Step 3: QUALITY — Verify Build and Test Health
+## Step 3: QUALITY - Verify Build and Test Health
 
 **Question:** Does the project build cleanly and do all tests pass with no regressions?
 
@@ -80,11 +80,11 @@ implicit.
 
 **Checkpoint class:** artifact_review
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm build and tests are green
+**Checkpoint:** APPROVAL REQUIRED - Confirm build and tests are green
 
 ---
 
-## Step 4: COMPLETENESS — Verify Nothing Left Behind
+## Step 4: COMPLETENESS - Verify Nothing Left Behind
 
 **Question:** Are all tasks done, all gates passed, and all review feedback addressed?
 
@@ -95,7 +95,7 @@ implicit.
 
 **Checkpoint class:** artifact_review
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm completeness
+**Checkpoint:** APPROVAL REQUIRED - Confirm completeness
 
 ---
 

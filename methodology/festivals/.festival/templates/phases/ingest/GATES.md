@@ -38,7 +38,7 @@ implicit.
 
 ---
 
-## Step 1: PHASE GOAL — Verify Goal Achievement
+## Step 1: PHASE GOAL - Verify Goal Achievement
 
 **Question:** Does the structured output capture the user's intent as specified in the ingest objective?
 
@@ -49,11 +49,11 @@ implicit.
 
 **Checkpoint class:** artifact_review
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm ingest goal is met
+**Checkpoint:** APPROVAL REQUIRED - Confirm ingest goal is met
 
 ---
 
-## Step 2: COMPLETENESS — Verify All Inputs Processed
+## Step 2: COMPLETENESS - Verify All Inputs Processed
 
 **Question:** Were all input specifications processed?
 
@@ -64,11 +64,11 @@ implicit.
 
 **Checkpoint class:** artifact_review
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm all inputs processed
+**Checkpoint:** APPROVAL REQUIRED - Confirm all inputs processed
 
 ---
 
-## Step 3: APPROVAL — Verify User Validated Output
+## Step 3: APPROVAL - Verify User Validated Output
 
 **Question:** Did the user validate the structured output?
 
@@ -79,7 +79,7 @@ implicit.
 
 **Checkpoint class:** operator_attestation
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm user validated output
+**Checkpoint:** APPROVAL REQUIRED - Confirm user validated output
 
 ---
 

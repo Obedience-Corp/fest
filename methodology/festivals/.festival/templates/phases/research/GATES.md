@@ -38,7 +38,7 @@ implicit.
 
 ---
 
-## Step 1: PHASE GOAL — Verify Goal Achievement
+## Step 1: PHASE GOAL - Verify Goal Achievement
 
 **Question:** Were all research questions answered? Do findings satisfy the stated research objective?
 
@@ -49,11 +49,11 @@ implicit.
 
 **Checkpoint class:** artifact_review
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm research goal is met
+**Checkpoint:** APPROVAL REQUIRED - Confirm research goal is met
 
 ---
 
-## Step 2: EVIDENCE — Verify Findings Are Documented
+## Step 2: EVIDENCE - Verify Findings Are Documented
 
 **Question:** Are findings documented with sources and confidence levels?
 
@@ -64,11 +64,11 @@ implicit.
 
 **Checkpoint class:** artifact_review
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm findings are documented
+**Checkpoint:** APPROVAL REQUIRED - Confirm findings are documented
 
 ---
 
-## Step 3: ACTIONABILITY — Verify Conclusions Are Usable
+## Step 3: ACTIONABILITY - Verify Conclusions Are Usable
 
 **Question:** Are conclusions actionable by downstream phases?
 
@@ -79,7 +79,7 @@ implicit.
 
 **Checkpoint class:** artifact_review
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm conclusions are actionable
+**Checkpoint:** APPROVAL REQUIRED - Confirm conclusions are actionable
 
 ---
 
