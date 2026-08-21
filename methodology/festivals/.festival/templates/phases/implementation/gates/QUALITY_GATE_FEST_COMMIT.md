@@ -32,7 +32,7 @@ Commit all changes from this sequence using the `fest commit` command.
 
 ## Commit Command
 
-You **MUST** use `fest commit` — not `git commit`. The `fest commit` command tags
+You **MUST** use `fest commit` - not `git commit`. The `fest commit` command tags
 commits with task reference IDs for tracking and metrics.
 
 ```bash
@@ -47,9 +47,9 @@ commit workflow. Always use `fest commit` so task references are preserved.
 ```
 <type>: <concise summary of changes>
 
-<what changed — list concrete modifications>
+<what changed - list concrete modifications>
 
-<why it changed — purpose and motivation>
+<why it changed - purpose and motivation>
 ```
 
 **Types:** `feat`, `fix`, `refactor`, `test`, `docs`, `chore`

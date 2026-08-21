@@ -38,7 +38,7 @@ implicit.
 
 ---
 
-## Step 1: PHASE GOAL — Verify Goal Achievement
+## Step 1: PHASE GOAL - Verify Goal Achievement
 
 **Question:** Did the review achieve its stated objective? Were the right things reviewed against the right criteria?
 
@@ -49,11 +49,11 @@ implicit.
 
 **Checkpoint class:** artifact_review
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm review goal is met
+**Checkpoint:** APPROVAL REQUIRED - Confirm review goal is met
 
 ---
 
-## Step 2: COVERAGE — Verify All Items Reviewed
+## Step 2: COVERAGE - Verify All Items Reviewed
 
 **Question:** Were all items in scope examined?
 
@@ -64,11 +64,11 @@ implicit.
 
 **Checkpoint class:** artifact_review
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm all items reviewed
+**Checkpoint:** APPROVAL REQUIRED - Confirm all items reviewed
 
 ---
 
-## Step 3: INCORPORATION — Verify Feedback Applied
+## Step 3: INCORPORATION - Verify Feedback Applied
 
 **Question:** Was feedback applied to relevant deliverables?
 
@@ -79,7 +79,7 @@ implicit.
 
 **Checkpoint class:** artifact_review
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm feedback incorporated
+**Checkpoint:** APPROVAL REQUIRED - Confirm feedback incorporated
 
 ---
 

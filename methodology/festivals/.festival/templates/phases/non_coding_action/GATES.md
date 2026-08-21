@@ -38,7 +38,7 @@ implicit.
 
 ---
 
-## Step 1: PHASE GOAL — Verify Goal Achievement
+## Step 1: PHASE GOAL - Verify Goal Achievement
 
 **Question:** Was the action completed and does the outcome match the phase goal?
 
@@ -49,11 +49,11 @@ implicit.
 
 **Checkpoint class:** artifact_review
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm phase goal is met
+**Checkpoint:** APPROVAL REQUIRED - Confirm phase goal is met
 
 ---
 
-## Step 2: DOCUMENTATION — Verify Results Recorded
+## Step 2: DOCUMENTATION - Verify Results Recorded
 
 **Question:** Are results recorded and artifacts saved?
 
@@ -64,11 +64,11 @@ implicit.
 
 **Checkpoint class:** artifact_review
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm results documented
+**Checkpoint:** APPROVAL REQUIRED - Confirm results documented
 
 ---
 
-## Step 3: FOLLOW-UP — Verify Downstream Dependencies Identified
+## Step 3: FOLLOW-UP - Verify Downstream Dependencies Identified
 
 **Question:** Are downstream dependencies identified?
 
@@ -79,7 +79,7 @@ implicit.
 
 **Checkpoint class:** artifact_review
 
-**Checkpoint:** APPROVAL REQUIRED — Confirm follow-ups identified
+**Checkpoint:** APPROVAL REQUIRED - Confirm follow-ups identified
 
 ---
 
