@@ -18,7 +18,8 @@ func main() {
 	args := os.Args[1:]
 	ctx := context.Background()
 
-	switch requestedCommand(args) {
+	command := requestedCommand(args)
+	switch command {
 	case "integration-doctor":
 		ui.Init(false)
 		if err := integrationDoctor(ctx, doctorStartRequested(args)); err != nil {
@@ -26,7 +27,13 @@ func main() {
 			os.Exit(1)
 		}
 		return
-	case "integration", "all":
+	}
+
+	// Prepare the dedicated daemon only for the integration command. `just test
+	// all` must run unit tests first: AutoStarting Colima before units aborts
+	// the whole run if the VM cannot boot. TestMain still OpenSuite/AutoStarts
+	// when the integration suite actually runs.
+	if preparesIntegrationDaemon(command) {
 		if err := prepareIntegrationDaemon(ctx, itestenv.Options{}); err != nil {
 			reportNonRun(err)
 			os.Exit(1)
@@ -59,6 +66,10 @@ func requestedCommand(args []string) string {
 	}
 
 	return ""
+}
+
+func preparesIntegrationDaemon(command string) bool {
+	return command == "integration"
 }
 
 func ldflags() string {

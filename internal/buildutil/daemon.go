@@ -9,13 +9,6 @@ import (
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 )
 
-const (
-	socketOverrideEnv = "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE"
-	inVMDockerSocket  = "/var/run/docker.sock"
-	ryukDisabledEnv   = "TESTCONTAINERS_RYUK_DISABLED"
-	ryukDisabledValue = "true"
-)
-
 func prepareIntegrationDaemon(ctx context.Context, opts itestenv.Options) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -34,11 +27,8 @@ func prepareIntegrationDaemon(ctx context.Context, opts itestenv.Options) error 
 			return festerrors.Wrapf(err, "publish %s for the integration run", itestenv.DockerHostVar)
 		}
 	}
-	if err := os.Setenv(socketOverrideEnv, inVMDockerSocket); err != nil {
-		return festerrors.Wrapf(err, "publish %s for the integration run", socketOverrideEnv)
-	}
-	if err := os.Setenv(ryukDisabledEnv, ryukDisabledValue); err != nil {
-		return festerrors.Wrapf(err, "publish %s for the integration run", ryukDisabledEnv)
+	if err := itestenv.PublishRuntimeEnv(resolution); err != nil {
+		return festerrors.Wrap(err, "publish the integration testcontainers env")
 	}
 	return nil
 }

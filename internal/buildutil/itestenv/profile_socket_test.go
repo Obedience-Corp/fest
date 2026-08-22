@@ -75,3 +75,56 @@ func TestProfileDockerHost(t *testing.T) {
 		t.Fatalf("ProfileDockerHost() = %q, want %q", got, want)
 	}
 }
+
+func TestNeedsInVMSocketOverride(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		r    Resolution
+		want bool
+	}{
+		{
+			name: "dedicated Colima profile",
+			r: Resolution{
+				DockerHost: "unix:///home/u/.colima/fest-itest/docker.sock",
+				Profile:    ProfileName,
+				Source:     SourceProfile,
+			},
+			want: true,
+		},
+		{
+			name: "SourceProfile even if the host looks native",
+			r:    Resolution{DockerHost: "unix:///var/run/docker.sock", Source: SourceProfile},
+			want: true,
+		},
+		{
+			name: "fallback Colima default",
+			r: Resolution{
+				DockerHost: "unix:///home/u/.colima/default/docker.sock",
+				Source:     SourceFallback,
+			},
+			want: true,
+		},
+		{
+			name: "another user's Colima still needs the in-VM path",
+			r: Resolution{
+				DockerHost: "unix:///home/other/.colima/default/docker.sock",
+				Source:     SourceOverride,
+			},
+			want: true,
+		},
+		{name: "remote override", r: Resolution{DockerHost: "tcp://remote:2375", Source: SourceOverride}},
+		{name: "native Docker", r: Resolution{DockerHost: "unix:///var/run/docker.sock", Source: SourceOverride}},
+		{name: "empty fallback", r: Resolution{Source: SourceFallback}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := tt.r.needsInVMSocketOverride(); got != tt.want {
+				t.Errorf("needsInVMSocketOverride(%+v) = %v, want %v", tt.r, got, tt.want)
+			}
+		})
+	}
+}

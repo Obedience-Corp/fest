@@ -42,6 +42,18 @@ const (
 	// runner and the suite publish and read the resolved daemon by one name.
 	DockerHostVar = "DOCKER_HOST"
 
+	// SocketOverrideEnv tells testcontainers where the daemon socket lives
+	// inside the VM. Colima is reached on the host at
+	// ~/.colima/<profile>/docker.sock, but containers see /var/run/docker.sock.
+	SocketOverrideEnv = "TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE"
+	InVMDockerSocket  = "/var/run/docker.sock"
+
+	// RyukDisabledEnv stops testcontainers from launching a Ryuk sidecar. The
+	// suite owns cleanup; Ryuk's extra Docker traffic is how a wedged daemon
+	// used to look like a product failure.
+	RyukDisabledEnv   = "TESTCONTAINERS_RYUK_DISABLED"
+	RyukDisabledValue = "true"
+
 	// StartCommand is the recovery step named in every message about a profile
 	// that is not up.
 	StartCommand = "just test daemon-start"
@@ -306,6 +318,22 @@ func isColimaSocket(home, dockerHost string) bool {
 	}
 	colimaRoot := filepath.Join(home, colimaHomeDir) + string(filepath.Separator)
 	return strings.HasPrefix(path, colimaRoot) && filepath.Base(path) == dockerSocketName
+}
+
+// colimaDockerSocket reports whether dockerHost is a Colima Docker socket on
+// any home directory. Socket override is about the in-VM path, so another
+// user's Colima still needs it; isColimaSocket is the narrower "ours to
+// redirect" check.
+func colimaDockerSocket(dockerHost string) bool {
+	path := SocketPath(dockerHost)
+	if path == "" || filepath.Base(path) != dockerSocketName {
+		return false
+	}
+	return strings.Contains(filepath.ToSlash(path), "/"+colimaHomeDir+"/")
+}
+
+func (r Resolution) needsInVMSocketOverride() bool {
+	return r.Source == SourceProfile || colimaDockerSocket(r.DockerHost)
 }
 
 func socketExists(dockerHost string) bool {

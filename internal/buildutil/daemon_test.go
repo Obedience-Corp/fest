@@ -23,11 +23,11 @@ func (f fakeColima) Start(context.Context, itestenv.StartSpec, io.Writer) error 
 	return nil
 }
 
-func TestPrepareIntegrationDaemonPublishesOverride(t *testing.T) {
+func TestPrepareIntegrationDaemonDisablesRyukWithoutColimaOverride(t *testing.T) {
 	t.Setenv(itestenv.DockerHostVar, "")
 	t.Setenv(itestenv.EnvDockerHost, "unix:///tmp/docker.sock")
-	t.Setenv(ryukDisabledEnv, "")
-	t.Setenv(socketOverrideEnv, "")
+	t.Setenv(itestenv.RyukDisabledEnv, "")
+	t.Setenv(itestenv.SocketOverrideEnv, "")
 
 	if err := prepareIntegrationDaemon(context.Background(), itestenv.Options{
 		Home: t.TempDir(),
@@ -39,11 +39,11 @@ func TestPrepareIntegrationDaemonPublishesOverride(t *testing.T) {
 	if got := os.Getenv(itestenv.DockerHostVar); got != "unix:///tmp/docker.sock" {
 		t.Fatalf("DOCKER_HOST = %q, want the override", got)
 	}
-	if got := os.Getenv(ryukDisabledEnv); got != ryukDisabledValue {
-		t.Fatalf("%s = %q, want %q", ryukDisabledEnv, got, ryukDisabledValue)
+	if got := os.Getenv(itestenv.RyukDisabledEnv); got != itestenv.RyukDisabledValue {
+		t.Fatalf("%s = %q, want %q", itestenv.RyukDisabledEnv, got, itestenv.RyukDisabledValue)
 	}
-	if got := os.Getenv(socketOverrideEnv); got != inVMDockerSocket {
-		t.Fatalf("%s = %q, want %q", socketOverrideEnv, got, inVMDockerSocket)
+	if got := os.Getenv(itestenv.SocketOverrideEnv); got != "" {
+		t.Fatalf("%s = %q, want unset for a non-Colima daemon", itestenv.SocketOverrideEnv, got)
 	}
 }
 
@@ -52,6 +52,8 @@ func TestPrepareIntegrationDaemonUsesDedicatedProfile(t *testing.T) {
 	t.Setenv(itestenv.DockerHostVar, "")
 	t.Setenv(itestenv.EnvDockerHost, "")
 	t.Setenv(itestenv.EnvProfile, "")
+	t.Setenv(itestenv.RyukDisabledEnv, "")
+	t.Setenv(itestenv.SocketOverrideEnv, "")
 
 	running := itestenv.ProfileStatus{Name: itestenv.ProfileName, Exists: true, Running: true, Status: "Running"}
 	if err := prepareIntegrationDaemon(context.Background(), itestenv.Options{
@@ -65,6 +67,12 @@ func TestPrepareIntegrationDaemonUsesDedicatedProfile(t *testing.T) {
 	want := itestenv.ProfileDockerHost(home, itestenv.ProfileName)
 	if got := os.Getenv(itestenv.DockerHostVar); got != want {
 		t.Fatalf("DOCKER_HOST = %q, want dedicated profile %q", got, want)
+	}
+	if got := os.Getenv(itestenv.SocketOverrideEnv); got != itestenv.InVMDockerSocket {
+		t.Fatalf("%s = %q, want %q for SourceProfile", itestenv.SocketOverrideEnv, got, itestenv.InVMDockerSocket)
+	}
+	if got := os.Getenv(itestenv.RyukDisabledEnv); got != itestenv.RyukDisabledValue {
+		t.Fatalf("%s = %q, want %q", itestenv.RyukDisabledEnv, got, itestenv.RyukDisabledValue)
 	}
 }
 

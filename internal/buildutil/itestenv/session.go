@@ -14,9 +14,13 @@ type Suite struct {
 	lock       *Lock
 }
 
-// OpenSuite resolves the daemon, publishes DOCKER_HOST, and takes the suite
-// lock. The caller must Close it so the next run is not waiting on a process
-// that has already exited.
+// OpenSuite resolves the daemon, publishes the env TestMain relies on
+// (DOCKER_HOST, Ryuk disabled, and the in-VM socket override when the daemon
+// is Colima), and takes the suite lock. Raw and dashboard lanes both enter
+// here, so the override cannot live only in the buildutil parent.
+//
+// The caller must Close it so the next run is not waiting on a process that
+// has already exited.
 func OpenSuite(ctx context.Context, opts Options) (*Suite, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -34,6 +38,9 @@ func OpenSuite(ctx context.Context, opts Options) (*Suite, error) {
 			return nil, festerrors.Wrapf(err, "publish %s", DockerHostVar)
 		}
 	}
+	if err := PublishRuntimeEnv(resolution); err != nil {
+		return nil, err
+	}
 	lock, err := Acquire(ctx, SuiteLockPath(o.Home, resolution.DockerHost), LockOptions{
 		Wait:  LockWait(o.Getenv),
 		Out:   o.Out,
@@ -43,6 +50,23 @@ func OpenSuite(ctx context.Context, opts Options) (*Suite, error) {
 		return nil, err
 	}
 	return &Suite{Resolution: resolution, lock: lock}, nil
+}
+
+// PublishRuntimeEnv writes the testcontainers settings the suite needs after
+// the daemon is chosen. Ryuk is always disabled. The in-VM socket override is
+// set only for Colima, including a dedicated SourceProfile even if the host
+// string is unusual.
+func PublishRuntimeEnv(resolution Resolution) error {
+	if err := os.Setenv(RyukDisabledEnv, RyukDisabledValue); err != nil {
+		return festerrors.Wrapf(err, "publish %s", RyukDisabledEnv)
+	}
+	if !resolution.needsInVMSocketOverride() {
+		return nil
+	}
+	if err := os.Setenv(SocketOverrideEnv, InVMDockerSocket); err != nil {
+		return festerrors.Wrapf(err, "publish %s", SocketOverrideEnv)
+	}
+	return nil
 }
 
 // Close drops the suite lock. Failing to release is reported by the caller;

@@ -118,6 +118,34 @@ func TestRequestedCommand(t *testing.T) {
 	}
 }
 
+func TestPreparesIntegrationDaemonIsIntegrationOnly(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		command string
+		want    bool
+	}{
+		{command: "integration", want: true},
+		{command: "all"},
+		{command: "test"},
+		{command: "integration-doctor"},
+		{command: ""},
+	}
+
+	for _, tt := range tests {
+		name := tt.command
+		if name == "" {
+			name = "empty"
+		}
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			if got := preparesIntegrationDaemon(tt.command); got != tt.want {
+				t.Fatalf("preparesIntegrationDaemon(%q) = %v, want %v", tt.command, got, tt.want)
+			}
+		})
+	}
+}
+
 func makeTaggedRepo(t *testing.T, tag string) string {
 	t.Helper()
 
