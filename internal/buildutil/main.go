@@ -1,22 +1,43 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
 
+	"github.com/Obedience-Corp/fest/internal/buildutil/itestenv"
 	"github.com/Obedience-Corp/obey-shared/buildutil"
+	"github.com/Obedience-Corp/obey-shared/buildutil/ui"
 )
 
 func main() {
 	args := os.Args[1:]
-	if err := configureIntegrationEnvironment(args); err != nil {
-		fmt.Fprintf(os.Stderr, "configure integration environment: %v\n", err)
-		os.Exit(1)
+	ctx := context.Background()
+
+	command := requestedCommand(args)
+	switch command {
+	case "integration-doctor":
+		ui.Init(false)
+		if err := integrationDoctor(ctx, doctorStartRequested(args)); err != nil {
+			reportNonRun(err)
+			os.Exit(1)
+		}
+		return
+	}
+
+	// Prepare the dedicated daemon only for the integration command. `just test
+	// all` must run unit tests first: AutoStarting Colima before units aborts
+	// the whole run if the VM cannot boot. TestMain still OpenSuite/AutoStarts
+	// when the integration suite actually runs.
+	if preparesIntegrationDaemon(command) {
+		if err := prepareIntegrationDaemon(ctx, itestenv.Options{}); err != nil {
+			reportNonRun(err)
+			os.Exit(1)
+		}
 	}
 
 	buildutil.Run(args, buildutil.BuildConfig{
@@ -33,34 +54,6 @@ func main() {
 	})
 }
 
-func configureIntegrationEnvironment(args []string) error {
-	switch requestedCommand(args) {
-	case "integration", "all":
-	default:
-		return nil
-	}
-
-	if err := os.Setenv("TESTCONTAINERS_RYUK_DISABLED", "true"); err != nil {
-		return err
-	}
-
-	if strings.TrimSpace(os.Getenv("DOCKER_HOST")) != "" {
-		return nil
-	}
-
-	home := strings.TrimSpace(os.Getenv("HOME"))
-	if home == "" {
-		return nil
-	}
-
-	colimaSocket := filepath.Join(home, ".colima", "default", "docker.sock")
-	if _, err := os.Stat(colimaSocket); err != nil {
-		return nil
-	}
-
-	return os.Setenv("DOCKER_HOST", "unix://"+colimaSocket)
-}
-
 func requestedCommand(args []string) string {
 	for _, arg := range args {
 		if arg == "--" {
@@ -73,6 +66,10 @@ func requestedCommand(args []string) string {
 	}
 
 	return ""
+}
+
+func preparesIntegrationDaemon(command string) bool {
+	return command == "integration"
 }
 
 func ldflags() string {

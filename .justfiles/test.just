@@ -31,6 +31,20 @@ unit-verbose:
 integration:
     @{{BUILDTOOL}} integration
 
+# Report whether this machine can run the integration suite: which Docker
+# daemon the suite would use, whether it answers fast enough, what else is
+# running on it, and whether another run holds the suite lock. Read-only.
+[no-cd]
+integration-doctor:
+    @{{BUILDTOOL}} integration-doctor
+
+# Create or boot the dedicated fest-itest Colima profile the suite runs on.
+# The suite does this on demand too; run it by hand to pay the VM boot before
+# a timed run, or to repair the profile after stopping it.
+[no-cd]
+daemon-start:
+    @{{BUILDTOOL}} integration-doctor start
+
 # Run integration tests with verbose output
 [no-cd]
 integration-verbose:
@@ -68,7 +82,7 @@ integration-raw:
     echo "Building Linux binary..."
     GOOS=linux GOARCH=$(go env GOARCH) go build -ldflags '{{ldflags}}' -o bin/linux/fest ./cmd/fest
     echo "Running integration tests..."
-    DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock" TESTCONTAINERS_RYUK_DISABLED=true go test -v -tags=integration -timeout 5m ./tests/integration/...
+    TESTCONTAINERS_RYUK_DISABLED=true go test -v -tags=integration -timeout 5m ./tests/integration/...
 
 # Run dev-profile fest watch integration tests through the container harness
 [no-cd]
