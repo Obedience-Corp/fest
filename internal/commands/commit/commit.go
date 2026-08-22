@@ -831,10 +831,11 @@ func trackedInGit(ctx context.Context, repoRoot, path string) bool {
 }
 
 // commitCampaignRoot stages festival-scoped paths at the campaign root and
-// commits them. Returns the short hash of the campaign commit, or empty string
-// if there were no changes to commit. Errors from staging/committing are
-// returned; "no changes" is a silent skip (including when the guard excluded
-// every path — already reported on report).
+// commits only those paths. Unrelated staged campaign-root content is left
+// staged. Returns the short hash of the campaign commit, or empty string if
+// there were no festival-scoped changes to commit. Errors from staging or
+// committing are returned; "no changes" is a silent skip (including when the
+// guard excluded every path — already reported on report).
 func commitCampaignRoot(ctx context.Context, campaignRoot string, paths []string, commitMessage string, report io.Writer) (string, error) {
 	if err := ctx.Err(); err != nil {
 		return "", errors.Wrap(err, "context cancelled")
@@ -858,7 +859,7 @@ func commitCampaignRoot(ctx context.Context, campaignRoot string, paths []string
 	}
 	reportStageOutcome(report, outcome)
 
-	hasChanges, err := commitkit.HasStagedChanges(ctx, campaignRoot)
+	hasChanges, err := hasStagedPathChanges(ctx, campaignRoot, paths)
 	if err != nil {
 		return "", errors.Wrap(err, "checking staged changes at campaign root")
 	}
@@ -866,10 +867,16 @@ func commitCampaignRoot(ctx context.Context, campaignRoot string, paths []string
 		return "", nil
 	}
 
-	if err := commitkit.Commit(ctx, campaignRoot, commitkit.CommitOptions{
-		Message: commitMessage,
-	}); err != nil {
-		return "", errors.Wrap(err, "committing festival files at campaign root")
+	// Drain first so a queued camp bookkeeping commit cannot land in the
+	// middle of this one. Then commit the staged festival paths from a temp
+	// index so unrelated staged campaign files stay staged, and later
+	// worktree writes (including during DrainJobs) cannot replace the staged
+	// snapshot. Drain errors are discarded for the same reason commitkit's
+	// own stage/commit entrypoints discard them: the festival commit is not
+	// the place to fail a camp queue fault.
+	_ = commitkit.DrainJobs(ctx, campaignRoot)
+	if err := commitOnlyPaths(ctx, campaignRoot, commitMessage, paths); err != nil {
+		return "", err
 	}
 
 	hash, err := commitkit.ShortHash(ctx, campaignRoot)
