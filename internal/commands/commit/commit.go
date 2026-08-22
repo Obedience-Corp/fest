@@ -868,11 +868,12 @@ func commitCampaignRoot(ctx context.Context, campaignRoot string, paths []string
 	}
 
 	// Drain first so a queued camp bookkeeping commit cannot land in the
-	// middle of this one. Then commit --only the festival path list: the
-	// campaign index may already hold unrelated staged files, and
-	// commitkit.Commit would record all of them. Drain errors are discarded
-	// for the same reason commitkit's own stage/commit entrypoints discard
-	// them: the festival commit is not the place to fail a camp queue fault.
+	// middle of this one. Then commit the staged festival paths from a temp
+	// index so unrelated staged campaign files stay staged, and later
+	// worktree writes (including during DrainJobs) cannot replace the staged
+	// snapshot. Drain errors are discarded for the same reason commitkit's
+	// own stage/commit entrypoints discard them: the festival commit is not
+	// the place to fail a camp queue fault.
 	_ = commitkit.DrainJobs(ctx, campaignRoot)
 	if err := commitOnlyPaths(ctx, campaignRoot, commitMessage, paths); err != nil {
 		return "", err
