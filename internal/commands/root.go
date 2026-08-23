@@ -31,6 +31,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/release"
 	"github.com/Obedience-Corp/fest/internal/commands/research"
 	ritualcmd "github.com/Obedience-Corp/fest/internal/commands/ritual"
+	runcmd "github.com/Obedience-Corp/fest/internal/commands/run"
 	scaffoldcmd "github.com/Obedience-Corp/fest/internal/commands/scaffold"
 	searchcmd "github.com/Obedience-Corp/fest/internal/commands/search"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
@@ -226,6 +227,10 @@ func init() {
 	nextCmd := nextcmd.NewNextCommand()
 	nextCmd.GroupID = "workflow"
 	rootCmd.AddCommand(nextCmd)
+
+	runCmd := runcmd.NewRunCommand()
+	runCmd.GroupID = "workflow"
+	rootCmd.AddCommand(runCmd)
 
 	progressCmd := progresscmd.NewProgressCommand()
 	progressCmd.GroupID = "workflow"

@@ -17,4 +17,7 @@ func TestCollectVisibleCommandPathsStableOmitsDevOnlyCommands(t *testing.T) {
 	if !containsCommandPath(paths, "fest watch") {
 		t.Fatal("stable command surface should include fest watch")
 	}
+	if !containsCommandPath(paths, "fest run") {
+		t.Fatal("stable command surface should include fest run")
+	}
 }
