@@ -71,6 +71,7 @@ func AtomicStatusChange(ctx context.Context, festivalPath, fromStatus, toStatus 
 
 	// Campaign ledger: festival lifecycle transition at the atomic core
 	// success boundary (D003/D006). status_history + dir move already done.
+	// Payload: target = artifact kind ("festival"), from/to = status.
 	emit := campledger.NewFromFestival(ctx, newPath, campledger.WarnToStderr())
 	emit.Emit(ctx, ledgerkit.KindTransitioned, campledger.FestivalScope(newPath, ""),
 		campledger.WithPayload(map[string]any{
