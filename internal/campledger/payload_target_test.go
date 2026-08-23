@@ -51,11 +51,10 @@ func TestPayloadTargetIsArtifactKind(t *testing.T) {
 		{"to": "pending", "target": "task", "action": "reset"},
 	}
 
-	for i, p := range payloads {
+	for _, p := range payloads {
 		e.Emit(context.Background(), ledgerkit.KindTransitioned,
 			FestivalScope(fest, "001_PHASE/01_seq/01_task.md"),
 			WithPayload(p))
-		_ = i
 	}
 
 	// Collect all events from the shard(s).
