@@ -33,6 +33,11 @@ type AgentConfig struct {
 	RequireValidation bool `yaml:"require_validation"`
 	// BlockOnErrors prevents completion if validation has errors
 	BlockOnErrors bool `yaml:"block_on_errors"`
+	// RequireAutoCommit prevents agents from bypassing promotion/status
+	// auto-commit via the --no-commit flag. When true, the flag is rejected
+	// and auto-commit runs regardless. Configured in .festival/config.yaml
+	// (workspace) or fest.yaml (festival) under agent.require_auto_commit.
+	RequireAutoCommit bool `yaml:"require_auto_commit"`
 }
 
 // LoadWorkspaceConfig loads workspace configuration from .festival/config.yaml
@@ -121,6 +126,7 @@ func DefaultWorkspaceConfig() *WorkspaceConfig {
 			DisableSkipMarkers: false,
 			RequireValidation:  false,
 			BlockOnErrors:      false,
+			RequireAutoCommit:  false,
 		},
 	}
 }
@@ -138,6 +144,32 @@ func WorkspaceConfigExists(festivalsRoot string) bool {
 	configPath := filepath.Join(festivalsRoot, DotFestivalDir, WorkspaceConfigFileName)
 	_, err := os.Stat(configPath)
 	return err == nil
+}
+
+// LoadEffectiveAgentConfig loads and merges workspace + festival agent configs.
+// Returns a default config (all fields false) if neither config file is found.
+// festivalsRoot is the path to the festivals/ directory (containing .festival/).
+// festivalPath is the path to the specific festival directory (containing fest.yaml).
+// Either may be empty to skip that layer.
+func LoadEffectiveAgentConfig(festivalsRoot, festivalPath string) *AgentConfig {
+	var workspaceAgent *AgentConfig
+	var festivalAgent *AgentConfig
+
+	if festivalsRoot != "" {
+		workspaceCfg, err := LoadWorkspaceConfig(festivalsRoot)
+		if err == nil && workspaceCfg != nil {
+			workspaceAgent = &workspaceCfg.Agent
+		}
+	}
+
+	if festivalPath != "" {
+		festivalCfg, err := LoadFestivalConfig(festivalPath, "")
+		if err == nil && festivalCfg != nil {
+			festivalAgent = &festivalCfg.Agent
+		}
+	}
+
+	return MergeAgentConfig(workspaceAgent, festivalAgent)
 }
 
 // MergeAgentConfig merges workspace and festival agent configs
@@ -159,6 +191,7 @@ func MergeAgentConfig(workspace, festival *AgentConfig) *AgentConfig {
 		DisableSkipMarkers: workspace.DisableSkipMarkers,
 		RequireValidation:  workspace.RequireValidation,
 		BlockOnErrors:      workspace.BlockOnErrors,
+		RequireAutoCommit:  workspace.RequireAutoCommit,
 	}
 
 	// Festival settings override workspace settings when set to true
@@ -175,8 +208,30 @@ func MergeAgentConfig(workspace, festival *AgentConfig) *AgentConfig {
 	if festival.BlockOnErrors {
 		merged.BlockOnErrors = true
 	}
+	if festival.RequireAutoCommit {
+		merged.RequireAutoCommit = true
+	}
 
 	return merged
+}
+
+// EffectiveAutoCommit determines whether auto-commit should run after a festival
+// status change or promotion. When RequireAutoCommit is set in config, the
+// --no-commit flag is rejected and auto-commit runs regardless.
+// Returns (shouldCommit, rejected) where rejected is true if --no-commit was
+// passed but policy requires auto-commit.
+func EffectiveAutoCommit(cfg *AgentConfig, noCommitFlag bool) (shouldCommit bool, rejected bool) {
+	if cfg == nil {
+		cfg = &AgentConfig{}
+	}
+
+	// Policy requires auto-commit — --no-commit is rejected.
+	if cfg.RequireAutoCommit {
+		return true, noCommitFlag
+	}
+
+	// No policy requirement — honor the flag.
+	return !noCommitFlag, false
 }
 
 // EffectiveSkipMarkers determines if markers should be skipped based on config and flags

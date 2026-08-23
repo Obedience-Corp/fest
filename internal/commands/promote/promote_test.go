@@ -556,3 +556,115 @@ func TestPromotePickerOptionsExcludeDungeonWhenNoWorkingFestival(t *testing.T) {
 		t.Fatalf("promote completion offered a dungeoned festival: %#v", candidates)
 	}
 }
+
+// setupPromoteCampaignWithAutoCommitPolicy creates a campaign with the workspace
+// config agent.require_auto_commit set to the given value. Returns the root and
+// festivals dir.
+func setupPromoteCampaignWithAutoCommitPolicy(t *testing.T, requireAutoCommit bool) (root, festivalsDir string) {
+	t.Helper()
+	root = t.TempDir()
+	if err := os.MkdirAll(filepath.Join(root, ".campaign"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	festivalsDir = filepath.Join(root, "festivals")
+	// Create .festival/ directory with workspace config
+	dotFestivalDir := filepath.Join(festivalsDir, ".festival")
+	if err := os.MkdirAll(dotFestivalDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfgData := "version: \"1.0\"\nagent:\n  require_auto_commit: " + boolStr(requireAutoCommit) + "\n"
+	if err := os.WriteFile(filepath.Join(dotFestivalDir, "config.yaml"), []byte(cfgData), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, status := range []string{"planning", "ready", "active"} {
+		if err := os.MkdirAll(filepath.Join(festivalsDir, status), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writePromoteFestival(t, filepath.Join(festivalsDir, "planning", "alpha-feature-FE0001"), "FE0001", "planning")
+	t.Setenv("CAMP_ROOT", root)
+	return root, festivalsDir
+}
+
+func boolStr(b bool) string {
+	if b {
+		return "true"
+	}
+	return "false"
+}
+
+// TestPromoteCore_NoCommitRejectedWhenPolicyRequiresAutoCommit verifies that
+// --no-commit is rejected with an error when agent.require_auto_commit is true.
+// This is the core regression test for fest#216.
+func TestPromoteCore_NoCommitRejectedWhenPolicyRequiresAutoCommit(t *testing.T) {
+	_, festivalsDir := setupPromoteCampaignWithAutoCommitPolicy(t, true)
+
+	festival := &show.FestivalInfo{
+		Name:   "alpha-feature-FE0001",
+		Path:   filepath.Join(festivalsDir, "planning", "alpha-feature-FE0001"),
+		Status: "planning",
+	}
+
+	_, err := promoteCore(t.Context(), festival, false, &promoteOptions{noCommit: true})
+	if err == nil {
+		t.Fatal("expected error when --no-commit is used with require_auto_commit policy, got nil")
+	}
+	if !strings.Contains(err.Error(), "auto-commit is required by policy") {
+		t.Fatalf("error should mention auto-commit policy, got: %v", err)
+	}
+
+	// Verify the festival was NOT moved (the check happens before any state change)
+	oldPath := filepath.Join(festivalsDir, "planning", "alpha-feature-FE0001")
+	if _, statErr := os.Stat(oldPath); statErr != nil {
+		t.Fatalf("festival should remain in planning (not moved), stat err: %v", statErr)
+	}
+	movedPath := filepath.Join(festivalsDir, "ready", "alpha-feature-FE0001")
+	if _, statErr := os.Stat(movedPath); !os.IsNotExist(statErr) {
+		t.Fatal("festival must not have been promoted when --no-commit was rejected")
+	}
+}
+
+// TestPromoteCore_NoCommitRejectedJSONExitsNonZero verifies that --no-commit
+// rejection under --json produces a non-zero exit with a JSON error body.
+func TestPromoteCore_NoCommitRejectedJSONExitsNonZero(t *testing.T) {
+	_, festivalsDir := setupPromoteCampaignWithAutoCommitPolicy(t, true)
+
+	festival := &show.FestivalInfo{
+		Name:   "alpha-feature-FE0001",
+		Path:   filepath.Join(festivalsDir, "planning", "alpha-feature-FE0001"),
+		Status: "planning",
+	}
+
+	out, err := capturePromoteStdout(t, func() error {
+		_, e := promoteCore(t.Context(), festival, false, &promoteOptions{noCommit: true, json: true})
+		return e
+	})
+
+	if !errors.Is(err, ferrors.ErrAlreadyPrinted) {
+		t.Fatalf("--no-commit rejection under --json must return ErrAlreadyPrinted, got %v", err)
+	}
+	assertJSONFailureBody(t, out)
+}
+
+// TestPromoteCore_NoCommitAllowedWhenPolicyNotSet verifies that --no-commit
+// still works (backward compat) when require_auto_commit is not enabled.
+func TestPromoteCore_NoCommitAllowedWhenPolicyNotSet(t *testing.T) {
+	_, festivalsDir := setupPromoteCampaignWithAutoCommitPolicy(t, false)
+
+	festival := &show.FestivalInfo{
+		Name:   "alpha-feature-FE0001",
+		Path:   filepath.Join(festivalsDir, "planning", "alpha-feature-FE0001"),
+		Status: "planning",
+	}
+
+	_, err := promoteCore(t.Context(), festival, false, &promoteOptions{noCommit: true})
+	if err != nil {
+		t.Fatalf("--no-commit should succeed when policy does not require auto-commit, got: %v", err)
+	}
+
+	// Festival should have been moved to ready
+	movedPath := filepath.Join(festivalsDir, "ready", "alpha-feature-FE0001")
+	if _, statErr := os.Stat(movedPath); statErr != nil {
+		t.Fatalf("festival should have been promoted to ready: %v", statErr)
+	}
+}
