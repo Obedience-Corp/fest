@@ -331,7 +331,7 @@ func TestCreateFestival_GatesDirectory(t *testing.T) {
 	if err := os.MkdirAll(festivalTemplatesDir, 0755); err != nil {
 		t.Fatalf("failed to create festival templates dir: %v", err)
 	}
-	coreTemplates := []string{"OVERVIEW.md", "GOAL.md"}
+	coreTemplates := []string{"OVERVIEW.md", "GOAL.md", "RULES.md", "TODO.md"}
 	for _, tmpl := range coreTemplates {
 		content := "# {{.festival_name}}\n"
 		if err := os.WriteFile(filepath.Join(festivalTemplatesDir, tmpl), []byte(content), 0644); err != nil {
@@ -421,7 +421,7 @@ func TestCreateFestival_FestYAMLGenerated(t *testing.T) {
 	if err := os.MkdirAll(festivalTemplatesDir, 0755); err != nil {
 		t.Fatalf("failed to create festival templates dir: %v", err)
 	}
-	for _, tmpl := range []string{"OVERVIEW.md", "GOAL.md"} {
+	for _, tmpl := range []string{"OVERVIEW.md", "GOAL.md", "RULES.md", "TODO.md"} {
 		if err := os.WriteFile(filepath.Join(festivalTemplatesDir, tmpl), []byte("# Template"), 0644); err != nil {
 			t.Fatalf("failed to create template: %v", err)
 		}

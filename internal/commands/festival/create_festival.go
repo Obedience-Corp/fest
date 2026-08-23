@@ -408,6 +408,7 @@ func renderFestivalTemplates(ctx context.Context, cfg *createConfig) ([]string, 
 
 	mgr := tpl.NewManager()
 	var created []string
+	var missingCoreTemplates []string
 
 	for _, coreTemplate := range festivalCoreTemplates {
 		outPath, err := renderCoreFile(ctx, cfg, mgr, coreTemplate.Template, coreTemplate.Output)
@@ -416,7 +417,17 @@ func renderFestivalTemplates(ctx context.Context, cfg *createConfig) ([]string, 
 		}
 		if outPath != "" {
 			created = append(created, outPath)
+		} else {
+			missingCoreTemplates = append(missingCoreTemplates, coreTemplate.Template)
 		}
+	}
+
+	if len(missingCoreTemplates) > 0 {
+		return nil, nil, errors.Template(
+			fmt.Sprintf("missing required core festival templates: %s", strings.Join(missingCoreTemplates, ", "))).
+			WithField("templates", strings.Join(missingCoreTemplates, ", ")).
+			WithField("template_root", cfg.tmplRoot).
+			WithHint("Copy .festival/templates/festival/ from a working campaign, or run 'fest init' to seed the template directory.")
 	}
 
 	copiedGates, gateCreated, err := copyGateTemplates(ctx, cfg)
@@ -431,15 +442,13 @@ func renderFestivalTemplates(ctx context.Context, cfg *createConfig) ([]string, 
 // renderCoreFile renders a single core festival file from a template and writes
 // it into the festival directory.
 // Returns the output path, or empty string if the template was not found.
+// The caller is responsible for treating a missing core template as an error.
 func renderCoreFile(ctx context.Context, cfg *createConfig, mgr *tpl.Manager, templateName, outName string) (string, error) {
 	content, found, err := buildCoreFileContent(ctx, cfg, mgr, templateName, outName)
 	if err != nil {
 		return "", err
 	}
 	if !found {
-		if !cfg.opts.JSONOutput {
-			cfg.display.Warning("Template not found, skipping: %s", templateName)
-		}
 		return "", nil
 	}
 
@@ -517,6 +526,9 @@ func copyGateTemplates(ctx context.Context, cfg *createConfig) ([]string, []stri
 	for _, phaseType := range festivalGatePhaseTypes {
 		srcGatesDir := filepath.Join(srcPhasesDir, phaseType, "gates")
 		if _, err := os.Stat(srcGatesDir); os.IsNotExist(err) {
+			if !cfg.opts.JSONOutput {
+				cfg.display.Info("No gate templates for phase type '%s' (skipped)", phaseType)
+			}
 			continue
 		}
 
