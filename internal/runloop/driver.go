@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -23,7 +24,7 @@ type Options struct {
 	Dry        bool
 	StatusOnly bool
 	JSON       bool
-	Agent      string
+	Exec       string
 	MaxTasks   int
 	MaxMinutes int
 	Stdout     io.Writer
@@ -59,9 +60,7 @@ func Drive(ctx context.Context, cwd string, opts Options) error {
 	if opts.MaxMinutes <= 0 {
 		opts.MaxMinutes = DefaultMaxMinutes
 	}
-	if opts.Agent == "" {
-		opts.Agent = "claude"
-	}
+	classifyOnly := opts.Dry || strings.TrimSpace(opts.Exec) == ""
 
 	snap, err := Inspect(ctx, cwd)
 	if err != nil {
@@ -81,7 +80,7 @@ func Drive(ctx context.Context, cwd string, opts Options) error {
 		return emitStatus(opts, reportFrom(snap, verdict, recs, ledgerPath, ""))
 	}
 
-	if opts.Dry {
+	if classifyOnly {
 		verdict := Classify(snap)
 		rec := Record{
 			Iteration: TaskCount(recs) + 1,
@@ -99,7 +98,7 @@ func Drive(ctx context.Context, cwd string, opts Options) error {
 
 	if snap.Kind == "festival" {
 		return errors.New("fest run does not yet drive festival tasks").
-			WithHint("Use --dry to see whether the next slice is leaveable. Standalone WORKFLOW.md runs are supported.")
+			WithHint("fest run without --exec reports leaveability. Standalone WORKFLOW.md can loop with --exec <command>.")
 	}
 
 	stopSleep := startSleepGuard()
@@ -133,17 +132,17 @@ func Drive(ctx context.Context, cwd string, opts Options) error {
 
 		iter := done + 1
 		prompt := buildPrompt(snap)
-		agentErr := InvokeAgent(ctx, opts.Agent, prompt, snap.WorkingDir)
-		if agentErr != nil {
+		execErr := InvokeExec(ctx, opts.Exec, prompt, snap.WorkingDir)
+		if execErr != nil {
 			consecutive++
 			rec := Record{
 				Iteration: iter,
 				Outcome:   OutcomeFailed,
-				Reason:    "agent failed",
+				Reason:    "exec failed",
 				Label:     snap.Label,
 				Path:      snap.Path,
-				Agent:     opts.Agent,
-				Error:     agentErr.Error(),
+				Exec:      opts.Exec,
+				Error:     execErr.Error(),
 			}
 			if err := AppendLedger(ctx, ledgerPath, rec); err != nil {
 				return err
@@ -152,7 +151,7 @@ func Drive(ctx context.Context, cwd string, opts Options) error {
 			if consecutive >= maxConsecutive {
 				return finish(ctx, opts, snap, ledgerPath, recs, Verdict{
 					Outcome: OutcomeFailed,
-					Reason:  "consecutive agent failures",
+					Reason:  "consecutive exec failures",
 					Label:   snap.Label,
 				}, lastSHA)
 			}
@@ -177,7 +176,7 @@ func Drive(ctx context.Context, cwd string, opts Options) error {
 			Label:     snap.Label,
 			Path:      snap.Path,
 			Commit:    sha,
-			Agent:     opts.Agent,
+			Exec:      opts.Exec,
 		}
 		if err := AppendLedger(ctx, ledgerPath, rec); err != nil {
 			return err
@@ -214,7 +213,7 @@ func reportFrom(snap Snapshot, verdict Verdict, recs []Record, ledgerPath, lastS
 	case OutcomeBudgetExhausted:
 		hint = "fest run --resume to continue"
 	case OutcomeRunnable:
-		hint = "fest run"
+		hint = "fest run --exec <command> to drive slices"
 	}
 	return StatusReport{
 		SchemaVersion: statusSchema,

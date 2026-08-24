@@ -4,31 +4,24 @@ import (
 	"bytes"
 	"context"
 	"os/exec"
-	"path/filepath"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
-// InvokeAgent runs one unattended slice. "claude" gets `claude -p`.
-// Any other binary receives the prompt on stdin so tests can inject a fake.
-func InvokeAgent(ctx context.Context, agent, prompt, workDir string) error {
+// InvokeExec runs one user-supplied worker. Fest does not know any agent
+// CLI. The slice prompt is written to stdin.
+func InvokeExec(ctx context.Context, spec, prompt, workDir string) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	agent = strings.TrimSpace(agent)
-	if agent == "" {
-		return errors.Validation("agent binary is required")
+	spec = strings.TrimSpace(spec)
+	if spec == "" {
+		return errors.Validation("exec command is required")
 	}
-	var cmd *exec.Cmd
-	base := filepath.Base(agent)
-	switch {
-	case base == "claude" || base == "claude.exe":
-		cmd = exec.CommandContext(ctx, agent, "-p", prompt)
-	default:
-		cmd = exec.CommandContext(ctx, agent)
-		cmd.Stdin = strings.NewReader(prompt)
-	}
+	parts := strings.Fields(spec)
+	cmd := exec.CommandContext(ctx, parts[0], parts[1:]...)
+	cmd.Stdin = strings.NewReader(prompt)
 	if workDir != "" {
 		cmd.Dir = workDir
 	}
@@ -39,8 +32,8 @@ func InvokeAgent(ctx context.Context, agent, prompt, workDir string) error {
 		if msg == "" {
 			msg = err.Error()
 		}
-		return errors.Wrap(err, "agent failed").
-			WithField("agent", agent).
+		return errors.Wrap(err, "exec failed").
+			WithField("exec", spec).
 			WithField("stderr", msg)
 	}
 	return nil
@@ -48,8 +41,7 @@ func InvokeAgent(ctx context.Context, agent, prompt, workDir string) error {
 
 func buildPrompt(snap Snapshot) string {
 	var b strings.Builder
-	b.WriteString("You are driving a Festival leaveable run. Do only this slice.\n")
-	b.WriteString("Do not create festivals. Do not skip human gates. Do not invent the next task.\n")
+	b.WriteString("Do only this Festival slice. Do not skip human gates. Do not invent the next task.\n")
 	if snap.Label != "" {
 		b.WriteString("\nSlice: ")
 		b.WriteString(snap.Label)

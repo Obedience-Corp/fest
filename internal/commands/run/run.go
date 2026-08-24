@@ -1,4 +1,4 @@
-// Package run implements `fest run`: a leaveable driver for fest next.
+// Package run implements `fest run`: a leaveable classifier and optional exec loop.
 package run
 
 import (
@@ -14,7 +14,7 @@ type options struct {
 	dry        bool
 	status     bool
 	json       bool
-	agent      string
+	exec       string
 	maxTasks   int
 	maxMinutes int
 	resume     bool
@@ -25,23 +25,27 @@ func NewRunCommand() *cobra.Command {
 	opts := &options{}
 	cmd := &cobra.Command{
 		Use:   "run",
-		Short: "Drive fest next until the plan is done, blocked on you, or the cap hits",
-		Long: `Drive the current festival or tracked WORKFLOW.md without babysitting the loop.
+		Short: "Report whether the next slice is leaveable; optionally loop a caller-supplied command",
+		Long: `Inspect the same slice fest next would show and say whether you can leave.
 
-fest run inspects the same slice fest next would show. Human gates, blocked
-tasks, and live judges stop the run — that stop is a successful night, not a
-failure. Successful slices are committed when the working directory is a git
-repo. The campaign is never git-reset.
+fest run does not launch an agent. Festival is agent-agnostic: the plan and
+the loop state live here; whoever executes a slice is the caller's business.
 
-Use --dry to classify the next slice without invoking an agent.
-Use --status to print the morning report without appending to the ledger.
+Default (and --dry): classify the next slice, record it, print a report.
+Human gates, blocked tasks, and live judges are successful stops.
 
-v1 drives standalone tracked WORKFLOW.md files. Festival task execution is
-classified by --dry; driving those slices is not enabled yet.`,
-		Example: `  fest run --dry
-  fest run --status
-  fest run --agent claude --max-tasks 8 --max-minutes 240
-  fest run --resume`,
+--exec <command> loops: run that command with the slice on stdin, then
+advance. The command can be any worker. Fest does not know Claude, Codex,
+or any other harness.
+
+--status prints the morning report without appending to the ledger.
+
+v1 --exec drives standalone tracked WORKFLOW.md files. Festival tasks are
+classified only.`,
+		Example: `  fest run
+  fest run --dry
+  fest run --status --json
+  fest run --exec ./my-worker --max-tasks 8 --max-minutes 240`,
 		Annotations: map[string]string{
 			"scope": string(scope.Global),
 		},
@@ -49,12 +53,12 @@ classified by --dry; driving those slices is not enabled yet.`,
 			return runRun(cmd, opts)
 		},
 	}
-	cmd.Flags().BoolVar(&opts.dry, "dry", false, "classify the next slice and exit")
+	cmd.Flags().BoolVar(&opts.dry, "dry", false, "classify the next slice and exit (default when --exec is omitted)")
 	cmd.Flags().BoolVar(&opts.status, "status", false, "print the morning report without driving")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "machine-readable status")
-	cmd.Flags().StringVar(&opts.agent, "agent", "claude", "agent binary (claude uses -p; anything else gets the prompt on stdin)")
-	cmd.Flags().IntVar(&opts.maxTasks, "max-tasks", runloop.DefaultMaxTasks, "stop after this many driven slices")
-	cmd.Flags().IntVar(&opts.maxMinutes, "max-minutes", runloop.DefaultMaxMinutes, "stop after this many minutes")
+	cmd.Flags().StringVar(&opts.exec, "exec", "", "optional worker command; slice prompt is on stdin. omitted: classify only")
+	cmd.Flags().IntVar(&opts.maxTasks, "max-tasks", runloop.DefaultMaxTasks, "stop after this many driven slices (with --exec)")
+	cmd.Flags().IntVar(&opts.maxMinutes, "max-minutes", runloop.DefaultMaxMinutes, "stop after this many minutes (with --exec)")
 	cmd.Flags().BoolVar(&opts.resume, "resume", false, "continue the existing ledger (default: always resumes if present)")
 	return cmd
 }
@@ -72,7 +76,7 @@ func runRun(cmd *cobra.Command, opts *options) error {
 		Dry:        opts.dry,
 		StatusOnly: opts.status,
 		JSON:       opts.json,
-		Agent:      opts.agent,
+		Exec:       opts.exec,
 		MaxTasks:   opts.maxTasks,
 		MaxMinutes: opts.maxMinutes,
 		Stdout:     cmd.OutOrStdout(),

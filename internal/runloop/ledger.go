@@ -21,7 +21,7 @@ type Record struct {
 	Label         string `json:"label,omitempty"`
 	Path          string `json:"path,omitempty"`
 	Commit        string `json:"commit,omitempty"`
-	Agent         string `json:"agent,omitempty"`
+	Exec          string `json:"exec,omitempty"`
 	Error         string `json:"error,omitempty"`
 }
 

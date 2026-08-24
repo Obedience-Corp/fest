@@ -77,7 +77,7 @@ Run 'fest understand' to learn the methodology before executing tasks.
 * [fest reorder](fest_reorder.md)	 - Reorder festival elements
 * [fest research](fest_research.md)	 - Manage research phase documents
 * [fest ritual](fest_ritual.md)	 - Manage repeatable ritual festivals
-* [fest run](fest_run.md)	 - Drive fest next until the plan is done, blocked on you, or the cap hits
+* [fest run](fest_run.md)	 - Report whether the next slice is leaveable; optionally loop a caller-supplied command
 * [fest rules](fest_rules.md)	 - Display festival rules for the current festival
 * [fest scaffold](fest_scaffold.md)	 - Generate festival structures from plans
 * [fest search](fest_search.md)	 - Search festivals by name, ID, or goal text

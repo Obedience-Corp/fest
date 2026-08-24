@@ -65,4 +65,14 @@ func TestRunCommandIsCobra(t *testing.T) {
 	if _, ok := cmd.Annotations["scope"]; !ok {
 		t.Fatal("missing scope annotation")
 	}
+	if cmd.Flags().Lookup("agent") != nil {
+		t.Fatal("fest run must not have --agent; fest does not own an agent")
+	}
+	execFlag := cmd.Flags().Lookup("exec")
+	if execFlag == nil {
+		t.Fatal("missing --exec")
+	}
+	if execFlag.DefValue != "" {
+		t.Fatalf("exec default = %q, want empty", execFlag.DefValue)
+	}
 }

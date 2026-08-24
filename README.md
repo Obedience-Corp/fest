@@ -320,8 +320,8 @@ fest status                   # Festival progress overview
 fest next                     # Get next task with full context
 fest task completed           # Mark current task done
 fest commit -m "message"      # Git commit with festival tracking
-fest run --dry                # Can I leave, or is the next slice a human gate?
-fest run                      # Drive standalone WORKFLOW.md until done, blocked, or cap
+fest run                      # Can I leave, or is the next slice a human gate?
+fest run --exec ./worker      # Loop a caller-supplied worker; fest does not launch an agent
 ```
 
 For workflow phases (planning, research, ingest):

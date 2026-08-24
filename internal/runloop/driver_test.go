@@ -96,7 +96,38 @@ workflow_id: wf-runloop
 	}
 }
 
-func TestDriveFakeAgentCompletes(t *testing.T) {
+func TestDriveWithoutExecDoesNotAdvance(t *testing.T) {
+	dir := t.TempDir()
+	writeTrackedWorkflow(t, dir, `---
+workflow_version: 1
+workflow_id: wf-runloop
+---
+
+## Step 1: ALIGN
+
+**Goal:** first.
+
+## Step 2: DO
+
+**Goal:** second.
+`)
+	var buf bytes.Buffer
+	if err := Drive(context.Background(), dir, Options{Stdout: &buf}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "outcome: runnable") {
+		t.Fatalf("output = %s", buf.String())
+	}
+	snap, err := Inspect(context.Background(), dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.Label != "ALIGN" {
+		t.Fatalf("default run must not advance, label = %s", snap.Label)
+	}
+}
+
+func TestDriveExecCompletes(t *testing.T) {
 	dir := t.TempDir()
 	writeTrackedWorkflow(t, dir, `---
 workflow_version: 1
@@ -115,7 +146,7 @@ workflow_id: wf-runloop
 	agent := writeFakeAgent(t, dir)
 	var buf bytes.Buffer
 	err := Drive(context.Background(), dir, Options{
-		Agent:      agent,
+		Exec:       agent,
 		MaxTasks:   8,
 		MaxMinutes: 5,
 		Stdout:     &buf,
@@ -158,7 +189,7 @@ workflow_id: wf-runloop
 	}
 	var buf bytes.Buffer
 	_ = Drive(context.Background(), dir, Options{
-		Agent:      fail,
+		Exec:       fail,
 		MaxTasks:   8,
 		MaxMinutes: 5,
 		Stdout:     &buf,
