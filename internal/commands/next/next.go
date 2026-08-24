@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/internal/activity"
 	chainpkg "github.com/Obedience-Corp/fest/internal/chain"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/config"
@@ -343,6 +344,22 @@ func runNext(cmd *cobra.Command, args []string) error {
 				}
 			}
 		}
+	}
+
+	// Activity log: next.resolved at festival level only.
+	if result != nil && result.Task != nil {
+		actEmitter := activity.NewFromFestival(ctx, festivalPath, func(error) {})
+		resolvedTo := ""
+		if result.Task.PhaseName != "" && result.Task.SequenceName != "" {
+			resolvedTo = filepath.Join(result.Task.PhaseName, result.Task.SequenceName, result.Task.Name+".md")
+		}
+		actEmitter.Emit(ctx, "next.resolved", activity.Scope{
+			Phase:    result.Task.PhaseName,
+			Sequence: result.Task.SequenceName,
+			Task:     result.Task.Name + ".md",
+		}, "fest next", activity.WithData(map[string]any{
+			"resolved_to": resolvedTo,
+		}))
 	}
 
 	// Output formatting

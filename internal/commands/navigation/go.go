@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Obedience-Corp/fest/internal/activity"
 	sharedcmd "github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -153,6 +154,10 @@ func runGo(ctx context.Context, target string, opts *goOptions) error {
 	if err != nil {
 		return err
 	}
+
+	// Activity log: go.navigated at festival level only. Navigation mutates
+	// no files but is useful for "where did I leave off" reconstructions.
+	emitGoNavigated(ctx, "fest go "+target, resolved)
 
 	// Output the path
 	outputPath(resolved, opts)
@@ -534,4 +539,22 @@ func showFuzzyPicker(pattern string, matches []navigation.FuzzyMatch) (string, e
 	}
 
 	return selected.Value, nil
+}
+
+// emitGoNavigated records a go.navigated event at the festival level. It is
+// best-effort: the festival path is derived from the resolved target. If the
+// resolved path is not inside a festival, no event is emitted.
+func emitGoNavigated(ctx context.Context, sourceCmd, resolvedPath string) {
+	if resolvedPath == "" {
+		return
+	}
+	festivalPath, _ := sharedcmd.ResolveFestivalPath(resolvedPath, "")
+	if festivalPath == "" {
+		return
+	}
+	e := activity.NewFromFestival(ctx, festivalPath, func(error) {})
+	e.Emit(ctx, "go.navigated", activity.Scope{},
+		sourceCmd,
+		activity.WithData(map[string]any{"resolved_path": resolvedPath}),
+	)
 }

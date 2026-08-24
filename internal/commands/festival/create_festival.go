@@ -14,6 +14,7 @@ import (
 
 	"github.com/Obedience-Corp/camp/pkg/ledgerkit"
 
+	"github.com/Obedience-Corp/fest/internal/activity"
 	"github.com/Obedience-Corp/fest/internal/campledger"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/config"
@@ -381,6 +382,16 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 			campledger.WithPayload(map[string]any{
 				"status": "created",
 				"type":   "festival",
+			}),
+		)
+
+		// Activity log: festival.created at both campaign and festival level.
+		actEmitter := activity.NewFromFestival(ctx, cfg.destDir, activityWarn)
+		actEmitter.Emit(ctx, "festival.created", activity.Scope{},
+			"fest create festival --name "+cfg.opts.Name,
+			activity.WithData(map[string]any{
+				"festival_path": cfg.destDir,
+				"dest":          cfg.opts.Dest,
 			}),
 		)
 	}

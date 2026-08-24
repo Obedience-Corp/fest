@@ -10,6 +10,7 @@ import (
 
 	"github.com/Obedience-Corp/camp/pkg/ledgerkit"
 
+	"github.com/Obedience-Corp/fest/internal/activity"
 	"github.com/Obedience-Corp/fest/internal/campledger"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
@@ -269,6 +270,9 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 		m.emitLedger(ctx, ledgerkit.KindCompleted, taskID, "", map[string]any{
 			"status": "completed",
 		})
+		m.emitActivity(ctx, "task.completed", taskID, map[string]any{
+			"status": "completed",
+		})
 		// Propagation is best-effort: a failure here should not block
 		// the task completion that already succeeded above.
 		_ = m.PropagateCompletion(ctx, taskID)
@@ -468,6 +472,9 @@ func (m *Manager) ReportBlocker(ctx context.Context, taskID, message string) err
 			"to":     "blocked",
 			"target": "blocked",
 		})
+		m.emitActivity(ctx, "task.blocked", taskID, map[string]any{
+			"reason": message,
+		})
 		return nil
 	})
 }
@@ -515,6 +522,9 @@ func (m *Manager) ResetTask(ctx context.Context, taskID string) error {
 			"to":     "pending",
 			"target": "reset",
 		})
+		m.emitActivity(ctx, "task.reset", taskID, map[string]any{
+			"to": "pending",
+		})
 		return nil
 	})
 }
@@ -535,6 +545,30 @@ func (m *Manager) emitLedger(ctx context.Context, kind ledgerkit.Kind, taskID, w
 		opts = append(opts, campledger.WithPayload(payload))
 	}
 	e.Emit(ctx, kind, scope, opts...)
+}
+
+// emitActivity best-effort appends a festival-level activity.jsonl event for
+// a task status mutation. Mirrors emitLedger but writes to the comprehensive
+// activity log rather than the campaign ledger. Never fails the caller.
+func (m *Manager) emitActivity(ctx context.Context, eventName, taskID string, data map[string]any) {
+	if m == nil || m.festivalPath == "" {
+		return
+	}
+	scope := activity.Scope{}
+	parts := strings.Split(filepath.ToSlash(taskID), "/")
+	switch {
+	case len(parts) >= 3:
+		scope.Phase = parts[0]
+		scope.Sequence = parts[1]
+		scope.Task = parts[len(parts)-1]
+	case len(parts) == 2:
+		scope.Phase = parts[0]
+		scope.Sequence = parts[1]
+	case len(parts) == 1:
+		scope.Task = parts[0]
+	}
+	e := activity.NewFromFestival(ctx, m.festivalPath, func(error) {})
+	e.Emit(ctx, eventName, scope, "fest task "+eventName, activity.WithData(data))
 }
 
 // ClearBlocker clears a blocker for a task
