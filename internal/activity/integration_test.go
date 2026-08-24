@@ -272,9 +272,10 @@ func TestIntegration_WorkflowSkipEmitsWithVerbatimReason(t *testing.T) {
 	}
 }
 
-// TestIntegration_FailingCommandEmitsWithResultFalse verifies that a failed
-// invocation still emits an event with result.ok = false.
-func TestIntegration_FailingCommandEmitsWithResultFalse(t *testing.T) {
+// TestIntegration_WithErrorSetsResultFalse verifies the WithError option API.
+// Command packages emit only after a successful mutation; this is not a
+// production fail-path wiring test.
+func TestIntegration_WithErrorSetsResultFalse(t *testing.T) {
 	_, festivalPath := setupIntegrationCampaign(t, "test-campaign-fail")
 
 	e := activity.NewFromFestival(context.Background(), festivalPath, func(err error) {
@@ -293,7 +294,7 @@ func TestIntegration_FailingCommandEmitsWithResultFalse(t *testing.T) {
 	}
 	result := events[0]["result"].(map[string]any)
 	if result["ok"] != false {
-		t.Fatal("expected result.ok = false on error path")
+		t.Fatal("expected result.ok = false when WithError is applied")
 	}
 	if result["error"] == nil || result["error"] == "" {
 		t.Fatal("expected non-empty error message")

@@ -51,8 +51,10 @@ func WithData(data any) Option {
 	return func(ev *Event) { ev.Data = data }
 }
 
-// WithError marks the result as failed with an error message. Failed
-// invocations should still be logged so the activity log includes errors.
+// WithError marks the result as failed with an error message. Command
+// packages emit only after a successful mutation in this PR; fail-path
+// logging is not wired. This option is for tests and future error-path
+// emission.
 func WithError(err error) Option {
 	msg := ""
 	if err != nil {
@@ -169,27 +171,27 @@ func (e *Emitter) Emit(ctx context.Context, eventName string, scope Scope, sourc
 // writeFile appends one event as a JSON line to the given file path. It uses
 // an advisory flock to prevent interleaved writes from concurrent fest
 // processes, and fsyncs after every write for durability.
+//
+// If the current file exceeds RotationThreshold, the lock and FD are released
+// before rename so the triggering write goes to a newly created canonical
+// activity.jsonl rather than the rotated inode.
 func (e *Emitter) writeFile(path string, ev Event) error {
-	if err := os.MkdirAll(filepath.Dir(path), dirPerms); err != nil {
-		return errors.IO("creating activity log directory", err).WithField("path", filepath.Dir(path))
-	}
-
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, filePerms)
+	f, err := openLocked(path)
 	if err != nil {
-		return errors.IO("opening activity log", err).WithField("path", path)
+		return err
 	}
-	defer func() { _ = f.Close() }()
 
-	// Advisory file lock to prevent interleaved writes from concurrent processes.
-	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX); err != nil {
-		return errors.IO("locking activity log", err).WithField("path", path)
-	}
-	defer func() { _ = unix.Flock(int(f.Fd()), unix.LOCK_UN) }()
-
-	// Rotate if the file exceeds the threshold.
 	if info, err := f.Stat(); err == nil && info.Size() > RotationThreshold {
-		_ = rotateFile(path)
+		closeLocked(f)
+		if rerr := rotateFile(path); rerr != nil {
+			e.warn(rerr)
+		}
+		f, err = openLocked(path)
+		if err != nil {
+			return err
+		}
 	}
+	defer closeLocked(f)
 
 	data, err := marshalEvent(ev)
 	if err != nil {
@@ -207,16 +209,45 @@ func (e *Emitter) writeFile(path string, ev Event) error {
 	return nil
 }
 
+func openLocked(path string) (*os.File, error) {
+	if err := os.MkdirAll(filepath.Dir(path), dirPerms); err != nil {
+		return nil, errors.IO("creating activity log directory", err).WithField("path", filepath.Dir(path))
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, filePerms)
+	if err != nil {
+		return nil, errors.IO("opening activity log", err).WithField("path", path)
+	}
+	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX); err != nil {
+		_ = f.Close()
+		return nil, errors.IO("locking activity log", err).WithField("path", path)
+	}
+	return f, nil
+}
+
+func closeLocked(f *os.File) {
+	if f == nil {
+		return
+	}
+	_ = unix.Flock(int(f.Fd()), unix.LOCK_UN)
+	_ = f.Close()
+}
+
 // rotateFile renames the current file to an archived copy so a fresh log
-// can start. It is a safety net, not a steady-state concern. Compression is
-// a follow-up; for now we just move the old file aside.
+// can start. Callers must close and unlock the path before calling this.
+// Compression is a follow-up; for now we just move the old file aside.
 func rotateFile(path string) error {
 	dir := filepath.Dir(path)
-	// Find the next available rotation slot.
 	for n := 1; ; n++ {
 		rotated := filepath.Join(dir, "activity."+itoa(n)+".jsonl")
-		if _, err := os.Stat(rotated); os.IsNotExist(err) {
-			return os.Rename(path, rotated)
+		_, err := os.Stat(rotated)
+		if os.IsNotExist(err) {
+			if err := os.Rename(path, rotated); err != nil {
+				return errors.IO("rotating activity log", err).WithField("path", path)
+			}
+			return nil
+		}
+		if err != nil {
+			return errors.IO("checking rotated activity log", err).WithField("path", rotated)
 		}
 	}
 }

@@ -105,7 +105,10 @@ func TestEmitter_DualEmission(t *testing.T) {
 	}
 }
 
-func TestEmitter_ErrorPath(t *testing.T) {
+func TestEmitter_WithErrorOption(t *testing.T) {
+	// WithError is the Option API for future fail-path logging. Command
+	// packages in this PR emit only on success; this test does not claim
+	// production error-path wiring.
 	_, festivalPath := setupCampaign(t, "test-campaign")
 	e := NewFromFestival(context.Background(), festivalPath, func(err error) { t.Fatalf("unexpected warn: %v", err) })
 
@@ -120,10 +123,57 @@ func TestEmitter_ErrorPath(t *testing.T) {
 	}
 	result := events[0]["result"].(map[string]any)
 	if result["ok"] != false {
-		t.Fatal("expected result.ok = false on error path")
+		t.Fatal("expected result.ok = false when WithError is applied")
 	}
 	if result["error"] == nil || result["error"] == "" {
 		t.Fatal("expected non-empty error message")
+	}
+}
+
+func TestEmitter_RotatesAndStartsFresh(t *testing.T) {
+	_, festivalPath := setupCampaign(t, "test-campaign")
+	e := NewFromFestival(context.Background(), festivalPath, func(err error) { t.Fatalf("unexpected warn: %v", err) })
+
+	e.Emit(context.Background(), "task.created", Scope{Task: "01_setup.md"},
+		"fest create task --name setup", WithData(map[string]any{"n": 0}))
+
+	festFile := filepath.Join(festivalPath, ".fest", FestivalFileName)
+	if err := os.Truncate(festFile, RotationThreshold+1); err != nil {
+		t.Fatalf("forcing size past RotationThreshold: %v", err)
+	}
+
+	e.Emit(context.Background(), "task.completed", Scope{Task: "01_setup.md"},
+		"fest task completed", WithData(map[string]any{"marker": "post-rotate"}))
+
+	if _, err := os.Stat(festFile); err != nil {
+		t.Fatalf("canonical activity.jsonl missing after rotation: %v", err)
+	}
+
+	events := readJSONL(t, festFile)
+	if len(events) != 1 {
+		t.Fatalf("canonical path should contain only post-rotate events, got %d", len(events))
+	}
+	if events[0]["event"] != "task.completed" {
+		t.Fatalf("expected post-rotate event 'task.completed', got %v", events[0]["event"])
+	}
+	data, _ := events[0]["data"].(map[string]any)
+	if data["marker"] != "post-rotate" {
+		t.Fatalf("expected data.marker=post-rotate, got %v", data["marker"])
+	}
+
+	rotated := filepath.Join(festivalPath, ".fest", "activity.1.jsonl")
+	if _, err := os.Stat(rotated); err != nil {
+		t.Fatalf("expected rotated archive %s: %v", rotated, err)
+	}
+	rotData, err := os.ReadFile(rotated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(rotData), "task.created") {
+		t.Fatal("rotated archive missing pre-rotate event")
+	}
+	if strings.Contains(string(rotData), "post-rotate") {
+		t.Fatal("triggering write went to the rotated inode instead of the new canonical file")
 	}
 }
 
@@ -261,21 +311,34 @@ func TestEmitter_ConcurrentWrites(t *testing.T) {
 }
 
 func TestCatalog_DestinationDefaults(t *testing.T) {
-	// Known DestBoth events.
-	for _, ev := range []string{"festival.created", "festival.promoted", "phase.created", "sequence.completed"} {
+	for _, ev := range []string{"festival.created", "festival.promoted", "phase.created", "sequence.created"} {
 		if destination(ev) != DestBoth {
 			t.Fatalf("expected %s to be DestBoth", ev)
 		}
 	}
-	// Known DestFestivalOnly events.
-	for _, ev := range []string{"task.created", "validate.ran", "next.resolved", "go.navigated", "commit.made"} {
+	for _, ev := range []string{"task.created", "task.completed", "task.blocked", "task.reset", "validate.ran", "next.resolved", "go.navigated", "commit.made", "workflow.skipped"} {
 		if destination(ev) != DestFestivalOnly {
 			t.Fatalf("expected %s to be DestFestivalOnly", ev)
 		}
 	}
-	// Unknown events default to festival-only.
 	if destination("unknown.event") != DestFestivalOnly {
 		t.Fatal("unknown events should default to DestFestivalOnly")
+	}
+}
+
+func TestCatalog_UnpublishedEventsAreNotLive(t *testing.T) {
+	// Reserved names must not be in the live catalog until a caller Emit()s them.
+	for _, ev := range []string{
+		"festival.linked", "festival.unlinked", "festival.deleted", "festival.renamed",
+		"gate.applied", "gate.skipped",
+		"phase.started", "phase.completed", "phase.deleted",
+		"sequence.started", "sequence.completed", "sequence.deleted",
+		"task.started", "task.deleted", "task.renamed",
+		"init.ran", "tui.action",
+	} {
+		if _, live := catalog[ev]; live {
+			t.Fatalf("%s is catalogued as live but is not emitted in this PR", ev)
+		}
 	}
 }
 

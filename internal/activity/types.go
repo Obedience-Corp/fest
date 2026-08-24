@@ -1,24 +1,28 @@
-// Package activity provides the comprehensive activity.jsonl event log at
-// festival and campaign levels.
+// Package activity provides the activity.jsonl event log at festival and
+// campaign levels.
 //
 // Unlike [progress_events.jsonl] (narrow task/workflow status transitions) and
 // the [campledger] package (campaign-level high-intent events only), this
-// package records EVERY state-mutating fest CLI action with a versioned schema,
-// redaction, file locking, and durable writes.
+// package records the wired mutating fest CLI actions listed in catalog.go
+// with a versioned schema, redaction, file locking, and durable writes.
+// Commands emit after a successful mutation; fail-path logging is not wired.
 //
 // # Two files
 //
-//   - Festival-level: <festival>/.fest/activity.jsonl — every mutating event
-//     scoped to that festival.
-//   - Campaign-level: .campaign/fest/activity.jsonl — a superset of lifecycle
-//     events (festival.*, phase.started/completed, sequence.started/completed)
-//     for campaign-wide orientation. Granular scaffolding events
-//     (task.created, validate.ran, next.resolved) are festival-only.
+//   - Festival-level: <festival>/.fest/activity.jsonl — live events scoped
+//     to that festival.
+//   - Campaign-level: .campaign/fest/activity.jsonl — DestBoth lifecycle
+//     events (festival.created, festival.promoted, phase.created,
+//     sequence.created). Festival-only events (task.*, validate.ran,
+//     next.resolved, go.navigated, workflow.skipped, commit.made) are not
+//     copied here.
 //
 // # Semantics
 //
 // Append-only, O_APPEND | O_CREATE, fsync after every write, advisory file lock
 // (flock) to prevent interleaved writes from concurrent fest processes.
+// Rotation closes and unlocks before rename so the triggering write starts a
+// fresh canonical activity.jsonl.
 package activity
 
 import "time"
