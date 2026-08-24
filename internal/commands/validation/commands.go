@@ -379,10 +379,10 @@ func runValidateAll(ctx context.Context, opts *validateOptions) error {
 		actEmitter.Emit(ctx, "validate.ran", activity.Scope{},
 			"fest validate",
 			activity.WithData(map[string]any{
-				"ok":        result.Valid,
-				"errors":    errorCount,
-				"warnings":  warnCount,
-				"score":     result.Score,
+				"ok":       result.Valid,
+				"errors":   errorCount,
+				"warnings": warnCount,
+				"score":    result.Score,
 			}),
 		)
 	}

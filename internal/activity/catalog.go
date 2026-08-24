@@ -17,12 +17,12 @@ const (
 // destination here when added, per the issue spec.
 var catalog = map[string]Destination{
 	// Festival lifecycle — emit at both campaign and festival level.
-	"festival.created":   DestBoth,
-	"festival.deleted":   DestBoth,
-	"festival.promoted":  DestBoth,
-	"festival.linked":    DestBoth,
-	"festival.unlinked":  DestBoth,
-	"festival.renamed":   DestBoth,
+	"festival.created":  DestBoth,
+	"festival.deleted":  DestBoth,
+	"festival.promoted": DestBoth,
+	"festival.linked":   DestBoth,
+	"festival.unlinked": DestBoth,
+	"festival.renamed":  DestBoth,
 
 	// Phase lifecycle — both levels.
 	"phase.created":   DestBoth,
@@ -37,13 +37,13 @@ var catalog = map[string]Destination{
 	"sequence.completed": DestBoth,
 
 	// Granular scaffolding — festival only.
-	"task.created":  DestFestivalOnly,
-	"task.deleted":  DestFestivalOnly,
-	"task.renamed":  DestFestivalOnly,
-	"task.started":  DestFestivalOnly,
+	"task.created":   DestFestivalOnly,
+	"task.deleted":   DestFestivalOnly,
+	"task.renamed":   DestFestivalOnly,
+	"task.started":   DestFestivalOnly,
 	"task.completed": DestFestivalOnly,
-	"task.blocked":  DestFestivalOnly,
-	"task.reset":    DestFestivalOnly,
+	"task.blocked":   DestFestivalOnly,
+	"task.reset":     DestFestivalOnly,
 
 	// Gates — festival only.
 	"gate.applied": DestFestivalOnly,
