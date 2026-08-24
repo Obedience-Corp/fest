@@ -7,6 +7,20 @@
 //
 // Workflow step noise (wf_step_start/done) stays only in
 // .fest/progress_events.jsonl — this package must not be called from those paths.
+//
+// # Payload field conventions
+//
+// Transition and completion events carry a map[string]any payload with
+// well-defined field meanings so consumers (e.g. camp-graph) can rely on
+// consistent semantics:
+//
+//   - "target": the artifact kind being acted upon — "festival" or "task".
+//     This is NEVER an action name or status value.
+//   - "from":   the previous status (omitted on the first transition).
+//   - "to":     the new destination status.
+//   - "action": an optional verb describing the mutation when the Kind alone
+//     is ambiguous (e.g. "block", "reset"). Omitted when redundant with Kind.
+//   - "status": deprecated; use "to" for the destination status on new emits.
 package campledger
 
 import (
@@ -112,6 +126,11 @@ func NewFromFestival(ctx context.Context, festivalPath string, warn func(error))
 	e.campaignRoot = root
 	e.campaignID = campaignID
 	return e
+}
+
+// Enabled reports whether Emit will attempt a campaign-ledger write.
+func (e *Emitter) Enabled() bool {
+	return e != nil && !e.disabled && e.writer != nil
 }
 
 // Emit appends one command-sourced event. Failure warns; never returns to

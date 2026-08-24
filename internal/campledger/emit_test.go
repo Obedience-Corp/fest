@@ -19,7 +19,7 @@ func TestNewFromFestival_NoCampaignIsNoop(t *testing.T) {
 	}
 	var warned error
 	e := NewFromFestival(context.Background(), fest, func(err error) { warned = err })
-	if !e.disabled {
+	if !e.disabled || e.Enabled() {
 		t.Fatal("expected disabled emitter outside campaign")
 	}
 	// Emit must not panic or write.

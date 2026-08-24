@@ -267,7 +267,8 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 		// Campaign ledger: high-intent task completion (D003/D006). Does not
 		// alter progress_events.jsonl content beyond the save already done.
 		m.emitLedger(ctx, ledgerkit.KindCompleted, taskID, "", map[string]any{
-			"status": "completed",
+			"target": "task",
+			"to":     "completed",
 		})
 		// Propagation is best-effort: a failure here should not block
 		// the task completion that already succeeded above.
@@ -466,7 +467,8 @@ func (m *Manager) ReportBlocker(ctx context.Context, taskID, message string) err
 		m.emitLedger(ctx, ledgerkit.KindTransitioned, taskID, message, map[string]any{
 			"from":   string(StatusPending),
 			"to":     "blocked",
-			"target": "blocked",
+			"target": "task",
+			"action": "block",
 		})
 		return nil
 	})
@@ -513,7 +515,8 @@ func (m *Manager) ResetTask(ctx context.Context, taskID string) error {
 		m.SyncFrontmatterStatus(taskID, task.Status)
 		m.emitLedger(ctx, ledgerkit.KindTransitioned, taskID, "", map[string]any{
 			"to":     "pending",
-			"target": "reset",
+			"target": "task",
+			"action": "reset",
 		})
 		return nil
 	})
