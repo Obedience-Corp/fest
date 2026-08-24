@@ -12,7 +12,7 @@ import (
 )
 
 func TestFormatAllHumanEmpty(t *testing.T) {
-	out := formatAllHuman(nil, nil, nil, nil, 0, false)
+	out := formatAllHuman(nil, nil, nil, nil, 0, false, nil)
 	if !strings.Contains(out, "No festivals found") {
 		t.Fatalf("expected empty-board message, got %q", out)
 	}
@@ -22,7 +22,7 @@ func TestFormatAllHumanEmpty(t *testing.T) {
 }
 
 func TestFormatDungeonHumanEmpty(t *testing.T) {
-	out := formatDungeonHuman(nil, nil, nil, 0, false)
+	out := formatDungeonHuman(nil, nil, nil, 0, false, nil)
 	if !strings.Contains(out, "No festivals in dungeon") {
 		t.Fatalf("expected empty dungeon message, got %q", out)
 	}
@@ -31,7 +31,7 @@ func TestFormatDungeonHumanEmpty(t *testing.T) {
 // A campaign with no residents must render exactly what the pre-rail binary
 // rendered: no residents header, no separator, no count.
 func TestFormatStatusHuman_NoResidentsIsUnchanged(t *testing.T) {
-	withResidents := formatStatusHuman("active", nil, nil, nil, false)
+	withResidents := formatStatusHuman("active", nil, nil, nil, false, nil)
 	if strings.Contains(strings.ToLower(withResidents), "resident") {
 		t.Errorf("resident-free output mentions residents: %q", withResidents)
 	}
@@ -42,7 +42,7 @@ func TestFormatStatusHuman_ResidentsAppendAfterFestivals(t *testing.T) {
 		{Name: "alpha", Title: "Alpha", Type: "design"},
 		{Name: "beta", Title: "Beta", Type: "explore"},
 	}
-	out := formatStatusHuman("active", nil, residents, nil, false)
+	out := formatStatusHuman("active", nil, residents, nil, false, nil)
 
 	if !strings.Contains(out, "ACTIVE Residents (2)") {
 		t.Errorf("missing residents header: %q", out)
@@ -60,7 +60,7 @@ func TestFormatStatusHuman_ResidentsAppendAfterFestivals(t *testing.T) {
 
 func TestFormatAllHuman_NoResidentsKeepsLegacyPath(t *testing.T) {
 	// With no residents the empty-board message must still appear, unchanged.
-	out := formatAllHuman(nil, nil, nil, nil, 0, false)
+	out := formatAllHuman(nil, nil, nil, nil, 0, false, nil)
 	if !strings.Contains(out, "No festivals found") {
 		t.Errorf("expected the legacy empty message, got %q", out)
 	}
@@ -182,7 +182,7 @@ func TestFormatAllHuman_ResidentOnlyStageStillRenders(t *testing.T) {
 	}
 	// totalCount 0: no festivals at all, only a resident. It must not fall into
 	// the "No festivals found" branch, or the resident would be invisible.
-	out := formatAllHuman(nil, residents, []string{"active"}, nil, 0, false)
+	out := formatAllHuman(nil, residents, []string{"active"}, nil, 0, false, nil)
 	if strings.Contains(out, "No festivals found") {
 		t.Fatalf("a resident-only campaign must not report an empty board: %q", out)
 	}

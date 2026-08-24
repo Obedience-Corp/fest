@@ -18,6 +18,7 @@ type multiStatusBoard struct {
 	Total     int
 	Progress  map[string]*progress.FestivalProgress
 	Residents map[string][]*show.ResidentCard
+	Tokens    map[string]int
 }
 
 // statusBoard is the single-status collection model.
@@ -25,6 +26,7 @@ type statusBoard struct {
 	Festivals []*show.FestivalInfo
 	Residents []*show.ResidentCard
 	Progress  map[string]*progress.FestivalProgress
+	Tokens    map[string]int
 }
 
 // formatListBoard builds the human-readable list board for the current filters.
@@ -36,19 +38,19 @@ func formatListBoard(ctx context.Context, festivalsDir, filterStatus string, opt
 			if err != nil {
 				return "", err
 			}
-			return formatDungeonHuman(board.Festivals, board.Order, board.Progress, board.Total, opts.progress), nil
+			return formatDungeonHuman(board.Festivals, board.Order, board.Progress, board.Total, opts.progress, board.Tokens), nil
 		}
 		board, err := collectStatusBoard(ctx, festivalsDir, filterStatus, opts, campaignRoot)
 		if err != nil {
 			return "", err
 		}
-		return formatStatusHuman(filterStatus, board.Festivals, board.Residents, board.Progress, opts.progress), nil
+		return formatStatusHuman(filterStatus, board.Festivals, board.Residents, board.Progress, opts.progress, board.Tokens), nil
 	}
 	board, err := collectAllBoard(ctx, festivalsDir, opts, campaignRoot)
 	if err != nil {
 		return "", err
 	}
-	return formatAllHuman(board.Festivals, board.Residents, board.Order, board.Progress, board.Total, opts.progress), nil
+	return formatAllHuman(board.Festivals, board.Residents, board.Order, board.Progress, board.Total, opts.progress, board.Tokens), nil
 }
 
 func collectDungeonBoard(ctx context.Context, festivalsDir string, opts *listOptions, campaignRoot string) (multiStatusBoard, error) {
@@ -89,11 +91,13 @@ func collectDungeonBoard(ctx context.Context, festivalsDir string, opts *listOpt
 	if opts.progress {
 		progressMap = fetchProgressForFestivals(ctx, allFestivalsList)
 	}
+	tokenMap := fetchTokenCounts(ctx, campaignRoot, allFestivalsList)
 	return multiStatusBoard{
 		Festivals: allFestivals,
 		Order:     order,
 		Total:     totalCount,
 		Progress:  progressMap,
+		Tokens:    tokenMap,
 	}, nil
 }
 
@@ -123,10 +127,12 @@ func collectStatusBoard(ctx context.Context, festivalsDir, status string, opts *
 	if opts.progress {
 		progressMap = fetchProgressForFestivals(ctx, festivals)
 	}
+	tokenMap := fetchTokenCounts(ctx, campaignRoot, festivals)
 	return statusBoard{
 		Festivals: festivals,
 		Residents: show.ListResidentsByStatus(ctx, festivalsDir, status),
 		Progress:  progressMap,
+		Tokens:    tokenMap,
 	}, nil
 }
 
@@ -168,12 +174,14 @@ func collectAllBoard(ctx context.Context, festivalsDir string, opts *listOptions
 	if opts.progress {
 		progressMap = fetchProgressForFestivals(ctx, allFestivalsList)
 	}
+	tokenMap := fetchTokenCounts(ctx, campaignRoot, allFestivalsList)
 	return multiStatusBoard{
 		Festivals: allFestivals,
 		Residents: allResidents,
 		Order:     statusOrder,
 		Total:     totalCount,
 		Progress:  progressMap,
+		Tokens:    tokenMap,
 	}, nil
 }
 

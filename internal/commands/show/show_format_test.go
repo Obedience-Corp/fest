@@ -39,7 +39,7 @@ func TestFormatFestivalList(t *testing.T) {
 		{Name: "fest2", Stats: &FestivalStats{Progress: 75}},
 	}
 
-	output := FormatFestivalList("active", festivals)
+	output := FormatFestivalList("active", festivals, nil)
 
 	if !contains(output, "Festivals (2)") {
 		t.Error("Output should contain header with count")
@@ -53,7 +53,7 @@ func TestFormatFestivalList(t *testing.T) {
 }
 
 func TestFormatFestivalListEmpty(t *testing.T) {
-	output := FormatFestivalList("completed", []*FestivalInfo{})
+	output := FormatFestivalList("completed", []*FestivalInfo{}, nil)
 
 	if !contains(output, "Festivals (0)") {
 		t.Error("Output should indicate zero festivals")
@@ -149,4 +149,82 @@ var ansiRegexp = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 func stripANSI(s string) string {
 	return ansiRegexp.ReplaceAllString(s, "")
+}
+
+func TestFormatFestivalList_ShowsTokenCount(t *testing.T) {
+	festivals := []*FestivalInfo{
+		{Name: "fest1", Path: "/path/to/fest1", Stats: &FestivalStats{Progress: 50}},
+	}
+	tokenMap := map[string]int{"/path/to/fest1": 1234}
+
+	output := FormatFestivalList("active", festivals, tokenMap)
+	if !contains(output, "1.2k tokens") {
+		t.Errorf("expected token count in output, got: %s", output)
+	}
+	if !contains(output, "fest1") {
+		t.Error("expected festival name in output")
+	}
+}
+
+func TestFormatFestivalList_NilTokenMapOmitsTokens(t *testing.T) {
+	festivals := []*FestivalInfo{
+		{Name: "fest1", Stats: &FestivalStats{Progress: 50}},
+	}
+	output := FormatFestivalList("active", festivals, nil)
+	if contains(output, "tokens") {
+		t.Errorf("nil token map should not render tokens: %s", output)
+	}
+}
+
+func TestFormatFestivalList_ZeroTokensOmitted(t *testing.T) {
+	festivals := []*FestivalInfo{
+		{Name: "fest1", Path: "/path/to/fest1", Stats: &FestivalStats{Progress: 50}},
+	}
+	tokenMap := map[string]int{"/path/to/fest1": 0}
+	output := FormatFestivalList("active", festivals, tokenMap)
+	if contains(output, "tokens") {
+		t.Errorf("zero token count should not render tokens: %s", output)
+	}
+}
+
+func TestFormatFestivalListWithProgress_ShowsTokenCount(t *testing.T) {
+	festivals := []*FestivalInfo{
+		{Name: "fest1", Path: "/path/to/fest1", Stats: &FestivalStats{Progress: 50}},
+	}
+	tokenMap := map[string]int{"/path/to/fest1": 5000}
+
+	output := FormatFestivalListWithProgress("active", festivals, nil, tokenMap)
+	if !contains(output, "5.0k tokens") {
+		t.Errorf("expected token count in progress output, got: %s", output)
+	}
+}
+
+func TestFormatTokenSuffix(t *testing.T) {
+	tests := []struct {
+		name      string
+		path      string
+		tokenMap  map[string]int
+		wantEmpty bool
+		wantText  string
+	}{
+		{"nil map", "/path", nil, true, ""},
+		{"path not in map", "/path", map[string]int{"/other": 100}, true, ""},
+		{"zero tokens", "/path", map[string]int{"/path": 0}, true, ""},
+		{"positive tokens", "/path", map[string]int{"/path": 1234}, false, "1.2k tokens"},
+		{"large count", "/path", map[string]int{"/path": 50000}, false, "50k tokens"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatTokenSuffix(tt.path, tt.tokenMap)
+			if tt.wantEmpty {
+				if got != "" {
+					t.Errorf("expected empty suffix, got %q", got)
+				}
+				return
+			}
+			if !contains(got, tt.wantText) {
+				t.Errorf("expected %q in suffix, got %q", tt.wantText, got)
+			}
+		})
+	}
 }

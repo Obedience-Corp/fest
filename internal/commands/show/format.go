@@ -8,6 +8,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/pathutil"
 	"github.com/Obedience-Corp/fest/internal/progress"
+	"github.com/Obedience-Corp/fest/internal/tokencount"
 	"github.com/Obedience-Corp/fest/internal/ui"
 )
 
@@ -115,7 +116,7 @@ func formatStatusCounts(prefix string, counts StatusCounts) string {
 }
 
 // FormatFestivalList formats a list of festivals for a single status.
-func FormatFestivalList(status string, festivals []*FestivalInfo) string {
+func FormatFestivalList(status string, festivals []*FestivalInfo, tokenMap map[string]int) string {
 	var sb strings.Builder
 
 	header := fmt.Sprintf("%s Festivals (%d)", strings.ToUpper(status), len(festivals))
@@ -135,19 +136,20 @@ func FormatFestivalList(status string, festivals []*FestivalInfo) string {
 		if f.Stats != nil {
 			progress = ui.Dim(fmt.Sprintf(" [%.0f%%]", f.Stats.Progress))
 		}
+		tokens := formatTokenSuffix(f.Path, tokenMap)
 		moved := ""
 		if isDungeon && f.StatusDate != "" {
 			moved = ui.Dim(fmt.Sprintf("  moved %s", f.StatusDate))
 		}
 		styledName := ui.GetStatusStyle(status).Render(f.Name)
-		fmt.Fprintf(&sb, "  %s%s%s\n", styledName, moved, progress)
+		fmt.Fprintf(&sb, "  %s%s%s%s\n", styledName, moved, progress, tokens)
 	}
 
 	return sb.String()
 }
 
 // FormatFestivalListWithProgress formats a list of festivals with detailed progress info.
-func FormatFestivalListWithProgress(status string, festivals []*FestivalInfo, progressMap map[string]*progress.FestivalProgress) string {
+func FormatFestivalListWithProgress(status string, festivals []*FestivalInfo, progressMap map[string]*progress.FestivalProgress, tokenMap map[string]int) string {
 	var sb strings.Builder
 
 	header := fmt.Sprintf("%s Festivals (%d)", strings.ToUpper(status), len(festivals))
@@ -164,7 +166,8 @@ func FormatFestivalListWithProgress(status string, festivals []*FestivalInfo, pr
 	isDungeon := strings.HasPrefix(status, "dungeon/")
 	for _, f := range festivals {
 		styledName := ui.GetStatusStyle(status).Render(f.Name)
-		fmt.Fprintf(&sb, "  %s\n", styledName)
+		tokens := formatTokenSuffix(f.Path, tokenMap)
+		fmt.Fprintf(&sb, "  %s%s\n", styledName, tokens)
 
 		// Show moved-to-status date for dungeon festivals.
 		if isDungeon && f.StatusDate != "" {
@@ -203,7 +206,7 @@ func FormatFestivalListWithProgress(status string, festivals []*FestivalInfo, pr
 }
 
 // FormatAllFestivalsWithProgress formats all festivals grouped by status with detailed progress.
-func FormatAllFestivalsWithProgress(allFestivals map[string][]*FestivalInfo, statusOrder []string, progressMap map[string]*progress.FestivalProgress) string {
+func FormatAllFestivalsWithProgress(allFestivals map[string][]*FestivalInfo, statusOrder []string, progressMap map[string]*progress.FestivalProgress, tokenMap map[string]int) string {
 	var sb strings.Builder
 
 	total := 0
@@ -219,7 +222,7 @@ func FormatAllFestivalsWithProgress(allFestivals map[string][]*FestivalInfo, sta
 
 	for _, status := range statusOrder {
 		festivals := allFestivals[status]
-		sb.WriteString(FormatFestivalListWithProgress(status, festivals, progressMap))
+		sb.WriteString(FormatFestivalListWithProgress(status, festivals, progressMap, tokenMap))
 		sb.WriteString("\n")
 	}
 
@@ -227,7 +230,7 @@ func FormatAllFestivalsWithProgress(allFestivals map[string][]*FestivalInfo, sta
 }
 
 // FormatAllFestivals formats all festivals grouped by status.
-func FormatAllFestivals(allFestivals map[string][]*FestivalInfo, statusOrder []string) string {
+func FormatAllFestivals(allFestivals map[string][]*FestivalInfo, statusOrder []string, tokenMap map[string]int) string {
 	var sb strings.Builder
 
 	total := 0
@@ -243,7 +246,7 @@ func FormatAllFestivals(allFestivals map[string][]*FestivalInfo, statusOrder []s
 
 	for _, status := range statusOrder {
 		festivals := allFestivals[status]
-		sb.WriteString(FormatFestivalList(status, festivals))
+		sb.WriteString(FormatFestivalList(status, festivals, tokenMap))
 		sb.WriteString("\n")
 	}
 
@@ -282,6 +285,21 @@ func formatTimestamp(t time.Time) string {
 		return "unknown"
 	}
 	return t.Format("2006-01-02 15:04")
+}
+
+// formatTokenSuffix renders the token count as a dim suffix (e.g. " · 1.2k tokens")
+// when the festival has a positive token count in the map. Returns "" when
+// tokens are 0 or the path is not in the map, so festivals without counts and
+// callers that disable token counting produce no visual change.
+func formatTokenSuffix(festivalPath string, tokenMap map[string]int) string {
+	if tokenMap == nil {
+		return ""
+	}
+	tokens, ok := tokenMap[festivalPath]
+	if !ok || tokens <= 0 {
+		return ""
+	}
+	return ui.Dim(fmt.Sprintf(" · %s tokens", tokencount.FormatCompact(tokens)))
 }
 
 func renderPercentBar(progress float64) string {
@@ -340,6 +358,7 @@ func FormatAllWithResidents(
 	statusOrder []string,
 	progressMap map[string]*progress.FestivalProgress,
 	withProgress bool,
+	tokenMap map[string]int,
 ) string {
 	var sb strings.Builder
 
@@ -362,9 +381,9 @@ func FormatAllWithResidents(
 	for _, status := range statusOrder {
 		festivals := allFestivals[status]
 		if withProgress {
-			sb.WriteString(FormatFestivalListWithProgress(status, festivals, progressMap))
+			sb.WriteString(FormatFestivalListWithProgress(status, festivals, progressMap, tokenMap))
 		} else {
-			sb.WriteString(FormatFestivalList(status, festivals))
+			sb.WriteString(FormatFestivalList(status, festivals, tokenMap))
 		}
 		if block := FormatResidentList(status, allResidents[status]); block != "" {
 			sb.WriteString("\n")

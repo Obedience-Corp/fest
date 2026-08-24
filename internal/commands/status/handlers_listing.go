@@ -51,7 +51,7 @@ func runFestivalListing(ctx context.Context, festivalsRoot, filterStatus string,
 				return errors.Wrap(err, "encoding JSON output")
 			}
 		} else {
-			fmt.Println(show.FormatFestivalList(filterStatus, festivals))
+			fmt.Println(show.FormatFestivalList(filterStatus, festivals, nil))
 			if block := show.FormatResidentList(filterStatus, residents); block != "" {
 				fmt.Println(block)
 			}
