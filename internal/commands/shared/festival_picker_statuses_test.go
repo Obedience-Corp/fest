@@ -6,7 +6,7 @@ import (
 )
 
 func TestWorkingFestivalPickerStatuses(t *testing.T) {
-	want := []string{"active", "ready", "planning"}
+	want := []string{"active", "ready", "planning", "parked"}
 	if !reflect.DeepEqual(WorkingFestivalPickerStatuses, want) {
 		t.Fatalf("WorkingFestivalPickerStatuses = %#v, want %#v", WorkingFestivalPickerStatuses, want)
 	}

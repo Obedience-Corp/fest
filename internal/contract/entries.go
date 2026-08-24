@@ -102,6 +102,15 @@ func FestEntries() []contract.Entry {
 			Status: "ready",
 		},
 		{
+			ID:     "festivals-parked",
+			Path:   "festivals/parked/",
+			Type:   contract.TypeFestivalStatusDir,
+			Format: contract.FormatDirectory,
+			Watch:  contract.WatchDirectory,
+			Owner:  contract.OwnerFest,
+			Status: "parked",
+		},
+		{
 			ID:     "festivals-ritual",
 			Path:   "festivals/ritual/",
 			Type:   contract.TypeFestivalStatusDir,

@@ -312,6 +312,7 @@ type PolicyRegistrar interface {
 festivals/
 ├── planning/                  # Festivals being designed and planned
 ├── ready/                     # Validated, waiting to begin
+├── parked/                    # Planned but deliberately not scheduled
 ├── active/                    # Currently executing festivals
 │   └── my-festival/
 │       ├── FESTIVAL_GOAL.md

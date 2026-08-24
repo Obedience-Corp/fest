@@ -132,6 +132,8 @@ func statusDisplayName(status string) string {
 		return "Planning"
 	case "ready":
 		return "Ready"
+	case "parked":
+		return "Parked"
 	case "active":
 		return "Active"
 	case "ritual":

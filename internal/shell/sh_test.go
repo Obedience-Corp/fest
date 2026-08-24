@@ -182,7 +182,7 @@ func TestShScriptGuardsAgainstMissingLocal(t *testing.T) {
 // fish offered four statuses while bash offered seven plus flags, so the same
 // keystroke produced a different menu depending on the shell.
 func TestFlsCompletionVocabularyMatchesAcrossShells(t *testing.T) {
-	statuses := []string{"active", "ready", "planning", "ritual", "completed", "dungeon", "all"}
+	statuses := []string{"active", "ready", "planning", "parked", "ritual", "completed", "dungeon", "all"}
 	for _, shellType := range []string{"bash", "fish"} {
 		script, err := Generate(shellType)
 		if err != nil {

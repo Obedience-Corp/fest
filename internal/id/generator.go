@@ -34,16 +34,16 @@ var ritualIDPattern = regexp.MustCompile(`-RI-([A-Z]{2})(\d{4,})$`)
 var ritualRunIDPattern = regexp.MustCompile(`-RI-([A-Z]{2})(\d{4,})-([0-9A-Fa-f]{4})$`)
 
 // StatusDirectories are ALL directories that can contain festivals (full lifecycle)
-var StatusDirectories = []string{"planning", "ready", "active", "ritual", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
+var StatusDirectories = []string{"planning", "ready", "parked", "active", "ritual", "dungeon/completed", "dungeon/archived", "dungeon/someday"}
 
 // PrimaryStatusDirs are non-terminal directories surfaced in navigation,
 // fuzzy search, `fest list` defaults, and shell completion. Kept in sync
 // with WorkingStatusDirectories so fgo fuzzy matching can reach ritual
 // festivals alongside active/ready/planning.
-var PrimaryStatusDirs = []string{"active", "ready", "planning", "ritual"}
+var PrimaryStatusDirs = []string{"active", "ready", "planning", "parked", "ritual"}
 
 // WorkingStatusDirectories are non-terminal directories (excludes dungeon/*).
-var WorkingStatusDirectories = []string{"planning", "ready", "active", "ritual"}
+var WorkingStatusDirectories = []string{"planning", "ready", "parked", "active", "ritual"}
 
 // ResolveStatusPath maps user-facing status names to filesystem directory paths.
 // Dungeon sub-statuses ("completed", "archived", "someday") resolve to their

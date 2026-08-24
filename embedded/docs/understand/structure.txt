@@ -55,6 +55,7 @@ Festival Lifecycle Directories
   festivals/
     planning/       Festivals being planned
     ready/          Ready for execution (planned and reviewed)
+    parked/         Planned but deliberately not scheduled
     active/         Currently executing
     ritual/         Recurring festivals (run periodically)
     dungeon/        Final/non-active states

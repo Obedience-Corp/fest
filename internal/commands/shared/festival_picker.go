@@ -18,12 +18,12 @@ const progressDetailWorkers = 8
 
 // WorkingFestivalPickerStatuses is the default status priority for execution-oriented
 // pickers (status, progress, watch): festivals you are likely working on now.
-var WorkingFestivalPickerStatuses = []string{"active", "ready", "planning"}
+var WorkingFestivalPickerStatuses = []string{"active", "ready", "planning", "parked"}
 
 // BrowseFestivalPickerStatuses extends the working set for browse-oriented pickers
 // (show). Ritual festivals are inspectable via fest show but intentionally omitted
 // from watch/progress pickers that target active execution context.
-var BrowseFestivalPickerStatuses = []string{"active", "ready", "planning", "ritual"}
+var BrowseFestivalPickerStatuses = []string{"active", "ready", "planning", "parked", "ritual"}
 
 // DungeonFestivalPickerStatuses is the browse fallback for a campaign whose only
 // festivals are dungeoned. A campaign that just completed its single festival

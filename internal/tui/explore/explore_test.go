@@ -1780,6 +1780,7 @@ func TestStatusDisplayNameAllCases(t *testing.T) {
 		{"dungeon/someday", "Someday"},
 		{"planning", "Planning"},
 		{"ready", "Ready"},
+		{"parked", "Parked"},
 		{"active", "Active"},
 		{"ritual", "Ritual"},
 		{"unknown", "unknown"},

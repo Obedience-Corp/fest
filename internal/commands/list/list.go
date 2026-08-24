@@ -39,6 +39,7 @@ var statusCompletionDescriptions = map[string]string{
 	"active":            "Festivals currently in progress",
 	"ready":             "Festivals prepared and awaiting execution",
 	"planning":          "Festivals being designed",
+	"parked":            "Festivals planned but not scheduled; refresh before promoting",
 	"ritual":            "Recurring or special festivals",
 	"completed":         "Successfully finished festivals",
 	"dungeon":           "All shelved festivals (completed, archived, someday)",
@@ -113,10 +114,10 @@ func NewListCommand() *cobra.Command {
 
 Works from anywhere - finds the festivals workspace automatically.
 
-STATUS can be: active, ready, planning, ritual, completed, all,
+STATUS can be: active, ready, planning, parked, ritual, completed, all,
 dungeon, dungeon/completed, dungeon/archived, dungeon/someday
 
-By default, shows active, ready, planning, and ritual festivals.
+By default, shows active, ready, planning, parked, and ritual festivals.
 Use 'fest list all' (or --all) to include completed and dungeon festivals.
 
 Use --watch to refresh the multi-festival status board when festival progress
@@ -253,18 +254,20 @@ func statusOrder(s string) int {
 		return 1
 	case "planning":
 		return 2
-	case "completed":
+	case "parked":
 		return 3
-	case "dungeon":
+	case "completed":
 		return 4
-	case "dungeon/completed":
+	case "dungeon":
 		return 5
-	case "dungeon/archived":
+	case "dungeon/completed":
 		return 6
-	case "dungeon/someday":
+	case "dungeon/archived":
 		return 7
-	default:
+	case "dungeon/someday":
 		return 8
+	default:
+		return 9
 	}
 }
 

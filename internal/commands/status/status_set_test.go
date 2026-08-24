@@ -175,6 +175,7 @@ func TestStatusSetValidation(t *testing.T) {
 		{"festival to dungeon/completed", EntityFestival, "dungeon/completed", true},
 		{"festival to dungeon", EntityFestival, "dungeon", true},
 		{"festival to planning", EntityFestival, "planning", true},
+		{"festival to parked", EntityFestival, "parked", true},
 		{"festival to invalid", EntityFestival, "invalid", false},
 		{"festival to pending", EntityFestival, "pending", false}, // pending is for phases
 	}
@@ -222,6 +223,87 @@ func TestCompletedUsesDateDirectory(t *testing.T) {
 	}
 	if !strings.HasPrefix(relPath, "dungeon") {
 		t.Errorf("Expected path under 'dungeon/completed', got: %s", relPath)
+	}
+}
+
+// TestParkedIsNonTerminal verifies that moving a festival to the parked status
+// does NOT use date-based directories (which are for dungeon/terminal
+// statuses only). Parked is a non-terminal status that should live directly
+// under festivals/parked/<name>, not festivals/parked/YYYY-MM-DD/<name>.
+func TestParkedIsNonTerminal(t *testing.T) {
+	baseDir := t.TempDir()
+
+	// Create source festival in ready/
+	sourcePath := filepath.Join(baseDir, "ready", "test-festival")
+	if err := os.MkdirAll(sourcePath, 0755); err != nil {
+		t.Fatalf("Failed to create source: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sourcePath, "FESTIVAL_OVERVIEW.md"), []byte("test"), 0644); err != nil {
+		t.Fatalf("Failed to create overview: %v", err)
+	}
+
+	// Move ready -> parked
+	newPath, err := AtomicStatusChange(context.Background(), sourcePath, "ready", "parked")
+	if err != nil {
+		t.Fatalf("AtomicStatusChange() error = %v", err)
+	}
+
+	relPath, err := filepath.Rel(baseDir, newPath)
+	if err != nil {
+		t.Fatalf("Failed to get relative path: %v", err)
+	}
+
+	// Parked should be a direct child: parked/test-festival (no date directory)
+	expectedRel := filepath.Join("parked", "test-festival")
+	if relPath != expectedRel {
+		t.Errorf("Parked path = %q, want %q (no date directory for non-terminal status)", relPath, expectedRel)
+	}
+
+	// Verify the festival actually moved to the expected path
+	if _, err := os.Stat(newPath); err != nil {
+		t.Errorf("Festival not found at parked path %q: %v", newPath, err)
+	}
+	// Verify old path is gone
+	if _, err := os.Stat(sourcePath); !os.IsNotExist(err) {
+		t.Errorf("Old ready/ path still exists after move to parked: %s", sourcePath)
+	}
+}
+
+// TestParkedRoundTrip verifies a festival can move ready -> parked -> ready,
+// confirming parked is reversible and the festival survives both moves.
+func TestParkedRoundTrip(t *testing.T) {
+	baseDir := t.TempDir()
+
+	// Create source festival in ready/
+	sourcePath := filepath.Join(baseDir, "ready", "test-festival")
+	if err := os.MkdirAll(sourcePath, 0755); err != nil {
+		t.Fatalf("Failed to create source: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(sourcePath, "FESTIVAL_OVERVIEW.md"), []byte("test"), 0644); err != nil {
+		t.Fatalf("Failed to create overview: %v", err)
+	}
+
+	// Move ready -> parked
+	parkedPath, err := AtomicStatusChange(context.Background(), sourcePath, "ready", "parked")
+	if err != nil {
+		t.Fatalf("AtomicStatusChange ready->parked error = %v", err)
+	}
+
+	// Move parked -> ready
+	readyPath, err := AtomicStatusChange(context.Background(), parkedPath, "parked", "ready")
+	if err != nil {
+		t.Fatalf("AtomicStatusChange parked->ready error = %v", err)
+	}
+
+	expectedReady := filepath.Join(baseDir, "ready", "test-festival")
+	if readyPath != expectedReady {
+		t.Errorf("Round-trip path = %q, want %q", readyPath, expectedReady)
+	}
+
+	// Verify the overview file survived both moves
+	overviewPath := filepath.Join(readyPath, "FESTIVAL_OVERVIEW.md")
+	if _, err := os.Stat(overviewPath); err != nil {
+		t.Errorf("FESTIVAL_OVERVIEW.md missing after round-trip: %v", err)
 	}
 }
 

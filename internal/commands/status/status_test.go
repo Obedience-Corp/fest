@@ -18,6 +18,7 @@ func TestValidStatuses(t *testing.T) {
 		// Festival statuses
 		{EntityFestival, "planning", true},
 		{EntityFestival, "ready", true},
+		{EntityFestival, "parked", true},
 		{EntityFestival, "active", true},
 		{EntityFestival, "ritual", true},
 		{EntityFestival, "dungeon", true},

@@ -64,12 +64,13 @@ func TestStatusOrder(t *testing.T) {
 		{"active", 0},
 		{"ready", 1},
 		{"planning", 2},
-		{"completed", 3},
-		{"dungeon", 4},
-		{"dungeon/completed", 5},
-		{"dungeon/archived", 6},
-		{"dungeon/someday", 7},
-		{"unknown", 8},
+		{"parked", 3},
+		{"completed", 4},
+		{"dungeon", 5},
+		{"dungeon/completed", 6},
+		{"dungeon/archived", 7},
+		{"dungeon/someday", 8},
+		{"unknown", 9},
 	}
 
 	for _, tt := range tests {

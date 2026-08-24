@@ -51,6 +51,7 @@ that also holds your projects, intents, and cross-festival context.
       ├── .festival/    # Methodology resources and templates
       ├── planning/     # Festivals being planned
       ├── ready/        # Ready for execution
+      ├── parked/       # Planned but not scheduled
       ├── active/       # Currently executing festivals
       ├── ritual/       # Recurring festivals
       ├── chains/       # Linked/chained festival workflows

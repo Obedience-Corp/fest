@@ -115,26 +115,31 @@ func FestivalSchema() *Schema {
 			"planning": {
 				Description:    "Festivals being designed and documented",
 				Order:          1,
-				TransitionOpts: []string{"ready", "active", "dungeon"},
+				TransitionOpts: []string{"ready", "parked", "active", "dungeon"},
 			},
 			"ready": {
 				Description:    "Planned and ready for execution",
 				Order:          2,
-				TransitionOpts: []string{"active", "dungeon"},
+				TransitionOpts: []string{"active", "parked", "dungeon"},
+			},
+			"parked": {
+				Description:    "Planned but deliberately not scheduled; refresh before promoting to ready",
+				Order:          3,
+				TransitionOpts: []string{"ready", "planning", "dungeon"},
 			},
 			"active": {
 				Description:    "Festivals currently being executed",
-				Order:          3,
+				Order:          4,
 				TransitionOpts: []string{"ritual", "dungeon"},
 			},
 			"ritual": {
 				Description:    "Repeatable festival templates",
-				Order:          4,
+				Order:          5,
 				TransitionOpts: []string{"active"},
 			},
 			"dungeon": {
 				Description: "Terminal festival states",
-				Order:       5,
+				Order:       6,
 				Nested:      true,
 				Children: map[string]Directory{
 					"completed": {
