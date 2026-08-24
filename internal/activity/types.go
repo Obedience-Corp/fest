@@ -14,7 +14,7 @@
 //   - Campaign-level: .campaign/fest/activity.jsonl — DestBoth lifecycle
 //     events (festival.created, festival.promoted, phase.created,
 //     sequence.created). Festival-only events (task.*, validate.ran,
-//     next.resolved, go.navigated, workflow.skipped, commit.made) are not
+//     next.resolved, go.navigated, workflow.skipped) are not
 //     copied here.
 //
 // # Semantics

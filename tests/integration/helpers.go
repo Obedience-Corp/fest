@@ -844,6 +844,16 @@ This is a test task for %s.
 //
 // Returns the path to the festivals directory.
 func setupWorkspace(t *testing.T, tc *TestContainer, basePath string) string {
+	return setupWorkspaceFixture(t, tc, basePath, true)
+}
+
+// setupWorkspaceWithoutTemplates creates the deliberately incomplete fixture
+// used by the missing-core-template regression tests.
+func setupWorkspaceWithoutTemplates(t *testing.T, tc *TestContainer, basePath string) string {
+	return setupWorkspaceFixture(t, tc, basePath, false)
+}
+
+func setupWorkspaceFixture(t *testing.T, tc *TestContainer, basePath string, seedTemplates bool) string {
 	t.Helper()
 
 	festivalsPath := filepath.Join(basePath, "festivals")
@@ -862,6 +872,21 @@ func setupWorkspace(t *testing.T, tc *TestContainer, basePath string) string {
 	cmd := fmt.Sprintf("cat > %s << 'EOF'\n%s\nEOF", markerPath, markerContent)
 	_, err = tc.runCommand([]string{"sh", "-c", cmd})
 	require.NoError(t, err, "should create workspace marker")
+
+	if seedTemplates {
+		coreDir := filepath.Join(festivalsPath, ".festival", "templates", "festival")
+		_, err = tc.runCommand([]string{"mkdir", "-p", coreDir})
+		require.NoError(t, err, "should create core festival template directory")
+		for name, content := range map[string]string{
+			"OVERVIEW.md": "# Festival Overview\n\nIntegration fixture overview.\n",
+			"GOAL.md":     "# Festival Goal\n\nIntegration fixture goal.\n",
+			"RULES.md":    "# Festival Rules\n\n- Exercise the real CLI.\n",
+			"TODO.md":     "# Festival TODO\n\n- [ ] Exercise the workflow.\n",
+		} {
+			require.NoError(t, tc.WriteFile(filepath.Join(coreDir, name), content),
+				"should write marker-free core template %s", name)
+		}
+	}
 
 	return festivalsPath
 }

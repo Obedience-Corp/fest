@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/Obedience-Corp/camp/pkg/commitkit"
-	"github.com/Obedience-Corp/fest/internal/activity"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -361,29 +360,6 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	}
 
 	result.Success = true
-
-	// Activity log: commit.made at festival level only.
-	if festivalPath != "" {
-		actEmitter := activity.NewFromFestival(ctx, festivalPath, func(error) {})
-		data := map[string]any{
-			"git_sha": result.Hash,
-			"message": message,
-			"scope":   "project",
-		}
-		if result.CampaignHash != "" {
-			data["campaign_hash"] = result.CampaignHash
-		}
-		if projectCommit {
-			data["scope"] = "project"
-		} else {
-			data["scope"] = "campaign-root"
-		}
-		actEmitter.Emit(ctx, "commit.made", activity.Scope{
-			Phase:    result.Phase,
-			Sequence: result.Sequence,
-			Task:     result.TaskRef,
-		}, "fest commit -m \""+message+"\"", activity.WithData(data))
-	}
 
 	return outputResult(result)
 }

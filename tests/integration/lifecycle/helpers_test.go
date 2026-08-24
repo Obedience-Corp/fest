@@ -34,7 +34,6 @@ func NewSharedContainer() (*TestContainer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to build fest binary: %w", err)
 	}
-
 	req := testcontainers.ContainerRequest{
 		Image:      "alpine:latest",
 		Cmd:        []string{"sleep", "3600"},

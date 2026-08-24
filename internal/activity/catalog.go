@@ -34,7 +34,6 @@ var catalog = map[string]Destination{
 	"next.resolved":    DestFestivalOnly,
 	"go.navigated":     DestFestivalOnly,
 	"workflow.skipped": DestFestivalOnly,
-	"commit.made":      DestFestivalOnly,
 }
 
 // destination returns the write destination for an event name. Unknown events

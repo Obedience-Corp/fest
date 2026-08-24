@@ -141,7 +141,7 @@ func fingerprint(ctx context.Context, dir string) (string, error) {
 	})
 	h := sha256.New()
 	for _, f := range files {
-		fmt.Fprintf(h, "%s\t%d\t%d\n", f.relPath, f.modTime.UnixNano(), f.size)
+		_, _ = fmt.Fprintf(h, "%s\t%d\t%d\n", f.relPath, f.modTime.UnixNano(), f.size)
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
