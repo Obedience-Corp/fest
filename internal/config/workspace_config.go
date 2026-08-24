@@ -40,6 +40,17 @@ type AgentConfig struct {
 	RequireAutoCommit bool `yaml:"require_auto_commit"`
 }
 
+const (
+	// AutoCommitRequiredMessage is the operator-facing error when --no-commit
+	// is rejected because agent.require_auto_commit is enabled.
+	AutoCommitRequiredMessage = "--no-commit is not permitted: auto-commit is required by policy"
+
+	// AutoCommitRequiredHint tells the operator how to proceed after
+	// --no-commit is rejected. agent.require_auto_commit *enables* the guard;
+	// it is not a disable key.
+	AutoCommitRequiredHint = "remove --no-commit, or set agent.require_auto_commit: false in .festival/config.yaml / fest.yaml"
+)
+
 // LoadWorkspaceConfig loads workspace configuration from .festival/config.yaml
 func LoadWorkspaceConfig(festivalsRoot string) (*WorkspaceConfig, error) {
 	configPath := filepath.Join(festivalsRoot, DotFestivalDir, WorkspaceConfigFileName)
@@ -147,29 +158,37 @@ func WorkspaceConfigExists(festivalsRoot string) bool {
 }
 
 // LoadEffectiveAgentConfig loads and merges workspace + festival agent configs.
-// Returns a default config (all fields false) if neither config file is found.
+// Missing config files yield defaults (all fields false). Parse or IO errors
+// from a config file that exists are returned so callers cannot treat a
+// broken policy file as "policy off".
 // festivalsRoot is the path to the festivals/ directory (containing .festival/).
 // festivalPath is the path to the specific festival directory (containing fest.yaml).
 // Either may be empty to skip that layer.
-func LoadEffectiveAgentConfig(festivalsRoot, festivalPath string) *AgentConfig {
+func LoadEffectiveAgentConfig(festivalsRoot, festivalPath string) (*AgentConfig, error) {
 	var workspaceAgent *AgentConfig
 	var festivalAgent *AgentConfig
 
 	if festivalsRoot != "" {
 		workspaceCfg, err := LoadWorkspaceConfig(festivalsRoot)
-		if err == nil && workspaceCfg != nil {
+		if err != nil {
+			return nil, err
+		}
+		if workspaceCfg != nil {
 			workspaceAgent = &workspaceCfg.Agent
 		}
 	}
 
 	if festivalPath != "" {
 		festivalCfg, err := LoadFestivalConfig(festivalPath, "")
-		if err == nil && festivalCfg != nil {
+		if err != nil {
+			return nil, err
+		}
+		if festivalCfg != nil {
 			festivalAgent = &festivalCfg.Agent
 		}
 	}
 
-	return MergeAgentConfig(workspaceAgent, festivalAgent)
+	return MergeAgentConfig(workspaceAgent, festivalAgent), nil
 }
 
 // MergeAgentConfig merges workspace and festival agent configs

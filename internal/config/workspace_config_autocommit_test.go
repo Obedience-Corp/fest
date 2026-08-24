@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -131,7 +132,10 @@ agent:
 		t.Fatalf("write config: %v", err)
 	}
 
-	cfg := LoadEffectiveAgentConfig(root, "")
+	cfg, err := LoadEffectiveAgentConfig(root, "")
+	if err != nil {
+		t.Fatalf("LoadEffectiveAgentConfig: %v", err)
+	}
 	if !cfg.RequireAutoCommit {
 		t.Fatal("expected RequireAutoCommit=true from workspace config")
 	}
@@ -161,8 +165,82 @@ agent:
 		t.Fatalf("write festival config: %v", err)
 	}
 
-	cfg := LoadEffectiveAgentConfig(root, festDir)
+	cfg, err := LoadEffectiveAgentConfig(root, festDir)
+	if err != nil {
+		t.Fatalf("LoadEffectiveAgentConfig: %v", err)
+	}
 	if !cfg.RequireAutoCommit {
 		t.Fatal("expected RequireAutoCommit=true from festival config overriding workspace")
+	}
+}
+
+func TestLoadEffectiveAgentConfig_MissingFilesUsesDefaults(t *testing.T) {
+	cfg, err := LoadEffectiveAgentConfig(t.TempDir(), t.TempDir())
+	if err != nil {
+		t.Fatalf("missing configs must not error, got: %v", err)
+	}
+	if cfg == nil {
+		t.Fatal("expected default agent config, got nil")
+	}
+	if cfg.RequireAutoCommit {
+		t.Fatal("expected RequireAutoCommit=false when no config files exist")
+	}
+
+	shouldCommit, rejected := EffectiveAutoCommit(cfg, true)
+	if shouldCommit || rejected {
+		t.Fatalf("missing configs must honor --no-commit, got shouldCommit=%v rejected=%v", shouldCommit, rejected)
+	}
+}
+
+func TestLoadEffectiveAgentConfig_MalformedWorkspaceReturnsError(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, DotFestivalDir)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	data := "version: \"1.0\"\nagent: [not, a, map]\n"
+	if err := os.WriteFile(filepath.Join(dir, WorkspaceConfigFileName), []byte(data), 0o644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+
+	cfg, err := LoadEffectiveAgentConfig(root, "")
+	if err == nil {
+		t.Fatal("expected error when workspace config.yaml exists but cannot be parsed")
+	}
+	if !strings.Contains(err.Error(), "parsing workspace config") {
+		t.Fatalf("error = %v, want parse-wrapped workspace config message", err)
+	}
+	if cfg != nil {
+		t.Fatalf("parse failure must not return a default config (fail-open), got %+v", cfg)
+	}
+}
+
+func TestLoadEffectiveAgentConfig_MalformedFestivalReturnsError(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, DotFestivalDir)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, WorkspaceConfigFileName), []byte("version: \"1.0\"\n"), 0o644); err != nil {
+		t.Fatalf("write workspace config: %v", err)
+	}
+
+	festDir := filepath.Join(root, "ready", "test-festival")
+	if err := os.MkdirAll(festDir, 0o755); err != nil {
+		t.Fatalf("mkdir festival: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(festDir, FestivalConfigFileName), []byte("version: \"1.0\"\nagent: [not, a, map]\n"), 0o644); err != nil {
+		t.Fatalf("write festival config: %v", err)
+	}
+
+	cfg, err := LoadEffectiveAgentConfig(root, festDir)
+	if err == nil {
+		t.Fatal("expected error when fest.yaml exists but cannot be parsed")
+	}
+	if !strings.Contains(err.Error(), "parsing festival config") {
+		t.Fatalf("error = %v, want parse-wrapped festival config message", err)
+	}
+	if cfg != nil {
+		t.Fatalf("parse failure must not return a default config (fail-open), got %+v", cfg)
 	}
 }

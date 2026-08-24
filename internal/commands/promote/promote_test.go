@@ -612,6 +612,12 @@ func TestPromoteCore_NoCommitRejectedWhenPolicyRequiresAutoCommit(t *testing.T) 
 	if !strings.Contains(err.Error(), "auto-commit is required by policy") {
 		t.Fatalf("error should mention auto-commit policy, got: %v", err)
 	}
+	if strings.Contains(err.Error(), "to disable this guard") {
+		t.Fatalf("hint must not tell operators to set require_auto_commit to disable the guard, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "remove --no-commit") {
+		t.Fatalf("hint should tell operators to remove --no-commit, got: %v", err)
+	}
 
 	// Verify the festival was NOT moved (the check happens before any state change)
 	oldPath := filepath.Join(festivalsDir, "planning", "alpha-feature-FE0001")
@@ -644,6 +650,12 @@ func TestPromoteCore_NoCommitRejectedJSONExitsNonZero(t *testing.T) {
 		t.Fatalf("--no-commit rejection under --json must return ErrAlreadyPrinted, got %v", err)
 	}
 	assertJSONFailureBody(t, out)
+	if !strings.Contains(out, "remove --no-commit") {
+		t.Fatalf("JSON hint should tell operators to remove --no-commit, got: %q", out)
+	}
+	if strings.Contains(out, "to disable this guard") {
+		t.Fatalf("JSON hint must not tell operators to set require_auto_commit to disable the guard, got: %q", out)
+	}
 }
 
 // TestPromoteCore_NoCommitAllowedWhenPolicyNotSet verifies that --no-commit
@@ -666,5 +678,34 @@ func TestPromoteCore_NoCommitAllowedWhenPolicyNotSet(t *testing.T) {
 	movedPath := filepath.Join(festivalsDir, "ready", "alpha-feature-FE0001")
 	if _, statErr := os.Stat(movedPath); statErr != nil {
 		t.Fatalf("festival should have been promoted to ready: %v", statErr)
+	}
+}
+
+// TestPromoteCore_NoCommitAbortedWhenPolicyConfigUnreadable verifies that a
+// malformed workspace config.yaml does not fail-open to honoring --no-commit.
+func TestPromoteCore_NoCommitAbortedWhenPolicyConfigUnreadable(t *testing.T) {
+	_, festivalsDir := setupPromoteCampaignWithAutoCommitPolicy(t, true)
+	cfgPath := filepath.Join(festivalsDir, ".festival", "config.yaml")
+	if err := os.WriteFile(cfgPath, []byte("version: \"1.0\"\nagent: [not, a, map]\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	festival := &show.FestivalInfo{
+		Name:   "alpha-feature-FE0001",
+		Path:   filepath.Join(festivalsDir, "planning", "alpha-feature-FE0001"),
+		Status: "planning",
+	}
+
+	_, err := promoteCore(t.Context(), festival, false, &promoteOptions{noCommit: true})
+	if err == nil {
+		t.Fatal("expected error when auto-commit policy config is unreadable, got nil")
+	}
+	if !strings.Contains(err.Error(), "loading auto-commit policy") {
+		t.Fatalf("error should mention policy load, got: %v", err)
+	}
+
+	oldPath := filepath.Join(festivalsDir, "planning", "alpha-feature-FE0001")
+	if _, statErr := os.Stat(oldPath); statErr != nil {
+		t.Fatalf("festival should remain in planning when policy load fails, stat err: %v", statErr)
 	}
 }

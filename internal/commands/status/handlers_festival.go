@@ -295,21 +295,24 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 	// the --no-commit flag. Agents must not bypass required auto-commit.
 	if opts.noCommit {
 		festivalsRoot := festivalsRootFromPath(festival.Path, festival.Status)
-		agentCfg := config.LoadEffectiveAgentConfig(festivalsRoot, festival.Path)
+		agentCfg, err := config.LoadEffectiveAgentConfig(festivalsRoot, festival.Path)
+		if err != nil {
+			return errors.Wrap(err, "loading auto-commit policy")
+		}
 		shouldCommit, rejected := config.EffectiveAutoCommit(agentCfg, opts.noCommit)
 		if rejected {
 			if opts.json {
 				if encErr := shared.EncodeJSON(os.Stdout, map[string]any{
 					"success": false,
-					"error":   "--no-commit is not permitted: auto-commit is required by policy",
-					"hint":    "configure agent.require_auto_commit to disable this guard",
+					"error":   config.AutoCommitRequiredMessage,
+					"hint":    config.AutoCommitRequiredHint,
 				}); encErr != nil {
 					return encErr
 				}
 				return errors.ErrAlreadyPrinted
 			}
-			return errors.Validation("--no-commit is not permitted: auto-commit is required by policy").
-				WithHint("configure agent.require_auto_commit to disable this guard")
+			return errors.Validation(config.AutoCommitRequiredMessage).
+				WithHint(config.AutoCommitRequiredHint)
 		}
 		opts.noCommit = !shouldCommit
 	}
