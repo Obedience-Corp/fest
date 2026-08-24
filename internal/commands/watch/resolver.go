@@ -2,21 +2,16 @@ package watch
 
 import (
 	"context"
-	"path/filepath"
-	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/resolver"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
-	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
-// watchResolver wraps the shared TargetResolver, preserving the watch
-// command's picker configuration (cwd-scoped status narrowing + fallback to
-// the watchable statuses). All resolution logic lives in the resolver package;
-// this file configures it and holds the watch-specific helpers the resolver
-// does not own (cycle targets, status narrowing).
+// watchResolver wraps the shared TargetResolver with the default picker
+// configuration (cwd-scoped status narrowing + fallback to the watchable
+// statuses). Cycle-target listing stays watch-specific.
 type watchResolver struct {
 	resolver resolver.TargetResolver
 }
@@ -47,12 +42,7 @@ var watchPickerStatuses = []string{"active", "ready", "planning"}
 // festivals/active sees only active festivals), with a fallback to the full
 // watchable status set.
 func watchPickerOptions(cwd, festivalsDir string) shared.FestivalPickerOptions {
-	return shared.FestivalPickerOptions{
-		IncludeStatusDirectories: false,
-		PreferredStatuses:        pickerStatuses(cwd, festivalsDir),
-		FallbackStatuses:         watchPickerStatuses,
-		OrderByStatusThenRecency: true,
-	}
+	return resolver.DefaultPickerOptions(cwd, festivalsDir)
 }
 
 func pickerStatuses(cwd, festivalsDir string) []string {
@@ -63,21 +53,7 @@ func pickerStatuses(cwd, festivalsDir string) []string {
 }
 
 func preferredPickerStatuses(cwd, festivalsDir string) []string {
-	rel, err := filepath.Rel(festivalsDir, cwd)
-	if err != nil || rel == "." || rel == ".." {
-		return nil
-	}
-	rel = filepath.ToSlash(rel)
-	if strings.HasPrefix(rel, "../") {
-		return nil
-	}
-	for _, status := range watchPickerStatuses {
-		status = filepath.ToSlash(id.ResolveStatusPath(status))
-		if rel == status || strings.HasPrefix(rel, status+"/") {
-			return []string{status}
-		}
-	}
-	return nil
+	return resolver.PreferredPickerStatuses(cwd, festivalsDir, watchPickerStatuses)
 }
 
 // canonicalWatchPath resolves symlinks and returns an absolute, cleaned path.

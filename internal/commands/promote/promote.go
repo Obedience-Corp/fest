@@ -87,8 +87,10 @@ Use --dungeon to send a festival directly to a dungeon status:
 	return cmd
 }
 
-// promotePickerOptions limits the picker and completion to promotable festivals,
-// ordered active → ready → planning (then recency) to match fest go navigation.
+// promotePickerOptions limits completion to promotable festivals, ordered
+// active → ready → planning (then recency) to match fest go navigation.
+// The interactive picker uses resolver.DefaultPickerOptions so it also
+// narrows to the status directory the user is browsing, matching fest watch.
 func promotePickerOptions() shared.FestivalPickerOptions {
 	return shared.FestivalPickerOptions{
 		PreferredStatuses:        []string{"active", "ready", "planning"},
@@ -154,15 +156,28 @@ func runPromoteCompletions(ctx context.Context, color bool) error {
 var errPromoteCancelled = errors.New("promotion cancelled")
 
 // resolveFestivalForPromote resolves the festival to promote using the shared
-// TargetResolver. The returned bool reports whether the festival was chosen
-// from the interactive picker. When allowPicker is false (e.g. --json mode),
-// the picker tier is skipped so non-interactive callers get an actionable
-// error instead of a TUI launch.
+// TargetResolver (cwd-scoped picker, matching fest watch). The returned bool
+// reports whether the festival was chosen from the interactive picker. When
+// allowPicker is false (e.g. --json mode), the picker tier is skipped so
+// non-interactive callers get a structured NotFound instead of a TUI launch.
 func resolveFestivalForPromote(ctx context.Context, festivalsDir, cwd, selector string, allowPicker bool) (*show.FestivalInfo, bool, error) {
+	r := promoteTargetResolver(cwd, festivalsDir, allowPicker)
+	festival, source, err := r.Resolve(ctx, selector)
+	if err != nil {
+		if resolver.IsPickerCancelled(err) {
+			return nil, false, errPromoteCancelled
+		}
+		return nil, false, err
+	}
+	return festival, source == resolver.ResolveSourcePicker, nil
+}
+
+// promoteTargetResolver is the shared TargetResolver used by fest promote.
+// PickerOptions is DefaultPickerOptions so a user browsing festivals/ready
+// sees ready festivals first, matching fest watch.
+func promoteTargetResolver(cwd, festivalsDir string, allowPicker bool) resolver.TargetResolver {
 	r := resolver.DefaultTargetResolver(resolver.TargetResolverOptions{
-		PickerOptions: func(_, _ string) shared.FestivalPickerOptions {
-			return promotePickerOptions()
-		},
+		PickerOptions: resolver.DefaultPickerOptions,
 	})
 	// Inject the caller-provided cwd and festivals directory so the resolver
 	// does not re-derive them from os.Getwd (the scope may have resolved a
@@ -174,15 +189,7 @@ func resolveFestivalForPromote(ctx context.Context, festivalsDir, cwd, selector 
 	if !allowPicker {
 		r.CanPickFestival = func() bool { return false }
 	}
-
-	festival, source, err := r.Resolve(ctx, selector)
-	if err != nil {
-		if resolver.IsPickerCancelled(err) {
-			return nil, false, errPromoteCancelled
-		}
-		return nil, false, err
-	}
-	return festival, source == resolver.ResolveSourcePicker, nil
+	return r
 }
 
 // confirmPromotion asks the operator to confirm a picker-selected promotion.

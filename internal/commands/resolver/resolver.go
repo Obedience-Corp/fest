@@ -22,6 +22,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/navigation"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"golang.org/x/term"
@@ -73,15 +74,16 @@ type TargetResolver struct {
 // DefaultTargetResolver. Every field has a sensible default.
 type TargetResolverOptions struct {
 	// PickerOptions returns the picker configuration for a given cwd and
-	// festivals directory. Watch narrows to the status directory the user is
-	// browsing; promote offers promotable festivals (planning/ready/active).
-	// When nil, the resolver applies the default picker options.
+	// festivals directory. The default (and both watch and promote) narrows
+	// to the status directory the user is browsing, then falls back to the
+	// working statuses (active/ready/planning). When nil, the resolver
+	// applies DefaultPickerOptions.
 	PickerOptions func(cwd, festivalsDir string) shared.FestivalPickerOptions
 }
 
 // DefaultTargetResolver returns a TargetResolver wired to the production
-// dependencies, configured by opts. A zero-value opts yields the default
-// picker configuration (working statuses, ordered by status then recency).
+// dependencies, configured by opts. A zero-value opts yields DefaultPickerOptions
+// (cwd-scoped status narrowing, then the working statuses).
 func DefaultTargetResolver(opts TargetResolverOptions) TargetResolver {
 	r := TargetResolver{
 		Getwd:           os.Getwd,
@@ -208,11 +210,12 @@ func IsPickerCancelled(err error) bool {
 	return stderrors.Is(err, ErrPickerCancelled)
 }
 
-// NoTargetError returns the actionable error shown when a festival cannot be
-// resolved from the current directory and the terminal is non-interactive or
-// there is no festivals directory to pick from.
+// NoTargetError returns the structured NotFound("festival") error shown when a
+// festival cannot be resolved from the current directory and the terminal is
+// non-interactive or there is no festivals directory to pick from. Callers
+// and agents branch on errors.ErrCodeNotFound.
 func NoTargetError() error {
-	return errors.Validation("festival could not be resolved from this directory").
+	return errors.NotFound("festival").
 		WithHint("run from a festival, a linked project, or a campaign workspace with an interactive terminal")
 }
 
@@ -296,14 +299,47 @@ func DefaultCanPickFestival() bool {
 }
 
 // DefaultPickerOptions is the default picker configuration used when a
-// TargetResolverOptions does not supply its own: working statuses
-// (active/ready/planning), ordered by status then recency.
+// TargetResolverOptions does not supply its own. It narrows to the working
+// status directory the user is browsing (so festivals/ready prefers ready),
+// and falls back to the full working set (active/ready/planning) ordered by
+// status then recency. Ritual and dungeon directories are not picker targets.
 func DefaultPickerOptions(cwd, festivalsDir string) shared.FestivalPickerOptions {
+	working := shared.WorkingFestivalPickerStatuses
+	preferred := working
+	if narrowed := PreferredPickerStatuses(cwd, festivalsDir, working); len(narrowed) > 0 {
+		preferred = narrowed
+	}
 	return shared.FestivalPickerOptions{
 		IncludeStatusDirectories: false,
-		PreferredStatuses:        []string{"active", "ready", "planning"},
+		PreferredStatuses:        preferred,
+		FallbackStatuses:         working,
 		OrderByStatusThenRecency: true,
 	}
+}
+
+// PreferredPickerStatuses returns the working status directory the user is
+// currently inside, if cwd is under festivalsDir in one of allowed. An empty
+// result means "do not narrow" (campaign root, dungeon, ritual, or a path
+// outside festivals/).
+func PreferredPickerStatuses(cwd, festivalsDir string, allowed []string) []string {
+	if cwd == "" || festivalsDir == "" {
+		return nil
+	}
+	rel, err := filepath.Rel(festivalsDir, cwd)
+	if err != nil || rel == "." || rel == ".." {
+		return nil
+	}
+	rel = filepath.ToSlash(rel)
+	if strings.HasPrefix(rel, "../") {
+		return nil
+	}
+	for _, status := range allowed {
+		status = filepath.ToSlash(id.ResolveStatusPath(status))
+		if rel == status || strings.HasPrefix(rel, status+"/") {
+			return []string{status}
+		}
+	}
+	return nil
 }
 
 // CanonicalPath resolves symlinks and returns an absolute, cleaned path. It is

@@ -87,7 +87,7 @@ func TestFestWatchNonInteractiveNoContextFailsFast(t *testing.T) {
 	require.NotZero(t, exitCode, "no-context watch should fail")
 	require.NotEqual(t, 124, exitCode, "no-context watch should fail before timeout")
 	require.NotEqual(t, 143, exitCode, "no-context watch should fail before timeout")
-	require.Contains(t, output, "festival could not be resolved from this directory")
+	require.Contains(t, output, "festival not found")
 	require.Contains(t, output, "linked project")
 	require.Contains(t, output, "interactive terminal")
 	require.NotContains(t, output, "cd ")
