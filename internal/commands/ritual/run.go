@@ -36,6 +36,7 @@ func NewRitualCommand() *cobra.Command {
 	}
 
 	cmd.AddCommand(newRunCommand())
+	cmd.AddCommand(newConvertCommand())
 
 	return cmd
 }
