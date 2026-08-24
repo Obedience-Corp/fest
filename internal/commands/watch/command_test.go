@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Obedience-Corp/fest/internal/commands/resolver"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 )
 
@@ -156,7 +157,7 @@ func TestWatchCommandSelectorSkipsStandaloneResolution(t *testing.T) {
 func TestWatchCommandCancellationDoesNotCallDelegate(t *testing.T) {
 	cmd := newWatchCommand(commandDeps{
 		resolve: func(context.Context, string) (*show.FestivalInfo, error) {
-			return nil, errWatchPickerCancelled
+			return nil, resolver.ErrPickerCancelled
 		},
 		watch: func(context.Context, *show.FestivalInfo, show.WatchOptions) error {
 			t.Fatal("watch delegate should not be called after picker cancellation")
