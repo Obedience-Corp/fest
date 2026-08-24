@@ -20,7 +20,8 @@ type festivalPreviewEntry struct {
 }
 
 type festivalPreview struct {
-	entries []festivalPreviewEntry
+	entries              []festivalPreviewEntry
+	missingCoreTemplates []string
 }
 
 type createFestivalPreviewResult struct {
@@ -31,6 +32,9 @@ type createFestivalPreviewResult struct {
 	TargetPath   string            `json:"target_path"`
 	PlannedPaths []string          `json:"planned_paths"`
 	Tree         string            `json:"tree"`
+	// MissingCoreTemplates lists core festival templates that are absent from
+	// the template root. A real create would error on these.
+	MissingCoreTemplates []string `json:"missing_core_templates,omitempty"`
 	// Markers lists every template marker the create would contain, filled or
 	// not, so one dry-run reports the whole set regardless of supplied input.
 	Markers         []festivalPreviewMarker `json:"markers"`
@@ -69,17 +73,18 @@ func previewCreateFestival(ctx context.Context, cfg *createConfig) error {
 	}
 
 	result := createFestivalPreviewResult{
-		OK:              true,
-		Action:          "create_festival_preview",
-		DryRun:          true,
-		Festival:        festivalMapForConfig(cfg),
-		TargetPath:      displayPath(cfg.destDir),
-		PlannedPaths:    plannedPaths,
-		Tree:            tree,
-		Markers:         markerPreview.markers,
-		MarkersTotal:    markerPreview.total,
-		MarkersFilled:   markerPreview.filled,
-		MarkersUnfilled: markerPreview.unfilled,
+		OK:                   true,
+		Action:               "create_festival_preview",
+		DryRun:               true,
+		Festival:             festivalMapForConfig(cfg),
+		TargetPath:           displayPath(cfg.destDir),
+		PlannedPaths:         plannedPaths,
+		Tree:                 tree,
+		MissingCoreTemplates: preview.missingCoreTemplates,
+		Markers:              markerPreview.markers,
+		MarkersTotal:         markerPreview.total,
+		MarkersFilled:        markerPreview.filled,
+		MarkersUnfilled:      markerPreview.unfilled,
 	}
 
 	if cfg.opts.JSONOutput {
@@ -91,6 +96,10 @@ func previewCreateFestival(ctx context.Context, cfg *createConfig) error {
 	fmt.Println(ui.H2("Dry Run — No Files Created"))
 	fmt.Printf("Would create %s%c\n", result.TargetPath, filepath.Separator)
 	fmt.Println(tree)
+	if len(preview.missingCoreTemplates) > 0 {
+		cfg.display.Error("MISSING core templates: %s — create would fail", strings.Join(preview.missingCoreTemplates, ", "))
+		cfg.display.Info("  Copy .festival/templates/festival/ from a working campaign, or run 'fest init' to seed the template directory.")
+	}
 	printFestivalPreviewMarkers(markerPreview)
 	return nil
 }
@@ -111,6 +120,8 @@ func buildFestivalPreview(ctx context.Context, cfg *createConfig) (*festivalPrev
 	for _, coreTemplate := range festivalCoreTemplates {
 		if info, err := os.Stat(filepath.Join(cfg.tmplRoot, coreTemplate.Template)); err == nil && !info.IsDir() {
 			addFile(coreTemplate.Output)
+		} else {
+			preview.missingCoreTemplates = append(preview.missingCoreTemplates, coreTemplate.Template)
 		}
 	}
 	addFile("fest.yaml")

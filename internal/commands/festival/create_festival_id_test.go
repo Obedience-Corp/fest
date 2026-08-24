@@ -10,6 +10,23 @@ import (
 	"github.com/Obedience-Corp/fest/internal/config"
 )
 
+// writeMinimalCoreTemplates writes the four required core festival templates
+// (OVERVIEW, GOAL, RULES, TODO) into .festival/templates/festival/ under the
+// given festivals root. Tests that exercise the real create pipeline need these
+// because missing core templates are now a hard error (fest#139).
+func writeMinimalCoreTemplates(t *testing.T, festivalsRoot string) {
+	t.Helper()
+	dir := filepath.Join(festivalsRoot, ".festival", "templates", "festival")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatalf("Failed to create festival templates dir: %v", err)
+	}
+	for _, name := range []string{"OVERVIEW.md", "GOAL.md", "RULES.md", "TODO.md"} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte("# "+name+"\n"), 0644); err != nil {
+			t.Fatalf("Failed to write %s: %v", name, err)
+		}
+	}
+}
+
 // TestCreateFestival_DirectoryNaming verifies that festival directories
 // are created with the format {slug}-{ID} where ID is XX0001 format.
 func TestCreateFestival_DirectoryNaming(t *testing.T) {
@@ -56,11 +73,8 @@ func TestCreateFestival_DirectoryNaming(t *testing.T) {
 				t.Fatalf("Failed to create dungeon/completed dir: %v", err)
 			}
 
-			// Create minimal .festival/templates directory
-			templatesDir := filepath.Join(festivalsRoot, ".festival", "templates")
-			if err := os.MkdirAll(templatesDir, 0755); err != nil {
-				t.Fatalf("Failed to create templates dir: %v", err)
-			}
+			// Create minimal .festival/templates directory with core templates
+			writeMinimalCoreTemplates(t, festivalsRoot)
 
 			// Change to festivals directory
 			origDir, _ := os.Getwd()
@@ -156,11 +170,8 @@ func TestCreateFestival_MetadataPopulation(t *testing.T) {
 		t.Fatalf("Failed to create dungeon/completed dir: %v", err)
 	}
 
-	// Create minimal .festival/templates directory
-	templatesDir := filepath.Join(festivalsRoot, ".festival", "templates")
-	if err := os.MkdirAll(templatesDir, 0755); err != nil {
-		t.Fatalf("Failed to create templates dir: %v", err)
-	}
+	// Create minimal .festival/templates directory with core templates
+	writeMinimalCoreTemplates(t, festivalsRoot)
 
 	// Change to festivals directory
 	origDir, _ := os.Getwd()
@@ -252,11 +263,8 @@ func TestCreateFestival_UniqueIDs(t *testing.T) {
 		t.Fatalf("Failed to create dungeon/completed dir: %v", err)
 	}
 
-	// Create minimal .festival/templates directory
-	templatesDir := filepath.Join(festivalsRoot, ".festival", "templates")
-	if err := os.MkdirAll(templatesDir, 0755); err != nil {
-		t.Fatalf("Failed to create templates dir: %v", err)
-	}
+	// Create minimal .festival/templates directory with core templates
+	writeMinimalCoreTemplates(t, festivalsRoot)
 
 	// Change to festivals directory
 	origDir, _ := os.Getwd()
@@ -363,11 +371,8 @@ func TestCreateFestival_BackwardsCompatibility(t *testing.T) {
 		t.Fatalf("Failed to save old fest.yaml: %v", err)
 	}
 
-	// Create minimal .festival/templates directory
-	templatesDir := filepath.Join(festivalsRoot, ".festival", "templates")
-	if err := os.MkdirAll(templatesDir, 0755); err != nil {
-		t.Fatalf("Failed to create templates dir: %v", err)
-	}
+	// Create minimal .festival/templates directory with core templates
+	writeMinimalCoreTemplates(t, festivalsRoot)
 
 	// Change to festivals directory
 	origDir, _ := os.Getwd()
