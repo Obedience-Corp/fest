@@ -19,7 +19,8 @@ func TestCreateFestivalErrorsOnMissingCoreTemplates(t *testing.T) {
 	// Set up a workspace with NO festival templates at all.
 	festivalsPath := setupWorkspace(t, tc, "/missing-templates")
 
-	// Non-agent, non-JSON mode: must exit non-zero with a human-readable error.
+	// Non-agent, non-JSON mode: must exit non-zero with a human-readable error
+	// and leave no festival directory behind (plain create used to skip rollback).
 	output, err := tc.RunFestInDir(
 		festivalsPath,
 		"create", "festival",
@@ -29,6 +30,7 @@ func TestCreateFestivalErrorsOnMissingCoreTemplates(t *testing.T) {
 	require.Error(t, err, "create must fail when core templates are missing")
 	require.Contains(t, output, "missing required core festival templates",
 		"error message must name the missing core templates, got: %s", output)
+	requireNoPlanningFestivals(t, tc, festivalsPath)
 
 	// JSON mode: must report the error in structured output with ok=false.
 	// (Non-agent --json exits 0 by convention; the error is in the payload.)
@@ -45,6 +47,7 @@ func TestCreateFestivalErrorsOnMissingCoreTemplates(t *testing.T) {
 	require.NotEmpty(t, jsonResult.Errors, "JSON result must contain error details")
 	require.Contains(t, jsonResult.Errors[0].Message, "missing required core festival templates",
 		"JSON error message must name the missing templates")
+	requireNoPlanningFestivals(t, tc, festivalsPath)
 
 	// Agent mode: must exit non-zero with structured failure output and rollback.
 	agentOutput, err := tc.RunFestInDir(
@@ -64,9 +67,33 @@ func TestCreateFestivalErrorsOnMissingCoreTemplates(t *testing.T) {
 	// Agent mode must roll back the scaffolded directory.
 	require.NotNil(t, agentResult.RolledBack, "agent failure must report rollback status")
 	require.True(t, *agentResult.RolledBack, "agent failure must roll back the scaffolded directory")
-	dirs, err := tc.ListDirectories(festivalsPath + "/planning")
-	require.NoError(t, err)
-	require.Empty(t, dirs, "no festival directory should remain after agent rollback")
+	requireNoPlanningFestivals(t, tc, festivalsPath)
+}
+
+// TestCreateFestivalErrorsOnPartialCoreTemplatesLeavesNoDestDir is the
+// half-written-scaffold regression: three of four core templates used to be
+// written before the missing one failed the create, leaving planning/<slug>-<id>/.
+func TestCreateFestivalErrorsOnPartialCoreTemplatesLeavesNoDestDir(t *testing.T) {
+	tc := GetSharedContainer(t)
+	festivalsPath := setupWorkspace(t, tc, "/partial-templates")
+
+	for _, name := range []string{"OVERVIEW.md", "GOAL.md", "RULES.md"} {
+		path := festivalsPath + "/.festival/templates/festival/" + name
+		require.NoError(t, tc.WriteFile(path, "# "+name+"\n"), "write partial core template %s", name)
+	}
+
+	output, err := tc.RunFestInDir(
+		festivalsPath,
+		"create", "festival",
+		"--name", "partial-templates",
+		"--no-color",
+	)
+	require.Error(t, err, "create must fail when a core template is missing")
+	require.Contains(t, output, "missing required core festival templates",
+		"error message must name the missing core templates, got: %s", output)
+	require.Contains(t, output, "festival/TODO.md",
+		"error message must name the missing TODO template, got: %s", output)
+	requireNoPlanningFestivals(t, tc, festivalsPath)
 }
 
 // TestCreateFestivalDryRunReportsMissingCoreTemplates verifies that --dry-run
@@ -105,9 +132,16 @@ func TestCreateFestivalDryRunReportsMissingCoreTemplates(t *testing.T) {
 		"human dry-run must warn about missing core templates, got: %s", humanOutput)
 }
 
+func requireNoPlanningFestivals(t *testing.T, tc *TestContainer, festivalsPath string) {
+	t.Helper()
+	dirs, err := tc.ListDirectories(festivalsPath + "/planning")
+	require.NoError(t, err)
+	require.Empty(t, dirs, "no festival directory should remain after missing-template failure, got: %v", dirs)
+}
+
 type createFestivalMissingTemplateResult struct {
-	OK         bool `json:"ok"`
-	Errors     []struct {
+	OK     bool `json:"ok"`
+	Errors []struct {
 		Message string `json:"message"`
 	} `json:"errors"`
 	RolledBack *bool `json:"rolled_back"`

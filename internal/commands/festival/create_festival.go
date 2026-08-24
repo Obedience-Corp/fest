@@ -320,12 +320,31 @@ func RunCreateFestival(ctx context.Context, opts *CreateFestivalOptions) error {
 		return previewCreateFestival(ctx, cfg)
 	}
 
+	// Required core templates must exist as files before destDir is created.
+	// Otherwise a miss leaves planning/<slug>-<id>/ (empty or half-written)
+	// and FindNextCounter treats it as a used festival ID.
+	missing, missErr := missingCoreTemplates(ctx, cfg.tmplRoot)
+	if missErr != nil {
+		return emitCreateFestivalError(opts, missErr)
+	}
+	if len(missing) > 0 {
+		tmplErr := missingCoreTemplatesError(cfg, missing)
+		if opts.AgentMode {
+			return emitCreateFestivalCreatedError(ctx, cfg, nil, tmplErr)
+		}
+		return emitCreateFestivalError(opts, tmplErr)
+	}
+
 	if err := scaffoldFestivalDirectory(ctx, cfg); err != nil {
 		return emitCreateFestivalError(opts, err)
 	}
 
 	created, copiedGates, err := renderFestivalTemplates(ctx, cfg)
 	if err != nil {
+		// Non-agent emitCreateFestivalCreatedError does not rollback.
+		if !opts.AgentMode {
+			removeIncompleteFestivalDir(cfg)
+		}
 		return emitCreateFestivalCreatedError(ctx, cfg, nil, err)
 	}
 
@@ -399,6 +418,36 @@ func scaffoldFestivalDirectory(ctx context.Context, cfg *createConfig) error {
 	return nil
 }
 
+// missingCoreTemplates returns core template names that are absent or not files.
+func missingCoreTemplates(ctx context.Context, tmplRoot string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, errors.Wrap(err, "context cancelled")
+	}
+	var missing []string
+	for _, coreTemplate := range festivalCoreTemplates {
+		info, err := os.Stat(filepath.Join(tmplRoot, coreTemplate.Template))
+		if err != nil || info.IsDir() {
+			missing = append(missing, coreTemplate.Template)
+		}
+	}
+	return missing, nil
+}
+
+func missingCoreTemplatesError(cfg *createConfig, missing []string) error {
+	return errors.Template(
+		fmt.Sprintf("missing required core festival templates: %s", strings.Join(missing, ", "))).
+		WithField("templates", strings.Join(missing, ", ")).
+		WithField("template_root", cfg.tmplRoot).
+		WithHint("Copy .festival/templates/festival/ from a working campaign, or run 'fest init' to seed the template directory.")
+}
+
+func removeIncompleteFestivalDir(cfg *createConfig) {
+	if cfg == nil || cfg.destDir == "" {
+		return
+	}
+	_ = os.RemoveAll(cfg.destDir)
+}
+
 // renderFestivalTemplates renders the core festival files (OVERVIEW, GOAL, RULES,
 // TODO) from templates and copies gate templates organized by phase type.
 func renderFestivalTemplates(ctx context.Context, cfg *createConfig) ([]string, []string, error) {
@@ -406,28 +455,27 @@ func renderFestivalTemplates(ctx context.Context, cfg *createConfig) ([]string, 
 		return nil, nil, errors.Wrap(err, "context cancelled")
 	}
 
+	// Stat every core template before writing any of them. Writing present
+	// files first then erroring on a miss leaves a half-written festival.
+	missing, err := missingCoreTemplates(ctx, cfg.tmplRoot)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(missing) > 0 {
+		return nil, nil, missingCoreTemplatesError(cfg, missing)
+	}
+
 	mgr := tpl.NewManager()
 	var created []string
-	var missingCoreTemplates []string
-
 	for _, coreTemplate := range festivalCoreTemplates {
 		outPath, err := renderCoreFile(ctx, cfg, mgr, coreTemplate.Template, coreTemplate.Output)
 		if err != nil {
 			return nil, nil, err
 		}
-		if outPath != "" {
-			created = append(created, outPath)
-		} else {
-			missingCoreTemplates = append(missingCoreTemplates, coreTemplate.Template)
+		if outPath == "" {
+			return nil, nil, missingCoreTemplatesError(cfg, []string{coreTemplate.Template})
 		}
-	}
-
-	if len(missingCoreTemplates) > 0 {
-		return nil, nil, errors.Template(
-			fmt.Sprintf("missing required core festival templates: %s", strings.Join(missingCoreTemplates, ", "))).
-			WithField("templates", strings.Join(missingCoreTemplates, ", ")).
-			WithField("template_root", cfg.tmplRoot).
-			WithHint("Copy .festival/templates/festival/ from a working campaign, or run 'fest init' to seed the template directory.")
+		created = append(created, outPath)
 	}
 
 	copiedGates, gateCreated, err := copyGateTemplates(ctx, cfg)
