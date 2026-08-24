@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	chainpkg "github.com/Obedience-Corp/fest/internal/chain"
+	"github.com/Obedience-Corp/fest/internal/commands/resolver"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/commands/status"
@@ -86,8 +87,10 @@ Use --dungeon to send a festival directly to a dungeon status:
 	return cmd
 }
 
-// promotePickerOptions limits the picker and completion to promotable festivals,
-// ordered active → ready → planning (then recency) to match fest go navigation.
+// promotePickerOptions limits completion to promotable festivals, ordered
+// active → ready → planning (then recency) to match fest go navigation.
+// The interactive picker uses resolver.DefaultPickerOptions so it also
+// narrows to the status directory the user is browsing, matching fest watch.
 func promotePickerOptions() shared.FestivalPickerOptions {
 	return shared.FestivalPickerOptions{
 		PreferredStatuses:        []string{"active", "ready", "planning"},
@@ -152,39 +155,41 @@ func runPromoteCompletions(ctx context.Context, color bool) error {
 
 var errPromoteCancelled = errors.New("promotion cancelled")
 
-// resolveFestivalForPromote resolves the festival to promote from an explicit
-// selector, the current directory, or an interactive picker. The returned bool
-// reports whether the festival was chosen from the picker.
+// resolveFestivalForPromote resolves the festival to promote using the shared
+// TargetResolver (cwd-scoped picker, matching fest watch). The returned bool
+// reports whether the festival was chosen from the interactive picker. When
+// allowPicker is false (e.g. --json mode), the picker tier is skipped so
+// non-interactive callers get a structured NotFound instead of a TUI launch.
 func resolveFestivalForPromote(ctx context.Context, festivalsDir, cwd, selector string, allowPicker bool) (*show.FestivalInfo, bool, error) {
-	if strings.TrimSpace(selector) != "" {
-		path, err := shared.ResolveFestivalSelector(ctx, cwd, selector)
-		if err != nil {
-			return nil, false, err
-		}
-		festival, err := show.DetectCurrentFestival(ctx, path, "")
-		return festival, false, err
-	}
-
-	if loc, err := show.DetectCurrentLocation(ctx, cwd); err == nil && loc.Festival != nil {
-		return loc.Festival, false, nil
-	}
-
-	if allowPicker && festivalsDir != "" {
-		picked, outcome, err := shared.PickFestival(ctx, festivalsDir, promotePickerOptions())
-		if err != nil {
-			return nil, false, err
-		}
-		switch outcome {
-		case shared.FestivalPicked:
-			festival, err := show.DetectCurrentFestival(ctx, picked, "")
-			return festival, true, err
-		case shared.FestivalPickCancelled:
+	r := promoteTargetResolver(cwd, festivalsDir, allowPicker)
+	festival, source, err := r.Resolve(ctx, selector)
+	if err != nil {
+		if resolver.IsPickerCancelled(err) {
 			return nil, false, errPromoteCancelled
 		}
+		return nil, false, err
 	}
+	return festival, source == resolver.ResolveSourcePicker, nil
+}
 
-	return nil, false, errors.NotFound("festival").
-		WithHint("Run inside a festival, pass a name (fest promote <festival>), or run 'fest promote' in a terminal to pick one")
+// promoteTargetResolver is the shared TargetResolver used by fest promote.
+// PickerOptions is DefaultPickerOptions so a user browsing festivals/ready
+// sees ready festivals first, matching fest watch.
+func promoteTargetResolver(cwd, festivalsDir string, allowPicker bool) resolver.TargetResolver {
+	r := resolver.DefaultTargetResolver(resolver.TargetResolverOptions{
+		PickerOptions: resolver.DefaultPickerOptions,
+	})
+	// Inject the caller-provided cwd and festivals directory so the resolver
+	// does not re-derive them from os.Getwd (the scope may have resolved a
+	// different workspace root than the process cwd).
+	r.Getwd = func() (string, error) { return cwd, nil }
+	if festivalsDir != "" {
+		r.FindFestivals = func(string) (string, error) { return festivalsDir, nil }
+	}
+	if !allowPicker {
+		r.CanPickFestival = func() bool { return false }
+	}
+	return r
 }
 
 // confirmPromotion asks the operator to confirm a picker-selected promotion.

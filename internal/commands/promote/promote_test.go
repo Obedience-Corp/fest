@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -366,8 +367,43 @@ func TestResolveFestivalForPromote_NoContextNonInteractive(t *testing.T) {
 	if fromPicker {
 		t.Error("no festival should be reported as a picker selection")
 	}
-	if !strings.Contains(strings.ToLower(err.Error()), "festival") {
-		t.Errorf("error should mention festival, got: %v", err)
+
+	var structured *ferrors.Error
+	if !errors.As(err, &structured) {
+		t.Fatalf("expected structured error, got %T: %v", err, err)
+	}
+	if structured.Code != ferrors.ErrCodeNotFound {
+		t.Fatalf("code = %q, want %q (agents branch on ErrCodeNotFound)", structured.Code, ferrors.ErrCodeNotFound)
+	}
+	if !ferrors.Is(err, ferrors.ErrCodeNotFound) {
+		t.Fatalf("errors.Is(%q) = false", ferrors.ErrCodeNotFound)
+	}
+	if structured.Fields["resource"] != "festival" {
+		t.Fatalf("resource field = %#v, want festival", structured.Fields["resource"])
+	}
+	if structured.Hint == "" {
+		t.Fatal("hint must be set so operators know how to recover")
+	}
+	if !strings.Contains(structured.Hint, "interactive terminal") {
+		t.Fatalf("hint should mention interactive terminal, got %q", structured.Hint)
+	}
+}
+
+func TestPromotePickerNarrowsToStatusDirectoryLikeWatch(t *testing.T) {
+	cwd := "/campaign/festivals/ready"
+	festivalsDir := "/campaign/festivals"
+	r := promoteTargetResolver(cwd, festivalsDir, true)
+	got := r.PickerOptions(cwd, festivalsDir)
+	if !reflect.DeepEqual(got.PreferredStatuses, []string{"ready"}) {
+		t.Fatalf("promote picker PreferredStatuses = %#v, want [ready] (must match fest watch)", got.PreferredStatuses)
+	}
+	if !reflect.DeepEqual(got.FallbackStatuses, shared.WorkingFestivalPickerStatuses) {
+		t.Fatalf("promote picker FallbackStatuses = %#v, want working statuses", got.FallbackStatuses)
+	}
+
+	fromRoot := promoteTargetResolver("/campaign", festivalsDir, true).PickerOptions("/campaign", festivalsDir)
+	if !reflect.DeepEqual(fromRoot.PreferredStatuses, shared.WorkingFestivalPickerStatuses) {
+		t.Fatalf("promote picker from campaign root PreferredStatuses = %#v, want working statuses", fromRoot.PreferredStatuses)
 	}
 }
 
