@@ -8,8 +8,9 @@ Festivals progress through status directories within the `festivals/` workspace:
 
 | Directory | Purpose | Promote Target | Can Transition To |
 |-----------|---------|---------------|-------------------|
-| `planning/` | Being designed and planned | `ready/` | `ready/`, `dungeon/archived/`, `dungeon/someday/` |
-| `ready/` | Validated, waiting to begin | `active/` | `active/`, `planning/`, `dungeon/archived/`, `dungeon/someday/` |
+| `planning/` | Being designed and planned | `ready/` | `ready/`, `parked/`, `dungeon/archived/`, `dungeon/someday/` |
+| `ready/` | Validated, waiting to begin | `active/` | `active/`, `parked/`, `planning/`, `dungeon/archived/`, `dungeon/someday/` |
+| `parked/` | Planned, deliberately not scheduled | `ready/` (refresh first) | `ready/`, `planning/`, `dungeon/archived/`, `dungeon/someday/` |
 | `active/` | Currently executing | `completed` | `dungeon/completed/`, `dungeon/archived/`, `dungeon/someday/` |
 | `ritual/` | Repeatable festival templates | N/A (use `fest ritual run`) | `active/` (via copy, not move) |
 | `dungeon/completed/` | Successfully finished | Terminal | N/A |
@@ -23,7 +24,7 @@ The authoritative list of status directories is defined in source code:
 ```go
 // internal/id/generator.go
 var StatusDirectories = []string{
-    "planning", "ready", "active", "ritual",
+    "planning", "ready", "parked", "active", "ritual",
     "dungeon/completed", "dungeon/archived", "dungeon/someday",
 }
 ```
@@ -76,6 +77,7 @@ Use `--force` to skip validation checks.
 fest status set ready
 fest status set active
 fest status set completed
+fest status set parked
 
 # Dungeon sub-statuses
 fest status set dungeon/archived
@@ -87,6 +89,29 @@ fest status set dungeon
 # Force (skip transition validation and confirmation)
 fest status set --force active
 ```
+
+## Parked Status
+
+`parked/` is a non-terminal status between `ready/` and `dungeon/someday/`. It
+holds festivals that are planned but deliberately not scheduled for execution.
+
+`ready/` should stay small — only festivals that are genuinely next up. Move a
+festival to `parked/` when you intend to do it eventually but not now. A parked
+festival is expected to be stale; refresh its citations and worktree before
+promoting it back to `ready/`.
+
+```bash
+# Park a ready festival
+fest status set parked
+
+# Park a planning festival
+fest status set parked
+
+# Promote back to ready (refresh first)
+fest status set ready
+```
+
+Parked festivals appear in `fest list` (default view) and `fest go` navigation.
 
 ## Date-Based Completion
 

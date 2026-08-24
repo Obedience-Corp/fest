@@ -58,7 +58,7 @@ fi
 # Tab completion for fls - complete status names and flags
 # Status vocabulary mirrors id.StatusDirectories (+ dungeon, all); keep in sync.
 _fls_completions() {
-    local completions="active ready planning ritual completed dungeon all --json --all --help"
+    local completions="active ready planning parked ritual completed dungeon all --json --all --help"
     COMPREPLY=($(compgen -W "$completions" -- "${COMP_WORDS[COMP_CWORD]}"))
 }
 
@@ -74,6 +74,7 @@ if [[ -n "$ZSH_VERSION" ]]; then
             'active:Festivals currently in progress'
             'ready:Festivals prepared and awaiting execution'
             'planning:Festivals being designed'
+            'parked:Festivals planned but not scheduled'
             'ritual:Recurring or special festivals'
             'completed:Successfully finished festivals'
             'dungeon:All shelved festivals'

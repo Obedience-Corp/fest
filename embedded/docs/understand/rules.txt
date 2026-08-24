@@ -23,6 +23,7 @@ STATUS DIRECTORIES
   festivals/
     planning/              Festivals being planned
     ready/                 Planned and reviewed, ready for execution
+    parked/                Planned but deliberately not scheduled
     active/                Currently executing
     ritual/                Recurring festivals (run periodically)
     dungeon/completed/     Successfully finished
@@ -30,6 +31,7 @@ STATUS DIRECTORIES
     dungeon/someday/       Deferred indefinitely
 
   Lifecycle flow: planning → ready → active → dungeon/completed
+  Parked is a non-terminal holding area between ready and someday.
 
 REQUIRED FILES
 --------------

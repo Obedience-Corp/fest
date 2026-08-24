@@ -27,7 +27,7 @@ func TestCompleteListStatus_OffersVocabularyWithDescriptions(t *testing.T) {
 	}
 
 	for _, want := range []string{
-		"active", "ready", "planning", "ritual", "completed",
+		"active", "ready", "planning", "parked", "ritual", "completed",
 		"dungeon", "dungeon/completed", "dungeon/archived", "dungeon/someday", "all",
 	} {
 		if _, ok := values[want]; !ok {

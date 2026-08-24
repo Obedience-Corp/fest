@@ -66,8 +66,9 @@ func TestBashZshScriptFlsStatusVocabulary(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, want := range []string{
-		"active ready planning ritual completed dungeon all",
+		"active ready planning parked ritual completed dungeon all",
 		"'ready:",
+		"'parked:",
 		"'ritual:",
 		"'all:",
 	} {

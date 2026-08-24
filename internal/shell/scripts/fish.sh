@@ -24,7 +24,7 @@ complete -c fgo -f -a "(__fgo_completions)"
 # Tab completion for fls
 # Status vocabulary mirrors id.StatusDirectories (+ dungeon, all); keep in sync
 # with the bash and zsh lists in bash_zsh_completions.sh.
-complete -c fls -f -a "active ready planning ritual completed dungeon all"
+complete -c fls -f -a "active ready planning parked ritual completed dungeon all"
 complete -c fls -l json -d "Output in JSON format"
 complete -c fls -l all -d "Include completed and dungeon festivals"
 complete -c fls -l help -d "Show help for fest list"

@@ -5,6 +5,7 @@ Festivals progress through lifecycle directories under festivals/:
 
   planning/    Being planned and designed
   ready/       Planned and ready to execute
+  parked/      Planned but deliberately not scheduled
   active/      Currently executing
   ritual/      Recurring/repeatable festivals (ritual type)
   dungeon/     Terminal states
@@ -13,6 +14,9 @@ Festivals progress through lifecycle directories under festivals/:
     someday/     Deprioritized, may be revisited
 
 Flow: planning -> ready -> active -> dungeon/completed
+
+Parked is a non-terminal holding area. Move a festival to parked/ when you
+intend to do it eventually but not now. Refresh before promoting back to ready.
 
 MOVING A FESTIVAL
 -----------------

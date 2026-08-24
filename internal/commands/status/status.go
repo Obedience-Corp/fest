@@ -111,7 +111,7 @@ CONTEXT-AWARE BEHAVIOR:
 When no explicit level flag is provided, the command auto-detects the
 appropriate level based on your current directory:
 
-  Festival root  → Sets festival status (planning/active/completed/dungeon)
+  Festival root  → Sets festival status (planning/parked/active/completed/dungeon)
   Phase directory → Sets phase status (pending/in_progress/completed)
   Sequence directory → Sets sequence status (pending/in_progress/completed)
   Task directory → Shows hint (task status requires explicit --task flag)

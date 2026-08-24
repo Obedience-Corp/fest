@@ -271,9 +271,10 @@ func TestFestivalSchema(t *testing.T) {
 		expected := map[string]int{
 			"planning": 1,
 			"ready":    2,
-			"active":   3,
-			"ritual":   4,
-			"dungeon":  5,
+			"parked":   3,
+			"active":   4,
+			"ritual":   5,
+			"dungeon":  6,
 		}
 		for name, wantOrder := range expected {
 			dir := schema.Directories[name]
@@ -307,7 +308,7 @@ func TestFestivalSchema(t *testing.T) {
 	})
 
 	t.Run("no unexpected directories", func(t *testing.T) {
-		allowed := map[string]bool{"planning": true, "ready": true, "active": true, "ritual": true, "dungeon": true}
+		allowed := map[string]bool{"planning": true, "ready": true, "parked": true, "active": true, "ritual": true, "dungeon": true}
 		for name := range schema.Directories {
 			if !allowed[name] {
 				t.Errorf("unexpected directory: %q", name)

@@ -200,6 +200,6 @@ func TestFestEntries_WriteReadRoundTrip(t *testing.T) {
 
 func TestFestEntries_ExpectedCount(t *testing.T) {
 	entries := FestEntries()
-	// 5 methodology state + 7 status dirs + 3 templates = 15
-	assert.Len(t, entries, 15, "expected 15 fest entries")
+	// 5 methodology state + 8 status dirs + 3 templates = 16
+	assert.Len(t, entries, 16, "expected 16 fest entries")
 }
