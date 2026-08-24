@@ -5,6 +5,7 @@ package integration
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -62,6 +63,33 @@ metadata:
       timestamp: 2026-01-01T00:00:00Z
 `)
 
+	writeContainerFile(t, container,
+		sourcePath+"/.fest/progress_events.jsonl",
+		`{"ts":"2026-01-15T00:00:00Z","event":"completed","task":"001_REVIEW/01_audit.md"}
+`)
+	writeContainerFile(t, container,
+		sourcePath+"/.fest/status_history.json",
+		`[{"status":"completed","timestamp":"2026-01-15T00:00:00Z"}]
+`)
+	writeContainerFile(t, container,
+		sourcePath+"/.workflow/runs/r1/progress_events.jsonl",
+		`{"ts":"2026-01-15T00:00:00Z","event":"wf_step_done"}
+`)
+	writeContainerFile(t, container,
+		sourcePath+"/001_REVIEW/01_audit.md",
+		`---
+fest_type: task
+fest_id: 01_audit
+fest_status: completed
+---
+
+# Audit
+
+- [x] Review access logs
+- [X] Check firewall
+See [x] in prose
+`)
+
 	t.Run("convert copies to ritual with correct config", func(t *testing.T) {
 		output, err := container.RunFestInDir(workspaceRoot, "ritual", "convert", "quarterly-security-review", "--frequency", "quarterly")
 		require.NoError(t, err, "fest ritual convert should succeed: %s", output)
@@ -86,10 +114,16 @@ metadata:
 		require.NotContains(t, config, "status_history",
 			"expected status_history to be stripped from converted config, got:\n%s", config)
 
-		// Source festival should still be in planning/ (preserve by default).
+		assertConvertedProgressReset(t, container, ritualPath)
+
+		// Source festival should still be in planning/ (preserve by default)
+		// and should still carry its original progress artifacts.
 		sourceExists, err := container.CheckFileExists(sourcePath + "/fest.yaml")
 		require.NoError(t, err)
 		require.True(t, sourceExists, "source festival should be preserved in planning/")
+		sourceProgress, err := container.CheckFileExists(sourcePath + "/.fest/progress_events.jsonl")
+		require.NoError(t, err)
+		require.True(t, sourceProgress, "source progress artifacts should be left intact")
 	})
 
 	t.Run("fest ritual run on converted ritual produces active copy", func(t *testing.T) {
@@ -103,6 +137,8 @@ metadata:
 		exists, err := container.CheckFileExists(runPath + "/FESTIVAL_OVERVIEW.md")
 		require.NoError(t, err)
 		require.True(t, exists, "expected ritual run file at %s", runPath+"/FESTIVAL_OVERVIEW.md")
+
+		assertConvertedProgressReset(t, container, runPath)
 	})
 
 	t.Run("dry-run does not write", func(t *testing.T) {
@@ -141,4 +177,71 @@ metadata:
 		require.Error(t, err, "should refuse to convert an already-ritual festival")
 		require.Contains(t, output, "already a ritual")
 	})
+
+	t.Run("ambiguous substring selector errors", func(t *testing.T) {
+		alpha := festivalsRoot + "/planning/zzconvambig-alpha-ZA0001"
+		beta := festivalsRoot + "/planning/zzconvambig-beta-ZB0001"
+		writeContainerFile(t, container, alpha+"/fest.yaml",
+			"version: \"1.0\"\nmetadata:\n  id: ZA0001\n  name: zzconvambig-alpha\n")
+		writeContainerFile(t, container, beta+"/fest.yaml",
+			"version: \"1.0\"\nmetadata:\n  id: ZB0001\n  name: zzconvambig-beta\n")
+
+		output, err := container.RunFestInDir(workspaceRoot, "ritual", "convert", "zzconvambig")
+		require.Error(t, err, "ambiguous substring should fail")
+		require.Contains(t, strings.ToLower(output), "ambiguous")
+	})
+
+	t.Run("reset-progress false keeps progress artifacts", func(t *testing.T) {
+		keepName := "keep-progress-KP0001"
+		keepPath := festivalsRoot + "/planning/" + keepName
+		writeContainerFile(t, container, keepPath+"/fest.yaml",
+			`version: "1.0"
+metadata:
+  id: KP0001
+  name: keep-progress
+  festival_type: standard
+`)
+		writeContainerFile(t, container, keepPath+"/.fest/progress_events.jsonl",
+			`{"ts":"2026-01-15T00:00:00Z","event":"completed","task":"01_keep.md"}
+`)
+		writeContainerFile(t, container, keepPath+"/01_keep.md",
+			"---\nfest_type: task\nfest_status: completed\n---\n\n- [x] Kept\n")
+
+		output, err := container.RunFestInDir(workspaceRoot, "ritual", "convert", "keep-progress", "--reset-progress=false")
+		require.NoError(t, err, "convert --reset-progress=false should succeed: %s", output)
+
+		ritualKeep := festivalsRoot + "/ritual/keep-progress-RI-KP0002"
+		progressExists, err := container.CheckFileExists(ritualKeep + "/.fest/progress_events.jsonl")
+		require.NoError(t, err)
+		require.True(t, progressExists, "progress JSONL should be preserved when reset is off")
+
+		task, err := container.ReadFile(ritualKeep + "/01_keep.md")
+		require.NoError(t, err)
+		require.Contains(t, task, "- [x] Kept")
+		require.Contains(t, task, "fest_status: completed")
+	})
+}
+
+func assertConvertedProgressReset(t *testing.T, container *TestContainer, festivalPath string) {
+	t.Helper()
+
+	progressExists, err := container.CheckFileExists(festivalPath + "/.fest/progress_events.jsonl")
+	require.NoError(t, err)
+	require.False(t, progressExists, "progress_events.jsonl should be stripped from %s", festivalPath)
+
+	historyExists, err := container.CheckFileExists(festivalPath + "/.fest/status_history.json")
+	require.NoError(t, err)
+	require.False(t, historyExists, "status_history.json should be stripped from %s", festivalPath)
+
+	workflowExists, err := container.CheckDirExists(festivalPath + "/.workflow")
+	require.NoError(t, err)
+	require.False(t, workflowExists, ".workflow should be stripped from %s", festivalPath)
+
+	task, err := container.ReadFile(festivalPath + "/001_REVIEW/01_audit.md")
+	require.NoError(t, err)
+	require.Contains(t, task, "fest_status: pending", "task completion status should reset in %s", festivalPath)
+	require.Contains(t, task, "- [ ] Review access logs")
+	require.Contains(t, task, "- [ ] Check firewall")
+	require.Contains(t, task, "See [x] in prose", "prose [x] must not be rewritten")
+	require.NotContains(t, task, "fest_status: completed")
 }

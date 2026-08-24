@@ -19,11 +19,12 @@ import (
 )
 
 type convertOptions struct {
-	frequency  string
-	name       string
-	dryRun     bool
-	moveSource bool
-	json       bool
+	frequency     string
+	name          string
+	dryRun        bool
+	moveSource    bool
+	json          bool
+	resetProgress bool
 }
 
 // newConvertCommand creates the fest ritual convert subcommand.
@@ -37,6 +38,9 @@ func newConvertCommand() *cobra.Command {
 The source festival is preserved by default. The copy is placed in ritual/
 with an RI-XX0001 ID suffix, its fest.yaml metadata.festival_type is set to
 "ritual", and a ritual_config block with run_count: 0 is added.
+
+Progress artifacts and task completion state are stripped from the copy by
+default so fest ritual run starts clean. Pass --reset-progress=false to keep them.
 
 Use --move-source to archive the original after conversion.`,
 		Args: cobra.ExactArgs(1),
@@ -53,6 +57,7 @@ Use --move-source to archive the original after conversion.`,
 	cmd.Flags().StringVar(&opts.name, "name", "", "Override the festival name in the new ritual template (defaults to source name)")
 	cmd.Flags().BoolVar(&opts.dryRun, "dry-run", false, "Show what would change without writing")
 	cmd.Flags().BoolVar(&opts.moveSource, "move-source", false, "Move the source festival to dungeon/archived after conversion (default: preserve source)")
+	cmd.Flags().BoolVar(&opts.resetProgress, "reset-progress", true, "Strip progress artifacts and task completion state from the copy")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "output as JSON")
 
 	return cmd
@@ -86,7 +91,7 @@ func runConvert(ctx context.Context, nameOrID string, opts *convertOptions) erro
 	}
 
 	// Find the source festival across all status directories.
-	sourcePath, sourceStatus, err := findFestivalForConvert(festivalsRoot, nameOrID)
+	sourcePath, sourceStatus, err := findFestivalForConvert(ctx, festivalsRoot, nameOrID)
 	if err != nil {
 		return err
 	}
@@ -173,6 +178,13 @@ func runConvert(ctx context.Context, nameOrID string, opts *convertOptions) erro
 			WithField("dest", destPath)
 	}
 
+	if opts.resetProgress {
+		if err := resetProgressArtifacts(ctx, destPath); err != nil {
+			return errors.Wrap(err, "resetting progress on converted ritual").
+				WithField("dest", destPath)
+		}
+	}
+
 	// Mutate the copied fest.yaml: set type to ritual, add ritual_config, drop status_history.
 	convertedCfg, cfgErr := config.LoadFestivalConfig(destPath, "")
 	if cfgErr != nil {
@@ -219,17 +231,18 @@ func runConvert(ctx context.Context, nameOrID string, opts *convertOptions) erro
 
 	if opts.json {
 		result := map[string]any{
-			"success":      true,
-			"action":       "ritual_convert",
-			"source":       sourcePath,
-			"source_dir":   sourceDirName,
-			"dest":         destPath,
-			"ritual_dir":   ritualDirName,
-			"ritual_id":    ritualID,
-			"ritual_name":  ritualName,
-			"schedule":     schedule,
-			"run_count":    0,
-			"moved_source": opts.moveSource,
+			"success":        true,
+			"action":         "ritual_convert",
+			"source":         sourcePath,
+			"source_dir":     sourceDirName,
+			"dest":           destPath,
+			"ritual_dir":     ritualDirName,
+			"ritual_id":      ritualID,
+			"ritual_name":    ritualName,
+			"schedule":       schedule,
+			"run_count":      0,
+			"moved_source":   opts.moveSource,
+			"reset_progress": opts.resetProgress,
 		}
 		if archivedPath != "" {
 			result["archived_to"] = archivedPath
@@ -244,6 +257,9 @@ func runConvert(ctx context.Context, nameOrID string, opts *convertOptions) erro
 	if opts.frequency != "" {
 		display.Info("  Schedule: %s", opts.frequency)
 	}
+	if opts.resetProgress {
+		display.Info("  Progress artifacts reset")
+	}
 	if opts.moveSource {
 		display.Info("  Source archived to: %s", archivedPath)
 	}
@@ -254,15 +270,16 @@ func runConvert(ctx context.Context, nameOrID string, opts *convertOptions) erro
 func reportConvertDryRun(display *ui.UI, opts *convertOptions, sourcePath, destPath, ritualDirName, ritualID, ritualName string) error {
 	if opts.json {
 		result := map[string]any{
-			"success":           true,
-			"action":            "ritual_convert_dry_run",
-			"source":            sourcePath,
-			"dest":              destPath,
-			"ritual_dir":        ritualDirName,
-			"ritual_id":         ritualID,
-			"ritual_name":       ritualName,
-			"schedule":          opts.frequency,
-			"would_move_source": opts.moveSource,
+			"success":              true,
+			"action":               "ritual_convert_dry_run",
+			"source":               sourcePath,
+			"dest":                 destPath,
+			"ritual_dir":           ritualDirName,
+			"ritual_id":            ritualID,
+			"ritual_name":          ritualName,
+			"schedule":             opts.frequency,
+			"would_move_source":    opts.moveSource,
+			"would_reset_progress": opts.resetProgress,
 		}
 		return shared.EncodeJSON(os.Stdout, result)
 	}
@@ -275,82 +292,13 @@ func reportConvertDryRun(display *ui.UI, opts *convertOptions, sourcePath, destP
 	if opts.frequency != "" {
 		display.Info("  Schedule: %s", opts.frequency)
 	}
+	if opts.resetProgress {
+		display.Info("  Would reset progress artifacts")
+	}
 	if opts.moveSource {
 		display.Info("  Would move source to: dungeon/archived/")
 	}
 	return nil
-}
-
-// findFestivalForConvert searches all status directories for a matching festival.
-// Returns the path and its status directory name.
-func findFestivalForConvert(festivalsRoot, nameOrID string) (string, string, error) {
-	for _, status := range id.StatusDirectories {
-		statusPath := workspace.JoinStatus(festivalsRoot, status)
-
-		entries, err := os.ReadDir(statusPath)
-		if err != nil {
-			continue
-		}
-
-		for _, entry := range entries {
-			if !entry.IsDir() {
-				continue
-			}
-
-			entryPath := filepath.Join(statusPath, entry.Name())
-
-			// Try exact directory name match.
-			if entry.Name() == nameOrID {
-				return entryPath, status, nil
-			}
-
-			// Try matching by festival ID suffix.
-			if dirID, idErr := id.ExtractIDFromDirName(entry.Name()); idErr == nil && dirID == nameOrID {
-				return entryPath, status, nil
-			}
-
-			// Try substring match.
-			if contains(entry.Name(), nameOrID) {
-				return entryPath, status, nil
-			}
-		}
-
-		// For dungeon statuses, check date subdirectories.
-		if strings.HasPrefix(status, "dungeon/") {
-			for _, entry := range entries {
-				if !entry.IsDir() {
-					continue
-				}
-				if !isDateDir(entry.Name()) {
-					continue
-				}
-				datePath := filepath.Join(statusPath, entry.Name())
-				dateEntries, dateErr := os.ReadDir(datePath)
-				if dateErr != nil {
-					continue
-				}
-				for _, de := range dateEntries {
-					if !de.IsDir() {
-						continue
-					}
-					entryPath := filepath.Join(datePath, de.Name())
-					if de.Name() == nameOrID {
-						return entryPath, status, nil
-					}
-					if dirID, idErr := id.ExtractIDFromDirName(de.Name()); idErr == nil && dirID == nameOrID {
-						return entryPath, status, nil
-					}
-					if contains(de.Name(), nameOrID) {
-						return entryPath, status, nil
-					}
-				}
-			}
-		}
-	}
-
-	return "", "", errors.NotFound("festival").
-		WithField("query", nameOrID).
-		WithHint("Run 'fest list --all' to see available festivals")
 }
 
 // checkChainMembership checks if a festival is part of any chain.
@@ -366,25 +314,6 @@ func checkChainMembership(ctx context.Context, festivalID, festivalsRoot string)
 	}
 
 	return true, fmt.Sprintf("festival %s is a node in chain %q", festivalID, c.Metadata.Name)
-}
-
-// isDateDir checks if a directory name looks like a date bucket.
-func isDateDir(name string) bool {
-	if len(name) < 7 {
-		return false
-	}
-	// YYYY-MM or YYYY-MM-DD
-	if len(name) == 7 {
-		return name[4] == '-' && isDigit(name[5]) && isDigit(name[6])
-	}
-	if len(name) == 10 {
-		return name[4] == '-' && name[7] == '-'
-	}
-	return false
-}
-
-func isDigit(b byte) bool {
-	return b >= '0' && b <= '9'
 }
 
 // sanitizeDirName replaces spaces and slashes in a name for use as a directory component.

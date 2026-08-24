@@ -67,3 +67,14 @@ func TestIsDigit(t *testing.T) {
 		}
 	}
 }
+
+func TestConvertResetProgressDefault(t *testing.T) {
+	cmd := newConvertCommand()
+	flag := cmd.Flags().Lookup("reset-progress")
+	if flag == nil {
+		t.Fatal("expected --reset-progress flag")
+	}
+	if flag.DefValue != "true" {
+		t.Fatalf("--reset-progress default = %q, want true", flag.DefValue)
+	}
+}
