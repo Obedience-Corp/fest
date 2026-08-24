@@ -78,7 +78,7 @@ Use --dungeon to send a festival directly to a dungeon status:
 
 	cmd.Flags().BoolVar(&opts.force, "force", false, "skip readiness validation")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "output as JSON")
-	cmd.Flags().BoolVar(&opts.noCommit, "no-commit", false, "skip auto-commit after promotion")
+	cmd.Flags().BoolVar(&opts.noCommit, "no-commit", false, "skip auto-commit after promotion (rejected when agent.require_auto_commit is enabled)")
 	cmd.Flags().StringVar(&opts.dungeon, "dungeon", "", "send to dungeon status (completed, archived, someday)")
 
 	cmd.AddCommand(NewPromoteCompletionsCommand())
@@ -251,6 +251,32 @@ func PromoteResolved(ctx context.Context, festival *show.FestivalInfo) (string, 
 
 func promoteCore(ctx context.Context, festival *show.FestivalInfo, confirm bool, opts *promoteOptions) (string, error) {
 	currentStatus := festival.Status
+
+	// Resolve auto-commit policy from trusted configuration before honoring
+	// the --no-commit flag. Agents must not bypass required auto-commit.
+	if opts.noCommit {
+		festivalsRoot, _ := tpl.FindFestivalsRoot(festival.Path)
+		agentCfg, err := config.LoadEffectiveAgentConfig(festivalsRoot, festival.Path)
+		if err != nil {
+			return "", errors.Wrap(err, "loading auto-commit policy")
+		}
+		shouldCommit, rejected := config.EffectiveAutoCommit(agentCfg, opts.noCommit)
+		if rejected {
+			if opts.json {
+				if encErr := shared.EncodeJSON(os.Stdout, map[string]any{
+					"success": false,
+					"error":   config.AutoCommitRequiredMessage,
+					"hint":    config.AutoCommitRequiredHint,
+				}); encErr != nil {
+					return "", encErr
+				}
+				return "", errors.ErrAlreadyPrinted
+			}
+			return "", errors.Validation(config.AutoCommitRequiredMessage).
+				WithHint(config.AutoCommitRequiredHint)
+		}
+		opts.noCommit = !shouldCommit
+	}
 
 	var nextStatus string
 

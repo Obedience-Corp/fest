@@ -158,7 +158,7 @@ These flags are mutually exclusive - only one level can be targeted at a time.`,
 	cmd.Flags().BoolVar(&opts.force, "force", false, "skip all prompts including non-standard transition warnings")
 	cmd.Flags().BoolVar(&opts.json, "json", false, "output in JSON format")
 	cmd.Flags().BoolVarP(&opts.interactive, "interactive", "i", false, "force interactive festival selection")
-	cmd.Flags().BoolVar(&opts.noCommit, "no-commit", false, "skip auto-commit after status change")
+	cmd.Flags().BoolVar(&opts.noCommit, "no-commit", false, "skip auto-commit after status change (rejected when agent.require_auto_commit is enabled)")
 
 	// Level targeting flags
 	cmd.Flags().StringVar(&opts.phase, "phase", "", "target phase by name or number (e.g., '001_CRITICAL' or '001')")

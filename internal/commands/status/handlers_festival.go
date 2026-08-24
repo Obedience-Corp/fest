@@ -291,6 +291,32 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 		return errors.Wrap(err, "context cancelled")
 	}
 
+	// Resolve auto-commit policy from trusted configuration before honoring
+	// the --no-commit flag. Agents must not bypass required auto-commit.
+	if opts.noCommit {
+		festivalsRoot := festivalsRootFromPath(festival.Path, festival.Status)
+		agentCfg, err := config.LoadEffectiveAgentConfig(festivalsRoot, festival.Path)
+		if err != nil {
+			return errors.Wrap(err, "loading auto-commit policy")
+		}
+		shouldCommit, rejected := config.EffectiveAutoCommit(agentCfg, opts.noCommit)
+		if rejected {
+			if opts.json {
+				if encErr := shared.EncodeJSON(os.Stdout, map[string]any{
+					"success": false,
+					"error":   config.AutoCommitRequiredMessage,
+					"hint":    config.AutoCommitRequiredHint,
+				}); encErr != nil {
+					return encErr
+				}
+				return errors.ErrAlreadyPrinted
+			}
+			return errors.Validation(config.AutoCommitRequiredMessage).
+				WithHint(config.AutoCommitRequiredHint)
+		}
+		opts.noCommit = !shouldCommit
+	}
+
 	// Calculate new path
 	festivalsRoot := festivalsRootFromPath(festival.Path, festival.Status)
 
