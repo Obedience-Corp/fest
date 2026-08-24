@@ -10,10 +10,10 @@ import (
 	"testing"
 )
 
-func writeFakeAgent(t *testing.T, dir string) string {
+func writeFakeWorker(t *testing.T, dir string) string {
 	t.Helper()
-	path := filepath.Join(dir, "fake-agent")
-	body := "#!/bin/sh\necho ran >> \"$PWD/agent.log\"\nexit 0\n"
+	path := filepath.Join(dir, "fake-worker")
+	body := "#!/bin/sh\necho ran >> \"$PWD/worker.log\"\nexit 0\n"
 	if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -143,10 +143,10 @@ workflow_id: wf-runloop
 **Goal:** second.
 `)
 	initGit(t, dir)
-	agent := writeFakeAgent(t, dir)
+	worker := writeFakeWorker(t, dir)
 	var buf bytes.Buffer
 	err := Drive(context.Background(), dir, Options{
-		Exec:       agent,
+		Exec:       worker,
 		MaxTasks:   8,
 		MaxMinutes: 5,
 		Stdout:     &buf,
@@ -157,13 +157,13 @@ workflow_id: wf-runloop
 	if !strings.Contains(buf.String(), "outcome: completed") {
 		t.Fatalf("output = %s", buf.String())
 	}
-	logPath := filepath.Join(dir, "agent.log")
+	logPath := filepath.Join(dir, "worker.log")
 	data, err := os.ReadFile(logPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if strings.Count(string(data), "ran") != 2 {
-		t.Fatalf("agent log = %s", data)
+		t.Fatalf("worker log = %s", data)
 	}
 }
 
@@ -183,7 +183,7 @@ workflow_id: wf-runloop
 	if err := os.WriteFile(marker, []byte("stay"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	fail := filepath.Join(dir, "fail-agent")
+	fail := filepath.Join(dir, "fail-worker")
 	if err := os.WriteFile(fail, []byte("#!/bin/sh\nexit 1\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}

@@ -75,4 +75,10 @@ func TestRunCommandIsCobra(t *testing.T) {
 	if execFlag.DefValue != "" {
 		t.Fatalf("exec default = %q, want empty", execFlag.DefValue)
 	}
+	blob := strings.ToLower(cmd.Short + "\n" + cmd.Long + "\n" + cmd.Example)
+	for _, vendor := range []string{"claude", "codex", "cursor", "gemini", "anthropic"} {
+		if strings.Contains(blob, vendor) {
+			t.Fatalf("fest run help names vendor %q", vendor)
+		}
+	}
 }

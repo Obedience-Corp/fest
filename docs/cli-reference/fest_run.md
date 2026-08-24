@@ -13,8 +13,7 @@ Default (and --dry): classify the next slice, record it, print a report.
 Human gates, blocked tasks, and live judges are successful stops.
 
 --exec <command> loops: run that command with the slice on stdin, then
-advance. The command can be any worker. Fest does not know Claude, Codex,
-or any other harness.
+advance. The command can be any worker. Fest does not name or launch a harness.
 
 --status prints the morning report without appending to the ledger.
 
