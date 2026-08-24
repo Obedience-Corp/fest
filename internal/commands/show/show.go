@@ -748,7 +748,7 @@ func emitFestivalListJSON(status string, festivals []*FestivalInfo, campaignRoot
 }
 
 func emitFestivalListText(status string, festivals []*FestivalInfo) error {
-	fmt.Println(FormatFestivalList(status, festivals))
+	fmt.Println(FormatFestivalList(status, festivals, nil))
 	return nil
 }
 
@@ -776,6 +776,6 @@ func emitAllFestivalsJSON(allFestivals map[string][]*FestivalInfo, statusOrder [
 }
 
 func emitAllFestivalsText(allFestivals map[string][]*FestivalInfo, statusOrder []string) error {
-	fmt.Println(FormatAllFestivals(allFestivals, statusOrder))
+	fmt.Println(FormatAllFestivals(allFestivals, statusOrder, nil))
 	return nil
 }

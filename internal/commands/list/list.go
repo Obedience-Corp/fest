@@ -14,6 +14,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/progress"
+	"github.com/Obedience-Corp/fest/internal/tokencount"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
@@ -402,7 +403,7 @@ func listDungeon(ctx context.Context, festivalsDir string, opts *listOptions, ca
 	if opts.json {
 		result := make(map[string]interface{}, len(board.Festivals)+1)
 		for status, festivals := range board.Festivals {
-			result[status] = festivalsToMapWithProgress(festivals, board.Progress)
+			result[status] = festivalsToMapWithProgress(festivals, board.Progress, board.Tokens)
 		}
 		result["total"] = board.Total
 		if len(board.Residents) > 0 {
@@ -414,7 +415,7 @@ func listDungeon(ctx context.Context, festivalsDir string, opts *listOptions, ca
 		}
 		return outputJSON(result)
 	}
-	fmt.Print(formatDungeonHuman(board.Festivals, board.Order, board.Progress, board.Total, opts.progress))
+	fmt.Print(formatDungeonHuman(board.Festivals, board.Order, board.Progress, board.Total, opts.progress, board.Tokens))
 	return nil
 }
 
@@ -427,14 +428,14 @@ func listByStatus(ctx context.Context, festivalsDir, status string, opts *listOp
 		payload := map[string]interface{}{
 			"status":    status,
 			"count":     len(board.Festivals),
-			"festivals": festivalsToMapWithProgress(board.Festivals, board.Progress),
+			"festivals": festivalsToMapWithProgress(board.Festivals, board.Progress, board.Tokens),
 		}
 		if len(board.Residents) > 0 {
 			payload["residents"] = board.Residents
 		}
 		return outputJSON(payload)
 	}
-	fmt.Print(formatStatusHuman(status, board.Festivals, board.Residents, board.Progress, opts.progress))
+	fmt.Print(formatStatusHuman(status, board.Festivals, board.Residents, board.Progress, opts.progress, board.Tokens))
 	return nil
 }
 
@@ -446,7 +447,7 @@ func listAll(ctx context.Context, festivalsDir string, opts *listOptions, campai
 	if opts.json {
 		result := make(map[string]interface{}, len(board.Festivals)+1)
 		for status, festivals := range board.Festivals {
-			result[status] = festivalsToMapWithProgress(festivals, board.Progress)
+			result[status] = festivalsToMapWithProgress(festivals, board.Progress, board.Tokens)
 		}
 		result["total"] = board.Total
 		if len(board.Residents) > 0 {
@@ -458,7 +459,7 @@ func listAll(ctx context.Context, festivalsDir string, opts *listOptions, campai
 		}
 		return outputJSON(result)
 	}
-	fmt.Print(formatAllHuman(board.Festivals, board.Residents, board.Order, board.Progress, board.Total, opts.progress))
+	fmt.Print(formatAllHuman(board.Festivals, board.Residents, board.Order, board.Progress, board.Total, opts.progress, board.Tokens))
 	return nil
 }
 
@@ -512,8 +513,28 @@ func fetchProgressForFestivals(ctx context.Context, festivals []*show.FestivalIn
 	return progressMap
 }
 
+// fetchTokenCounts returns a map from festival path to tcount token count.
+// When --no-tokens is set, no campaign root is available, or counting fails
+// for a festival, the count is 0 and rendering continues without error.
+// Counts are cached under .campaign/cache/tokens/ so unchanged festivals are
+// not re-tokenized on subsequent runs.
+func fetchTokenCounts(ctx context.Context, campaignRoot string, festivals []*show.FestivalInfo) map[string]int {
+	if campaignRoot == "" {
+		return nil
+	}
+	tc, err := tokencount.NewCounter(ctx, campaignRoot)
+	if err != nil {
+		return nil
+	}
+	paths := make([]string, 0, len(festivals))
+	for _, f := range festivals {
+		paths = append(paths, f.Path)
+	}
+	return tc.CountFestivals(ctx, paths)
+}
+
 // festivalsToMapWithProgress converts festivals to map with optional detailed progress.
-func festivalsToMapWithProgress(festivals []*show.FestivalInfo, progressMap map[string]*progress.FestivalProgress) []map[string]interface{} {
+func festivalsToMapWithProgress(festivals []*show.FestivalInfo, progressMap map[string]*progress.FestivalProgress, tokenMap map[string]int) []map[string]interface{} {
 	result := make([]map[string]interface{}, 0, len(festivals))
 	for _, f := range festivals {
 		m := map[string]interface{}{
@@ -546,27 +567,33 @@ func festivalsToMapWithProgress(festivals []*show.FestivalInfo, progressMap map[
 				m["time_spent_minutes"] = prog.Overall.TimeSpentMin
 			}
 		}
+		// Add token count if available
+		if tokenMap != nil {
+			if tokens, ok := tokenMap[f.Path]; ok && tokens > 0 {
+				m["tokens"] = tokens
+			}
+		}
 		result = append(result, m)
 	}
 	return result
 }
 
-func formatDungeonHuman(allFestivals map[string][]*show.FestivalInfo, order []string, progressMap map[string]*progress.FestivalProgress, totalCount int, withProgress bool) string {
+func formatDungeonHuman(allFestivals map[string][]*show.FestivalInfo, order []string, progressMap map[string]*progress.FestivalProgress, totalCount int, withProgress bool, tokenMap map[string]int) string {
 	if totalCount == 0 {
 		return ui.Warning("No festivals in dungeon.") + "\n"
 	}
 	if withProgress {
-		return show.FormatAllFestivalsWithProgress(allFestivals, order, progressMap)
+		return show.FormatAllFestivalsWithProgress(allFestivals, order, progressMap, tokenMap)
 	}
-	return show.FormatAllFestivals(allFestivals, order)
+	return show.FormatAllFestivals(allFestivals, order, tokenMap)
 }
 
-func formatStatusHuman(status string, festivals []*show.FestivalInfo, residents []*show.ResidentCard, progressMap map[string]*progress.FestivalProgress, withProgress bool) string {
+func formatStatusHuman(status string, festivals []*show.FestivalInfo, residents []*show.ResidentCard, progressMap map[string]*progress.FestivalProgress, withProgress bool, tokenMap map[string]int) string {
 	var out string
 	if withProgress {
-		out = show.FormatFestivalListWithProgress(status, festivals, progressMap)
+		out = show.FormatFestivalListWithProgress(status, festivals, progressMap, tokenMap)
 	} else {
-		out = show.FormatFestivalList(status, festivals)
+		out = show.FormatFestivalList(status, festivals, tokenMap)
 	}
 	// Empty when there are no residents, which keeps a resident-free stage
 	// byte-identical to the pre-rail output.
@@ -576,7 +603,7 @@ func formatStatusHuman(status string, festivals []*show.FestivalInfo, residents 
 	return out
 }
 
-func formatAllHuman(allFestivals map[string][]*show.FestivalInfo, allResidents map[string][]*show.ResidentCard, statusOrder []string, progressMap map[string]*progress.FestivalProgress, totalCount int, withProgress bool) string {
+func formatAllHuman(allFestivals map[string][]*show.FestivalInfo, allResidents map[string][]*show.ResidentCard, statusOrder []string, progressMap map[string]*progress.FestivalProgress, totalCount int, withProgress bool, tokenMap map[string]int) string {
 	if totalCount == 0 && len(allResidents) == 0 {
 		return ui.Warning("No festivals found.") + "\n" +
 			ui.Info("Create a festival with: fest create festival") + "\n"
@@ -584,9 +611,9 @@ func formatAllHuman(allFestivals map[string][]*show.FestivalInfo, allResidents m
 	if len(allResidents) == 0 {
 		// No residents anywhere: emit exactly what the pre-rail binary emitted.
 		if withProgress {
-			return show.FormatAllFestivalsWithProgress(allFestivals, statusOrder, progressMap)
+			return show.FormatAllFestivalsWithProgress(allFestivals, statusOrder, progressMap, tokenMap)
 		}
-		return show.FormatAllFestivals(allFestivals, statusOrder)
+		return show.FormatAllFestivals(allFestivals, statusOrder, tokenMap)
 	}
-	return show.FormatAllWithResidents(allFestivals, allResidents, statusOrder, progressMap, withProgress)
+	return show.FormatAllWithResidents(allFestivals, allResidents, statusOrder, progressMap, withProgress, tokenMap)
 }

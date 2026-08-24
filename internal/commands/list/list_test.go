@@ -382,7 +382,7 @@ func TestFestivalsToMapWithProgress_IncludesTimestamps(t *testing.T) {
 		{Name: "test-fest", Path: "/tmp/test", Status: "active",
 			CreatedAt: now, UpdatedAt: now.Add(time.Hour)},
 	}
-	result := festivalsToMapWithProgress(festivals, nil)
+	result := festivalsToMapWithProgress(festivals, nil, nil)
 	if _, ok := result[0]["created_at"]; !ok {
 		t.Error("missing created_at in progress JSON map")
 	}
@@ -429,7 +429,7 @@ func TestFestivalsToMapWithProgress_IncludesStatusDate(t *testing.T) {
 			StatusDate: "2026-02-10",
 		},
 	}
-	result := festivalsToMapWithProgress(festivals, nil)
+	result := festivalsToMapWithProgress(festivals, nil, nil)
 	got, ok := result[0]["status_date"]
 	if !ok {
 		t.Fatal("missing status_date in progress JSON map")
@@ -528,5 +528,44 @@ func TestListWatchRejectsNonTTY(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "interactive terminal") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestFestivalsToMapWithProgress_IncludesTokens(t *testing.T) {
+	festivals := []*show.FestivalInfo{
+		{Name: "test-fest", Path: "/tmp/test", Status: "active"},
+	}
+	tokenMap := map[string]int{"/tmp/test": 1234}
+	result := festivalsToMapWithProgress(festivals, nil, tokenMap)
+	if len(result) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(result))
+	}
+	tokens, ok := result[0]["tokens"]
+	if !ok {
+		t.Fatal("missing tokens field in JSON map")
+	}
+	if tokens != 1234 {
+		t.Errorf("tokens = %v, want 1234", tokens)
+	}
+}
+
+func TestFestivalsToMapWithProgress_NilTokenMapOmitsTokens(t *testing.T) {
+	festivals := []*show.FestivalInfo{
+		{Name: "test-fest", Path: "/tmp/test", Status: "active"},
+	}
+	result := festivalsToMapWithProgress(festivals, nil, nil)
+	if _, ok := result[0]["tokens"]; ok {
+		t.Error("nil token map should omit tokens field from JSON map")
+	}
+}
+
+func TestFestivalsToMapWithProgress_ZeroTokensOmitted(t *testing.T) {
+	festivals := []*show.FestivalInfo{
+		{Name: "test-fest", Path: "/tmp/test", Status: "active"},
+	}
+	tokenMap := map[string]int{"/tmp/test": 0}
+	result := festivalsToMapWithProgress(festivals, nil, tokenMap)
+	if _, ok := result[0]["tokens"]; ok {
+		t.Error("zero token count should omit tokens field from JSON map")
 	}
 }
