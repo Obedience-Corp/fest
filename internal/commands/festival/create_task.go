@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/internal/activity"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -328,6 +329,22 @@ func RunCreateTask(ctx context.Context, opts *CreateTaskOptions) error {
 				return emitCreateTaskError(opts, errors.Validation("validation errors detected - fix issues before proceeding"))
 			}
 		}
+	}
+
+	// Activity log: task.created at festival level only (granular scaffolding).
+	if festivalPath != "" && !opts.DryRun && len(createdTasks) > 0 {
+		actEmitter := activity.NewFromFestival(ctx, festivalPath, activityWarn)
+		taskIDs := make([]string, len(createdTasks))
+		for i, t := range createdTasks {
+			taskIDs[i] = t["id"].(string)
+		}
+		actEmitter.Emit(ctx, "task.created", activity.Scope{Task: taskIDs[0]},
+			"fest create task --name "+strings.Join(opts.Names, " --name "),
+			activity.WithData(map[string]any{
+				"tasks_created": taskIDs,
+				"created_paths": createdPaths,
+			}),
+		)
 	}
 
 	// Output results

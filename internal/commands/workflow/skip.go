@@ -9,6 +9,7 @@ import (
 
 	"github.com/Obedience-Corp/camp/pkg/ledgerkit"
 
+	"github.com/Obedience-Corp/fest/internal/activity"
 	"github.com/Obedience-Corp/fest/internal/campledger"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/lifecycle"
@@ -145,6 +146,17 @@ func runSkip(ctx context.Context, reason string, terminalState wf.StepStatus) er
 			campledger.WithWhy(reason),
 			campledger.WithPayload(map[string]any{
 				"title":          "workflow skip",
+				"terminal_state": string(terminalState),
+				"steps_skipped":  updatedCount,
+			}),
+		)
+
+		// Activity log: workflow.skipped at festival level with verbatim reason.
+		actEmitter := activity.NewFromFestival(ctx, nav.Ctx.FestivalPath, func(error) {})
+		actEmitter.Emit(ctx, "workflow.skipped", activity.Scope{Phase: phase},
+			"fest workflow skip --reason \""+reason+"\"",
+			activity.WithData(map[string]any{
+				"reason":         reason,
 				"terminal_state": string(terminalState),
 				"steps_skipped":  updatedCount,
 			}),

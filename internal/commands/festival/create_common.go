@@ -2,11 +2,22 @@ package festival
 
 import (
 	"context"
+	"fmt"
+	"os"
 
 	"github.com/Obedience-Corp/fest/internal/config"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/validator"
 )
+
+// activityWarn prints activity-log write warnings to stderr without failing
+// the caller's command. Activity logging is best-effort.
+func activityWarn(err error) {
+	if err == nil {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "warning: activity log not updated: %v\n", err)
+}
 
 // ValidationSummary is a simplified validation result for JSON output
 type ValidationSummary struct {

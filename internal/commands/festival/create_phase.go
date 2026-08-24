@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/internal/activity"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -162,6 +163,19 @@ func RunCreatePhase(ctx context.Context, opts *CreatePhaseOptions) error {
 
 	if err := validatePhaseIfConfigured(ctx, cfg, res); err != nil {
 		return emitCreatePhaseError(opts, err)
+	}
+
+	// Activity log: phase.created at both campaign and festival level.
+	if cfg.festivalPath != "" && !opts.DryRun {
+		actEmitter := activity.NewFromFestival(ctx, cfg.festivalPath, activityWarn)
+		actEmitter.Emit(ctx, "phase.created", activity.Scope{Phase: cfg.phaseID},
+			"fest create phase --name "+opts.Name+" --type "+opts.PhaseType,
+			activity.WithData(map[string]any{
+				"phase_type":   opts.PhaseType,
+				"phase_order":  cfg.newNumber,
+				"created_path": cfg.phaseDir,
+			}),
+		)
 	}
 
 	return emitPhaseOutput(cfg, res)

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/internal/activity"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -249,6 +250,18 @@ func RunCreateSequence(ctx context.Context, opts *CreateSequenceOptions) error {
 				return emitCreateSequenceError(opts, errors.Validation("validation errors detected - fix issues before proceeding"))
 			}
 		}
+	}
+
+	// Activity log: sequence.created at both campaign and festival level.
+	if festivalPath != "" && !opts.DryRun {
+		actEmitter := activity.NewFromFestival(ctx, festivalPath, activityWarn)
+		actEmitter.Emit(ctx, "sequence.created", activity.Scope{Sequence: seqID},
+			"fest create sequence --name "+opts.Name,
+			activity.WithData(map[string]any{
+				"sequence_order": newNumber,
+				"created_path":   seqDir,
+			}),
+		)
 	}
 
 	if opts.JSONOutput {

@@ -10,6 +10,7 @@ import (
 
 	"github.com/Obedience-Corp/camp/pkg/ledgerkit"
 
+	"github.com/Obedience-Corp/fest/internal/activity"
 	"github.com/Obedience-Corp/fest/internal/campledger"
 	"github.com/Obedience-Corp/fest/internal/id"
 	"github.com/Obedience-Corp/fest/internal/registry"
@@ -78,6 +79,16 @@ func AtomicStatusChange(ctx context.Context, festivalPath, fromStatus, toStatus 
 			"from":   fromStatus,
 			"to":     toStatus,
 			"target": "festival",
+		}),
+	)
+
+	// Activity log: festival.promoted at both campaign and festival level.
+	actEmitter := activity.NewFromFestival(ctx, newPath, func(error) {})
+	actEmitter.Emit(ctx, "festival.promoted", activity.Scope{},
+		"fest promote --to "+toStatus,
+		activity.WithData(map[string]any{
+			"from": fromStatus,
+			"to":   toStatus,
 		}),
 	)
 

@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/internal/activity"
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -359,6 +360,32 @@ func runValidateAll(ctx context.Context, opts *validateOptions) error {
 	// Add suggestions based on issues
 	addSuggestions(result)
 	finalizeValidationResult(result)
+
+	// Activity log: validate.ran at festival level only.
+	if festivalPath != "" {
+		actEmitter := activity.NewFromFestival(ctx, festivalPath, func(error) {})
+		errorCount := 0
+		for _, issue := range result.Issues {
+			if issue.Level == LevelError {
+				errorCount++
+			}
+		}
+		warnCount := 0
+		for _, issue := range result.Issues {
+			if issue.Level == LevelWarning {
+				warnCount++
+			}
+		}
+		actEmitter.Emit(ctx, "validate.ran", activity.Scope{},
+			"fest validate",
+			activity.WithData(map[string]any{
+				"ok":       result.Valid,
+				"errors":   errorCount,
+				"warnings": warnCount,
+				"score":    result.Score,
+			}),
+		)
+	}
 
 	if opts.jsonOutput {
 		if err := emitValidateJSON(result); err != nil {
