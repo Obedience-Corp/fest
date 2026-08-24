@@ -16,7 +16,8 @@ Festivals progress through lifecycle directories under festivals/:
 Flow: planning -> ready -> active -> dungeon/completed
 
 Parked is a non-terminal holding area. Move a festival to parked/ when you
-intend to do it eventually but not now. Refresh before promoting back to ready.
+intend to do it eventually but not now. Refresh, then use `fest status set ready`.
+`fest promote` does not unpark.
 
 MOVING A FESTIVAL
 -----------------

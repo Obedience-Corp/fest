@@ -365,11 +365,11 @@ func detectFestivalPath(cwd, festivalsRoot string) string {
 		return ""
 	}
 
-	// First part should be status (active, planning, completed, archived)
+	// First part should be status (active, planning, ready, parked, completed, archived)
 	// Second part should be festival name
 	status := parts[0]
 	validStatuses := map[string]bool{
-		"active": true, "planning": true, "ready": true,
+		"active": true, "planning": true, "ready": true, "parked": true,
 		"dungeon/completed": true, "dungeon/archived": true, "dungeon/someday": true,
 		"completed": true, "archived": true, "someday": true, // shorthand aliases
 	}

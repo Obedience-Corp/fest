@@ -9,7 +9,7 @@ import (
 )
 
 func TestBrowseFestivalPickerStatuses_Order(t *testing.T) {
-	want := []string{"active", "ready", "planning", "ritual"}
+	want := []string{"active", "ready", "planning", "parked", "ritual"}
 	got := shared.BrowseFestivalPickerStatuses
 	if len(got) != len(want) {
 		t.Fatalf("BrowseFestivalPickerStatuses = %v, want %v", got, want)

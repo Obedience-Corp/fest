@@ -10,7 +10,7 @@ Festivals progress through status directories within the `festivals/` workspace:
 |-----------|---------|---------------|-------------------|
 | `planning/` | Being designed and planned | `ready/` | `ready/`, `parked/`, `dungeon/archived/`, `dungeon/someday/` |
 | `ready/` | Validated, waiting to begin | `active/` | `active/`, `parked/`, `planning/`, `dungeon/archived/`, `dungeon/someday/` |
-| `parked/` | Planned, deliberately not scheduled | `ready/` (refresh first) | `ready/`, `planning/`, `dungeon/archived/`, `dungeon/someday/` |
+| `parked/` | Planned, deliberately not scheduled | N/A (use `fest status set`) | `ready/`, `planning/`, `dungeon/archived/`, `dungeon/someday/` |
 | `active/` | Currently executing | `completed` | `dungeon/completed/`, `dungeon/archived/`, `dungeon/someday/` |
 | `ritual/` | Repeatable festival templates | N/A (use `fest ritual run`) | `active/` (via copy, not move) |
 | `dungeon/completed/` | Successfully finished | Terminal | N/A |
@@ -98,7 +98,7 @@ holds festivals that are planned but deliberately not scheduled for execution.
 `ready/` should stay small — only festivals that are genuinely next up. Move a
 festival to `parked/` when you intend to do it eventually but not now. A parked
 festival is expected to be stale; refresh its citations and worktree before
-promoting it back to `ready/`.
+returning it to `ready/` with `fest status set`. `fest promote` does not unpark.
 
 ```bash
 # Park a ready festival
@@ -107,7 +107,7 @@ fest status set parked
 # Park a planning festival
 fest status set parked
 
-# Promote back to ready (refresh first)
+# Return to ready (refresh first)
 fest status set ready
 ```
 

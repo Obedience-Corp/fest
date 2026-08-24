@@ -3,6 +3,7 @@ package progress
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
@@ -45,7 +46,8 @@ func TestPickFestivalForProgress_EmptyFestivals(t *testing.T) {
 }
 
 func TestPickFestivalForProgress_UsesWorkingPickerStatuses(t *testing.T) {
-	if got, want := shared.WorkingFestivalPickerStatuses, []string{"active", "ready", "planning"}; len(got) != len(want) {
-		t.Fatalf("WorkingFestivalPickerStatuses length = %d, want %d", len(got), len(want))
+	want := []string{"active", "ready", "planning", "parked"}
+	if got := shared.WorkingFestivalPickerStatuses; !reflect.DeepEqual(got, want) {
+		t.Fatalf("WorkingFestivalPickerStatuses = %#v, want %#v", got, want)
 	}
 }
