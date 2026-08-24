@@ -10,6 +10,7 @@ and one fixture. See [Reproduce](#reproduce) below.
 | --- | --- | --- | --- |
 | Create what? menu | [fest-create-menu.tape](fest-create-menu.tape) | [fest-create-menu.gif](fest-create-menu.gif) | — |
 | Festival create wizard | [fest-create-festival-wizard.tape](fest-create-festival-wizard.tape) | [fest-create-festival-wizard.gif](fest-create-festival-wizard.gif) | — |
+| fest run classify + `--exec` | [fest-run.tape](fest-run.tape) | secret gist on the PR, not in-tree | — |
 
 ### Create TUI demos
 

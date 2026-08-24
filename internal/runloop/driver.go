@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -240,6 +241,18 @@ func lastCommit(recs []Record) string {
 	return ""
 }
 
+func displayPath(path string) string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return path
+	}
+	rel, err := filepath.Rel(cwd, path)
+	if err != nil || rel == "" || strings.HasPrefix(rel, "..") {
+		return path
+	}
+	return rel
+}
+
 func emitStatus(opts Options, report StatusReport) error {
 	if opts.JSON {
 		data, err := json.MarshalIndent(report, "", "  ")
@@ -265,7 +278,7 @@ func emitStatus(opts Options, report StatusReport) error {
 		fmt.Fprintf(opts.Stdout, "commit: %s\n", report.LastCommit)
 	}
 	if report.Ledger != "" {
-		fmt.Fprintf(opts.Stdout, "log: %s\n", report.Ledger)
+		fmt.Fprintf(opts.Stdout, "log: %s\n", displayPath(report.Ledger))
 	}
 	if report.NextHint != "" {
 		fmt.Fprintf(opts.Stdout, "hint: %s\n", report.NextHint)
