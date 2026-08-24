@@ -128,6 +128,11 @@ func NewFromFestival(ctx context.Context, festivalPath string, warn func(error))
 	return e
 }
 
+// Enabled reports whether Emit will attempt a campaign-ledger write.
+func (e *Emitter) Enabled() bool {
+	return e != nil && !e.disabled && e.writer != nil
+}
+
 // Emit appends one command-sourced event. Failure warns; never returns to
 // the caller as a hard error (D003).
 func (e *Emitter) Emit(ctx context.Context, kind ledgerkit.Kind, scope ledgerkit.Scope, opts ...Option) {
