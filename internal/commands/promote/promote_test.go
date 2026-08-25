@@ -2,6 +2,7 @@ package promote
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -15,6 +16,8 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	ferrors "github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/scope"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 )
 
 func TestValidTransitions(t *testing.T) {
@@ -506,6 +509,63 @@ func TestPromoteResolved_DeclinedDoesNotMove(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(festivalsDir, "planning", "alpha-feature-FE0001")); err != nil {
 		t.Fatalf("festival must remain in planning after decline: %v", err)
+	}
+}
+
+func TestEnsureWorkspaceContext_ResolvesForEmbeddedPromotion(t *testing.T) {
+	var gotPath string
+	ctx, err := ensureWorkspaceContext(t.Context(), "/campaign/festivals/active/example-FE0001", func(_ context.Context, path string) (workspace.WorkspaceInfo, error) {
+		gotPath = path
+		return workspace.WorkspaceInfo{
+			Root:          "/campaign",
+			FestivalsPath: "/campaign/festivals",
+			Type:          workspace.WorkspaceTypeCampaign,
+		}, nil
+	})
+	if err != nil {
+		t.Fatalf("ensureWorkspaceContext: %v", err)
+	}
+	if gotPath != "/campaign/festivals/active/example-FE0001" {
+		t.Fatalf("resolver path = %q, want resolved festival path", gotPath)
+	}
+
+	got, ok := scope.WorkspaceFrom(ctx)
+	if !ok || got == nil {
+		t.Fatal("embedded promotion context is missing workspace metadata")
+	}
+	if got.Root != "/campaign" || got.FestivalsPath != "/campaign/festivals" || got.Type != scope.WorkspaceTypeCampaign {
+		t.Fatalf("workspace context = %#v", got)
+	}
+}
+
+func TestEnsureWorkspaceContext_PreservesCommandResolvedWorkspace(t *testing.T) {
+	want := &scope.WorkspaceInfo{
+		Root:          "/existing",
+		FestivalsPath: "/existing/festivals",
+		Type:          scope.WorkspaceTypeStandalone,
+	}
+	ctx := scope.WithWorkspace(t.Context(), want)
+
+	gotCtx, err := ensureWorkspaceContext(ctx, "/ignored", func(context.Context, string) (workspace.WorkspaceInfo, error) {
+		t.Fatal("resolver must not run when command scope already supplied a workspace")
+		return workspace.WorkspaceInfo{}, nil
+	})
+	if err != nil {
+		t.Fatalf("ensureWorkspaceContext: %v", err)
+	}
+	got, ok := scope.WorkspaceFrom(gotCtx)
+	if !ok || got != want {
+		t.Fatalf("existing workspace context was replaced: got %#v, want %#v", got, want)
+	}
+}
+
+func TestEnsureWorkspaceContext_PropagatesResolutionFailure(t *testing.T) {
+	wantErr := errors.New("workspace unavailable")
+	_, err := ensureWorkspaceContext(t.Context(), "/missing/festival", func(context.Context, string) (workspace.WorkspaceInfo, error) {
+		return workspace.WorkspaceInfo{}, wantErr
+	})
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("ensureWorkspaceContext error = %v, want %v", err, wantErr)
 	}
 }
 
