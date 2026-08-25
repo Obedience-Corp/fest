@@ -251,7 +251,39 @@ func runPromote(ctx context.Context, opts *promoteOptions, selector string) erro
 // PromoteResolved promotes an already-resolved festival through the fest promote
 // flow, asking for confirmation, and returns the post-move path (empty if nothing moved).
 func PromoteResolved(ctx context.Context, festival *show.FestivalInfo) (string, error) {
+	var err error
+	ctx, err = ensureWorkspaceContext(ctx, festival.Path, workspace.FindWorkspace)
+	if err != nil {
+		return "", errors.Wrap(err, "resolving workspace for promotion")
+	}
 	return promoteCore(ctx, festival, true, &promoteOptions{})
+}
+
+type workspaceResolver func(context.Context, string) (workspace.WorkspaceInfo, error)
+
+// ensureWorkspaceContext supplies the workspace metadata that lifecycle
+// auto-commit requires when promotion is embedded in a global-scope command
+// such as fest watch. Direct fest promote calls already carry this context.
+func ensureWorkspaceContext(ctx context.Context, festivalPath string, resolve workspaceResolver) (context.Context, error) {
+	if ws, ok := scope.WorkspaceFrom(ctx); ok && ws != nil {
+		return ctx, nil
+	}
+
+	resolved, err := resolve(ctx, festivalPath)
+	if err != nil {
+		return ctx, err
+	}
+
+	workspaceType := scope.WorkspaceTypeStandalone
+	if resolved.Type == workspace.WorkspaceTypeCampaign {
+		workspaceType = scope.WorkspaceTypeCampaign
+	}
+
+	return scope.WithWorkspace(ctx, &scope.WorkspaceInfo{
+		Root:          resolved.Root,
+		FestivalsPath: resolved.FestivalsPath,
+		Type:          workspaceType,
+	}), nil
 }
 
 func promoteCore(ctx context.Context, festival *show.FestivalInfo, confirm bool, opts *promoteOptions) (string, error) {
