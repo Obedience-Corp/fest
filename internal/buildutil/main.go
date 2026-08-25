@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/buildutil/itestenv"
-	"github.com/Obedience-Corp/obey-shared/buildutil"
-	"github.com/Obedience-Corp/obey-shared/buildutil/ui"
+	buildutil "github.com/Obedience-Corp/build-util"
+	"github.com/Obedience-Corp/build-util/ui"
 )
 
 func main() {

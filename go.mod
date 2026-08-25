@@ -4,8 +4,9 @@ go 1.25.6
 
 require (
 	github.com/Masterminds/sprig/v3 v3.3.0
+	github.com/Obedience-Corp/build-util v0.1.0
 	github.com/Obedience-Corp/camp v0.5.1
-	github.com/Obedience-Corp/obey-shared v0.4.6
+	github.com/Obedience-Corp/obey-shared v0.5.0
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/glamour v0.10.0
@@ -19,6 +20,7 @@ require (
 	github.com/muesli/termenv v0.16.0
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
 	github.com/spf13/cobra v1.10.2
+	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
 	github.com/testcontainers/testcontainers-go v0.42.0
 	golang.org/x/sys v0.47.0
@@ -102,7 +104,6 @@ require (
 	github.com/shopspring/decimal v1.4.0 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
-	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tklauser/go-sysconf v0.3.16 // indirect
 	github.com/tklauser/numcpus v0.11.0 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect

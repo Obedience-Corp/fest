@@ -11,7 +11,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/buildutil/itestenv"
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
-	"github.com/Obedience-Corp/obey-shared/buildutil/ui"
+	"github.com/Obedience-Corp/build-util/ui"
 )
 
 const (
