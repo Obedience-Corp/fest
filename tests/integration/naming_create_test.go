@@ -38,6 +38,22 @@ func setupFestivalTemplates(t *testing.T, container *TestContainer) {
 	templateRoot := filepath.Join(tmpDir, ".festival", "templates")
 
 	templates := map[string]string{
+		"festival/OVERVIEW.md": `# {{.festival_name}}
+
+Goal: {{.festival_goal}}
+`,
+		"festival/GOAL.md": `# {{.festival_name}}
+
+Goal: {{.festival_goal}}
+`,
+		"festival/RULES.md": `# Festival Rules
+
+- Follow naming conventions
+`,
+		"festival/TODO.md": `# TODO
+
+- [ ] Initialize festival
+`,
 		"FESTIVAL_OVERVIEW_TEMPLATE.md": `---
 template_id: FESTIVAL_OVERVIEW
 required_variables:

@@ -17,7 +17,7 @@ import (
 func TestCreateFestivalErrorsOnMissingCoreTemplates(t *testing.T) {
 	tc := GetSharedContainer(t)
 	// Set up a workspace with NO festival templates at all.
-	festivalsPath := setupWorkspace(t, tc, "/missing-templates")
+	festivalsPath := setupWorkspaceWithoutTemplates(t, tc, "/missing-templates")
 
 	// Non-agent, non-JSON mode: must exit non-zero with a human-readable error
 	// and leave no festival directory behind (plain create used to skip rollback).
@@ -75,7 +75,7 @@ func TestCreateFestivalErrorsOnMissingCoreTemplates(t *testing.T) {
 // written before the missing one failed the create, leaving planning/<slug>-<id>/.
 func TestCreateFestivalErrorsOnPartialCoreTemplatesLeavesNoDestDir(t *testing.T) {
 	tc := GetSharedContainer(t)
-	festivalsPath := setupWorkspace(t, tc, "/partial-templates")
+	festivalsPath := setupWorkspaceWithoutTemplates(t, tc, "/partial-templates")
 
 	for _, name := range []string{"OVERVIEW.md", "GOAL.md", "RULES.md"} {
 		path := festivalsPath + "/.festival/templates/festival/" + name
@@ -101,7 +101,7 @@ func TestCreateFestivalErrorsOnPartialCoreTemplatesLeavesNoDestDir(t *testing.T)
 // preview tree (fest#139).
 func TestCreateFestivalDryRunReportsMissingCoreTemplates(t *testing.T) {
 	tc := GetSharedContainer(t)
-	festivalsPath := setupWorkspace(t, tc, "/missing-templates-dry-run")
+	festivalsPath := setupWorkspaceWithoutTemplates(t, tc, "/missing-templates-dry-run")
 
 	// JSON dry-run must list missing core templates.
 	output, err := tc.RunFestInDir(

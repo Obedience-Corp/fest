@@ -108,7 +108,6 @@ Only events in this table are emitted. Commands emit after a successful mutation
 | `next.resolved` | `fest next` |
 | `go.navigated` | `fest go <target>` |
 | `workflow.skipped` | `fest workflow skip --reason "..."` |
-| `commit.made` | `fest commit` |
 
 ### Read-only commands
 
@@ -127,6 +126,7 @@ These names are reserved. No command in this PR writes them.
 | `task.started` / `task.deleted` / `task.renamed` | Task start / removal / rename |
 | `gate.applied` / `gate.skipped` | `fest gates apply` and related |
 | `init.ran` / `tui.action` | `fest init` / TUI mutations |
+| `commit.made` | `fest commit`; reserved until its persistence contract can record the final SHA without leaving a generated-only change after every commit |
 
 ## Write semantics
 
@@ -169,9 +169,6 @@ jq 'select(.result.ok == false)' \
 jq 'select(.event == "festival.promoted")' \
   .campaign/fest/activity.jsonl
 
-# Commits made in a festival
-jq 'select(.event == "commit.made")' \
-  festivals/active/my-fest-CS0001/.fest/activity.jsonl
 ```
 
 ## Schema versioning

@@ -30,9 +30,20 @@ func TestFullFestivalLifecycle(t *testing.T) {
 		// So we create the minimal structure directly
 		_, err := container.runCommand([]string{
 			"sh", "-c",
-			"mkdir -p /workspace/festivals/.festival/.state /workspace/festivals/active /workspace/festivals/planning",
+			"mkdir -p /workspace/festivals/.festival/.state /workspace/festivals/.festival/templates/festival " +
+				"/workspace/festivals/active /workspace/festivals/planning",
 		})
 		require.NoError(t, err, "should create workspace directories")
+		for name, content := range map[string]string{
+			"OVERVIEW.md": "# Festival Overview\n\nLifecycle fixture overview.\n",
+			"GOAL.md":     "# Festival Goal\n\nLifecycle fixture goal.\n",
+			"RULES.md":    "# Festival Rules\n\n- Exercise the real CLI.\n",
+			"TODO.md":     "# Festival TODO\n\n- [ ] Exercise the lifecycle.\n",
+		} {
+			err = writeFileInContainer(container,
+				"/workspace/festivals/.festival/templates/festival/"+name, content)
+			require.NoError(t, err, "should write marker-free core template %s", name)
+		}
 
 		// Create .workspace marker file to register as workspace (JSON format expected)
 		err = writeFileInContainer(container, "/workspace/festivals/.festival/.state/.workspace",

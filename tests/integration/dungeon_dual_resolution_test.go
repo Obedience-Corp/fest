@@ -231,6 +231,13 @@ func setupDungeonWorkspace(t *testing.T, tc *TestContainer, basePath string, dun
 
 	_, err := tc.runCommand([]string{"sh", "-c", "mkdir -p " + strings.Join(dirs, " ")})
 	require.NoError(t, err, "should create dungeon workspace directories")
+	coreDir := festivalsDir + "/.festival/templates/festival"
+	_, err = tc.runCommand([]string{"mkdir", "-p", coreDir})
+	require.NoError(t, err, "should create core festival template directory")
+	for _, name := range []string{"OVERVIEW.md", "GOAL.md", "RULES.md", "TODO.md"} {
+		require.NoError(t, tc.WriteFile(coreDir+"/"+name, "# Complete integration template\n"),
+			"should seed core festival template %s", name)
+	}
 
 	err = writeFileInContainer(tc, festivalsDir+"/.festival/.state/.workspace",
 		`{"workspace": "test", "registered": "2024-01-01T00:00:00Z"}`)

@@ -316,7 +316,7 @@ func TestCatalog_DestinationDefaults(t *testing.T) {
 			t.Fatalf("expected %s to be DestBoth", ev)
 		}
 	}
-	for _, ev := range []string{"task.created", "task.completed", "task.blocked", "task.reset", "validate.ran", "next.resolved", "go.navigated", "commit.made", "workflow.skipped"} {
+	for _, ev := range []string{"task.created", "task.completed", "task.blocked", "task.reset", "validate.ran", "next.resolved", "go.navigated", "workflow.skipped"} {
 		if destination(ev) != DestFestivalOnly {
 			t.Fatalf("expected %s to be DestFestivalOnly", ev)
 		}
@@ -333,7 +333,7 @@ func TestCatalog_UnpublishedEventsAreNotLive(t *testing.T) {
 		"gate.applied", "gate.skipped",
 		"phase.started", "phase.completed", "phase.deleted",
 		"sequence.started", "sequence.completed", "sequence.deleted",
-		"task.started", "task.deleted", "task.renamed",
+		"task.started", "task.deleted", "task.renamed", "commit.made",
 		"init.ran", "tui.action",
 	} {
 		if _, live := catalog[ev]; live {
