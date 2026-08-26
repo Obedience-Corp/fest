@@ -110,7 +110,7 @@ func printValidationResult(display *ui.UI, festivalPath string, result *Validati
 
 	printValidationSection(display, "STRUCTURE", structureIssues, hasFailures)
 	printValidationSection(display, "COMPLETENESS", completenessIssues, hasFailures)
-	printTaskValidationSection(display, taskIssues)
+	printTaskValidationSection(display, taskIssues, hasFailures)
 	printValidationSection(display, "QUALITY GATES", gateIssues, hasFailures)
 	printMarkerValidationSection(display, templateIssues, result.MarkerInfo, hasFailures)
 	printValidationSection(display, "ORDERING", orderingIssues, hasFailures)
