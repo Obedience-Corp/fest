@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Obedience-Corp/fest/internal/buildutil/itestenv"
 	buildutil "github.com/Obedience-Corp/build-util"
 	"github.com/Obedience-Corp/build-util/ui"
+	"github.com/Obedience-Corp/fest/internal/buildutil/itestenv"
 )
 
 func main() {
