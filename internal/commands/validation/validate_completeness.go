@@ -63,7 +63,7 @@ func runValidateCompleteness(ctx context.Context, opts *validateOptions) error {
 		return emitValidateJSON(result)
 	}
 
-	printValidationSection(display, "COMPLETENESS", result.Issues)
+	printValidationSection(display, "COMPLETENESS", result.Issues, !result.Valid)
 	return nil
 }
 
