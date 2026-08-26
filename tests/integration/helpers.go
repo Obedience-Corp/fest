@@ -28,6 +28,30 @@ type TestContainer struct {
 	t         *testing.T
 }
 
+const (
+	integrationGitName  = "Fest Integration Tests"
+	integrationGitEmail = "fest-integration@example.invalid"
+)
+
+// integrationGitEnv gives fixture repositories deterministic identity and
+// transport defaults without reading or writing ~/.gitconfig. Keeping the
+// settings in the container environment prevents host Git configuration from
+// leaking in either direction while covering every git process spawned by
+// fest or camp.
+func integrationGitEnv() map[string]string {
+	return map[string]string{
+		"GIT_AUTHOR_NAME":     integrationGitName,
+		"GIT_AUTHOR_EMAIL":    integrationGitEmail,
+		"GIT_COMMITTER_NAME":  integrationGitName,
+		"GIT_COMMITTER_EMAIL": integrationGitEmail,
+		"GIT_CONFIG_COUNT":    "2",
+		"GIT_CONFIG_KEY_0":    "init.defaultBranch",
+		"GIT_CONFIG_VALUE_0":  "main",
+		"GIT_CONFIG_KEY_1":    "protocol.file.allow",
+		"GIT_CONFIG_VALUE_1":  "always",
+	}
+}
+
 // NewTestContainer creates a new Alpine container for testing fest
 func NewTestContainer(t *testing.T) (*TestContainer, error) {
 	ctx := context.Background()
@@ -64,6 +88,7 @@ func NewTestContainer(t *testing.T) (*TestContainer, error) {
 	req := testcontainers.ContainerRequest{
 		Image:      "alpine:latest",
 		Cmd:        []string{"sleep", "3600"}, // Keep container running
+		Env:        integrationGitEnv(),
 		WaitingFor: wait.ForExec([]string{"true"}).WithStartupTimeout(30 * time.Second),
 		AutoRemove: true,
 		Mounts: testcontainers.ContainerMounts{
@@ -604,6 +629,7 @@ func NewSharedContainer() (*TestContainer, error) {
 	req := testcontainers.ContainerRequest{
 		Image:      "alpine:latest",
 		Cmd:        []string{"sleep", "3600"},
+		Env:        integrationGitEnv(),
 		WaitingFor: wait.ForExec([]string{"true"}).WithStartupTimeout(30 * time.Second),
 		AutoRemove: true,
 		Mounts: testcontainers.ContainerMounts{
