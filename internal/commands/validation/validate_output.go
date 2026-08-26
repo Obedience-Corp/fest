@@ -108,21 +108,21 @@ func printValidationResult(display *ui.UI, festivalPath string, result *Validati
 	templateIssues := filterIssuesByCode(result.Issues, CodeUnfilledTemplate)
 	orderingIssues := filterIssuesByCode(result.Issues, CodeNumberingGap)
 
-	printValidationSection(display, "STRUCTURE", structureIssues)
-	printValidationSection(display, "COMPLETENESS", completenessIssues)
+	printValidationSection(display, "STRUCTURE", structureIssues, hasFailures)
+	printValidationSection(display, "COMPLETENESS", completenessIssues, hasFailures)
 	printTaskValidationSection(display, taskIssues)
-	printValidationSection(display, "QUALITY GATES", gateIssues)
-	printMarkerValidationSection(display, templateIssues, result.MarkerInfo)
-	printValidationSection(display, "ORDERING", orderingIssues)
+	printValidationSection(display, "QUALITY GATES", gateIssues, hasFailures)
+	printMarkerValidationSection(display, templateIssues, result.MarkerInfo, hasFailures)
+	printValidationSection(display, "ORDERING", orderingIssues, hasFailures)
 
 	autoLinkIssues := filterIssuesByPrefix(result.Issues, "autolink_")
-	printValidationSection(display, "AUTO-LINK", autoLinkIssues)
+	printValidationSection(display, "AUTO-LINK", autoLinkIssues, hasFailures)
 
 	hookIssues := filterIssuesByPrefix(result.Issues, "hook")
-	printValidationSection(display, "HOOKS", hookIssues)
+	printValidationSection(display, "HOOKS", hookIssues, hasFailures)
 
 	workflowIssues := filterIssuesByCode(result.Issues, CodeWorkflowNumbering, CodeWorkflowScan)
-	printValidationSection(display, "WORKFLOW", workflowIssues)
+	printValidationSection(display, "WORKFLOW", workflowIssues, hasFailures)
 
 	// Score and summary
 	fmt.Println()
@@ -166,11 +166,15 @@ func printValidationResult(display *ui.UI, festivalPath string, result *Validati
 	fmt.Println(strings.Repeat("═", 60))
 }
 
-func printValidationSection(display *ui.UI, title string, issues []ValidationIssue) {
+func printValidationSection(display *ui.UI, title string, issues []ValidationIssue, overallFailed bool) {
 	printSectionHeader(title, issues)
 
 	if len(issues) == 0 {
-		display.Success("All checks passed")
+		// A failing run must not print Success "All checks passed" for an
+		// unrelated empty category (fest#361 slice A).
+		if !overallFailed {
+			display.Success("All checks passed")
+		}
 		return
 	}
 
@@ -179,14 +183,16 @@ func printValidationSection(display *ui.UI, title string, issues []ValidationIss
 	}
 }
 
-func printMarkerValidationSection(display *ui.UI, issues []ValidationIssue, markerInfo *MarkerInfo) {
+func printMarkerValidationSection(display *ui.UI, issues []ValidationIssue, markerInfo *MarkerInfo, overallFailed bool) {
 	if len(issues) == 0 {
 		printSectionHeader("Markers", issues)
 		fmt.Println(ui.Dim("Template completion status"))
-		if markerInfo != nil && markerInfo.TotalCount > 0 {
-			display.Success("All template markers have been filled (%d markers found)", markerInfo.TotalCount)
-		} else {
-			display.Success("All template markers have been filled (0 markers found)")
+		if !overallFailed {
+			if markerInfo != nil && markerInfo.TotalCount > 0 {
+				display.Success("All template markers have been filled (%d markers found)", markerInfo.TotalCount)
+			} else {
+				display.Success("All template markers have been filled (0 markers found)")
+			}
 		}
 		return
 	}

@@ -72,7 +72,7 @@ func runValidateQualityGates(ctx context.Context, opts *validateOptions) error {
 		return emitValidateJSON(result)
 	}
 
-	printValidationSection(display, "QUALITY GATES", result.Issues)
+	printValidationSection(display, "QUALITY GATES", result.Issues, !result.Valid)
 	return nil
 }
 

@@ -62,7 +62,7 @@ func runValidateStructure(ctx context.Context, opts *validateOptions) error {
 		return emitValidateJSON(result)
 	}
 
-	printValidationSection(display, "STRUCTURE", result.Issues)
+	printValidationSection(display, "STRUCTURE", result.Issues, !result.Valid)
 	return nil
 }
 

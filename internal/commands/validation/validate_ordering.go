@@ -75,7 +75,7 @@ func runValidateOrdering(ctx context.Context, opts *validateOptions) error {
 		return emitValidateJSON(result)
 	}
 
-	printValidationSection(display, "ORDERING (Gap Detection)", result.Issues)
+	printValidationSection(display, "ORDERING (Gap Detection)", result.Issues, !result.Valid)
 
 	if validationHasBlockingFailures(result) {
 		return errors.Validation("ordering validation failed").WithField("issue_count", len(result.Issues))
