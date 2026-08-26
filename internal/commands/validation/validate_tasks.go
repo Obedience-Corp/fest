@@ -96,12 +96,14 @@ func validateTaskFilesChecks(ctx context.Context, festivalPath string, result *V
 	result.Issues = append(result.Issues, convertIssues(issues)...)
 }
 
-func printTaskValidationSection(display *ui.UI, issues []ValidationIssue) {
+func printTaskValidationSection(display *ui.UI, issues []ValidationIssue, overallFailed bool) {
 	printSectionHeader("Task Files", issues)
 	fmt.Println(ui.Dim("Critical for AI execution"))
 
 	if len(issues) == 0 {
-		display.Success("All implementation sequences have task files")
+		if !overallFailed {
+			display.Success("All implementation sequences have task files")
+		}
 		return
 	}
 
@@ -124,5 +126,5 @@ func printTaskValidationSection(display *ui.UI, issues []ValidationIssue) {
 }
 
 func printTaskValidationResult(display *ui.UI, result *ValidationResult) {
-	printTaskValidationSection(display, result.Issues)
+	printTaskValidationSection(display, result.Issues, !result.Valid)
 }

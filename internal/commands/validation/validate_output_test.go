@@ -52,6 +52,9 @@ func TestPrintValidationResult_FailingRunOmitsAllChecksPassed(t *testing.T) {
 	if strings.Contains(out, "All checks passed") {
 		t.Fatalf("failing run must not print All checks passed for empty categories, got:\n%s", out)
 	}
+	if strings.Contains(out, "All implementation sequences have task files") {
+		t.Fatalf("failing run must not print task-files success for an empty task section, got:\n%s", out)
+	}
 }
 
 func TestPrintValidationResult_CleanRunStillSaysAllChecksPassed(t *testing.T) {
@@ -70,5 +73,8 @@ func TestPrintValidationResult_CleanRunStillSaysAllChecksPassed(t *testing.T) {
 	}
 	if !strings.Contains(out, "All checks passed") {
 		t.Fatalf("clean run should still report empty categories as passed, got:\n%s", out)
+	}
+	if !strings.Contains(out, "All implementation sequences have task files") {
+		t.Fatalf("clean run should still report the empty task section as passed, got:\n%s", out)
 	}
 }
