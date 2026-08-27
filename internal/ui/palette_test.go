@@ -138,12 +138,18 @@ func TestResolveBrandPaletteHonorsCLIColorForceOnPipe(t *testing.T) {
 	t.Setenv("TERM", "xterm-256color")
 	t.Setenv("CI", "")
 	orig, had := os.LookupEnv("NO_COLOR")
-	os.Unsetenv("NO_COLOR")
+	if err := os.Unsetenv("NO_COLOR"); err != nil {
+		t.Fatal(err)
+	}
 	t.Cleanup(func() {
 		if had {
-			os.Setenv("NO_COLOR", orig)
-		} else {
-			os.Unsetenv("NO_COLOR")
+			if err := os.Setenv("NO_COLOR", orig); err != nil {
+				t.Errorf("restore NO_COLOR: %v", err)
+			}
+			return
+		}
+		if err := os.Unsetenv("NO_COLOR"); err != nil {
+			t.Errorf("restore NO_COLOR: %v", err)
 		}
 	})
 
