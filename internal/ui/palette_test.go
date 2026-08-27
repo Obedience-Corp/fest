@@ -1,10 +1,13 @@
 package ui
 
 import (
+	"io"
+	"os"
 	"testing"
 
 	sharedbrand "github.com/Obedience-Corp/obey-shared/brand"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 )
 
 func TestPaletteFromSharedUsesSemanticRoles(t *testing.T) {
@@ -122,6 +125,38 @@ func TestInteractivePaletteKeepsColorsWhenOutputPaletteIsPlain(t *testing.T) {
 	}
 	if string(got.Planning.(lipgloss.Color)) != "#4DA3FF" {
 		t.Fatalf("interactive planning color = %q, want #4DA3FF", got.Planning)
+	}
+}
+
+func TestResolveBrandPaletteHonorsCLIColorForceOnPipe(t *testing.T) {
+	ResetPalette()
+	t.Cleanup(func() {
+		SetNoColor(false)
+		ResetPalette()
+	})
+	t.Setenv("CLICOLOR_FORCE", "1")
+	t.Setenv("TERM", "xterm-256color")
+	t.Setenv("CI", "")
+	orig, had := os.LookupEnv("NO_COLOR")
+	os.Unsetenv("NO_COLOR")
+	t.Cleanup(func() {
+		if had {
+			os.Setenv("NO_COLOR", orig)
+		} else {
+			os.Unsetenv("NO_COLOR")
+		}
+	})
+
+	original := termenv.DefaultOutput()
+	termenv.SetDefaultOutput(termenv.NewOutput(io.Discard))
+	t.Cleanup(func() { termenv.SetDefaultOutput(original) })
+
+	got := ResolveBrandPalette(sharedbrand.ModeDark)
+	if got.Mode == sharedbrand.ModePlain {
+		t.Fatal("CLICOLOR_FORCE must keep color when stdout is not a TTY")
+	}
+	if !got.ColorEnabled {
+		t.Fatal("CLICOLOR_FORCE must enable color")
 	}
 }
 

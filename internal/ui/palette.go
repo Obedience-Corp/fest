@@ -130,7 +130,10 @@ func syncLegacyColors(p Palette) {
 // Lip Gloss before command initialization.
 func ResolveBrandPalette(mode sharedbrand.Mode) sharedbrand.Palette {
 	profile := termenv.EnvColorProfile()
-	caps := sharedbrand.EnvironmentCapabilities(outputIsTTY(), colorDepth(profile))
+	// CLICOLOR_FORCE keeps color when stdout is a pipe (festival launchpad
+	// capture). --no-color / NO_COLOR still win via noColorOverride / caps.NoColor.
+	isTTY := outputIsTTY() || colorOutputForced()
+	caps := sharedbrand.EnvironmentCapabilities(isTTY, colorDepth(profile))
 	caps.DarkBackground = lipgloss.HasDarkBackground()
 	caps.BackgroundKnown = true
 	if noColorOverride {
@@ -138,6 +141,11 @@ func ResolveBrandPalette(mode sharedbrand.Mode) sharedbrand.Palette {
 		caps.ColorDepth = sharedbrand.ColorNone
 	}
 	return sharedbrand.Resolve(mode, caps)
+}
+
+func colorOutputForced() bool {
+	v := os.Getenv("CLICOLOR_FORCE")
+	return v != "" && v != "0"
 }
 
 // CurrentBrandPalette returns the resolved shared palette. Before command
