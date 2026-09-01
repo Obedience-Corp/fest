@@ -106,7 +106,7 @@ func NewFromFestival(ctx context.Context, festivalPath string, warn func(error))
 	}
 	campaignID := loadCampaignID(root)
 	if campaignID == "" {
-		warn(fmt.Errorf("ledger: missing campaign id in %s", filepath.Join(root, ".campaign", "campaign.yaml")))
+		warn(fmt.Errorf("ledger: missing camp id in %s", filepath.Join(root, ".campaign", "campaign.yaml")))
 		e.disabled = true
 		return e
 	}

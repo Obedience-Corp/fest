@@ -123,9 +123,9 @@ func workspaceScopeError() error {
   Could not find a festivals/ directory.
 
   To fix this, either:
-    - Run from inside a campaign (contains .campaign/)
+    - Run from inside a camp (contains the camp metadata directory, .campaign/)
     - Run from inside or above a festivals/ directory
-    - Set CAMP_ROOT to your campaign root
+    - Set CAMP_ROOT to your camp root
     - Run 'fest init' to create a new workspace`)
 }
 

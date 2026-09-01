@@ -449,7 +449,7 @@ func missingCoreTemplatesError(cfg *createConfig, missing []string) error {
 		fmt.Sprintf("missing required core festival templates: %s", strings.Join(missing, ", "))).
 		WithField("templates", strings.Join(missing, ", ")).
 		WithField("template_root", cfg.tmplRoot).
-		WithHint("Copy .festival/templates/festival/ from a working campaign, or run 'fest init' to seed the template directory.")
+		WithHint("Copy .festival/templates/festival/ from a working camp, or run 'fest init' to seed the template directory.")
 }
 
 func removeIncompleteFestivalDir(cfg *createConfig) {

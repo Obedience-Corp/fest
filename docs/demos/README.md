@@ -29,7 +29,7 @@ Human create surface (WI-7acd71 / design `fest-create-tui-2026-07-28`):
 #   $FEST_VHS_ROOT/bin/fest
 #   $FEST_VHS_ROOT/config/config.json   # copy fixtures/fest-create-tui/config.json (theme: dark)
 #   $FEST_VHS_ROOT/workspace/           # fest init .
-#   $FEST_VHS_ROOT/workspace/.campaign/ # project picker only lists inside a campaign
+#   $FEST_VHS_ROOT/workspace/.campaign/ # project picker only lists inside a camp
 #   $FEST_VHS_ROOT/workspace/projects/demo-app
 #   $FEST_VHS_ROOT/workspace/projects/payments-api
 # Keep $FEST_VHS_ROOT short (e.g. /tmp/fest-create-demo): the success screen
@@ -45,7 +45,7 @@ pick a light palette inside VHS/ttyd (which looks uncolored on the dark demo the
 ## Reproduce
 
 The README hero (`docs/images/fest-loop.gif`) is the `fest-loop` tape in the
-termcast festival pack. Its seed plans a real festival in a throwaway campaign
+termcast festival pack. Its seed plans a real festival in a throwaway camp
 under `/tmp/campaigns` with a redirected `HOME`, and builds the newest released
 fest tag with no build tags, so the recording is the stable command surface a
 reader can actually install:

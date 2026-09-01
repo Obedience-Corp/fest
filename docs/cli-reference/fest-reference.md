@@ -367,19 +367,19 @@ a linked project directory (see 'fest link'), or use --festival to specify one.
 
 The fest commit command wraps git commit and automatically:
   1. Stages changes and prepends the festival reference to the commit message
-  2. Creates a campaign root commit for festival-scoped files (task docs, progress, state)
+  2. Creates a camp root commit for festival-scoped files (task docs, progress, state)
 
 When a festival or sequence has a linked project, up to two commits are created
 even when this command is run from inside the festival:
   - Project commit: stages all project changes (skipped when the project is clean)
-  - Campaign root commit: stages only festival directory, .campaign/fest/,
+  - Camp root commit: stages only festival directory, .campaign/fest/,
     festivals/.festival/.state/, and the submodule pointer
 
 The sequence's fest_working_dir is preferred over the festival navigation link
 and legacy fest.yaml project_path. A festival with no linked project creates one
-campaign-root commit containing only festival-scoped files (not git add -A).
+camp root commit containing only festival-scoped files (not git add -A).
 
-Use --no-root to skip the campaign root commit.
+Use --no-root to skip the camp root commit.
 
 Reference format: [FE-{id}]
   - FE: Festival component identifier
@@ -420,7 +420,7 @@ Examples:
   # Skip auto-staging, commit only what's already staged
 
   fest commit --auto-write
-  # Run the configured campaign commit-message hook from the target repo
+  # Run the configured camp commit-message hook from the target repo
 ```
 
 ```
@@ -437,7 +437,7 @@ fest commit [flags]
   -h, --help              help for commit
       --json              output result as JSON
   -m, --message string    commit message (required unless --auto-write)
-      --no-root           skip campaign root commit (project commit only)
+      --no-root           skip camp root commit (project commit only)
       --no-tag            don't prepend task reference
       --stage             auto-stage all changes before commit (default true)
       --task string       task reference ID to use (e.g., FEST-123456)
@@ -3607,7 +3607,7 @@ Each transition validates readiness:
   active → completed:  All tasks must be completed
 
 By default, promotes the festival you are currently inside. From elsewhere in a
-campaign, pass a festival name or run promote interactively to pick one:
+camp, pass a festival name or run promote interactively to pick one:
 ```bash
   fest promote my-feature       Promote a festival by name (tab completion)
   fest promote                  Pick a festival from a fuzzy picker (in a terminal)
@@ -4665,13 +4665,13 @@ Display festival information
 Display festival information for a single festival.
 
 When run inside a festival directory, shows the current festival's details.
-When run outside a festival in an interactive campaign workspace, opens a
+When run outside a festival in an interactive camp, opens a
 cyclable view; use ←/→ to move between festivals and q/Ctrl+C to exit.
 
 ```bash
   fest show                        Show current festival, or cycle festivals in a workspace
   fest show <name>                 Show details of a specific festival by name
-  fest show --festival <selector>  Show a festival by explicit selector (campaign workspace)
+  fest show --festival <selector>  Show a festival by explicit selector (from a camp)
 ```
 
 To list festivals by status, use 'fest list' (e.g. 'fest list active',
@@ -4693,7 +4693,7 @@ fest show [festival-name] [flags]
 
 ```
       --collapsed         show collapsed tree with counters only
-      --festival string   festival selector (name or ID) from within a campaign workspace
+      --festival string   festival selector (name or ID) from within a camp
       --goals             show goals for phases and sequences
   -h, --help              help for show
       --inprogress        expand only in-progress phases and sequences
@@ -5784,7 +5784,7 @@ List types you can pass to fest create, grouped by level.
 Sources:
   - Festival workflow types from festival_types.yaml (create festival --type)
   - Phase/sequence/task scaffold packages under the methodology templates tree
-    (~/.obey/fest/festivals/.festival/templates or campaign festivals/.festival/templates)
+    (~/.obey/fest/festivals/.festival/templates or camp festivals/.festival/templates)
   - Custom overrides in a festival's .festival/templates/
 
 Examples:
@@ -7018,7 +7018,7 @@ Without a selector, it watches the current festival when run from a festival
 directory, the linked festival when run from a linked project directory, or a
 standalone WORKFLOW.md from that workflow directory.
 
-From a campaign or festivals workspace in an interactive terminal, fest watch
+From a camp or festivals workspace in an interactive terminal, fest watch
 opens a festival picker. Watch mode refreshes in place until you press Ctrl+C.
 It does not change your shell directory.
 

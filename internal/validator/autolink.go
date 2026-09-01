@@ -76,7 +76,7 @@ func ValidateAutoLink(ctx context.Context, festivalPath string, cfg *config.Fest
 							Level:   LevelError,
 							Code:    CodeAutoLinkMissingWorkingDir,
 							Path:    seqGoalPath,
-							Message: fmt.Sprintf("sequence %q: missing fest_working_dir in GOAL — set the target project directory (relative to campaign root)", seq.FullName),
+							Message: fmt.Sprintf("sequence %q: missing fest_working_dir in GOAL: set the target project directory (relative to camp root)", seq.FullName),
 							Fix:     "Add fest_working_dir: \"projects/your-project\" to the SEQUENCE_GOAL.md frontmatter",
 						})
 						continue
@@ -137,7 +137,7 @@ func ValidateAutoLink(ctx context.Context, festivalPath string, cfg *config.Fest
 				}
 				info, statErr := os.Stat(absPath)
 				if statErr != nil {
-					message := fmt.Sprintf("sequence %q: fest_working_dir %q not found relative to campaign root %q", seq.FullName, normalized, campaignRoot)
+					message := fmt.Sprintf("sequence %q: fest_working_dir %q not found relative to camp root %q", seq.FullName, normalized, campaignRoot)
 					if usingProjectPathFallback {
 						message = fmt.Sprintf("sequence %q: project_path fallback %q not found", seq.FullName, workingDir)
 					}

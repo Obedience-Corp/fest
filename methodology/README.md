@@ -45,22 +45,22 @@ A festival scales to the work. It can be:
 
 Festivals are useful when the work is non-trivial, non-standard, or needs to be done in a particular way. If you can describe the task in a single prompt and an agent can finish it in one session, you don't need a festival. If the work has dependencies, requires decisions, spans multiple sessions, or needs to follow specific patterns - that's what festivals are for.
 
-## Campaigns: The Workspace Layer
+## Camps: The Workspace Layer
 
-A **campaign** is an isolated workspace for a single mission - your day job, a startup, an open-source project. Everything related to that mission lives in one place: projects, plans, research, and context.
+A **camp**, previously called a campaign, is one workspace holding a group of related projects and the festivals you run in them. Your day job, a startup, an open-source project: each is its own camp.
 
-The `camp` CLI creates and manages campaigns:
+The `camp` CLI creates and manages camps:
 
 ```bash
-camp init my-startup          # Create a campaign workspace
+camp init my-startup          # Create a camp
 camp project add <url>        # Add a project as a submodule
 camp doctor                   # Health check the workspace
 ```
 
-### Campaign Structure
+### Camp Structure
 
 ```
-my-platform/                           # Campaign root
+my-platform/                           # Camp root
 ├── projects/                          # 15+ project submodules
 │   ├── api-gateway/
 │   ├── auth-service/
@@ -93,9 +93,9 @@ my-platform/                           # Campaign root
 └── AGENTS.md                          # Agent instructions
 ```
 
-The `workflow/` directory ships with sensible defaults (intents, design, code_reviews, pipelines) but is fully extensible - add directories for any recurring process your campaign needs. Real campaigns include things like `proposals/`, `postman/`, `bugs/`, `feedback/`, `pitch/`, and `simulations/`.
+The `workflow/` directory ships with sensible defaults (intents, design, code_reviews, pipelines) but is fully extensible: add directories for any recurring process your camp needs. Real camps include things like `proposals/`, `postman/`, `bugs/`, `feedback/`, `pitch/`, and `simulations/`.
 
-Festivals live inside campaigns, but **not all planning requires a festival**. Campaigns also provide:
+Festivals live inside camps, but **not all planning requires a festival**. Camps also provide:
 
 ### Intents - Lightweight Idea Capture
 
@@ -258,7 +258,7 @@ Quality gates are default tasks appended to the end of each sequence for quality
 05_iterate.md            # Address feedback, iterate
 ```
 
-Sensible defaults are included, but gates are easily editable or replaceable - customize them at the campaign level via the `.festival/` directory, or override on a per-festival basis.
+Sensible defaults are included, but gates are easily editable or replaceable: customize them at the camp level via the `.festival/` directory, or override on a per-festival basis.
 
 ```bash
 fest gates apply --approve    # Propagate gates to all sequences
@@ -456,7 +456,7 @@ Modify these to match your team's standards. Individual festivals can also overr
 
 ## Getting Started
 
-### 1. Create a Campaign
+### 1. Create a Camp
 
 ```bash
 # Install festival (includes fest + camp CLIs)
@@ -466,7 +466,7 @@ brew install --cask Obedience-Corp/tap/festival
 eval "$(camp shell-init zsh)"
 eval "$(fest shell-init zsh)"
 
-# Create a campaign workspace
+# Create a camp
 camp init my-project && cd my-project
 ```
 
@@ -520,7 +520,7 @@ fest understand workflow       # Workflow phase patterns
 
 ## Directory Structure
 
-### Campaign Level
+### Camp Level
 
 ```
 my-campaign/
@@ -622,4 +622,4 @@ auth_system/
 
 ---
 
-**The Bottom Line**: Festival Methodology gives you campaigns for organizing missions, festivals for structuring complex work, and a clear distinction between planning (workflow-guided) and building (sequence-driven). AI agents work autonomously for extended periods using hierarchical goals, executable task specifications, and context preservation. It's structured collaboration that gets you 90% of the way there autonomously, with human expertise guiding the critical final steps.
+**The Bottom Line**: Festival Methodology gives you camps for organizing missions, festivals for structuring complex work, and a clear distinction between planning (workflow-guided) and building (sequence-driven). AI agents work autonomously for extended periods using hierarchical goals, executable task specifications, and context preservation. It's structured collaboration that gets you 90% of the way there autonomously, with human expertise guiding the critical final steps.

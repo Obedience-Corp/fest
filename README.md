@@ -28,7 +28,7 @@ brew install --cask Obedience-Corp/tap/festival   # macOS/Linux (installs camp +
 npm install -g @obedience-corp/festival           # any platform with node
 ```
 
-Festivals live within **campaigns** - isolated workspaces managed by [camp](https://github.com/Obedience-Corp/camp). A campaign organizes your projects, plans, and context in one place. See the [methodology README](methodology/README.md) for the complete guide.
+Festivals live within **camps** (previously called campaigns), isolated workspaces managed by [camp](https://github.com/Obedience-Corp/camp). A camp organizes your projects, plans, and context in one place. See the [methodology README](methodology/README.md) for the complete guide.
 
 ## Your Templates, Your Workflow
 
@@ -36,13 +36,13 @@ Fest ships with a complete default methodology, but the methodology is a
 template set, not a requirement. Everything fest scaffolds comes from
 templates you can inspect and change:
 
-- **Campaign-level templates** - every festival, phase, sequence, and task
+- **Camp-level templates** - every festival, phase, sequence, and task
   document is generated from `festivals/.festival/templates/` in your
-  campaign. Edit them and fest uses your versions.
+  camp. Edit them and fest uses your versions.
 - **Custom festival types** - `festivals/.festival/festival_types.yaml`
   defines which phases each festival type auto-scaffolds. Add your own types
   for your own workflow shapes.
-- **Quality gates** - defaults included; replace or modify them campaign-wide
+- **Quality gates** - defaults included; replace or modify them camp-wide
   or per festival.
 - **Lifecycle hooks** - declare named commands at machine / festivals / festival
   layers, bind them to steps, and inspect with `fest hooks list`. The approval
@@ -157,7 +157,7 @@ Every implementation sequence ends with built-in quality checks:
 05_iterate.md            # Address feedback, iterate
 ```
 
-Defaults are included out of the box but fully customizable - modify them at the campaign level via the `.festival/` directory, or override per-festival.
+Defaults are included out of the box but fully customizable: modify them at the camp level via the `.festival/` directory, or override per-festival.
 
 ## What fest Does
 
@@ -420,10 +420,10 @@ just lint         # Linting (golangci-lint, gopls, vet)
 
 ## Part of Festival
 
-Fest is one half of the Festival product. The other half is [camp](https://github.com/Obedience-Corp/camp), which manages campaign workspaces - isolated environments for individual missions. Camp creates the workspace (`camp init`), fest manages the planning and execution within it. Together, camp + fest = Festival. Both tools are built to be customized: camp scaffolds the workspace, fest scaffolds and executes the work inside it, and the templates behind both are yours to change.
+Fest is one half of the Festival product. The other half is [camp](https://github.com/Obedience-Corp/camp), which manages camps: isolated environments for individual missions. Camp creates the workspace (`camp init`), fest manages the planning and execution within it. Together, camp + fest = Festival. Both tools are built to be customized: camp scaffolds the workspace, fest scaffolds and executes the work inside it, and the templates behind both are yours to change.
 
 - [Festival documentation](https://fest.build) - Full docs, methodology, tutorials
-- [camp CLI](https://github.com/Obedience-Corp/camp) - Campaign workspace management
+- [camp CLI](https://github.com/Obedience-Corp/camp) - Camp workspace management
 - [Festival repo](https://github.com/Obedience-Corp/festival) - Distribution hub and releases
 
 ## Watch

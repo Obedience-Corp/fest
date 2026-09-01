@@ -46,7 +46,7 @@ The concrete type is `approvalJudgeRequest` in
 | `actions` | when set | The step's declared actions |
 | `output` | when set | What the step was supposed to produce |
 | `evidence` | when non-empty | Phase-relative deliverables that exist and are non-empty |
-| `campaign_root` | when detected | Campaign directory; the root the campaign-relative `working_dirs` join against |
+| `campaign_root` | when detected | Camp root; the root the camp-relative `working_dirs` join against |
 | `working_dirs` | when declared | Where the phase's work actually landed |
 
 `document` names a file, it does not carry one. For a `WORKFLOW.md` checkpoint
@@ -129,7 +129,7 @@ sends where the work landed:
 }
 ```
 
-- `path` is **campaign-relative**, taken from each sequence's `fest_working_dir`
+- `path` is **camp-relative**, taken from each sequence's `fest_working_dir`
   and normalized by `pathutil.NormalizeWorkingDir`. Absolute, `~`-prefixed, and
   `..`-escaping values are rejected.
 - Paths stay relative deliberately. A judge request is rendered into a prompt
@@ -144,8 +144,8 @@ sends where the work landed:
 - `campaign_root` comes from `workspace.DetectCampaign`, so it honors `CAMP_ROOT`
   and matches the root the rest of fest resolves. Empty when detection fails,
   which leaves the relative paths intact.
-- Containment is enforced on the path **string** only. A campaign-relative entry
-  that is a symlink out of the campaign still normalizes cleanly, so a judge that
+- Containment is enforced on the path **string** only. A camp-relative entry
+  that is a symlink out of the camp still normalizes cleanly, so a judge that
   opens these directories must re-validate before reading, unlike `evidence`,
   which is `EvalSymlinks`-resolved and root-checked here.
 - Sequences that declare no working dir are skipped: the work is in the festival
@@ -208,7 +208,7 @@ The check lives in the consumer, `ob judge`, which selects on
 
 Two consequences worth knowing:
 
-- A campaign configured for `ollama` never exercises the orientation path. Any
+- A camp configured for `ollama` never exercises the orientation path. Any
   validation done only against the configured default is validating the
   fallback.
 - The fallback is not the retired `evidence: embed` knob returning. It is not

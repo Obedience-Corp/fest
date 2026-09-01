@@ -28,11 +28,11 @@ layer that declares nothing inherits everything above it.
 
 | Layer | Location | Format | Scope |
 | --- | --- | --- | --- |
-| 1. Machine | `~/.obey/fest/config.json` | JSON | every campaign on this machine |
-| 2. Festivals | `festivals/.festival/config.yaml` | YAML | every festival in the campaign |
+| 1. Machine | `~/.obey/fest/config.json` | JSON | every camp on this machine |
+| 2. Festivals | `festivals/.festival/config.yaml` | YAML | every festival in the camp |
 | 3. Festival | `fest.yaml` | YAML | this festival only |
 
-**Default at every layer is empty:** a fresh machine, campaign, or festival
+**Default at every layer is empty:** a fresh machine, camp, or festival
 runs no hooks until you declare some.
 
 ### Schema
@@ -252,7 +252,7 @@ Hook runs append `wf_hook_run` events to the festival-local ledger:
 <festival>/.fest/progress_events.jsonl
 ```
 
-These are **events**, not campaign-ledger decisions. Judge approve/reject still
+These are **events**, not camp-ledger decisions. Judge approve/reject still
 records decisions only through the existing judge/approve paths.
 
 ## Validate
