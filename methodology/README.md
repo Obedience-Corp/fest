@@ -523,7 +523,7 @@ fest understand workflow       # Workflow phase patterns
 ### Camp Level
 
 ```
-my-campaign/
+my-camp/
 ├── projects/                           # Git submodules (10-20+ repos)
 ├── festivals/                          # Festival workspace
 │   ├── planning/                       # Being designed
