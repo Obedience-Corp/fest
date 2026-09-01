@@ -78,7 +78,7 @@ The sequence goal is achieved when:
 
 ## Working Directory
 
-Target project: `[REPLACE: relative/path/to/project]` (relative to campaign root)
+Target project: `[REPLACE: relative/path/to/project]` (relative to camp root)
 
 ## Risk Assessment
 

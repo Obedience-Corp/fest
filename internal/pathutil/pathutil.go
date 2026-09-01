@@ -53,11 +53,11 @@ func NormalizeWorkingDir(raw string) (string, error) {
 	}
 
 	if strings.HasPrefix(s, "/") {
-		return "", fmt.Errorf("fest_working_dir must be relative to campaign root, got absolute path %q", raw)
+		return "", fmt.Errorf("fest_working_dir must be relative to camp root, got absolute path %q", raw)
 	}
 
 	if strings.HasPrefix(s, "~") {
-		return "", fmt.Errorf("fest_working_dir must be relative to campaign root, got home-relative path %q", raw)
+		return "", fmt.Errorf("fest_working_dir must be relative to camp root, got home-relative path %q", raw)
 	}
 
 	s = strings.TrimRight(s, "/")
@@ -68,7 +68,7 @@ func NormalizeWorkingDir(raw string) (string, error) {
 	s = filepath.Clean(s)
 
 	if s == ".." || strings.HasPrefix(s, ".."+string(filepath.Separator)) {
-		return "", fmt.Errorf("fest_working_dir contains \"..\" — paths must stay within campaign root")
+		return "", fmt.Errorf("fest_working_dir contains \"..\": paths must stay within camp root")
 	}
 
 	return s, nil

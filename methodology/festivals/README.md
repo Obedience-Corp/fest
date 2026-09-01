@@ -130,7 +130,7 @@ Not every step-by-step loop needs a full festival. `fest create workflow <name>`
 fest commit -m "..."
 ```
 
-Run inside a festival directory, a linked project (`fest link`), or with `--festival <id>`. It stages changes, prepends the festival/task reference to the message, and creates up to two commits: the project commit (if linked) and a campaign-root commit scoped to festival-scoped files (never `git add -A` at the root). Every implementation sequence gets a `fest_commit` gate task that expects this.
+Run inside a festival directory, a linked project (`fest link`), or with `--festival <id>`. It stages changes, prepends the festival/task reference to the message, and creates up to two commits: the project commit (if linked) and a camp-root commit scoped to festival-scoped files (never `git add -A` at the root). Every implementation sequence gets a `fest_commit` gate task that expects this.
 
 ## Lifecycle and Promotion
 

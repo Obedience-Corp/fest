@@ -216,7 +216,7 @@ func IsPickerCancelled(err error) bool {
 // and agents branch on errors.ErrCodeNotFound.
 func NoTargetError() error {
 	return errors.NotFound("festival").
-		WithHint("run from a festival, a linked project, or a campaign workspace with an interactive terminal")
+		WithHint("run from a festival, a linked project, or a camp with an interactive terminal")
 }
 
 // IsFestivalNotFound reports whether err is a structured NotFound error, used

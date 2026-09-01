@@ -85,9 +85,9 @@ func TestRunShowBySelector_RequiresCampaignWorkspace(t *testing.T) {
 
 	err = runShowBySelector(context.Background(), "LR0001", &showOptions{})
 	if err == nil {
-		t.Fatal("expected campaign workspace error, got nil")
+		t.Fatal("expected camp error, got nil")
 	}
-	if !strings.Contains(strings.ToLower(err.Error()), "campaign workspace") {
+	if !strings.Contains(strings.ToLower(err.Error()), "camp") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

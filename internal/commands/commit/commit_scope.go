@@ -169,7 +169,7 @@ func applyCachedDiffToTempIndex(ctx context.Context, repoPath, tmpIndex string, 
 }
 
 func commitTempIndex(ctx context.Context, repoPath, tmpIndex, message string) error {
-	return withIndexLockRetry(ctx, "committing festival files at campaign root", func() (string, error) {
+	return withIndexLockRetry(ctx, "committing festival files at camp root", func() (string, error) {
 		return gitWithIndex(ctx, repoPath, tmpIndex, "commit", "-m", message)
 	})
 }

@@ -27,7 +27,7 @@ func newListCmd() *cobra.Command {
 Sources:
   - Festival workflow types from festival_types.yaml (create festival --type)
   - Phase/sequence/task scaffold packages under the methodology templates tree
-    (~/.obey/fest/festivals/.festival/templates or campaign festivals/.festival/templates)
+    (~/.obey/fest/festivals/.festival/templates or camp festivals/.festival/templates)
   - Custom overrides in a festival's .festival/templates/
 
 Examples:

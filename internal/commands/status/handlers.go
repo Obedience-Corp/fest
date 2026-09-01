@@ -64,7 +64,7 @@ func pickFestivalForDisplay(ctx context.Context, cwd string) (string, error) {
 	festivalsDir, err := workspace.FindFestivals(cwd)
 	if err != nil || festivalsDir == "" {
 		return "", errors.NotFound("festival").
-			WithHint("navigate to a festival directory or a campaign workspace")
+			WithHint("navigate to a festival directory or a camp")
 	}
 	return shared.PickFestivalPath(ctx, festivalsDir, shared.FestivalPickerOptions{
 		IncludeStatusDirectories: false,

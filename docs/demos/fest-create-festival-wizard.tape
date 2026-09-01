@@ -5,7 +5,7 @@
 #   $FEST_VHS_ROOT/config/
 #   $FEST_VHS_ROOT/workspace/              # fest init'd
 #   $FEST_VHS_ROOT/workspace/.campaign/    # required: the project picker lists
-#   $FEST_VHS_ROOT/workspace/projects/     # projects/* only inside a campaign
+#   $FEST_VHS_ROOT/workspace/projects/     # projects/* only inside a camp
 #
 # Record from fest repo root:
 #   FEST_VHS_ROOT=/path/to/fixture vhs docs/demos/fest-create-festival-wizard.tape

@@ -8,9 +8,9 @@
 
 Records the live events for **this specific festival**. Co-exists with `progress_events.jsonl` (which only records task/workflow status transitions).
 
-### Campaign-level — `.campaign/fest/activity.jsonl`
+### Camp-level — `.campaign/fest/activity.jsonl`
 
-Records DestBoth lifecycle events actually emitted today (`festival.created`, `festival.promoted`, `phase.created`, `sequence.created`) for campaign-wide orientation. This is the scrollable timeline of those lifecycle events in this campaign's festival layer.
+Records DestBoth lifecycle events actually emitted today (`festival.created`, `festival.promoted`, `phase.created`, `sequence.created`) for camp-wide orientation. This is the scrollable timeline of those lifecycle events in this camp's festival layer.
 
 ## Schema
 
@@ -61,7 +61,7 @@ JSONL: one JSON object per line, newline-terminated, append-only.
 | `scope.campaign_root` | yes | Absolute path. |
 | `scope.festival_id` | where applicable | e.g. `CS0003`. |
 | `scope.festival_name` | where applicable | Human-readable festival name. |
-| `scope.festival_path_relative` | where applicable | Path relative to campaign root. |
+| `scope.festival_path_relative` | where applicable | Path relative to camp root. |
 | `scope.phase` / `sequence` / `task` | where applicable | Null if not scoped to that level. |
 | `source_cmd` | yes | Verbatim invoked command with sensitive flags redacted. |
 | `data` | yes | Event-specific payload. |
@@ -77,14 +77,14 @@ JSONL: one JSON object per line, newline-terminated, append-only.
 
 Only events in this table are emitted. Commands emit after a successful mutation; they do not emit on error returns.
 
-### Festival lifecycle (both campaign + festival level)
+### Festival lifecycle (both camp + festival level)
 
 | Event | Triggered by |
 | --- | --- |
 | `festival.created` | `fest create festival` |
 | `festival.promoted` | Status transition: `planning` → `ready` → `active` → `completed`/`archived`/`someday` |
 
-### Phase / sequence lifecycle (both campaign + festival level)
+### Phase / sequence lifecycle (both camp + festival level)
 
 | Event | Triggered by |
 | --- | --- |
@@ -144,12 +144,12 @@ These names are reserved. No command in this PR writes them.
 | Log | Scope | What it records |
 | --- | --- | --- |
 | `activity.jsonl` (festival) | Festival | Live catalog events for that festival |
-| `activity.jsonl` (campaign) | Campaign | DestBoth lifecycle events only |
+| `activity.jsonl` (camp) | Camp | DestBoth lifecycle events only |
 | `progress_events.jsonl` | Festival | Task/workflow status transitions only |
 | `festival_events.jsonl` | Festival | Festival create/move/archive/delete only |
-| campaign ledger (`.campaign/events/`) | Campaign | High-intent fest actions via camp's `ledgerkit` |
+| camp ledger (`.campaign/events/`) | Camp | High-intent fest actions via camp's `ledgerkit` |
 
-`activity.jsonl` is complementary to the campaign ledger. The ledger is camp's campaign-level record of high-intent decisions; `activity.jsonl` is fest's per-festival audit trail for the wired catalog events.
+`activity.jsonl` is complementary to the camp ledger. The ledger is Camp's record of high-intent decisions at the camp layer; `activity.jsonl` is fest's per-festival audit trail for the wired catalog events.
 
 ## Consumer examples
 
@@ -165,7 +165,7 @@ jq 'select(.event | test("(phase|sequence|task)\\.created"))' \
 jq 'select(.result.ok == false)' \
   festivals/active/my-fest-CS0001/.fest/activity.jsonl
 
-# Campaign-wide festival promotions
+# Camp-wide festival promotions
 jq 'select(.event == "festival.promoted")' \
   .campaign/fest/activity.jsonl
 

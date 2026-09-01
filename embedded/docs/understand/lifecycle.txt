@@ -29,7 +29,7 @@ MOVING A FESTIVAL
   active -> completed   All tasks must be completed
 
   fest promote                       Advance the current festival one stage
-  fest promote <name>                Promote a specific festival (in a campaign)
+  fest promote <name>                Promote a specific festival (in a camp)
   fest promote --dungeon someday     Shelve for later
   fest promote --dungeon archived    Archive for reference
 

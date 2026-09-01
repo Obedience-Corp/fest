@@ -54,19 +54,19 @@ a linked project directory (see 'fest link'), or use --festival to specify one.
 
 The fest commit command wraps git commit and automatically:
   1. Stages changes and prepends the festival reference to the commit message
-  2. Creates a campaign root commit for festival-scoped files (task docs, progress, state)
+  2. Creates a camp root commit for festival-scoped files (task docs, progress, state)
 
 When a festival or sequence has a linked project, up to two commits are created
 even when this command is run from inside the festival:
   - Project commit: stages all project changes (skipped when the project is clean)
-  - Campaign root commit: stages only festival directory, .campaign/fest/,
+  - Camp root commit: stages only festival directory, .campaign/fest/,
     festivals/.festival/.state/, and the submodule pointer
 
 The sequence's fest_working_dir is preferred over the festival navigation link
 and legacy fest.yaml project_path. A festival with no linked project creates one
-campaign-root commit containing only festival-scoped files (not git add -A).
+camp root commit containing only festival-scoped files (not git add -A).
 
-Use --no-root to skip the campaign root commit.
+Use --no-root to skip the camp root commit.
 
 Reference format: [FE-{id}]
   - FE: Festival component identifier
@@ -106,7 +106,7 @@ Examples:
   # Skip auto-staging, commit only what's already staged
 
   fest commit --auto-write
-  # Run the configured campaign commit-message hook from the target repo`,
+  # Run the configured camp commit-message hook from the target repo`,
 		RunE: runCommit,
 	}
 
@@ -119,9 +119,9 @@ Examples:
 	cmd.Flags().BoolVar(&autoWrite, "auto-write", false, "run configured commit message writer")
 	cmd.Flags().BoolVar(&commitLarge, "commit-large", false, "commit over-threshold files instead of keeping them out of git")
 	cmd.Flags().BoolVar(&commitNested, "commit-nested", false, "commit undeclared nested git repositories as gitlinks instead of keeping them out of git")
-	cmd.Flags().BoolVar(&noRoot, "no-root", false, "skip campaign root commit (project commit only)")
-	cmd.Flags().BoolVar(&syncSubmoduleRef, "sync-submodule-ref", false, "deprecated: campaign root commit is now automatic")
-	_ = cmd.Flags().MarkDeprecated("sync-submodule-ref", "campaign root commit is now automatic; use --no-root to skip")
+	cmd.Flags().BoolVar(&noRoot, "no-root", false, "skip camp root commit (project commit only)")
+	cmd.Flags().BoolVar(&syncSubmoduleRef, "sync-submodule-ref", false, "deprecated: camp root commit is now automatic")
+	_ = cmd.Flags().MarkDeprecated("sync-submodule-ref", "camp root commit is now automatic; use --no-root to skip")
 
 	return cmd
 }
@@ -257,7 +257,7 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	if autoWrite {
 		if ws == nil || ws.Type != scope.WorkspaceTypeCampaign {
 			result.Success = false
-			result.Error = "auto-write requires campaign context"
+			result.Error = "auto-write requires camp context"
 			return outputResult(result)
 		}
 		fmt.Fprintln(os.Stderr, ui.Info("Writing commit message..."))
@@ -342,7 +342,7 @@ func runCommit(cmd *cobra.Command, args []string) error {
 				result.Error = rootErr.Error()
 				return outputResult(result)
 			}
-			_, _ = fmt.Fprintf(report, "%s %s\n", ui.Warning("campaign root commit skipped:"), rootErr.Error())
+			_, _ = fmt.Fprintf(report, "%s %s\n", ui.Warning("camp root commit skipped:"), rootErr.Error())
 		} else if rootHash != "" {
 			result.CampaignHash = rootHash
 			if !primaryCommitted {
@@ -381,7 +381,7 @@ func outputResult(result *CommitResult) error {
 				fmt.Printf("%s %s\n", ui.Label("Position"), ui.Value(summary))
 			}
 			if result.CampaignTag != "" {
-				fmt.Printf("%s %s\n", ui.Label("Campaign"), ui.Value(result.CampaignTag))
+				fmt.Printf("%s %s\n", ui.Label("Camp"), ui.Value(result.CampaignTag))
 			}
 			if result.CampaignHash != "" {
 				fmt.Printf("%s %s\n", ui.Label("Root Commit"), ui.Value(result.CampaignHash))
@@ -856,13 +856,13 @@ func commitCampaignRoot(ctx context.Context, campaignRoot string, paths []string
 		if stderrors.As(err, &blocked) {
 			return "", errors.New(guardRefusalMessage(blocked))
 		}
-		return "", errors.Wrap(err, "staging festival files at campaign root")
+		return "", errors.Wrap(err, "staging festival files at camp root")
 	}
 	reportStageOutcome(report, outcome)
 
 	hasChanges, err := hasStagedPathChanges(ctx, campaignRoot, paths)
 	if err != nil {
-		return "", errors.Wrap(err, "checking staged changes at campaign root")
+		return "", errors.Wrap(err, "checking staged changes at camp root")
 	}
 	if !hasChanges {
 		return "", nil
@@ -882,7 +882,7 @@ func commitCampaignRoot(ctx context.Context, campaignRoot string, paths []string
 
 	hash, err := commitkit.ShortHash(ctx, campaignRoot)
 	if err != nil {
-		return "", errors.Wrap(err, "getting campaign root commit hash")
+		return "", errors.Wrap(err, "getting camp root commit hash")
 	}
 
 	return hash, nil

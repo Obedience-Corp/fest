@@ -83,10 +83,10 @@ func TestResolveFestivalSelector_RequiresCampaignWorkspace(t *testing.T) {
 
 	_, err := ResolveFestivalSelector(context.Background(), tmpDir, "LR0001")
 	if err == nil {
-		t.Fatal("expected campaign workspace error, got nil")
+		t.Fatal("expected camp error, got nil")
 	}
-	if !strings.Contains(strings.ToLower(err.Error()), "campaign workspace") {
-		t.Fatalf("expected campaign workspace error, got: %v", err)
+	if !strings.Contains(strings.ToLower(err.Error()), "camp") {
+		t.Fatalf("expected camp error, got: %v", err)
 	}
 }
 

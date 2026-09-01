@@ -213,8 +213,8 @@ func collectOrderedPickCandidates(festivalsDir string, opts FestivalPickerOption
 func findCampaignFestivalsDir(ctx context.Context, cwd string) (string, error) {
 	campaignRoot, err := workspace.DetectCampaign(ctx, cwd)
 	if err != nil {
-		return "", errors.NotFound("campaign workspace").
-			WithHint("Run this command from inside a campaign workspace")
+		return "", errors.NotFound("camp").
+			WithHint("Run this command from inside a camp")
 	}
 
 	festivalsDir := filepath.Join(campaignRoot, workspace.FestivalsDir)
@@ -222,7 +222,7 @@ func findCampaignFestivalsDir(ctx context.Context, cwd string) (string, error) {
 	if statErr != nil || !info.IsDir() {
 		return "", errors.NotFound("festivals directory").
 			WithField("path", festivalsDir).
-			WithHint("Campaign workspace is missing festivals/ directory")
+			WithHint("This camp is missing a festivals/ directory")
 	}
 
 	return festivalsDir, nil

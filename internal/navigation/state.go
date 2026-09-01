@@ -42,7 +42,7 @@ func NavigationPath() (string, error) {
 	ctx := context.Background()
 	root, err := workspace.DetectCampaign(ctx, "")
 	if err != nil {
-		return "", fmt.Errorf("fest navigation requires campaign context: %w", err)
+		return "", fmt.Errorf("fest navigation requires camp context: %w", err)
 	}
 	return filepath.Join(root, ".campaign", "fest", NavigationFileName), nil
 }

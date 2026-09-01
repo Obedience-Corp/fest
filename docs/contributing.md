@@ -202,7 +202,7 @@ func (v *Validator) Validate(path string) ([]Issue, error) {
 
 ### Error Handling
 
-fest does **not** ban `fmt.Errorf`. The campaign-wide "never `fmt.Errorf`" line
+fest does **not** ban `fmt.Errorf`. The repo-wide "never `fmt.Errorf`" line
 is scoped here (Obedience-Corp/fest#342).
 
 `internal/errors` (`festerrors` at the process boundary) is required for

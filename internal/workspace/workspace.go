@@ -15,7 +15,7 @@ var (
 	ErrNoWorkspace = errors.New("not in a fest workspace")
 
 	// ErrNoCampaign is returned when no campaign directory was found.
-	ErrNoCampaign = errors.New("not in a campaign")
+	ErrNoCampaign = errors.New("not in a camp")
 )
 
 const (

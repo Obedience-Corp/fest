@@ -40,12 +40,12 @@ func NewShowCommand() *cobra.Command {
 		Long: `Display festival information for a single festival.
 
 When run inside a festival directory, shows the current festival's details.
-When run outside a festival in an interactive campaign workspace, opens a
+When run outside a festival in an interactive camp, opens a
 cyclable view; use ←/→ to move between festivals and q/Ctrl+C to exit.
 
   fest show                        Show current festival, or cycle festivals in a workspace
   fest show <name>                 Show details of a specific festival by name
-  fest show --festival <selector>  Show a festival by explicit selector (campaign workspace)
+  fest show --festival <selector>  Show a festival by explicit selector (from a camp)
 
 To list festivals by status, use 'fest list' (e.g. 'fest list active',
 'fest list all', 'fest list dungeon/completed').`,
@@ -81,7 +81,7 @@ To list festivals by status, use 'fest list' (e.g. 'fest list active',
 	cmd.Flags().BoolVar(&opts.collapsed, "collapsed", false, "show collapsed tree with counters only")
 	cmd.Flags().BoolVar(&opts.inProgress, "inprogress", false, "expand only in-progress phases and sequences")
 	cmd.Flags().BoolVar(&opts.roadmap, "roadmap", false, "show full execution roadmap with task statuses")
-	cmd.Flags().StringVar(&opts.festival, "festival", "", "festival selector (name or ID) from within a campaign workspace")
+	cmd.Flags().StringVar(&opts.festival, "festival", "", "festival selector (name or ID) from within a camp")
 	_ = cmd.RegisterFlagCompletionFunc("festival", completeShowFestivalSelector)
 
 	// Hidden, deprecated status aliases: the listing surface now lives on
@@ -326,7 +326,7 @@ func showCycleExtraKeys() map[byte]ExtraKeyHandler {
 
 func notInFestivalError() error {
 	return errors.NotFound("festival").WithOp("show").
-		WithHint("run 'fest list' to see festivals, then 'fest show <name>' or pass --festival <selector>; or navigate to a festival directory, use 'fest link' to link a project, or run from a terminal in a campaign workspace to cycle festivals")
+		WithHint("run 'fest list' to see festivals, then 'fest show <name>' or pass --festival <selector>; or navigate to a festival directory, use 'fest link' to link a project, or run from a terminal in a camp to cycle festivals")
 }
 
 func runShow(ctx context.Context, target string, opts *showOptions) error {
@@ -569,7 +569,7 @@ func runShowPick(ctx context.Context, printPath bool) error {
 	festivalsDir, err := workspace.FindFestivals(cwd)
 	if err != nil || festivalsDir == "" {
 		return errors.NotFound("festivals directory").
-			WithHint("run from a campaign workspace with a festivals/ directory")
+			WithHint("run from a camp with a festivals/ directory")
 	}
 
 	picked, outcome, err := shared.PickFestival(ctx, festivalsDir, showPickerOptions())
@@ -588,7 +588,7 @@ func runShowPick(ctx context.Context, printPath bool) error {
 		return nil
 	default:
 		return errors.NotFound("festival").WithOp("show pick").
-			WithHint("run from an interactive terminal in a campaign workspace to pick a festival")
+			WithHint("run from an interactive terminal in a camp to pick a festival")
 	}
 }
 

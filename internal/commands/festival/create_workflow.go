@@ -145,7 +145,7 @@ func RunCreateWorkflow(ctx context.Context, opts *CreateWorkflowOptions) error {
 	res, err := standalone.Resolve(ctx, cwd)
 	if err != nil {
 		return errors.Wrap(err, "resolve mode").
-			WithHint("run inside a campaign root or pass --festival explicitly")
+			WithHint("run inside a camp root or pass --festival explicitly")
 	}
 	switch res.Mode {
 	case standalone.ModeFestival:

@@ -98,7 +98,7 @@ func previewCreateFestival(ctx context.Context, cfg *createConfig) error {
 	fmt.Println(tree)
 	if len(preview.missingCoreTemplates) > 0 {
 		cfg.display.Error("MISSING core templates: %s — create would fail", strings.Join(preview.missingCoreTemplates, ", "))
-		cfg.display.Info("  Copy .festival/templates/festival/ from a working campaign, or run 'fest init' to seed the template directory.")
+		cfg.display.Info("  Copy .festival/templates/festival/ from a working camp, or run 'fest init' to seed the template directory.")
 	}
 	printFestivalPreviewMarkers(markerPreview)
 	return nil

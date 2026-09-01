@@ -11,7 +11,7 @@ This document describes the standardized commit reference format used by `fest c
 `FE` identifies a Festival methodology reference. `PH` and `SQ` record where
 inside the festival the commit happened, and both are optional.
 
-Inside a campaign, the festival reference is one segment of the campaign tag
+Inside a camp, the festival reference is one segment of the camp tag
 that `camp` and `fest` share:
 
 ```
