@@ -381,7 +381,7 @@ func outputResult(result *CommitResult) error {
 				fmt.Printf("%s %s\n", ui.Label("Position"), ui.Value(summary))
 			}
 			if result.CampaignTag != "" {
-				fmt.Printf("%s %s\n", ui.Label("Campaign"), ui.Value(result.CampaignTag))
+				fmt.Printf("%s %s\n", ui.Label("Camp"), ui.Value(result.CampaignTag))
 			}
 			if result.CampaignHash != "" {
 				fmt.Printf("%s %s\n", ui.Label("Root Commit"), ui.Value(result.CampaignHash))
