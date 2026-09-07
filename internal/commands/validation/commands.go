@@ -97,6 +97,60 @@ type ValidationResult struct {
 	markersBlocking bool
 }
 
+func finalizeValidationResult(result *ValidationResult) {
+	canonical := toValidatorResult(result)
+	result.Score = validator.CalculateScore(canonical)
+	result.MarkersPending = canonical.HasPendingMarkers()
+	result.Valid = validationResultIsClean(result)
+}
+
+// validationResultIsClean reports whether the festival passes validation.
+//
+// Unfilled template markers are the one issue class whose weight depends on
+// the festival's lifecycle status. Until the festival is promoted they are an
+// expected state: markers_pending records them, their festival-root findings
+// report as warnings, and validation still passes. Once the festival is ready
+// or active the plan is supposed to be written, so the same markers report as
+// errors and validation fails.
+func validationResultIsClean(result *ValidationResult) bool {
+	for _, issue := range result.Issues {
+		if validator.IsPendingMarker(issue.Code) {
+			if !result.markersBlocking {
+				continue
+			}
+			return false
+		}
+		if issue.Level == LevelError || issue.Level == LevelWarning {
+			return false
+		}
+	}
+
+	if len(result.Warnings) > 0 {
+		return false
+	}
+
+	return !checklistHasFailures(result.Checklist)
+}
+
+// validationHasBlockingFailures drives the exit status and the failure banner.
+// It follows the same lifecycle rule as validationResultIsClean so that valid,
+// the banner, and the exit code never disagree.
+func validationHasBlockingFailures(result *ValidationResult) bool {
+	for _, issue := range result.Issues {
+		if validator.IsPendingMarker(issue.Code) {
+			if result.markersBlocking {
+				return true
+			}
+			continue
+		}
+		if issue.Level == LevelError {
+			return true
+		}
+	}
+
+	return checklistHasFailures(result.Checklist)
+}
+
 func checklistHasFailures(checklist *Checklist) bool {
 	if checklist == nil {
 		return false
@@ -163,23 +217,15 @@ this command validates METHODOLOGY COMPLIANCE:
 AI agents execute TASK FILES, not goals. If your sequences only have
 SEQUENCE_GOAL.md without task files, agents won't know HOW to execute.
 
-Unfilled markers follow the festival's lifecycle status:
+Unfilled markers follow the festival's lifecycle status. Until it is promoted,
+they are expected: root-document markers report as warnings, markers_pending is
+true, valid stays true, and the exit status is 0. Once it is ready or active the
+plan should be written, so root markers report as errors and any unfilled marker
+makes valid false with exit status 1.
 
-  planning        Expected. Markers on festival-root documents report as
-                  warnings, markers_pending is true, valid stays true, and
-                  the exit status is 0. A festival whose status cannot be
-                  read is treated the same way.
-  ready, active   The plan should be written by now. Markers on festival-root
-                  documents report as errors, and any unfilled marker makes
-                  valid false with exit status 1.
-
-Inside a phase, marker severity follows the phase type in both cases:
-implementation, review, and action phases report errors; ingest, planning, and
-research phases report warnings.
-
-Fill markers as you write real content: do not paste filler to restore a
-score. Missing files, missing task files, and missing quality gates fail
-validation in every status.
+Fill markers as you write real content: do not paste filler to restore a score.
+Missing files, missing task files, and missing quality gates fail validation in
+every status.
 
 Use --fix to automatically apply safe fixes (like adding quality gates).`,
 		Args: cobra.MaximumNArgs(1),
@@ -329,7 +375,7 @@ func runValidateAll(ctx context.Context, opts *validateOptions) error {
 		Festival:        filepath.Base(festivalPath),
 		Valid:           true,
 		Issues:          []ValidationIssue{},
-		markersBlocking: config.FestivalPromoted(ctx, festivalPath),
+		markersBlocking: markersAreBlocking(ctx, festivalPath),
 	}
 
 	// Run all validation checks
@@ -430,6 +476,42 @@ func validateTemplateChecks(ctx context.Context, festivalPath string, result *Va
 		}
 		result.MarkerInfo = markerInfo
 	}
+}
+
+// markersAreBlocking reports whether unfilled markers have stopped being an
+// expected state for this festival, which happens when it leaves planning.
+func markersAreBlocking(ctx context.Context, festivalPath string) bool {
+	switch config.FestivalStatus(ctx, festivalPath) {
+	case config.StatusReady, config.StatusActive:
+		return true
+	}
+	return false
+}
+
+// applyMarkerLifecycleLevels reports festival-root markers at warning level
+// until the festival is promoted out of planning.
+//
+// The canonical scanner reads severity from the phase that contains a file, and
+// a festival-root document belongs to no phase, so it falls back to the
+// implementation default and every fresh scaffold reports errors. Root markers
+// are the plan itself, and writing the plan is what planning status is for.
+func applyMarkerLifecycleLevels(ctx context.Context, festivalPath string, issues []ValidationIssue) {
+	if markersAreBlocking(ctx, festivalPath) {
+		return
+	}
+	for i := range issues {
+		if issues[i].Code == CodeUnfilledTemplate && isFestivalRootIssuePath(issues[i].Path) {
+			issues[i].Level = LevelWarning
+		}
+	}
+}
+
+// isFestivalRootIssuePath reports whether an issue path names a file at the
+// festival root. Marker issue paths are relative to the festival, so a root
+// document has no path separator.
+func isFestivalRootIssuePath(issuePath string) bool {
+	return !strings.Contains(issuePath, string(filepath.Separator)) &&
+		!strings.Contains(issuePath, "/")
 }
 
 // validateAutoLinkChecks runs auto-link validation for the CLI `fest validate` command.

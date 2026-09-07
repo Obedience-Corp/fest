@@ -52,7 +52,29 @@ func routeUnplannedFestival(ctx context.Context, festivalPath, festivalStatus st
 	if err != nil {
 		return false, err
 	}
-	return true, emitNextResult(ctx, festivalPath, result, opts)
+	return true, emitFestivalPlanningStep(result, opts)
+}
+
+// emitFestivalPlanningStep renders the planning step in the selected output
+// mode. The modes that can only name a task file have nothing to name here.
+func emitFestivalPlanningStep(result *selection.NextTaskResult, opts RenderOptions) error {
+	switch {
+	case opts.Path, opts.CD, opts.ProjectDir:
+		return errors.NotFound("no task available: this festival has no plan yet")
+	case opts.Short:
+		fmt.Println(selection.FormatShort(result))
+	case opts.JSON:
+		out, jsonErr := selection.FormatJSON(result)
+		if jsonErr != nil {
+			return errors.Parse("formatting JSON", jsonErr)
+		}
+		fmt.Println(out)
+	case opts.Verbose:
+		fmt.Print(selection.FormatVerbose(result, opts.showInlineContext()))
+	default:
+		fmt.Print(selection.FormatText(result, opts.showInlineContext()))
+	}
+	return nil
 }
 
 // buildFestivalPlanningResult assembles the planning step: the goal when one is
@@ -95,7 +117,7 @@ func buildFestivalPlanningResult(ctx context.Context, festivalPath, festivalStat
 		FestivalPlanning: &selection.FestivalPlanningResult{
 			Status:       festivalStatus,
 			PhaseCount:   phaseCount,
-			Goal:         festivalGoal(ctx, festivalPath),
+			Goal:         festivalGoal(festivalPath),
 			MarkerTotal:  total,
 			MarkerFiles:  files,
 			NextCommands: festivalPlanningCommands,
@@ -107,9 +129,11 @@ func buildFestivalPlanningResult(ctx context.Context, festivalPath, festivalStat
 // `fest create festival --goal` recorded one and from FESTIVAL_GOAL.md
 // otherwise. It returns empty while the goal is still a template marker, so
 // the step never presents a placeholder as the objective.
-func festivalGoal(ctx context.Context, festivalPath string) string {
-	if goal := config.FestivalGoal(ctx, festivalPath); goal != "" && !validator.ContainsTemplateMarker(goal) {
-		return goal
+func festivalGoal(festivalPath string) string {
+	if cfg, err := config.LoadFestivalConfig(festivalPath, ""); err == nil {
+		if goal := cfg.Metadata.Goal; goal != "" && !validator.ContainsTemplateMarker(goal) {
+			return goal
+		}
 	}
 	content, err := os.ReadFile(filepath.Join(festivalPath, "FESTIVAL_GOAL.md"))
 	if err != nil {

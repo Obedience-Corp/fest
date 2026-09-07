@@ -122,6 +122,9 @@ func runNext(cmd *cobra.Command, args []string) error {
 		return errors.IO("getting current directory", err)
 	}
 
+	// Context is shown by default, --no-context disables it
+	showInlineContext := !noInlineContext
+
 	// Snapshot cobra flag globals into a RenderOptions struct so render
 	// functions receive their configuration by parameter rather than reading
 	// package-level state. Without this, tests that toggle the flags inside
@@ -167,12 +170,10 @@ func runNext(cmd *cobra.Command, args []string) error {
 		nextPhaseName = filepath.Base(found)
 	}
 
-	// Lifecycle status drives which unfilled markers are expected: a festival
-	// still in planning is allowed to carry them in its root documents.
-	festivalStatus := config.FestivalStatus(ctx, festivalPath)
-
 	// Validation gate: block if festival has errors (phase- and status-aware
-	// for markers)
+	// for markers). A festival still in planning may carry markers in its root
+	// documents; see markerIsExpected.
+	festivalStatus := config.FestivalStatus(ctx, festivalPath)
 	vResult, vErr := validator.FullValidate(ctx, festivalPath)
 	if vErr == nil && hasBlockingIssues(vResult, nextPhaseType, nextPhaseName, festivalStatus) {
 		return emitValidationBlock(festivalPath, vResult)
@@ -188,8 +189,8 @@ func runNext(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// A festival that is still being planned has nothing to execute yet.
-	// Hand back the planning step instead of routing into an empty tree.
+	// A festival that is still being planned has nothing to execute yet. Hand
+	// back the planning step instead of routing into an empty tree.
 	if handled, planErr := routeUnplannedFestival(ctx, festivalPath, festivalStatus, opts); handled || planErr != nil {
 		return planErr
 	}
@@ -370,7 +371,59 @@ func runNext(cmd *cobra.Command, args []string) error {
 		}))
 	}
 
-	return emitNextResult(ctx, festivalPath, result, opts)
+	// Output formatting
+	if projectDirFlag {
+		if result.WorkingDirAbsolute == "" {
+			return errors.NotFound("no fest_working_dir set for current sequence")
+		}
+		fmt.Println(result.WorkingDirAbsolute)
+		return nil
+	}
+
+	if pathFlag {
+		if result.Task == nil {
+			return errors.NotFound("no task available")
+		}
+		// Output relative path from festival root
+		relPath := filepath.Join(result.Task.PhaseName, result.Task.SequenceName, result.Task.Name+".md")
+		fmt.Println(relPath)
+		return nil
+	}
+
+	if cdOutput {
+		output := selection.FormatCD(result)
+		if output == "" {
+			return errors.NotFound("no task available to navigate to")
+		}
+		fmt.Println(output)
+		return nil
+	}
+
+	if shortOutput {
+		fmt.Println(selection.FormatShort(result))
+		return nil
+	}
+
+	if jsonOutput {
+		output, err := selection.FormatJSON(result)
+		if err != nil {
+			return errors.Parse("formatting JSON", err)
+		}
+		fmt.Println(output)
+		return nil
+	}
+
+	if verboseOutput {
+		fmt.Print(selection.FormatVerbose(result, showInlineContext))
+		printChainContext(ctx, festivalPath, result.FestivalComplete)
+		printFeedbackReminder(ctx, festivalPath)
+		return nil
+	}
+
+	fmt.Print(selection.FormatText(result, showInlineContext))
+	printChainContext(ctx, festivalPath, result.FestivalComplete)
+	printFeedbackReminder(ctx, festivalPath)
+	return nil
 }
 
 // loadFeedbackCriteria checks if feedback is configured for the festival and returns criteria names.

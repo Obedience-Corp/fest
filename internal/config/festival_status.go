@@ -13,11 +13,12 @@ const (
 )
 
 // FestivalStatus returns the lifecycle status of the festival at festivalPath,
-// taken from the last status_history entry in its fest.yaml.
+// the status of the last status_history entry in its fest.yaml.
 //
 // It returns an empty string when fest.yaml is missing, unreadable, or carries
-// no status history. Callers treat an undetermined status as the strict case:
-// rules that relax while a festival is in planning stay in force.
+// no status history. Rules that relax while a festival is in planning also
+// relax on an empty status; callers that must fail closed on an undetermined
+// status use lifecycle.EnforcePreActive, which does exactly that.
 func FestivalStatus(ctx context.Context, festivalPath string) string {
 	if ctx != nil {
 		if err := ctx.Err(); err != nil {
@@ -32,38 +33,4 @@ func FestivalStatus(ctx context.Context, festivalPath string) string {
 		return ""
 	}
 	return cfg.Metadata.CurrentStatus()
-}
-
-// FestivalGoal returns the goal recorded in the festival's fest.yaml, which is
-// what `fest create festival --goal` writes. It returns an empty string when
-// there is no readable config or no goal.
-func FestivalGoal(ctx context.Context, festivalPath string) string {
-	if ctx != nil {
-		if err := ctx.Err(); err != nil {
-			return ""
-		}
-	}
-	if festivalPath == "" {
-		return ""
-	}
-	cfg, err := LoadFestivalConfig(festivalPath, "")
-	if err != nil {
-		return ""
-	}
-	return cfg.Metadata.Goal
-}
-
-// FestivalPromoted reports whether the festival has been promoted out of
-// planning, meaning its status is ready or active.
-//
-// It is false for a festival still in planning and for one whose status cannot
-// be read, so rules that relax during planning also relax when there is no
-// status to consult. Callers that must fail closed on an unreadable status use
-// EnforcePreActive, which does exactly that.
-func FestivalPromoted(ctx context.Context, festivalPath string) bool {
-	switch FestivalStatus(ctx, festivalPath) {
-	case StatusReady, StatusActive:
-		return true
-	}
-	return false
 }
