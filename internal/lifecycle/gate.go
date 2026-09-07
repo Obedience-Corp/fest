@@ -120,8 +120,8 @@ func emitBlock(festivalPath, status, reason string) error {
 	festName := filepath.Base(festivalPath)
 
 	var sb strings.Builder
-	sb.WriteString("STOP — FESTIVAL NOT YET ACTIVE\n")
-	sb.WriteString("──────────────────────────────\n")
+	sb.WriteString("STOP: FESTIVAL NOT YET ACTIVE\n")
+	sb.WriteString(strings.Repeat("─", 29) + "\n")
 
 	if status == "ready" {
 		fmt.Fprintf(&sb, "Festival %q is in ready status.\n", festName)
@@ -169,8 +169,8 @@ func emitFailClosed(festivalPath, reason, hint string) error {
 	festName := filepath.Base(festivalPath)
 
 	var sb strings.Builder
-	sb.WriteString("STOP — FESTIVAL STATUS UNDETERMINED\n")
-	sb.WriteString("───────────────────────────────────\n")
+	sb.WriteString("STOP: FESTIVAL STATUS UNDETERMINED\n")
+	sb.WriteString(strings.Repeat("─", 34) + "\n")
 	fmt.Fprintf(&sb, "Could not determine status for festival %q.\n", festName)
 	fmt.Fprintf(&sb, "Hint: %s\n", hint)
 	if reason != "" {

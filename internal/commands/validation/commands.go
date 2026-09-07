@@ -89,40 +89,12 @@ type ValidationResult struct {
 	FixesApplied   []FixApplied      `json:"fixes_applied,omitempty"`
 	Suggestions    []string          `json:"suggestions,omitempty"`
 	MarkerInfo     *MarkerInfo       `json:"marker_info,omitempty"`
-}
 
-func finalizeValidationResult(result *ValidationResult) {
-	canonical := toValidatorResult(result)
-	result.Score = validator.CalculateScore(canonical)
-	result.MarkersPending = canonical.HasPendingMarkers()
-	result.Valid = validationResultIsClean(result)
-}
-
-func validationResultIsClean(result *ValidationResult) bool {
-	for _, issue := range result.Issues {
-		if validator.IsPendingMarker(issue.Code) {
-			continue
-		}
-		if issue.Level == LevelError || issue.Level == LevelWarning {
-			return false
-		}
-	}
-
-	if len(result.Warnings) > 0 {
-		return false
-	}
-
-	return !checklistHasFailures(result.Checklist)
-}
-
-func validationHasBlockingFailures(result *ValidationResult) bool {
-	for _, issue := range result.Issues {
-		if issue.Level == LevelError && !validator.IsPendingMarker(issue.Code) {
-			return true
-		}
-	}
-
-	return checklistHasFailures(result.Checklist)
+	// markersBlocking records whether this festival has been promoted out of
+	// planning, which is when unfilled markers stop being an expected state
+	// and start failing validation. Unexported so it stays out of the JSON
+	// contract; the subcommands that never scan markers leave it false.
+	markersBlocking bool
 }
 
 func checklistHasFailures(checklist *Checklist) bool {
@@ -187,14 +159,27 @@ this command validates METHODOLOGY COMPLIANCE:
   • Quality gates are present in implementation sequences
   • Naming conventions are followed
   • Unfilled [REPLACE:]/[FILL:] markers are reported as "markers pending"
-    (they do not fail structure validation or zero the score)
 
 AI agents execute TASK FILES, not goals. If your sequences only have
 SEQUENCE_GOAL.md without task files, agents won't know HOW to execute.
 
-Unfilled template markers after scaffolding are expected. Fill them as you
-write real content: do not paste filler to restore a score. Missing files,
-missing task files, and missing quality gates still fail validation.
+Unfilled markers follow the festival's lifecycle status:
+
+  planning        Expected. Markers on festival-root documents report as
+                  warnings, markers_pending is true, valid stays true, and
+                  the exit status is 0. A festival whose status cannot be
+                  read is treated the same way.
+  ready, active   The plan should be written by now. Markers on festival-root
+                  documents report as errors, and any unfilled marker makes
+                  valid false with exit status 1.
+
+Inside a phase, marker severity follows the phase type in both cases:
+implementation, review, and action phases report errors; ingest, planning, and
+research phases report warnings.
+
+Fill markers as you write real content: do not paste filler to restore a
+score. Missing files, missing task files, and missing quality gates fail
+validation in every status.
 
 Use --fix to automatically apply safe fixes (like adding quality gates).`,
 		Args: cobra.MaximumNArgs(1),
@@ -339,11 +324,12 @@ func runValidateAll(ctx context.Context, opts *validateOptions) error {
 	}
 
 	result := &ValidationResult{
-		OK:       true,
-		Action:   "validate",
-		Festival: filepath.Base(festivalPath),
-		Valid:    true,
-		Issues:   []ValidationIssue{},
+		OK:              true,
+		Action:          "validate",
+		Festival:        filepath.Base(festivalPath),
+		Valid:           true,
+		Issues:          []ValidationIssue{},
+		markersBlocking: config.FestivalPromoted(ctx, festivalPath),
 	}
 
 	// Run all validation checks
@@ -351,7 +337,7 @@ func runValidateAll(ctx context.Context, opts *validateOptions) error {
 	validateCompletenessChecks(ctx, festivalPath, result)
 	validateTaskFilesChecks(ctx, festivalPath, result)
 	validateQualityGatesChecks(ctx, festivalPath, result, opts.fix)
-	validateTemplateChecks(festivalPath, result)
+	validateTemplateChecks(ctx, festivalPath, result)
 	validateOrderingChecks(ctx, festivalPath, result)
 	validateAutoLinkChecks(ctx, festivalPath, result)
 	validateHooksChecks(ctx, festivalPath, result)
@@ -408,7 +394,7 @@ func runValidateAll(ctx context.Context, opts *validateOptions) error {
 
 // validateTemplateChecks delegates to the canonical validator and builds MarkerInfo
 // from the returned issues. This follows the same pattern as other check functions.
-func validateTemplateChecks(festivalPath string, result *ValidationResult) {
+func validateTemplateChecks(ctx context.Context, festivalPath string, result *ValidationResult) {
 	issues, err := validator.ValidateTemplateMarkers(festivalPath)
 	if err != nil {
 		result.Issues = append(result.Issues, ValidationIssue{
@@ -421,6 +407,7 @@ func validateTemplateChecks(festivalPath string, result *ValidationResult) {
 	}
 
 	converted := convertIssues(issues)
+	applyMarkerLifecycleLevels(ctx, festivalPath, converted)
 	result.Issues = append(result.Issues, converted...)
 
 	// Build MarkerInfo from the converted issues

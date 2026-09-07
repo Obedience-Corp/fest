@@ -265,6 +265,13 @@ func nextData(name string, common map[string]any) map[string]any {
 			"NoObjectivesSection": "",
 			"NextStepsSection":    "## Suggested Actions\n  - Explore the problem space",
 		}
+	case "next/festival_planning":
+		return map[string]any{
+			"Header":           common["Header"],
+			"InfoSection":      "Status planning\nPhases 0",
+			"MarkerSection":    "Unfilled Markers\n  FESTIVAL_GOAL.md (7)",
+			"NextStepsSection": "Next Step\n  1. Fill the markers: fest wizard fill .",
+		}
 	case "next/gate":
 		return map[string]any{
 			"Header":          common["Header"],

@@ -26,6 +26,11 @@ type NextTaskResult struct {
 	// Planning phase info (when in a planning/research phase)
 	Planning *PlanningPhaseResult `json:"planning,omitempty"`
 
+	// FestivalPlanning is set when the festival itself is still being planned
+	// and has no executable work yet. Task is nil and FestivalComplete is
+	// false whenever it is set.
+	FestivalPlanning *FestivalPlanningResult `json:"festival_planning,omitempty"`
+
 	// Reason for the recommendation
 	Reason string `json:"reason"`
 
