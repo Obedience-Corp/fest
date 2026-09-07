@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+#
+# Pre-push hook: runs the pre-merge gate before any push.
+#
+# Gate:
+#   just check    whitespace, stable and dev builds, vet across all three build
+#                 tag sets, golangci-lint, docs-check, unit tests
+#
+# docs-check is the reason this hook exists. Changing a command's help text
+# without regenerating docs/cli-reference used to surface only in the release
+# gate, on main, after merge.
+#
+# The containerized integration suite is deliberately not here. That runs in
+# just gate, before a channel tag.
+#
+# Runtime: roughly two to three minutes on a warm machine.
+#
+# Escape hatch: git push --no-verify
+# Bypassing is acceptable for work-in-progress pushes to non-main branches.
+# just check must pass before a PR is merged.
+#
+# Install once per checkout: just hooks install
+#
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+cd "$REPO_ROOT"
+
+# Git exports hook-specific repository variables. Leaving them in place makes
+# child Git commands ignore their cwd and target the repo being pushed instead.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX
+unset GIT_COMMON_DIR GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES
+
+run_gate() {
+    local name="$1"
+    shift
+    echo "==> pre-push: running $name"
+    if ! "$@"; then
+        echo "FAILED: $name"
+        echo "Fix the above errors before pushing, or use: git push --no-verify"
+        exit 1
+    fi
+    echo "OK: $name"
+}
+
+run_gate "check" just check
+
+echo "pre-push: all gates passed"

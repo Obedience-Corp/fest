@@ -93,3 +93,23 @@ grep-gopls pattern:
 [no-cd]
 install-tools:
     go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+# Remove this checkout's golangci-lint cache.
+# Run it when lint reports an issue in a file that does not exist, or when
+# results look like they belong to a different worktree.
+[doc('Remove this checkout .golangci-cache directory')]
+[no-cd]
+cache-clean:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cache="${GOLANGCI_LINT_CACHE:-}"
+    if [ -z "$cache" ]; then
+        echo "GOLANGCI_LINT_CACHE is unset. Run this through just, not directly." >&2
+        exit 1
+    fi
+    if [ -d "$cache" ]; then
+        rm -rf "$cache"
+        echo "Removed lint cache: $cache"
+    else
+        echo "No lint cache at: $cache"
+    fi
