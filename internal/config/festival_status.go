@@ -34,6 +34,25 @@ func FestivalStatus(ctx context.Context, festivalPath string) string {
 	return cfg.Metadata.CurrentStatus()
 }
 
+// FestivalGoal returns the goal recorded in the festival's fest.yaml, which is
+// what `fest create festival --goal` writes. It returns an empty string when
+// there is no readable config or no goal.
+func FestivalGoal(ctx context.Context, festivalPath string) string {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return ""
+		}
+	}
+	if festivalPath == "" {
+		return ""
+	}
+	cfg, err := LoadFestivalConfig(festivalPath, "")
+	if err != nil {
+		return ""
+	}
+	return cfg.Metadata.Goal
+}
+
 // FestivalPromoted reports whether the festival has been promoted out of
 // planning, meaning its status is ready or active.
 //

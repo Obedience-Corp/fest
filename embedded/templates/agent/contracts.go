@@ -189,13 +189,6 @@ var Contracts = map[string]TemplateContract{
 		ForbiddenTokens:  DefaultForbiddenTokens,
 		MinimumLength:    20,
 	},
-	"next/festival_planning": {
-		Name:             "next/festival_planning",
-		RequiredFields:   []string{"Header", "InfoSection", "NextStepsSection"},
-		ExpectedSections: []string{},
-		ForbiddenTokens:  DefaultForbiddenTokens,
-		MinimumLength:    20,
-	},
 	"next/no_task": {
 		Name:             "next/no_task",
 		RequiredFields:   []string{"Header"},

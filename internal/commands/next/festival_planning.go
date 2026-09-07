@@ -5,19 +5,26 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/config"
+	fcontext "github.com/Obedience-Corp/fest/internal/context"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/guidance/selection"
 	"github.com/Obedience-Corp/fest/internal/validator"
 )
 
-// festivalPlanningActions lists the commands that move a festival from a
-// scaffold to an executable plan, in the order a user runs them.
-var festivalPlanningActions = []string{
-	"fest wizard fill .",
-	"fest create phase --name PHASE_NAME",
+// festivalPlanningCommands lists the commands that turn a scaffold into an
+// executable plan, in the order an agent runs them. Filling markers is an edit
+// rather than a command, and 'fest wizard fill' needs a terminal, so neither
+// appears here.
+var festivalPlanningCommands = []string{
+	"fest understand planning",
+	"fest understand structure",
+	"fest create phase --name PHASE_NAME --type TYPE",
+	"fest create sequence --name SEQUENCE_NAME",
+	"fest create task --name TASK_NAME",
 	"fest validate",
 	"fest promote",
 }
@@ -28,7 +35,8 @@ var festivalPlanningActions = []string{
 // own unfilled markers are expected at that point, and the selector would
 // otherwise call a phase-less festival complete.
 //
-// Returns handled=false when normal routing should continue.
+// Once a phase exists, normal routing takes over and this returns
+// handled=false.
 func routeUnplannedFestival(ctx context.Context, festivalPath, festivalStatus string, opts RenderOptions) (bool, error) {
 	if festivalStatus != config.StatusPlanning {
 		return false, nil
@@ -47,35 +55,8 @@ func routeUnplannedFestival(ctx context.Context, festivalPath, festivalStatus st
 	return true, emitNextResult(ctx, festivalPath, result, opts)
 }
 
-// routeEmptyPlanningFestival emits the planning step for a festival that is
-// still in planning status, already has phases, and holds no task or workflow
-// step to run. Without it the selector reports "festival complete" for a plan
-// that was never written.
-//
-// Returns handled=false when normal routing should continue.
-func routeEmptyPlanningFestival(ctx context.Context, festivalPath, festivalStatus string, result *selection.NextTaskResult, opts RenderOptions) (bool, error) {
-	if festivalStatus != config.StatusPlanning || result == nil || !result.FestivalComplete {
-		return false, nil
-	}
-	// Only intercept when the total is known to be zero. A nil Progress means
-	// the progress manager could not answer, and guessing there would hide a
-	// genuinely finished festival.
-	if result.Progress == nil || result.Progress.TotalTasks > 0 {
-		return false, nil
-	}
-	phaseCount, err := countFestivalPhases(festivalPath)
-	if err != nil {
-		return false, err
-	}
-	planning, err := buildFestivalPlanningResult(ctx, festivalPath, festivalStatus, phaseCount)
-	if err != nil {
-		return false, err
-	}
-	return true, emitNextResult(ctx, festivalPath, planning, opts)
-}
-
-// buildFestivalPlanningResult assembles the planning step, including the
-// inventory of files that still hold unfilled template markers.
+// buildFestivalPlanningResult assembles the planning step: the goal when one is
+// written, every unfilled marker with its hint text, and the build commands.
 func buildFestivalPlanningResult(ctx context.Context, festivalPath, festivalStatus string, phaseCount int) (*selection.NextTaskResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -89,41 +70,66 @@ func buildFestivalPlanningResult(ctx context.Context, festivalPath, festivalStat
 	files := make([]selection.PlanningMarkerFile, 0, len(scanned))
 	total := 0
 	for _, file := range scanned {
+		markers := make([]selection.PlanningMarker, 0, len(file.Markers))
+		for _, marker := range file.Markers {
+			markers = append(markers, selection.PlanningMarker{
+				Line: marker.Line,
+				Hint: marker.Content,
+			})
+		}
 		files = append(files, selection.PlanningMarkerFile{
-			File:  file.RelPath,
-			Count: file.MarkerCount,
+			File:    file.RelPath,
+			Count:   file.MarkerCount,
+			Markers: markers,
 		})
 		total += file.MarkerCount
 	}
 
 	return &selection.NextTaskResult{
-		Reason: festivalPlanningReason(len(files), phaseCount),
+		Kind:   selection.KindFestivalPlanning,
+		Reason: festivalPlanningReason(len(files)),
 		Location: &selection.LocationInfo{
 			FestivalPath: festivalPath,
 			CurrentPath:  festivalPath,
 		},
 		FestivalPlanning: &selection.FestivalPlanningResult{
-			Status:      festivalStatus,
-			PhaseCount:  phaseCount,
-			MarkerTotal: total,
-			MarkerFiles: files,
-			NextActions: festivalPlanningActions,
+			Status:       festivalStatus,
+			PhaseCount:   phaseCount,
+			Goal:         festivalGoal(ctx, festivalPath),
+			MarkerTotal:  total,
+			MarkerFiles:  files,
+			NextCommands: festivalPlanningCommands,
 		},
 	}, nil
 }
 
-// festivalPlanningReason states why there is no task to hand out.
-func festivalPlanningReason(markerFiles, phaseCount int) string {
-	switch {
-	case markerFiles > 0 && phaseCount == 0:
-		return fmt.Sprintf("Festival is in planning: %d documents still hold unfilled markers and no phases exist yet", markerFiles)
-	case markerFiles > 0:
-		return fmt.Sprintf("Festival is in planning: %d documents still hold unfilled markers and no step is ready to run", markerFiles)
-	case phaseCount == 0:
-		return "Festival is in planning and has no phases yet"
-	default:
-		return "Festival is in planning and has no task or workflow step to run yet"
+// festivalGoal returns the festival's stated goal, from fest.yaml when
+// `fest create festival --goal` recorded one and from FESTIVAL_GOAL.md
+// otherwise. It returns empty while the goal is still a template marker, so
+// the step never presents a placeholder as the objective.
+func festivalGoal(ctx context.Context, festivalPath string) string {
+	if goal := config.FestivalGoal(ctx, festivalPath); goal != "" && !validator.ContainsTemplateMarker(goal) {
+		return goal
 	}
+	content, err := os.ReadFile(filepath.Join(festivalPath, "FESTIVAL_GOAL.md"))
+	if err != nil {
+		return ""
+	}
+	goal := fcontext.ExtractPrimaryGoal(content)
+	if goal == "" || validator.ContainsTemplateMarker(goal) {
+		return ""
+	}
+	return goal
+}
+
+// festivalPlanningReason states why there is no task to hand out.
+func festivalPlanningReason(markerFiles int) string {
+	if markerFiles > 0 {
+		return fmt.Sprintf(
+			"Festival is in planning: %d documents still hold unfilled markers and no phases exist yet",
+			markerFiles)
+	}
+	return "Festival is in planning and has no phases yet"
 }
 
 // countFestivalPhases counts the numbered phase directories in a festival.

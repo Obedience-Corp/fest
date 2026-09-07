@@ -182,6 +182,14 @@ func extractMarkerContents(line, marker string) []string {
 	return contents
 }
 
+// ContainsTemplateMarker reports whether a string still holds an unfilled
+// template marker. Callers use it to tell a written value from the placeholder
+// that is standing in for it.
+func ContainsTemplateMarker(text string) bool {
+	occurrences, _ := scanTemplateMarkersInContent(text)
+	return len(occurrences) > 0
+}
+
 // CheckTemplatesFilled returns true if no unfilled template markers remain.
 func CheckTemplatesFilled(festivalPath string) bool {
 	results, err := ScanTemplateMarkers(festivalPath)

@@ -297,12 +297,6 @@ func runNext(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// A phase-bearing festival that is still in planning and holds no task at
-	// all is unplanned, not complete.
-	if handled, planErr := routeEmptyPlanningFestival(ctx, festivalPath, festivalStatus, result, opts); handled || planErr != nil {
-		return planErr
-	}
-
 	// If the selector says the festival is complete, workflow phases and/or
 	// phase gates may still remain. Surface whichever incomplete phase comes
 	// FIRST in numerical order. A completed workflow phase can still have an

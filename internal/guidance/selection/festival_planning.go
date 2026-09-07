@@ -1,22 +1,27 @@
 package selection
 
 import (
-	"bytes"
 	"fmt"
+	"path/filepath"
 	"strings"
 
-	"github.com/Obedience-Corp/fest/embedded/templates/agent"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/ui"
 )
 
-// FestivalPlanningResult describes a festival that has no executable work yet
-// because its own plan is still unwritten: it is in planning status and has no
-// phase to walk, or no actionable task or workflow step inside one.
+// KindFestivalPlanning is the step kind fest next reports for a festival that
+// has no executable work yet because its own plan is still unwritten.
+const KindFestivalPlanning = "festival_planning"
+
+// FestivalPlanningResult carries everything an agent needs to plan a festival
+// from the fest next output alone: what the festival is for, which documents
+// still hold template markers and what each marker asks for, and the commands
+// that turn the scaffold into an executable plan.
 //
-// It is the payload behind the NextTaskResult.FestivalPlanning field, and its
-// presence is what tells a consumer that fest next returned a planning step
-// rather than a task. Task stays nil and FestivalComplete stays false.
+// It is the payload behind NextTaskResult.FestivalPlanning. Its presence, and
+// the matching NextTaskResult.Kind, are what tell a consumer that fest next
+// returned a planning step rather than a task. Task stays nil and
+// FestivalComplete stays false.
 type FestivalPlanningResult struct {
 	// Status is the festival's lifecycle status, always "planning" today.
 	Status string `json:"status"`
@@ -24,14 +29,19 @@ type FestivalPlanningResult struct {
 	// PhaseCount is the number of numbered phase directories in the festival.
 	PhaseCount int `json:"phase_count"`
 
+	// Goal is the festival's stated goal, empty while it is still a marker.
+	Goal string `json:"goal,omitempty"`
+
 	// MarkerTotal is the number of unfilled template markers across all files.
 	MarkerTotal int `json:"marker_total"`
 
-	// MarkerFiles lists each file that still holds markers, with its count.
+	// MarkerFiles lists each file that still holds markers, with the hint text
+	// of every marker in it.
 	MarkerFiles []PlanningMarkerFile `json:"marker_files,omitempty"`
 
-	// NextActions lists the commands that move this festival forward, in order.
-	NextActions []string `json:"next_actions,omitempty"`
+	// NextCommands lists the commands that build the plan, in order. Filling
+	// markers is an edit rather than a command and is not listed here.
+	NextCommands []string `json:"next_commands,omitempty"`
 }
 
 // PlanningMarkerFile is one file with unfilled template markers.
@@ -40,70 +50,111 @@ type PlanningMarkerFile struct {
 	File string `json:"file"`
 	// Count is the number of unfilled markers in that file.
 	Count int `json:"count"`
+	// Markers is the hint text of each unfilled marker, in file order.
+	Markers []PlanningMarker `json:"markers,omitempty"`
 }
 
-// formatTextFestivalPlanning renders the planning step for a festival that has
-// no executable work yet. Verbose output uses the same renderer: a planning
-// step carries no task content for a verbose mode to expand.
+// PlanningMarker is a single unfilled marker and what it asks the author for.
+type PlanningMarker struct {
+	// Line is the 1-indexed line the marker sits on.
+	Line int `json:"line"`
+	// Hint is the marker as written, e.g. "[REPLACE: the outcome]".
+	Hint string `json:"hint"`
+}
+
+// formatTextFestivalPlanning renders the planning step. Verbose output uses the
+// same renderer: the step already inlines everything it has, so there is
+// nothing for a verbose mode to expand.
 func formatTextFestivalPlanning(result *NextTaskResult) string {
 	p := result.FestivalPlanning
 
-	var info strings.Builder
+	var sb strings.Builder
+	sb.WriteString(guidance.InstructionHeader)
+	sb.WriteString("\n")
+	sb.WriteString(ui.H1("Festival Planning"))
+	sb.WriteString("\n")
+	writePlanningIntro(&sb, p)
+	writePlanningIdentity(&sb, result, p)
+	writePlanningMarkers(&sb, p)
+	writePlanningBuildSteps(&sb, p)
+	return sb.String()
+}
+
+// writePlanningIntro states what this step is before anything else, so an agent
+// reading only this output knows it is planning rather than executing.
+func writePlanningIntro(sb *strings.Builder, p *FestivalPlanningResult) {
+	if p.MarkerTotal > 0 {
+		sb.WriteString("This festival has no phases yet, and its documents are still templates.\n")
+		sb.WriteString("Plan it before executing it: write the documents, then add the phases.\n\n")
+		return
+	}
+	sb.WriteString("The festival documents are written, but it has no phases yet.\n")
+	sb.WriteString("Plan it before executing it: add the phases that carry the work.\n\n")
+}
+
+func writePlanningIdentity(sb *strings.Builder, result *NextTaskResult, p *FestivalPlanningResult) {
 	if result.Location != nil && result.Location.FestivalPath != "" {
-		ui.WriteLabelValue(&info, "Festival", ui.Dim(result.Location.FestivalPath))
+		ui.WriteLabelValue(sb, "Festival", ui.Value(filepath.Base(result.Location.FestivalPath), ui.FestivalColor))
+		ui.WriteLabelValue(sb, "Path", ui.Dim(result.Location.FestivalPath))
 	}
-	ui.WriteLabelValue(&info, "Status", ui.Value(p.Status))
-	ui.WriteLabelValue(&info, "Phases", ui.Value(fmt.Sprintf("%d", p.PhaseCount)))
-	if result.Reason != "" {
-		ui.WriteLabelValue(&info, "Reason", ui.Info(result.Reason))
+	ui.WriteLabelValue(sb, "Status", ui.Value(p.Status))
+	ui.WriteLabelValue(sb, "Phases", ui.Value(fmt.Sprintf("%d", p.PhaseCount)))
+	if p.Goal != "" {
+		ui.WriteLabelValue(sb, "Goal", ui.Info(p.Goal))
+	}
+}
+
+// writePlanningMarkers lists every unfilled marker by hint text. This is the
+// only variable-length part of the step: an agent needs each hint to know what
+// to write, so the list is never truncated.
+func writePlanningMarkers(sb *strings.Builder, p *FestivalPlanningResult) {
+	if len(p.MarkerFiles) == 0 {
+		return
 	}
 
-	var markers strings.Builder
-	if len(p.MarkerFiles) > 0 {
-		markers.WriteString(ui.H2("Unfilled Markers"))
-		markers.WriteString("\n")
-		for _, f := range p.MarkerFiles {
-			fmt.Fprintf(&markers, "  %s %s %s\n",
-				ui.StateIcon("pending"), f.File, ui.Dim(fmt.Sprintf("(%d)", f.Count)))
+	fmt.Fprintf(sb, "\n%s\n", ui.H2(fmt.Sprintf("Unfilled Markers (%d in %d files)",
+		p.MarkerTotal, len(p.MarkerFiles))))
+	sb.WriteString("Replace each marker below with real content. Agents edit these files\n")
+	sb.WriteString("directly. Humans can run 'fest wizard fill .' for the same job, and\n")
+	sb.WriteString("'fest create festival --markers' fills them at creation time.\n")
+
+	for _, file := range p.MarkerFiles {
+		fmt.Fprintf(sb, "\n  %s\n", ui.Value(file.File, ui.TaskColor))
+		for _, marker := range file.Markers {
+			fmt.Fprintf(sb, "    %s  %s\n", ui.Dim(fmt.Sprintf("%4d", marker.Line)), marker.Hint)
 		}
-		fmt.Fprintf(&markers, "\n  %s\n",
-			ui.Info(fmt.Sprintf("%d markers in %d files", p.MarkerTotal, len(p.MarkerFiles))))
+	}
+}
+
+// writePlanningBuildSteps gives the plan-building loop in fest's own vocabulary,
+// with the methodology read just in time rather than quoted here.
+func writePlanningBuildSteps(sb *strings.Builder, p *FestivalPlanningResult) {
+	step := 1
+	number := func() string {
+		s := fmt.Sprintf("  %d.", step)
+		step++
+		return s
 	}
 
-	var steps strings.Builder
-	steps.WriteString(ui.H2("Next Step"))
-	steps.WriteString("\n")
-	steps.WriteString("Write the plan. This festival has nothing to execute yet.\n\n")
-	if len(p.MarkerFiles) > 0 {
-		fmt.Fprintf(&steps, "  1. Fill the markers: %s\n", ui.Value("fest wizard fill ."))
-		steps.WriteString("     Or edit the files directly.\n")
-		fmt.Fprintf(&steps, "     Agents can scaffold them filled: %s\n",
-			ui.Dim("fest create festival --agent --markers"))
-	} else {
-		fmt.Fprintf(&steps, "  1. Review the festival documents: %s\n", ui.Value("fest show"))
+	fmt.Fprintf(sb, "\n%s\n", ui.H2("Build The Plan"))
+	if p.MarkerTotal > 0 {
+		fmt.Fprintf(sb, "%s Fill the markers above with real content.\n", number())
 	}
-	fmt.Fprintf(&steps, "  2. Add phases: %s\n", ui.Value("fest create phase --name PHASE_NAME"))
-	fmt.Fprintf(&steps, "  3. Check the structure: %s\n", ui.Value("fest validate"))
-	fmt.Fprintf(&steps, "  4. When the plan is solid: %s\n", ui.Value("fest promote"))
-	steps.WriteString("\n")
-	steps.WriteString(ui.Dim("Run 'fest next' again after each step for the updated instruction."))
-	steps.WriteString("\n")
-
-	data := struct {
-		InstructionHeader string
-		Header            string
-		InfoSection       string
-		MarkerSection     string
-		NextStepsSection  string
-	}{
-		InstructionHeader: guidance.InstructionHeader,
-		Header:            ui.H1("Festival Planning"),
-		InfoSection:       info.String(),
-		MarkerSection:     markers.String(),
-		NextStepsSection:  steps.String(),
-	}
-
-	var buf bytes.Buffer
-	_ = agent.MustGet("next/festival_planning").Execute(&buf, data)
-	return buf.String()
+	fmt.Fprintf(sb, "%s Read the methodology just in time:\n", number())
+	fmt.Fprintf(sb, "       %s\n", ui.Value("fest understand planning"))
+	fmt.Fprintf(sb, "       %s\n", ui.Value("fest understand structure"))
+	fmt.Fprintf(sb, "%s Decide which phases this festival needs.\n", number())
+	fmt.Fprintf(sb, "%s Create each phase:\n", number())
+	fmt.Fprintf(sb, "       %s\n", ui.Value("fest create phase --name PHASE_NAME --type TYPE"))
+	fmt.Fprintf(sb, "       %s\n", ui.Dim("types: ingest, planning, research, implementation, review"))
+	fmt.Fprintf(sb, "%s Fill each phase with sequences and their task files:\n", number())
+	fmt.Fprintf(sb, "       %s\n", ui.Value("fest create sequence --name SEQUENCE_NAME"))
+	fmt.Fprintf(sb, "       %s\n", ui.Value("fest create task --name TASK_NAME"))
+	fmt.Fprintf(sb, "%s Check the structure:\n", number())
+	fmt.Fprintf(sb, "       %s\n", ui.Value("fest validate"))
+	fmt.Fprintf(sb, "%s When the plan is solid, promote it:\n", number())
+	fmt.Fprintf(sb, "       %s\n", ui.Value("fest promote"))
+	sb.WriteString("\n")
+	sb.WriteString(ui.Dim("Run 'fest next' again after each step for the updated instruction."))
+	sb.WriteString("\n")
 }
