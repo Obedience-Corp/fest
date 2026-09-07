@@ -20,6 +20,8 @@ import (
 // If showInlineContext is true, task content summary is included in the output
 func FormatText(result *NextTaskResult, showInlineContext bool) string {
 	switch {
+	case result.FestivalPlanning != nil:
+		return formatTextFestivalPlanning(result)
 	case result.FestivalComplete:
 		return formatTextComplete(result)
 	case result.Planning != nil:
@@ -74,6 +76,8 @@ func FormatJSON(result *NextTaskResult) (string, error) {
 // If showInlineContext is true, task content summary is included in the output
 func FormatVerbose(result *NextTaskResult, showInlineContext bool) string {
 	switch {
+	case result.FestivalPlanning != nil:
+		return formatTextFestivalPlanning(result)
 	case result.FestivalComplete:
 		return formatVerboseComplete(result)
 	case result.Planning != nil:
@@ -829,6 +833,9 @@ func writeCurrentLocation(sb *strings.Builder, loc *LocationInfo) {
 
 // FormatShort formats a minimal one-line output
 func FormatShort(result *NextTaskResult) string {
+	if result.FestivalPlanning != nil {
+		return "Festival in planning: no executable work yet"
+	}
 	if result.FestivalComplete {
 		return "Festival complete"
 	}

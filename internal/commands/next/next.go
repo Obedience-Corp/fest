@@ -170,9 +170,12 @@ func runNext(cmd *cobra.Command, args []string) error {
 		nextPhaseName = filepath.Base(found)
 	}
 
-	// Validation gate: block if festival has errors (phase-aware for markers)
+	// Validation gate: block if festival has errors (phase- and status-aware
+	// for markers). A festival still in planning may carry markers in its root
+	// documents; see markerIsExpected.
+	festivalStatus := config.FestivalStatus(ctx, festivalPath)
 	vResult, vErr := validator.FullValidate(ctx, festivalPath)
-	if vErr == nil && hasBlockingIssues(vResult, nextPhaseType, nextPhaseName) {
+	if vErr == nil && hasBlockingIssues(vResult, nextPhaseType, nextPhaseName, festivalStatus) {
 		return emitValidationBlock(festivalPath, vResult)
 	}
 
@@ -184,6 +187,12 @@ func runNext(cmd *cobra.Command, args []string) error {
 		Reason:    "fest next",
 	}); err != nil {
 		return err
+	}
+
+	// A festival that is still being planned has nothing to execute yet. Hand
+	// back the planning step instead of routing into an empty tree.
+	if handled, planErr := routeUnplannedFestival(ctx, festivalPath, festivalStatus, opts); handled || planErr != nil {
+		return planErr
 	}
 
 	// Failed-gate remediation routing takes priority over normal phase

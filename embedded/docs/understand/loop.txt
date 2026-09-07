@@ -56,17 +56,36 @@ makes the same primitive available standalone.
 COMPLEX WORK: FULL FESTIVALS
 ----------------------------
 
-For larger efforts, create a full festival. The default festival type (standard)
+For larger efforts, create a full festival. `fest create festival --type standard`
 auto-scaffolds INGEST and PLANNING phases. These are a mostly-automated planning
 feature: they walk an agent through ingesting requirements and breaking them down
 into a properly structured plan (phases, sequences, task files) BEFORE any
 implementation. So the two entry points are:
 
   simpler, linear work   ->  fest create workflow   (standalone WORKFLOW.md loop)
-  complex work           ->  fest create festival   (standard type: guided
+  complex work           ->  fest create festival   (--type standard: guided
                              requirements breakdown + planning, then execution)
 
 Either way, execution is the same `fest next` loop.
+
+AFTER CREATE, KEEP RUNNING fest next
+------------------------------------
+
+A bare `fest create festival` writes the festival's root documents with template
+markers and no phases. `fest next` reads that as a planning step rather than a
+task: it lists the files that still hold markers and the commands that move the
+festival forward.
+
+  fest create festival --name my-thing
+  fest next                          What to write next (planning step)
+  fest wizard fill .                 Fill the markers
+  fest create phase --name BUILD     Add phases
+  fest validate                      Check the structure
+  fest promote                       planning -> ready -> active
+
+The markers in those root documents are expected while the festival is in
+planning. Once you promote it they are errors, because by then the plan is
+supposed to be written.
 
 RUN TRACKING
 ------------

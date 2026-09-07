@@ -112,7 +112,7 @@ func printValidationResult(display *ui.UI, festivalPath string, result *Validati
 	printValidationSection(display, "COMPLETENESS", completenessIssues, hasFailures)
 	printTaskValidationSection(display, taskIssues, hasFailures)
 	printValidationSection(display, "QUALITY GATES", gateIssues, hasFailures)
-	printMarkerValidationSection(display, templateIssues, result.MarkerInfo, hasFailures)
+	printMarkerValidationSection(display, templateIssues, result.MarkerInfo, hasFailures, result.markersBlocking)
 	printValidationSection(display, "ORDERING", orderingIssues, hasFailures)
 
 	autoLinkIssues := filterIssuesByPrefix(result.Issues, "autolink_")
@@ -183,7 +183,7 @@ func printValidationSection(display *ui.UI, title string, issues []ValidationIss
 	}
 }
 
-func printMarkerValidationSection(display *ui.UI, issues []ValidationIssue, markerInfo *MarkerInfo, overallFailed bool) {
+func printMarkerValidationSection(display *ui.UI, issues []ValidationIssue, markerInfo *MarkerInfo, overallFailed, markersBlocking bool) {
 	if len(issues) == 0 {
 		printSectionHeader("Markers", issues)
 		fmt.Println(ui.Dim("Template completion status"))
@@ -197,9 +197,14 @@ func printMarkerValidationSection(display *ui.UI, issues []ValidationIssue, mark
 		return
 	}
 
-	// Pending, not blocked: unfilled markers after scaffold are expected.
+	// Pending markers are expected while the festival is in planning and a
+	// failure once it has been promoted.
 	fmt.Printf("\n%s %s\n", ui.StateIcon("pending"), ui.H2("Markers"))
-	fmt.Println(ui.Dim("Scaffolded, markers pending (not structurally broken)"))
+	if markersBlocking {
+		fmt.Println(ui.Dim("Markers pending after promotion: the plan is not finished"))
+	} else {
+		fmt.Println(ui.Dim("Scaffolded, markers pending (not structurally broken)"))
+	}
 
 	if markerInfo != nil {
 		display.Warning("Found %d unfilled markers in %d files", markerInfo.TotalCount, markerInfo.TotalFiles)
@@ -208,7 +213,11 @@ func printMarkerValidationSection(display *ui.UI, issues []ValidationIssue, mark
 	}
 
 	fmt.Println()
-	fmt.Println(ui.Info("Unfilled markers are expected right after scaffolding."))
+	if markersBlocking {
+		fmt.Println(ui.Info("This festival has left planning, so unfilled markers now fail validation."))
+	} else {
+		fmt.Println(ui.Info("Unfilled markers are expected right after scaffolding."))
+	}
 	fmt.Println(ui.Info("Fill them with real task content: do not paste filler to restore the score."))
 	fmt.Println()
 

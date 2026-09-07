@@ -1,9 +1,13 @@
 Planning Process - Turning a Goal into a Plan
 =============================================
 
-Planning is how a goal becomes a structured, executable festival. The default
-(standard) festival type automates much of this by scaffolding INGEST and
-PLANNING phases that walk an agent through it.
+Planning is how a goal becomes a structured, executable festival. The standard
+festival type (`fest create festival --type standard`) automates much of this by
+scaffolding INGEST and PLANNING phases that walk an agent through it.
+
+A bare `fest create festival` scaffolds the root documents and no phases. Run
+`fest next` there and it returns a planning step: fill the markers in those
+documents, add phases, validate, then promote.
 
 THE STEPS
 ---------
@@ -50,3 +54,7 @@ REMEMBER
 Planning produces requirements; implementation sequences come only after those
 requirements exist (see: fest understand roles). Use `fest create festival` and
 the standard type's planning phases rather than hand-building the tree.
+
+While a festival is in planning, unfilled markers in its root documents are an
+expected state: `fest next` reports them as the work to do and `fest validate`
+still passes. Promoting the festival turns them into errors.
