@@ -368,13 +368,77 @@ func TestValidator(t *testing.T) {
 
 ---
 
+## Before You Push
+
+`just check` is the pre-merge gate. Run it before opening or updating a PR:
+
+```bash
+just check
+```
+
+It runs everything `just gate` runs except the containerized integration suite:
+whitespace, the stable and dev builds, `go vet` across the stable, dev, and
+integration build tags, `golangci-lint`, `just docs-check`, and the unit tests
+for both profiles. It takes roughly two to three minutes on a warm machine.
+
+`just docs-check` is part of it on purpose. It fails when `docs/cli-reference`
+no longer matches the code, which is what happens when you change a command's
+help text, its flags, or its short description. The fix is to regenerate and
+commit the result:
+
+```bash
+just docs
+```
+
+Before this recipe existed, `docs-check` ran only inside the release gate, so a
+stale CLI reference was found on main after merge rather than on the branch that
+caused it.
+
+`just gate` is unchanged and is still the release gate. Run it before creating a
+channel tag, not before every push.
+
+### Install the pre-push hook
+
+The hook runs `just check` on every push. Installing it is a one-time step per
+clone or worktree, and it is not done for you:
+
+```bash
+just hooks install
+```
+
+That sets `core.hooksPath` to `.githooks`. Use `just hooks status` to see
+whether a checkout has it, and `just hooks uninstall` to undo it. To skip the
+hook for a single work-in-progress push:
+
+```bash
+git push --no-verify
+```
+
+### Lint cache
+
+`GOLANGCI_LINT_CACHE` points at `.golangci-cache/` inside the checkout, because
+golangci-lint's default cache is global and keyed by import path plus content
+hash. Every worktree of this repo shares one module path, so a shared cache lets
+one checkout's run pick up another's cached results. Those results carry the
+absolute path of the checkout that produced them, and lint then reports issues
+at paths that no longer exist.
+
+If lint output ever names a file you do not have, wipe this checkout's cache:
+
+```bash
+just lint cache-clean
+```
+
+---
+
 ## PR Checklist
 
 Before submitting a PR, verify:
 
 ### Code Quality
 
-- [ ] All tests pass (`just all`)
+- [ ] `just check` passes (build, vet, lint, docs, unit tests)
+- [ ] CLI reference regenerated if help text changed (`just docs`)
 - [ ] New code has tests
 - [ ] Coverage meets package targets
 - [ ] No magic numbers or strings
@@ -383,7 +447,7 @@ Before submitting a PR, verify:
 ### Style
 
 - [ ] Code formatted (`just fmt`)
-- [ ] Linter passes (`just lint`)
+- [ ] Linter passes (`just lint all`)
 - [ ] Functions under 50 LOC
 - [ ] Files under 500 LOC
 - [ ] Interfaces have 5 or fewer methods

@@ -15,6 +15,16 @@ commit := `git rev-parse --short HEAD 2>/dev/null || echo "unknown"`
 build_date := `date -u +"%Y-%m-%dT%H:%M:%SZ"`
 ldflags := "-X " + version_pkg + ".Version=" + version + " -X " + version_pkg + ".Commit=" + commit + " -X " + version_pkg + ".BuildDate=" + build_date
 
+# golangci-lint's cache is global (~/Library/Caches/golangci-lint) and keyed by
+# import path plus content hash. Every checkout of this repo shares the module
+# path github.com/Obedience-Corp/fest, so one worktree's run can hit another's
+# cached issues. A cached issue carries the absolute path of whichever checkout
+# analyzed it first, and the generated-file filter has to read that file to
+# suppress a finding inside it. Once that checkout is gone the read fails, the
+# filter fails open, and lint reports failures in paths that do not exist.
+# A cache per checkout cannot collide. Wipe it with: just lint cache-clean
+export GOLANGCI_LINT_CACHE := justfile_directory() / ".golangci-cache"
+
 # Modules
 [doc('Build variants (local, cross-platform, profiles)')]
 mod build '.justfiles/build.just'
@@ -34,6 +44,9 @@ mod lint '.justfiles/lint.just'
 [doc('Record terminal workflows with VHS')]
 mod vhs '.justfiles/vhs.just'
 
+[doc('Git hooks (install the pre-push gate)')]
+mod hooks '.justfiles/hooks.just'
+
 [private]
 default:
     #!/usr/bin/env bash
@@ -44,6 +57,37 @@ default:
 # Format Go code (whole-module scope, incl. build-tagged integration files)
 fmt:
     gofmt -w .
+
+# Run before every push. Everything the release gate checks except the
+# containerized integration suite, so a PR cannot leave main failing on a gate
+# nobody ran locally. docs-check is the reason this recipe exists: changing a
+# command's help text without regenerating docs/cli-reference only surfaced at
+# release time.
+[doc('Pre-merge gate: build, vet, lint, docs-check, unit tests. Run before every push.')]
+check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "=== check: whitespace ==="
+    git diff --check
+    echo "=== check: stable build ==="
+    just build quick-stable
+    echo "=== check: dev build ==="
+    just build quick-dev
+    echo "=== check: vet stable ==="
+    just lint vet
+    echo "=== check: vet dev ==="
+    go vet -tags=dev ./...
+    echo "=== check: vet integration ==="
+    go vet -tags=integration ./...
+    echo "=== check: lint ==="
+    just lint all
+    echo "=== check: docs ==="
+    just docs-check
+    echo "=== check: unit tests ==="
+    just test unit
+    echo "=== check: dev unit tests ==="
+    go test -short -tags=dev ./...
+    echo "=== check: PASSED ==="
 
 # Run the full release gate before creating any channel tag.
 # Covers stable/dev command surfaces plus the containerized integration suite.

@@ -399,6 +399,8 @@ Uses `just` for all build/test commands:
 
 ```bash
 just              # List all commands
+just check        # Pre-merge gate: build, vet, lint, docs-check, unit tests
+just hooks install  # Run just check automatically on every push (one time)
 just build        # Build fest binary
 just test         # Testing commands (unit, integration, coverage)
 just install      # Install to $GOBIN

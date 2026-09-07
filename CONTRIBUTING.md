@@ -19,8 +19,12 @@ with sign-offs before merge.
 
 ## Practical notes
 
-- Run the repo gates before opening a PR: `go build ./...`, `go vet ./...`,
-  `go test ./...`, and `just lint` where available.
+- Run `just check` before opening a PR. It covers the build, vet, lint,
+  `docs-check`, and the unit tests. If you changed a command's help text, run
+  `just docs` and commit the regenerated `docs/cli-reference`.
+- Install the pre-push hook once per clone with `just hooks install`; it runs
+  `just check` on every push. See
+  [docs/contributing.md](docs/contributing.md#before-you-push).
 - Match the surrounding code's conventions; see the README for project layout.
 - Error construction is scoped, not "never `fmt.Errorf`": see
   [docs/contributing.md](docs/contributing.md#error-handling) (fest#342).
