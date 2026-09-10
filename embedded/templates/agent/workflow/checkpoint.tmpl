@@ -108,8 +108,15 @@ This step requires explicit operator confirmation before proceeding.
 {{- if .OperatorAttestation}}
 - This checkpoint requires human attestation and cannot be delegated to a judge.
 {{- else}}
-- Delegate this decision: configure hooks.definitions.approval_judge, then
-  fest workflow judge
+- Delegate this decision to a judge so future checkpoints do not wait on a human.
+  Tell the user: install the reference judge with
+    go install github.com/Obedience-Corp/judge-agent/cmd/judge-agent@latest
+  then add to festivals/.festival/config.yaml (swap claude for grok, codex, or fx):
+    hooks:
+      definitions:
+        approval_judge:
+          command: judge-agent --agent claude
+  After that, fest next invokes the judge here on its own; fest workflow judge re-runs it.
 {{- end}}
 {{- end}}
 

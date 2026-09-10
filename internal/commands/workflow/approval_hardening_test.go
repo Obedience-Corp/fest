@@ -11,6 +11,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/config"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/hooks"
 	"github.com/Obedience-Corp/fest/internal/scope"
 )
 
@@ -246,7 +247,7 @@ func TestApprovalRecoveryLines_OnlySuggestValidRoutesWithoutJudge(t *testing.T) 
 		CheckpointClass: wf.CheckpointClassArtifactReview,
 	})
 	artifactText := strings.Join(artifactLines, "\n")
-	if strings.Contains(artifactText, "approve --auto") || !strings.Contains(artifactText, "configure") {
+	if strings.Contains(artifactText, "approve --auto") || !strings.Contains(artifactText, hooks.JudgeInstallCommand) {
 		t.Fatalf("unconfigured artifact guidance = %q", artifactText)
 	}
 }
