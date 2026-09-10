@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/hooks"
 	"github.com/Obedience-Corp/fest/internal/ui"
 )
 
@@ -27,10 +28,14 @@ func approvalRecoveryLinesFor(ctx context.Context, nav *wf.Navigator, step wf.Wo
 		}
 	}
 	if !configured {
-		return []string{
+		lines := []string{
 			"Operator approve: " + ui.Accent("fest workflow approve"),
-			"To enable auto-judge, configure hooks.definitions.approval_judge first.",
+			"A judge can approve checkpoints like this one from evidence, so you are not the bottleneck:",
 		}
+		for _, l := range hooks.JudgeSetupLines() {
+			lines = append(lines, "  "+l)
+		}
+		return append(lines, "  Then: "+ui.Accent("fest workflow judge"))
 	}
 	if nav != nil {
 		state := nav.GetWorkflowState()

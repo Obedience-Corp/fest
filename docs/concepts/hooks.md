@@ -46,11 +46,16 @@ hooks:
     task: true
   definitions:
     approval_judge:
-      command: ob judge    # required; cwd = festival root
+      command: judge-agent --agent claude    # required; cwd = festival root
       fail: closed         # closed (default) | open
       timeout: 0           # 0 = no deadline; default 120s, except approval_judge
       enabled: true        # per-hook switch
 ```
+
+The reference judge is [judge-agent](https://github.com/Obedience-Corp/judge-agent)
+(`go install github.com/Obedience-Corp/judge-agent/cmd/judge-agent@latest`); it
+wraps a CLI you already run. Any command that speaks `fest.approval.judge/v1`
+can take its place.
 
 Field notes:
 

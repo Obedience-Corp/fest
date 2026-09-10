@@ -175,11 +175,12 @@ Auto approval:
   hooks.definitions.approval_judge hook in .festival/config.yaml. If neither is
   set, --auto fails closed and leaves the checkpoint unchanged.
 
-      hooks:
-        definitions:
-          approval_judge:
-            command: ob judge
-            timeout: 0
+  Install the reference judge, then declare it in festivals/.festival/config.yaml
+  (swap claude for grok, codex, or fx):
+
+      ` + hooks.JudgeInstallCommand + `
+
+      ` + indentBlock(hooks.JudgeConfigExample, "      ") + `
 
   By default --auto launches the judge in the background and returns
   immediately; the checkpoint stays blocked until the verdict lands, and
@@ -479,27 +480,19 @@ func resolveApprovalJudgeCommandFor(ctx context.Context, nav *wf.Navigator, flag
 	}
 
 	return "", festerrors.Validation("approval judge command is not configured").
-		WithHint(`--auto delegates this checkpoint to an approval judge command, but none is configured.
+		WithHint(`this checkpoint can be delegated to an approval judge command, but none is configured.
 
-Configure a command in .festival/config.yaml. It receives the approval request
-as JSON on stdin and must print a JSON verdict on stdout (schema
-fest.approval.judge/v1):
+Install the reference judge:
 
-hooks:
-  definitions:
-    approval_judge:
-      command: <your-approval-judge-tool>
-      timeout: 0
+  ` + hooks.JudgeInstallCommand + `
 
-Example (using the obey CLI):
+Then declare it in festivals/.festival/config.yaml (swap claude for grok, codex,
+or fx; any command that reads the fest.approval.judge/v1 request on stdin and
+prints a JSON verdict on stdout works):
 
-hooks:
-  definitions:
-    approval_judge:
-      command: ob judge
-      timeout: 0
+` + hooks.JudgeConfigExample + `
 
-Or pass --judge-command <cmd> for a one-off.`)
+Or pass --judge-command <cmd> for a one-off from an interactive terminal.`)
 }
 
 // AutoDelegateBlockingCheckpoints runs the configured approval judge for each
@@ -1069,4 +1062,10 @@ func approvalJudgeAudit(command string, decision *approvalJudgeResponse) string 
 	// the trailing reason field. Do not append after reason.
 	return fmt.Sprintf("approval auto mode: schema_version=%s judge_command=%q decision=%s evidence_status=%s reason=%q",
 		approvalJudgeSchemaVersion, command, decision.Decision, status, decision.Reason)
+}
+
+// indentBlock prefixes every line after the first with indent so a multi-line
+// constant can be dropped into an already-indented help paragraph.
+func indentBlock(block, indent string) string {
+	return strings.ReplaceAll(block, "\n", "\n"+indent)
 }

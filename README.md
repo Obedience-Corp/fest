@@ -342,6 +342,31 @@ fest progress                 # Track execution progress
 fest gates apply --approve    # Propagate quality gates to all sequences
 ```
 
+### Let a judge pass the gates
+
+Blocking checkpoints wait for a human by default. Hang a judge on the
+`approval_judge` hook and `fest next` invokes it at every checkpoint, so agents
+pass gates on evidence and you review the verdicts instead of every phase. The
+reference judge wraps a CLI you already run:
+
+```bash
+go install github.com/Obedience-Corp/judge-agent/cmd/judge-agent@latest
+```
+
+```yaml
+# festivals/.festival/config.yaml
+hooks:
+  definitions:
+    approval_judge:
+      command: judge-agent --agent claude   # or grok, codex, fx
+```
+
+The judge opens the phase goal, gates, and declared deliverables, then returns
+approve or reject with itemized fixes. Any command that speaks
+`fest.approval.judge/v1` works. See
+[judge-agent](https://github.com/Obedience-Corp/judge-agent) and
+[docs/concepts/hooks.md](docs/concepts/hooks.md).
+
 ### 6. Complete
 
 ```bash

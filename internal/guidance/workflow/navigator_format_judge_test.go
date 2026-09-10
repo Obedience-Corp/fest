@@ -9,6 +9,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/guidance"
+	"github.com/Obedience-Corp/fest/internal/hooks"
 	"github.com/Obedience-Corp/fest/internal/scope"
 )
 
@@ -58,6 +59,9 @@ func TestFormatCheckpoint_NoJudge_ArtifactReviewOffersDelegate(t *testing.T) {
 	for _, want := range []string{
 		"Wait for the user's response",
 		"Delegate this decision",
+		hooks.JudgeInstallCommand,
+		"festivals/.festival/config.yaml",
+		"command: " + hooks.JudgeExampleCommand,
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("checkpoint output missing %q:\n%s", want, out)

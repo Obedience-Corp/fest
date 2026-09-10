@@ -127,7 +127,7 @@ hooks:
     task: true
   definitions:
     approval_judge:
-      command: ob judge   # required
+      command: judge-agent --agent claude   # required
       fail: closed        # closed (default) | open
       timeout: 0          # 0 = no deadline (the approval_judge default)
       enabled: true

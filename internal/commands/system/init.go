@@ -11,6 +11,7 @@ import (
 	festcontract "github.com/Obedience-Corp/fest/internal/contract"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/fileops"
+	"github.com/Obedience-Corp/fest/internal/hooks"
 	"github.com/Obedience-Corp/fest/internal/pathutil"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
@@ -267,6 +268,10 @@ func RunInit(ctx context.Context, targetPath string, opts *InitOptions) error {
 	display.Info("  1. cd %s", showPath(absPath))
 	display.Info("  2. Review festivals/.festival/README.md")
 	display.Info("  3. Start planning your festival in festivals/planning/")
+	display.Info("  4. Optional: let a judge pass checkpoints on evidence instead of waiting on you")
+	for _, line := range hooks.JudgeSetupLines() {
+		display.Info("     %s", line)
+	}
 	display.Info("\nWorkspace navigation:")
 	display.Info("  cd \"$(fest go --print)\"   # Navigate to festivals from anywhere")
 

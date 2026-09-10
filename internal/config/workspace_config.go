@@ -116,13 +116,19 @@ func SaveWorkspaceConfig(festivalsRoot string, cfg *WorkspaceConfig) error {
 // generic: any tool that speaks the fest.approval.judge/v1 protocol works.
 func commentedHooksPlaceholder() []byte {
 	return []byte(`
+# Approval judge: lets agents pass blocking checkpoints on evidence instead of
+# waiting for you. Install the reference judge by running:
+#   go install github.com/Obedience-Corp/judge-agent/cmd/judge-agent@latest
+# then uncomment the block below.
+#
 # hooks:
 #   definitions:
 #     approval_judge:
-#       # Command run by 'fest workflow judge'. It receives the approval
-#       # request as JSON on stdin and must print a JSON verdict on stdout
-#       # (schema fest.approval.judge/v1). Any tool works; 'ob judge' is one example.
-#       command: ob judge
+#       # Command run by 'fest workflow judge' and by 'fest next' at a checkpoint.
+#       # It receives the approval request as JSON on stdin and must print a JSON
+#       # verdict on stdout (schema fest.approval.judge/v1). Any tool that speaks
+#       # the protocol works; swap claude for grok, codex, or fx.
+#       command: judge-agent --agent claude
 #       timeout: 0
 `)
 }

@@ -63,7 +63,7 @@ func TestSaveWorkspaceConfig_WritesCommentedHooksPlaceholder(t *testing.T) {
 		t.Fatalf("read config: %v", err)
 	}
 	s := string(data)
-	for _, want := range []string{"# hooks:", "#   definitions:", "#     approval_judge:", "command: ob judge"} {
+	for _, want := range []string{"# hooks:", "#   definitions:", "#     approval_judge:", "command: judge-agent --agent claude", "go install github.com/Obedience-Corp/judge-agent/cmd/judge-agent@latest"} {
 		if !strings.Contains(s, want) {
 			t.Fatalf("placeholder missing %q, got:\n%s", want, s)
 		}

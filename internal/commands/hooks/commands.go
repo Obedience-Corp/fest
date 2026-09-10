@@ -163,7 +163,10 @@ func printHooksListText(view hooksListJSON) {
 		fmt.Printf("hooks.levels: %s\n", strings.Join(parts, " "))
 	}
 	if len(view.Hooks) == 0 {
-		fmt.Println("No hooks configured. Declare hooks under hooks.definitions or run `fest hooks list` after configuring.")
+		fmt.Println("No hooks configured. The most useful one is the approval judge, which lets agents pass blocking checkpoints on evidence.")
+		for _, line := range hooks.JudgeSetupLines() {
+			fmt.Println("  " + line)
+		}
 		return
 	}
 	fmt.Println()
