@@ -45,7 +45,7 @@ func reportJudgeEvidenceStatus(w io.Writer, req approvalJudgeRequest, resp *appr
 
 	switch resp.EvidenceStatus {
 	case "":
-		_, _ = fmt.Fprintln(w, "fest: approval judge did not report evidence_status; a binary older than the evidence field cannot see deliverables and will reject or approve blindly. Upgrade the judge (ob judge) so the ledger can distinguish no evidence from insufficient evidence.")
+		_, _ = fmt.Fprintln(w, "fest: approval judge did not report evidence_status; a binary older than the evidence field cannot see deliverables and will reject or approve blindly. Upgrade the judge binary so the ledger can distinguish no evidence from insufficient evidence.")
 		return nil
 	case evidenceStatusNone:
 		if resp.Decision == "approve" {
@@ -54,7 +54,7 @@ func reportJudgeEvidenceStatus(w io.Writer, req approvalJudgeRequest, resp *appr
 				WithField("evidence_count", len(req.Evidence)).
 				WithHint("a judge that reports evidence_status=none cannot approve; upgrade the judge binary or reject until it can read the evidence manifest")
 		}
-		_, _ = fmt.Fprintf(w, "fest: approval judge reported evidence_status=none but the request listed %d deliverable(s); if this was a stale binary, upgrade ob judge.\n", len(req.Evidence))
+		_, _ = fmt.Fprintf(w, "fest: approval judge reported evidence_status=none but the request listed %d deliverable(s); if this was a stale binary, upgrade the judge.\n", len(req.Evidence))
 		return nil
 	default:
 		return nil

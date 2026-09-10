@@ -117,8 +117,9 @@ func SaveWorkspaceConfig(festivalsRoot string, cfg *WorkspaceConfig) error {
 func commentedHooksPlaceholder() []byte {
 	return []byte(`
 # Approval judge: lets agents pass blocking checkpoints on evidence instead of
-# waiting for you. Install the reference judge, then uncomment:
+# waiting for you. Install the reference judge by running:
 #   go install github.com/Obedience-Corp/judge-agent/cmd/judge-agent@latest
+# then uncomment the block below.
 #
 # hooks:
 #   definitions:

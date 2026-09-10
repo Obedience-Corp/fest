@@ -28,10 +28,15 @@ Schema sketch
       task: true
     definitions:
       approval_judge:
-        command: ob judge    # required
+        command: judge-agent --agent claude    # required
         fail: closed         # closed | open
         timeout: 0           # 0 = no deadline (approval_judge default)
         enabled: true
+
+The reference judge is judge-agent (go install
+github.com/Obedience-Corp/judge-agent/cmd/judge-agent@latest); it wraps a CLI
+you already run (claude, grok, codex, fx). Any command that speaks
+fest.approval.judge/v1 can take its place.
 
 Bindings (names only)
 ---------------------

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/config"
+	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/hooks"
 	"github.com/Obedience-Corp/fest/internal/scope"
@@ -118,8 +119,23 @@ func TestResolveApprovalJudgeCommand(t *testing.T) {
 
 	// Fails closed when the workspace has no configured hook.
 	emptyCtx := scope.WithWorkspace(context.Background(), &scope.WorkspaceInfo{FestivalsPath: t.TempDir()})
-	if _, err := resolveApprovalJudgeCommand(emptyCtx, ""); err == nil {
+	_, err = resolveApprovalJudgeCommand(emptyCtx, "")
+	if err == nil {
 		t.Fatal("expected fail-closed error when no judge is configured")
+	}
+	// The hint is the next thing a user sees after the approve footer sends
+	// them to 'fest workflow judge', so it must teach an installable judge.
+	var notConfigured *festerrors.Error
+	if !stderrors.As(err, &notConfigured) {
+		t.Fatalf("expected a fest error, got %T: %v", err, err)
+	}
+	for _, want := range []string{hooks.JudgeInstallCommand, "command: " + hooks.JudgeExampleCommand} {
+		if !strings.Contains(notConfigured.Hint, want) {
+			t.Fatalf("not-configured hint lacks %q:\n%s", want, notConfigured.Hint)
+		}
+	}
+	if strings.Contains(notConfigured.Hint, "ob judge") {
+		t.Fatalf("not-configured hint still teaches ob judge:\n%s", notConfigured.Hint)
 	}
 
 	// Fails closed when there is no workspace in context.

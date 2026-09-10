@@ -64,10 +64,12 @@ Approval Auto Mode
 Blocking checkpoints can be delegated to an automation hook named
 `approval_judge`. Preferred declaration (festivals layer):
 
+  go install github.com/Obedience-Corp/judge-agent/cmd/judge-agent@latest
+
   hooks:
     definitions:
       approval_judge:
-        command: ob judge
+        command: judge-agent --agent claude   # or grok, codex, fx
         timeout: 0   # optional: approval_judge already defaults to no deadline
 
 When that definition is present and the step is not human-required:
