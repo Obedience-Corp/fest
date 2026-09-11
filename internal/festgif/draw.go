@@ -204,10 +204,7 @@ func (p *painter) paintTree(img *image.RGBA, top, frame int, leaf []LeafState, r
 	for _, i := range p.r.Visible(leaf) {
 		row := p.r.Rows[i]
 		a := roll[i]
-		opacity := alpha
-		if a.Status == StatusPending {
-			opacity *= pendingOpacity
-		}
+		opacity := alpha * rowOpacity(row, a, leaf[i])
 		heat := 0.0
 		if a.Last >= 0 {
 			heat = clamp01(1 - float64(frame-a.Last)/heatFrames)
@@ -277,6 +274,15 @@ func (p *painter) textAt(img *image.RGBA, face font.Face, x, baseline int, s str
 	d := font.Drawer{Dst: img, Src: image.NewUniform(c), Face: face, Dot: fixed.P(x, baseline)}
 	d.DrawString(s)
 	return d.Dot.X.Round()
+}
+
+// rowOpacity dims rows that have not started. A step whose judge is running
+// is active even if its status was reset to pending.
+func rowOpacity(row Row, a Rollup, s LeafState) float64 {
+	if a.Status != StatusPending || (row.Kind == KindStep && s.Judge == JudgeRunning) {
+		return 1
+	}
+	return pendingOpacity
 }
 
 func clamp01(v float64) float64 { return math.Max(0, math.Min(1, v)) }

@@ -2,6 +2,7 @@ package gif
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"image/gif"
 	"os"
@@ -9,7 +10,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/festgif"
+	"github.com/Obedience-Corp/fest/internal/progress"
 )
 
 const gatesMD = `---
@@ -28,6 +32,13 @@ fest_id: 001_IMPLEMENT-GATE
 // event log in which the judge rejects the gate once and then approves it.
 func writeFestival(t *testing.T) string {
 	t.Helper()
+	return writeFestivalEvents(t, rejectedThenApproved())
+}
+
+// writeFestivalEvents lays out the same festival with the given event log,
+// written against phase 002_IMPLEMENT and moved onto the on-disk 001 phase.
+func writeFestivalEvents(t *testing.T, log []progress.ProgressEvent) string {
+	t.Helper()
 	dir := filepath.Join(t.TempDir(), "demo-DM0001")
 	seq := filepath.Join(dir, "001_IMPLEMENT", "01_build")
 	files := map[string]string{
@@ -44,14 +55,14 @@ func writeFestival(t *testing.T) string {
 			t.Fatal(err)
 		}
 	}
-	var log bytes.Buffer
-	enc := json.NewEncoder(&log)
-	for _, e := range rejectedThenApproved() {
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	for _, e := range log {
 		if err := enc.Encode(e); err != nil {
 			t.Fatal(err)
 		}
 	}
-	events := strings.ReplaceAll(log.String(), `"gate:002_IMPLEMENT"`, `"gate:001_IMPLEMENT"`)
+	events := strings.ReplaceAll(buf.String(), `"gate:002_IMPLEMENT"`, `"gate:001_IMPLEMENT"`)
 	events = strings.ReplaceAll(events, `"002_IMPLEMENT/01_build/01_task.md"`, `"001_IMPLEMENT/01_build/01_task.md"`)
 	if err := os.WriteFile(filepath.Join(dir, ".fest", "progress_events.jsonl"), []byte(events), 0o644); err != nil {
 		t.Fatal(err)
@@ -129,5 +140,53 @@ func TestGifRejectsNameAndSelectorTogether(t *testing.T) {
 	cmd.SetArgs([]string{"demo", "--festival", "DM0001"})
 	if err := cmd.Execute(); !errors.Is(err, errors.ErrCodeValidation) {
 		t.Fatalf("err = %v, want VALIDATION", err)
+	}
+}
+
+// The held last frame must show every row exactly as fest show does,
+// including parents of a blocked gate.
+func TestLastFrameMatchesFestShow(t *testing.T) {
+	l := &eventLog{}
+	l.add(progress.ProgressEvent{Event: progress.EventCompleted, Task: task})
+	l.gate(progress.EventWorkflowStepStart, progress.ProgressEvent{})
+	l.gate(progress.EventWorkflowJudgeStarted, progress.ProgressEvent{JudgeStatus: "running", JudgeRunID: "a"})
+	l.gate(progress.EventWorkflowJudgeReturned, progress.ProgressEvent{JudgeStatus: "rejected", JudgeRunID: "a"})
+	l.gate(progress.EventWorkflowStepBlock, progress.ProgressEvent{DecisionActor: "agent", Feedback: "missing evidence"})
+	dir := writeFestivalEvents(t, l.events)
+
+	ctx := context.Background()
+	tree, err := show.BuildFestivalTree(ctx, dir)
+	if err != nil {
+		t.Fatalf("BuildFestivalTree: %v", err)
+	}
+	events, err := progress.NewStore(dir).ReadEvents(ctx)
+	if err != nil {
+		t.Fatalf("ReadEvents: %v", err)
+	}
+	r := festgif.Plan(buildInput("demo", dir, tree, events), festgif.DefaultTiming)
+	roll := r.Rollups(r.StateAt(r.Frames - 1))
+
+	var want []string
+	var walk func(n *show.DisplayNode)
+	walk = func(n *show.DisplayNode) {
+		want = append(want, n.Name+"="+n.Status)
+		for _, c := range n.Children {
+			walk(c)
+		}
+	}
+	for _, p := range tree.Children {
+		walk(p)
+	}
+	var got []string
+	for i, row := range r.Rows {
+		name := row.Label
+		if row.Kind == festgif.KindTask {
+			name += ".md"
+		}
+		got = append(got, name+"="+roll[i].Status)
+	}
+	equal(t, got, want)
+	if tree.Children[0].Status != "blocked" {
+		t.Fatalf("fixture should leave the phase blocked in fest show, got %s", tree.Children[0].Status)
 	}
 }

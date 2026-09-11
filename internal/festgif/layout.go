@@ -13,12 +13,14 @@ type LeafState struct {
 }
 
 // Rollup is a row's aggregate state: leaves report their own state, phases
-// and sequences roll up from their children.
+// and sequences roll up from the leaves under them.
 type Rollup struct {
-	Status string
-	Done   int
-	Total  int
-	Last   int
+	Status  string
+	Done    int
+	Total   int
+	Blocked int
+	Active  int
+	Last    int
 }
 
 // Cursor walks a replay's transitions forward frame by frame.
@@ -52,10 +54,12 @@ func (r *Replay) StateAt(frame int) []LeafState {
 	return NewCursor(r).Advance(frame)
 }
 
-// Rollups resolves every row's aggregate state bottom-up.
+// Rollups resolves every row's aggregate state bottom-up. A phase or
+// sequence takes its status from the leaf counts under it, exactly as
+// `fest show` does (determineStatus): all done is completed, any blocked leaf
+// is blocked, any started or finished leaf is in progress.
 func (r *Replay) Rollups(leaf []LeafState) []Rollup {
 	out := make([]Rollup, len(r.Rows))
-	touched := make([]bool, len(r.Rows))
 	for i := range out {
 		out[i].Last = -1
 	}
@@ -63,35 +67,44 @@ func (r *Replay) Rollups(leaf []LeafState) []Rollup {
 		row := r.Rows[i]
 		if row.Kind.leaf() {
 			s := leaf[i]
-			out[i].Status = s.Status
-			out[i].Total = 1
-			if s.done() {
-				out[i].Done = 1
-			}
-			out[i].Last = s.Last
-			touched[i] = s.Status != StatusPending
-		} else {
+			out[i] = Rollup{Status: s.Status, Total: 1, Last: s.Last}
 			switch {
-			case out[i].Total > 0 && out[i].Done >= out[i].Total:
-				out[i].Status = StatusCompleted
-			case out[i].Done > 0 || touched[i]:
-				out[i].Status = StatusInProgress
-			default:
-				out[i].Status = StatusPending
+			case s.done():
+				out[i].Done = 1
+			case s.Status == StatusBlocked:
+				out[i].Blocked = 1
+			case s.Status == StatusInProgress:
+				out[i].Active = 1
 			}
+		} else {
+			out[i].Status = rollupStatus(out[i])
 		}
 		if p := row.Parent; p >= 0 {
 			out[p].Done += out[i].Done
 			out[p].Total += out[i].Total
-			if out[i].Status != StatusPending && out[i].Status != "" {
-				touched[p] = true
-			}
+			out[p].Blocked += out[i].Blocked
+			out[p].Active += out[i].Active
 			if out[i].Last > out[p].Last {
 				out[p].Last = out[i].Last
 			}
 		}
 	}
 	return out
+}
+
+func rollupStatus(r Rollup) string {
+	switch {
+	case r.Total == 0:
+		return StatusPending
+	case r.Done >= r.Total:
+		return StatusCompleted
+	case r.Blocked > 0:
+		return StatusBlocked
+	case r.Active > 0 || r.Done > 0:
+		return StatusInProgress
+	default:
+		return StatusPending
+	}
 }
 
 // Visible returns the rows on screen, fest-watch style: every phase shows as a

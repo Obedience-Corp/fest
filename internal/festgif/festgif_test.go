@@ -227,3 +227,30 @@ func TestRenderStopsWhenCancelled(t *testing.T) {
 		t.Fatal("expected an error from a cancelled render")
 	}
 }
+
+func TestBlockedLeafBlocksItsParents(t *testing.T) {
+	in := judgedInput()
+	in.Beats = append(in.Beats, Beat{Changes: []Change{{Key: "t2", State: State{Status: StatusBlocked}}}})
+	in.Final["t2"] = State{Status: StatusBlocked}
+	r := Plan(in, DefaultTiming)
+	roll := r.Rollups(r.StateAt(r.Frames - 1))
+	for _, key := range []string{"s1", "p1"} {
+		if got := roll[rowIndex(t, r, key)].Status; got != StatusBlocked {
+			t.Errorf("%s = %s, want blocked like fest show's determineStatus", key, got)
+		}
+	}
+	if got := roll[rowIndex(t, r, "p2")].Status; got != StatusCompleted {
+		t.Errorf("p2 = %s, want completed", got)
+	}
+}
+
+func TestRunningJudgeKeepsAPendingStepBright(t *testing.T) {
+	step := Row{Kind: KindStep}
+	pending := Rollup{Status: StatusPending}
+	if got := rowOpacity(step, pending, LeafState{State: State{Status: StatusPending, Judge: JudgeRunning}}); got != 1 {
+		t.Errorf("pending step with a running judge opacity = %v, want 1", got)
+	}
+	if got := rowOpacity(step, pending, LeafState{State: State{Status: StatusPending}}); got != pendingOpacity {
+		t.Errorf("idle pending step opacity = %v, want %v", got, pendingOpacity)
+	}
+}
