@@ -2,6 +2,12 @@
 // for festival planning directories. Counts are cached under
 // .campaign/cache/tokens/ so repeated `fest list` invocations do not re-walk
 // and re-tokenize unchanged festivals.
+//
+// Token counts are decoration on list output, so this package is bounded on
+// both axes that can make tokenizing expensive: a size guard keeps model
+// weights, datasets, and other large proof artifacts out of the tokenizer, and
+// a wall-clock budget caps how long one list invocation may spend counting.
+// Either bound yields a count of 0, which renders as no token annotation.
 package tokencount
 
 import (
@@ -20,6 +26,29 @@ import (
 
 // cacheSubdir is the path under .campaign/ where token count caches live.
 const cacheSubdir = "cache/tokens"
+
+const (
+	// maxFileBytes is the largest single file a festival may contain and still
+	// be tokenized. Festival directories hold planning documents; a file this
+	// large is a proof artifact (model weights, a dataset, a capture) whose
+	// token count is meaningless and whose tokenization costs minutes of CPU
+	// and gigabytes of resident memory.
+	maxFileBytes int64 = 2 << 20 // 2 MiB
+
+	// maxFestivalBytes is the largest total size of a festival directory that
+	// will be tokenized. It catches directories built from many moderate files
+	// that individually pass maxFileBytes.
+	maxFestivalBytes int64 = 16 << 20 // 16 MiB
+
+	// tokenCountBudget bounds the wall-clock time all token counting may
+	// consume for one list invocation. Festivals left over when the budget is
+	// gone are reported as 0.
+	tokenCountBudget = 10 * time.Second
+
+	// perFestivalBudget bounds one festival's share of tokenCountBudget so a
+	// single expensive directory cannot starve the rest of the list.
+	perFestivalBudget = 3 * time.Second
+)
 
 // CacheEntry is the on-disk cache record for one festival directory.
 type CacheEntry struct {
@@ -63,18 +92,22 @@ func NewCounter(ctx context.Context, campaignRoot string) (*Counter, error) {
 
 // CountFestival returns the primary-method token count for the festival at
 // festivalPath. It uses the on-disk cache when the directory fingerprint is
-// unchanged. On any error it returns 0 and nil error so list rendering never
-// fails because of token counting.
+// unchanged, and skips tokenizing entirely when the directory exceeds the size
+// guard. On any error, on a guard trip, or on a cancelled context it returns 0
+// and nil error so list rendering never fails because of token counting.
 func (c *Counter) CountFestival(ctx context.Context, festivalPath string) int {
 	if c == nil || !c.enabled || c.counter == nil {
 		return 0
 	}
-	fp, err := fingerprint(ctx, festivalPath)
+	scan, err := scanDir(ctx, festivalPath)
 	if err != nil {
 		return 0
 	}
-	if entry, ok := c.loadCache(festivalPath, fp); ok {
+	if entry, ok := c.loadCache(festivalPath, scan.fingerprint); ok {
 		return entry.Tokens
+	}
+	if !withinSizeLimits(scan) {
+		return 0
 	}
 	info, err := os.Stat(festivalPath)
 	if err != nil || !info.IsDir() {
@@ -85,33 +118,79 @@ func (c *Counter) CountFestival(ctx context.Context, festivalPath string) int {
 		return 0
 	}
 	primary := res.Methods[0]
-	c.saveCache(festivalPath, fp, primary.Tokens, primary.Name, primary.IsExact, res.FileCount)
+	c.saveCache(festivalPath, scan.fingerprint, primary.Tokens, primary.Name, primary.IsExact, res.FileCount)
 	return primary.Tokens
 }
 
 // CountFestivals returns a map from festival path to token count for each
-// festival in festivalPaths. Festivals that cannot be counted get 0.
+// festival in festivalPaths. The whole call is bounded by tokenCountBudget and
+// each festival by perFestivalBudget. Festivals that cannot be counted, that
+// exceed a budget, or that trip the size guard get 0.
 func (c *Counter) CountFestivals(ctx context.Context, festivalPaths []string) map[string]int {
 	result := make(map[string]int, len(festivalPaths))
-	for _, p := range festivalPaths {
-		if err := ctx.Err(); err != nil {
-			return result
+	if c == nil || !c.enabled || c.counter == nil {
+		for _, p := range festivalPaths {
+			result[p] = 0
 		}
-		result[p] = c.CountFestival(ctx, p)
+		return result
+	}
+	budgetCtx, cancel := context.WithTimeout(ctx, tokenCountBudget)
+	defer cancel()
+	for _, p := range festivalPaths {
+		if budgetCtx.Err() != nil {
+			// Budget spent or caller cancelled: the rest render without counts.
+			result[p] = 0
+			continue
+		}
+		result[p] = c.countFestivalBounded(budgetCtx, p)
 	}
 	return result
 }
 
-// fingerprint produces a deterministic hash of the files inside a directory:
-// sorted relative path + modtime + size. This is cheap (stat-only, no reads)
-// and changes when any planning file is edited, added, or removed.
-func fingerprint(ctx context.Context, dir string) (string, error) {
+// countFestivalBounded counts one festival under its own deadline so a single
+// slow directory cannot consume the whole list budget.
+func (c *Counter) countFestivalBounded(ctx context.Context, festivalPath string) int {
+	festCtx, cancel := context.WithTimeout(ctx, perFestivalBudget)
+	defer cancel()
+	return c.CountFestival(festCtx, festivalPath)
+}
+
+// dirScan is the result of one stat-only walk of a festival directory: a
+// fingerprint that detects content changes, plus the size facts the tokenizing
+// guard needs.
+type dirScan struct {
+	fingerprint string
+	totalBytes  int64
+	largestFile int64
+}
+
+// withinSizeLimits reports whether a festival is small enough to tokenize.
+//
+// This guard lives in fest because the pinned tcount release tokenizes every
+// non-binary file it walks with no size ceiling, and a single multi-hundred-MB
+// file is read and tokenized in one uninterruptible step. Once tcount accepts a
+// per-file cap (tokenizer.CountDirectoryOptions.MaxFileSize), maxFileBytes is
+// handed to it directly and only the aggregate check needs to stay here.
+//
+// The scan behind this guard applies no .gitignore rules, so an ignored
+// artifact can still suppress a festival's count. That is deliberate: a
+// missing decoration costs nothing, and a hung `fest list` costs the session.
+func withinSizeLimits(scan dirScan) bool {
+	return scan.largestFile <= maxFileBytes && scan.totalBytes <= maxFestivalBytes
+}
+
+// scanDir walks a directory once, stat-only, producing a deterministic
+// fingerprint (sorted relative path + modtime + size) and the size facts used
+// by withinSizeLimits. The walk reads no file contents, so it stays cheap even
+// for directories the tokenizer must refuse.
+func scanDir(ctx context.Context, dir string) (dirScan, error) {
 	type fileInfo struct {
 		relPath string
 		modTime time.Time
 		size    int64
 	}
 	var files []fileInfo
+	var scan dirScan
 
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -131,10 +210,15 @@ func fingerprint(ctx context.Context, dir string) (string, error) {
 			return err
 		}
 		files = append(files, fileInfo{relPath: rel, modTime: info.ModTime(), size: info.Size()})
+		size := effectiveSize(path, info)
+		scan.totalBytes += size
+		if size > scan.largestFile {
+			scan.largestFile = size
+		}
 		return nil
 	})
 	if err != nil {
-		return "", err
+		return dirScan{}, err
 	}
 	sort.Slice(files, func(i, j int) bool {
 		return files[i].relPath < files[j].relPath
@@ -143,7 +227,26 @@ func fingerprint(ctx context.Context, dir string) (string, error) {
 	for _, f := range files {
 		_, _ = fmt.Fprintf(h, "%s\t%d\t%d\n", f.relPath, f.modTime.UnixNano(), f.size)
 	}
-	return hex.EncodeToString(h.Sum(nil)), nil
+	scan.fingerprint = hex.EncodeToString(h.Sum(nil))
+	return scan, nil
+}
+
+// effectiveSize returns the number of bytes the tokenizer would read for an
+// entry. Symlinks are resolved because filepath.Walk reports the link's own
+// size while a reader follows it to the target; links to directories and
+// broken links contribute nothing.
+func effectiveSize(path string, info os.FileInfo) int64 {
+	if info.Mode().IsRegular() {
+		return info.Size()
+	}
+	if info.Mode()&os.ModeSymlink == 0 {
+		return 0
+	}
+	target, err := os.Stat(path)
+	if err != nil || !target.Mode().IsRegular() {
+		return 0
+	}
+	return target.Size()
 }
 
 // FormatCompact renders a token count in a compact human-readable form:
