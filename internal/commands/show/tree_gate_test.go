@@ -2,8 +2,10 @@ package show
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Obedience-Corp/fest/internal/progress"
@@ -172,5 +174,34 @@ func TestBuildFestivalTree_NoGateNoInflation(t *testing.T) {
 	phase := tree.Children[0]
 	if phase.Stats.Total != 1 {
 		t.Errorf("phase Total = %d, want 1 (no gate inflation)", phase.Stats.Total)
+	}
+}
+
+func TestBuildFestivalTree_SetsReplayIdentity(t *testing.T) {
+	festDir := setupShowGateFestival(t)
+
+	tree, err := BuildFestivalTree(context.Background(), festDir)
+	if err != nil {
+		t.Fatalf("BuildFestivalTree: %v", err)
+	}
+	phase := tree.Children[0]
+	task := phase.Children[0].Children[0]
+	wantTask := filepath.Join(festDir, "001_IMPLEMENT", "01_sequence", "01_task.md")
+	if task.TaskPath != wantTask {
+		t.Errorf("task path = %q, want %q", task.TaskPath, wantTask)
+	}
+	gate := phase.Children[2]
+	if gate.StateKey != "gate:001_IMPLEMENT" || gate.StepNumber != 2 {
+		t.Errorf("gate identity = %q/%d, want gate:001_IMPLEMENT/2", gate.StateKey, gate.StepNumber)
+	}
+
+	data, err := json.Marshal(tree)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	for _, field := range []string{"TaskPath", "StateKey", "StepNumber", wantTask} {
+		if strings.Contains(string(data), field) {
+			t.Errorf("fest show --json must not expose %q", field)
+		}
 	}
 }

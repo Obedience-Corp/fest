@@ -29,6 +29,12 @@ type DisplayNode struct {
 	Feedback       string         `json:"feedback,omitempty"`        // Concise actionable feedback for blocked steps
 	JudgeStatus    string         `json:"judge_status,omitempty"`    // waiting/approved/rejected/failed
 	WaitingOnJudge bool           `json:"waiting_on_judge,omitempty"`
+
+	// Replay identity for callers that re-materialize progress (fest gif).
+	// Not part of the JSON contract.
+	TaskPath   string `json:"-"` // task file path (task nodes)
+	StateKey   string `json:"-"` // workflow state key, "gate:<phase>" for gates (step nodes)
+	StepNumber int    `json:"-"` // workflow step number (step nodes)
 }
 
 // TreeOptions configures how the tree is rendered.
@@ -121,7 +127,9 @@ func buildPhaseNode(ctx context.Context, phaseDir string, store *progress.Store,
 		steps, err := shared.LoadWorkflowStepsForPhase(ctx, festivalRoot, phaseDir)
 		if err == nil && len(steps) > 0 {
 			for _, step := range steps {
-				stepNodes = append(stepNodes, buildStepNode(step))
+				stepNode := buildStepNode(step)
+				stepNode.StateKey = filepath.Base(phaseDir)
+				stepNodes = append(stepNodes, stepNode)
 				stepStats.Total++
 				switch step.Status {
 				case wf.StepStatusCompleted, wf.StepStatusSkipped:
@@ -169,6 +177,7 @@ func buildPhaseNode(ctx context.Context, phaseDir string, store *progress.Store,
 			for _, step := range gateSteps {
 				gateNode := buildStepNode(step)
 				gateNode.Name = "Gate " + gateNode.Name[len("Step "):]
+				gateNode.StateKey = "gate:" + filepath.Base(phaseDir)
 				gateNodes = append(gateNodes, gateNode)
 				gateStats.Total++
 				switch step.Status {
@@ -208,26 +217,46 @@ func buildPhaseNode(ctx context.Context, phaseDir string, store *progress.Store,
 	return node
 }
 
+// StepDisplayStatus maps a workflow step status to the status the tree shows.
+// Anything else, including failed_with_remediation, displays as pending.
+func StepDisplayStatus(status wf.StepStatus) string {
+	switch status {
+	case wf.StepStatusCompleted:
+		return "completed"
+	case wf.StepStatusInProgress:
+		return "in_progress"
+	case wf.StepStatusBlocked:
+		return "blocked"
+	case wf.StepStatusSkipped:
+		return "skipped"
+	default:
+		return "pending"
+	}
+}
+
+// TaskDisplayStatus maps a progress task status to the status the tree shows.
+func TaskDisplayStatus(status string) string {
+	switch status {
+	case progress.StatusCompleted:
+		return "completed"
+	case progress.StatusInProgress:
+		return "in_progress"
+	case progress.StatusBlocked:
+		return "blocked"
+	default:
+		return "pending"
+	}
+}
+
 // buildStepNode creates a DisplayNode for a workflow step.
 func buildStepNode(step shared.WorkflowStepView) *DisplayNode {
-	status := "pending"
-	switch step.Status {
-	case wf.StepStatusCompleted:
-		status = "completed"
-	case wf.StepStatusInProgress:
-		status = "in_progress"
-	case wf.StepStatusBlocked:
-		status = "blocked"
-	case wf.StepStatusSkipped:
-		status = "skipped"
-	}
-
 	return &DisplayNode{
-		Name:     fmt.Sprintf("Step %d: %s", step.Number, step.Name),
-		Goal:     step.Goal,
-		Status:   status,
-		NodeType: "step",
-		Feedback: wf.DisplayFeedback(step.Feedback),
+		Name:       fmt.Sprintf("Step %d: %s", step.Number, step.Name),
+		Goal:       step.Goal,
+		Status:     StepDisplayStatus(step.Status),
+		NodeType:   "step",
+		StepNumber: step.Number,
+		Feedback:   wf.DisplayFeedback(step.Feedback),
 		JudgeStatus: func() string {
 			if step.Judge == nil {
 				return ""
@@ -285,17 +314,14 @@ func buildSequenceNode(seqDir string, store *progress.Store, festivalRoot string
 		node.Stats.Total++
 		status := progress.ResolveTaskStatus(store, festivalRoot, taskPath)
 
-		displayStatus := "pending"
-		switch status {
-		case progress.StatusCompleted:
+		displayStatus := TaskDisplayStatus(status)
+		switch displayStatus {
+		case "completed":
 			node.Stats.Completed++
-			displayStatus = "completed"
-		case progress.StatusInProgress:
+		case "in_progress":
 			node.Stats.InProgress++
-			displayStatus = "in_progress"
-		case progress.StatusBlocked:
+		case "blocked":
 			node.Stats.Blocked++
-			displayStatus = "blocked"
 		default:
 			node.Stats.Pending++
 		}
@@ -305,6 +331,7 @@ func buildSequenceNode(seqDir string, store *progress.Store, festivalRoot string
 			Name:     name,
 			NodeType: "task",
 			Status:   displayStatus,
+			TaskPath: taskPath,
 			Stats: StatusCounts{
 				Total:      1,
 				Completed:  boolToInt(status == progress.StatusCompleted),

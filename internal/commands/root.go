@@ -15,6 +15,7 @@ import (
 	feedbackcmd "github.com/Obedience-Corp/fest/internal/commands/feedback"
 	"github.com/Obedience-Corp/fest/internal/commands/festival"
 	"github.com/Obedience-Corp/fest/internal/commands/gates"
+	gifcmd "github.com/Obedience-Corp/fest/internal/commands/gif"
 	hookscmd "github.com/Obedience-Corp/fest/internal/commands/hooks"
 	idcmd "github.com/Obedience-Corp/fest/internal/commands/id"
 	introcmd "github.com/Obedience-Corp/fest/internal/commands/intro"
@@ -266,6 +267,10 @@ func init() {
 	walkCmd := walkcmd.NewWalkCommand()
 	walkCmd.GroupID = "query"
 	rootCmd.AddCommand(walkCmd)
+
+	gifCmd := gifcmd.NewGifCommand()
+	gifCmd.GroupID = "query"
+	rootCmd.AddCommand(gifCmd)
 
 	rulesCmd := show.NewRulesCommand()
 	rulesCmd.GroupID = "query"

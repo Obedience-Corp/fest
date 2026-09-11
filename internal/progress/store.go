@@ -172,16 +172,9 @@ func (s *Store) LoadReadOnly(ctx context.Context) error {
 	}
 
 	if fileExists(s.eventsFilePath()) {
-		events, err := s.parseEventsFile(ctx)
+		events, err := s.ReadEvents(ctx)
 		if err != nil {
 			return err
-		}
-		if fileExists(s.workflowYAMLPath()) {
-			workflowEvents, err := s.readonlyWorkflowEvents(ctx)
-			if err != nil {
-				return err
-			}
-			events = append(events, workflowEvents...)
 		}
 		s.materializeFrom(events)
 		return nil
