@@ -41,12 +41,12 @@ func Render(ctx context.Context, w io.Writer, r *Replay) (Result, error) {
 	enc := newEncoder(buildPalette(samples), p.bounds())
 
 	fps := max(1, r.Timing.FPS)
-	cursor := NewCursor(r)
+	cur := newCursor(r)
 	for frame := 0; frame < r.Frames; frame++ {
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
 		}
-		p.paint(img, frame, cursor.Advance(frame))
+		p.paint(img, frame, cur.Advance(frame))
 		enc.add(img, centiseconds(frame+1, fps)-centiseconds(frame, fps))
 	}
 	if err := gif.EncodeAll(w, &enc.out); err != nil {

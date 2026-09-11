@@ -3,6 +3,7 @@ package festgif
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"image/gif"
 	"testing"
 )
@@ -58,7 +59,7 @@ func rowIndex(t *testing.T, r *Replay, key string) int {
 
 func frameOf(t *testing.T, r *Replay, row int, judge string) int {
 	t.Helper()
-	for _, tr := range r.Transitions {
+	for _, tr := range r.transitions {
 		if tr.Row == row && tr.State.Judge == judge {
 			return tr.Frame
 		}
@@ -132,7 +133,7 @@ func TestVisibleExpandsOnlyTheFocusPath(t *testing.T) {
 	g := rowIndex(t, r, "g1")
 	leaf := r.StateAt(frameOf(t, r, g, JudgeRunning))
 	var keys []string
-	for _, i := range r.Visible(leaf) {
+	for _, i := range r.visible(leaf) {
 		keys = append(keys, r.Rows[i].Key)
 	}
 	want := []string{"p1", "s1", "g1", "p2"}
@@ -149,19 +150,19 @@ func TestVisibleExpandsOnlyTheFocusPath(t *testing.T) {
 func TestSubLinesReadLikeFest(t *testing.T) {
 	r := Plan(judgedInput(), DefaultTiming)
 	g := rowIndex(t, r, "g1")
-	mark := r.Hooks[0]
-	lines := SubLines(r.Rows[g], r.StateAt(mark.Frame)[g], r.HookAt(g, mark.Frame))
-	want := []SubLine{
-		{Text: "Judge: waiting", Tone: ToneJudge},
-		{Text: "Hook: approval_judge (post gate_approve) pass 18.4s", Tone: ToneHook},
+	mark := r.hooks[0]
+	lines := subLines(r.Rows[g], r.StateAt(mark.Frame)[g], r.hookAt(g, mark.Frame))
+	want := []subLine{
+		{Text: "Judge: waiting", tone: toneJudge},
+		{Text: "Hook: approval_judge (post gate_approve) pass 18.4s", tone: toneHook},
 	}
 	if len(lines) != 2 || lines[0] != want[0] || lines[1] != want[1] {
 		t.Fatalf("lines = %+v, want %+v", lines, want)
 	}
-	if r.HookAt(g, mark.Frame+r.Timing.HookFrames-1) == nil {
+	if r.hookAt(g, mark.Frame+r.Timing.HookFrames-1) == nil {
 		t.Error("hook line should still show inside its window")
 	}
-	if r.HookAt(g, mark.Frame+r.Timing.HookFrames) != nil {
+	if r.hookAt(g, mark.Frame+r.Timing.HookFrames) != nil {
 		t.Error("hook line should clear after its window")
 	}
 }
@@ -169,18 +170,18 @@ func TestSubLinesReadLikeFest(t *testing.T) {
 func TestHookLineOutcomes(t *testing.T) {
 	cases := []struct {
 		run  HookRun
-		want SubLine
+		want subLine
 	}{
 		{HookRun{Name: "lint", Timing: "post", Verb: "task_complete", Outcome: "fail", Blocked: true, Millis: 32},
-			SubLine{Text: "Hook: lint (post task_complete) fail, blocked 32ms", Tone: ToneFailed}},
+			subLine{Text: "Hook: lint (post task_complete) fail, blocked 32ms", tone: toneFailed}},
 		{HookRun{Name: "slow", Timing: "pre", Verb: "task_start", Outcome: "timeout", Millis: 65000},
-			SubLine{Text: "Hook: slow (pre task_start) timeout 1m 5s", Tone: ToneFailed}},
+			subLine{Text: "Hook: slow (pre task_start) timeout 1m 5s", tone: toneFailed}},
 		{HookRun{Name: "approval_judge", Timing: "post", Verb: "gate_approve", Outcome: "skipped", Skip: "human-gate"},
-			SubLine{Text: "Hook: approval_judge (post gate_approve) skipped: human-gate", Tone: ToneHook}},
+			subLine{Text: "Hook: approval_judge (post gate_approve) skipped: human-gate", tone: toneHook}},
 	}
 	for _, c := range cases {
-		if got := HookLine(c.run); got != c.want {
-			t.Errorf("HookLine(%+v) = %+v, want %+v", c.run, got, c.want)
+		if got := hookLine(c.run); got != c.want {
+			t.Errorf("hookLine(%+v) = %+v, want %+v", c.run, got, c.want)
 		}
 	}
 }
@@ -189,8 +190,8 @@ func TestMaxLinesCountsJudgeAndHookLines(t *testing.T) {
 	r := Plan(judgedInput(), DefaultTiming)
 	// The held last frame: p1, s1, t1, t2, g1 and its judge line, p2. While
 	// the gate is in focus its sequence collapses, so judge plus hook peaks at 6.
-	if got := r.MaxLines(); got != 7 {
-		t.Fatalf("MaxLines = %d, want 7", got)
+	if got := r.maxLines(); got != 7 {
+		t.Fatalf("maxLines = %d, want 7", got)
 	}
 }
 
@@ -252,5 +253,46 @@ func TestRunningJudgeKeepsAPendingStepBright(t *testing.T) {
 	}
 	if got := rowOpacity(step, pending, LeafState{State: State{Status: StatusPending}}); got != pendingOpacity {
 		t.Errorf("idle pending step opacity = %v, want %v", got, pendingOpacity)
+	}
+}
+
+// busyInput is a festival big enough that pacing is not stretched to MinBody:
+// 60 tasks, then a gate the judge approves.
+func busyInput() Input {
+	done := State{Status: StatusCompleted}
+	seq := &Node{Key: "s1", Kind: KindSequence, Label: "01_build"}
+	in := Input{Title: "busy", Final: map[string]State{}}
+	for i := 0; i < 60; i++ {
+		key := fmt.Sprintf("t%02d", i)
+		seq.Children = append(seq.Children, &Node{Key: key, Kind: KindTask, Label: key})
+		in.Beats = append(in.Beats, Beat{Changes: []Change{{Key: key, State: done}}})
+		in.Final[key] = done
+	}
+	gate := &Node{Key: "g1", Kind: KindStep, Label: "Gate 1: PHASE GOAL"}
+	in.Phases = []*Node{{Key: "p1", Kind: KindPhase, Label: "001_BUILD", Children: []*Node{seq, gate}}}
+	in.Beats = append(in.Beats,
+		Beat{Changes: []Change{{Key: "g1", State: State{Status: StatusInProgress, Judge: JudgeRunning}}}, Hold: HoldJudgeWait},
+		Beat{Changes: []Change{{Key: "g1", State: State{Status: StatusInProgress, Judge: "approved"}}}, Hold: HoldVerdict},
+		Beat{Changes: []Change{{Key: "g1", State: State{Status: StatusCompleted, Judge: "approved"}}}},
+	)
+	in.Final["g1"] = State{Status: StatusCompleted, Judge: "approved"}
+	return in
+}
+
+func TestDefaultPacingIsReadable(t *testing.T) {
+	r := Plan(busyInput(), DefaultTiming)
+	fps := r.Timing.FPS
+	for i := 1; i < 60; i++ {
+		a, b := rowIndex(t, r, fmt.Sprintf("t%02d", i-1)), rowIndex(t, r, fmt.Sprintf("t%02d", i))
+		if gap := frameOf(t, r, b, "") - frameOf(t, r, a, ""); gap < fps/5 {
+			t.Fatalf("tasks %d and %d are %d frames apart, want at least 0.2s (%d)", i-1, i, gap, fps/5)
+		}
+	}
+	g := rowIndex(t, r, "g1")
+	if wait := frameOf(t, r, g, "approved") - frameOf(t, r, g, JudgeRunning); wait < fps {
+		t.Errorf("judge wait shows for %d frames, want at least 1s (%d)", wait, fps)
+	}
+	if r.Timing.HookFrames < 2*fps || r.Timing.TailFrames < 3*fps {
+		t.Errorf("hook lines (%d) and the final hold (%d) should last at least 2s and 3s", r.Timing.HookFrames, r.Timing.TailFrames)
 	}
 }

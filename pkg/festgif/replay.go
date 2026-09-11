@@ -143,19 +143,22 @@ type Timing struct {
 	HeatFrames int
 }
 
-// DefaultTiming paces any festival to a readable replay: the body scales with
-// the number of beats, and judge waits, verdicts, and failures hold longer.
+// DefaultTiming paces a replay for reading: each change shows for 0.2s, a
+// judge wait for 1s, a verdict for 0.8s, a rejection for 1.5s plus 1s blocked,
+// and a failed hook for 1.5s; hook lines stay up for 2s and the final state
+// holds for 3s. Very long festivals compress ordinary changes past MaxBody and
+// judge moments past MaxDwell, so a replay stays around a minute at most.
 var DefaultTiming = Timing{
 	FPS:           30,
 	IntroFrames:   24,
-	FramesPerBeat: 1.4,
+	FramesPerBeat: 6,
 	MinBody:       150,
-	MaxBody:       420,
-	TailFrames:    55,
-	Dwell:         Dwell{JudgeWait: 10, Verdict: 4, Rejection: 20, Blocked: 10, HookFail: 10},
-	MaxDwell:      480,
-	HookFrames:    36,
-	HeatFrames:    11,
+	MaxBody:       750,
+	TailFrames:    90,
+	Dwell:         Dwell{JudgeWait: 30, Verdict: 24, Rejection: 45, Blocked: 30, HookFail: 45},
+	MaxDwell:      1050,
+	HookFrames:    60,
+	HeatFrames:    15,
 }
 
 // Row is one flattened tree row with its drawn tree guides.
@@ -169,15 +172,15 @@ type Row struct {
 	Aggregates bool
 }
 
-// Transition sets a leaf row's state at a frame.
-type Transition struct {
+// transition sets a leaf row's state at a frame.
+type transition struct {
 	Frame int
 	Row   int
 	State State
 }
 
-// HookMark is a hook run shown under a row from a frame on.
-type HookMark struct {
+// hookMark is a hook run shown under a row from a frame on.
+type hookMark struct {
 	Frame int
 	Row   int
 	Run   HookRun
@@ -195,8 +198,8 @@ type Stats struct {
 type Replay struct {
 	Title       string
 	Rows        []Row
-	Transitions []Transition
-	Hooks       []HookMark
+	transitions []transition
+	hooks       []hookMark
 	Stats       Stats
 	IntroFrames int
 	BodyFrames  int
@@ -275,11 +278,11 @@ func Plan(in Input, t Timing) *Replay {
 				continue
 			}
 			touched[row] = true
-			r.Transitions = append(r.Transitions, Transition{Frame: frames[i], Row: row, State: c.State})
+			r.transitions = append(r.transitions, transition{Frame: frames[i], Row: row, State: c.State})
 		}
 		if b.Hook != nil {
 			if row, ok := index[b.Hook.Key]; ok {
-				r.Hooks = append(r.Hooks, HookMark{Frame: frames[i], Row: row, Run: *b.Hook})
+				r.hooks = append(r.hooks, hookMark{Frame: frames[i], Row: row, Run: *b.Hook})
 			}
 		}
 	}
@@ -287,7 +290,7 @@ func Plan(in Input, t Timing) *Replay {
 	// A leaf the events never touched (older logs, renamed files) still gets
 	// its final state, near its siblings' activity when there is any.
 	parentLast := map[int]int{}
-	for _, tr := range r.Transitions {
+	for _, tr := range r.transitions {
 		if p := r.Rows[tr.Row].Parent; p >= 0 && tr.Frame > parentLast[p] {
 			parentLast[p] = tr.Frame
 		}
@@ -307,14 +310,14 @@ func Plan(in Input, t Timing) *Replay {
 		if !ok {
 			frame = t.IntroFrames + int(math.Round(float64(li)/math.Max(1, float64(len(leaves)-1))*float64(r.BodyFrames)))
 		}
-		r.Transitions = append(r.Transitions, Transition{Frame: frame, Row: row, State: final})
+		r.transitions = append(r.transitions, transition{Frame: frame, Row: row, State: final})
 	}
 
 	clamp := t.IntroFrames + r.BodyFrames
 	for _, row := range leaves {
-		r.Transitions = append(r.Transitions, Transition{Frame: clamp, Row: row, State: finalState(in.Final, r.Rows[row].Key)})
+		r.transitions = append(r.transitions, transition{Frame: clamp, Row: row, State: finalState(in.Final, r.Rows[row].Key)})
 	}
-	sort.SliceStable(r.Transitions, func(a, b int) bool { return r.Transitions[a].Frame < r.Transitions[b].Frame })
+	sort.SliceStable(r.transitions, func(a, b int) bool { return r.transitions[a].Frame < r.transitions[b].Frame })
 	r.Frames = t.IntroFrames + r.BodyFrames + t.TailFrames
 	return r
 }

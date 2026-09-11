@@ -12,10 +12,10 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
-	"github.com/Obedience-Corp/fest/internal/festgif"
-	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
+	"github.com/Obedience-Corp/fest/pkg/festgif"
+	replay "github.com/Obedience-Corp/fest/pkg/festgif/festival"
 	"github.com/spf13/cobra"
 )
 
@@ -63,24 +63,11 @@ func run(cmd *cobra.Command, target string, opts *options) error {
 	if err != nil {
 		return err
 	}
-	root, err := filepath.Abs(festival.Path)
+	in, err := replay.Load(ctx, festival.Path)
 	if err != nil {
-		return errors.IO("resolving festival path", err).WithOp("gif")
+		return errors.Wrap(err, "loading festival replay").WithOp("gif")
 	}
-
-	tree, err := show.BuildFestivalTree(ctx, root)
-	if err != nil {
-		return errors.Wrap(err, "building festival tree").WithOp("gif")
-	}
-	events, err := progress.NewStore(root).ReadEvents(ctx)
-	if err != nil {
-		return errors.Wrap(err, "reading progress events").WithOp("gif")
-	}
-	title := festival.MetadataName
-	if title == "" {
-		title = festival.Name
-	}
-	replay := festgif.Plan(buildInput(title, root, tree, events), festgif.DefaultTiming)
+	plan := festgif.Plan(in, festgif.DefaultTiming)
 
 	out := opts.out
 	if out == "" {
@@ -90,7 +77,7 @@ func run(cmd *cobra.Command, target string, opts *options) error {
 	if err != nil {
 		return errors.IO("resolving output path", err).WithOp("gif")
 	}
-	result, size, err := writeGIF(ctx, out, replay)
+	result, size, err := writeGIF(ctx, out, plan)
 	if err != nil {
 		return err
 	}

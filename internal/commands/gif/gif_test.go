@@ -12,8 +12,9 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
-	"github.com/Obedience-Corp/fest/internal/festgif"
 	"github.com/Obedience-Corp/fest/internal/progress"
+	"github.com/Obedience-Corp/fest/pkg/festgif"
+	replay "github.com/Obedience-Corp/fest/pkg/festgif/festival"
 )
 
 const gatesMD = `---
@@ -159,11 +160,11 @@ func TestLastFrameMatchesFestShow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("BuildFestivalTree: %v", err)
 	}
-	events, err := progress.NewStore(dir).ReadEvents(ctx)
+	in, err := replay.Load(ctx, dir)
 	if err != nil {
-		t.Fatalf("ReadEvents: %v", err)
+		t.Fatalf("Load: %v", err)
 	}
-	r := festgif.Plan(buildInput("demo", dir, tree, events), festgif.DefaultTiming)
+	r := festgif.Plan(in, festgif.DefaultTiming)
 	roll := r.Rollups(r.StateAt(r.Frames - 1))
 
 	var want []string

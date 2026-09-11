@@ -1,4 +1,4 @@
-package gif
+package festival
 
 import (
 	"fmt"
@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
-	"github.com/Obedience-Corp/fest/internal/festgif"
 	"github.com/Obedience-Corp/fest/internal/progress"
+	"github.com/Obedience-Corp/fest/pkg/festgif"
 )
 
 const (
@@ -90,7 +90,7 @@ func equal(t *testing.T, got, want []string) {
 }
 
 func TestBuildInputReplaysAJudgeRejectionLoop(t *testing.T) {
-	in := buildInput("demo", root, fixtureTree("completed", "approved"), rejectedThenApproved())
+	in := build("demo", root, fixtureTree("completed", "approved"), rejectedThenApproved())
 	equal(t, gateStates(in), []string{
 		"in_progress/-",
 		"in_progress/running",
@@ -104,7 +104,7 @@ func TestBuildInputReplaysAJudgeRejectionLoop(t *testing.T) {
 }
 
 func TestBuildInputIgnoresAStaleVerdict(t *testing.T) {
-	in := buildInput("demo", root, fixtureTree("completed", "approved"), rejectedThenApproved())
+	in := build("demo", root, fixtureTree("completed", "approved"), rejectedThenApproved())
 	var order []string
 	for _, b := range in.Beats {
 		if b.Hook != nil {
@@ -126,7 +126,7 @@ func TestBuildInputKeepsAHumanRejectionBlocked(t *testing.T) {
 	l.gate(progress.EventWorkflowJudgeReturned, progress.ProgressEvent{JudgeStatus: "rejected", JudgeRunID: "a"})
 	l.gate(progress.EventWorkflowStepBlock, progress.ProgressEvent{DecisionActor: "human", Feedback: "not yet"})
 	l.gate(progress.EventWorkflowJudgeRecheck, progress.ProgressEvent{})
-	in := buildInput("demo", root, fixtureTree("blocked", "rejected"), l.events)
+	in := build("demo", root, fixtureTree("blocked", "rejected"), l.events)
 	equal(t, gateStates(in), []string{
 		"in_progress/-",
 		"in_progress/running",
@@ -136,7 +136,7 @@ func TestBuildInputKeepsAHumanRejectionBlocked(t *testing.T) {
 }
 
 func TestBuildInputHoldsJudgeMoments(t *testing.T) {
-	in := buildInput("demo", root, fixtureTree("completed", "approved"), rejectedThenApproved())
+	in := build("demo", root, fixtureTree("completed", "approved"), rejectedThenApproved())
 	var holds []festgif.Hold
 	for _, b := range in.Beats {
 		if b.Hold != festgif.HoldNone {
@@ -164,7 +164,7 @@ func TestBuildInputPinsHooksToTheirRows(t *testing.T) {
 	l.add(progress.ProgressEvent{Event: progress.EventWorkflowHookRun, Phase: phase,
 		HookName: "report", HookTiming: "post", HookVerb: "phase_complete", HookOutcome: "pass"})
 	l.judgeHook(500)
-	in := buildInput("demo", root, fixtureTree("completed", "approved"), l.events)
+	in := build("demo", root, fixtureTree("completed", "approved"), l.events)
 	var keys []string
 	for _, b := range in.Beats {
 		if b.Hook != nil {
@@ -178,7 +178,7 @@ func TestBuildInputPinsHooksToTheirRows(t *testing.T) {
 }
 
 func TestBuildInputTakesFinalStateFromTheTree(t *testing.T) {
-	in := buildInput("demo", root, fixtureTree("completed", "approved"), nil)
+	in := build("demo", root, fixtureTree("completed", "approved"), nil)
 	if len(in.Beats) != 0 {
 		t.Fatalf("no events should mean no beats, got %d", len(in.Beats))
 	}

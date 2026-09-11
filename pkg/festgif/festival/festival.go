@@ -1,15 +1,57 @@
-package gif
+// Package festival builds a festgif replay from a festival directory, with the
+// same tree and state `fest show` reports at every point in the progress log.
+//
+//	in, err := festival.Load(ctx, "festivals/active/my-festival-MF0001")
+//	if err != nil {
+//		return err
+//	}
+//	_, err = festgif.Render(ctx, w, festgif.Plan(in, festgif.DefaultTiming))
+package festival
 
 import (
+	"context"
 	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/show"
-	"github.com/Obedience-Corp/fest/internal/festgif"
+	"github.com/Obedience-Corp/fest/internal/errors"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/progress"
+	"github.com/Obedience-Corp/fest/pkg/festgif"
 )
+
+// Load reads the festival at dir, or the festival containing dir, and returns
+// its replay: the rows and final state from the tree `fest show` builds, and
+// one beat for every event in its progress log that changed what fest shows.
+// The title is the festival's metadata name. Load never writes to disk.
+func Load(ctx context.Context, dir string) (festgif.Input, error) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return festgif.Input{}, errors.IO("resolving festival path", err)
+	}
+	info, err := show.DetectCurrentFestival(ctx, abs, "")
+	if err != nil {
+		return festgif.Input{}, err
+	}
+	root, err := filepath.Abs(info.Path)
+	if err != nil {
+		return festgif.Input{}, errors.IO("resolving festival path", err)
+	}
+	tree, err := show.BuildFestivalTree(ctx, root)
+	if err != nil {
+		return festgif.Input{}, errors.Wrap(err, "building festival tree")
+	}
+	events, err := progress.NewStore(root).ReadEvents(ctx)
+	if err != nil {
+		return festgif.Input{}, errors.Wrap(err, "reading progress events")
+	}
+	title := info.MetadataName
+	if title == "" {
+		title = info.Name
+	}
+	return build(title, root, tree, events), nil
+}
 
 type leaf struct {
 	key      string
@@ -61,11 +103,11 @@ type index struct {
 	steps  map[string]bool
 }
 
-// buildInput turns the tree `fest show` builds and the festival's event log
-// into a replay. The tree supplies the rows and the final state; every event
-// prefix is materialized with fest's own progress store, so each beat shows
-// exactly what fest would have shown after that event.
-func buildInput(title, root string, tree *show.DisplayNode, events []progress.ProgressEvent) festgif.Input {
+// build turns the tree `fest show` builds and the festival's event log into a
+// replay. The tree supplies the rows and the final state; every event prefix
+// is materialized with fest's own progress store, so each beat shows exactly
+// what fest would have shown after that event.
+func build(title, root string, tree *show.DisplayNode, events []progress.ProgressEvent) festgif.Input {
 	in := festgif.Input{Title: title, Final: map[string]festgif.State{}}
 	idx := index{phases: map[string]string{}, seqs: map[string]string{}, tasks: map[string]string{}, steps: map[string]bool{}}
 	var leaves []leaf

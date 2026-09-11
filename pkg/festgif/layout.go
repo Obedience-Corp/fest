@@ -23,16 +23,16 @@ type Rollup struct {
 	Last    int
 }
 
-// Cursor walks a replay's transitions forward frame by frame.
-type Cursor struct {
+// cursor walks a replay's transitions forward frame by frame.
+type cursor struct {
 	r    *Replay
 	next int
 	leaf []LeafState
 }
 
-// NewCursor starts before the first frame.
-func NewCursor(r *Replay) *Cursor {
-	c := &Cursor{r: r, leaf: make([]LeafState, len(r.Rows))}
+// newCursor starts before the first frame.
+func newCursor(r *Replay) *cursor {
+	c := &cursor{r: r, leaf: make([]LeafState, len(r.Rows))}
 	for i := range c.leaf {
 		c.leaf[i] = LeafState{State: State{Status: StatusPending}, Last: -1}
 	}
@@ -40,9 +40,9 @@ func NewCursor(r *Replay) *Cursor {
 }
 
 // Advance applies every transition up to and including frame.
-func (c *Cursor) Advance(frame int) []LeafState {
-	for c.next < len(c.r.Transitions) && c.r.Transitions[c.next].Frame <= frame {
-		t := c.r.Transitions[c.next]
+func (c *cursor) Advance(frame int) []LeafState {
+	for c.next < len(c.r.transitions) && c.r.transitions[c.next].Frame <= frame {
+		t := c.r.transitions[c.next]
 		c.leaf[t.Row] = LeafState{State: t.State, Last: t.Frame}
 		c.next++
 	}
@@ -51,7 +51,7 @@ func (c *Cursor) Advance(frame int) []LeafState {
 
 // StateAt replays transitions up to frame from scratch.
 func (r *Replay) StateAt(frame int) []LeafState {
-	return NewCursor(r).Advance(frame)
+	return newCursor(r).Advance(frame)
 }
 
 // Rollups resolves every row's aggregate state bottom-up. A phase or
@@ -107,10 +107,10 @@ func rollupStatus(r Rollup) string {
 	}
 }
 
-// Visible returns the rows on screen, fest-watch style: every phase shows as a
+// visible returns the rows on screen, fest-watch style: every phase shows as a
 // summary line, and only the focus path (the phase and sequence holding the
 // most recent change) expands to its children.
-func (r *Replay) Visible(leaf []LeafState) []int {
+func (r *Replay) visible(leaf []LeafState) []int {
 	focus, best := -1, -1
 	for i, row := range r.Rows {
 		if row.Kind.leaf() && leaf[i].Last > best {
@@ -134,11 +134,11 @@ func (r *Replay) Visible(leaf []LeafState) []int {
 	return out
 }
 
-// HookAt is the latest hook run on row still inside its display window.
-func (r *Replay) HookAt(row, frame int) *HookRun {
-	var found *HookMark
-	for i := range r.Hooks {
-		h := &r.Hooks[i]
+// hookAt is the latest hook run on row still inside its display window.
+func (r *Replay) hookAt(row, frame int) *HookRun {
+	var found *hookMark
+	for i := range r.hooks {
+		h := &r.hooks[i]
 		if h.Frame > frame {
 			break
 		}
@@ -152,40 +152,40 @@ func (r *Replay) HookAt(row, frame int) *HookRun {
 	return &found.Run
 }
 
-// Tone is the color role of a line drawn under a row.
-type Tone int
+// tone is the color role of a line drawn under a row.
+type tone int
 
 const (
-	ToneJudge Tone = iota
-	ToneHook
-	ToneFailed
+	toneJudge tone = iota
+	toneHook
+	toneFailed
 )
 
-// SubLine is a line drawn under a row.
-type SubLine struct {
+// subLine is a line drawn under a row.
+type subLine struct {
 	Text string
-	Tone Tone
+	tone tone
 }
 
-// SubLines are the lines under a row: a step's judge state as `fest show`
+// subLines are the lines under a row: a step's judge state as `fest show`
 // labels it, then the row's most recent hook run while it is on screen.
-func SubLines(row Row, s LeafState, hook *HookRun) []SubLine {
-	var out []SubLine
+func subLines(row Row, s LeafState, hook *HookRun) []subLine {
+	var out []subLine
 	if row.Kind == KindStep && s.Judge != "" {
 		label := s.Judge
 		if label == JudgeRunning {
 			label = "waiting"
 		}
-		out = append(out, SubLine{Text: "Judge: " + label, Tone: ToneJudge})
+		out = append(out, subLine{Text: "Judge: " + label, tone: toneJudge})
 	}
 	if hook != nil {
-		out = append(out, HookLine(*hook))
+		out = append(out, hookLine(*hook))
 	}
 	return out
 }
 
-// HookLine describes a hook run the way fest records it.
-func HookLine(h HookRun) SubLine {
+// hookLine describes a hook run the way fest records it.
+func hookLine(h HookRun) subLine {
 	head := "Hook: " + h.Name
 	where := h.Timing
 	if h.Verb != "" {
@@ -207,17 +207,17 @@ func HookLine(h HookRun) SubLine {
 		if h.Blocked {
 			blocked = ", blocked"
 		}
-		return SubLine{Text: head + " " + h.Outcome + blocked + took, Tone: ToneFailed}
+		return subLine{Text: head + " " + h.Outcome + blocked + took, tone: toneFailed}
 	case h.Outcome == "skipped":
 		reason := ""
 		if h.Skip != "" {
 			reason = ": " + h.Skip
 		}
-		return SubLine{Text: head + " skipped" + reason, Tone: ToneHook}
+		return subLine{Text: head + " skipped" + reason, tone: toneHook}
 	case h.Outcome == "":
-		return SubLine{Text: head + " ran" + took, Tone: ToneHook}
+		return subLine{Text: head + " ran" + took, tone: toneHook}
 	default:
-		return SubLine{Text: head + " " + h.Outcome + took, Tone: ToneHook}
+		return subLine{Text: head + " " + h.Outcome + took, tone: toneHook}
 	}
 }
 
@@ -233,14 +233,14 @@ func formatMillis(ms int64) string {
 	return fmt.Sprintf("%dm %ds", m, int(s)-m*60)
 }
 
-// MaxLines is the most lines (rows plus their judge and hook lines) on screen
+// maxLines is the most lines (rows plus their judge and hook lines) on screen
 // at any frame, which sizes the canvas.
-func (r *Replay) MaxLines() int {
+func (r *Replay) maxLines() int {
 	frames := map[int]bool{}
-	for _, t := range r.Transitions {
+	for _, t := range r.transitions {
 		frames[t.Frame] = true
 	}
-	for _, h := range r.Hooks {
+	for _, h := range r.hooks {
 		frames[h.Frame] = true
 	}
 	ordered := make([]int, 0, len(frames))
@@ -249,12 +249,12 @@ func (r *Replay) MaxLines() int {
 	}
 	sort.Ints(ordered)
 	max := r.Stats.Phases
-	c := NewCursor(r)
+	c := newCursor(r)
 	for _, f := range ordered {
 		leaf := c.Advance(f)
 		lines := 0
-		for _, i := range r.Visible(leaf) {
-			lines += 1 + len(SubLines(r.Rows[i], leaf[i], r.HookAt(i, f)))
+		for _, i := range r.visible(leaf) {
+			lines += 1 + len(subLines(r.Rows[i], leaf[i], r.hookAt(i, f)))
 		}
 		if lines > max {
 			max = lines

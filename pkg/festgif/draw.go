@@ -107,11 +107,11 @@ func statusGlyph(status string, kind Kind) string {
 	}
 }
 
-func toneColor(t Tone) color.NRGBA {
+func toneColor(t tone) color.NRGBA {
 	switch t {
-	case ToneJudge:
+	case toneJudge:
 		return colorJudge
-	case ToneFailed:
+	case toneFailed:
 		return colorFailed
 	default:
 		return colorDim
@@ -141,7 +141,7 @@ func newPainter(r *Replay, f *faces) *painter {
 	pctLH, _ := lineMetrics(f.percent)
 	statsLH, _ := lineMetrics(f.stats)
 	p.headerH = len(p.titleLines)*titleLH + titleGap + pctLH + statsGap + statsLH + headerGap
-	p.height = padding + p.headerH + (r.MaxLines()+1)*rowHeight + padding
+	p.height = padding + p.headerH + (r.maxLines()+1)*rowHeight + padding
 	return p
 }
 
@@ -201,7 +201,7 @@ func (p *painter) paintHeader(img *image.RGBA, top, progress int, alpha float64)
 
 func (p *painter) paintTree(img *image.RGBA, top, frame int, leaf []LeafState, roll []Rollup, alpha float64) {
 	heatFrames := float64(max(1, p.r.Timing.HeatFrames))
-	for _, i := range p.r.Visible(leaf) {
+	for _, i := range p.r.visible(leaf) {
 		row := p.r.Rows[i]
 		a := roll[i]
 		opacity := alpha * rowOpacity(row, a, leaf[i])
@@ -215,9 +215,9 @@ func (p *painter) paintTree(img *image.RGBA, top, frame int, leaf []LeafState, r
 		p.paintRow(img, top, row, a, leaf[i], opacity)
 		top += rowHeight
 
-		for _, line := range SubLines(row, leaf[i], p.r.HookAt(i, frame)) {
+		for _, line := range subLines(row, leaf[i], p.r.hookAt(i, frame)) {
 			x := p.centered(img, p.f.row, padding, top, row.SubPrefix, withAlpha(colorGuide, opacity))
-			p.centered(img, p.f.sub, x, top, line.Text, withAlpha(toneColor(line.Tone), opacity))
+			p.centered(img, p.f.sub, x, top, line.Text, withAlpha(toneColor(line.tone), opacity))
 			top += rowHeight
 		}
 	}
