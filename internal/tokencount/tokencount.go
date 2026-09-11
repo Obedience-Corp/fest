@@ -113,7 +113,7 @@ func (c *Counter) CountFestival(ctx context.Context, festivalPath string) int {
 	if err != nil || !info.IsDir() {
 		return 0
 	}
-	res, err := c.counter.CountDirectory(ctx, festivalPath, "", false)
+	res, err := c.counter.CountDirectoryWithOptions(ctx, festivalPath, tokenizer.CountDirectoryOptions{MaxFileSize: maxFileBytes})
 	if err != nil || len(res.Methods) == 0 {
 		return 0
 	}
@@ -166,11 +166,11 @@ type dirScan struct {
 
 // withinSizeLimits reports whether a festival is small enough to tokenize.
 //
-// This guard lives in fest because the pinned tcount release tokenizes every
-// non-binary file it walks with no size ceiling, and a single multi-hundred-MB
-// file is read and tokenized in one uninterruptible step. Once tcount accepts a
-// per-file cap (tokenizer.CountDirectoryOptions.MaxFileSize), maxFileBytes is
-// handed to it directly and only the aggregate check needs to stay here.
+// maxFileBytes is also handed to tcount as CountDirectoryOptions.MaxFileSize,
+// so oversized files are skipped inside the walk. This guard stays in fest as
+// the aggregate ceiling and as defense in depth: a single multi-hundred-MB
+// file that slips past detection is read and tokenized in one uninterruptible
+// step, and no deadline can cut that short.
 //
 // The scan behind this guard applies no .gitignore rules, so an ignored
 // artifact can still suppress a festival's count. That is deliberate: a
