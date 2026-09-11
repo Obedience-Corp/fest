@@ -1771,6 +1771,10 @@ last frame matches fest show.
 Works on any festival with a progress log, including completed festivals in
 the dungeon. The GIF is written to ./<festival>.gif unless --out is given.
 
+Every change holds long enough to read, and festivals with more changes than
+fit show consecutive ordinary changes together rather than flashing past. Use
+--speed to play it faster or slower.
+
 ```
 fest gif [festival] [flags]
 ```
@@ -1782,6 +1786,8 @@ fest gif [festival] [flags]
   fest gif my-festival              # by name, from anywhere in a camp
   fest gif --festival DM0001        # by selector
   fest gif -o docs/replay.gif       # choose the output file
+  fest gif --speed 2                # twice as fast
+  fest gif --speed 0.5              # half speed, easier to follow
 ```
 
 ### Options
@@ -1790,6 +1796,7 @@ fest gif [festival] [flags]
       --festival string   festival selector (name or ID) from within a camp
   -h, --help              help for gif
   -o, --out string        output file (default ./<festival>.gif)
+      --speed float       playback speed: 2 is twice as fast, 0.5 is half speed (default 1)
 ```
 
 ### Options inherited from parent commands
