@@ -373,6 +373,19 @@ approve or reject with itemized fixes. Any command that speaks
 fest promote                  # Move festival to next lifecycle status
 ```
 
+### 7. Share the replay
+
+```bash
+fest gif                      # Render the run as ./<festival>.gif
+```
+
+`fest gif` replays a festival the way `fest watch` showed it live: tasks and
+steps light up in the order they ran, gates show the judge waiting and then its
+verdict, and each hook run appears under the row it fired on. It works on
+finished festivals in the dungeon too. Other Go programs can render the same
+replay with [`pkg/festgif`](pkg/festgif) and
+[`pkg/festgif/festival`](pkg/festgif/festival).
+
 ## Quick Commands
 
 After shell integration:
