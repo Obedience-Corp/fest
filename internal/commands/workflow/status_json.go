@@ -64,9 +64,8 @@ type workflowStatusStepJSON struct {
 	JudgeConfidence     *float64 `json:"judge_confidence,omitempty"`
 	JudgeEvidenceStatus string   `json:"judge_evidence_status,omitempty"`
 	// RecentHookRuns are the hook executions the ledger recorded for this step,
-	// oldest first. The cap of progress.MaxRecentHookRuns applies to the phase
-	// read as a whole, so a step busier than its neighbours can crowd them out
-	// of one snapshot. Additive to fest.workflow.status/v1.
+	// oldest first, capped per step at progress.MaxRecentHookRuns. Additive to
+	// fest.workflow.status/v1.
 	RecentHookRuns []workflowStatusHookRunJSON `json:"recent_hook_runs,omitempty"`
 }
 
@@ -101,19 +100,23 @@ func hookRunJSON(event progress.ProgressEvent) workflowStatusHookRunJSON {
 	}
 }
 
-// recentHookRunsByStep reads the festival ledger once and groups this
-// navigator's hook runs by step. A ledger that cannot be read degrades to no
+// recentHookRunsByStep reads the festival ledger once and returns this
+// navigator's hook runs per step. A ledger that cannot be read degrades to no
 // hook runs: a status snapshot missing hook history is still useful, and one
 // that fails because the ledger is mid-write is not.
 func recentHookRunsByStep(ctx context.Context, nav *wf.Navigator) map[int][]workflowStatusHookRunJSON {
 	byStep := map[int][]workflowStatusHookRunJSON{}
 	store := progress.NewStore(nav.Ctx.FestivalPath)
-	runs, err := store.RecentHookRuns(ctx, nav.StateKey())
+	runs, err := store.RecentHookRunsByStep(ctx, nav.StateKey())
 	if err != nil {
 		return byStep
 	}
-	for _, run := range runs {
-		byStep[run.Step] = append(byStep[run.Step], hookRunJSON(run))
+	for step, events := range runs {
+		entries := make([]workflowStatusHookRunJSON, 0, len(events))
+		for _, event := range events {
+			entries = append(entries, hookRunJSON(event))
+		}
+		byStep[step] = entries
 	}
 	return byStep
 }

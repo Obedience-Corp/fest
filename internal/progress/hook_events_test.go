@@ -74,7 +74,7 @@ func TestQueueHookRuns_WritesOneLinePerRun(t *testing.T) {
 	}
 }
 
-func TestRecentHookRuns_FiltersByEventTypeAndPhaseKey(t *testing.T) {
+func TestRecentHookRunsByStep_FiltersByEventTypeAndPhaseKey(t *testing.T) {
 	dir := t.TempDir()
 	ctx := context.Background()
 	store := NewStore(dir)
@@ -93,57 +93,71 @@ func TestRecentHookRuns_FiltersByEventTypeAndPhaseKey(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runs, err := store.RecentHookRuns(ctx, "gate:001_IMPLEMENT")
+	byStep, err := store.RecentHookRunsByStep(ctx, "gate:001_IMPLEMENT")
 	if err != nil {
-		t.Fatalf("RecentHookRuns: %v", err)
+		t.Fatalf("RecentHookRunsByStep: %v", err)
 	}
-	if len(runs) != 1 {
-		t.Fatalf("runs = %d, want 1 (other phases and other event types excluded)", len(runs))
+	if len(byStep) != 1 {
+		t.Fatalf("steps = %d, want 1 (other phases and other event types excluded)", len(byStep))
 	}
-	if runs[0].HookName != "approval_judge" {
-		t.Fatalf("hook name = %q, want approval_judge", runs[0].HookName)
+	runs := byStep[1]
+	if len(runs) != 1 || runs[0].HookName != "approval_judge" {
+		t.Fatalf("step 1 runs = %+v, want one approval_judge run", runs)
 	}
 }
 
-func TestRecentHookRuns_CapsAtMaxKeepingNewest(t *testing.T) {
+// A busy step must not evict a quiet step's only run: the cap is per step, so
+// a gate that judged many times and a gate that judged once both stay visible
+// in one snapshot.
+func TestRecentHookRunsByStep_CapsPerStepAndKeepsAQuietStep(t *testing.T) {
 	dir := t.TempDir()
 	ctx := context.Background()
 	store := NewStore(dir)
 	if err := store.Load(ctx); err != nil {
 		t.Fatal(err)
 	}
-	total := MaxRecentHookRuns + 5
-	for i := range total {
+	busy := MaxRecentHookRuns + 5
+	for i := range busy {
 		QueueHookRuns(store, "001_INGEST", 1, []hooks.HookRun{{
-			Name:    "hook-" + strconv.Itoa(i),
+			Name:    "busy-" + strconv.Itoa(i),
 			Outcome: hooks.OutcomePass,
 		}})
 	}
+	QueueHookRuns(store, "001_INGEST", 2, []hooks.HookRun{{
+		Name:    "quiet-only-run",
+		Outcome: hooks.OutcomePass,
+	}})
 	if err := store.Save(ctx); err != nil {
 		t.Fatal(err)
 	}
 
-	runs, err := store.RecentHookRuns(ctx, "001_INGEST")
+	byStep, err := store.RecentHookRunsByStep(ctx, "001_INGEST")
 	if err != nil {
-		t.Fatalf("RecentHookRuns: %v", err)
+		t.Fatalf("RecentHookRunsByStep: %v", err)
 	}
+
+	quiet := byStep[2]
+	if len(quiet) != 1 || quiet[0].HookName != "quiet-only-run" {
+		t.Fatalf("quiet step runs = %+v, want its single run to survive the busy step", quiet)
+	}
+
+	runs := byStep[1]
 	if len(runs) != MaxRecentHookRuns {
-		t.Fatalf("runs = %d, want %d", len(runs), MaxRecentHookRuns)
+		t.Fatalf("busy step runs = %d, want the per-step cap of %d", len(runs), MaxRecentHookRuns)
 	}
-	if runs[0].HookName != "hook-5" {
-		t.Fatalf("oldest retained run = %q, want hook-5", runs[0].HookName)
-	}
-	if runs[len(runs)-1].HookName != "hook-"+strconv.Itoa(total-1) {
-		t.Fatalf("newest run = %q, want the last one written", runs[len(runs)-1].HookName)
+	oldestKept := "busy-" + strconv.Itoa(busy-MaxRecentHookRuns)
+	newestKept := "busy-" + strconv.Itoa(busy-1)
+	if runs[0].HookName != oldestKept || runs[len(runs)-1].HookName != newestKept {
+		t.Fatalf("busy step runs = %+v, want %s..%s oldest first", runs, oldestKept, newestKept)
 	}
 }
 
-func TestRecentHookRuns_NoLedgerIsEmptyNotAnError(t *testing.T) {
-	runs, err := NewStore(t.TempDir()).RecentHookRuns(context.Background(), "001_INGEST")
+func TestRecentHookRunsByStep_NoLedgerIsEmptyNotAnError(t *testing.T) {
+	byStep, err := NewStore(t.TempDir()).RecentHookRunsByStep(context.Background(), "001_INGEST")
 	if err != nil {
-		t.Fatalf("RecentHookRuns: %v", err)
+		t.Fatalf("RecentHookRunsByStep: %v", err)
 	}
-	if len(runs) != 0 {
-		t.Fatalf("runs = %d, want 0", len(runs))
+	if len(byStep) != 0 {
+		t.Fatalf("steps = %d, want 0", len(byStep))
 	}
 }

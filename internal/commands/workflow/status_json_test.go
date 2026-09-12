@@ -442,7 +442,9 @@ func writeHookRuns(t *testing.T, festivalPath, stateKey string, step int, names 
 	}
 }
 
-func TestWorkflowStatusJSON_HookRunsAreGroupedByStepAndBounded(t *testing.T) {
+// The Gates panel renders hook runs per step, so a step that ran its hooks more
+// than the cap must not evict a quieter step's single run from the snapshot.
+func TestWorkflowStatusJSON_HookRunsAreCappedPerStepNotPerPhase(t *testing.T) {
 	dir := setupWorkflowFestival(t)
 	overflow := make([]string, 0, progress.MaxRecentHookRuns+3)
 	for i := range progress.MaxRecentHookRuns + 3 {
@@ -454,21 +456,20 @@ func TestWorkflowStatusJSON_HookRunsAreGroupedByStepAndBounded(t *testing.T) {
 	nav := getNavigator(t, filepath.Join(dir, "001_INGEST"))
 	got := decodeStatusJSON(t, nav)
 
-	// The cap is on the phase read, so step 1 keeps only what survives it.
 	step1 := got.Steps[0].RecentHookRuns
 	step2 := got.Steps[1].RecentHookRuns
-	if len(step1)+len(step2) != progress.MaxRecentHookRuns {
-		t.Fatalf("total runs = %d, want the cap of %d", len(step1)+len(step2), progress.MaxRecentHookRuns)
-	}
 	if len(step2) != 1 || step2[0].Name != "step2-hook" {
-		t.Fatalf("step 2 runs = %+v, want only its own newest run", step2)
+		t.Fatalf("step 2 runs = %+v, want its single run to survive the busy step", step2)
+	}
+	if len(step1) != progress.MaxRecentHookRuns {
+		t.Fatalf("step 1 runs = %d, want the per-step cap of %d", len(step1), progress.MaxRecentHookRuns)
 	}
 	for _, run := range step1 {
 		if !strings.HasPrefix(run.Name, "step1-hook-") {
 			t.Errorf("step 1 carries another step's run: %+v", run)
 		}
 	}
-	oldestKept := "step1-hook-" + strconv.Itoa(len(overflow)-len(step1))
+	oldestKept := "step1-hook-" + strconv.Itoa(len(overflow)-progress.MaxRecentHookRuns)
 	newestKept := "step1-hook-" + strconv.Itoa(len(overflow)-1)
 	if step1[0].Name != oldestKept || step1[len(step1)-1].Name != newestKept {
 		t.Errorf("step 1 runs = %+v, want %s..%s oldest first", step1, oldestKept, newestKept)

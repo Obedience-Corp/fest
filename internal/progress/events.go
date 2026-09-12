@@ -121,14 +121,16 @@ type ProgressEvent struct {
 	HookVerdict  string `json:"hook_verdict,omitempty"`
 }
 
-// MaxRecentHookRuns bounds how many hook runs a single status snapshot reports.
+// MaxRecentHookRuns bounds how many hook runs a single status snapshot reports
+// for one step. Each step keeps its own newest runs, so a step that ran its
+// hooks many times cannot crowd a quieter step out of the same snapshot.
 const MaxRecentHookRuns = 10
 
-// RecentHookRuns returns the most recent wf_hook_run events recorded for a
-// workflow state key, oldest first, capped at MaxRecentHookRuns. A festival
-// with no ledger yields no runs and no error. Grouping by step is left to the
-// caller so one read can serve a whole phase.
-func (s *Store) RecentHookRuns(ctx context.Context, phaseKey string) ([]ProgressEvent, error) {
+// RecentHookRunsByStep returns the wf_hook_run events recorded for a workflow
+// state key, bucketed by step number, oldest first within each step and capped
+// at MaxRecentHookRuns per step. The ledger is read once. A festival with no
+// ledger yields no runs and no error.
+func (s *Store) RecentHookRunsByStep(ctx context.Context, phaseKey string) (map[int][]ProgressEvent, error) {
 	if !fileExists(s.eventsFilePath()) {
 		return nil, nil
 	}
@@ -138,17 +140,19 @@ func (s *Store) RecentHookRuns(ctx context.Context, phaseKey string) ([]Progress
 		return nil, err
 	}
 
-	matched := make([]ProgressEvent, 0, MaxRecentHookRuns)
+	byStep := map[int][]ProgressEvent{}
 	for _, event := range events {
 		if event.Event != EventWorkflowHookRun || event.Phase != phaseKey {
 			continue
 		}
-		matched = append(matched, event)
+		runs := append(byStep[event.Step], event)
+		if len(runs) > MaxRecentHookRuns {
+			copy(runs, runs[len(runs)-MaxRecentHookRuns:])
+			runs = runs[:MaxRecentHookRuns]
+		}
+		byStep[event.Step] = runs
 	}
-	if len(matched) > MaxRecentHookRuns {
-		matched = matched[len(matched)-MaxRecentHookRuns:]
-	}
-	return matched, nil
+	return byStep, nil
 }
 
 // loadFromEvents reads the JSONL file and materializes current state.
