@@ -47,10 +47,15 @@ func newHooksListCmd() *cobra.Command {
 	return cmd
 }
 
+// hooksListSchema identifies the structured resolved-hook contract.
+// Consumers should treat any object carrying this schema_version as stable.
+const hooksListSchema = "fest.hooks.list/v1"
+
 type hooksListJSON struct {
-	Enabled bool                `json:"enabled"`
-	Levels  map[string]bool     `json:"levels"`
-	Hooks   []hooksListHookJSON `json:"hooks"`
+	SchemaVersion string              `json:"schema_version"`
+	Enabled       bool                `json:"enabled"`
+	Levels        map[string]bool     `json:"levels"`
+	Hooks         []hooksListHookJSON `json:"hooks"`
 }
 
 type hooksListHookJSON struct {
@@ -109,9 +114,10 @@ func resolveFestivalPath(ctx context.Context) (string, error) {
 
 func buildHooksListView(eff *hooks.Effective) hooksListJSON {
 	view := hooksListJSON{
-		Enabled: true,
-		Levels:  map[string]bool{},
-		Hooks:   []hooksListHookJSON{},
+		SchemaVersion: hooksListSchema,
+		Enabled:       true,
+		Levels:        map[string]bool{},
+		Hooks:         []hooksListHookJSON{},
 	}
 	if eff == nil {
 		return view

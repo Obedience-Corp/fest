@@ -96,6 +96,10 @@ type ProgressEvent struct {
 	JudgeDetail      string   `json:"judge_detail,omitempty"`
 	JudgePid         int      `json:"judge_pid,omitempty"`
 	JudgeRunID       string   `json:"judge_run_id,omitempty"`
+	// JudgeConfidence and JudgeEvidenceStatus complete the recorded verdict on
+	// wf_judge_returned. Both are optional: a judge may report neither.
+	JudgeConfidence     *float64 `json:"judge_confidence,omitempty"`
+	JudgeEvidenceStatus string   `json:"judge_evidence_status,omitempty"`
 	// JudgeEvidenceOffered and JudgeWorkingDirsOffered record what the judge
 	// was POINTED AT, not what it read. An inspecting judge chooses its own
 	// inputs, so the ledger cannot claim to know what it opened; naming these
@@ -115,6 +119,36 @@ type ProgressEvent struct {
 	HookFail     string `json:"hook_fail,omitempty"` // closed|open
 	HookBlocked  bool   `json:"hook_blocked,omitempty"`
 	HookVerdict  string `json:"hook_verdict,omitempty"`
+}
+
+// MaxRecentHookRuns bounds how many hook runs a single status snapshot reports.
+const MaxRecentHookRuns = 10
+
+// RecentHookRuns returns the most recent wf_hook_run events recorded for a
+// workflow state key, oldest first, capped at MaxRecentHookRuns. A festival
+// with no ledger yields no runs and no error. Grouping by step is left to the
+// caller so one read can serve a whole phase.
+func (s *Store) RecentHookRuns(ctx context.Context, phaseKey string) ([]ProgressEvent, error) {
+	if !fileExists(s.eventsFilePath()) {
+		return nil, nil
+	}
+
+	events, err := s.parseEventsFile(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	matched := make([]ProgressEvent, 0, MaxRecentHookRuns)
+	for _, event := range events {
+		if event.Event != EventWorkflowHookRun || event.Phase != phaseKey {
+			continue
+		}
+		matched = append(matched, event)
+	}
+	if len(matched) > MaxRecentHookRuns {
+		matched = matched[len(matched)-MaxRecentHookRuns:]
+	}
+	return matched, nil
 }
 
 // loadFromEvents reads the JSONL file and materializes current state.
@@ -508,6 +542,8 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 			ss.Judge.Status = e.JudgeStatus
 			ss.Judge.Detail = e.JudgeDetail
 			ss.Judge.FinishedAt = &ts
+			ss.Judge.Confidence = e.JudgeConfidence
+			ss.Judge.EvidenceStatus = e.JudgeEvidenceStatus
 
 		case EventWorkflowJudgeCleared:
 			ss := phaseState.GetOrCreateStepState(e.Step)

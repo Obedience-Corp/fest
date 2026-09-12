@@ -33,7 +33,10 @@ Shows:
   - Checkpoint status if applicable
 
 Use --json for a stable machine-readable snapshot (schema fest.workflow.status/v1)
-that consumers can read without parsing the human-readable output.`,
+that consumers can read without parsing the human-readable output. Each step in
+the snapshot also carries the judge's followups, the complete recorded verdict
+(finished at, confidence, evidence status), and the recent hook runs the
+festival ledger holds for that step.`,
 		Annotations: map[string]string{
 			"scope": string(scope.Festival),
 		},
@@ -52,7 +55,7 @@ func runStatus(ctx context.Context, jsonOutput bool) error {
 	}
 
 	if jsonOutput {
-		out, err := renderWorkflowStatusJSON(nav)
+		out, err := renderWorkflowStatusJSON(ctx, nav)
 		if err != nil {
 			return err
 		}

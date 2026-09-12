@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 
@@ -115,5 +116,38 @@ func TestBuildHooksListView_NilEffectiveIsEmptyNotNull(t *testing.T) {
 	}
 	if levels, ok := decoded["levels"].(map[string]any); !ok || len(levels) != 0 {
 		t.Fatalf("levels = %#v, want {}", decoded["levels"])
+	}
+}
+
+func TestBuildHooksListView_CarriesSchemaVersionFirst(t *testing.T) {
+	eff := &hooks.Effective{
+		Enabled: true,
+		Levels:  map[string]bool{"phase": true},
+		Hooks:   map[string]hooks.ResolvedHook{},
+	}
+
+	decoded := marshalHooksListView(t, eff)
+	if decoded["schema_version"] != hooksListSchema {
+		t.Fatalf("schema_version = %v, want %q", decoded["schema_version"], hooksListSchema)
+	}
+	// The version is additive: everything the shape carried before is still there.
+	for _, key := range []string{"enabled", "levels", "hooks"} {
+		if _, ok := decoded[key]; !ok {
+			t.Errorf("missing pre-change key %q", key)
+		}
+	}
+
+	raw, err := json.Marshal(buildHooksListView(eff))
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.HasPrefix(string(raw), `{"schema_version":"`+hooksListSchema+`"`) {
+		t.Fatalf("schema_version is not the first key: %s", raw)
+	}
+}
+
+func TestBuildHooksListView_NilEffectiveStillCarriesSchemaVersion(t *testing.T) {
+	if got := marshalHooksListView(t, nil)["schema_version"]; got != hooksListSchema {
+		t.Fatalf("schema_version = %v, want %q", got, hooksListSchema)
 	}
 }
