@@ -14,7 +14,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/google/uuid v1.6.0
-	github.com/lancekrogers/tcount v0.6.0
+	github.com/lancekrogers/tcount v0.6.2-0.20260911223813-c211a7a3c2ea
 	github.com/mattn/go-isatty v0.0.20
 	github.com/moby/moby/api v1.54.1
 	github.com/muesli/termenv v0.16.0

@@ -91,6 +91,7 @@ type listOptions struct {
 	progress      bool
 	alpha         bool
 	watch         bool
+	noTokens      bool
 	status        string
 	sortBy        string
 	filterProject string
@@ -121,7 +122,10 @@ By default, shows active, ready, planning, parked, and ritual festivals.
 Use 'fest list all' (or --all) to include completed and dungeon festivals.
 
 Use --watch to refresh the multi-festival status board when festival progress
-or lifecycle status changes (similar to fest watch, but without cycling). Ctrl+C to quit.`,
+or lifecycle status changes (similar to fest watch, but without cycling). Ctrl+C to quit.
+
+Each festival is annotated with a token count. Counting is bounded by size and
+time, and --no-tokens skips it entirely.`,
 		Example: `  fest list                                        # Active, ready, planning, ritual festivals
   fest list active                                 # Only active festivals
   fest list all                                    # Every festival grouped by status
@@ -130,6 +134,7 @@ or lifecycle status changes (similar to fest watch, but without cycling). Ctrl+C
   fest list active --sort progress                 # Active festivals, most complete first
   fest list --since 2026-01-01 --until 2026-02-01  # Created in January 2026
   fest list --json                                 # Output in JSON format
+  fest list --no-tokens                            # Skip token counting
   fest list --watch                                # Live multi-festival status board
   fest list active --watch                         # Watch only active festivals`,
 		Args:              cobra.MaximumNArgs(1),
@@ -183,6 +188,7 @@ or lifecycle status changes (similar to fest watch, but without cycling). Ctrl+C
 	cmd.Flags().BoolVar(&opts.all, "all", false, "include completed and dungeon festivals")
 	cmd.Flags().BoolVar(&opts.progress, "progress", false, "show detailed progress for each festival")
 	cmd.Flags().BoolVar(&opts.alpha, "alpha", false, "sort alphabetically by name instead of by date")
+	cmd.Flags().BoolVar(&opts.noTokens, "no-tokens", false, "skip token counting for each festival")
 	cmd.Flags().StringVar(&opts.status, "status", "", "filter by status: active|planning|completed|dungeon")
 	cmd.Flags().StringVar(&opts.sortBy, "sort", "", "sort by: date|status|progress|name|created|updated")
 	cmd.Flags().StringVar(&opts.filterProject, "filter-project", "", "filter festivals linked to a project path (substring match)")
@@ -517,12 +523,14 @@ func fetchProgressForFestivals(ctx context.Context, festivals []*show.FestivalIn
 }
 
 // fetchTokenCounts returns a map from festival path to tcount token count.
-// When --no-tokens is set, no campaign root is available, or counting fails
-// for a festival, the count is 0 and rendering continues without error.
-// Counts are cached under .campaign/cache/tokens/ so unchanged festivals are
-// not re-tokenized on subsequent runs.
-func fetchTokenCounts(ctx context.Context, campaignRoot string, festivals []*show.FestivalInfo) map[string]int {
-	if campaignRoot == "" {
+// It returns nil when --no-tokens is set or no campaign root is available, so
+// no counter is constructed and no token column or JSON field is rendered.
+// When counting fails or is bounded out for a festival, that festival's count
+// is 0 and rendering continues without error. Counts are cached under
+// .campaign/cache/tokens/ so unchanged festivals are not re-tokenized on
+// subsequent runs.
+func fetchTokenCounts(ctx context.Context, campaignRoot string, festivals []*show.FestivalInfo, noTokens bool) map[string]int {
+	if noTokens || campaignRoot == "" {
 		return nil
 	}
 	tc, err := tokencount.NewCounter(ctx, campaignRoot)

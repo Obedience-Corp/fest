@@ -91,7 +91,7 @@ func collectDungeonBoard(ctx context.Context, festivalsDir string, opts *listOpt
 	if opts.progress {
 		progressMap = fetchProgressForFestivals(ctx, allFestivalsList)
 	}
-	tokenMap := fetchTokenCounts(ctx, campaignRoot, allFestivalsList)
+	tokenMap := fetchTokenCounts(ctx, campaignRoot, allFestivalsList, opts.noTokens)
 	return multiStatusBoard{
 		Festivals: allFestivals,
 		Order:     order,
@@ -127,7 +127,7 @@ func collectStatusBoard(ctx context.Context, festivalsDir, status string, opts *
 	if opts.progress {
 		progressMap = fetchProgressForFestivals(ctx, festivals)
 	}
-	tokenMap := fetchTokenCounts(ctx, campaignRoot, festivals)
+	tokenMap := fetchTokenCounts(ctx, campaignRoot, festivals, opts.noTokens)
 	return statusBoard{
 		Festivals: festivals,
 		Residents: show.ListResidentsByStatus(ctx, festivalsDir, status),
@@ -174,7 +174,7 @@ func collectAllBoard(ctx context.Context, festivalsDir string, opts *listOptions
 	if opts.progress {
 		progressMap = fetchProgressForFestivals(ctx, allFestivalsList)
 	}
-	tokenMap := fetchTokenCounts(ctx, campaignRoot, allFestivalsList)
+	tokenMap := fetchTokenCounts(ctx, campaignRoot, allFestivalsList, opts.noTokens)
 	return multiStatusBoard{
 		Festivals: allFestivals,
 		Residents: allResidents,

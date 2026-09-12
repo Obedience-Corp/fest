@@ -2,6 +2,7 @@ package list
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -568,5 +569,47 @@ func TestFestivalsToMapWithProgress_ZeroTokensOmitted(t *testing.T) {
 	result := festivalsToMapWithProgress(festivals, nil, tokenMap)
 	if _, ok := result[0]["tokens"]; ok {
 		t.Error("zero token count should omit tokens field from JSON map")
+	}
+}
+
+func TestListCommandExposesNoTokensFlag(t *testing.T) {
+	cmd := NewListCommand()
+	flag := cmd.Flags().Lookup("no-tokens")
+	if flag == nil {
+		t.Fatal("expected --no-tokens flag on fest list")
+	}
+	if flag.Usage == "" {
+		t.Error("expected usage text for --no-tokens")
+	}
+}
+
+func TestFetchTokenCounts_NoTokensReturnsNil(t *testing.T) {
+	root := makeListCampaign(t)
+	festivals := []*show.FestivalInfo{{Name: "alpha-AA0001", Path: filepath.Join(root, "festivals", "active", "alpha-AA0001")}}
+
+	if got := fetchTokenCounts(t.Context(), root, festivals, true); got != nil {
+		t.Errorf("--no-tokens should build no counter, got %v", got)
+	}
+	if got := fetchTokenCounts(t.Context(), "", festivals, false); got != nil {
+		t.Errorf("no campaign root should build no counter, got %v", got)
+	}
+}
+
+// TestListNoTokensOmitsTokensFromJSON proves the flag reaches the JSON payload:
+// the default run annotates festivals with token counts and --no-tokens does not.
+func TestListNoTokensOmitsTokensFromJSON(t *testing.T) {
+	root := makeListCampaign(t)
+	t.Setenv("CAMP_ROOT", root)
+	restore := chdirList(t, root)
+	defer restore()
+
+	withTokens := runListCommand(t, "active", "--json")
+	if !strings.Contains(withTokens, `"tokens"`) {
+		t.Fatalf("expected token counts in default JSON output, got:\n%s", withTokens)
+	}
+
+	withoutTokens := runListCommand(t, "active", "--json", "--no-tokens")
+	if strings.Contains(withoutTokens, `"tokens"`) {
+		t.Fatalf("--no-tokens still emitted token counts:\n%s", withoutTokens)
 	}
 }

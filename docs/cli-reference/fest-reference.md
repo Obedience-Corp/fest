@@ -2856,6 +2856,9 @@ Use 'fest list all' (or --all) to include completed and dungeon festivals.
 Use --watch to refresh the multi-festival status board when festival progress
 or lifecycle status changes (similar to fest watch, but without cycling). Ctrl+C to quit.
 
+Each festival is annotated with a token count. Counting is bounded by size and
+time, and --no-tokens skips it entirely.
+
 ```
 fest list [status] [flags]
 ```
@@ -2871,6 +2874,7 @@ fest list [status] [flags]
   fest list active --sort progress                 # Active festivals, most complete first
   fest list --since 2026-01-01 --until 2026-02-01  # Created in January 2026
   fest list --json                                 # Output in JSON format
+  fest list --no-tokens                            # Skip token counting
   fest list --watch                                # Live multi-festival status board
   fest list active --watch                         # Watch only active festivals
 ```
@@ -2883,6 +2887,7 @@ fest list [status] [flags]
       --filter-project string   filter festivals linked to a project path (substring match)
   -h, --help                    help for list
       --json                    output in JSON format
+      --no-tokens               skip token counting for each festival
       --progress                show detailed progress for each festival
       --since string            show festivals created on or after this date (YYYY-MM-DD or RFC3339)
       --sort string             sort by: date|status|progress|name|created|updated
