@@ -22,6 +22,7 @@ import (
 type options struct {
 	festival string
 	out      string
+	speed    float64
 }
 
 // NewGifCommand creates the `fest gif` command.
@@ -38,11 +39,17 @@ recheck loops. Each lifecycle hook run appears under the row it fired on. The
 last frame matches fest show.
 
 Works on any festival with a progress log, including completed festivals in
-the dungeon. The GIF is written to ./<festival>.gif unless --out is given.`,
+the dungeon. The GIF is written to ./<festival>.gif unless --out is given.
+
+Every change holds long enough to read, and festivals with more changes than
+fit show consecutive ordinary changes together rather than flashing past. Use
+--speed to play it faster or slower.`,
 		Example: `  fest gif                          # festival in the current directory
   fest gif my-festival              # by name, from anywhere in a camp
   fest gif --festival DM0001        # by selector
-  fest gif -o docs/replay.gif       # choose the output file`,
+  fest gif -o docs/replay.gif       # choose the output file
+  fest gif --speed 2                # twice as fast
+  fest gif --speed 0.5              # half speed, easier to follow`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			target := ""
@@ -54,6 +61,7 @@ the dungeon. The GIF is written to ./<festival>.gif unless --out is given.`,
 	}
 	cmd.Flags().StringVar(&opts.festival, "festival", "", "festival selector (name or ID) from within a camp")
 	cmd.Flags().StringVarP(&opts.out, "out", "o", "", "output file (default ./<festival>.gif)")
+	cmd.Flags().Float64Var(&opts.speed, "speed", 1, "playback speed: 2 is twice as fast, 0.5 is half speed")
 	return cmd
 }
 
@@ -63,11 +71,15 @@ func run(cmd *cobra.Command, target string, opts *options) error {
 	if err != nil {
 		return err
 	}
+	if opts.speed <= 0 {
+		return errors.Validation("speed must be greater than zero").WithOp("gif").
+			WithHintf("got %v; 2 is twice as fast, 0.5 is half speed", opts.speed)
+	}
 	in, err := replay.Load(ctx, festival.Path)
 	if err != nil {
 		return errors.Wrap(err, "loading festival replay").WithOp("gif")
 	}
-	plan := festgif.Plan(in, festgif.DefaultTiming)
+	plan := festgif.Plan(in, festgif.DefaultTiming.Scaled(1/opts.speed))
 
 	out := opts.out
 	if out == "" {

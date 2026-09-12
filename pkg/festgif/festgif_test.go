@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"image/gif"
+	"sort"
 	"testing"
 )
 
@@ -188,10 +189,9 @@ func TestHookLineOutcomes(t *testing.T) {
 
 func TestMaxLinesCountsJudgeAndHookLines(t *testing.T) {
 	r := Plan(judgedInput(), DefaultTiming)
-	// The held last frame: p1, s1, t1, t2, g1 and its judge line, p2. While
-	// the gate is in focus its sequence collapses, so judge plus hook peaks at 6.
-	if got := r.maxLines(); got != 7 {
-		t.Fatalf("maxLines = %d, want 7", got)
+	// The held last frame: p1, s1, t1, t2, g1 with its judge and hook lines, p2.
+	if got := r.maxLines(); got != 8 {
+		t.Fatalf("maxLines = %d, want 8", got)
 	}
 }
 
@@ -294,5 +294,151 @@ func TestDefaultPacingIsReadable(t *testing.T) {
 	}
 	if r.Timing.HookFrames < 2*fps || r.Timing.TailFrames < 3*fps {
 		t.Errorf("hook lines (%d) and the final hold (%d) should last at least 2s and 3s", r.Timing.HookFrames, r.Timing.TailFrames)
+	}
+}
+
+// crowdedInput is a festival with far more changes than MaxBody can show one
+// at a time: 400 tasks, then a judge run that is approved and one that is
+// rejected before it passes.
+func crowdedInput() Input {
+	done := State{Status: StatusCompleted}
+	seq := &Node{Key: "s1", Kind: KindSequence, Label: "01_build"}
+	in := Input{Title: "crowded", Final: map[string]State{}}
+	for i := 0; i < 400; i++ {
+		key := fmt.Sprintf("t%03d", i)
+		seq.Children = append(seq.Children, &Node{Key: key, Kind: KindTask, Label: key})
+		in.Beats = append(in.Beats, Beat{Changes: []Change{{Key: key, State: done}}})
+		in.Final[key] = done
+	}
+	g1 := &Node{Key: "g1", Kind: KindStep, Label: "Gate 1: PHASE GOAL"}
+	g2 := &Node{Key: "g2", Kind: KindStep, Label: "Gate 2: QUALITY"}
+	in.Phases = []*Node{{Key: "p1", Kind: KindPhase, Label: "001_BUILD", Children: []*Node{seq, g1, g2}}}
+	in.Beats = append(in.Beats,
+		Beat{Changes: []Change{{Key: "g1", State: State{Status: StatusInProgress, Judge: JudgeRunning}}}, Hold: HoldJudgeWait},
+		Beat{Changes: []Change{{Key: "g1", State: State{Status: StatusInProgress, Judge: "approved"}}}, Hold: HoldVerdict},
+		Beat{Changes: []Change{{Key: "g1", State: State{Status: StatusCompleted, Judge: "approved"}}}},
+		Beat{Changes: []Change{{Key: "g2", State: State{Status: StatusInProgress, Judge: JudgeRunning}}}, Hold: HoldJudgeWait},
+		Beat{Changes: []Change{{Key: "g2", State: State{Status: StatusInProgress, Judge: "rejected"}}}, Hold: HoldRejection},
+		Beat{Changes: []Change{{Key: "g2", State: State{Status: StatusBlocked, Judge: "rejected"}}}, Hold: HoldBlocked},
+		Beat{Changes: []Change{{Key: "g2", State: State{Status: StatusCompleted, Judge: "approved"}}}},
+	)
+	in.Final["g1"] = State{Status: StatusCompleted, Judge: "approved"}
+	in.Final["g2"] = State{Status: StatusCompleted, Judge: "approved"}
+	return in
+}
+
+func TestCrowdedFestivalsStayReadable(t *testing.T) {
+	r := Plan(crowdedInput(), DefaultTiming)
+	floor := int(DefaultTiming.FramesPerBeat)
+	seen := map[int]bool{}
+	var frames []int
+	for _, tr := range r.transitions {
+		if tr.Frame < r.IntroFrames+r.BodyFrames && !seen[tr.Frame] {
+			seen[tr.Frame] = true
+			frames = append(frames, tr.Frame)
+		}
+	}
+	sort.Ints(frames)
+	for i := 1; i < len(frames); i++ {
+		if gap := frames[i] - frames[i-1]; gap < floor {
+			t.Fatalf("changes %d frames apart, want at least %d", gap, floor)
+		}
+	}
+	if len(frames) > r.Timing.MaxBody/floor+1 {
+		t.Errorf("%d shown moments exceed the body budget", len(frames))
+	}
+	// Every task still ends completed, and the rejection is still held.
+	leaf := r.StateAt(r.Frames - 1)
+	for i := 0; i < 400; i++ {
+		if got := leaf[rowIndex(t, r, fmt.Sprintf("t%03d", i))].Status; got != StatusCompleted {
+			t.Fatalf("task %d = %s after batching, want completed", i, got)
+		}
+	}
+}
+
+// judgeHeavyInput is a festival whose judge runs alone outnumber the body
+// budget: 60 gates the judge approves, and one it rejects before passing it.
+func judgeHeavyInput() Input {
+	in := Input{Title: "judged", Final: map[string]State{}}
+	phase := &Node{Key: "p1", Kind: KindPhase, Label: "001_BUILD"}
+	approved := State{Status: StatusCompleted, Judge: "approved"}
+	for i := 0; i < 60; i++ {
+		key := fmt.Sprintf("g%02d", i)
+		phase.Children = append(phase.Children, &Node{Key: key, Kind: KindStep, Label: fmt.Sprintf("Gate %d: CHECK", i)})
+		in.Beats = append(in.Beats,
+			Beat{Changes: []Change{{Key: key, State: State{Status: StatusInProgress, Judge: JudgeRunning}}}, Hold: HoldJudgeWait},
+			Beat{Hook: &HookRun{Key: key, Name: "approval_judge", Timing: "post", Verb: "gate_approve", Outcome: "pass", Millis: 9000}},
+			Beat{Changes: []Change{{Key: key, State: State{Status: StatusInProgress, Judge: "approved"}}}, Hold: HoldVerdict},
+			Beat{Changes: []Change{{Key: key, State: approved}}},
+		)
+		in.Final[key] = approved
+	}
+	rejected := &Node{Key: "gx", Kind: KindStep, Label: "Gate 60: QUALITY"}
+	phase.Children = append(phase.Children, rejected)
+	in.Beats = append(in.Beats,
+		Beat{Changes: []Change{{Key: "gx", State: State{Status: StatusInProgress, Judge: JudgeRunning}}}, Hold: HoldJudgeWait},
+		Beat{Changes: []Change{{Key: "gx", State: State{Status: StatusInProgress, Judge: "rejected"}}}, Hold: HoldRejection},
+		Beat{Changes: []Change{{Key: "gx", State: State{Status: StatusBlocked, Judge: "rejected"}}}, Hold: HoldBlocked},
+		Beat{Changes: []Change{{Key: "gx", State: approved}}},
+	)
+	in.Final["gx"] = approved
+	in.Phases = []*Node{phase}
+	return in
+}
+
+func TestJudgeHeavyFestivalsKeepRejectionsAndDropRoutineWaits(t *testing.T) {
+	r := Plan(judgeHeavyInput(), DefaultTiming)
+	waits := map[int]bool{}
+	for _, tr := range r.transitions {
+		if tr.State.Judge == JudgeRunning {
+			waits[tr.Row] = true
+		}
+	}
+	if waits[rowIndex(t, r, "g00")] {
+		t.Error("a routine judge wait should give way when judge runs alone exceed the budget")
+	}
+	gx := rowIndex(t, r, "gx")
+	if !waits[gx] {
+		t.Error("the rejected run keeps its waiting beat")
+	}
+	// Every verdict still shows, and the rejection holds longer than a verdict.
+	verdicts := 0
+	for _, tr := range r.transitions {
+		if tr.State.Judge == "approved" && tr.State.Status == StatusInProgress {
+			verdicts++
+		}
+	}
+	if verdicts != 60 {
+		t.Errorf("%d verdicts shown, want 60", verdicts)
+	}
+	var rejectHold, verdictHold int
+	for i, tr := range r.transitions {
+		if i+1 >= len(r.transitions) {
+			break
+		}
+		gap := r.transitions[i+1].Frame - tr.Frame
+		if tr.Row == gx && tr.State.Judge == "rejected" && tr.State.Status == StatusInProgress {
+			rejectHold = gap
+		}
+		if tr.Row == rowIndex(t, r, "g00") && tr.State.Judge == "approved" && verdictHold == 0 {
+			verdictHold = gap
+		}
+	}
+	// Over the dwell budget, routine verdicts compress but the rejection keeps
+	// its full hold, so they differ by nearly the full difference in dwell.
+	want := 0.8 * (DefaultTiming.Dwell.Rejection - DefaultTiming.Dwell.Verdict)
+	if got := float64(rejectHold - verdictHold); got < want {
+		t.Errorf("rejection held %d frames and a routine verdict %d (difference %.0f, want at least %.0f)", rejectHold, verdictHold, got, want)
+	}
+}
+
+func TestScaledStretchesEveryDuration(t *testing.T) {
+	fast := Plan(judgedInput(), DefaultTiming.Scaled(0.5))
+	slow := Plan(judgedInput(), DefaultTiming.Scaled(2))
+	if slow.Frames < 3*fast.Frames {
+		t.Errorf("half speed lasts %d frames and double speed %d; want about four times", slow.Frames, fast.Frames)
+	}
+	if got := DefaultTiming.Scaled(2).Dwell.JudgeWait; got != 2*DefaultTiming.Dwell.JudgeWait {
+		t.Errorf("scaled judge wait = %v", got)
 	}
 }
