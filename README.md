@@ -377,13 +377,26 @@ fest promote                  # Move festival to next lifecycle status
 
 ```bash
 fest gif                      # Render the run as ./<festival>.gif
+fest gif --festival MF0001    # Or pick one from anywhere in the camp
+fest gif --speed 2            # Twice as fast
 ```
+
+<p align="center">
+  <img src="docs/images/fest-gif-replay.gif" alt="fest gif replaying a finished festival: six phases fill in task by task, gates show the approval judge waiting and then its verdict, a rejected gate turns its phase blocked before a recheck passes it, hook runs appear under the rows that fired them, and the last frame matches fest show at 100%" width="700">
+</p>
+
+<p align="center"><em>A finished six phase festival replayed end to end, gates and judge verdicts included.</em></p>
 
 `fest gif` replays a festival the way `fest watch` showed it live: tasks and
 steps light up in the order they ran, gates show the judge waiting and then its
-verdict, and each hook run appears under the row it fired on. It works on
-finished festivals in the dungeon too. Other Go programs can render the same
-replay with [`pkg/festgif`](pkg/festgif) and
+verdict, and each hook run appears under the row it fired on. A rejected gate
+turns its phase blocked until the recheck passes, and the last frame always
+matches `fest show`. It works on finished festivals in the dungeon too.
+
+Every change holds long enough to read. A festival with more changes than fit
+shows consecutive ones together rather than flashing past, so replays stay
+about a minute even for the largest festivals. Other Go programs can render the
+same replay with [`pkg/festgif`](pkg/festgif) and
 [`pkg/festgif/festival`](pkg/festgif/festival).
 
 ## Quick Commands
