@@ -39,13 +39,16 @@ recheck loops. Each lifecycle hook run appears under the row it fired on. The
 last frame matches fest show.
 
 Works on any festival with a progress log, including completed festivals in
-the dungeon. The GIF is written to ./<festival>.gif unless --out is given.
+the dungeon. The festival can be the current directory, a name, a path, or a
+--festival selector. The GIF is written to ./<festival>.gif unless --out is
+given.
 
 Every change holds long enough to read, and festivals with more changes than
 fit show consecutive ordinary changes together rather than flashing past. Use
 --speed to play it faster or slower.`,
 		Example: `  fest gif                          # festival in the current directory
   fest gif my-festival              # by name, from anywhere in a camp
+  fest gif festivals/.dungeon/completed/2026-01-01/my-festival   # by path
   fest gif --festival DM0001        # by selector
   fest gif -o docs/replay.gif       # choose the output file
   fest gif --speed 2                # twice as fast
@@ -98,6 +101,10 @@ func run(cmd *cobra.Command, target string, opts *options) error {
 	return err
 }
 
+// gifMode is the permission the finished GIF gets. os.CreateTemp creates the
+// scratch file 0600, which would otherwise survive the rename.
+const gifMode = 0o644
+
 // writeGIF renders into a temporary file beside out and renames it into place,
 // so an interrupted render never leaves a partial GIF.
 func writeGIF(ctx context.Context, out string, replay *festgif.Replay) (festgif.Result, int64, error) {
@@ -115,6 +122,9 @@ func writeGIF(ctx context.Context, out string, replay *festgif.Replay) (festgif.
 	result, err := festgif.Render(ctx, w, replay)
 	if err == nil {
 		err = w.Flush()
+	}
+	if err == nil {
+		err = tmp.Chmod(gifMode)
 	}
 	if closeErr := tmp.Close(); err == nil {
 		err = closeErr
@@ -150,6 +160,12 @@ func resolveFestival(ctx context.Context, target, selector string) (*show.Festiv
 		}
 		return show.DetectCurrentFestival(ctx, path, campaignRoot)
 	case target != "":
+		if path, ok := existingDir(cwd, target); ok {
+			festival, err := show.DetectCurrentFestival(ctx, path, campaignRoot)
+			if err == nil || !errors.Is(err, errors.ErrCodeNotFound) {
+				return festival, err
+			}
+		}
 		festivalsDir, err := workspace.FindFestivals(cwd)
 		if err != nil {
 			return nil, errors.Wrap(err, "finding festivals directory")
@@ -168,9 +184,25 @@ func resolveFestival(ctx context.Context, target, selector string) (*show.Festiv
 	festival, err := show.DetectCurrentFestival(ctx, start, campaignRoot)
 	if errors.Is(err, errors.ErrCodeNotFound) {
 		return nil, errors.NotFound("festival").WithOp("gif").
-			WithHint("run fest gif inside a festival, pass its name, or use --festival <selector>; fest list shows festivals")
+			WithHint("run fest gif inside a festival, pass its name or path, or use --festival <selector>; fest list shows festivals")
 	}
 	return festival, err
+}
+
+// existingDir reports whether target names a directory, relative to cwd or
+// absolute. A path inside a festival resolves the way the current directory
+// does; a bare name that matches no festival on disk goes through the name
+// lookup.
+func existingDir(cwd, target string) (string, bool) {
+	path := target
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(cwd, path)
+	}
+	info, err := os.Stat(path)
+	if err != nil || !info.IsDir() {
+		return "", false
+	}
+	return path, true
 }
 
 func formatBytes(n int64) string {

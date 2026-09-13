@@ -12,7 +12,9 @@ recheck loops. Each lifecycle hook run appears under the row it fired on. The
 last frame matches fest show.
 
 Works on any festival with a progress log, including completed festivals in
-the dungeon. The GIF is written to ./<festival>.gif unless --out is given.
+the dungeon. The festival can be the current directory, a name, a path, or a
+--festival selector. The GIF is written to ./<festival>.gif unless --out is
+given.
 
 Every change holds long enough to read, and festivals with more changes than
 fit show consecutive ordinary changes together rather than flashing past. Use
@@ -27,6 +29,7 @@ fest gif [festival] [flags]
 ```
   fest gif                          # festival in the current directory
   fest gif my-festival              # by name, from anywhere in a camp
+  fest gif festivals/.dungeon/completed/2026-01-01/my-festival   # by path
   fest gif --festival DM0001        # by selector
   fest gif -o docs/replay.gif       # choose the output file
   fest gif --speed 2                # twice as fast
