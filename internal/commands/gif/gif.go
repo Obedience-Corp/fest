@@ -12,6 +12,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
 	"github.com/Obedience-Corp/fest/internal/errors"
+	"github.com/Obedience-Corp/fest/internal/scope"
 	"github.com/Obedience-Corp/fest/internal/ui"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/Obedience-Corp/fest/pkg/festgif"
@@ -32,6 +33,9 @@ func NewGifCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "gif [festival]",
 		Short: "Render a festival's execution as an animated GIF",
+		// Resolve the festival here: an explicit path does not require the
+		// caller's current directory to belong to a workspace.
+		Annotations: map[string]string{"scope": string(scope.Global)},
 		Long: `Render the festival tree as an animated GIF that replays its execution.
 Each task, step, and gate changes state in the order fest recorded it, the
 way fest watch shows it live. A gate waiting on the approval judge shows the
