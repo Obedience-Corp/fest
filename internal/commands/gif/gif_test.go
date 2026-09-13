@@ -119,6 +119,60 @@ func TestGifHonorsOut(t *testing.T) {
 	}
 }
 
+func TestGifOutputIsReadableByOthers(t *testing.T) {
+	dir := writeFestival(t)
+	t.Chdir(dir)
+	cmd := NewGifCommand()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetArgs(nil)
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("fest gif: %v", err)
+	}
+	info, err := os.Stat(filepath.Join(dir, "demo-DM0001.gif"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := info.Mode().Perm(); got != 0o644 {
+		t.Fatalf("mode = %o, want 644 (the temp file's 0600 must not survive the rename)", got)
+	}
+}
+
+func TestGifAcceptsAFestivalPath(t *testing.T) {
+	festival := writeFestival(t)
+	elsewhere := t.TempDir()
+	t.Chdir(elsewhere)
+	for _, target := range []string{festival, filepath.Join(festival, "001_IMPLEMENT")} {
+		cmd := NewGifCommand()
+		cmd.SetOut(&bytes.Buffer{})
+		cmd.SetArgs([]string{target})
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("fest gif %s: %v", target, err)
+		}
+		if _, err := os.Stat(filepath.Join(elsewhere, "demo-DM0001.gif")); err != nil {
+			t.Fatalf("expected demo-DM0001.gif in the current directory for %s: %v", target, err)
+		}
+	}
+}
+
+func TestGifPathWithoutMarkersFallsThroughToNameLookup(t *testing.T) {
+	cwd := t.TempDir()
+	if err := os.Mkdir(filepath.Join(cwd, "plain"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Chdir(cwd)
+	cmd := NewGifCommand()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"plain"})
+	err := cmd.Execute()
+	if err == nil {
+		t.Fatal("a directory without festival markers must not render")
+	}
+	if errors.Is(err, errors.ErrCodeValidation) {
+		t.Fatalf("err = %v, want a lookup failure, not validation", err)
+	}
+}
+
 func TestGifOutsideAFestivalExplainsHowToPickOne(t *testing.T) {
 	t.Chdir(t.TempDir())
 	cmd := NewGifCommand()
