@@ -3,9 +3,9 @@
 package gif
 
 import (
-	"bufio"
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 
@@ -23,6 +23,7 @@ type options struct {
 	festival string
 	out      string
 	speed    float64
+	embed    bool
 }
 
 // NewGifCommand creates the `fest gif` command.
@@ -42,15 +43,25 @@ Works on any festival with a progress log, including completed festivals in
 the dungeon. The festival can be the current directory, a name, a path, or a
 --festival selector. The GIF is written to ./<festival>.gif unless --out is
 given.
+Use --embed to save festival-replay.gif inside the festival and add a relative
+image link to FESTIVAL_OVERVIEW.md (creating the overview if needed). Repeating
+--embed refreshes the replay without duplicating the link. --embed and --out
+cannot be combined.
 
-Every change holds long enough to read, and festivals with more changes than
-fit show consecutive ordinary changes together rather than flashing past. Use
---speed to play it faster or slower.`,
+Promoting or setting a festival to completed does this automatically before
+the status change is committed. Use --embed to refresh or retry that replay.
+
+At default speed, related task changes are grouped by sequence and each
+update holds for at least 2 seconds. Row backgrounds stay steady. Replays
+target about a minute; distinct sequences and important outcomes can extend
+that. Rejections and hook results get extra reading time.
+Use --speed to play it faster or slower.`,
 		Example: `  fest gif                          # festival in the current directory
   fest gif my-festival              # by name, from anywhere in a camp
   fest gif festivals/.dungeon/completed/2026-01-01/my-festival   # by path
   fest gif --festival DM0001        # by selector
   fest gif -o docs/replay.gif       # choose the output file
+  fest gif --embed                  # save and embed the replay in the overview
   fest gif --speed 2                # twice as fast
   fest gif --speed 0.5              # half speed, easier to follow`,
 		Args: cobra.MaximumNArgs(1),
@@ -64,6 +75,8 @@ fit show consecutive ordinary changes together rather than flashing past. Use
 	}
 	cmd.Flags().StringVar(&opts.festival, "festival", "", "festival selector (name or ID) from within a camp")
 	cmd.Flags().StringVarP(&opts.out, "out", "o", "", "output file (default ./<festival>.gif)")
+	cmd.Flags().BoolVar(&opts.embed, "embed", false, "save festival-replay.gif in the festival and embed it in FESTIVAL_OVERVIEW.md")
+	cmd.MarkFlagsMutuallyExclusive("embed", "out")
 	cmd.Flags().Float64Var(&opts.speed, "speed", 1, "playback speed: 2 is twice as fast, 0.5 is half speed")
 	return cmd
 }
@@ -74,72 +87,37 @@ func run(cmd *cobra.Command, target string, opts *options) error {
 	if err != nil {
 		return err
 	}
-	if opts.speed <= 0 {
-		return errors.Validation("speed must be greater than zero").WithOp("gif").
+	if opts.speed <= 0 || math.IsNaN(opts.speed) || math.IsInf(opts.speed, 0) {
+		return errors.Validation("speed must be finite and greater than zero").WithOp("gif").
 			WithHintf("got %v; 2 is twice as fast, 0.5 is half speed", opts.speed)
 	}
-	in, err := replay.Load(ctx, festival.Path)
-	if err != nil {
-		return errors.Wrap(err, "loading festival replay").WithOp("gif")
-	}
-	plan := festgif.Plan(in, festgif.DefaultTiming.Scaled(1/opts.speed))
-
+	var result festgif.Result
+	var size int64
 	out := opts.out
-	if out == "" {
-		out = festival.Name + ".gif"
+	if opts.embed {
+		out = filepath.Join(festival.Path, replay.ReplayFilename)
+		result, size, err = replay.Embed(ctx, festival.Path, opts.speed)
+	} else {
+		in, loadErr := replay.Load(ctx, festival.Path)
+		if loadErr != nil {
+			return errors.Wrap(loadErr, "loading festival replay").WithOp("gif")
+		}
+		plan := festgif.Plan(in, festgif.DefaultTiming.Scaled(1/opts.speed))
+		if out == "" {
+			out = festival.Name + ".gif"
+		}
+		out, err = filepath.Abs(out)
+		if err != nil {
+			return errors.IO("resolving output path", err).WithOp("gif")
+		}
+		result, size, err = replay.WriteGIF(ctx, out, plan)
 	}
-	out, err = filepath.Abs(out)
-	if err != nil {
-		return errors.IO("resolving output path", err).WithOp("gif")
-	}
-	result, size, err := writeGIF(ctx, out, plan)
 	if err != nil {
 		return err
 	}
 	_, err = fmt.Fprintf(cmd.OutOrStdout(), "%s Wrote %s (%d frames, %s)\n",
 		ui.Success("✓"), out, result.Frames, formatBytes(size))
 	return err
-}
-
-// gifMode is the permission the finished GIF gets. os.CreateTemp creates the
-// scratch file 0600, which would otherwise survive the rename.
-const gifMode = 0o644
-
-// writeGIF renders into a temporary file beside out and renames it into place,
-// so an interrupted render never leaves a partial GIF.
-func writeGIF(ctx context.Context, out string, replay *festgif.Replay) (festgif.Result, int64, error) {
-	dir := filepath.Dir(out)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return festgif.Result{}, 0, errors.IO("creating output directory", err).WithHintf("path: %s", dir)
-	}
-	tmp, err := os.CreateTemp(dir, ".fest-gif-*.tmp")
-	if err != nil {
-		return festgif.Result{}, 0, errors.IO("creating output file", err).WithHintf("path: %s", dir)
-	}
-	defer func() { _ = os.Remove(tmp.Name()) }()
-
-	w := bufio.NewWriter(tmp)
-	result, err := festgif.Render(ctx, w, replay)
-	if err == nil {
-		err = w.Flush()
-	}
-	if err == nil {
-		err = tmp.Chmod(gifMode)
-	}
-	if closeErr := tmp.Close(); err == nil {
-		err = closeErr
-	}
-	if err != nil {
-		return festgif.Result{}, 0, errors.Wrap(err, "rendering GIF").WithOp("gif")
-	}
-	info, err := os.Stat(tmp.Name())
-	if err != nil {
-		return festgif.Result{}, 0, errors.IO("reading rendered GIF", err)
-	}
-	if err := os.Rename(tmp.Name(), out); err != nil {
-		return festgif.Result{}, 0, errors.IO("writing GIF", err).WithHintf("path: %s", out)
-	}
-	return result, info.Size(), nil
 }
 
 func resolveFestival(ctx context.Context, target, selector string) (*show.FestivalInfo, error) {

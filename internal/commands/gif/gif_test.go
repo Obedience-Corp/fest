@@ -245,3 +245,34 @@ func TestLastFrameMatchesFestShow(t *testing.T) {
 		t.Fatalf("fixture should leave the phase blocked in fest show, got %s", tree.Children[0].Status)
 	}
 }
+
+func TestGifEmbedUsesFestivalDirectory(t *testing.T) {
+	dir := writeFestival(t)
+	t.Chdir(filepath.Join(dir, "001_IMPLEMENT", "01_build"))
+	cmd := NewGifCommand()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetArgs([]string{"--embed"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	overview, err := os.ReadFile(filepath.Join(dir, replay.OverviewFilename))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(overview), "![Festival execution replay](festival-replay.gif)") {
+		t.Fatalf("missing replay embed: %s", overview)
+	}
+	if _, err := os.Stat(filepath.Join(dir, replay.ReplayFilename)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestGifRejectsEmbedWithOut(t *testing.T) {
+	cmd := NewGifCommand()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"--embed", "--out", "another.gif"})
+	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "embed") {
+		t.Fatalf("expected mutually exclusive flags error, got %v", err)
+	}
+}

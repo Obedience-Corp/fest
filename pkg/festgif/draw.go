@@ -206,7 +206,7 @@ func (p *painter) paintTree(img *image.RGBA, top, frame int, leaf []LeafState, r
 		a := roll[i]
 		opacity := alpha * rowOpacity(row, a, leaf[i])
 		heat := 0.0
-		if a.Last >= 0 {
+		if p.r.Timing.HeatFrames > 0 && a.Last >= 0 {
 			heat = clamp01(1 - float64(frame-a.Last)/heatFrames)
 		}
 		if heat > 0 {

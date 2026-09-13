@@ -15,10 +15,19 @@ Works on any festival with a progress log, including completed festivals in
 the dungeon. The festival can be the current directory, a name, a path, or a
 --festival selector. The GIF is written to ./<festival>.gif unless --out is
 given.
+Use --embed to save festival-replay.gif inside the festival and add a relative
+image link to FESTIVAL_OVERVIEW.md (creating the overview if needed). Repeating
+--embed refreshes the replay without duplicating the link. --embed and --out
+cannot be combined.
 
-Every change holds long enough to read, and festivals with more changes than
-fit show consecutive ordinary changes together rather than flashing past. Use
---speed to play it faster or slower.
+Promoting or setting a festival to completed does this automatically before
+the status change is committed. Use --embed to refresh or retry that replay.
+
+At default speed, related task changes are grouped by sequence and each
+update holds for at least 2 seconds. Row backgrounds stay steady. Replays
+target about a minute; distinct sequences and important outcomes can extend
+that. Rejections and hook results get extra reading time.
+Use --speed to play it faster or slower.
 
 ```
 fest gif [festival] [flags]
@@ -32,6 +41,7 @@ fest gif [festival] [flags]
   fest gif festivals/.dungeon/completed/2026-01-01/my-festival   # by path
   fest gif --festival DM0001        # by selector
   fest gif -o docs/replay.gif       # choose the output file
+  fest gif --embed                  # save and embed the replay in the overview
   fest gif --speed 2                # twice as fast
   fest gif --speed 0.5              # half speed, easier to follow
 ```
@@ -39,6 +49,7 @@ fest gif [festival] [flags]
 ### Options
 
 ```
+      --embed             save festival-replay.gif in the festival and embed it in FESTIVAL_OVERVIEW.md
       --festival string   festival selector (name or ID) from within a camp
   -h, --help              help for gif
   -o, --out string        output file (default ./<festival>.gif)

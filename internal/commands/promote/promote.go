@@ -49,6 +49,10 @@ func NewPromoteCommand() *cobra.Command {
 		Short: "Promote a festival to the next lifecycle status",
 		Long: `Promote moves a festival through the lifecycle: planning → ready → active → completed.
 
+On completion, fest creates festival-replay.gif and embeds it in
+FESTIVAL_OVERVIEW.md before auto-committing. Replay failures are reported
+without undoing completion; retry with fest gif --embed inside the festival.
+
 Each transition validates readiness:
   planning → ready:    Festival goal must be defined
   ready → active:      Festival is ready to begin execution
@@ -432,6 +436,8 @@ func promoteCore(ctx context.Context, festival *show.FestivalInfo, confirm bool,
 		}
 	}
 
+	replay := status.GenerateCompletionReplay(ctx, newPath, nextStatus)
+
 	// Update navigation links after successful move
 	linkAction := status.UpdateNavigationAfterMove(ctx, festival.Name, nextStatus, newPath)
 
@@ -462,6 +468,9 @@ func promoteCore(ctx context.Context, festival *show.FestivalInfo, confirm bool,
 			"to":       nextStatus,
 			"new_path": newPath,
 		}
+		if replay != (status.CompletionReplayResult{}) {
+			result["replay"] = replay
+		}
 		if commitHash != "" {
 			result["commit"] = commitHash
 		}
@@ -475,6 +484,9 @@ func promoteCore(ctx context.Context, festival *show.FestivalInfo, confirm bool,
 		ui.GetStateStyle(currentStatus).Render(currentStatus),
 		ui.GetStateStyle(nextStatus).Render(nextStatus))
 	fmt.Printf("%s %s\n", ui.Label("New path"), ui.Dim(newPath))
+	if replay.Path != "" {
+		fmt.Printf("%s %s\n", ui.Label("Replay"), ui.Dim(replay.Path))
+	}
 	if commitHash != "" {
 		fmt.Printf("%s %s\n", ui.Label("Commit"), ui.Dim(commitHash))
 	}
