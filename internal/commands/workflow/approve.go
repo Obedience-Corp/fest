@@ -757,10 +757,14 @@ func reopenJudgeRejectionIfRequested(ctx context.Context, nav *wf.Navigator, ste
 
 func applyApproveAutoVerdict(ctx context.Context, nav *wf.Navigator, currentStepNum int, step wf.WorkflowStep, runID string, decision *approvalJudgeResponse, audit string) (bool, error) {
 	judgeDecision := wf.DecisionMetadata{Actor: decisionActorAgent, Summary: decision.Reason, Followups: decision.Followups}
+	extras := wf.JudgeVerdictExtras{
+		Confidence:     decision.Confidence,
+		EvidenceStatus: decision.EvidenceStatus,
+	}
 
 	switch decision.Decision {
 	case "approve":
-		applied, err := nav.ApplyJudgeApproval(ctx, currentStepNum, runID, audit, judgeDecision)
+		applied, err := nav.ApplyJudgeApproval(ctx, currentStepNum, runID, audit, judgeDecision, extras)
 		if err != nil {
 			return false, festerrors.Wrap(err, "approving checkpoint from judge decision")
 		}
@@ -774,7 +778,7 @@ func applyApproveAutoVerdict(ctx context.Context, nav *wf.Navigator, currentStep
 		}
 		return true, showNextStep(ctx, nav, nav.GetSteps())
 	case "reject":
-		applied, err := nav.ApplyJudgeRejection(ctx, currentStepNum, runID, audit, judgeDecision)
+		applied, err := nav.ApplyJudgeRejection(ctx, currentStepNum, runID, audit, judgeDecision, extras)
 		if err != nil {
 			return false, festerrors.Wrap(err, "recording judge rejection")
 		}

@@ -101,6 +101,13 @@ func (n *Navigator) stateKey() string {
 	return n.stateKeyPrefix + n.phaseName
 }
 
+// StateKey returns the key this navigator's events are recorded under. A gate
+// is prefixed and a workflow is not, so consumers reading the ledger must ask
+// for the key rather than rebuilding the prefix rule for themselves.
+func (n *Navigator) StateKey() string {
+	return n.stateKey()
+}
+
 // filename returns the document filename to parse.
 func (n *Navigator) filename() string {
 	if n.docFilename != "" {
@@ -560,7 +567,7 @@ func terminalJudgeRunID(state *StepState, decision DecisionMetadata) (string, bo
 
 // ApplyJudgeApproval atomically records an owned verdict and advances the
 // checkpoint. The caller must hold the checkpoint's cross-process lock.
-func (n *Navigator) ApplyJudgeApproval(ctx context.Context, step int, runID, audit string, decision DecisionMetadata) (bool, error) {
+func (n *Navigator) ApplyJudgeApproval(ctx context.Context, step int, runID, audit string, decision DecisionMetadata, extras JudgeVerdictExtras) (bool, error) {
 	if err := n.EnsureInitialized(); err != nil {
 		return false, err
 	}
@@ -568,7 +575,7 @@ func (n *Navigator) ApplyJudgeApproval(ctx context.Context, step int, runID, aud
 		return false, nil
 	}
 	now := time.Now().UTC()
-	if !n.workflowState.RecordJudgeOutcome(step, runID, JudgeApproved, decision.Summary, now) {
+	if !n.workflowState.RecordJudgeVerdict(step, runID, JudgeApproved, decision.Summary, extras, now) {
 		return false, nil
 	}
 	if err := n.workflowState.ApproveWithAudit(decision.Summary, decision); err != nil {
@@ -577,7 +584,7 @@ func (n *Navigator) ApplyJudgeApproval(ctx context.Context, step int, runID, aud
 
 	sk := n.stateKey()
 	if n.store != nil {
-		n.store.QueueWorkflowEvents(EmitJudgeReturnedEvents(sk, step, runID, JudgeApproved, decision.Summary))
+		n.store.QueueWorkflowEvents(EmitJudgeVerdictEvents(sk, step, runID, JudgeApproved, decision.Summary, extras))
 		n.store.QueueWorkflowEvents(EmitStepDoneWithDecisionEvents(sk, step, decision.Summary, decision))
 		if n.workflowState.CurrentStep > step {
 			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
@@ -590,7 +597,7 @@ func (n *Navigator) ApplyJudgeApproval(ctx context.Context, step int, runID, aud
 
 // ApplyJudgeRejection atomically records an owned verdict and blocks the
 // checkpoint. The caller must hold the checkpoint's cross-process lock.
-func (n *Navigator) ApplyJudgeRejection(ctx context.Context, step int, runID, audit string, decision DecisionMetadata) (bool, error) {
+func (n *Navigator) ApplyJudgeRejection(ctx context.Context, step int, runID, audit string, decision DecisionMetadata, extras JudgeVerdictExtras) (bool, error) {
 	if err := n.EnsureInitialized(); err != nil {
 		return false, err
 	}
@@ -598,14 +605,14 @@ func (n *Navigator) ApplyJudgeRejection(ctx context.Context, step int, runID, au
 		return false, nil
 	}
 	now := time.Now().UTC()
-	if !n.workflowState.RecordJudgeOutcome(step, runID, JudgeRejected, decision.Summary, now) {
+	if !n.workflowState.RecordJudgeVerdict(step, runID, JudgeRejected, decision.Summary, extras, now) {
 		return false, nil
 	}
 	n.workflowState.RejectWithDecision(decision.Summary, decision)
 
 	sk := n.stateKey()
 	if n.store != nil {
-		n.store.QueueWorkflowEvents(EmitJudgeReturnedEvents(sk, step, runID, JudgeRejected, decision.Summary))
+		n.store.QueueWorkflowEvents(EmitJudgeVerdictEvents(sk, step, runID, JudgeRejected, decision.Summary, extras))
 		n.store.QueueWorkflowEvents(EmitStepBlockWithDecisionEvents(sk, step, decision.Summary, decision))
 		return true, n.store.SaveEvents(ctx)
 	}

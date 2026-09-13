@@ -56,6 +56,10 @@ type WorkflowEvent struct {
 	JudgeDetail      string
 	JudgePid         int
 	JudgeRunID       string
+	// JudgeConfidence and JudgeEvidenceStatus carry the rest of the verdict the
+	// judge returned beyond its decision and reason.
+	JudgeConfidence     *float64
+	JudgeEvidenceStatus string
 	// What the judge was pointed at, never what it read. See the ledger field
 	// comments in internal/progress/events.go.
 	JudgeEvidenceOffered    []string
@@ -120,6 +124,14 @@ type JudgeState struct {
 
 	// FinishedAt is when the judge outcome was recorded.
 	FinishedAt *time.Time `yaml:"finished_at,omitempty" json:"finished_at,omitempty"`
+
+	// Confidence is the judge's self-reported confidence in the verdict. It is
+	// a pointer so a reported 0 stays distinguishable from no report at all.
+	Confidence *float64 `yaml:"confidence,omitempty" json:"confidence,omitempty"`
+
+	// EvidenceStatus is the judge's assessment of the evidence it was offered:
+	// none, insufficient, or ok. Empty when the judge did not report one.
+	EvidenceStatus string `yaml:"evidence_status,omitempty" json:"evidence_status,omitempty"`
 }
 
 // DisplayFeedback removes implementation details from approval-judge feedback
@@ -508,10 +520,25 @@ func (s *WorkflowState) JudgeOwned(step int, runID string) bool {
 		(state.Status == StepStatusPending || state.Status == StepStatusInProgress)
 }
 
+// JudgeVerdictExtras carries the verdict metadata a judge reported beyond the
+// decision and its reason. A zero value records nothing extra, which is what
+// the failure, cancellation, and supersession paths have to report.
+type JudgeVerdictExtras struct {
+	Confidence     *float64
+	EvidenceStatus string
+}
+
 // RecordJudgeOutcome records how an owned judge run ended. It returns false
 // without changing state when a manual decision, reset, or newer run has
 // superseded the caller.
 func (s *WorkflowState) RecordJudgeOutcome(step int, runID, status, detail string, at time.Time) bool {
+	return s.RecordJudgeVerdict(step, runID, status, detail, JudgeVerdictExtras{}, at)
+}
+
+// RecordJudgeVerdict records how an owned judge run ended together with the
+// verdict metadata the judge reported. It returns false without changing state
+// when a manual decision, reset, or newer run has superseded the caller.
+func (s *WorkflowState) RecordJudgeVerdict(step int, runID, status, detail string, extras JudgeVerdictExtras, at time.Time) bool {
 	if runID != "" && !s.JudgeOwned(step, runID) {
 		return false
 	}
@@ -523,6 +550,8 @@ func (s *WorkflowState) RecordJudgeOutcome(step int, runID, status, detail strin
 	state.Judge.Status = status
 	state.Judge.Detail = detail
 	state.Judge.FinishedAt = &finished
+	state.Judge.Confidence = extras.Confidence
+	state.Judge.EvidenceStatus = extras.EvidenceStatus
 	return true
 }
 
@@ -968,13 +997,22 @@ func EmitJudgeClaimedEvents(phaseName string, step int, runID string, pid int) [
 // run ended: approved, rejected, or failed (timeout, missing command,
 // malformed verdict).
 func EmitJudgeReturnedEvents(phaseName string, step int, runID, status, detail string) []WorkflowEvent {
+	return EmitJudgeVerdictEvents(phaseName, step, runID, status, detail, JudgeVerdictExtras{})
+}
+
+// EmitJudgeVerdictEvents records how a delegated judge run ended along with the
+// verdict metadata it reported. The event type stays wf_judge_returned: this is
+// the same event with two more optional fields, not a new one.
+func EmitJudgeVerdictEvents(phaseName string, step int, runID, status, detail string, extras JudgeVerdictExtras) []WorkflowEvent {
 	return []WorkflowEvent{{
-		EventType:   "wf_judge_returned",
-		Phase:       phaseName,
-		Step:        step,
-		JudgeStatus: status,
-		JudgeDetail: detail,
-		JudgeRunID:  runID,
+		EventType:           "wf_judge_returned",
+		Phase:               phaseName,
+		Step:                step,
+		JudgeStatus:         status,
+		JudgeDetail:         detail,
+		JudgeRunID:          runID,
+		JudgeConfidence:     extras.Confidence,
+		JudgeEvidenceStatus: extras.EvidenceStatus,
 	}}
 }
 

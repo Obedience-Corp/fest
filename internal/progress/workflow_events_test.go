@@ -252,3 +252,51 @@ func TestGenerateWorkflowEventsFromYAML_EmitsFailRemediation(t *testing.T) {
 func ptrTime(t time.Time) *time.Time {
 	return &t
 }
+
+func TestMaterializeWorkflowState_JudgeVerdictExtrasSurviveReplay(t *testing.T) {
+	now := time.Now().UTC()
+	confidence := 0.8
+	events := []ProgressEvent{
+		{Timestamp: now, Event: EventWorkflowInit, Phase: "001_INGEST", TotalSteps: 1},
+		{Timestamp: now.Add(1 * time.Second), Event: EventWorkflowJudgeStarted, Phase: "001_INGEST", Step: 1, JudgeCommand: "ob judge", JudgeRunID: "run-1"},
+		{
+			Timestamp:           now.Add(2 * time.Second),
+			Event:               EventWorkflowJudgeReturned,
+			Phase:               "001_INGEST",
+			Step:                1,
+			JudgeStatus:         wf.JudgeApproved,
+			JudgeDetail:         "evidence complete",
+			JudgeRunID:          "run-1",
+			JudgeConfidence:     &confidence,
+			JudgeEvidenceStatus: "ok",
+		},
+	}
+
+	judge := materializeWorkflowState(events).Phases["001_INGEST"].GetStepState(1).Judge
+	if judge == nil {
+		t.Fatal("expected judge state")
+	}
+	if judge.Confidence == nil || *judge.Confidence != confidence {
+		t.Fatalf("confidence = %v, want %v", judge.Confidence, confidence)
+	}
+	if judge.EvidenceStatus != "ok" {
+		t.Fatalf("evidence status = %q, want ok", judge.EvidenceStatus)
+	}
+}
+
+func TestMaterializeWorkflowState_JudgeVerdictWithoutExtrasStaysUnset(t *testing.T) {
+	now := time.Now().UTC()
+	events := []ProgressEvent{
+		{Timestamp: now, Event: EventWorkflowInit, Phase: "001_INGEST", TotalSteps: 1},
+		{Timestamp: now.Add(1 * time.Second), Event: EventWorkflowJudgeStarted, Phase: "001_INGEST", Step: 1, JudgeCommand: "ob judge", JudgeRunID: "run-1"},
+		{Timestamp: now.Add(2 * time.Second), Event: EventWorkflowJudgeReturned, Phase: "001_INGEST", Step: 1, JudgeStatus: wf.JudgeRejected, JudgeDetail: "thin evidence", JudgeRunID: "run-1"},
+	}
+
+	judge := materializeWorkflowState(events).Phases["001_INGEST"].GetStepState(1).Judge
+	if judge.Confidence != nil {
+		t.Fatalf("confidence = %v, want nil for a judge that reported none", *judge.Confidence)
+	}
+	if judge.EvidenceStatus != "" {
+		t.Fatalf("evidence status = %q, want empty", judge.EvidenceStatus)
+	}
+}
