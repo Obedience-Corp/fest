@@ -1770,6 +1770,13 @@ last frame matches fest show.
 
 Works on any festival with a progress log, including completed festivals in
 the dungeon. The GIF is written to ./<festival>.gif unless --out is given.
+Use --embed to save festival-replay.gif inside the festival and add a relative
+image link to FESTIVAL_OVERVIEW.md (creating the overview if needed). Repeating
+--embed refreshes the replay without duplicating the link. --embed and --out
+cannot be combined.
+
+Promoting or setting a festival to completed does this automatically before
+the status change is committed. Use --embed to refresh or retry that replay.
 
 Every change holds long enough to read, and festivals with more changes than
 fit show consecutive ordinary changes together rather than flashing past. Use
@@ -1786,6 +1793,7 @@ fest gif [festival] [flags]
   fest gif my-festival              # by name, from anywhere in a camp
   fest gif --festival DM0001        # by selector
   fest gif -o docs/replay.gif       # choose the output file
+  fest gif --embed                  # save and embed the replay in the overview
   fest gif --speed 2                # twice as fast
   fest gif --speed 0.5              # half speed, easier to follow
 ```
@@ -1793,6 +1801,7 @@ fest gif [festival] [flags]
 ### Options
 
 ```
+      --embed             save festival-replay.gif in the festival and embed it in FESTIVAL_OVERVIEW.md
       --festival string   festival selector (name or ID) from within a camp
   -h, --help              help for gif
   -o, --out string        output file (default ./<festival>.gif)
@@ -3660,6 +3669,10 @@ Promote a festival to the next lifecycle status
 
 Promote moves a festival through the lifecycle: planning → ready → active → completed.
 
+On completion, fest creates festival-replay.gif and embeds it in
+FESTIVAL_OVERVIEW.md before auto-committing. Replay failures are reported
+without undoing completion; retry with fest gif --embed inside the festival.
+
 Each transition validates readiness:
   planning → ready:    Festival goal must be defined
   ready → active:      Festival is ready to begin execution
@@ -4919,6 +4932,9 @@ appropriate level based on your current directory:
   Task directory → Shows hint (task status requires explicit --task flag)
 
 For festivals, this will move the directory between status folders.
+Setting a festival to completed also creates festival-replay.gif and embeds
+it in FESTIVAL_OVERVIEW.md before auto-committing. Replay failures are reported
+without undoing completion; retry with fest gif --embed inside the festival.
 If not inside a festival, an interactive selector will be shown.
 
 EXPLICIT TARGETING:

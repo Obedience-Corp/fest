@@ -373,12 +373,18 @@ approve or reject with itemized fixes. Any command that speaks
 fest promote                  # Move festival to next lifecycle status
 ```
 
+When a festival moves to completed, `fest` creates `festival-replay.gif` in the
+festival directory and embeds it in `FESTIVAL_OVERVIEW.md`. The replay and
+relative image link are included in the completion commit. This also applies to
+`fest status set completed` and `fest promote --dungeon completed`.
+
 ### 7. Share the replay
 
 ```bash
 fest gif                      # Render the run as ./<festival>.gif
 fest gif --festival MF0001    # Or pick one from anywhere in the camp
 fest gif --speed 2            # Twice as fast
+fest gif --embed              # Refresh the replay embedded in the overview
 ```
 
 <p align="center">
@@ -392,6 +398,13 @@ steps light up in the order they ran, gates show the judge waiting and then its
 verdict, and each hook run appears under the row it fired on. A rejected gate
 turns its phase blocked until the recheck passes, and the last frame always
 matches `fest show`. It works on finished festivals in the dungeon too.
+
+Share the generated GIF directly, or share the festival directory with its
+overview. Repeating `--embed` refreshes the generated section without changing
+your other notes. It also works for older festivals that have no overview yet.
+If automatic rendering fails, completion still succeeds and reports the problem;
+run `fest gif --embed` inside the completed festival after fixing it. See the
+[replay guide](docs/guides/replays.md) for recovery and missing-history behavior.
 
 Every change holds long enough to read. A festival with more changes than fit
 shows consecutive ones together rather than flashing past, so replays stay

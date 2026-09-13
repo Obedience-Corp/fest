@@ -388,6 +388,8 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 		}
 	}
 
+	replay := GenerateCompletionReplay(ctx, newPath, newStatus)
+
 	// Update navigation links after successful move
 	linkAction := UpdateNavigationAfterMove(ctx, festival.Name, newStatus, newPath)
 
@@ -409,7 +411,7 @@ func executeFestivalMove(ctx context.Context, festival *show.FestivalInfo, newSt
 		}
 	}
 
-	return emitFestivalMoveSuccess(opts, festival, newStatus, newPath, linkAction, commitHash, cdHint)
+	return emitFestivalMoveSuccess(opts, festival, newStatus, newPath, linkAction, commitHash, cdHint, replay)
 }
 
 // updateNavigationAfterMove updates the navigation link after a festival move.
@@ -448,7 +450,7 @@ func UpdateNavigationAfterMove(ctx context.Context, festivalName, newStatus, new
 }
 
 // emitFestivalMoveSuccess outputs success message after moving a festival.
-func emitFestivalMoveSuccess(opts *statusOptions, festival *show.FestivalInfo, newStatus, newPath, linkAction, commitHash, cdHint string) error {
+func emitFestivalMoveSuccess(opts *statusOptions, festival *show.FestivalInfo, newStatus, newPath, linkAction, commitHash, cdHint string, replay CompletionReplayResult) error {
 	if opts.json {
 		result := map[string]any{
 			"success":    true,
@@ -457,6 +459,9 @@ func emitFestivalMoveSuccess(opts *statusOptions, festival *show.FestivalInfo, n
 			"new_status": newStatus,
 			"old_path":   festival.Path,
 			"new_path":   newPath,
+		}
+		if replay != (CompletionReplayResult{}) {
+			result["replay"] = replay
 		}
 		if linkAction != "" {
 			result["link_action"] = linkAction
@@ -476,6 +481,9 @@ func emitFestivalMoveSuccess(opts *statusOptions, festival *show.FestivalInfo, n
 		fmt.Printf("%s %s\n", ui.Label("From"), ui.GetStateStyle(festival.Status).Render(festival.Status))
 		fmt.Printf("%s %s\n", ui.Label("To"), ui.GetStateStyle(newStatus).Render(newStatus))
 		fmt.Printf("%s %s\n", ui.Label("Path"), ui.Dim(newPath))
+		if replay.Path != "" {
+			fmt.Printf("%s %s\n", ui.Label("Replay"), ui.Dim(replay.Path))
+		}
 		if linkAction != "" {
 			fmt.Printf("%s %s\n", ui.Label("Link"), ui.Dim(linkAction))
 		}
