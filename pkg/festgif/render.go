@@ -6,6 +6,7 @@ import (
 	"image/gif"
 	"io"
 	"math"
+	"sort"
 )
 
 // paletteSamples is how many evenly spaced frames choose the palette.
@@ -18,8 +19,9 @@ type Result struct {
 	Height int
 }
 
-// Render paints every frame of the replay and writes it to w as a looping GIF.
-// It checks ctx between frames.
+// Render paints each visual change and writes it to w as a looping GIF.
+// Static reading holds are encoded as delays, without repainting identical
+// frames. It checks ctx between frames.
 func Render(ctx context.Context, w io.Writer, r *Replay) (Result, error) {
 	f, err := loadFaces()
 	if err != nil {
@@ -42,12 +44,17 @@ func Render(ctx context.Context, w io.Writer, r *Replay) (Result, error) {
 
 	fps := max(1, r.Timing.FPS)
 	cur := newCursor(r)
-	for frame := 0; frame < r.Frames; frame++ {
+	frames := r.paintFrames()
+	for i, frame := range frames {
 		if err := ctx.Err(); err != nil {
 			return Result{}, err
 		}
 		p.paint(img, frame, cur.Advance(frame))
-		enc.add(img, centiseconds(frame+1, fps)-centiseconds(frame, fps))
+		end := r.Frames
+		if i+1 < len(frames) {
+			end = frames[i+1]
+		}
+		enc.add(img, centiseconds(end, fps)-centiseconds(frame, fps))
 	}
 	if err := gif.EncodeAll(w, &enc.out); err != nil {
 		return Result{}, err
@@ -59,4 +66,35 @@ func Render(ctx context.Context, w io.Writer, r *Replay) (Result, error) {
 // never drift from the frame rate.
 func centiseconds(frame, fps int) int {
 	return int(math.Round(float64(frame) * 100 / float64(fps)))
+}
+
+// paintFrames lists every frame where the painter can change: intro animation,
+// state changes (including optional pulses), hook appearances and expirations.
+// Long reading holds therefore cost no more rendering work than short holds.
+func (r *Replay) paintFrames() []int {
+	frames := map[int]bool{0: true}
+	add := func(frame int) {
+		if frame >= 0 && frame < r.Frames {
+			frames[frame] = true
+		}
+	}
+	for frame := 1; frame <= r.IntroFrames && frame < r.Frames; frame++ {
+		add(frame)
+	}
+	for _, tr := range r.transitions {
+		add(tr.Frame)
+		for offset := 1; offset <= r.Timing.HeatFrames && tr.Frame+offset < r.Frames; offset++ {
+			add(tr.Frame + offset)
+		}
+	}
+	for _, h := range r.hooks {
+		add(h.Frame)
+		add(h.Frame + r.Timing.HookFrames)
+	}
+	ordered := make([]int, 0, len(frames))
+	for frame := range frames {
+		ordered = append(ordered, frame)
+	}
+	sort.Ints(ordered)
+	return ordered
 }

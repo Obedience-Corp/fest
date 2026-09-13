@@ -189,6 +189,7 @@ func TestHookLineOutcomes(t *testing.T) {
 
 func TestMaxLinesCountsJudgeAndHookLines(t *testing.T) {
 	r := Plan(judgedInput(), DefaultTiming)
+	r.hooks = append(r.hooks, hookMark{Frame: r.IntroFrames + r.BodyFrames, Row: rowIndex(t, r, "g1"), Run: HookRun{Name: "final_check"}})
 	// The held last frame: p1, s1, t1, t2, g1 with its judge and hook lines, p2.
 	if got := r.maxLines(); got != 8 {
 		t.Fatalf("maxLines = %d, want 8", got)
@@ -282,11 +283,15 @@ func busyInput() Input {
 func TestDefaultPacingIsReadable(t *testing.T) {
 	r := Plan(busyInput(), DefaultTiming)
 	fps := r.Timing.FPS
-	for i := 1; i < 60; i++ {
-		a, b := rowIndex(t, r, fmt.Sprintf("t%02d", i-1)), rowIndex(t, r, fmt.Sprintf("t%02d", i))
-		if gap := frameOf(t, r, b, "") - frameOf(t, r, a, ""); gap < fps/5 {
-			t.Fatalf("tasks %d and %d are %d frames apart, want at least 0.2s (%d)", i-1, i, gap, fps/5)
+	previous := -1
+	for _, tr := range r.transitions {
+		if tr.Frame == previous {
+			continue
 		}
+		if previous >= 0 && tr.Frame-previous < fps*2 {
+			t.Fatalf("displayed updates %d frames apart, want at least 2s", tr.Frame-previous)
+		}
+		previous = tr.Frame
 	}
 	g := rowIndex(t, r, "g1")
 	if wait := frameOf(t, r, g, "approved") - frameOf(t, r, g, JudgeRunning); wait < fps {
@@ -297,8 +302,7 @@ func TestDefaultPacingIsReadable(t *testing.T) {
 	}
 }
 
-// crowdedInput is a festival with far more changes than MaxBody can show one
-// at a time: 400 tasks, then a judge run that is approved and one that is
+// crowdedInput checks a large festival whose changes must remain separate: 400 tasks, then a judge run that is approved and one that is
 // rejected before it passes.
 func crowdedInput() Input {
 	done := State{Status: StatusCompleted}
@@ -344,8 +348,8 @@ func TestCrowdedFestivalsStayReadable(t *testing.T) {
 			t.Fatalf("changes %d frames apart, want at least %d", gap, floor)
 		}
 	}
-	if len(frames) > r.Timing.MaxBody/floor+1 {
-		t.Errorf("%d shown moments exceed the body budget", len(frames))
+	if len(frames) > r.Timing.MaxBody/floor+fixedBeats(crowdedInput().Beats)+1 {
+		t.Errorf("%d displayed updates exceed the compact body budget", len(frames))
 	}
 	// Every task still ends completed, and the rejection is still held.
 	leaf := r.StateAt(r.Frames - 1)
@@ -356,8 +360,8 @@ func TestCrowdedFestivalsStayReadable(t *testing.T) {
 	}
 }
 
-// judgeHeavyInput is a festival whose judge runs alone outnumber the body
-// budget: 60 gates the judge approves, and one it rejects before passing it.
+// judgeHeavyInput is a festival whose judge runs outnumber a short body
+// budget when a caller explicitly requests batching: 60 gates the judge approves, and one it rejects before passing it.
 func judgeHeavyInput() Input {
 	in := Input{Title: "judged", Final: map[string]State{}}
 	phase := &Node{Key: "p1", Kind: KindPhase, Label: "001_BUILD"}
@@ -387,7 +391,9 @@ func judgeHeavyInput() Input {
 }
 
 func TestJudgeHeavyFestivalsKeepRejectionsAndDropRoutineWaits(t *testing.T) {
-	r := Plan(judgeHeavyInput(), DefaultTiming)
+	timing := DefaultTiming
+	timing.MaxBody, timing.MaxDwell = 750, 900
+	r := Plan(judgeHeavyInput(), timing)
 	waits := map[int]bool{}
 	for _, tr := range r.transitions {
 		if tr.State.Judge == JudgeRunning {

@@ -1778,9 +1778,11 @@ cannot be combined.
 Promoting or setting a festival to completed does this automatically before
 the status change is committed. Use --embed to refresh or retry that replay.
 
-Every change holds long enough to read, and festivals with more changes than
-fit show consecutive ordinary changes together rather than flashing past. Use
---speed to play it faster or slower.
+At default speed, related task changes are grouped by sequence and each
+update holds for at least 2 seconds. Row backgrounds stay steady. Replays
+target about a minute; distinct sequences and important outcomes can extend
+that. Rejections and hook results get extra reading time.
+Use --speed to play it faster or slower.
 
 ```
 fest gif [festival] [flags]

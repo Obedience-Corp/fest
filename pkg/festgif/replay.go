@@ -135,7 +135,7 @@ type Timing struct {
 	// consecutive ordinary changes together rather than going below it.
 	FramesPerBeat float64
 	MinBody       int
-	// MaxBody caps the frames spent on ordinary changes.
+	// MaxBody caps the frames spent on ordinary changes. Zero disables batching.
 	MaxBody    int
 	TailFrames int
 	Dwell      Dwell
@@ -145,7 +145,7 @@ type Timing struct {
 	MaxDwell int
 	// HookFrames is how long a hook run's line stays under its row.
 	HookFrames int
-	// HeatFrames is how long a changed row stays highlighted.
+	// HeatFrames is how long a changed row stays highlighted. Zero disables pulses.
 	HeatFrames int
 }
 
@@ -155,7 +155,12 @@ func (t Timing) Scaled(f float64) Timing {
 	if f <= 0 {
 		return t
 	}
-	scale := func(v int) int { return max(1, int(math.Round(float64(v)*f))) }
+	scale := func(v int) int {
+		if v == 0 {
+			return 0
+		}
+		return max(1, int(math.Round(float64(v)*f)))
+	}
 	t.IntroFrames = scale(t.IntroFrames)
 	t.FramesPerBeat *= f
 	t.MinBody, t.MaxBody = scale(t.MinBody), scale(t.MaxBody)
@@ -221,55 +226,64 @@ func endsInVerdict(rest []Beat, wait Beat) bool {
 	return false
 }
 
-// batch merges runs of ordinary beats (no hook, no hold) so that at most limit
-// beats remain, keeping every shown change above the readability floor. Beats
-// that carry a hook or a hold are never merged.
-func batch(beats []Beat, limit int) []Beat {
+// batch groups ordinary changes within the same visible sequence or phase.
+// It never combines different focus paths: otherwise some changed tasks would
+// be collapsed before the viewer could see them. Hooks and held outcomes stay
+// separate. The body budget is soft when distinct groups cannot fit.
+func batch(beats []Beat, limit int, scope func(Beat) int) []Beat {
 	ordinary := len(beats) - fixedBeats(beats)
-	if limit < 1 {
-		limit = 1
-	}
+	limit = max(1, limit)
 	if ordinary <= limit {
 		return beats
 	}
 	per := int(math.Ceil(float64(ordinary) / float64(limit)))
+	for {
+		out := batchSize(beats, per, scope)
+		if len(out)-fixedBeats(out) <= limit || per >= ordinary {
+			return out
+		}
+		per = min(ordinary, per*2)
+	}
+}
+
+func batchSize(beats []Beat, per int, scope func(Beat) int) []Beat {
 	out := make([]Beat, 0, len(beats))
-	var merged *Beat
+	count, group := 0, -1
 	for _, b := range beats {
-		if b.Hook != nil || b.Hold != HoldNone {
-			merged = nil
+		current := scope(b)
+		if b.Hook != nil || b.Hold != HoldNone || current < 0 {
 			out = append(out, b)
+			count, group = 0, -1
 			continue
 		}
-		if merged == nil {
+		if count == 0 || count >= per || current != group {
+			// Clone the slice because a second batching pass must not modify
+			// the caller's event history through its backing array.
+			b.Changes = append([]Change(nil), b.Changes...)
 			out = append(out, b)
-			merged = &out[len(out)-1]
-			continue
-		}
-		merged.Changes = append(merged.Changes, b.Changes...)
-		if len(merged.Changes) >= per*len(b.Changes) || len(merged.Changes) >= per {
-			merged = nil
+			count, group = 1, current
+		} else {
+			out[len(out)-1].Changes = append(out[len(out)-1].Changes, b.Changes...)
+			count++
 		}
 	}
 	return out
 }
 
-// DefaultTiming paces a replay for reading. Every shown change holds for at
-// least 0.33s, a judge wait for 1.2s, a verdict for 0.8s, a rejection for 2s
-// plus 1.5s blocked, and a failed hook for 2s. Hook lines stay up for 2.5s and
-// the final state holds for 3s. A festival with more changes than fit batches
-// consecutive ordinary changes instead of showing them too briefly to read.
+// DefaultTiming keeps replays concise by grouping related task updates, holding
+// each displayed group for at least 2 seconds. The body targets 45 seconds;
+// distinct sequences and important outcomes can extend it. Pulses are disabled.
 var DefaultTiming = Timing{
 	FPS:           30,
-	IntroFrames:   24,
-	FramesPerBeat: 10,
+	IntroFrames:   30,
+	FramesPerBeat: 60,
 	MinBody:       150,
-	MaxBody:       750,
-	TailFrames:    90,
-	Dwell:         Dwell{JudgeWait: 36, Verdict: 24, Rejection: 60, Blocked: 45, HookFail: 60},
-	MaxDwell:      900,
-	HookFrames:    75,
-	HeatFrames:    8,
+	MaxBody:       1350,
+	TailFrames:    120,
+	Dwell:         Dwell{JudgeWait: 24, Verdict: 24, Rejection: 60, Blocked: 45, HookFail: 60},
+	MaxDwell:      450,
+	HookFrames:    90,
+	HeatFrames:    0,
 }
 
 // Row is one flattened tree row with its drawn tree guides.
@@ -356,13 +370,28 @@ func Plan(in Input, t Timing) *Replay {
 	// Fit the replay to MaxBody without ever showing a change for less than
 	// FramesPerBeat: batch ordinary changes first, then let routine judge
 	// waits go, and only then let the body run long.
+	scope := func(b Beat) int {
+		parent := -1
+		for _, change := range b.Changes {
+			row, ok := index[change.Key]
+			if !ok {
+				return -1
+			}
+			p := r.Rows[row].Parent
+			if parent >= 0 && parent != p {
+				return -1
+			}
+			parent = p
+		}
+		return parent
+	}
 	beats := in.Beats
-	if t.FramesPerBeat > 0 {
+	if t.FramesPerBeat > 0 && t.MaxBody > 0 {
 		budget := int(float64(t.MaxBody) / t.FramesPerBeat)
-		beats = batch(beats, budget-fixedBeats(beats))
+		beats = batch(beats, budget-fixedBeats(beats), scope)
 		if len(beats) > budget {
 			beats = dropRoutineWaits(beats)
-			beats = batch(beats, budget-fixedBeats(beats))
+			beats = batch(beats, budget-fixedBeats(beats), scope)
 		}
 	}
 	n := len(beats)
@@ -372,7 +401,7 @@ func Plan(in Input, t Timing) *Replay {
 	// Rejections, blocks, and failed hooks keep their dwell; judge waits and
 	// verdicts give way first when a festival has more than MaxDwell of them.
 	var keyDwell, routineDwell float64
-	for i := 0; i < n-1; i++ {
+	for i := 0; i < n; i++ {
 		d := t.Dwell.of(beats[i].Hold)
 		if beats[i].Hold.key() {
 			keyDwell += d
@@ -398,29 +427,29 @@ func Plan(in Input, t Timing) *Replay {
 
 	step := t.FramesPerBeat
 	if n > 1 {
-		step = plain / float64(n-1)
+		step = plain / float64(n)
 	}
 	frames := make([]int, n)
 	pos := 0.0
 	for i := range beats {
 		frames[i] = t.IntroFrames + int(math.Round(pos))
-		if i < n-1 {
-			pos += step + dwellOf(beats[i].Hold)
+		hold := step + dwellOf(beats[i].Hold)
+		if beats[i].Hook != nil {
+			hold = math.Max(hold, float64(t.HookFrames))
 		}
+		pos += hold
 	}
 	r.BodyFrames = int(plain)
-	if n > 1 {
+	if n > 0 {
 		r.BodyFrames = int(math.Round(pos))
 	}
 
-	touched := map[int]bool{}
 	for i, b := range beats {
 		for _, c := range b.Changes {
 			row, ok := index[c.Key]
 			if !ok || !r.Rows[row].Kind.leaf() {
 				continue
 			}
-			touched[row] = true
 			r.transitions = append(r.transitions, transition{Frame: frames[i], Row: row, State: c.State})
 		}
 		if b.Hook != nil {
@@ -430,30 +459,14 @@ func Plan(in Input, t Timing) *Replay {
 		}
 	}
 
-	// A leaf the events never touched (older logs, renamed files) still gets
-	// its final state, near its siblings' activity when there is any.
-	parentLast := map[int]int{}
-	for _, tr := range r.transitions {
-		if p := r.Rows[tr.Row].Parent; p >= 0 && tr.Frame > parentLast[p] {
-			parentLast[p] = tr.Frame
-		}
-	}
+	// Missing history appears only in the final snapshot. Inventing transition
+	// times for unrecorded work would interrupt reading holds and imply an
+	// execution order the event log does not establish.
 	var leaves []int
 	for i, row := range r.Rows {
 		if row.Kind.leaf() {
 			leaves = append(leaves, i)
 		}
-	}
-	for li, row := range leaves {
-		final := finalState(in.Final, r.Rows[row].Key)
-		if touched[row] || final.Status == StatusPending {
-			continue
-		}
-		frame, ok := parentLast[r.Rows[row].Parent]
-		if !ok {
-			frame = t.IntroFrames + int(math.Round(float64(li)/math.Max(1, float64(len(leaves)-1))*float64(r.BodyFrames)))
-		}
-		r.transitions = append(r.transitions, transition{Frame: frame, Row: row, State: final})
 	}
 
 	clamp := t.IntroFrames + r.BodyFrames
