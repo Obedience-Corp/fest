@@ -164,17 +164,35 @@ func CurrentBrandPalette() sharedbrand.Palette {
 // stderr. In that case Current() is intentionally plain, but the TUI still
 // has a color-capable terminal to render into.
 func InteractivePalette() Palette {
-	if noColorOverride || configuredMode == sharedbrand.ModePlain {
+	return interactivePalette(termenv.EnvColorProfile(), lipgloss.HasDarkBackground())
+}
+
+// InteractivePaletteForRenderer resolves the configured theme using the
+// renderer's color profile. This is important when stdout is captured (for
+// example, to return a selected path) while the view itself is rendered to a
+// TTY on stderr. Background mode remains globally seeded by bginit; querying
+// it from the renderer can issue terminal requests and stall non-interactive
+// callers.
+func InteractivePaletteForRenderer(renderer *lipgloss.Renderer) Palette {
+	if renderer == nil {
+		return InteractivePalette()
+	}
+	return interactivePalette(renderer.ColorProfile(), lipgloss.HasDarkBackground())
+}
+
+func interactivePalette(profile termenv.Profile, darkBackground bool) Palette {
+	if configuredMode == sharedbrand.ModePlain {
 		return Palette{}
 	}
 
-	profile := termenv.EnvColorProfile()
-	shared := sharedbrand.Resolve(configuredMode, sharedbrand.Capabilities{
-		IsTTY:           true,
-		ColorDepth:      colorDepth(profile),
-		DarkBackground:  lipgloss.HasDarkBackground(),
-		BackgroundKnown: true,
-	})
+	caps := sharedbrand.EnvironmentCapabilities(true, colorDepth(profile))
+	caps.DarkBackground = darkBackground
+	caps.BackgroundKnown = true
+	if noColorOverride {
+		caps.NoColor = true
+		caps.ColorDepth = sharedbrand.ColorNone
+	}
+	shared := sharedbrand.Resolve(configuredMode, caps)
 	return paletteFromShared(shared)
 }
 
