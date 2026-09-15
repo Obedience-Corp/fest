@@ -112,7 +112,11 @@ func TestInteractivePaletteKeepsColorsWhenOutputPaletteIsPlain(t *testing.T) {
 	t.Setenv("TERM", "xterm-256color")
 	t.Setenv("COLORTERM", "truecolor")
 	t.Setenv("CLICOLOR_FORCE", "1")
+	t.Setenv("CI", "")
 	t.Setenv("NO_COLOR", "")
+	if err := os.Unsetenv("NO_COLOR"); err != nil {
+		t.Fatal(err)
+	}
 
 	// Simulate a shell wrapper capturing stdout for a selected path. The
 	// interactive picker still renders to a color-capable stderr TTY.
@@ -125,6 +129,71 @@ func TestInteractivePaletteKeepsColorsWhenOutputPaletteIsPlain(t *testing.T) {
 	}
 	if string(got.Planning.(lipgloss.Color)) != "#4DA3FF" {
 		t.Fatalf("interactive planning color = %q, want #4DA3FF", got.Planning)
+	}
+}
+
+func TestInteractivePaletteForRendererUsesRendererProfile(t *testing.T) {
+	ResetPalette()
+	SetNoColor(false)
+	t.Cleanup(func() {
+		SetNoColor(false)
+		ResetPalette()
+	})
+	t.Setenv("TERM", "xterm-256color")
+	t.Setenv("COLORTERM", "")
+	t.Setenv("CI", "")
+	t.Setenv("NO_COLOR", "")
+	if err := os.Unsetenv("NO_COLOR"); err != nil {
+		t.Fatal(err)
+	}
+
+	renderer := lipgloss.NewRenderer(io.Discard)
+	renderer.SetColorProfile(termenv.ANSI256)
+	originalOutput := termenv.DefaultOutput()
+	termenv.SetDefaultOutput(termenv.NewOutput(io.Discard))
+	t.Cleanup(func() { termenv.SetDefaultOutput(originalOutput) })
+	got := InteractivePaletteForRenderer(renderer)
+	success, _ := got.Success.(lipgloss.Color)
+	metadata, _ := got.Metadata.(lipgloss.Color)
+	if success == "" || metadata == "" {
+		t.Fatalf("renderer palette lost colors: success=%v metadata=%v", got.Success, got.Metadata)
+	}
+}
+
+func TestInteractivePaletteForRendererHonorsEnvironmentPolicy(t *testing.T) {
+	tests := []struct {
+		name    string
+		setup   func(*testing.T)
+		colored bool
+	}{
+		{name: "normal", setup: func(t *testing.T) { t.Setenv("TERM", "xterm-256color") }, colored: true},
+		{name: "dumb terminal", setup: func(t *testing.T) { t.Setenv("TERM", "dumb") }},
+		{name: "NO_COLOR", setup: func(t *testing.T) { t.Setenv("TERM", "xterm-256color"); t.Setenv("NO_COLOR", "1") }},
+		{name: "empty NO_COLOR", setup: func(t *testing.T) { t.Setenv("TERM", "xterm-256color"); t.Setenv("NO_COLOR", "") }},
+		{name: "CI", setup: func(t *testing.T) { t.Setenv("TERM", "xterm-256color"); t.Setenv("CI", "true") }},
+		{name: "explicit no-color", setup: func(t *testing.T) { t.Setenv("TERM", "xterm-256color"); SetNoColor(true) }},
+		{name: "plain theme", setup: func(t *testing.T) { t.Setenv("TERM", "xterm-256color"); configuredMode = sharedbrand.ModePlain }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ResetPalette()
+			SetNoColor(false)
+			t.Cleanup(func() { SetNoColor(false); ResetPalette() })
+			t.Setenv("CI", "")
+			t.Setenv("NO_COLOR", "")
+			if err := os.Unsetenv("NO_COLOR"); err != nil {
+				t.Fatal(err)
+			}
+			tt.setup(t)
+
+			renderer := lipgloss.NewRenderer(io.Discard)
+			renderer.SetColorProfile(termenv.ANSI256)
+			got := InteractivePaletteForRenderer(renderer)
+			color, _ := got.Success.(lipgloss.Color)
+			if (string(color) != "") != tt.colored {
+				t.Fatalf("colored=%t, success=%v", tt.colored, got.Success)
+			}
+		})
 	}
 }
 

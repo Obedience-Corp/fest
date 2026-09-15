@@ -33,6 +33,13 @@ func TestViewRendersDetailColumn(t *testing.T) {
 	}
 }
 
+func TestViewRendersSinglePrompt(t *testing.T) {
+	m := New([]Item{{Name: "alpha", Value: "/a"}}, dummyScorer, testRenderer)
+	if got := strings.Count(m.View(), "> "); got != 1 {
+		t.Fatalf("View rendered %d prompts, want one", got)
+	}
+}
+
 func TestViewRendersColoredPrefix(t *testing.T) {
 	r := lipgloss.NewRenderer(os.Stderr)
 	r.SetColorProfile(termenv.ANSI256)

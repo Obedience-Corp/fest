@@ -60,9 +60,12 @@ type Model struct {
 // When rendering to stderr (e.g. fgo piping stdout), pass a renderer created
 // from os.Stderr so colors are detected against the actual TTY.
 func New(items []Item, scorer Scorer, renderer *lipgloss.Renderer) Model {
-	p := ui.InteractivePalette()
+	p := ui.InteractivePaletteForRenderer(renderer)
 	ti := textinput.New()
 	ti.Placeholder = "Type to filter..."
+	// The picker owns the prompt styling. textinput's default prompt would
+	// otherwise add a second "> " before the query.
+	ti.Prompt = ""
 	ti.Focus()
 	ti.CharLimit = 100
 	ti.Width = 50
