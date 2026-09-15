@@ -578,6 +578,18 @@ func AutoDelegateBlockingCheckpoints(ctx context.Context, nav *wf.Navigator) err
 			return nil
 		}
 
+		// A prior delegated run that failed closed (judge crashed, bad
+		// command, provider or daemon error, timeout) is not relaunched by
+		// fest next. Relaunching only repeats the same failure while every
+		// fest next reports "already running" for the few milliseconds the
+		// new child survives, so the agent never sees why the checkpoint is
+		// stuck. Surface the recorded failure instead; an explicit
+		// fest workflow judge resubmits once the cause is fixed.
+		if stepState.Judge != nil && stepState.Judge.Status == wf.JudgeFailed {
+			printJudgeFailedNotice(current, step, stepState.Judge)
+			return nil
+		}
+
 		// Pre hooks gate the approve verb (spec 03, D4): a fail-closed
 		// failure parks the checkpoint instead of launching the judge. The
 		// block is recorded in the audit trail; fest next keeps rendering the
@@ -597,6 +609,15 @@ func AutoDelegateBlockingCheckpoints(ctx context.Context, nav *wf.Navigator) err
 			return err
 		}
 
+		// A judge that dies on launch (unreachable provider, bad command)
+		// returns within milliseconds. Give it a short grace window so this
+		// fest next reports the failure instead of "already running", and so
+		// the rendered checkpoint reflects the settled state.
+		if judge := awaitImmediateJudgeOutcome(ctx, nav, current); judge != nil && judge.Status == wf.JudgeFailed {
+			printJudgeFailedNotice(current, step, judge)
+			return nil
+		}
+
 		// Reject or fail-closed leave state non-progressing; stop so the
 		// caller can render the blocked checkpoint / next instructions.
 		nextState := nav.GetWorkflowState()
@@ -610,6 +631,58 @@ func AutoDelegateBlockingCheckpoints(ctx context.Context, nav *wf.Navigator) err
 		// delegated blocking checkpoint.
 	}
 	return nil
+}
+
+// judgeLaunchGrace bounds how long fest next waits after a fire-and-forget
+// launch for a judge that fails immediately. A healthy judge takes seconds to
+// minutes and is never waited on here.
+const judgeLaunchGrace = time.Second
+
+// awaitImmediateJudgeOutcome polls the durable judge record for up to
+// judgeLaunchGrace and returns it once it is no longer running, reloading nav
+// in place so callers render the settled state. It returns nil while the judge
+// is still running at the deadline or when the state cannot be read.
+func awaitImmediateJudgeOutcome(ctx context.Context, nav *wf.Navigator, stepNum int) *wf.JudgeState {
+	deadline := time.Now().Add(judgeLaunchGrace)
+	for {
+		fresh, err := reloadWorkflowNavigator(ctx, nav)
+		if err != nil {
+			return nil
+		}
+		ss := fresh.GetWorkflowState().GetStepState(stepNum)
+		if ss == nil || ss.Judge == nil {
+			return nil
+		}
+		if ss.Judge.Status != wf.JudgeRunning {
+			return ss.Judge
+		}
+		if time.Now().After(deadline) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(100 * time.Millisecond):
+		}
+	}
+}
+
+// printJudgeFailedNotice tells the agent the delegated judge failed closed,
+// why, and the routes that recover: fix the judge and resubmit, or an operator
+// approving from a terminal. fest next never relaunches on its own.
+func printJudgeFailedNotice(stepNum int, step wf.WorkflowStep, judge *wf.JudgeState) {
+	fmt.Printf("%s Approval judge failed (fails closed): step %d: %s\n", ui.Error("✗"), stepNum, step.Name)
+	if judge.Command != "" {
+		fmt.Printf("  %s %s\n", ui.Label("Judge command:"), judge.Command)
+	}
+	if detail := wf.DisplayFeedback(judge.Detail); detail != "" {
+		for _, line := range strings.Split(detail, "\n") {
+			fmt.Printf("  %s\n", line)
+		}
+	}
+	fmt.Println("  The checkpoint was not approved. fest next does not relaunch a failed judge.")
+	fmt.Printf("  Fix the judge, then resubmit: %s\n", ui.Accent("fest workflow judge"))
+	fmt.Printf("  Operator alternative from a terminal: %s\n", ui.Accent("fest workflow approve"))
 }
 
 // prepareAutoJudgeReadiness runs deterministic authorization and evidence
