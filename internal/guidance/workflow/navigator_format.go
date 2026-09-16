@@ -93,10 +93,14 @@ func (n *Navigator) formatComplete() string {
 
 // formatCheckpoint renders the checkpoint template for blocking steps.
 func (n *Navigator) formatCheckpoint(ctx context.Context, step WorkflowStep) (string, error) {
-	judgeWaiting := false
+	judgeWaiting, judgeFailed := false, false
+	judgeFailedDetail, judgeCommand := "", ""
 	if n.workflowState != nil {
 		if ss := n.workflowState.GetStepState(step.Number); ss != nil && ss.Judge != nil {
 			judgeWaiting = ss.Judge.Status == JudgeRunning
+			judgeFailed = ss.Judge.Status == JudgeFailed
+			judgeFailedDetail = DisplayFeedback(ss.Judge.Detail)
+			judgeCommand = ss.Judge.Command
 		}
 	}
 	data := map[string]any{
@@ -107,6 +111,9 @@ func (n *Navigator) formatCheckpoint(ctx context.Context, step WorkflowStep) (st
 		"Actions":                step.Actions,
 		"JudgeConfigured":        n.approvalJudgeConfigured(ctx),
 		"JudgeWaiting":           judgeWaiting,
+		"JudgeFailed":            judgeFailed,
+		"JudgeFailedDetail":      judgeFailedDetail,
+		"JudgeCommand":           judgeCommand,
 		"OperatorAttestation":    ClassifyCheckpoint(step) == CheckpointClassOperatorAttestation,
 		"SkippedHooksUndeclared": n.skippedUndeclaredLine(ctx, step),
 		"HumanApprovalRequired":  strings.EqualFold(strings.TrimSpace(step.Approval), "human-required"),

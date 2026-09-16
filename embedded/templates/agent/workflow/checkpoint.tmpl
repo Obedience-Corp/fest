@@ -50,7 +50,34 @@ HUMAN APPROVAL REQUIRED
 {{range .Actions}}- {{.}}
 {{end}}
 {{- end}}
-{{- if .JudgeWaiting}}
+{{- if .JudgeFailed}}
+
+The delegated judge **failed** and the checkpoint was NOT approved (fail-closed).
+{{- if .JudgeCommand}}
+Judge command: {{.JudgeCommand}}
+{{- end}}
+{{- if .JudgeFailedDetail}}
+Recorded error:
+{{.JudgeFailedDetail}}
+{{- end}}
+
+`fest next` does not relaunch a failed judge; running it again only repeats this
+notice until the cause is fixed.
+
+**What you should do:**
+1. Read the error above. It is the judge's own output: a missing or broken
+   judge command, a provider or daemon that cannot serve it, or a timeout.
+2. Fix that cause, then resubmit explicitly:
+   fest workflow judge
+   (add `--wait` for an in-process verdict)
+3. If you cannot fix it, stop and tell the user exactly what failed. Do not
+   approve on the judge's behalf.
+
+**Operator commands:**
+- Resubmit to the judge: fest workflow judge
+- Manual approve (real terminal): fest workflow approve
+- Reject with feedback: fest workflow reject --reason "..."
+{{- else if .JudgeWaiting}}
 
 This checkpoint is delegated and a judge is **already running**
 (hooks.definitions.approval_judge). Do not relaunch it and do not wait in a spin
