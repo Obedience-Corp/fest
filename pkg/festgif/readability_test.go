@@ -39,8 +39,8 @@ func TestDefaultPreservesRejectionWaitAndLastBeat(t *testing.T) {
 	}
 	// The last event needs its own reading hold before the final-state clamp.
 	last := r.transitions[len(r.transitions)-len(in.Final)-1]
-	if gap := r.IntroFrames + r.BodyFrames - last.Frame; gap < 60 {
-		t.Fatalf("last event held for %d frames, want at least 2s", gap)
+	if gap, floor := r.IntroFrames+r.BodyFrames-last.Frame, int(DefaultTiming.MinFramesPerBeat); gap < floor {
+		t.Fatalf("last event held for %d frames, want at least %d", gap, floor)
 	}
 	for i, hook := range r.hooks {
 		next := r.IntroFrames + r.BodyFrames
@@ -102,8 +102,9 @@ func TestMissingHistoryDoesNotInterruptReadingHolds(t *testing.T) {
 }
 
 // Match the size of AS0006: 7 phases, 22 sequences, 138 tasks plus phase gates.
-// Grouping must stay concise without hiding changes in a collapsed sequence.
-func TestCompactReplayKeepsEachSequenceVisible(t *testing.T) {
+// A festival this size shows every recorded change at the readable floor and
+// runs long; nothing hides inside a collapsed sequence.
+func TestLargeReplayKeepsEachSequenceVisible(t *testing.T) {
 	in := Input{Title: "sequence-summary", Final: map[string]State{}}
 	sequence := 0
 	for pi := 0; pi < 7; pi++ {
@@ -142,9 +143,12 @@ func TestCompactReplayKeepsEachSequenceVisible(t *testing.T) {
 	if r.Stats.Tasks != 138 || r.Stats.Sequences != 22 {
 		t.Fatalf("bad fixture: %+v", r.Stats)
 	}
-	seconds := float64(r.Frames) / float64(r.Timing.FPS)
-	if seconds < 45 || seconds > 75 {
-		t.Fatalf("compact replay lasts %.1fs, want 45–75s", seconds)
+	floor := int(r.Timing.MinFramesPerBeat)
+	if got, want := r.BodyFrames, len(in.Beats)*floor; got != want {
+		t.Fatalf("body is %d frames, want %d: %d recorded changes at the %d frame floor", got, want, len(in.Beats), floor)
+	}
+	if seconds := float64(r.Frames) / float64(r.Timing.FPS); seconds < float64(len(in.Beats))/float64(r.Timing.FPS)*float64(floor) {
+		t.Fatalf("replay lasts %.1fs, too short to show %d changes", seconds, len(in.Beats))
 	}
 	clamp := r.IntroFrames + r.BodyFrames
 	for _, tr := range r.transitions {

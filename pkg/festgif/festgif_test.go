@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"image/gif"
-	"sort"
 	"testing"
 )
 
@@ -288,8 +287,8 @@ func TestDefaultPacingIsReadable(t *testing.T) {
 		if tr.Frame == previous {
 			continue
 		}
-		if previous >= 0 && tr.Frame-previous < fps*2 {
-			t.Fatalf("displayed updates %d frames apart, want at least 2s", tr.Frame-previous)
+		if previous >= 0 && tr.Frame-previous < fps {
+			t.Fatalf("displayed updates %d frames apart, want at least 1s", tr.Frame-previous)
 		}
 		previous = tr.Frame
 	}
@@ -331,37 +330,103 @@ func crowdedInput() Input {
 	return in
 }
 
-func TestCrowdedFestivalsStayReadable(t *testing.T) {
-	r := Plan(crowdedInput(), DefaultTiming)
-	floor := int(DefaultTiming.FramesPerBeat)
-	seen := map[int]bool{}
+// beatFrames returns the frame of every recorded change in transition order,
+// leaving out the final-state clamp that ends the body.
+func beatFrames(r *Replay) []int {
+	clamp := r.IntroFrames + r.BodyFrames
 	var frames []int
 	for _, tr := range r.transitions {
-		if tr.Frame < r.IntroFrames+r.BodyFrames && !seen[tr.Frame] {
-			seen[tr.Frame] = true
+		if tr.Frame < clamp {
 			frames = append(frames, tr.Frame)
 		}
 	}
-	sort.Ints(frames)
-	for i := 1; i < len(frames); i++ {
-		if gap := frames[i] - frames[i-1]; gap < floor {
-			t.Fatalf("changes %d frames apart, want at least %d", gap, floor)
+	return frames
+}
+
+// stepInput is n task completions, one recorded change per beat, with no hooks
+// and no held outcomes.
+func stepInput(n int) Input {
+	done := State{Status: StatusCompleted}
+	seq := &Node{Key: "s1", Kind: KindSequence, Label: "01_build"}
+	in := Input{Title: "steps", Final: map[string]State{}}
+	for i := 0; i < n; i++ {
+		key := fmt.Sprintf("t%04d", i)
+		seq.Children = append(seq.Children, &Node{Key: key, Kind: KindTask, Label: key})
+		in.Beats = append(in.Beats, Beat{Changes: []Change{{Key: key, State: done}}})
+		in.Final[key] = done
+	}
+	in.Phases = []*Node{{Key: "p1", Kind: KindPhase, Label: "001_BUILD", Children: []*Node{seq}}}
+	return in
+}
+
+func TestEveryRecordedChangeGetsItsOwnBeat(t *testing.T) {
+	in := crowdedInput()
+	r := Plan(in, DefaultTiming)
+	frames := beatFrames(r)
+	if len(frames) != len(in.Beats) {
+		t.Fatalf("%d displayed changes for %d recorded beats", len(frames), len(in.Beats))
+	}
+	for i, b := range in.Beats {
+		want := b.Changes[0]
+		if got := r.transitions[i]; got.Row != rowIndex(t, r, want.Key) || got.State != want.State {
+			t.Fatalf("beat %d shows row %d as %+v, want %s as %+v", i, got.Row, got.State, want.Key, want.State)
 		}
 	}
-	if len(frames) > r.Timing.MaxBody/floor+fixedBeats(crowdedInput().Beats)+1 {
-		t.Errorf("%d displayed updates exceed the compact body budget", len(frames))
+	for i := 1; i < len(frames); i++ {
+		if frames[i] <= frames[i-1] {
+			t.Fatalf("beat %d lands on frame %d, not after beat %d on frame %d", i, frames[i], i-1, frames[i-1])
+		}
 	}
-	// Every task still ends completed, and the rejection is still held.
+	floor, ceiling := int(DefaultTiming.MinFramesPerBeat), int(DefaultTiming.FramesPerBeat+DefaultTiming.Dwell.Rejection)
+	for i := 1; i < len(frames); i++ {
+		switch gap := frames[i] - frames[i-1]; {
+		case gap < floor:
+			t.Fatalf("beats %d and %d are %d frames apart, want at least %d", i-1, i, gap, floor)
+		case gap > ceiling:
+			t.Fatalf("beats %d and %d are %d frames apart, want at most %d", i-1, i, gap, ceiling)
+		}
+	}
 	leaf := r.StateAt(r.Frames - 1)
 	for i := 0; i < 400; i++ {
 		if got := leaf[rowIndex(t, r, fmt.Sprintf("t%03d", i))].Status; got != StatusCompleted {
-			t.Fatalf("task %d = %s after batching, want completed", i, got)
+			t.Fatalf("task %d = %s, want completed", i, got)
 		}
 	}
 }
 
-// judgeHeavyInput is a festival whose judge runs outnumber a short body
-// budget when a caller explicitly requests batching: 60 gates the judge approves, and one it rejects before passing it.
+func TestSmallFestivalsHoldTheFullBeat(t *testing.T) {
+	in := stepInput(int(DefaultTiming.FramesPerBeat)/6 - 2)
+	r := Plan(in, DefaultTiming)
+	frames := beatFrames(r)
+	if len(frames) != len(in.Beats) {
+		t.Fatalf("%d displayed changes for %d recorded beats", len(frames), len(in.Beats))
+	}
+	for i := 1; i < len(frames); i++ {
+		if got, want := frames[i]-frames[i-1], int(DefaultTiming.FramesPerBeat); got != want {
+			t.Fatalf("beats %d and %d are %d frames apart, want the full %d", i-1, i, got, want)
+		}
+	}
+}
+
+func TestCrowdedFestivalsShrinkToTheFloorInsteadOfMerging(t *testing.T) {
+	in := stepInput(200)
+	r := Plan(in, DefaultTiming)
+	frames := beatFrames(r)
+	if len(frames) != len(in.Beats) {
+		t.Fatalf("%d displayed changes for %d recorded beats", len(frames), len(in.Beats))
+	}
+	for i := 1; i < len(frames); i++ {
+		if got, want := frames[i]-frames[i-1], int(DefaultTiming.MinFramesPerBeat); got != want {
+			t.Fatalf("beats %d and %d are %d frames apart, want the %d frame floor", i-1, i, got, want)
+		}
+	}
+	if r.BodyFrames <= DefaultTiming.MaxBody {
+		t.Errorf("body is %d frames, want it to run past MaxBody (%d) rather than merge beats", r.BodyFrames, DefaultTiming.MaxBody)
+	}
+}
+
+// judgeHeavyInput is a festival whose judge runs alone outnumber the body
+// budget: 60 gates the judge approves, and one it rejects before passing it.
 func judgeHeavyInput() Input {
 	in := Input{Title: "judged", Final: map[string]State{}}
 	phase := &Node{Key: "p1", Kind: KindPhase, Label: "001_BUILD"}
@@ -390,22 +455,24 @@ func judgeHeavyInput() Input {
 	return in
 }
 
-func TestJudgeHeavyFestivalsKeepRejectionsAndDropRoutineWaits(t *testing.T) {
-	timing := DefaultTiming
-	timing.MaxBody, timing.MaxDwell = 750, 900
-	r := Plan(judgeHeavyInput(), timing)
+func TestJudgeHeavyFestivalsKeepEveryWaitAndVerdict(t *testing.T) {
+	in := judgeHeavyInput()
+	r := Plan(in, DefaultTiming)
 	waits := map[int]bool{}
 	for _, tr := range r.transitions {
 		if tr.State.Judge == JudgeRunning {
 			waits[tr.Row] = true
 		}
 	}
-	if waits[rowIndex(t, r, "g00")] {
-		t.Error("a routine judge wait should give way when judge runs alone exceed the budget")
+	if len(waits) != 61 {
+		t.Errorf("%d judge waits shown, want 61: a recorded wait is an event, not filler", len(waits))
 	}
 	gx := rowIndex(t, r, "gx")
 	if !waits[gx] {
 		t.Error("the rejected run keeps its waiting beat")
+	}
+	if got := len(beatFrames(r)); got != len(in.Beats)-60 {
+		t.Errorf("%d displayed changes for %d recorded beats and 60 hook beats", got, len(in.Beats))
 	}
 	// Every verdict still shows, and the rejection holds longer than a verdict.
 	verdicts := 0
@@ -446,5 +513,18 @@ func TestScaledStretchesEveryDuration(t *testing.T) {
 	}
 	if got := DefaultTiming.Scaled(2).Dwell.JudgeWait; got != 2*DefaultTiming.Dwell.JudgeWait {
 		t.Errorf("scaled judge wait = %v", got)
+	}
+	for _, f := range []float64{0.5, 2} {
+		scaled := DefaultTiming.Scaled(f)
+		if got, want := scaled.MinFramesPerBeat, DefaultTiming.MinFramesPerBeat*f; got != want {
+			t.Errorf("Scaled(%v).MinFramesPerBeat = %v, want %v", f, got, want)
+		}
+		if scaled.MinFramesPerBeat >= scaled.FramesPerBeat {
+			t.Errorf("Scaled(%v) leaves no room between the floor (%v) and the preferred hold (%v)", f, scaled.MinFramesPerBeat, scaled.FramesPerBeat)
+		}
+	}
+	crowded := stepInput(200)
+	if got, want := Plan(crowded, DefaultTiming.Scaled(2)).BodyFrames, 2*Plan(crowded, DefaultTiming).BodyFrames; got != want {
+		t.Errorf("half speed body = %d frames, want %d: the floor scales with everything else", got, want)
 	}
 }
