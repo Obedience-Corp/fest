@@ -4,12 +4,12 @@
 workflow steps, gates, judge verdicts, and hook runs appear in the order they
 were recorded. The final frame matches the current festival tree.
 
-At the default speed, related task changes are grouped within their sequence
-and each displayed update holds for at least 2 seconds. Row backgrounds stay
-steady while you read. Replays target about a minute; distinct sequences and
-important outcomes can extend that. Rejections get extra dwell and hook
-results hold for at least 3 seconds. Changes from different sequences are
-kept separate so the affected tasks remain visible.
+Every recorded change gets its own beat, in the order fest recorded it. Nothing
+is merged into a neighbouring change and nothing is skipped, so the replay shows
+what actually happened step by step. At the default speed a beat holds 2 seconds
+and shrinks to no less than 1 second once a festival has many changes: a long
+festival makes a long replay. Row backgrounds stay steady while you read.
+Rejections get extra dwell and hook results hold for at least 3 seconds.
 Use `--speed 2` for faster playback or `--speed 0.5` for more reading time.
 
 ## Completed festivals

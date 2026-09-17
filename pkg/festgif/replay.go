@@ -130,12 +130,16 @@ func (d Dwell) of(h Hold) float64 {
 type Timing struct {
 	FPS         int
 	IntroFrames int
-	// FramesPerBeat is how long every shown change holds: the floor that keeps
-	// a replay readable. Festivals with more changes than MaxBody allows batch
-	// consecutive ordinary changes together rather than going below it.
+	// FramesPerBeat is the preferred hold for one recorded change: the pace a
+	// replay keeps whenever the whole event log fits inside MaxBody.
 	FramesPerBeat float64
-	MinBody       int
-	// MaxBody caps the frames spent on ordinary changes. Zero disables batching.
+	// MinFramesPerBeat is the shortest a change may hold. A festival with more
+	// changes than MaxBody allows shortens every beat toward this floor and
+	// then runs long; beats are never merged or dropped.
+	MinFramesPerBeat float64
+	MinBody          int
+	// MaxBody is the body length the per-beat hold aims at. Zero always uses
+	// FramesPerBeat, however many changes there are.
 	MaxBody    int
 	TailFrames int
 	Dwell      Dwell
@@ -162,7 +166,7 @@ func (t Timing) Scaled(f float64) Timing {
 		return max(1, int(math.Round(float64(v)*f)))
 	}
 	t.IntroFrames = scale(t.IntroFrames)
-	t.FramesPerBeat *= f
+	t.FramesPerBeat, t.MinFramesPerBeat = t.FramesPerBeat*f, t.MinFramesPerBeat*f
 	t.MinBody, t.MaxBody = scale(t.MinBody), scale(t.MaxBody)
 	t.TailFrames, t.MaxDwell = scale(t.TailFrames), scale(t.MaxDwell)
 	t.HookFrames, t.HeatFrames = scale(t.HookFrames), scale(t.HeatFrames)
@@ -176,114 +180,27 @@ func (t Timing) Scaled(f float64) Timing {
 	return t
 }
 
-// fixedBeats counts the beats that never merge: hook runs and held moments.
-func fixedBeats(beats []Beat) int {
-	n := 0
-	for _, b := range beats {
-		if b.Hook != nil || b.Hold != HoldNone {
-			n++
-		}
-	}
-	return n
-}
-
 // key reports whether a hold marks a moment that always keeps its full time.
 func (h Hold) key() bool {
 	return h == HoldRejection || h == HoldBlocked || h == HoldHookFail
 }
 
-// dropRoutineWaits removes the judge-waiting beat of a run that ends in a
-// plain verdict, so a festival with many judge runs still shows every verdict
-// and hook line. Rejections, blocks, and failed hooks keep their waiting beat.
-func dropRoutineWaits(beats []Beat) []Beat {
-	out := make([]Beat, 0, len(beats))
-	for i, b := range beats {
-		if b.Hold == HoldJudgeWait && endsInVerdict(beats[i+1:], b) {
-			continue
-		}
-		out = append(out, b)
-	}
-	return out
-}
-
-// endsInVerdict reports whether the judge run that wait started returned a
-// plain verdict, with no rejection or failure in between.
-func endsInVerdict(rest []Beat, wait Beat) bool {
-	if len(wait.Changes) != 1 {
-		return false
-	}
-	key := wait.Changes[0].Key
-	for _, b := range rest {
-		if b.Hold.key() {
-			return false
-		}
-		for _, c := range b.Changes {
-			if c.Key == key {
-				return b.Hold == HoldVerdict
-			}
-		}
-	}
-	return false
-}
-
-// batch groups ordinary changes within the same visible sequence or phase.
-// It never combines different focus paths: otherwise some changed tasks would
-// be collapsed before the viewer could see them. Hooks and held outcomes stay
-// separate. The body budget is soft when distinct groups cannot fit.
-func batch(beats []Beat, limit int, scope func(Beat) int) []Beat {
-	ordinary := len(beats) - fixedBeats(beats)
-	limit = max(1, limit)
-	if ordinary <= limit {
-		return beats
-	}
-	per := int(math.Ceil(float64(ordinary) / float64(limit)))
-	for {
-		out := batchSize(beats, per, scope)
-		if len(out)-fixedBeats(out) <= limit || per >= ordinary {
-			return out
-		}
-		per = min(ordinary, per*2)
-	}
-}
-
-func batchSize(beats []Beat, per int, scope func(Beat) int) []Beat {
-	out := make([]Beat, 0, len(beats))
-	count, group := 0, -1
-	for _, b := range beats {
-		current := scope(b)
-		if b.Hook != nil || b.Hold != HoldNone || current < 0 {
-			out = append(out, b)
-			count, group = 0, -1
-			continue
-		}
-		if count == 0 || count >= per || current != group {
-			// Clone the slice because a second batching pass must not modify
-			// the caller's event history through its backing array.
-			b.Changes = append([]Change(nil), b.Changes...)
-			out = append(out, b)
-			count, group = 1, current
-		} else {
-			out[len(out)-1].Changes = append(out[len(out)-1].Changes, b.Changes...)
-			count++
-		}
-	}
-	return out
-}
-
-// DefaultTiming keeps replays concise by grouping related task updates, holding
-// each displayed group for at least 2 seconds. The body targets 45 seconds;
-// distinct sequences and important outcomes can extend it. Pulses are disabled.
+// DefaultTiming shows every recorded change on its own beat, in the order fest
+// recorded it. A beat holds 2 seconds and shrinks to no less than 1 second as a
+// festival grows, so the body targets 45 seconds but a long festival makes a
+// long replay rather than skipping steps. Pulses are disabled.
 var DefaultTiming = Timing{
-	FPS:           30,
-	IntroFrames:   30,
-	FramesPerBeat: 60,
-	MinBody:       150,
-	MaxBody:       1350,
-	TailFrames:    120,
-	Dwell:         Dwell{JudgeWait: 24, Verdict: 24, Rejection: 60, Blocked: 45, HookFail: 60},
-	MaxDwell:      450,
-	HookFrames:    90,
-	HeatFrames:    0,
+	FPS:              30,
+	IntroFrames:      30,
+	FramesPerBeat:    60,
+	MinFramesPerBeat: 30,
+	MinBody:          150,
+	MaxBody:          1350,
+	TailFrames:       120,
+	Dwell:            Dwell{JudgeWait: 24, Verdict: 24, Rejection: 60, Blocked: 45, HookFail: 60},
+	MaxDwell:         450,
+	HookFrames:       90,
+	HeatFrames:       0,
 }
 
 // Row is one flattened tree row with its drawn tree guides.
@@ -332,9 +249,10 @@ type Replay struct {
 	Timing      Timing
 }
 
-// Plan lays out the rows and places every beat on the frame timeline. Beats
-// share the body evenly; each beat's dwell holds it on screen before the next.
-// The last frame is clamped to Input.Final so it always matches the tree.
+// Plan lays out the rows and places every beat on the frame timeline, one
+// recorded change per beat in the order it was recorded. Every beat holds for
+// the same base time plus its own dwell, and the last frame is clamped to
+// Input.Final so it always matches the tree.
 func Plan(in Input, t Timing) *Replay {
 	r := &Replay{Title: in.Title, Timing: t, IntroFrames: t.IntroFrames}
 	index := map[string]int{}
@@ -367,36 +285,16 @@ func Plan(in Input, t Timing) *Replay {
 		walk(p, -1, nil, i == len(in.Phases)-1)
 	}
 
-	// Fit the replay to MaxBody without ever showing a change for less than
-	// FramesPerBeat: batch ordinary changes first, then let routine judge
-	// waits go, and only then let the body run long.
-	scope := func(b Beat) int {
-		parent := -1
-		for _, change := range b.Changes {
-			row, ok := index[change.Key]
-			if !ok {
-				return -1
-			}
-			p := r.Rows[row].Parent
-			if parent >= 0 && parent != p {
-				return -1
-			}
-			parent = p
-		}
-		return parent
-	}
+	// Every recorded beat keeps its own frame. Crowding shortens the hold
+	// toward MinFramesPerBeat and then lets the body run past MaxBody; no beat
+	// is ever merged into its neighbour or dropped.
 	beats := in.Beats
-	if t.FramesPerBeat > 0 && t.MaxBody > 0 {
-		budget := int(float64(t.MaxBody) / t.FramesPerBeat)
-		beats = batch(beats, budget-fixedBeats(beats), scope)
-		if len(beats) > budget {
-			beats = dropRoutineWaits(beats)
-			beats = batch(beats, budget-fixedBeats(beats), scope)
-		}
-	}
 	n := len(beats)
-	plain := math.Max(float64(t.MinBody), float64(n)*t.FramesPerBeat)
-	plain = math.Round(plain)
+	hold := t.FramesPerBeat
+	if n > 0 && t.MaxBody > 0 && t.FramesPerBeat > 0 {
+		hold = math.Max(t.MinFramesPerBeat, math.Min(t.FramesPerBeat, float64(t.MaxBody)/float64(n)))
+	}
+	hold = math.Max(1, hold)
 
 	// Rejections, blocks, and failed hooks keep their dwell; judge waits and
 	// verdicts give way first when a festival has more than MaxDwell of them.
@@ -425,24 +323,17 @@ func Plan(in Input, t Timing) *Replay {
 		return t.Dwell.of(h) * routineScale
 	}
 
-	step := t.FramesPerBeat
-	if n > 1 {
-		step = plain / float64(n)
-	}
 	frames := make([]int, n)
 	pos := 0.0
 	for i := range beats {
 		frames[i] = t.IntroFrames + int(math.Round(pos))
-		hold := step + dwellOf(beats[i].Hold)
+		beat := hold + dwellOf(beats[i].Hold)
 		if beats[i].Hook != nil {
-			hold = math.Max(hold, float64(t.HookFrames))
+			beat = math.Max(beat, float64(t.HookFrames))
 		}
-		pos += hold
+		pos += beat
 	}
-	r.BodyFrames = int(plain)
-	if n > 0 {
-		r.BodyFrames = int(math.Round(pos))
-	}
+	r.BodyFrames = max(t.MinBody, int(math.Round(pos)))
 
 	for i, b := range beats {
 		for _, c := range b.Changes {

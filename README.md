@@ -406,10 +406,12 @@ If automatic rendering fails, completion still succeeds and reports the problem;
 run `fest gif --embed` inside the completed festival after fixing it. See the
 [replay guide](docs/guides/replays.md) for recovery and missing-history behavior.
 
-At the default speed, related task changes are grouped by sequence and each
-update holds for at least 2 seconds. Row backgrounds stay steady while you read.
-The replay targets about a minute; distinct sequences and important outcomes
-can extend it. Rejections and hook results get extra reading time.
+Every recorded change gets its own beat, in the order fest recorded it, so you
+watch the festival step by step. At the default speed a beat holds 2 seconds and
+shrinks to no less than 1 second once a festival has many changes: a long
+festival makes a long replay rather than merging or skipping steps. Row
+backgrounds stay steady while you read, and rejections and hook results get
+extra reading time.
 Use `--speed 2` for faster playback or `--speed 0.5` for more reading time. Other Go programs can render the
 same replay with [`pkg/festgif`](pkg/festgif) and
 [`pkg/festgif/festival`](pkg/festgif/festival).
