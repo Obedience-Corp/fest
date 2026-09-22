@@ -8,7 +8,6 @@
 
 <p align="center">
   <a href="https://pkg.go.dev/github.com/Obedience-Corp/fest"><img src="https://pkg.go.dev/badge/github.com/Obedience-Corp/fest.svg" alt="pkg.go.dev documentation"></a>
-  <a href="https://goreportcard.com/report/github.com/Obedience-Corp/fest"><img src="https://goreportcard.com/badge/github.com/Obedience-Corp/fest" alt="Go Report Card"></a>
   <a href="https://coveralls.io/github/Obedience-Corp/fest"><img src="https://coveralls.io/repos/github/Obedience-Corp/fest/badge.svg" alt="Coveralls test coverage"></a>
 </p>
 
