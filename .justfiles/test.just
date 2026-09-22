@@ -50,10 +50,10 @@ daemon-start:
 integration-verbose:
     @{{BUILDTOOL}} -v integration
 
-# Run tests with coverage (using go test directly)
+# Run tests with coverage and write coverage.out
 [no-cd]
 coverage:
-    go test -cover ./...
+    go test -coverprofile=coverage.out -cover ./...
 
 # Generate HTML coverage report
 [no-cd]
