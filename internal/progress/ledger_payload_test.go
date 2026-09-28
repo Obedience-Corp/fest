@@ -44,7 +44,7 @@ func TestManager_CampaignLedgerPayloads(t *testing.T) {
 		{
 			name:     "ReportBlocker",
 			taskID:   "001_PHASE/01_seq/02_block.md",
-			mutate:   func(m *Manager, id string) error { return m.ReportBlocker(ctx, id, "waiting on spec") },
+			mutate:   func(m *Manager, id string) error { return m.ReportBlocker(ctx, id, "waiting on spec", nil) },
 			wantKind: ledgerkit.KindTransitioned,
 			want: map[string]string{
 				"target": "task",
@@ -118,7 +118,7 @@ func TestManager_PayloadToCarriesDestinationStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager: %v", err)
 	}
-	if err := mgr.ReportBlocker(ctx, "001_PHASE/01_seq/01_task.md", "blocked"); err != nil {
+	if err := mgr.ReportBlocker(ctx, "001_PHASE/01_seq/01_task.md", "blocked", nil); err != nil {
 		t.Fatalf("ReportBlocker: %v", err)
 	}
 

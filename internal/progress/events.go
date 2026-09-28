@@ -82,6 +82,9 @@ type ProgressEvent struct {
 	Percent int    `json:"percent,omitempty"` // progress event
 	Reason  string `json:"reason,omitempty"`  // blocked event
 
+	// Attempts records the failed unblock attempts reported with a blocked event.
+	Attempts []string `json:"attempts,omitempty"`
+
 	// Workflow event-specific fields (omitempty)
 	Phase            string   `json:"phase,omitempty"`
 	Step             int      `json:"step,omitempty"`
@@ -248,6 +251,7 @@ func materializeState(events []ProgressEvent) map[string]*TaskProgress {
 			// Clear any blocker
 			task.BlockerMessage = ""
 			task.BlockedAt = nil
+			task.BlockerAttempts = nil
 
 		case EventProgress:
 			task.Progress = e.Percent
@@ -267,6 +271,7 @@ func materializeState(events []ProgressEvent) map[string]*TaskProgress {
 			task.BlockerMessage = e.Reason
 			ts := e.Timestamp
 			task.BlockedAt = &ts
+			task.BlockerAttempts = e.Attempts
 
 		case EventUnblocked:
 			if task.Status == StatusBlocked {
@@ -274,6 +279,7 @@ func materializeState(events []ProgressEvent) map[string]*TaskProgress {
 			}
 			task.BlockerMessage = ""
 			task.BlockedAt = nil
+			task.BlockerAttempts = nil
 
 		case EventReset:
 			task.Status = StatusPending
@@ -283,6 +289,7 @@ func materializeState(events []ProgressEvent) map[string]*TaskProgress {
 			task.TimeSpentMinutes = 0
 			task.BlockerMessage = ""
 			task.BlockedAt = nil
+			task.BlockerAttempts = nil
 		}
 	}
 

@@ -47,6 +47,39 @@ type TaskProgress struct {
 	TimeSpentMinutes int        `yaml:"time_spent_minutes,omitempty"`
 	BlockerMessage   string     `yaml:"blocker_message,omitempty"`
 	BlockedAt        *time.Time `yaml:"blocked_at,omitempty"`
+
+	BlockerDeferred   bool       `yaml:"blocker_deferred,omitempty"`
+	BlockerDeferredAt *time.Time `yaml:"blocker_deferred_at,omitempty"`
+	BlockerDeferredBy string     `yaml:"blocker_deferred_by,omitempty"`
+	DeferralReason    string     `yaml:"deferral_reason,omitempty"`
+	BlockerAttempts   []string   `yaml:"blocker_attempts,omitempty"`
+	OperatorNotes     []string   `yaml:"operator_notes,omitempty"`
+}
+
+func (t *TaskProgress) IsSettled() bool {
+	if t == nil {
+		return false
+	}
+	return t.Status == StatusCompleted || (t.Status == StatusBlocked && t.BlockerDeferred)
+}
+
+func (t *TaskProgress) IsDone() bool {
+	if t == nil {
+		return false
+	}
+	return t.Status == StatusCompleted
+}
+
+func (t *TaskProgress) clearDeferral() {
+	if t == nil {
+		return
+	}
+	t.BlockerDeferred = false
+	t.BlockerDeferredAt = nil
+	t.BlockerDeferredBy = ""
+	t.DeferralReason = ""
+	t.BlockerAttempts = nil
+	t.OperatorNotes = nil
 }
 
 // FestivalTimeMetrics tracks festival-level time metrics separate from task-level tracking.

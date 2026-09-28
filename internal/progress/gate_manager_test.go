@@ -33,7 +33,7 @@ func TestManager_GateBlocksMutations(t *testing.T) {
 		{"UpdateProgress", func() error { return mgr.UpdateProgress(ctx, "001/01/01_t.md", 50) }},
 		{"MarkComplete", func() error { return mgr.MarkComplete(ctx, "001/01/01_t.md") }},
 		{"MarkInProgress", func() error { return mgr.MarkInProgress(ctx, "001/01/01_t.md") }},
-		{"ReportBlocker", func() error { return mgr.ReportBlocker(ctx, "001/01/01_t.md", "x") }},
+		{"ReportBlocker", func() error { return mgr.ReportBlocker(ctx, "001/01/01_t.md", "x", nil) }},
 		{"ResetTask", func() error { return mgr.ResetTask(ctx, "001/01/01_t.md") }},
 		{"ClearBlocker", func() error { return mgr.ClearBlocker(ctx, "001/01/01_t.md") }},
 	}
@@ -61,7 +61,7 @@ func TestManager_NoopGateAllowsMutations(t *testing.T) {
 		{"UpdateProgress", func(m *Manager) error { return m.UpdateProgress(ctx, "001/01/01_t.md", 25) }},
 		{"MarkInProgress", func(m *Manager) error { return m.MarkInProgress(ctx, "001/01/02_t.md") }},
 		{"MarkComplete", func(m *Manager) error { return m.MarkComplete(ctx, "001/01/03_t.md") }},
-		{"ReportBlocker", func(m *Manager) error { return m.ReportBlocker(ctx, "001/01/04_t.md", "x") }},
+		{"ReportBlocker", func(m *Manager) error { return m.ReportBlocker(ctx, "001/01/04_t.md", "x", nil) }},
 		{"ResetTask", func(m *Manager) error { return m.ResetTask(ctx, "001/01/05_t.md") }},
 	}
 
@@ -84,7 +84,7 @@ func TestManager_NoopGateAllowsMutations(t *testing.T) {
 		if err != nil {
 			t.Fatalf("NewManager: %v", err)
 		}
-		if err := mgr.ReportBlocker(ctx, "001/01/06_t.md", "blocker"); err != nil {
+		if err := mgr.ReportBlocker(ctx, "001/01/06_t.md", "blocker", nil); err != nil {
 			t.Fatalf("seed ReportBlocker: %v", err)
 		}
 		if err := mgr.ClearBlocker(ctx, "001/01/06_t.md"); err != nil {

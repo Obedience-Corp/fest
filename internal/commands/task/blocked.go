@@ -15,6 +15,7 @@ import (
 
 var (
 	blockedReason string
+	blockedTried  []string
 	blockedJSON   bool
 	blockedYes    bool
 )
@@ -24,6 +25,10 @@ func newBlockedCmd() *cobra.Command {
 		Use:   "blocked [task]",
 		Short: "Mark a task as blocked",
 		Long: `Mark a task as blocked, pausing work and notifying the user.
+
+Repeat --tried for each unblock attempt that failed. The operator sees these
+when deciding whether to defer the blocker, and a block with no recorded
+attempts is likely to be sent back.
 
 By default a confirmation prompt is shown; pass --yes to skip it for
 non-interactive or agent use. --json emits a structured result and requires
@@ -35,7 +40,11 @@ non-interactive or agent use. --json emits a structured result and requires
 		RunE: runBlocked,
 	}
 
+	blockedTried = nil
+
 	cmd.Flags().StringVar(&blockedReason, "reason", "", "reason for the blocker (required)")
+	cmd.Flags().StringArrayVar(&blockedTried, "tried", nil,
+		"an unblock attempt that failed; repeat for each attempt")
 	cmd.Flags().BoolVar(&blockedJSON, "json", false, "output as JSON (requires --yes)")
 	cmd.Flags().BoolVarP(&blockedYes, "yes", "y", false, "skip the interactive confirmation prompt")
 	_ = cmd.MarkFlagRequired("reason")
@@ -96,7 +105,7 @@ func runBlocked(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if err := mgr.ReportBlocker(ctx, taskID, blockedReason); err != nil {
+	if err := mgr.ReportBlocker(ctx, taskID, blockedReason, blockedTried); err != nil {
 		return err
 	}
 

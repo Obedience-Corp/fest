@@ -240,6 +240,7 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 		// Clear any blocker
 		task.BlockerMessage = ""
 		task.BlockedAt = nil
+		task.clearDeferral()
 
 		// Queue completed event
 		m.store.QueueEvent(&ProgressEvent{
@@ -429,7 +430,7 @@ func taskPhaseCoordinate(taskID string) string {
 }
 
 // ReportBlocker reports a blocker for a task
-func (m *Manager) ReportBlocker(ctx context.Context, taskID, message string) error {
+func (m *Manager) ReportBlocker(ctx context.Context, taskID, message string, attempts []string) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
 	}
@@ -454,6 +455,7 @@ func (m *Manager) ReportBlocker(ctx context.Context, taskID, message string) err
 		task.Status = StatusBlocked
 		task.BlockerMessage = message
 		task.BlockedAt = &now
+		task.BlockerAttempts = attempts
 
 		// Queue blocked event
 		m.store.QueueEvent(&ProgressEvent{
@@ -461,6 +463,7 @@ func (m *Manager) ReportBlocker(ctx context.Context, taskID, message string) err
 			Event:     EventBlocked,
 			Task:      taskID,
 			Reason:    message,
+			Attempts:  attempts,
 		})
 
 		m.store.SetTask(task)
@@ -507,6 +510,7 @@ func (m *Manager) ResetTask(ctx context.Context, taskID string) error {
 		task.TimeSpentMinutes = 0
 		task.BlockerMessage = ""
 		task.BlockedAt = nil
+		task.clearDeferral()
 
 		// Queue reset event
 		m.store.QueueEvent(&ProgressEvent{
@@ -596,6 +600,7 @@ func (m *Manager) ClearBlocker(ctx context.Context, taskID string) error {
 		now := time.Now().UTC()
 		task.BlockerMessage = ""
 		task.BlockedAt = nil
+		task.clearDeferral()
 
 		// Return to in_progress if was blocked
 		if task.Status == StatusBlocked {

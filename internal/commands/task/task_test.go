@@ -219,7 +219,7 @@ func TestResetBlockedTask(t *testing.T) {
 	}
 
 	// Block a task
-	if err := mgr.ReportBlocker(ctx, "blocked_task", "waiting for API key"); err != nil {
+	if err := mgr.ReportBlocker(ctx, "blocked_task", "waiting for API key", nil); err != nil {
 		t.Fatal(err)
 	}
 	task, _ := mgr.GetTaskProgress("blocked_task")

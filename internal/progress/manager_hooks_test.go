@@ -426,7 +426,7 @@ func TestReportBlockerBeforeStartKeepsStartHooksArmed(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewManager: %v", err)
 	}
-	if err := mgr.ReportBlocker(context.Background(), "001_PHASE/01_seq/01_task.md", "waiting"); err != nil {
+	if err := mgr.ReportBlocker(context.Background(), "001_PHASE/01_seq/01_task.md", "waiting", nil); err != nil {
 		t.Fatalf("ReportBlocker: %v", err)
 	}
 	task, exists := mgr.GetTaskProgress("001_PHASE/01_seq/01_task.md")

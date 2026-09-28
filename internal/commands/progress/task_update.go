@@ -36,7 +36,7 @@ func handleTaskUpdate(ctx context.Context, mgr *progress.Manager, festivalPath s
 
 	// Handle blocker report
 	if opts.blocker != "" {
-		if err := mgr.ReportBlocker(ctx, taskID, opts.blocker); err != nil {
+		if err := mgr.ReportBlocker(ctx, taskID, opts.blocker, nil); err != nil {
 			return err
 		}
 		if opts.json {
