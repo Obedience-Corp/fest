@@ -551,7 +551,7 @@ func TestUpdateProgress_ZeroProgressKeepsStartAnchorArmed(t *testing.T) {
 
 func TestMaterializeState_ProgressEventSetsStartedAt(t *testing.T) {
 	ts := time.Date(2026, 8, 12, 10, 0, 0, 0, time.UTC)
-	tasks := materializeState([]ProgressEvent{
+	tasks, _ := materializeState([]ProgressEvent{
 		{Timestamp: ts, Event: EventProgress, Task: "t1", Percent: 10},
 	})
 	task := tasks["t1"]
@@ -559,7 +559,7 @@ func TestMaterializeState_ProgressEventSetsStartedAt(t *testing.T) {
 		t.Fatalf("progress replay must set StartedAt: %+v", task)
 	}
 	// Zero progress replay records no start, matching the live path.
-	tasks = materializeState([]ProgressEvent{
+	tasks, _ = materializeState([]ProgressEvent{
 		{Timestamp: ts, Event: EventProgress, Task: "t1", Percent: 0},
 	})
 	if task := tasks["t1"]; task == nil || task.StartedAt != nil {

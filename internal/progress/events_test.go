@@ -70,7 +70,7 @@ func TestMaterializeState(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tasks := materializeState(tt.events)
+			tasks, _ := materializeState(tt.events)
 
 			if len(tasks) != len(tt.expectedStatus) {
 				t.Errorf("got %d tasks, want %d", len(tasks), len(tt.expectedStatus))
@@ -99,7 +99,7 @@ func TestMaterializeState_TimeSpent(t *testing.T) {
 		{Timestamp: now, Event: EventCompleted, Task: "01_task.md", Minutes: 45},
 	}
 
-	tasks := materializeState(events)
+	tasks, _ := materializeState(events)
 	task := tasks["01_task.md"]
 
 	if task.TimeSpentMinutes != 45 {
@@ -113,7 +113,7 @@ func TestMaterializeState_TimeSpent(t *testing.T) {
 
 func TestMaterializeState_CompletedEventSetsStartedAt(t *testing.T) {
 	ts := time.Date(2026, 8, 12, 10, 0, 0, 0, time.UTC)
-	tasks := materializeState([]ProgressEvent{
+	tasks, _ := materializeState([]ProgressEvent{
 		{Timestamp: ts, Event: EventCompleted, Task: "01_task.md"},
 	})
 

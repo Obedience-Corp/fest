@@ -4,6 +4,7 @@ package progress
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"time"
@@ -124,6 +125,7 @@ type Store struct {
 	festivalPath  string
 	data          *FestivalProgressData
 	workflowData  *wf.FestivalWorkflowState
+	sweepState    SweepState
 	pendingEvents []*ProgressEvent // Events to append on next Save()
 }
 
@@ -266,6 +268,7 @@ func (s *Store) initializeEmptyState() {
 		Tasks: make(map[string]*TaskProgress),
 	}
 	s.workflowData = wf.NewFestivalWorkflowState()
+	s.sweepState = SweepState{LastRevisit: make(map[string]int)}
 }
 
 // migrateFromLegacy converts a legacy YAML progress file to JSONL format.
@@ -600,6 +603,17 @@ func FormatDurationWithStatus(metrics *FestivalTimeMetrics) string {
 		return "1 day (ongoing)"
 	}
 	return fmt.Sprintf("%d days (ongoing)", days)
+}
+
+// SweepState returns the end-of-festival sweep position derived from the event
+// log on the last load. The returned map is a copy: sweep state is derived on
+// every load and a caller must not be able to write into it.
+func (s *Store) SweepState() SweepState {
+	revisits := maps.Clone(s.sweepState.LastRevisit)
+	if revisits == nil {
+		revisits = make(map[string]int)
+	}
+	return SweepState{Current: s.sweepState.Current, LastRevisit: revisits}
 }
 
 // --- Workflow state accessors ---

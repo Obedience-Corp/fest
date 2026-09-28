@@ -85,7 +85,7 @@ func TestBlockedEventReplaysAttempts(t *testing.T) {
 	at := time.Date(2026, 9, 28, 12, 0, 0, 0, time.UTC)
 	attempts := []string{"checked the changelog", "asked the vendor, no replacement"}
 
-	tasks := materializeState([]ProgressEvent{
+	tasks, _ := materializeState([]ProgressEvent{
 		{Timestamp: at, Event: EventBlocked, Task: "01_test.md", Reason: "provider API removed", Attempts: attempts},
 	})
 
@@ -100,7 +100,7 @@ func TestBlockedEventReplaysAttempts(t *testing.T) {
 		t.Errorf("BlockerAttempts = %q, want %q", task.BlockerAttempts, attempts)
 	}
 
-	cleared := materializeState([]ProgressEvent{
+	cleared, _ := materializeState([]ProgressEvent{
 		{Timestamp: at, Event: EventBlocked, Task: "01_test.md", Reason: "provider API removed", Attempts: attempts},
 		{Timestamp: at.Add(time.Minute), Event: EventUnblocked, Task: "01_test.md"},
 	})
@@ -108,7 +108,7 @@ func TestBlockedEventReplaysAttempts(t *testing.T) {
 		t.Errorf("BlockerAttempts = %q, want nil after unblocked replay", cleared["01_test.md"].BlockerAttempts)
 	}
 
-	reset := materializeState([]ProgressEvent{
+	reset, _ := materializeState([]ProgressEvent{
 		{Timestamp: at, Event: EventBlocked, Task: "01_test.md", Reason: "provider API removed", Attempts: attempts},
 		{Timestamp: at.Add(time.Minute), Event: EventReset, Task: "01_test.md"},
 	})
@@ -116,7 +116,7 @@ func TestBlockedEventReplaysAttempts(t *testing.T) {
 		t.Errorf("BlockerAttempts = %q, want nil after reset replay", reset["01_test.md"].BlockerAttempts)
 	}
 
-	completed := materializeState([]ProgressEvent{
+	completed, _ := materializeState([]ProgressEvent{
 		{Timestamp: at, Event: EventBlocked, Task: "01_test.md", Reason: "provider API removed", Attempts: attempts},
 		{Timestamp: at.Add(time.Minute), Event: EventCompleted, Task: "01_test.md"},
 	})

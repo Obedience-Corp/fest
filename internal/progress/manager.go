@@ -633,6 +633,12 @@ func (m *Manager) AllTaskProgress() map[string]*TaskProgress {
 	return m.store.AllTasks()
 }
 
+// SweepState returns the end-of-festival sweep position derived from the event
+// log, for the selector to decide which deferred blockers this sweep revisits.
+func (m *Manager) SweepState() SweepState {
+	return m.store.SweepState()
+}
+
 // Store returns the underlying store for advanced operations
 func (m *Manager) Store() *Store {
 	return m.store
