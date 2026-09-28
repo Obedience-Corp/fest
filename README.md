@@ -17,16 +17,17 @@ Use the coding agent you already work with.
 </p>
 <p align="center"><em><code>fest next</code> gives your agent its next task and context. <code>fest watch</code> shows progress as the work lands.</em></p>
 
-[Get started](#get-started) · [See a real project](#a-real-project-across-three-agent-tools) · [Documentation](https://docs.fest.build/) · [Share a replay](#share-what-you-built)
+[Install](#install-festival) · [Get started](#get-started) · [See a real project](#a-real-project-across-three-agent-tools) · [Documentation](https://docs.fest.build/) · [Share a replay](#share-what-you-built)
 
 Fest is the planning and execution CLI in [Festival](https://github.com/Obedience-Corp/festival).
 The suite includes `camp` for workspaces, `fest` for plans and execution, and
 `festival` for installation and updates. Your coding agent runs the work;
 Fest supplies the next step, tracks progress, and checks configured gates.
 
-## Get started
+## Install Festival
 
-Install the Festival suite using **one** of these methods:
+Install the complete Festival suite using **one** of these methods. For just the
+planning CLI, see [Install Fest CLI only](#install-fest-cli-only).
 
 ```bash
 # macOS with Homebrew
@@ -34,16 +35,26 @@ brew install --cask Obedience-Corp/tap/festival
 
 # Or npm on macOS/Linux with Node.js installed
 npm install -g @obedience-corp/festival
+
+# Or the Festival installer script on macOS/Linux
+curl -fsSL https://raw.githubusercontent.com/Obedience-Corp/festival/main/install.sh | bash
 ```
 
-Both install `camp`, `fest`, and `festival`. Git is required. For Linux packages
+All three methods install `camp`, `fest`, and `festival`. Git is required. For Linux packages
 and other methods, see the [installation guide](https://docs.fest.build/getting-started/installation/).
 Stable Windows packages are temporarily paused; use WSL2 with a Linux install.
 
-Check the installation, then create a camp for your work:
+Check the suite installation:
 
 ```bash
 festival doctor
+```
+
+## Get started
+
+With the Festival suite installed, create a camp for your work:
+
+```bash
 camp init my-camp
 cd my-camp
 
@@ -251,6 +262,28 @@ Shell integration wraps `fest` in a function so navigation can change your
 working directory. See [shell setup](https://docs.fest.build/getting-started/shell-setup/)
 for setup details and troubleshooting.
 
+## Install Fest CLI only
+
+To install only `fest`, use Go:
+
+```bash
+go install github.com/Obedience-Corp/fest/cmd/fest@latest
+fest version
+```
+
+Use the Go version required by [go.mod](go.mod). The binary is installed in
+`$GOBIN`, or `$(go env GOPATH)/bin` when `GOBIN` is unset; that directory must be
+on your `PATH`. This installs `fest` without `camp` or the `festival` suite manager.
+The camp setup above requires the [Festival suite](#install-festival).
+
+Alternatively, build from a checkout with [just](https://github.com/casey/just):
+
+```bash
+git clone https://github.com/Obedience-Corp/fest.git
+cd fest
+just install stable           # Build and install to $GOBIN (or GOPATH/bin)
+```
+
 ## Documentation and contributing
 
 - [Festival documentation](https://docs.fest.build/): setup, tutorials, and use cases.
@@ -259,15 +292,6 @@ for setup details and troubleshooting.
 - [Lifecycle](docs/lifecycle.md): promotion and completion.
 - [Configuration](docs/configuration.md), [templates](docs/templates.md), and [hooks](docs/concepts/hooks.md): customize the workflow.
 - [Contributing](CONTRIBUTING.md): contribution requirements and sign-off policy.
-
-To build and install Fest itself from source, use the Go version required by
-[go.mod](go.mod) and install [just](https://github.com/casey/just):
-
-```bash
-git clone https://github.com/Obedience-Corp/fest.git
-cd fest
-just install stable           # Build and install to $GOBIN (or GOPATH/bin)
-```
 
 For development:
 
