@@ -27,6 +27,11 @@ type Task struct {
 	SoftDeps      []string   `json:"soft_deps"`      // Soft dependencies (preferred but not required)
 	AutonomyLevel string     `json:"autonomy_level"` // high, medium, low
 	CompletedAt   *time.Time `json:"completed_at,omitempty"`
+
+	// BlockerDeferred mirrors the progress record's deferral flag for a blocked
+	// task. The graph reasons over a snapshot, so the flag is copied in rather
+	// than read from the live store (D008).
+	BlockerDeferred bool `json:"blocker_deferred,omitempty"`
 }
 
 // Dependency represents an edge in the dependency graph

@@ -223,16 +223,18 @@ func (s *Selector) FindNextInSequence(ctx context.Context, seqPath string) (*Nex
 	readyTasks := graph.GetReadyTasks()
 
 	if len(readyTasks) == 0 {
-		// Check if sequence is complete
-		allComplete := true
+		// A sequence finishes when it has nothing left to hand out, so a
+		// deferred blocker settles it. Festival completion is a different
+		// question and keeps the done predicate.
+		allSettled := true
 		for _, task := range graph.Tasks {
-			if task.Status != "complete" {
-				allComplete = false
+			if !task.IsSettled() {
+				allSettled = false
 				break
 			}
 		}
 
-		if allComplete {
+		if allSettled {
 			return &NextTaskResult{
 				Reason:   "All tasks in sequence are complete",
 				Location: location,
@@ -446,6 +448,14 @@ func (s *Selector) updateTaskStatusesFromProgress(ctx context.Context, graph *de
 	for _, task := range graph.Tasks {
 		// ResolveTaskStatus checks YAML first, falls back to markdown
 		status := progress.ResolveTaskStatus(mgr.Store(), s.festivalPath, task.Path)
+
+		// The resolved status carries no deferral information, so the flag has
+		// to come from the record. Reset first: a graph can be reused across
+		// calls, and a stale true would leave an unblocked task looking settled.
+		task.BlockerDeferred = false
+		if record, ok := progress.ResolveTaskProgress(mgr.Store(), s.festivalPath, task.Path); ok && record != nil {
+			task.BlockerDeferred = record.BlockerDeferred
+		}
 
 		// Map progress status to deps status
 		switch status {

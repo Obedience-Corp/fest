@@ -382,16 +382,17 @@ func materializeTimeMetrics(events []ProgressEvent, tasks map[string]*TaskProgre
 		metrics.TotalWorkMinutes += task.TimeSpentMinutes
 	}
 
-	// Check if all tasks are completed to set completion time
-	allComplete := len(tasks) > 0
+	// Completion uses the done predicate, so a deferred blocker leaves
+	// CompletedAt nil. A forced completion sets it elsewhere.
+	allDone := len(tasks) > 0
 	for _, task := range tasks {
-		if task.Status != StatusCompleted {
-			allComplete = false
+		if !task.IsDone() {
+			allDone = false
 			break
 		}
 	}
 
-	if allComplete {
+	if allDone {
 		metrics.CompletedAt = &latest
 		metrics.LifecycleDuration = int(latest.Sub(earliest).Hours() / 24)
 	}

@@ -724,7 +724,7 @@ func (m *Manager) propagateSequenceCompletion(ctx context.Context, seqPath strin
 		return errors.Wrap(err, "getting sequence progress")
 	}
 
-	if seqProgress.Progress.Total == 0 || seqProgress.Progress.Completed < seqProgress.Progress.Total {
+	if seqProgress.Progress.Total == 0 || seqProgress.Progress.Settled < seqProgress.Progress.Total {
 		return nil
 	}
 
@@ -740,7 +740,7 @@ func (m *Manager) propagatePhaseCompletion(ctx context.Context, phasePath string
 		return errors.Wrap(err, "getting phase progress")
 	}
 
-	if phaseProgress.Progress.Total == 0 || phaseProgress.Progress.Completed < phaseProgress.Progress.Total {
+	if phaseProgress.Progress.Total == 0 || phaseProgress.Progress.Settled < phaseProgress.Progress.Total {
 		return nil
 	}
 
