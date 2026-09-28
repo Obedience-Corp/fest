@@ -13,6 +13,10 @@ Use the coding agent you already work with.
 </p>
 
 <p align="center">
+  <img src="docs/images/banner.jpg" alt="Festival Methodology Banner" width="280">
+</p>
+
+<p align="center">
   <img src="docs/images/fest-loop.gif" alt="fest next printing the next task, then fest watch showing completed tasks and progress in the festival tree" width="700">
 </p>
 <p align="center"><em><code>fest next</code> gives your agent its next task and context. <code>fest watch</code> shows progress as the work lands.</em></p>
