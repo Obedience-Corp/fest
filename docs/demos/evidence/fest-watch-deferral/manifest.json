@@ -1,0 +1,105 @@
+{
+  "artifacts": {
+    "optimization_note": null,
+    "optimized": {
+      "byte_size": 67804,
+      "duration_ms": 13650.0,
+      "format": "gif",
+      "fps": 20.0,
+      "frame_count": 273,
+      "height": 640,
+      "path": "evidence/optimized.gif",
+      "sha256": "d5aad9c7f51cc2d77a482f4670d7b268418d471ed433d4fe2dfece3da519ff91",
+      "width": 960
+    },
+    "raw": {
+      "byte_size": 99045,
+      "duration_ms": 13640.0,
+      "format": "gif",
+      "fps": 25.0,
+      "frame_count": 341,
+      "height": 800,
+      "path": "evidence/raw.gif",
+      "sha256": "7bd0a4601c84d3875f1bf6ec121d024d32b9ab137413e58a3483d2749c372fe7",
+      "width": 1200
+    }
+  },
+  "fixture": {
+    "disposable": true,
+    "fake_home": true,
+    "id": "fest-watch-deferral"
+  },
+  "gist": {
+    "markdown": null,
+    "page_url": null,
+    "raw_url": null,
+    "visibility": "pending"
+  },
+  "journey": "fest-watch-deferral",
+  "privacy": {
+    "result": "passed",
+    "scan_path": "evidence/privacy-scan.txt",
+    "scan_sha256": "ae58d897cc4fc74dca35a4c1829e643c8e5375249e3e9040364b487e26e476be"
+  },
+  "pty": {
+    "fake_home": true,
+    "fixture_id": "fest-watch-deferral",
+    "pyte_version": "0.8.2",
+    "renderer": "pyte",
+    "snapshots_path": "evidence/screen-snapshots.json",
+    "snapshots_sha256": "495f5f6c96fb00c75e6f6f8b4f0fb2e2b273a330d3041bdbbaa26557b3a32bd2",
+    "states": [
+      "blocked",
+      "deferred"
+    ],
+    "terminal": {
+      "columns": 120,
+      "mode": "xterm-256color",
+      "pixel_height": 800,
+      "pixel_width": 1200,
+      "rows": 40
+    },
+    "transcript_path": "evidence/pty-transcript.txt",
+    "transcript_sha256": "3aaacebe33abbfe6c038bf933030b9691aff4f5bbc133f2ece18874fd9d7c3cb",
+    "transport": "pty"
+  },
+  "repository": "fest",
+  "review": {
+    "recorded_at": null,
+    "reviewed_at": null,
+    "reviewer": "unreviewed"
+  },
+  "schema_version": 1,
+  "source": {
+    "binary": {
+      "executable": true,
+      "path": "bin/fest",
+      "sha256": "77b7af6061861bced29f0c4c6b56372720d6e359250386f1e51780655fd45968"
+    },
+    "dependencies": {
+      "path": "evidence/dependencies.txt",
+      "sha256": "fda588f1cd50c62bc21f57f865efcd3e0dc08727a9a78d39aaa75243d14e65f9",
+      "versions": [
+        "fest ff54d64a (built from source in this worktree)",
+        "pyte 0.8.2",
+        "vhs version 0.11.0",
+        "Python 3.14.6",
+        "ffmpeg version 8.1.2 Copyright (c) 2000-2026 the FFmpeg developers",
+        "go version go1.26.7 darwin/arm64"
+      ]
+    },
+    "revision": "ff54d64abc852d13666db6f4cd68009edf039c9b",
+    "tape": {
+      "path": "docs/demos/fest-watch-deferral.tape",
+      "sha256": "18e0701403cf08ee4fc284796bf472dc89817d9903efd31b998aa2a845be58e4"
+    }
+  },
+  "validation": {
+    "command": "just vhs bundle <evidence-dir> <binary> <tape> <fixture-id>",
+    "expected_states": [
+      "blocked",
+      "deferred"
+    ],
+    "result": "passed"
+  }
+}

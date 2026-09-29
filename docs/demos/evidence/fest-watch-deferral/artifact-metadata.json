@@ -1,0 +1,23 @@
+{
+  "optimization_note": null,
+  "optimized": {
+    "byte_size": 67804,
+    "duration_ms": 13650.0,
+    "format": "gif",
+    "fps": 20.0,
+    "frame_count": 273,
+    "height": 640,
+    "sha256": "d5aad9c7f51cc2d77a482f4670d7b268418d471ed433d4fe2dfece3da519ff91",
+    "width": 960
+  },
+  "raw": {
+    "byte_size": 99045,
+    "duration_ms": 13640.0,
+    "format": "gif",
+    "fps": 25.0,
+    "frame_count": 341,
+    "height": 800,
+    "sha256": "7bd0a4601c84d3875f1bf6ec121d024d32b9ab137413e58a3483d2749c372fe7",
+    "width": 1200
+  }
+}

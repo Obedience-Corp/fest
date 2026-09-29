@@ -1,0 +1,9 @@
+row index: blocked=7 deferred=7
+rendered row (blocked):  '        ├── ■ 02_transform.md'
+rendered row (deferred): '        ├── ■ 02_transform.md'
+columns compared: 29 (the full drawn width of the row)
+columns masked: none. The row carries no timestamp or elapsed-time field, so nothing was masked.
+cell diff: empty. Character, foreground, background and every attribute bit are identical in both recordings.
+
+whole-screen comparison, every drawn row:
+  no row differs. fest watch draws the two states identically.

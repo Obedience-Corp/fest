@@ -1,0 +1,7 @@
+# Versions of everything that produced this evidence.
+fest ff54d64a (built from source in this worktree)
+pyte 0.8.2
+vhs version 0.11.0
+Python 3.14.6
+ffmpeg version 8.1.2 Copyright (c) 2000-2026 the FFmpeg developers
+go version go1.26.7 darwin/arm64
