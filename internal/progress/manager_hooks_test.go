@@ -437,7 +437,7 @@ func TestReportBlockerBeforeStartKeepsStartHooksArmed(t *testing.T) {
 		t.Fatalf("reporting a pre-start blocker ran start hooks: %v", called)
 	}
 
-	if err := mgr.ClearBlocker(context.Background(), "001_PHASE/01_seq/01_task.md"); err != nil {
+	if err := mgr.ClearBlocker(context.Background(), "001_PHASE/01_seq/01_task.md", ""); err != nil {
 		t.Fatalf("ClearBlocker: %v", err)
 	}
 	if err := mgr.MarkInProgress(context.Background(), "001_PHASE/01_seq/01_task.md"); err != nil {

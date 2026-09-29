@@ -13,7 +13,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var unblockJSON bool
+var (
+	unblockJSON bool
+	unblockNote string
+)
 
 func newUnblockCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -22,7 +25,11 @@ func newUnblockCmd() *cobra.Command {
 		Long: `Clear a task's blocker, returning it to in_progress.
 
 This is a frictionless forward-motion signal and does not prompt for
-confirmation. When [task] is omitted the current task is auto-detected.`,
+confirmation. When [task] is omitted the current task is auto-detected.
+
+Pass --note to tell the executor what to try. The note is stored on the task and
+rendered under it by the next fest next, so the executor sees it even if it is
+not running right now.`,
 		Args: cobra.MaximumNArgs(1),
 		Annotations: map[string]string{
 			"scope": string(scope.Festival),
@@ -31,6 +38,8 @@ confirmation. When [task] is omitted the current task is auto-detected.`,
 	}
 
 	cmd.Flags().BoolVar(&unblockJSON, "json", false, "output as JSON")
+	cmd.Flags().StringVar(&unblockNote, "note", "",
+		"feedback for the executor, shown under the task on the next fest next")
 
 	return cmd
 }
@@ -66,7 +75,7 @@ func runUnblock(cmd *cobra.Command, args []string) error {
 		return errors.Wrap(err, "loading progress")
 	}
 
-	if err := mgr.ClearBlocker(ctx, taskID); err != nil {
+	if err := mgr.ClearBlocker(ctx, taskID, unblockNote); err != nil {
 		return err
 	}
 
@@ -75,6 +84,9 @@ func runUnblock(cmd *cobra.Command, args []string) error {
 			"success": true,
 			"task":    taskID,
 			"cleared": true,
+		}
+		if unblockNote != "" {
+			result["note"] = unblockNote
 		}
 		return shared.EncodeJSON(os.Stdout, result)
 	}

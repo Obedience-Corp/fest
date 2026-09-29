@@ -54,9 +54,11 @@ func setupActiveFestival(t *testing.T) (string, string) {
 func resetTaskFlags() {
 	completedJSON, completedYes = false, false
 	blockedJSON, blockedYes, blockedReason = false, false, ""
+	blockedTried = nil
 	resetJSON, resetYes = false, false
 	updateJSON = false
-	unblockJSON = false
+	unblockJSON, unblockNote = false, ""
+	deferReason = ""
 }
 
 // captureIO redirects stdin to an EOF (non-TTY) pipe and captures stdout for the

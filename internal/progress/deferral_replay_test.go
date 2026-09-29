@@ -187,7 +187,7 @@ func TestLiveMutationAndReplayProduceIdenticalState(t *testing.T) {
 	if err := mgr.ReportBlocker(ctx, resetTaskID, "waiting", []string{"retried once"}); err != nil {
 		t.Fatalf("ReportBlocker() error = %v", err)
 	}
-	if err := mgr.ClearBlocker(ctx, resetTaskID); err != nil {
+	if err := mgr.ClearBlocker(ctx, resetTaskID, ""); err != nil {
 		t.Fatalf("ClearBlocker() error = %v", err)
 	}
 	if err := mgr.ResetTask(ctx, resetTaskID); err != nil {

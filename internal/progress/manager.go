@@ -484,6 +484,55 @@ func (m *Manager) ReportBlocker(ctx context.Context, taskID, message string, att
 	})
 }
 
+// DeferBlocker records an operator's decision to let a blocked task wait until
+// the end of the festival. Status stays blocked and the frontmatter is not
+// touched: the progress store is the only source of truth for a deferral
+// (D006).
+func (m *Manager) DeferBlocker(ctx context.Context, taskID, reason string, audit DeferralAudit) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled")
+	}
+	if err := m.gate.EnforceForTask(ctx, taskID); err != nil {
+		return err
+	}
+
+	if reason == "" {
+		return errors.Validation("deferral reason required")
+	}
+
+	return m.store.withExclusiveLock(ctx, func() error {
+		task, exists := m.store.GetTask(taskID)
+		if !exists || task.Status != StatusBlocked {
+			return errors.Validation("only a blocked task can be deferred").
+				WithField("taskID", taskID).
+				WithHint("report the blocker first with 'fest task blocked --reason'")
+		}
+
+		now := time.Now().UTC()
+		task.BlockerDeferred = true
+		task.BlockerDeferredAt = &now
+		task.BlockerDeferredBy = audit.DeferredBy
+		task.DeferralReason = reason
+
+		m.store.QueueEvent(&ProgressEvent{
+			Timestamp:      now,
+			Event:          EventBlockerDeferred,
+			Task:           taskID,
+			Reason:         task.BlockerMessage,
+			Attempts:       task.BlockerAttempts,
+			DeferralReason: reason,
+			DeferredBy:     audit.DeferredBy,
+			Actor:          audit.Actor,
+			TTY:            audit.TTY,
+			AgentMarkers:   audit.AgentMarkers,
+			Ancestry:       audit.Ancestry,
+		})
+
+		m.store.SetTask(task)
+		return m.store.Save(ctx)
+	})
+}
+
 // ResetTask resets a task back to pending status, clearing all progress data.
 func (m *Manager) ResetTask(ctx context.Context, taskID string) error {
 	if err := ctx.Err(); err != nil {
@@ -578,8 +627,10 @@ func (m *Manager) emitActivity(ctx context.Context, eventName, taskID string, da
 	e.Emit(ctx, eventName, scope, "fest task "+eventName, activity.WithData(data))
 }
 
-// ClearBlocker clears a blocker for a task
-func (m *Manager) ClearBlocker(ctx context.Context, taskID string) error {
+// ClearBlocker clears a blocker for a task. A non-empty note is the operator's
+// feedback to the executor and is appended after the clears, so an unblocked
+// task carries exactly the latest note (D004).
+func (m *Manager) ClearBlocker(ctx context.Context, taskID, note string) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
 	}
@@ -601,6 +652,9 @@ func (m *Manager) ClearBlocker(ctx context.Context, taskID string) error {
 		task.BlockerMessage = ""
 		task.BlockedAt = nil
 		task.clearDeferral()
+		if note != "" {
+			task.OperatorNotes = append(task.OperatorNotes, note)
+		}
 
 		// Return to in_progress if was blocked
 		if task.Status == StatusBlocked {
@@ -612,6 +666,7 @@ func (m *Manager) ClearBlocker(ctx context.Context, taskID string) error {
 			Timestamp: now,
 			Event:     EventUnblocked,
 			Task:      taskID,
+			Note:      note,
 		})
 
 		m.store.SetTask(task)

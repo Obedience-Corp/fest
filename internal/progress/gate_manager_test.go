@@ -35,7 +35,7 @@ func TestManager_GateBlocksMutations(t *testing.T) {
 		{"MarkInProgress", func() error { return mgr.MarkInProgress(ctx, "001/01/01_t.md") }},
 		{"ReportBlocker", func() error { return mgr.ReportBlocker(ctx, "001/01/01_t.md", "x", nil) }},
 		{"ResetTask", func() error { return mgr.ResetTask(ctx, "001/01/01_t.md") }},
-		{"ClearBlocker", func() error { return mgr.ClearBlocker(ctx, "001/01/01_t.md") }},
+		{"ClearBlocker", func() error { return mgr.ClearBlocker(ctx, "001/01/01_t.md", "") }},
 	}
 
 	for _, tc := range cases {
@@ -87,7 +87,7 @@ func TestManager_NoopGateAllowsMutations(t *testing.T) {
 		if err := mgr.ReportBlocker(ctx, "001/01/06_t.md", "blocker", nil); err != nil {
 			t.Fatalf("seed ReportBlocker: %v", err)
 		}
-		if err := mgr.ClearBlocker(ctx, "001/01/06_t.md"); err != nil {
+		if err := mgr.ClearBlocker(ctx, "001/01/06_t.md", ""); err != nil {
 			t.Errorf("ClearBlocker with NoopGate should not error, got: %v", err)
 		}
 	})

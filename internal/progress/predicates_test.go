@@ -106,7 +106,7 @@ func TestManagerClearsDeferralOnLifecycleTransitions(t *testing.T) {
 		name string
 		call func(mgr *Manager, taskID string) error
 	}{
-		{"ClearBlocker", func(mgr *Manager, taskID string) error { return mgr.ClearBlocker(ctx, taskID) }},
+		{"ClearBlocker", func(mgr *Manager, taskID string) error { return mgr.ClearBlocker(ctx, taskID, "") }},
 		{"MarkComplete", func(mgr *Manager, taskID string) error { return mgr.MarkComplete(ctx, taskID) }},
 		{"ResetTask", func(mgr *Manager, taskID string) error { return mgr.ResetTask(ctx, taskID) }},
 	}

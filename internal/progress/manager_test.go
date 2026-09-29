@@ -179,7 +179,7 @@ func TestManager_ClearBlocker(t *testing.T) {
 	}
 
 	// Clear it
-	err = mgr.ClearBlocker(ctx, "01_test.md")
+	err = mgr.ClearBlocker(ctx, "01_test.md", "")
 	if err != nil {
 		t.Fatalf("ClearBlocker() error = %v", err)
 	}
@@ -371,7 +371,7 @@ func TestManager_BlockerPersistence(t *testing.T) {
 	}
 
 	// Clear the blocker
-	if err := mgr1.ClearBlocker(ctx, "01_task.md"); err != nil {
+	if err := mgr1.ClearBlocker(ctx, "01_task.md", ""); err != nil {
 		t.Fatalf("ClearBlocker() error = %v", err)
 	}
 

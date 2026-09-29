@@ -42,7 +42,8 @@ Examples:
   fest task blocked --reason "need API"   # Mark task blocked (Y/n)
   fest task reset                         # Reset task to pending (Y/n)
   fest task update 50%                    # Set progress to 50%
-  fest task unblock                       # Clear a blocker, resume work`,
+  fest task unblock                       # Clear a blocker, resume work
+  fest task defer --reason "vendor reply"  # Operator: let a blocker wait (no --yes)`,
 	}
 
 	cmd.AddCommand(
@@ -50,6 +51,7 @@ Examples:
 		newEditCmd(),
 		newCompletedCmd(),
 		newBlockedCmd(),
+		newDeferCmd(),
 		newResetCmd(),
 		newUpdateCmd(),
 		newUnblockCmd(),
