@@ -4,7 +4,7 @@
 #   just build quick
 #   FEST_VHS_ROOT="$(mktemp -d)" just vhs record docs/demos/fest-watch-deferral.tape
 
-Output docs/demos/evidence/fest-watch-deferral/raw.gif
+Output docs/demos/fest-watch-deferral.gif
 
 Set Shell "bash"
 Set FontFamily "JetBrainsMono Nerd Font"

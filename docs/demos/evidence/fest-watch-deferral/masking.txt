@@ -1,7 +1,0 @@
-Masked columns: none.
-
-The fest watch row for a task is "        |-- <icon> <task file name>". It
-carries no timestamp and no elapsed-time field, so there was nothing to mask and
-nothing was masked defensively. All 120 columns of the row were compared, cell
-by cell, including foreground, background, bold, italics, underscore, reverse,
-strikethrough and blink. See row-diff.txt.
