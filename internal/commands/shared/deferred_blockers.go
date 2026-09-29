@@ -69,22 +69,40 @@ func DeferredBlockerRefusal(state DeferredBlockerState) string {
 	return out.String()
 }
 
-// WriteDroppedBlockerRecord writes the record of what a forced completion
-// dropped into the festival, so it travels with the festival into the dungeon.
+// WriteDroppedBlockerRecord appends the record of what a forced completion
+// dropped to the festival's record file, so it travels with the festival into
+// the dungeon. The file is never truncated: a festival that is reopened and
+// forced again keeps every earlier record, and a user file at the same path
+// keeps its content.
 func WriteDroppedBlockerRecord(festivalPath string, state DeferredBlockerState) (string, error) {
 	if !state.Open() {
 		return "", nil
 	}
 
+	recordPath := filepath.Join(festivalPath, DroppedBlockerRecordFile)
+	existing, err := os.ReadFile(recordPath)
+	if err != nil && !os.IsNotExist(err) {
+		return "", errors.IO("reading the dropped blocker record", err).WithField("path", recordPath)
+	}
+
 	var out strings.Builder
-	out.WriteString("# Dropped blockers\n\n")
+	switch {
+	case len(existing) == 0:
+		out.WriteString("# Dropped blockers\n\n")
+	case !strings.HasSuffix(string(existing), "\n\n"):
+		if strings.HasSuffix(string(existing), "\n") {
+			out.WriteString("\n")
+		} else {
+			out.WriteString("\n\n")
+		}
+	}
+	out.WriteString("## Forced at " + time.Now().UTC().Format(time.RFC3339) + " after sweep " +
+		strconv.Itoa(state.Sweep) + "\n\n")
 	out.WriteString("This festival was completed with `--force` while " +
-		strconv.Itoa(len(state.Tasks)) + " blocker(s) were still deferred.\n")
-	out.WriteString("Forced at " + time.Now().UTC().Format(time.RFC3339) + " after sweep " +
-		strconv.Itoa(state.Sweep) + ".\n\n")
+		strconv.Itoa(len(state.Tasks)) + " blocker(s) were still deferred.\n\n")
 
 	for _, task := range state.Tasks {
-		out.WriteString("## " + task.TaskID + "\n\n")
+		out.WriteString("### " + task.TaskID + "\n\n")
 		out.WriteString("- **Blocker:** " + fallback(task.BlockerMessage, "not recorded") + "\n")
 		out.WriteString("- **Deferral reason:** " + fallback(task.DeferralReason, "not recorded") + "\n")
 		out.WriteString("- **Deferred by:** " + fallback(task.BlockerDeferredBy, "not recorded") + "\n")
@@ -104,9 +122,16 @@ func WriteDroppedBlockerRecord(festivalPath string, state DeferredBlockerState) 
 		out.WriteString("\n")
 	}
 
-	recordPath := filepath.Join(festivalPath, DroppedBlockerRecordFile)
-	if err := os.WriteFile(recordPath, []byte(out.String()), 0o644); err != nil {
+	f, err := os.OpenFile(recordPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	if err != nil {
+		return "", errors.IO("opening the dropped blocker record", err).WithField("path", recordPath)
+	}
+	if _, err := f.WriteString(out.String()); err != nil {
+		_ = f.Close()
 		return "", errors.IO("writing the dropped blocker record", err).WithField("path", recordPath)
+	}
+	if err := f.Close(); err != nil {
+		return "", errors.IO("closing the dropped blocker record", err).WithField("path", recordPath)
 	}
 	return recordPath, nil
 }
