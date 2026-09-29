@@ -64,7 +64,7 @@ func TestOperatorGuardRefusesEachAgentMarker(t *testing.T) {
 	stubOperatorGuardTerminal(t, true)
 	stubOperatorGuardAncestry(t, []string{"zsh"}, nil)
 
-	for _, marker := range []string{"OBEY_AGENT", "CLAUDE_CODE", "CODEX_TASK", "OBEY_SESSION_ID"} {
+	for _, marker := range []string{"OBEY_AGENT", "CLAUDE_CODE", "CLAUDECODE", "CLAUDE_CODE_SESSION_ID", "CODEX_TASK", "OBEY_SESSION_ID"} {
 		t.Run(marker, func(t *testing.T) {
 			clearOperatorAgentMarkers(t)
 			t.Setenv(marker, "1")

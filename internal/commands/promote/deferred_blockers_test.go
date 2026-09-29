@@ -69,7 +69,7 @@ func passingAudit() *task.OperatorAudit {
 	return &task.OperatorAudit{
 		Actor:        "operator",
 		TTY:          true,
-		AgentMarkers: []string{"OBEY_AGENT", "CLAUDE_CODE", "CODEX_TASK", "OBEY_SESSION_ID"},
+		AgentMarkers: []string{"OBEY_AGENT", "CLAUDE_CODE", "CLAUDECODE", "CLAUDE_CODE_SESSION_ID", "CODEX_TASK", "OBEY_SESSION_ID"},
 		Ancestry:     []string{"zsh", "login"},
 		DeferredBy:   "Ada Lovelace",
 	}

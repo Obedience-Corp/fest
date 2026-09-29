@@ -48,6 +48,8 @@ var operatorGuardStdinIsTerminal = func() bool {
 var operatorAgentMarkers = []string{
 	"OBEY_AGENT",
 	"CLAUDE_CODE",
+	"CLAUDECODE",
+	"CLAUDE_CODE_SESSION_ID",
 	"CODEX_TASK",
 	continuation.EnvSessionID,
 }

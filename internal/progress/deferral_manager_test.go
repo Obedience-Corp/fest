@@ -16,7 +16,7 @@ func deferTestAudit() DeferralAudit {
 	return DeferralAudit{
 		Actor:        "operator",
 		TTY:          true,
-		AgentMarkers: []string{"OBEY_AGENT", "CLAUDE_CODE", "CODEX_TASK", "OBEY_SESSION_ID"},
+		AgentMarkers: []string{"OBEY_AGENT", "CLAUDE_CODE", "CLAUDECODE", "CLAUDE_CODE_SESSION_ID", "CODEX_TASK", "OBEY_SESSION_ID"},
 		Ancestry:     []string{"zsh", "login"},
 		DeferredBy:   "Ada Lovelace",
 	}
@@ -139,8 +139,8 @@ func TestDeferBlockerRecordsTheDeferralAndLeavesTheStatusBlocked(t *testing.T) {
 	if deferred.Actor != "operator" || !deferred.TTY {
 		t.Errorf("event actor/tty = %q/%v, want operator/true", deferred.Actor, deferred.TTY)
 	}
-	if strings.Join(deferred.AgentMarkers, ",") != "OBEY_AGENT,CLAUDE_CODE,CODEX_TASK,OBEY_SESSION_ID" {
-		t.Errorf("event agent_markers = %v, want the four checked markers", deferred.AgentMarkers)
+	if strings.Join(deferred.AgentMarkers, ",") != "OBEY_AGENT,CLAUDE_CODE,CLAUDECODE,CLAUDE_CODE_SESSION_ID,CODEX_TASK,OBEY_SESSION_ID" {
+		t.Errorf("event agent_markers = %v, want every checked marker", deferred.AgentMarkers)
 	}
 	if strings.Join(deferred.Ancestry, ",") != "zsh,login" {
 		t.Errorf("event ancestry = %v, want the recorded chain", deferred.Ancestry)
