@@ -261,6 +261,25 @@ func (m *Manager) DeferredTasks() []*TaskProgress {
 	return DeferredTasks(m.store)
 }
 
+// SplitBlockers separates a blocked set into the blockers no operator has
+// deferred and the ones an operator has, preserving the order it is given.
+// It splits on the flag each record already carries rather than subtracting
+// AggregateProgress.DeferredBlockers from AggregateProgress.Blockers, because
+// subtraction by pointer identity is fragile and the flag is authoritative.
+func SplitBlockers(blockers []*TaskProgress) (open, deferred []*TaskProgress) {
+	for _, blocker := range blockers {
+		if blocker == nil {
+			continue
+		}
+		if blocker.BlockerDeferred {
+			deferred = append(deferred, blocker)
+			continue
+		}
+		open = append(open, blocker)
+	}
+	return open, deferred
+}
+
 // RecordForcedCompletion appends the record of an operator forcing a festival
 // complete over open deferred blockers. The deferral fields are deliberately
 // left alone: a reopened festival must still sweep (design doc 05 D6 and H6).

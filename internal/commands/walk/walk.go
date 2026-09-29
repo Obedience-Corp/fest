@@ -50,6 +50,14 @@ type walkProgress struct {
 type walkBlocker struct {
 	Task   string `json:"task"`
 	Reason string `json:"reason"`
+
+	// Deferred and DeferralReason are additive and omitted when unset, so a
+	// festival with nothing deferred emits the JSON it emitted before they
+	// existed. The walk view is a scan, so only Deferred is rendered; the
+	// reason travels for a consumer that wants it (D004 audit lives in
+	// fest task blocked --list --deferred).
+	Deferred       bool   `json:"deferred,omitzero"`
+	DeferralReason string `json:"deferral_reason,omitempty"`
 }
 
 // NewWalkCommand creates the walk/inspect command.
@@ -161,8 +169,10 @@ func runWalk(ctx context.Context, opts *walkOptions) error {
 			}
 			for _, b := range festProgress.Overall.Blockers {
 				view.Blocked = append(view.Blocked, walkBlocker{
-					Task:   b.TaskID,
-					Reason: b.BlockerMessage,
+					Task:           b.TaskID,
+					Reason:         b.BlockerMessage,
+					Deferred:       b.BlockerDeferred,
+					DeferralReason: b.DeferralReason,
 				})
 			}
 		}
@@ -486,18 +496,7 @@ func emitStandaloneText(view *WalkView, info *show.StandaloneWorkflowInfo, campa
 		fmt.Printf("%s\n", view.Next)
 	}
 
-	if len(view.Blocked) > 0 {
-		fmt.Println()
-		fmt.Println(ui.H2("Blocked"))
-		fmt.Println(ui.Dim(strings.Repeat("─", 60)))
-		for _, b := range view.Blocked {
-			if b.Reason != "" {
-				fmt.Printf("%s %s %s\n", ui.StateIcon("blocked"), ui.Value(b.Task, ui.TaskColor), ui.Dim(b.Reason))
-			} else {
-				fmt.Printf("%s %s\n", ui.StateIcon("blocked"), ui.Value(b.Task, ui.TaskColor))
-			}
-		}
-	}
+	printWalkBlocked(view.Blocked)
 
 	if len(view.Warnings) > 0 {
 		fmt.Println()
@@ -509,6 +508,29 @@ func emitStandaloneText(view *WalkView, info *show.StandaloneWorkflowInfo, campa
 	}
 
 	return nil
+}
+
+// printWalkBlocked draws the Blocked section for both text emitters. A
+// deferred entry keeps its icon, its colour and its place in the list; the only
+// difference is a dim deferred suffix, so nothing disappears from the scan.
+func printWalkBlocked(blocked []walkBlocker) {
+	if len(blocked) == 0 {
+		return
+	}
+
+	fmt.Println()
+	fmt.Println(ui.H2("Blocked"))
+	fmt.Println(ui.Dim(strings.Repeat("─", 60)))
+	for _, b := range blocked {
+		line := ui.StateIcon("blocked") + " " + ui.Value(b.Task, ui.TaskColor)
+		if b.Reason != "" {
+			line += " " + ui.Dim(b.Reason)
+		}
+		if b.Deferred {
+			line += " " + ui.Dim("deferred")
+		}
+		fmt.Println(line)
+	}
 }
 
 func emitText(view *WalkView, festivalPath, campaignRoot string) error {
@@ -552,18 +574,7 @@ func emitText(view *WalkView, festivalPath, campaignRoot string) error {
 		fmt.Printf("%s\n", view.Next)
 	}
 
-	if len(view.Blocked) > 0 {
-		fmt.Println()
-		fmt.Println(ui.H2("Blocked"))
-		fmt.Println(ui.Dim(strings.Repeat("─", 60)))
-		for _, b := range view.Blocked {
-			if b.Reason != "" {
-				fmt.Printf("%s %s %s\n", ui.StateIcon("blocked"), ui.Value(b.Task, ui.TaskColor), ui.Dim(b.Reason))
-			} else {
-				fmt.Printf("%s %s\n", ui.StateIcon("blocked"), ui.Value(b.Task, ui.TaskColor))
-			}
-		}
-	}
+	printWalkBlocked(view.Blocked)
 
 	if len(view.Gates) > 0 {
 		fmt.Println()

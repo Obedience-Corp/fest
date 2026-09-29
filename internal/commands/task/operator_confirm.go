@@ -67,10 +67,16 @@ func taskNumberFrom(taskID string) string {
 }
 
 func humanDuration(since *time.Time) string {
+	return humanDurationAt(time.Now(), since)
+}
+
+// humanDurationAt takes the reference time so a rendered age can be asserted
+// against a golden without depending on the wall clock.
+func humanDurationAt(now time.Time, since *time.Time) string {
 	if since == nil {
 		return "unknown"
 	}
-	return ui.FormatDuration(int(time.Since(*since).Minutes()))
+	return ui.FormatDuration(int(now.Sub(*since).Minutes()))
 }
 
 // gitUserName resolves the deferring operator's name. Any failure yields an

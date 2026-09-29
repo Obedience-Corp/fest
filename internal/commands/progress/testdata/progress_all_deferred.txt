@@ -1,0 +1,24 @@
+FESTIVAL PROGRESS
+─────────────────
+Festival 001
+────────────────────────────────────────────────────────────
+
+Overall ░░░░░░░░░░░░░░░░░░░░ 0% (0/3 tasks)
+■ 2 task(s) blocked (2 deferred)
+
+Time Tracking
+────────────────────────────────────────────────────────────
+Work time 0m (agent runtime)
+Duration <normalised> (calendar time)
+
+Phases
+────────────────────────────────────────────────────────────
+○ 001_PHASE   0% (0/3 tasks)
+
+Blockers
+────────────────────────────────────────────────────────────
+Deferred
+■ 001_PHASE/01_seq/01_cache_warmup.md provider API removed; warm-up not possible
+    deferred: the vendor replies next week
+■ 001_PHASE/01_seq/02_legacy_import.md upstream schema gone
+    deferred: revisit after the v2 migration lands

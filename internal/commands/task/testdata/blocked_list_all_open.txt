@@ -1,0 +1,10 @@
+Blockers
+
+Open
+  ■ 001_PHASE/01_seq/01_cache_warmup.md provider API removed; warm-up not possible
+      blocked 3d ago
+      tried: checked the changelog
+      tried: asked the vendor, no replacement
+  ■ 001_PHASE/01_seq/02_legacy_import.md upstream schema gone
+      blocked 6d ago
+      tried: read the migration notes

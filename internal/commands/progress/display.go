@@ -57,9 +57,13 @@ func showFestivalProgress(ctx context.Context, mgr *progress.Manager, loc *show.
 		ui.Dim(fmt.Sprintf("(%d/%d tasks)", overall.Completed, overall.Total)))
 
 	if overall.Blocked > 0 {
-		fmt.Printf("%s %s\n",
-			ui.StateIcon("blocked"),
-			ui.Value(fmt.Sprintf("%d task(s) blocked", overall.Blocked), ui.WarningColor))
+		// Blocked keeps counting every blocked task, deferred or not, so a
+		// deferral never makes the number fall and hide the work (D010).
+		text := fmt.Sprintf("%d task(s) blocked", overall.Blocked)
+		if overall.DeferredBlocked > 0 {
+			text = fmt.Sprintf("%d task(s) blocked (%d deferred)", overall.Blocked, overall.DeferredBlocked)
+		}
+		fmt.Printf("%s %s\n", ui.StateIcon("blocked"), ui.Value(text, ui.WarningColor))
 	}
 
 	// Time Tracking section
@@ -174,17 +178,46 @@ func showFestivalProgress(ctx context.Context, mgr *progress.Manager, loc *show.
 
 	// Show blockers if any
 	if len(overall.Blockers) > 0 {
+		open, deferred := progress.SplitBlockers(overall.Blockers)
+
 		fmt.Printf("\n%s\n", ui.H2("Blockers"))
 		fmt.Println(ui.Dim(strings.Repeat("─", 60)))
-		for _, blocker := range overall.Blockers {
-			fmt.Printf("%s %s %s\n",
-				ui.StateIcon("blocked"),
-				ui.Value(blocker.TaskID, ui.TaskColor),
-				ui.Dim(blocker.BlockerMessage))
+
+		// With nothing deferred the section renders exactly as it did before
+		// the split existed. The group headings appear only when there is
+		// something to separate.
+		if len(deferred) == 0 {
+			for _, blocker := range open {
+				printBlocker(blocker)
+			}
+		} else {
+			if len(open) > 0 {
+				fmt.Printf("%s\n", ui.Dim("Open"))
+				for _, blocker := range open {
+					printBlocker(blocker)
+				}
+			}
+			fmt.Printf("%s\n", ui.Dim("Deferred"))
+			for _, blocker := range deferred {
+				printBlocker(blocker)
+				if blocker.DeferralReason != "" {
+					fmt.Printf("    %s\n", ui.Dim("deferred: "+blocker.DeferralReason))
+				}
+			}
 		}
 	}
 
 	return nil
+}
+
+// printBlocker draws one blocker row. A deferred blocker is drawn exactly like
+// an open one so the icon and colour never signal that a deferral changed the
+// task's state; only the section it sits in changes.
+func printBlocker(blocker *progress.TaskProgress) {
+	fmt.Printf("%s %s %s\n",
+		ui.StateIcon("blocked"),
+		ui.Value(blocker.TaskID, ui.TaskColor),
+		ui.Dim(blocker.BlockerMessage))
 }
 
 func showPhaseProgress(ctx context.Context, mgr *progress.Manager, loc *show.LocationInfo, opts *progressOptions) error {

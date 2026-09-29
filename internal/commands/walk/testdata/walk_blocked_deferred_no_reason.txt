@@ -1,0 +1,10 @@
+FESTIVAL WALK
+─────────────
+Festival walk-demo
+Kind festival
+Status active
+Path festivals/active/walk-demo
+
+Blocked
+────────────────────────────────────────────────────────────
+■ 001_PHASE/01_seq/02_legacy_import.md deferred

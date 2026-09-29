@@ -55,6 +55,7 @@ func resetTaskFlags() {
 	completedJSON, completedYes = false, false
 	blockedJSON, blockedYes, blockedReason = false, false, ""
 	blockedTried = nil
+	blockedList, blockedListOpen, blockedListDeferred = false, false, false
 	resetJSON, resetYes = false, false
 	updateJSON = false
 	unblockJSON, unblockNote = false, ""
