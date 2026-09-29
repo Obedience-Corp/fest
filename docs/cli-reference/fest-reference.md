@@ -5255,6 +5255,7 @@ Examples:
   fest task reset                         # Reset task to pending (Y/n)
   fest task update 50%                    # Set progress to 50%
   fest task unblock                       # Clear a blocker, resume work
+  fest task defer --reason "vendor reply"  # Operator: let a blocker wait (no --yes)
 ```
 
 ### Options
@@ -5281,9 +5282,18 @@ Mark a task as blocked
 
 Mark a task as blocked, pausing work and notifying the user.
 
+Repeat --tried for each unblock attempt that failed. The operator sees these
+when deciding whether to defer the blocker, and a block with no recorded
+attempts is likely to be sent back.
+
 By default a confirmation prompt is shown; pass --yes to skip it for
 non-interactive or agent use. --json emits a structured result and requires
 --yes.
+
+--list reports the festival's blockers instead of reporting one. It takes no
+task and no --reason, writes nothing, and never prompts. Open blockers are
+listed before deferred ones; --open and --deferred narrow the list to one of
+them.
 
 ```
 fest task blocked [task] [flags]
@@ -5292,10 +5302,14 @@ fest task blocked [task] [flags]
 ### Options
 
 ```
-  -h, --help            help for blocked
-      --json            output as JSON (requires --yes)
-      --reason string   reason for the blocker (required)
-  -y, --yes             skip the interactive confirmation prompt
+      --deferred            with --list, show only deferred blockers
+  -h, --help                help for blocked
+      --json                output as JSON (requires --yes)
+      --list                list the festival's blockers instead of reporting one
+      --open                with --list, show only blockers no operator has deferred
+      --reason string       reason for the blocker (required)
+      --tried stringArray   an unblock attempt that failed; repeat for each attempt
+  -y, --yes                 skip the interactive confirmation prompt
 ```
 
 ### Options inherited from parent commands
@@ -5330,6 +5344,45 @@ fest task completed [task] [flags]
   -h, --help   help for completed
       --json   output as JSON (requires --yes)
   -y, --yes    skip the interactive confirmation prompt
+```
+
+### Options inherited from parent commands
+
+```
+      --config string   config file (default: ~/.obey/fest/config.json)
+      --debug           enable debug logging
+      --no-color        disable colored output
+      --verbose         enable verbose output
+```
+---
+
+## fest task defer
+
+Defer a blocked task's blocker so the festival can keep moving
+
+### Synopsis
+
+Defer a blocker you cannot clear right now.
+
+The task stays blocked and still renders as blocked everywhere. Its dependents
+become ready, so the rest of the festival proceeds. When everything else is
+settled, fest next brings the deferred tasks back for another attempt, and the
+festival cannot be promoted to completed while any blocker is deferred unless
+you pass --force.
+
+This verb has no --yes and no --json. Deferring is an operator decision and
+there is deliberately no way to script it. If you want to send the task back to
+the executor instead, use 'fest task unblock --note "<what to try>"'.
+
+```
+fest task defer [task] [flags]
+```
+
+### Options
+
+```
+  -h, --help            help for defer
+      --reason string   why this blocker can wait until the end (required)
 ```
 
 ### Options inherited from parent commands
@@ -5437,6 +5490,10 @@ Clear a task's blocker, returning it to in_progress.
 This is a frictionless forward-motion signal and does not prompt for
 confirmation. When [task] is omitted the current task is auto-detected.
 
+Pass --note to tell the executor what to try. The note is stored on the task and
+rendered under it by the next fest next, so the executor sees it even if it is
+not running right now.
+
 ```
 fest task unblock [task] [flags]
 ```
@@ -5444,8 +5501,9 @@ fest task unblock [task] [flags]
 ### Options
 
 ```
-  -h, --help   help for unblock
-      --json   output as JSON
+  -h, --help          help for unblock
+      --json          output as JSON
+      --note string   feedback for the executor, shown under the task on the next fest next
 ```
 
 ### Options inherited from parent commands

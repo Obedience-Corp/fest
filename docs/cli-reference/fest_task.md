@@ -34,6 +34,7 @@ Examples:
   fest task reset                         # Reset task to pending (Y/n)
   fest task update 50%                    # Set progress to 50%
   fest task unblock                       # Clear a blocker, resume work
+  fest task defer --reason "vendor reply"  # Operator: let a blocker wait (no --yes)
 ```
 
 ### Options
@@ -56,6 +57,7 @@ Examples:
 * [fest](fest.md)	 - Festival Methodology CLI - goal-oriented project management for AI agents
 * [fest task blocked](fest_task_blocked.md)	 - Mark a task as blocked
 * [fest task completed](fest_task_completed.md)	 - Mark a task as complete
+* [fest task defer](fest_task_defer.md)	 - Defer a blocked task's blocker so the festival can keep moving
 * [fest task edit](fest_task_edit.md)	 - Open the current task in your editor
 * [fest task reset](fest_task_reset.md)	 - Reset a task to pending
 * [fest task show](fest_task_show.md)	 - Show task details and status

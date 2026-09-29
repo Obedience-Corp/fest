@@ -110,7 +110,7 @@ func ArePhaseTasksComplete(storeLoaded bool, store *progress.Store, phasePath, p
 			taskCount++
 			taskID := filepath.ToSlash(filepath.Join(phaseName, seqEntry.Name(), tf.Name()))
 			task, ok := store.GetTask(taskID)
-			if !ok || (task.Status != progress.StatusCompleted && task.Status != "complete") {
+			if !ok || !task.IsSettled() {
 				return false
 			}
 		}

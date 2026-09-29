@@ -27,6 +27,12 @@ const (
 	CodeAutoLinkUnrequiredSet      = "autolink_unrequired_set"
 	CodeAutoLinkProjectPathInvalid = "autolink_project_path_invalid"
 
+	// Deferral issue codes. Both are store corruption: the verbs cannot
+	// produce either state, so seeing one means the store or its event log was
+	// written by hand.
+	CodeDeferralNotBlocked = "deferral_not_blocked"
+	CodeDeferralNoReason   = "deferral_no_reason"
+
 	// Hooks issue codes
 )
 

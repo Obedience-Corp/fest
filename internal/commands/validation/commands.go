@@ -385,6 +385,7 @@ func runValidateAll(ctx context.Context, opts *validateOptions) error {
 	validateQualityGatesChecks(ctx, festivalPath, result, opts.fix)
 	validateTemplateChecks(ctx, festivalPath, result)
 	validateOrderingChecks(ctx, festivalPath, result)
+	validateDeferralChecks(ctx, festivalPath, result)
 	validateAutoLinkChecks(ctx, festivalPath, result)
 	validateHooksChecks(ctx, festivalPath, result)
 	validateWorkflowDocsChecks(ctx, festivalPath, result)
@@ -512,6 +513,22 @@ func applyMarkerLifecycleLevels(ctx context.Context, festivalPath string, issues
 func isFestivalRootIssuePath(issuePath string) bool {
 	return !strings.Contains(issuePath, string(filepath.Separator)) &&
 		!strings.Contains(issuePath, "/")
+}
+
+// validateDeferralChecks reports deferral state no verb can produce, which is
+// how a hand written deferral shows up to an operator.
+func validateDeferralChecks(ctx context.Context, festivalPath string, result *ValidationResult) {
+	issues, err := validator.ValidateDeferrals(ctx, festivalPath)
+	if err != nil {
+		result.Issues = append(result.Issues, ValidationIssue{
+			Level:   LevelError,
+			Code:    validator.CodeDeferralNotBlocked,
+			Path:    festivalPath,
+			Message: fmt.Sprintf("Failed to validate deferrals: %v", err),
+		})
+		return
+	}
+	result.Issues = append(result.Issues, convertIssues(issues)...)
 }
 
 // validateAutoLinkChecks runs auto-link validation for the CLI `fest validate` command.

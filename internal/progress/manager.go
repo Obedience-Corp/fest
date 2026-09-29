@@ -237,9 +237,19 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 		task.CompletedAt = &now
 		task.TimeSpentMinutes = int(now.Sub(*task.StartedAt).Minutes())
 
+		// A deferred blocker completing in a sweep invalidates any gate that
+		// passed while it was set aside, so the deferral stamp is read before
+		// clearDeferral wipes it.
+		var deferredAt *time.Time
+		if task.BlockerDeferred && task.BlockerDeferredAt != nil {
+			stamp := *task.BlockerDeferredAt
+			deferredAt = &stamp
+		}
+
 		// Clear any blocker
 		task.BlockerMessage = ""
 		task.BlockedAt = nil
+		task.clearDeferral()
 
 		// Queue completed event
 		m.store.QueueEvent(&ProgressEvent{
@@ -250,10 +260,19 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 		})
 
 		m.store.SetTask(task)
+
+		var reopenedGates []string
+		if deferredAt != nil && m.store.SweepState().Current > 0 {
+			reopenedGates = m.reopenSweepGates(now, taskID, *deferredAt)
+		}
+
 		if err := m.store.Save(ctx); err != nil {
 			return err
 		}
 		m.SyncFrontmatterStatus(taskID, task.Status)
+		for _, gateID := range reopenedGates {
+			m.SyncFrontmatterStatus(gateID, StatusPending)
+		}
 		// The completion is applied; every remaining side effect must still be
 		// attempted when a post stage fails. A start post failure must not skip
 		// the task_complete post stage, and neither may skip the ledger emit or
@@ -429,7 +448,7 @@ func taskPhaseCoordinate(taskID string) string {
 }
 
 // ReportBlocker reports a blocker for a task
-func (m *Manager) ReportBlocker(ctx context.Context, taskID, message string) error {
+func (m *Manager) ReportBlocker(ctx context.Context, taskID, message string, attempts []string) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
 	}
@@ -454,6 +473,7 @@ func (m *Manager) ReportBlocker(ctx context.Context, taskID, message string) err
 		task.Status = StatusBlocked
 		task.BlockerMessage = message
 		task.BlockedAt = &now
+		task.BlockerAttempts = attempts
 
 		// Queue blocked event
 		m.store.QueueEvent(&ProgressEvent{
@@ -461,6 +481,7 @@ func (m *Manager) ReportBlocker(ctx context.Context, taskID, message string) err
 			Event:     EventBlocked,
 			Task:      taskID,
 			Reason:    message,
+			Attempts:  attempts,
 		})
 
 		m.store.SetTask(task)
@@ -478,6 +499,55 @@ func (m *Manager) ReportBlocker(ctx context.Context, taskID, message string) err
 			"reason": message,
 		})
 		return nil
+	})
+}
+
+// DeferBlocker records an operator's decision to let a blocked task wait until
+// the end of the festival. Status stays blocked and the frontmatter is not
+// touched: the progress store is the only source of truth for a deferral
+// (D006).
+func (m *Manager) DeferBlocker(ctx context.Context, taskID, reason string, audit DeferralAudit) error {
+	if err := ctx.Err(); err != nil {
+		return errors.Wrap(err, "context cancelled")
+	}
+	if err := m.gate.EnforceForTask(ctx, taskID); err != nil {
+		return err
+	}
+
+	if reason == "" {
+		return errors.Validation("deferral reason required")
+	}
+
+	return m.store.withExclusiveLock(ctx, func() error {
+		task, exists := m.store.GetTask(taskID)
+		if !exists || task.Status != StatusBlocked {
+			return errors.Validation("only a blocked task can be deferred").
+				WithField("taskID", taskID).
+				WithHint("report the blocker first with 'fest task blocked --reason'")
+		}
+
+		now := time.Now().UTC()
+		task.BlockerDeferred = true
+		task.BlockerDeferredAt = &now
+		task.BlockerDeferredBy = audit.DeferredBy
+		task.DeferralReason = reason
+
+		m.store.QueueEvent(&ProgressEvent{
+			Timestamp:      now,
+			Event:          EventBlockerDeferred,
+			Task:           taskID,
+			Reason:         task.BlockerMessage,
+			Attempts:       task.BlockerAttempts,
+			DeferralReason: reason,
+			DeferredBy:     audit.DeferredBy,
+			Actor:          audit.Actor,
+			TTY:            audit.TTY,
+			AgentMarkers:   audit.AgentMarkers,
+			Ancestry:       audit.Ancestry,
+		})
+
+		m.store.SetTask(task)
+		return m.store.Save(ctx)
 	})
 }
 
@@ -507,6 +577,7 @@ func (m *Manager) ResetTask(ctx context.Context, taskID string) error {
 		task.TimeSpentMinutes = 0
 		task.BlockerMessage = ""
 		task.BlockedAt = nil
+		task.clearDeferral()
 
 		// Queue reset event
 		m.store.QueueEvent(&ProgressEvent{
@@ -574,8 +645,10 @@ func (m *Manager) emitActivity(ctx context.Context, eventName, taskID string, da
 	e.Emit(ctx, eventName, scope, "fest task "+eventName, activity.WithData(data))
 }
 
-// ClearBlocker clears a blocker for a task
-func (m *Manager) ClearBlocker(ctx context.Context, taskID string) error {
+// ClearBlocker clears a blocker for a task. A non-empty note is the operator's
+// feedback to the executor and is appended after the clears, so an unblocked
+// task carries exactly the latest note (D004).
+func (m *Manager) ClearBlocker(ctx context.Context, taskID, note string) error {
 	if err := ctx.Err(); err != nil {
 		return errors.Wrap(err, "context cancelled")
 	}
@@ -596,6 +669,10 @@ func (m *Manager) ClearBlocker(ctx context.Context, taskID string) error {
 		now := time.Now().UTC()
 		task.BlockerMessage = ""
 		task.BlockedAt = nil
+		task.clearDeferral()
+		if note != "" {
+			task.OperatorNotes = append(task.OperatorNotes, note)
+		}
 
 		// Return to in_progress if was blocked
 		if task.Status == StatusBlocked {
@@ -607,6 +684,7 @@ func (m *Manager) ClearBlocker(ctx context.Context, taskID string) error {
 			Timestamp: now,
 			Event:     EventUnblocked,
 			Task:      taskID,
+			Note:      note,
 		})
 
 		m.store.SetTask(task)
@@ -626,6 +704,12 @@ func (m *Manager) GetTaskProgress(taskID string) (*TaskProgress, bool) {
 // AllTaskProgress returns all task progress entries
 func (m *Manager) AllTaskProgress() map[string]*TaskProgress {
 	return m.store.AllTasks()
+}
+
+// SweepState returns the end-of-festival sweep position derived from the event
+// log, for the selector to decide which deferred blockers this sweep revisits.
+func (m *Manager) SweepState() SweepState {
+	return m.store.SweepState()
 }
 
 // Store returns the underlying store for advanced operations
@@ -713,7 +797,7 @@ func (m *Manager) propagateSequenceCompletion(ctx context.Context, seqPath strin
 		return errors.Wrap(err, "getting sequence progress")
 	}
 
-	if seqProgress.Progress.Total == 0 || seqProgress.Progress.Completed < seqProgress.Progress.Total {
+	if seqProgress.Progress.Total == 0 || seqProgress.Progress.Settled < seqProgress.Progress.Total {
 		return nil
 	}
 
@@ -729,7 +813,7 @@ func (m *Manager) propagatePhaseCompletion(ctx context.Context, phasePath string
 		return errors.Wrap(err, "getting phase progress")
 	}
 
-	if phaseProgress.Progress.Total == 0 || phaseProgress.Progress.Completed < phaseProgress.Progress.Total {
+	if phaseProgress.Progress.Total == 0 || phaseProgress.Progress.Settled < phaseProgress.Progress.Total {
 		return nil
 	}
 

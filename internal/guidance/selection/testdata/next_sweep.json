@@ -1,0 +1,32 @@
+{
+  "task": {
+    "name": "02_deferred",
+    "path": "/FESTIVAL/001_PHASE/01_seq/02_deferred.md",
+    "number": 2,
+    "sequence_name": "01_seq",
+    "sequence_path": "/FESTIVAL/001_PHASE/01_seq",
+    "phase_name": "001_PHASE",
+    "phase_path": "/FESTIVAL/001_PHASE",
+    "status": "blocked",
+    "parallel_group": 2
+  },
+  "reason": "Revisiting a deferred blocker in sweep 1",
+  "festival_complete": false,
+  "location": {
+    "festival_path": "/FESTIVAL",
+    "current_path": "/FESTIVAL"
+  },
+  "task_content": "# 02_deferred.md\n\nWork.\n",
+  "sweep": {
+    "number": 1,
+    "deferred_total": 1,
+    "blocker_message": "provider API removed",
+    "attempts": [
+      "checked the changelog"
+    ],
+    "deferral_reason": "the vendor replies next week",
+    "completed_since": [
+      "001_PHASE/01_seq/01_done.md"
+    ]
+  }
+}

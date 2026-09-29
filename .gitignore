@@ -21,3 +21,10 @@ out/
 
 # Per-checkout golangci-lint cache (see GOLANGCI_LINT_CACHE in the Justfile)
 .golangci-cache/
+
+# Python bytecode from the VHS evidence harness
+__pycache__/
+*.pyc
+
+# VHS evidence bundles are PR-gist material, never tracked (see just vhs bundle)
+docs/demos/evidence/

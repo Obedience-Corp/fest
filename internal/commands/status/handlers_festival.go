@@ -165,6 +165,12 @@ func handleFestivalStatusChange(ctx context.Context, display *ui.UI, festival *s
 		return emitAlreadyAtStatus(display, opts, newStatus)
 	}
 
+	// A festival with deferred blockers is not complete, and --force is the
+	// operator's override rather than the executor's (D009).
+	if halt, deferErr := enforceDeferredBlockers(ctx, festival, newStatus, opts); halt || deferErr != nil {
+		return deferErr
+	}
+
 	// Validate transition and confirm unless forced
 	if !opts.force {
 		standard, validOpts, err := isStandardTransition(ctx, festival.Status, newStatus)

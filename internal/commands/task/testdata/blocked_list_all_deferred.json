@@ -1,0 +1,30 @@
+{
+  "blocked": [
+    {
+      "task": "001_PHASE/01_seq/01_cache_warmup.md",
+      "blocker_message": "provider API removed; warm-up not possible",
+      "blocked_at": "2026-09-25T12:00:00Z",
+      "attempts": [
+        "checked the changelog"
+      ],
+      "deferred": true,
+      "deferral_reason": "the vendor replies next week",
+      "deferred_at": "2026-09-27T12:00:00Z",
+      "deferred_by": "Lance Rogers"
+    },
+    {
+      "task": "001_PHASE/01_seq/02_legacy_import.md",
+      "blocker_message": "upstream schema gone",
+      "blocked_at": "2026-09-22T12:00:00Z",
+      "attempts": [
+        "read the migration notes"
+      ],
+      "deferred": true,
+      "deferral_reason": "revisit after the v2 migration lands",
+      "deferred_at": "2026-09-26T12:00:00Z",
+      "deferred_by": "Lance Rogers"
+    }
+  ],
+  "open_count": 0,
+  "deferred_count": 2
+}

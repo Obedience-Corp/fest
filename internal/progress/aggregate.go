@@ -13,14 +13,23 @@ import (
 
 // AggregateProgress holds aggregated progress stats
 type AggregateProgress struct {
-	Total        int             `json:"total"`
-	Completed    int             `json:"completed"`
-	InProgress   int             `json:"in_progress"`
-	Blocked      int             `json:"blocked"`
-	Pending      int             `json:"pending"`
-	Percentage   int             `json:"percentage"`
-	Blockers     []*TaskProgress `json:"blockers,omitempty"`
-	TimeSpentMin int             `json:"time_spent_minutes"`
+	Total      int `json:"total"`
+	Completed  int `json:"completed"`
+	InProgress int `json:"in_progress"`
+	Blocked    int `json:"blocked"`
+	Pending    int `json:"pending"`
+	Percentage int `json:"percentage"`
+
+	// Settled counts work that no longer gates progression: everything
+	// Completed counts, plus a blocked task whose blocker an operator deferred.
+	// Completed, Blocked and Percentage keep their existing meanings, so a
+	// deferred blocker never moves the progress bar (D010).
+	Settled         int `json:"settled"`
+	DeferredBlocked int `json:"deferred_blocked"`
+
+	Blockers         []*TaskProgress `json:"blockers,omitempty"`
+	DeferredBlockers []*TaskProgress `json:"deferred_blockers,omitempty"`
+	TimeSpentMin     int             `json:"time_spent_minutes"`
 }
 
 // PhaseProgress holds progress for a phase
@@ -100,8 +109,11 @@ func (m *Manager) GetFestivalProgress(ctx context.Context, festivalPath string) 
 		overall.InProgress += phaseProgress.Progress.InProgress
 		overall.Blocked += phaseProgress.Progress.Blocked
 		overall.Pending += phaseProgress.Progress.Pending
+		overall.Settled += phaseProgress.Progress.Settled
+		overall.DeferredBlocked += phaseProgress.Progress.DeferredBlocked
 		overall.TimeSpentMin += phaseProgress.Progress.TimeSpentMin
 		overall.Blockers = append(overall.Blockers, phaseProgress.Progress.Blockers...)
+		overall.DeferredBlockers = append(overall.DeferredBlockers, phaseProgress.Progress.DeferredBlockers...)
 	}
 
 	// Calculate percentage
@@ -192,8 +204,11 @@ func (m *Manager) GetPhaseProgress(ctx context.Context, phasePath string) (*Phas
 		aggregate.InProgress += seqProgress.Progress.InProgress
 		aggregate.Blocked += seqProgress.Progress.Blocked
 		aggregate.Pending += seqProgress.Progress.Pending
+		aggregate.Settled += seqProgress.Progress.Settled
+		aggregate.DeferredBlocked += seqProgress.Progress.DeferredBlocked
 		aggregate.TimeSpentMin += seqProgress.Progress.TimeSpentMin
 		aggregate.Blockers = append(aggregate.Blockers, seqProgress.Progress.Blockers...)
+		aggregate.DeferredBlockers = append(aggregate.DeferredBlockers, seqProgress.Progress.DeferredBlockers...)
 	}
 
 	// Include gate steps if GATES.md exists
@@ -260,13 +275,22 @@ func (m *Manager) GetSequenceProgress(ctx context.Context, seqPath string) (*Seq
 		switch status {
 		case StatusCompleted:
 			aggregate.Completed++
+			aggregate.Settled++
 		case StatusInProgress:
 			aggregate.InProgress++
 		case StatusBlocked:
 			aggregate.Blocked++
-			// Get task from YAML for blocker details if available
+			// Get task from YAML for blocker details if available. The resolved
+			// status carries no deferral information, so this read is the only
+			// place a deferral is visible. A failed read leaves the task blocked
+			// and open, which stalls rather than proceeds.
 			if task, exists := ResolveTaskProgress(m.store, m.store.festivalPath, taskPath); exists && task.Status == StatusBlocked {
 				aggregate.Blockers = append(aggregate.Blockers, task)
+				if task.BlockerDeferred {
+					aggregate.DeferredBlocked++
+					aggregate.DeferredBlockers = append(aggregate.DeferredBlockers, task)
+					aggregate.Settled++
+				}
 			}
 		default:
 			aggregate.Pending++
@@ -322,6 +346,7 @@ func (m *Manager) getWorkflowPhaseProgress(ctx context.Context, phasePath string
 		switch stepState.Status {
 		case wf.StepStatusCompleted, wf.StepStatusSkipped:
 			aggregate.Completed++
+			aggregate.Settled++
 		case wf.StepStatusInProgress:
 			aggregate.InProgress++
 		case wf.StepStatusBlocked:
@@ -373,6 +398,7 @@ func (m *Manager) addGateProgress(ctx context.Context, phasePath, phaseName stri
 		switch stepState.Status {
 		case wf.StepStatusCompleted, wf.StepStatusSkipped:
 			aggregate.Completed++
+			aggregate.Settled++
 		case wf.StepStatusInProgress:
 			aggregate.InProgress++
 		case wf.StepStatusBlocked:

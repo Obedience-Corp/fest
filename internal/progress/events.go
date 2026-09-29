@@ -26,6 +26,13 @@ const (
 	EventUnblocked EventType = "unblocked"
 	EventReset     EventType = "reset"
 
+	// Deferral event types. These string values are the wire format; once a
+	// festival has written one, changing the string orphans it.
+	EventBlockerDeferred  EventType = "blocker_deferred"
+	EventSweepStarted     EventType = "sweep_started"
+	EventBlockerRevisited EventType = "blocker_revisited"
+	EventForcedComplete   EventType = "forced_complete"
+
 	// Workflow event types for tracking workflow step progress.
 	EventWorkflowInit      EventType = "wf_init"
 	EventWorkflowStepStart EventType = "wf_step_start"
@@ -81,6 +88,25 @@ type ProgressEvent struct {
 	Minutes int    `json:"minutes,omitempty"` // completed event
 	Percent int    `json:"percent,omitempty"` // progress event
 	Reason  string `json:"reason,omitempty"`  // blocked event
+
+	// Attempts records the failed unblock attempts reported with a blocked event.
+	Attempts []string `json:"attempts,omitempty"`
+
+	// Deferral event fields. DeferralReason is the operator's reason and is
+	// deliberately separate from Reason, which is the executor's blocker
+	// message. DeferredBy is git user.name and may be empty (D001). Sweep is
+	// the sweep number the sweep state is derived from (D005). Note is the
+	// operator reject note on an unblocked event (D004). Actor, TTY,
+	// AgentMarkers and Ancestry are the operator guard audit record.
+	DeferralReason string   `json:"deferral_reason,omitempty"`
+	DeferredBy     string   `json:"deferred_by,omitempty"`
+	Sweep          int      `json:"sweep,omitempty"`
+	Note           string   `json:"note,omitempty"`
+	Actor          string   `json:"actor,omitempty"`
+	TTY            bool     `json:"tty,omitempty"`
+	AgentMarkers   []string `json:"agent_markers,omitempty"`
+	Ancestry       []string `json:"ancestry,omitempty"`
+	DroppedTasks   []string `json:"dropped_tasks,omitempty"`
 
 	// Workflow event-specific fields (omitempty)
 	Phase            string   `json:"phase,omitempty"`
@@ -203,19 +229,33 @@ func (s *Store) parseEventsFile(ctx context.Context) ([]ProgressEvent, error) {
 }
 
 func (s *Store) materializeFrom(events []ProgressEvent) {
+	tasks, sweep := materializeState(events)
 	s.data = &FestivalProgressData{
 		Festival:  filepath.Base(s.festivalPath),
 		UpdatedAt: time.Now().UTC(),
-		Tasks:     materializeState(events),
+		Tasks:     tasks,
 	}
 	s.data.TimeMetrics = materializeTimeMetrics(events, s.data.Tasks)
 	s.workflowData = materializeWorkflowState(events)
+	s.sweepState = sweep
 }
 
-// materializeState builds current task state from a sequence of events.
-// Events are processed in order to derive the final state of each task.
-func materializeState(events []ProgressEvent) map[string]*TaskProgress {
+// SweepState is the end-of-festival sweep position derived from the event log.
+// Current is the highest sweep number started, and LastRevisit holds the highest
+// sweep in which each task's blocker was revisited. Neither is ever stored; a
+// task with no entry reads as zero, which is older than any sweep, so a dropped
+// revisit event means the task is revisited again rather than skipped (D005).
+type SweepState struct {
+	Current     int
+	LastRevisit map[string]int
+}
+
+// materializeState builds current task state and the sweep position from a
+// sequence of events. Events are processed in order to derive the final state
+// of each task, in a single pass.
+func materializeState(events []ProgressEvent) (map[string]*TaskProgress, SweepState) {
 	tasks := make(map[string]*TaskProgress)
+	sweep := SweepState{LastRevisit: make(map[string]int)}
 
 	for _, e := range events {
 		task, ok := tasks[e.Task]
@@ -248,6 +288,7 @@ func materializeState(events []ProgressEvent) map[string]*TaskProgress {
 			// Clear any blocker
 			task.BlockerMessage = ""
 			task.BlockedAt = nil
+			task.clearDeferral()
 
 		case EventProgress:
 			task.Progress = e.Percent
@@ -267,6 +308,7 @@ func materializeState(events []ProgressEvent) map[string]*TaskProgress {
 			task.BlockerMessage = e.Reason
 			ts := e.Timestamp
 			task.BlockedAt = &ts
+			task.BlockerAttempts = e.Attempts
 
 		case EventUnblocked:
 			if task.Status == StatusBlocked {
@@ -274,6 +316,10 @@ func materializeState(events []ProgressEvent) map[string]*TaskProgress {
 			}
 			task.BlockerMessage = ""
 			task.BlockedAt = nil
+			task.clearDeferral()
+			if e.Note != "" {
+				task.OperatorNotes = append(task.OperatorNotes, e.Note)
+			}
 
 		case EventReset:
 			task.Status = StatusPending
@@ -283,10 +329,28 @@ func materializeState(events []ProgressEvent) map[string]*TaskProgress {
 			task.TimeSpentMinutes = 0
 			task.BlockerMessage = ""
 			task.BlockedAt = nil
+			task.clearDeferral()
+
+		case EventBlockerDeferred:
+			task.BlockerDeferred = true
+			ts := e.Timestamp
+			task.BlockerDeferredAt = &ts
+			task.BlockerDeferredBy = e.DeferredBy
+			task.DeferralReason = e.DeferralReason
+
+		case EventSweepStarted:
+			if e.Sweep > sweep.Current {
+				sweep.Current = e.Sweep
+			}
+
+		case EventBlockerRevisited:
+			if e.Sweep > sweep.LastRevisit[e.Task] {
+				sweep.LastRevisit[e.Task] = e.Sweep
+			}
 		}
 	}
 
-	return tasks
+	return tasks, sweep
 }
 
 // materializeTimeMetrics builds festival time metrics from events.
@@ -318,16 +382,17 @@ func materializeTimeMetrics(events []ProgressEvent, tasks map[string]*TaskProgre
 		metrics.TotalWorkMinutes += task.TimeSpentMinutes
 	}
 
-	// Check if all tasks are completed to set completion time
-	allComplete := len(tasks) > 0
+	// Completion uses the done predicate, so a deferred blocker leaves
+	// CompletedAt nil. A forced completion sets it elsewhere.
+	allDone := len(tasks) > 0
 	for _, task := range tasks {
-		if task.Status != StatusCompleted {
-			allComplete = false
+		if !task.IsDone() {
+			allDone = false
 			break
 		}
 	}
 
-	if allComplete {
+	if allDone {
 		metrics.CompletedAt = &latest
 		metrics.LifecycleDuration = int(latest.Sub(earliest).Hours() / 24)
 	}
@@ -393,7 +458,26 @@ func generateEventsFromState(tasks map[string]*TaskProgress) []ProgressEvent {
 					Event:     EventBlocked,
 					Task:      task.TaskID,
 					Reason:    task.BlockerMessage,
+					Attempts:  task.BlockerAttempts,
 				})
+			}
+			if task.BlockerDeferred {
+				// BlockerDeferredAt is omitempty, so a hand edited legacy record
+				// can be deferred with no timestamp. Falling back to BlockedAt
+				// keeps the operator's decision rather than dropping it.
+				ts := task.BlockedAt
+				if task.BlockerDeferredAt != nil {
+					ts = task.BlockerDeferredAt
+				}
+				if ts != nil {
+					events = append(events, ProgressEvent{
+						Timestamp:      *ts,
+						Event:          EventBlockerDeferred,
+						Task:           task.TaskID,
+						DeferralReason: task.DeferralReason,
+						DeferredBy:     task.BlockerDeferredBy,
+					})
+				}
 			}
 		}
 
@@ -407,8 +491,10 @@ func generateEventsFromState(tasks map[string]*TaskProgress) []ProgressEvent {
 		}
 	}
 
-	// Sort by timestamp
-	sort.Slice(events, func(i, j int) bool {
+	// Sort by timestamp. Stable, so events appended with the same timestamp keep
+	// their append order: a synthetic deferral never sorts ahead of the block it
+	// belongs to.
+	sort.SliceStable(events, func(i, j int) bool {
 		return events[i].Timestamp.Before(events[j].Timestamp)
 	})
 

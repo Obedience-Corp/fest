@@ -4,6 +4,7 @@ package progress
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"time"
@@ -47,6 +48,39 @@ type TaskProgress struct {
 	TimeSpentMinutes int        `yaml:"time_spent_minutes,omitempty"`
 	BlockerMessage   string     `yaml:"blocker_message,omitempty"`
 	BlockedAt        *time.Time `yaml:"blocked_at,omitempty"`
+
+	BlockerDeferred   bool       `yaml:"blocker_deferred,omitempty"`
+	BlockerDeferredAt *time.Time `yaml:"blocker_deferred_at,omitempty"`
+	BlockerDeferredBy string     `yaml:"blocker_deferred_by,omitempty"`
+	DeferralReason    string     `yaml:"deferral_reason,omitempty"`
+	BlockerAttempts   []string   `yaml:"blocker_attempts,omitempty"`
+	OperatorNotes     []string   `yaml:"operator_notes,omitempty"`
+}
+
+func (t *TaskProgress) IsSettled() bool {
+	if t == nil {
+		return false
+	}
+	return t.Status == StatusCompleted || (t.Status == StatusBlocked && t.BlockerDeferred)
+}
+
+func (t *TaskProgress) IsDone() bool {
+	if t == nil {
+		return false
+	}
+	return t.Status == StatusCompleted
+}
+
+func (t *TaskProgress) clearDeferral() {
+	if t == nil {
+		return
+	}
+	t.BlockerDeferred = false
+	t.BlockerDeferredAt = nil
+	t.BlockerDeferredBy = ""
+	t.DeferralReason = ""
+	t.BlockerAttempts = nil
+	t.OperatorNotes = nil
 }
 
 // FestivalTimeMetrics tracks festival-level time metrics separate from task-level tracking.
@@ -91,6 +125,7 @@ type Store struct {
 	festivalPath  string
 	data          *FestivalProgressData
 	workflowData  *wf.FestivalWorkflowState
+	sweepState    SweepState
 	pendingEvents []*ProgressEvent // Events to append on next Save()
 }
 
@@ -233,6 +268,7 @@ func (s *Store) initializeEmptyState() {
 		Tasks: make(map[string]*TaskProgress),
 	}
 	s.workflowData = wf.NewFestivalWorkflowState()
+	s.sweepState = SweepState{LastRevisit: make(map[string]int)}
 }
 
 // migrateFromLegacy converts a legacy YAML progress file to JSONL format.
@@ -567,6 +603,17 @@ func FormatDurationWithStatus(metrics *FestivalTimeMetrics) string {
 		return "1 day (ongoing)"
 	}
 	return fmt.Sprintf("%d days (ongoing)", days)
+}
+
+// SweepState returns the end-of-festival sweep position derived from the event
+// log on the last load. The returned map is a copy: sweep state is derived on
+// every load and a caller must not be able to write into it.
+func (s *Store) SweepState() SweepState {
+	revisits := maps.Clone(s.sweepState.LastRevisit)
+	if revisits == nil {
+		revisits = make(map[string]int)
+	}
+	return SweepState{Current: s.sweepState.Current, LastRevisit: revisits}
 }
 
 // --- Workflow state accessors ---

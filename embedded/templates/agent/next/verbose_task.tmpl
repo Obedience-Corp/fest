@@ -19,6 +19,9 @@ recommendation, parallel tasks, current location, and optional task content.
 {{.DependenciesSection}}
 {{- end}}
 {{.RecommendationSection}}
+{{- if .DeferralSection}}
+{{.DeferralSection}}
+{{- end}}
 {{- if .ParallelTasksSection}}
 {{.ParallelTasksSection}}
 {{- end}}

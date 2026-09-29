@@ -129,7 +129,7 @@ func TestManager_ReportBlocker(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	err = mgr.ReportBlocker(ctx, "01_test.md", "Waiting on API spec")
+	err = mgr.ReportBlocker(ctx, "01_test.md", "Waiting on API spec", nil)
 	if err != nil {
 		t.Fatalf("ReportBlocker() error = %v", err)
 	}
@@ -158,7 +158,7 @@ func TestManager_ReportBlocker_EmptyMessage(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	err = mgr.ReportBlocker(ctx, "01_test.md", "")
+	err = mgr.ReportBlocker(ctx, "01_test.md", "", nil)
 	if err == nil {
 		t.Error("ReportBlocker() should error for empty message")
 	}
@@ -174,12 +174,12 @@ func TestManager_ClearBlocker(t *testing.T) {
 	}
 
 	// Report blocker
-	if err := mgr.ReportBlocker(ctx, "01_test.md", "Blocker"); err != nil {
+	if err := mgr.ReportBlocker(ctx, "01_test.md", "Blocker", nil); err != nil {
 		t.Fatalf("ReportBlocker() error = %v", err)
 	}
 
 	// Clear it
-	err = mgr.ClearBlocker(ctx, "01_test.md")
+	err = mgr.ClearBlocker(ctx, "01_test.md", "")
 	if err != nil {
 		t.Fatalf("ClearBlocker() error = %v", err)
 	}
@@ -366,12 +366,12 @@ func TestManager_BlockerPersistence(t *testing.T) {
 		t.Fatalf("NewManager() error = %v", err)
 	}
 
-	if err := mgr1.ReportBlocker(ctx, "01_task.md", "Waiting for review"); err != nil {
+	if err := mgr1.ReportBlocker(ctx, "01_task.md", "Waiting for review", nil); err != nil {
 		t.Fatalf("ReportBlocker() error = %v", err)
 	}
 
 	// Clear the blocker
-	if err := mgr1.ClearBlocker(ctx, "01_task.md"); err != nil {
+	if err := mgr1.ClearBlocker(ctx, "01_task.md", ""); err != nil {
 		t.Fatalf("ClearBlocker() error = %v", err)
 	}
 

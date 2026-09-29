@@ -18,6 +18,16 @@ const InstructionHeader = "\n" +
 	"  Execute each action exactly as written.\n" +
 	"═══════════════════════════════════════════════════════════════════════════════\n"
 
+// ExecutorBlockerPolicy is the one sentence every executor sees about blockers.
+// It exists exactly once so a reword in one surface cannot leave the other
+// saying something else, which is the drift design doc 05 scenario A12 names.
+// Every clause is enforced elsewhere: deferral is guarded to an operator on a
+// terminal, and a block with no recorded --tried attempts is what the deferral
+// prompt warns about.
+const ExecutorBlockerPolicy = "Blocked is a request for a human decision. " +
+	"Executors cannot defer blockers. Exhaust every unblock option first; " +
+	"blocks without recorded attempts are sent back."
+
 // Guidance is the central interface for phase-type-aware navigation.
 // It provides unified behavior for determining next steps, marking completion,
 // and tracking progress across all phase types.

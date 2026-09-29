@@ -1,0 +1,20 @@
+{
+  "task": {
+    "name": "01_first",
+    "path": "/FESTIVAL/001_PHASE/01_seq/01_first.md",
+    "number": 1,
+    "sequence_name": "01_seq",
+    "sequence_path": "/FESTIVAL/001_PHASE/01_seq",
+    "phase_name": "001_PHASE",
+    "phase_path": "/FESTIVAL/001_PHASE",
+    "status": "pending",
+    "parallel_group": 1
+  },
+  "reason": "Next available task in festival",
+  "festival_complete": false,
+  "location": {
+    "festival_path": "/FESTIVAL",
+    "current_path": "/FESTIVAL"
+  },
+  "task_content": "# 01_first.md\n\nWork.\n"
+}

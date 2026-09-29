@@ -192,7 +192,7 @@ func handleTaskStatusSet(ctx context.Context, display *ui.UI, cwd, newStatus str
 		}
 	case "blocked":
 		// For blocked, we need a message - use generic if not provided
-		if err := mgr.ReportBlocker(ctx, taskID, "Blocked via status set"); err != nil {
+		if err := mgr.ReportBlocker(ctx, taskID, "Blocked via status set", nil); err != nil {
 			return errors.Wrap(err, "marking task blocked")
 		}
 	case "completed":

@@ -191,3 +191,25 @@ func TestType_Constants(t *testing.T) {
 		t.Error("TypeGate should be 'gate'")
 	}
 }
+
+func TestIsValidStatusForTaskRejectsDeferred(t *testing.T) {
+	cases := []struct {
+		status Status
+		want   bool
+	}{
+		{StatusPending, true},
+		{StatusInProgress, true},
+		{StatusBlocked, true},
+		{StatusCompleted, true},
+		{Status("deferred"), false},
+		{Status("blocker_deferred"), false},
+	}
+
+	for _, tc := range cases {
+		t.Run(string(tc.status), func(t *testing.T) {
+			if got := isValidStatus(TypeTask, tc.status); got != tc.want {
+				t.Errorf("isValidStatus(TypeTask, %q) = %v, want %v", tc.status, got, tc.want)
+			}
+		})
+	}
+}

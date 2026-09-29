@@ -268,9 +268,17 @@ func (t *Task) IsComplete() bool {
 	return t.Status == progress.StatusCompleted || t.Status == "complete" || t.Status == "skipped"
 }
 
+// IsSettled reports whether a task no longer gates progression: complete, or
+// blocked with the blocker deferred by an operator. It expresses the same rule
+// as progress.TaskProgress.IsSettled over the deps status vocabulary (D008).
+func (t *Task) IsSettled() bool {
+	return t.IsComplete() || (t.Status == progress.StatusBlocked && t.BlockerDeferred)
+}
+
 // GetReadyTasks returns tasks that are ready to execute right now: not already
-// complete, not blocked, and with every hard dependency complete. Soft
-// dependencies do not gate readiness.
+// complete, not blocked, and with every hard dependency settled. A blocked task
+// is never ready, whether or not its blocker was deferred. Soft dependencies do
+// not gate readiness.
 func (g *Graph) GetReadyTasks() []*Task {
 	var ready []*Task
 
@@ -280,15 +288,15 @@ func (g *Graph) GetReadyTasks() []*Task {
 		}
 
 		deps := g.GetRequiredDependencies(task.ID)
-		allComplete := true
+		allSettled := true
 		for _, dep := range deps {
-			if !dep.IsComplete() {
-				allComplete = false
+			if !dep.IsSettled() {
+				allSettled = false
 				break
 			}
 		}
 
-		if allComplete {
+		if allSettled {
 			ready = append(ready, task)
 		}
 	}
