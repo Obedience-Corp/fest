@@ -60,7 +60,7 @@ func TestUpdateTaskStatusesFromProgressCarriesTheDeferralFlag(t *testing.T) {
 	}
 
 	selector := NewSelector(festivalPath)
-	if err := selector.updateTaskStatusesFromProgress(ctx, graph); err != nil {
+	if _, err := selector.updateTaskStatusesFromProgress(ctx, graph); err != nil {
 		t.Fatalf("updateTaskStatusesFromProgress() error = %v", err)
 	}
 
@@ -126,7 +126,7 @@ func TestGetReadyTasksAfterRealStatusRefresh(t *testing.T) {
 	selector := NewSelector(festivalPath)
 
 	before := build()
-	if err := selector.updateTaskStatusesFromProgress(ctx, before); err != nil {
+	if _, err := selector.updateTaskStatusesFromProgress(ctx, before); err != nil {
 		t.Fatalf("updateTaskStatusesFromProgress() error = %v", err)
 	}
 	if got := before.GetReadyTasks(); len(got) != 0 {
@@ -145,7 +145,7 @@ func TestGetReadyTasksAfterRealStatusRefresh(t *testing.T) {
 	}
 
 	after := build()
-	if err := selector.updateTaskStatusesFromProgress(ctx, after); err != nil {
+	if _, err := selector.updateTaskStatusesFromProgress(ctx, after); err != nil {
 		t.Fatalf("updateTaskStatusesFromProgress() error = %v", err)
 	}
 	ready := after.GetReadyTasks()

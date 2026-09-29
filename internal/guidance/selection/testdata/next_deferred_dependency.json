@@ -1,0 +1,32 @@
+{
+  "task": {
+    "name": "02_index_rebuild",
+    "path": "/FESTIVAL/001_PHASE/01_seq/02_index_rebuild.md",
+    "number": 2,
+    "sequence_name": "01_seq",
+    "sequence_path": "/FESTIVAL/001_PHASE/01_seq",
+    "phase_name": "001_PHASE",
+    "phase_path": "/FESTIVAL/001_PHASE",
+    "status": "pending",
+    "parallel_group": 2,
+    "dependencies": [
+      "- 01_cache_warmup\n---\n\n# 02_index_rebuild.md\n\nWork.",
+      "01_cache_warmup"
+    ]
+  },
+  "reason": "Next available task in festival",
+  "festival_complete": false,
+  "location": {
+    "festival_path": "/FESTIVAL",
+    "current_path": "/FESTIVAL"
+  },
+  "task_content": "# 02_index_rebuild.md\n\nWork.",
+  "deferred_blockers": [
+    {
+      "task": "001_PHASE/01_seq/01_cache_warmup.md",
+      "blocker_message": "provider API removed",
+      "deferral_reason": "the vendor replies next week",
+      "deferred_at": "<DEFERRED_AT>"
+    }
+  ]
+}

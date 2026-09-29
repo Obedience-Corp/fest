@@ -26,6 +26,10 @@ Without inline context (--no-context):
 {{- if .ProgressLine}}
 {{.ProgressLine}}
 {{- end}}
+{{- if .DeferralSection}}
+
+{{.DeferralSection}}
+{{- end}}
 {{- if .ParallelSection}}
 
 {{.ParallelSection}}

@@ -11,6 +11,10 @@ Shows gate type, task location, and full gate body content.
 {{.TaskLine}}
 {{.PathLine}}
 {{.TypeLine}}
+{{- if .DeferralSection}}
+
+{{.DeferralSection}}
+{{- end}}
 {{- if .GateContent}}
 
 {{.GateContent}}

@@ -132,13 +132,17 @@ func formatTextNoTask(result *NextTaskResult) string {
 	}
 
 	data := struct {
-		Header          string
-		ReasonLine      string
-		LocationSection string
+		Header             string
+		ReasonLine         string
+		BlockedSection     string
+		SweepRemainSection string
+		LocationSection    string
 	}{
-		Header:          ui.H2("No Tasks Available"),
-		ReasonLine:      reasonLine,
-		LocationSection: locationSection,
+		Header:             ui.H2("No Tasks Available"),
+		ReasonLine:         reasonLine,
+		BlockedSection:     buildBlockedSection(result.BlockedTasks),
+		SweepRemainSection: buildSweepRemainSection(result.Sweep),
+		LocationSection:    locationSection,
 	}
 
 	var buf bytes.Buffer
@@ -262,7 +266,7 @@ func formatTextPlanning(result *NextTaskResult) string {
 
 func formatTextTask(result *NextTaskResult, showInlineContext bool) string {
 	// Check if this is a gate task and show inline gate content
-	if gateSection := buildGateSection(result.Task); gateSection != "" {
+	if gateSection := buildGateSection(result); gateSection != "" {
 		return gateSection
 	}
 
@@ -349,6 +353,7 @@ func formatTextTask(result *NextTaskResult, showInlineContext bool) string {
 		LayeredGoalsSection  string
 		TaskContentSection   string
 		FestivalRulesSection string
+		DeferralSection      string
 		ShowInlineContext    bool
 	}{
 		InstructionHeader:    guidance.InstructionHeader,
@@ -366,6 +371,7 @@ func formatTextTask(result *NextTaskResult, showInlineContext bool) string {
 		LayeredGoalsSection:  layeredGoalsSection,
 		TaskContentSection:   taskContentSection,
 		FestivalRulesSection: festivalRulesSection,
+		DeferralSection:      buildDeferralSection(result),
 		ShowInlineContext:    showInlineContext,
 	}
 
@@ -661,13 +667,17 @@ func formatVerboseNoTask(result *NextTaskResult) string {
 	}
 
 	data := struct {
-		Header          string
-		ReasonLine      string
-		LocationSection string
+		Header             string
+		ReasonLine         string
+		BlockedSection     string
+		SweepRemainSection string
+		LocationSection    string
 	}{
-		Header:          ui.H2("No Tasks Available"),
-		ReasonLine:      reasonLine,
-		LocationSection: locationSection,
+		Header:             ui.H2("No Tasks Available"),
+		ReasonLine:         reasonLine,
+		BlockedSection:     buildBlockedSection(result.BlockedTasks),
+		SweepRemainSection: buildSweepRemainSection(result.Sweep),
+		LocationSection:    locationSection,
 	}
 
 	var buf bytes.Buffer
@@ -720,6 +730,7 @@ func formatVerboseTask(result *NextTaskResult, showInlineContext bool) string {
 		ParallelTasksSection   string
 		CurrentLocationSection string
 		TaskContentSection     string
+		DeferralSection        string
 	}{
 		InstructionHeader:      guidance.InstructionHeader,
 		Header:                 ui.H1("Next Task"),
@@ -731,6 +742,7 @@ func formatVerboseTask(result *NextTaskResult, showInlineContext bool) string {
 		ParallelTasksSection:   parallelSec.String(),
 		CurrentLocationSection: curLocSec.String(),
 		TaskContentSection:     taskContentSec,
+		DeferralSection:        buildDeferralSection(result),
 	}
 
 	var buf bytes.Buffer
@@ -856,10 +868,11 @@ func FormatCD(result *NextTaskResult) string {
 
 // buildGateSection checks if a task is a gate task and returns inline gate content.
 // Returns empty string if the task is not a gate.
-func buildGateSection(task *TaskInfo) string {
-	if task == nil || task.Path == "" {
+func buildGateSection(result *NextTaskResult) string {
+	if result == nil || result.Task == nil || result.Task.Path == "" {
 		return ""
 	}
+	task := result.Task
 
 	// Read and parse frontmatter to detect gate type
 	fileData, err := os.ReadFile(task.Path)
@@ -899,6 +912,7 @@ func buildGateSection(task *TaskInfo) string {
 		GateContent       string
 		FallbackMessage   string
 		CompletionHint    string
+		DeferralSection   string
 	}{
 		InstructionHeader: guidance.InstructionHeader,
 		Header:            ui.H1(fmt.Sprintf("Quality Gate: %s", gateTitle)),
@@ -906,6 +920,7 @@ func buildGateSection(task *TaskInfo) string {
 		PathLine:          labelValue("Path", ui.Dim(taskRelPath)),
 		TypeLine:          labelValue("Type", ui.Value(fmt.Sprintf("gate (%s)", fm.GateType))),
 		CompletionHint:    hint.String(),
+		DeferralSection:   buildDeferralSection(result),
 	}
 
 	if content != "" {

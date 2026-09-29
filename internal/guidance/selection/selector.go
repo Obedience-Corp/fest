@@ -72,6 +72,22 @@ type NextTaskResult struct {
 	// the end of a festival. Omitted entirely on every other result, so an
 	// existing consumer sees no new field.
 	Sweep *SweepInfo `json:"sweep,omitempty"`
+
+	// DeferredBlockers names the selected task's own hard dependencies whose
+	// blockers an operator deferred, so the executor knows what it is building
+	// on. It is never the festival's whole deferred set. Omitted when empty.
+	DeferredBlockers []TaskRef `json:"deferred_blockers,omitempty"`
+
+	// OperatorNotes carries what an operator sent back with
+	// fest task unblock --note, read from the store rather than from anything
+	// session scoped, so the note survives until it is acted on (D004).
+	// Omitted when empty.
+	OperatorNotes []string `json:"operator_notes,omitempty"`
+
+	// BlockedTasks names the open blockers holding a stalled festival, so the
+	// executor that just reported one is told what it is waiting on and what
+	// the rule about blockers is. Omitted when empty.
+	BlockedTasks []TaskRef `json:"blocked_tasks,omitempty"`
 }
 
 // JSONLayeredGoals holds extracted primary goals for JSON output parity.
@@ -158,7 +174,8 @@ func (s *Selector) FindNext(ctx context.Context, currentPath string) (*NextTaskR
 	}
 
 	// Update task statuses from progress system (YAML source of truth)
-	if err := s.updateTaskStatusesFromProgress(ctx, graph); err != nil {
+	mgr, err := s.updateTaskStatusesFromProgress(ctx, graph)
+	if err != nil {
 		return nil, err
 	}
 
@@ -197,8 +214,9 @@ func (s *Selector) FindNext(ctx context.Context, currentPath string) (*NextTaskR
 		}
 
 		return &NextTaskResult{
-			Reason:   "No tasks are currently ready (dependencies not satisfied)",
-			Location: location,
+			Reason:       "No tasks are currently ready (dependencies not satisfied)",
+			Location:     location,
+			BlockedTasks: s.openBlockers(mgr, graph),
 		}, nil
 	}
 
@@ -219,6 +237,8 @@ func (s *Selector) FindNext(ctx context.Context, currentPath string) (*NextTaskR
 		Location:      location,
 	}
 
+	s.attachDeferredContext(mgr, graph, primary, result)
+
 	return result, nil
 }
 
@@ -230,7 +250,8 @@ func (s *Selector) FindNextInSequence(ctx context.Context, seqPath string) (*Nex
 	}
 
 	// Update task statuses from progress system (YAML source of truth)
-	if err := s.updateTaskStatusesFromProgress(ctx, graph); err != nil {
+	mgr, err := s.updateTaskStatusesFromProgress(ctx, graph)
+	if err != nil {
 		return nil, err
 	}
 
@@ -257,8 +278,9 @@ func (s *Selector) FindNextInSequence(ctx context.Context, seqPath string) (*Nex
 		}
 
 		return &NextTaskResult{
-			Reason:   "No tasks are ready (dependencies not satisfied)",
-			Location: location,
+			Reason:       "No tasks are ready (dependencies not satisfied)",
+			Location:     location,
+			BlockedTasks: s.openBlockers(mgr, graph),
 		}, nil
 	}
 
@@ -278,12 +300,16 @@ func (s *Selector) FindNextInSequence(ctx context.Context, seqPath string) (*Nex
 		}
 	}
 
-	return &NextTaskResult{
+	result := &NextTaskResult{
 		Task:          taskInfo,
 		ParallelTasks: parallelTasks,
 		Reason:        "Next task in sequence",
 		Location:      location,
-	}, nil
+	}
+
+	s.attachDeferredContext(mgr, graph, primary, result)
+
+	return result, nil
 }
 
 // determineLocation identifies the current location context
@@ -449,14 +475,16 @@ func (s *Selector) GetProgress() (*ProgressStats, error) {
 
 // updateTaskStatusesFromProgress updates all task statuses in the graph
 // by querying the progress tracking system (YAML source of truth)
-func (s *Selector) updateTaskStatusesFromProgress(ctx context.Context, graph *deps.Graph) error {
+// It returns the manager it loaded so a caller that needs the same records
+// again, such as the deferred context, reads them without a second load.
+func (s *Selector) updateTaskStatusesFromProgress(ctx context.Context, graph *deps.Graph) (*progress.Manager, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	// Create progress manager
 	mgr, err := progress.NewManager(ctx, s.festivalPath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Update each task's status from YAML (or markdown fallback)
@@ -485,7 +513,7 @@ func (s *Selector) updateTaskStatusesFromProgress(ctx context.Context, graph *de
 		}
 	}
 
-	return nil
+	return mgr, nil
 }
 
 // isNumberedDir checks if directory name starts with a number

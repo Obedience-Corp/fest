@@ -343,6 +343,10 @@ func buildAgentContextSection(festivalPath, phasePath, seqPath string) string {
 	fmt.Fprintf(&sb, "  - %s\n", ui.Dim(phaseGoal))
 	fmt.Fprintf(&sb, "  - %s\n", ui.Dim(sequenceGoal))
 
+	sb.WriteString("\n")
+	sb.WriteString(ui.Warning(guidance.ExecutorBlockerPolicy))
+	sb.WriteString("\n")
+
 	return sb.String()
 }
 

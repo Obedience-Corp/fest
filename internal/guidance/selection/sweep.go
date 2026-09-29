@@ -137,10 +137,12 @@ func (s *Selector) findSweepTask(ctx context.Context, graph *deps.Graph, locatio
 func (s *Selector) handBackDeferredTask(ctx context.Context, mgr *progress.Manager, task *deps.Task,
 	key string, sweep, deferredTotal int, location *LocationInfo) (*NextTaskResult, error) {
 	info := &SweepInfo{Number: sweep, DeferredTotal: deferredTotal}
+	var notes []string
 	if record, ok := progress.ResolveTaskProgress(mgr.Store(), s.festivalPath, task.Path); ok && record != nil {
 		info.BlockerMessage = record.BlockerMessage
 		info.Attempts = record.BlockerAttempts
 		info.DeferralReason = record.DeferralReason
+		notes = record.OperatorNotes
 		if record.BlockerDeferredAt != nil {
 			since, sinceErr := mgr.CompletedSince(ctx, *record.BlockerDeferredAt)
 			if sinceErr != nil {
@@ -155,10 +157,11 @@ func (s *Selector) handBackDeferredTask(ctx context.Context, mgr *progress.Manag
 	}
 
 	return &NextTaskResult{
-		Task:     s.taskToInfo(task),
-		Reason:   "Revisiting a deferred blocker in sweep " + strconv.Itoa(sweep),
-		Location: location,
-		Sweep:    info,
+		Task:          s.taskToInfo(task),
+		Reason:        "Revisiting a deferred blocker in sweep " + strconv.Itoa(sweep),
+		Location:      location,
+		Sweep:         info,
+		OperatorNotes: notes,
 	}, nil
 }
 

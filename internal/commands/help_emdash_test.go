@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -30,6 +31,20 @@ func TestCobraHelpEmDashHitsDetectsShortLongExampleAndFlag(t *testing.T) {
 	hits := cobraHelpEmDashHits(cmd)
 	if len(hits) != 4 {
 		t.Fatalf("hits = %v, want 4", hits)
+	}
+}
+
+// TestGuidanceTextHasNoEmDash extends the same rule past cobra help to the
+// fixed guidance strings fest next renders, which generated docs and every
+// executor read.
+func TestGuidanceTextHasNoEmDash(t *testing.T) {
+	for name, text := range map[string]string{
+		"guidance.InstructionHeader":     guidance.InstructionHeader,
+		"guidance.ExecutorBlockerPolicy": guidance.ExecutorBlockerPolicy,
+	} {
+		if strings.ContainsRune(text, helpEmDash) {
+			t.Errorf("em dash (U+2014) in %s: %q", name, text)
+		}
 	}
 }
 

@@ -226,7 +226,7 @@ func TestCrossPhaseDependentBecomesReadyWhenItsBlockerIsDeferred(t *testing.T) {
 			}
 
 			selector := NewSelector(festivalPath)
-			if err := selector.updateTaskStatusesFromProgress(ctx, graph); err != nil {
+			if _, err := selector.updateTaskStatusesFromProgress(ctx, graph); err != nil {
 				t.Fatalf("updateTaskStatusesFromProgress() error = %v", err)
 			}
 

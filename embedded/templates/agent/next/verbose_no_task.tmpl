@@ -6,6 +6,14 @@ PURPOSE: Detailed no-task message for --verbose flag
 {{- if .ReasonLine}}
 {{.ReasonLine}}
 {{- end}}
+{{- if .BlockedSection}}
+
+{{.BlockedSection}}
+{{- end}}
+{{- if .SweepRemainSection}}
+
+{{.SweepRemainSection}}
+{{- end}}
 {{- if .LocationSection}}
 
 {{.LocationSection}}

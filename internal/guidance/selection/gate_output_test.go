@@ -22,7 +22,7 @@ func TestBuildGateSection_NonGateTask(t *testing.T) {
 		SequenceName: "01_seq",
 	}
 
-	result := buildGateSection(task)
+	result := buildGateSection(&NextTaskResult{Task: task})
 	if result != "" {
 		t.Errorf("expected empty string for non-gate task, got %q", result)
 	}
@@ -42,7 +42,7 @@ func TestBuildGateSection_GateTask(t *testing.T) {
 		SequenceName: "01_seq",
 	}
 
-	result := buildGateSection(task)
+	result := buildGateSection(&NextTaskResult{Task: task})
 	if result == "" {
 		t.Fatal("expected gate section, got empty string")
 	}
@@ -76,7 +76,7 @@ func TestBuildGateSection_EmptyBody(t *testing.T) {
 		SequenceName: "01_seq",
 	}
 
-	result := buildGateSection(task)
+	result := buildGateSection(&NextTaskResult{Task: task})
 	if result == "" {
 		t.Fatal("expected gate section for empty body")
 	}
@@ -98,7 +98,7 @@ func TestBuildGateSection_MissingFile(t *testing.T) {
 		Path: "/nonexistent/path/task.md",
 	}
 
-	result := buildGateSection(task)
+	result := buildGateSection(&NextTaskResult{Task: task})
 	if result != "" {
 		t.Errorf("expected empty string for missing file, got %q", result)
 	}
