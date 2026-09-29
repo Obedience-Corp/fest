@@ -1,512 +1,312 @@
 # Fest CLI
 
-> **Part of [Festival](https://github.com/Obedience-Corp/festival)** - mission-based AI workspace management. Fest handles hierarchical planning and execution loops; [camp](https://github.com/Obedience-Corp/camp) handles workspace management. Together they give structure to how you work across multiple projects, contexts, and AI agents.
+**Manage the work, not the agents.**
+
+Fest turns complex goals into plans your coding agents can execute, verify, and
+resume across sessions. Keep the plan, decisions, and progress in your repo.
+Use the coding agent you already work with.
 
 <p align="center">
   <a href="https://github.com/Obedience-Corp/fest/stargazers"><img src="https://img.shields.io/github/stars/Obedience-Corp/fest?style=social" alt="Star fest on GitHub"></a>
-</p>
-
-<p align="center">
   <a href="https://pkg.go.dev/github.com/Obedience-Corp/fest"><img src="https://pkg.go.dev/badge/github.com/Obedience-Corp/fest.svg" alt="pkg.go.dev documentation"></a>
   <a href="https://coveralls.io/github/Obedience-Corp/fest"><img src="https://coveralls.io/repos/github/Obedience-Corp/fest/badge.svg" alt="Coveralls test coverage"></a>
 </p>
 
 <p align="center">
-  <img src="docs/images/banner.jpg" alt="Festival Methodology Banner" width="400">
+  <img src="docs/images/banner.jpg" alt="Festival Methodology Banner" width="280">
 </p>
 
 <p align="center">
-  <img src="docs/images/fest-loop.gif" alt="fest next printing the next task, then fest watch showing the festival tree fill in as tasks complete and the progress bar climbs to 27%" width="700">
+  <img src="docs/images/fest-loop.gif" alt="fest next printing the next task, then fest watch showing completed tasks and progress in the festival tree" width="700">
 </p>
-<p align="center"><em><code>fest next</code> hands the agent its next task; <code>fest watch</code> shows the tree fill in as the work lands.</em></p>
+<p align="center"><em><code>fest next</code> gives your agent its next task and context. <code>fest watch</code> shows progress as the work lands.</em></p>
 
-<p align="center"><em><a href="https://github.com/Festival-Examples/example-camp-hardening-festival">Browse a complete festival end to end &rarr;</a></em></p>
+[Install](#install-festival) · [Get started](#get-started) · [See a real project](#a-real-project-across-three-agent-tools) · [Documentation](https://docs.fest.build/) · [Share a replay](#share-what-you-built)
 
-**Fest is a template-driven agent orchestrator.** You describe work as structured documents scaffolded from templates you control, and agents execute them through a tracked loop: `fest next` hands the agent its next task with full context, quality gates and approval judges check the work, and progress lands in git. Festival Methodology transforms high-level objectives into structured, executable work that AI agents complete autonomously; fest is the CLI that makes it happen.
+Fest is the planning and execution CLI in [Festival](https://github.com/Obedience-Corp/festival).
+The suite includes `camp` for workspaces, `fest` for plans and execution, and
+`festival` for installation and updates. Your coding agent runs the work;
+Fest supplies the next step, tracks progress, and checks configured gates.
 
-This practice is **loop engineering**: instead of babysitting prompts, you design the loop your agents run in (the goals, steps, gates, and feedback) and let them run it. The better your loop, the less you supervise. Fest is a tool for building those loops out of plain markdown.
+## Install Festival
 
-**Install** (see the [festival repo](https://github.com/Obedience-Corp/festival#install) for all package options):
-
-```bash
-brew install --cask Obedience-Corp/tap/festival   # macOS/Linux (installs camp + fest)
-npm install -g @obedience-corp/festival           # any platform with node
-```
-
-Festivals live within **camps** (previously called campaigns), isolated workspaces managed by [camp](https://github.com/Obedience-Corp/camp). A camp organizes your projects, plans, and context in one place. See the [methodology README](methodology/README.md) for the complete guide.
-
-## Your Templates, Your Workflow
-
-Fest ships with a complete default methodology, but the methodology is a
-template set, not a requirement. Everything fest scaffolds comes from
-templates you can inspect and change:
-
-- **Camp-level templates** - every festival, phase, sequence, and task
-  document is generated from `festivals/.festival/templates/` in your
-  camp. Edit them and fest uses your versions.
-- **Custom festival types** - `festivals/.festival/festival_types.yaml`
-  defines which phases each festival type auto-scaffolds. Add your own types
-  for your own workflow shapes.
-- **Quality gates** - defaults included; replace or modify them camp-wide
-  or per festival.
-- **Lifecycle hooks** - declare named commands at machine / festivals / festival
-  layers, bind them to steps, and inspect with `fest hooks list`. The approval
-  judge is one hook (`approval_judge`); see [docs/concepts/hooks.md](docs/concepts/hooks.md).
-- **Template syncing** - `fest system sync` pulls templates from a
-  configurable repository (`repository.url`, `branch`, and `path` in
-  [configuration](docs/configuration.md)), so a team can maintain and
-  distribute its own template set.
-
-If you can write markdown, you can make fest orchestrate agents your way.
-The default templates encode one proven workflow; yours can encode yours.
-
-## Steps, Not Time
-
-Festival plans in **steps to completion**, not time estimates. AI agents work exponentially faster than humans and are improving faster than anyone can predict - a festival that takes a week today might take 10 minutes next month. Time-based estimation is meaningless in this context. What matters is the sequence of steps between where you are and where you need to be.
-
-## When to Use a Festival
-
-A festival scales to the work. It can be:
-
-- A **complex feature** that spans multiple services and needs careful sequencing
-- An **entire quarter's worth of epics** broken into phases with clear milestones
-- All the **infrastructure for a new initiative** from zero to production
-- A **massive refactor** that touches every layer of the stack
-
-If you can describe the task in a single prompt and an agent can finish it in one session, you don't need a festival. If the work has dependencies, requires decisions, spans multiple sessions, or needs to follow specific patterns - that's what festivals are for.
-
-## What Makes Festival Different
-
-### Hierarchical Goal System
-
-Every level has clear, measurable goals with built-in evaluation frameworks. **Festival goals** define overall success criteria. **Phase goals** set stage-specific objectives. **Sequence goals** ensure granular completion. You always know if you've succeeded.
-
-### Context Preservation
-
-`CONTEXT.md` captures key decisions, rationale, session handoff notes, and open questions. This maintains continuity across AI sessions and human reviews - no more losing context between conversations.
-
-### Autonomy Levels
-
-Every task is marked with an autonomy level - **high** (agent completes independently), **medium** (may need edge case clarification), or **low** (expect human collaboration). Agents know when to proceed and when to ask for help.
-
-### Just-In-Time Documentation
-
-Agents read templates and methodology docs only when needed, preserving context window for actual work. No upfront context dumps.
-
-For the complete methodology guide, see [methodology/README.md](methodology/README.md).
-
-## Three-Level Structure
-
-Festival organizes work into **phases**, **sequences**, and **tasks** - each with its own goal document:
-
-```text
-Goal: Build E-Commerce Platform
-├── FESTIVAL_GOAL.md                    # Overall success metrics
-├── FESTIVAL_OVERVIEW.md                # Project description
-├── fest.yaml                           # Configuration
-│
-├── 001_PLAN/ (type: planning)          # Uses WORKFLOW.md
-│   ├── PHASE_GOAL.md
-│   ├── WORKFLOW.md                     # Step-by-step planning guidance
-│   ├── inputs/                         # Reference materials
-│   ├── decisions/                      # Captured decisions
-│   └── plan/                           # Resulting plans
-│
-├── 002_IMPLEMENT/ (type: implementation)  # Uses numbered sequences
-│   ├── PHASE_GOAL.md
-│   ├── 01_backend/
-│   │   ├── SEQUENCE_GOAL.md
-│   │   ├── 01_database_setup.md
-│   │   ├── 02_api_endpoints.md
-│   │   ├── 03_testing.md              # Quality gate
-│   │   ├── 04_review.md               # Quality gate
-│   │   └── 05_iterate.md              # Quality gate
-│   └── 02_frontend/
-│       ├── SEQUENCE_GOAL.md
-│       ├── 01_components.md
-│       ├── 02_state_management.md
-│       ├── 03_testing.md              # Quality gate
-│       ├── 04_review.md               # Quality gate
-│       └── 05_iterate.md              # Quality gate
-│
-└── 003_VALIDATE/ (type: review)
-    └── PHASE_GOAL.md
-```
-
-**Key distinction**: Planning phases use `WORKFLOW.md` for guided process. Implementation phases use numbered sequences with task files. This is the most important structural concept in Festival.
-
-## Phase Types
-
-Every phase has a **type** that determines its internal structure:
-
-| Phase Type | Purpose | Structure | When to Use |
-|-----------|---------|-----------|-------------|
-| **planning** | Design, architecture, requirements | `WORKFLOW.md` + `inputs/` + `decisions/` + `plan/` | Breaking down goals into plans |
-| **implementation** | Writing code, building features | Numbered sequences with task files | Executing defined work |
-| **research** | Investigation, exploration, auditing | `WORKFLOW.md` + `sources/` + `findings/` | Exploring unknowns |
-| **ingest** | Absorbing external content, data | `WORKFLOW.md` + `input_specs/` + `output_specs/` | Processing external inputs |
-| **review** | Code review, testing, validation | Freeform with `PHASE_GOAL.md` | Verifying completed work |
-| **non_coding_action** | Documentation, process changes | Freeform with `PHASE_GOAL.md` | Non-code deliverables |
-
-Workflow phases (planning, research, ingest) use a `WORKFLOW.md` file with step-by-step guidance and checkpoints. Implementation phases use numbered sequences containing task files. This distinction shapes how agents navigate and execute work.
-
-## Quality Gates
-
-Every implementation sequence ends with built-in quality checks:
-
-```text
-01_feature_code.md
-02_more_code.md
-03_testing.md            # Run tests, verify functionality
-04_review.md             # Code review checklist
-05_iterate.md            # Address feedback, iterate
-```
-
-Defaults are included out of the box but fully customizable: modify them at the camp level via the `.festival/` directory, or override per-festival.
-
-## What fest Does
-
-**Agent Guidance System** - Built-in documentation teaches agents the methodology on-demand (`fest intro`, `fest understand`). `fest next` shows exactly what to work on next with layered context - festival, phase, and sequence goals plus complete task content. Agents learn what they need, when they need it.
-
-**Planning and Execution Engine** - Scaffold festivals with interactive TUI (`fest create`). Validate structural compliance (`fest validate --fix`). Navigate between festivals, phases, and sequences (`fgo`). Track progress across all levels (`fest status`, `fest progress`). Execute with festival-aware git tracking (`fest commit`).
-
-## Battle-Tested at Scale
-
-Festival Methodology has been refined through **daily production use** spanning infrastructure, CLI tools, architecture, web launches, and multi-service platforms.
-
-**Complexity tiers with real examples:**
-
-| Tier | Phases | Example Festivals |
-|------|--------|-------------------|
-| **Focused** | 3-4 | fest-improvements, fls-command-implementation, camp-intent-enhancements |
-| **Standard** | 5-6 | obey-daemon-implementation (6 phases, 28 sequences), camp-cli, fest-cli-agent-feedback |
-| **Complex** | 7-9 | guild-scaffold (9 phases, 30 sequences), obediencecorp-website-launch |
-
-These festivals span Go, Rust, Python, and web projects - from simple CLI fixes to building an entire daemon service with gRPC, WebSocket, and SQLite from scratch.
-
-## Realistic Expectations
-
-- Festival gets you **90% there autonomously** - AI agents handle the bulk of implementation
-- **Human expertise guides the final 10%** - your insight ensures quality and correctness
-- Goals evolve as you learn - multiple festivals may be needed as requirements clarify
-- Best for **complex, multi-session projects** - not needed for single-task work
-
-## Festival vs Other Approaches
-
-| Aspect | Festival | Traditional PM | Ad-hoc AI |
-|--------|----------|---------------|-----------|
-| **Focus** | Goal achievement via tasks | Task tracking | Quick answers |
-| **Task Detail** | Complete executable specs | User stories | Vague prompts |
-| **Planning Model** | Steps to completion | Sprint cycles | One-shot prompts |
-| **Context** | Persists in CONTEXT.md | Meeting notes | Lost between chats |
-| **AI Autonomy** | Guided by autonomy levels | N/A | Constant prompting |
-| **Collaboration** | Human-AI task creation | Human teams | Human directs |
-| **Success Metrics** | Built-in evaluation framework | Retrospectives | Undefined |
-| **Customization** | Template-driven; bring your own workflow | Process imposed by tool | None |
-
-## Installation
-
-fest ships bundled with camp as part of the [Festival packaging repo](https://github.com/Obedience-Corp/festival), which is the canonical, checksum-verified distributor for prebuilt binaries:
+Install the complete Festival suite using **one** of these methods. For just the
+planning CLI, see [Install Fest CLI only](#install-fest-cli-only).
 
 ```bash
-# macOS/Linux, via Homebrew
+# macOS with Homebrew
 brew install --cask Obedience-Corp/tap/festival
 
-# or via the Festival installer directly
+# Or npm on macOS/Linux with Node.js installed
+npm install -g @obedience-corp/festival
+
+# Or the Festival installer script on macOS/Linux
 curl -fsSL https://raw.githubusercontent.com/Obedience-Corp/festival/main/install.sh | bash
 ```
 
-See the [festival repo](https://github.com/Obedience-Corp/festival#install) for the full package list (npm, deb, rpm, apk, Arch) and published `checksums.txt`.
+All three methods install `camp`, `fest`, and `festival`. Git is required. For Linux packages
+and other methods, see the [installation guide](https://docs.fest.build/getting-started/installation/).
+Stable Windows packages are temporarily paused; use WSL2 with a Linux install.
 
-To install fest on its own from source:
-
-```bash
-git clone https://github.com/Obedience-Corp/fest
-cd fest
-just install
-```
-
-Or with Go:
+Check the suite installation:
 
 ```bash
-go install github.com/Obedience-Corp/fest/cmd/fest@latest
+festival doctor
 ```
 
-This repo's `install.sh` does not download or install a binary itself; running it prints the install paths above.
+## Get started
 
-## Shell Integration (Recommended)
-
-Add to your shell config for quick navigation commands:
+With the Festival suite installed, create a camp for your work:
 
 ```bash
-# Zsh/Bash
-eval "$(fest shell-init zsh)"
+camp init my-camp
+cd my-camp
 
-# Fish
-fest shell-init fish | source
+# Replace this with the absolute path to your existing repository
+camp project link /path/to/your-existing-repo
 ```
 
-This gives you:
+A camp holds related projects, plans, and context. Linking a project keeps it in
+its current location and adds a `.camp` attachment file. To clone a repository
+into the camp instead, use `camp project add <repo-url>`.
 
-- `fgo` - Quick navigation (`fest go`)
-- `fls` - Quick listing (`fest list`)
-- Tab completion for all fest commands
+Open your coding agent at the camp root. Replace the brackets and give it a goal:
 
-### Finding the installed binary
+```text
+Read AGENTS.md and run fest intro.
 
-Shell integration defines `fest` as a **shell function** (so `fest go` / `fgo`
-can `cd` in your current shell). That means plain `which fest` usually prints
-the function body, not a filesystem path.
+In [project name], I want [specific outcome].
+Success means [what I should be able to verify].
+Constraints: [scope, compatibility, or other requirements].
 
-Use these instead:
+Use fest to create and plan a festival for this goal. Ask about missing
+requirements, fill the required markers, and validate the plan. Link the
+festival to the project or worktree where you will implement it.
+Show me the plan before starting implementation.
+```
+
+Once you have reviewed the plan, tell the agent to execute it:
+
+```text
+The plan is approved. Work from the linked project or worktree.
+Run fest next, follow its instructions, verify the results, record progress,
+and repeat. Stop at approval gates, blockers, or decisions that need me.
+Finish with the verification results and what I should review.
+```
+
+The CLI includes guidance agents can read on demand. See the
+[agent setup guides](https://docs.fest.build/getting-started/agents/) for your tool,
+or follow the [full quick start](https://docs.fest.build/getting-started/quickstart/)
+with recordings of the setup and handoff.
+
+## What you get
+
+- **Resume across sessions.** Plans, task status, and recorded decisions stay on
+  disk. A new session can read them and use `fest next` to find the next step.
+- **Switch agents.** Use Claude Code, Codex, Grok Build, or another agent that can
+  read files and run commands. The work record belongs to your workspace.
+- **Review against a goal.** Give tasks completion criteria and end implementation
+  sequences with testing, review, and iteration gates. Trace commits back to the
+  plan with `fest commit`.
+- **See the work move.** Inspect the plan with `fest show`, follow it live with
+  `fest watch`, and share recorded progress with `fest gif`.
+- **Keep your own workflow.** Edit the templates, define festival types, and
+  configure gates and hooks for the way you work.
+
+Use a festival when the work has dependencies, requires decisions, spans
+sessions, or needs to follow specific patterns. A feature across services, an
+infrastructure migration, a research investigation, or a substantial refactor
+can all use the same loop. A task an agent can finish in one session may not
+need a full festival.
+
+You still set the goal and review the result. How much supervision a run needs
+depends on the plan, the agent, the available checks, and the decisions involved.
+
+## A real project across three agent tools
+
+[Camp Hardening](https://github.com/Festival-Examples/example-camp-hardening-festival)
+was planned in Claude Code (Fathom), executed in Grok Build, and finished in
+Codex after a handoff partway through the four-day effort. The plan and progress
+stayed with the work as the agent changed.
+
+Browse the public festival's goals, task files, and completed work. The
+[project story](https://fest.build/stories/camp-hardening) walks through the run
+and its results. Use that record to judge whether the workflow fits your work.
+
+## How the loop works
+
+A **festival** is a plan and work record for a goal. It breaks work into phases,
+sequences, and tasks, with goals and completion criteria at each level:
+
+```text
+my-feature/
+├── FESTIVAL_GOAL.md
+├── FESTIVAL_OVERVIEW.md
+├── fest.yaml
+├── 001_INGEST/
+│   ├── PHASE_GOAL.md
+│   └── WORKFLOW.md
+├── 002_PLAN/
+│   ├── PHASE_GOAL.md
+│   └── WORKFLOW.md
+└── 003_IMPLEMENT/
+    ├── PHASE_GOAL.md
+    └── 01_api/
+        ├── SEQUENCE_GOAL.md
+        ├── 01_endpoints.md
+        └── ... testing, review, iteration, and commit gates
+```
+
+This is an example of a planned festival. The standard type initially scaffolds
+INGEST and PLAN; implementation phases and tasks are added during planning.
+Workflow phases use `WORKFLOW.md` to guide steps and checkpoints. Implementation
+phases use numbered sequences and task files.
+
+From a festival or its linked project, the agent uses:
 
 ```bash
-# zsh — path of the external binary (skips shell functions)
-whence -p fest
-# or: which -p fest
-
-# bash
-type -P fest
-
-# show the function plus every binary on PATH
-type -a fest
-
-# resolve symlinks to the real file
-realpath "$(whence -p fest)"   # zsh
-realpath "$(type -P fest)"     # bash
+fest next                     # Read the next step and its surrounding context
+# Do the work and run the checks described in the task
+fest task completed --yes     # Record completion without an interactive prompt
+fest commit -m "Describe the change"
+fest next                     # Continue from the recorded state
 ```
 
-To run the binary without the wrapper (scripts, debugging): `command fest version`.
+For workflow phases, follow `fest workflow show` and advance completed steps
+with `fest workflow advance`. Approval gates can pause the loop. The agent
+should follow the instructions returned by `fest next` for the current phase.
 
-## Agent Workflow
+`fest validate` checks plan structure and required content. Task criteria,
+project tests, and reviews establish whether the delivered work meets the goal.
+Maintain decisions and handoff notes alongside the plan: `CONTEXT.md` is a
+supported place for them, but you or your agent must create and update it;
+scaffolding does not generate it.
 
-The typical workflow for AI agents:
+This is **loop engineering**: define the goals, steps, checks, and feedback your
+agent follows. Plan around steps to completion, dependencies, and evidence.
+Read the [methodology](methodology/README.md) for phase types and planning rules,
+and [loops and orchestration](https://docs.fest.build/guides/loops-and-orchestration/)
+for running multiple festivals.
 
-### 1. Learn the Methodology
+## Your templates, your workflow
+
+Fest ships with a default methodology you can inspect and change:
+
+| Customize | Where to start |
+| --- | --- |
+| Festival, phase, sequence, and task documents | `festivals/.festival/templates/` |
+| Festival types and their initial phases | `festivals/.festival/festival_types.yaml` |
+| Quality gates | Camp defaults in `.festival/`, with per-festival overrides |
+| Lifecycle hooks | Named commands in machine, workspace, or festival configuration |
+| Shared template sets | Configure a repository and use `fest system sync` |
+
+You can use a team's own template repository. See [templates](docs/templates.md)
+and [configuration](docs/configuration.md) for the supported settings.
+
+Hooks can run commands on lifecycle events such as task completion. An optional
+`approval_judge` hook can evaluate eligible checkpoints and return a verdict
+with fixes. Steps marked `approval: human-required` still require a person.
+Fresh configurations run no hooks until you declare them. See the
+[hooks guide](docs/concepts/hooks.md) for setup and the judge protocol.
+
+Configuration has three layers: machine settings in `~/.obey/fest/config.json`,
+workspace settings in `festivals/.festival/config.yaml`, and festival settings
+in `fest.yaml`. `fest config show` reports the active template configuration
+repository; it does not dump every effective setting.
+
+## Share what you built
+
+Render a festival's recorded progress as a GIF:
 
 ```bash
-fest intro                    # Start here - getting started guide
-fest understand methodology   # Core principles
-fest understand structure     # 3-level hierarchy
-```
-
-### 2. Scaffold
-
-Choose a festival type to auto-scaffold the right structure:
-
-| Type | Auto-Scaffolded Phases | When to Use |
-|------|----------------------|-------------|
-| **standard** | INGEST + PLAN | Most projects - gather requirements then plan |
-| **implementation** | IMPLEMENT | Requirements already defined |
-| **research** | INGEST + RESEARCH + SYNTHESIZE | Investigation or exploration |
-| **ritual** | Custom (no defaults) | Recurring processes |
-
-```bash
-fest init                                          # Initialize festivals directory
-fest create festival --type standard --name "my-project"  # Auto-scaffolds phases
-fest create phase                                  # Add more phases
-fest create sequence                               # Add sequences to phases
-```
-
-### 3. Review & Refine
-
-Review the full plan before agents start executing:
-
-```bash
-fest validate                 # Check structure for issues
-fest validate --fix           # Auto-fix common problems
-fest show --roadmap           # Full execution roadmap with task statuses
-fest status                   # Festival progress overview
-```
-
-### 4. Execute
-
-```bash
-fest next                     # Get next task with full context
-fest task completed           # Mark current task done
-fest commit -m "message"      # Git commit with festival tracking
-```
-
-For workflow phases (planning, research, ingest):
-
-```bash
-fest workflow status           # Current step in the workflow
-fest workflow show             # Full details of current step
-fest workflow advance          # Complete step, move to next
-fest workflow skip --reason "already completed externally" --as skipped
-                             # Human-only operator override for externally completed phases
-                             # Example: ai-investor-outreach-system-AI0001 backfill phases
-```
-
-### 5. Verify
-
-Quality gates run at the end of every implementation sequence:
-
-```bash
-fest progress                 # Track execution progress
-fest gates apply --approve    # Propagate quality gates to all sequences
-```
-
-### Let a judge pass the gates
-
-Blocking checkpoints wait for a human by default. Hang a judge on the
-`approval_judge` hook and `fest next` invokes it at every checkpoint, so agents
-pass gates on evidence and you review the verdicts instead of every phase. The
-reference judge wraps a CLI you already run:
-
-```bash
-go install github.com/Obedience-Corp/judge-agent/cmd/judge-agent@latest
-```
-
-```yaml
-# festivals/.festival/config.yaml
-hooks:
-  definitions:
-    approval_judge:
-      command: judge-agent --agent claude   # or grok, codex, fx
-```
-
-The judge opens the phase goal, gates, and declared deliverables, then returns
-approve or reject with itemized fixes. Any command that speaks
-`fest.approval.judge/v1` works. See
-[judge-agent](https://github.com/Obedience-Corp/judge-agent) and
-[docs/concepts/hooks.md](docs/concepts/hooks.md).
-
-### 6. Complete
-
-```bash
-fest promote                  # Move festival to next lifecycle status
-```
-
-When a festival moves to completed, `fest` creates `festival-replay.gif` in the
-festival directory and embeds it in `FESTIVAL_OVERVIEW.md`. The replay and
-relative image link are included in the completion commit. This also applies to
-`fest status set completed` and `fest promote --dungeon completed`.
-
-### 7. Share the replay
-
-```bash
-fest gif                      # Render the run as ./<festival>.gif
-fest gif --festival MF0001    # Or pick one from anywhere in the camp
-fest gif --speed 2            # Twice as fast
-fest gif --embed              # Refresh the replay embedded in the overview
+fest gif
 ```
 
 <p align="center">
-  <img src="docs/images/fest-gif-replay.gif" alt="fest gif replaying a finished festival: six phases fill in task by task, gates show the approval judge waiting and then its verdict, a rejected gate turns its phase blocked before a recheck passes it, hook runs appear under the rows that fired them, and the last frame matches fest show at 100%" width="700">
+  <img src="docs/images/fest-gif-replay.gif" alt="A six-phase festival replay showing tasks, approval judge verdicts, a rejected gate, and its successful recheck" width="700">
 </p>
 
-<p align="center"><em>A finished six phase festival replayed end to end, gates and judge verdicts included.</em></p>
+The replay shows recorded tasks, workflow steps, gates, and hook results in
+order. Share it with a link to the plan and the resulting code or deliverable
+so others can inspect the work behind the animation.
 
-`fest gif` replays a festival the way `fest watch` showed it live: tasks and
-steps light up in the order they ran, gates show the judge waiting and then its
-verdict, and each hook run appears under the row it fired on. A rejected gate
-turns its phase blocked until the recheck passes, and the last frame always
-matches `fest show`. It works on finished festivals in the dungeon too.
+Completing a festival also generates a replay and embeds it in
+`FESTIVAL_OVERVIEW.md`. Use `fest gif --embed` to refresh that section, including
+for older festivals. See the [replay guide](docs/guides/replays.md) for playback
+options, missing-history behavior, and recovery if rendering fails.
 
-Share the generated GIF directly, or share the festival directory with its
-overview. Repeating `--embed` refreshes the generated section without changing
-your other notes. It also works for older festivals that have no overview yet.
-If automatic rendering fails, completion still succeeds and reports the problem;
-run `fest gif --embed` inside the completed festival after fixing it. See the
-[replay guide](docs/guides/replays.md) for recovery and missing-history behavior.
+If Fest helps you finish something, [star the repo](https://github.com/Obedience-Corp/fest)
+and share your run.
 
-Every recorded change gets its own beat, in the order fest recorded it, so you
-watch the festival step by step. At the default speed a beat holds 2 seconds and
-shrinks to no less than 1 second once a festival has many changes: a long
-festival makes a long replay rather than merging or skipping steps. Row
-backgrounds stay steady while you read, and rejections and hook results get
-extra reading time.
-Use `--speed 2` for faster playback or `--speed 0.5` for more reading time. Other Go programs can render the
-same replay with [`pkg/festgif`](pkg/festgif) and
-[`pkg/festgif/festival`](pkg/festgif/festival).
+## Navigation and command reference
 
-## Quick Commands
-
-After shell integration:
-
-| Command | Full Form | Purpose |
-|---------|-----------|---------|
-| `fgo` | `fest go` | Toggle between linked festival and project directories |
-| `fgo <name>` | `fest go <name>` | Navigate to a specific festival |
-| `fgo 2` | `fest go 2` | Go to phase 002 |
-| `fgo 2/1` | `fest go 2/1` | Go to phase 2, sequence 1 |
-| `fgo active` | `fest go active` | Go to active festivals |
-| `fls` | `fest list` | List festivals by status |
-| `fls active` | `fest list active` | List active festivals |
-
-**Smart Navigation**: `fgo` with no arguments toggles between a festival directory and its linked project directory (set up with `fest link`). This makes it easy to jump back and forth between planning and implementation.
-
-## Command Reference
-
-Fest has 40+ commands organized into 7 groups (Learning, Creation, Structure, Workflow, Query, Navigation, System). The most common commands are covered in the [Agent Workflow](#agent-workflow) section above.
-
-For the full reference with flags, examples, and JSON output formats, see [docs/cli-reference/](docs/cli-reference/) or run:
+Choose the integration for your shell and add it to that shell's startup file:
 
 ```bash
-fest --help              # All commands grouped by category
-fest [command] --help    # Detailed help for any command
+# Zsh (~/.zshrc)
+eval "$(fest shell-init zsh)"
+
+# Bash (~/.bashrc)
+eval "$(fest shell-init bash)"
 ```
 
-## Documentation
+For Fish, add `fest shell-init fish | source` to `~/.config/fish/config.fish`.
 
-| Document | Content |
-|----------|---------|
-| [methodology/README.md](methodology/README.md) | Complete methodology guide (source of truth) |
-| [docs/cli-reference/](docs/cli-reference/) | Auto-generated command reference |
-| [docs/configuration.md](docs/configuration.md) | Configuration reference |
-| [docs/lifecycle.md](docs/lifecycle.md) | Status transitions and lifecycle management |
-| [docs/architecture.md](docs/architecture.md) | Internal package structure |
-| [docs/plugins.md](docs/plugins.md) | Extension system |
-| [docs/templates.md](docs/templates.md) | Template system |
-| [docs/ritual.md](docs/ritual.md) | Recurring festival documentation |
-| [docs/contributing.md](docs/contributing.md) | Development setup and contributing |
+| Command | Purpose |
+| --- | --- |
+| `fgo` | Navigate between a linked festival and project |
+| `fgo 2/1` | Go to phase 2, sequence 1 |
+| `fls active` | List active festivals |
+| `fest show` | Inspect the festival tree and progress |
+| `fest watch` | Follow live progress |
+| `fest --help` | Find commands by category |
+| `fest <command> --help` | Read flags and examples |
 
-## Configuration
+Shell integration wraps `fest` in a function so navigation can change your
+working directory. See [shell setup](https://docs.fest.build/getting-started/shell-setup/)
+for setup details and troubleshooting.
 
-Config stored at `~/.obey/fest/config.json`. See [docs/configuration.md](docs/configuration.md) for all options, or run `fest config show` to view.
+## Install Fest CLI only
 
-## Development
-
-Uses `just` for all build/test commands:
+To install only `fest`, use Go:
 
 ```bash
-just              # List all commands
-just check        # Pre-merge gate: build, vet, lint, docs-check, unit tests
-just hooks install  # Run just check automatically on every push (one time)
-just build        # Build fest binary
-just test         # Testing commands (unit, integration, coverage)
-just install      # Install to $GOBIN
-just lint         # Format and vet
-just clean        # Clean build artifacts
-just docs         # Generate CLI reference docs
+go install github.com/Obedience-Corp/fest/cmd/fest@latest
+fest version
 ```
 
-Subcommand modules:
+Use the Go version required by [go.mod](go.mod). The binary is installed in
+`$GOBIN`, or `$(go env GOPATH)/bin` when `GOBIN` is unset; that directory must be
+on your `PATH`. This installs `fest` without `camp` or the `festival` suite manager.
+The camp setup above requires the [Festival suite](#install-festival).
+
+Alternatively, build from a checkout with [just](https://github.com/casey/just):
 
 ```bash
-just build        # Build variants (local, cross-platform, profiles)
-just build profile-commands   # Show stable/dev CLI command surfaces
-just install      # Install fest (stable, dev, current)
-just test         # Testing commands
-just release      # Release packaging and versioning
-just lint         # Linting (golangci-lint, gopls, vet)
+git clone https://github.com/Obedience-Corp/fest.git
+cd fest
+just install stable           # Build and install to $GOBIN (or GOPATH/bin)
 ```
 
-## Part of Festival
+## Documentation and contributing
 
-Fest is one half of the Festival product. The other half is [camp](https://github.com/Obedience-Corp/camp), which manages camps: isolated environments for individual missions. Camp creates the workspace (`camp init`), fest manages the planning and execution within it. Together, camp + fest = Festival. Both tools are built to be customized: camp scaffolds the workspace, fest scaffolds and executes the work inside it, and the templates behind both are yours to change.
+- [Festival documentation](https://docs.fest.build/): setup, tutorials, and use cases.
+- [Methodology](methodology/README.md): goals, phase types, and planning conventions.
+- [CLI reference](docs/cli-reference/): command flags and examples.
+- [Lifecycle](docs/lifecycle.md): promotion and completion.
+- [Configuration](docs/configuration.md), [templates](docs/templates.md), and [hooks](docs/concepts/hooks.md): customize the workflow.
+- [Contributing](CONTRIBUTING.md): contribution requirements and sign-off policy.
 
-- [Festival documentation](https://fest.build) - Full docs, methodology, tutorials
-- [camp CLI](https://github.com/Obedience-Corp/camp) - Camp workspace management
-- [Festival repo](https://github.com/Obedience-Corp/festival) - Distribution hub and releases
+For development:
 
-## Watch
-
-[![Watch the demo](docs/images/demo_video_thumb.jpg)](https://youtu.be/30m3VNl2G6k?si=4taH1m1q4MRkbOhd&t=21)
-
-<p align="center"><strong>Find fest useful?</strong> <a href="https://github.com/Obedience-Corp/fest">Star the repo</a> so others can find it.</p>
+```bash
+just --list                   # Discover recipes and modules
+just build quick-stable       # Build the stable CLI
+just check                    # Build, vet, lint, CLI docs, and unit tests
+just test integration         # Integration tests (requires Docker)
+just docs                     # Regenerate CLI reference after command changes
+```
 
 ## License
 
-Apache License 2.0 - See [LICENSE](LICENSE) for details.
+[Apache License 2.0](LICENSE).
