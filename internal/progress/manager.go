@@ -237,6 +237,15 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 		task.CompletedAt = &now
 		task.TimeSpentMinutes = int(now.Sub(*task.StartedAt).Minutes())
 
+		// A deferred blocker completing in a sweep invalidates any gate that
+		// passed while it was set aside, so the deferral stamp is read before
+		// clearDeferral wipes it.
+		var deferredAt *time.Time
+		if task.BlockerDeferred && task.BlockerDeferredAt != nil {
+			stamp := *task.BlockerDeferredAt
+			deferredAt = &stamp
+		}
+
 		// Clear any blocker
 		task.BlockerMessage = ""
 		task.BlockedAt = nil
@@ -251,10 +260,19 @@ func (m *Manager) MarkComplete(ctx context.Context, taskID string) error {
 		})
 
 		m.store.SetTask(task)
+
+		var reopenedGates []string
+		if deferredAt != nil && m.store.SweepState().Current > 0 {
+			reopenedGates = m.reopenSweepGates(now, taskID, *deferredAt)
+		}
+
 		if err := m.store.Save(ctx); err != nil {
 			return err
 		}
 		m.SyncFrontmatterStatus(taskID, task.Status)
+		for _, gateID := range reopenedGates {
+			m.SyncFrontmatterStatus(gateID, StatusPending)
+		}
 		// The completion is applied; every remaining side effect must still be
 		// attempted when a post stage fails. A start post failure must not skip
 		// the task_complete post stage, and neither may skip the ledger emit or

@@ -66,7 +66,7 @@ func runDefer(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	audit, err := operatorGuard(ctx, "deferral")
+	audit, err := OperatorGuard(ctx, "deferral")
 	if err != nil {
 		return err
 	}
@@ -87,8 +87,6 @@ func runDefer(cmd *cobra.Command, args []string) error {
 	if !confirmDeferral(taskID, task) {
 		return errors.Validation("deferral cancelled")
 	}
-
-	audit.DeferredBy = gitUserName(ctx)
 
 	if err := applyDeferral(ctx, mgr, festivalPath, taskID, deferReason, audit); err != nil {
 		return err

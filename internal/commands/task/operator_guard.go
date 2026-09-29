@@ -16,9 +16,9 @@ import (
 
 const ancestryDepthLimit = 32
 
-// operatorAudit is the record a guarded verb writes into its event so a
+// OperatorAudit is the record a guarded verb writes into its event so a
 // deferral carries what the guard saw, not only that it passed.
-type operatorAudit struct {
+type OperatorAudit struct {
 	Actor        string
 	TTY          bool
 	AgentMarkers []string
@@ -26,7 +26,9 @@ type operatorAudit struct {
 	DeferredBy   string
 }
 
-func (a *operatorAudit) toProgress() progress.DeferralAudit {
+// Progress converts the guard record into the value the progress store writes
+// into a deferral or forced-completion event.
+func (a *OperatorAudit) Progress() progress.DeferralAudit {
 	if a == nil {
 		return progress.DeferralAudit{}
 	}
@@ -64,13 +66,13 @@ var operatorGuardAncestry = readProcessAncestry
 
 var operatorGuardPSEntry = psEntry
 
-// operatorGuard is the single implementation of the operator-only rule shared
+// OperatorGuard is the single implementation of the operator-only rule shared
 // by every verb that lets a festival move past a blocker. The TTY check runs
 // before the marker check so the refusal for an agent with no terminal is
 // deterministic. On success audit.AgentMarkers lists the markers that were
 // checked and found absent.
-func operatorGuard(ctx context.Context, verb string) (*operatorAudit, error) {
-	audit := &operatorAudit{Actor: "operator"}
+func OperatorGuard(ctx context.Context, verb string) (*OperatorAudit, error) {
+	audit := &OperatorAudit{Actor: "operator"}
 
 	if !operatorGuardStdinIsTerminal() {
 		return nil, errors.Validation(verb + " is an operator decision; run this from your terminal").
@@ -103,6 +105,8 @@ func operatorGuard(ctx context.Context, verb string) (*operatorAudit, error) {
 				WithHint("run this from a plain terminal, not from inside an agent or a script session")
 		}
 	}
+
+	audit.DeferredBy = gitUserName(ctx)
 
 	return audit, nil
 }

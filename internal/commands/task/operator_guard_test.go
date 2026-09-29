@@ -48,7 +48,7 @@ func TestOperatorGuardRefusesOffTTY(t *testing.T) {
 	stubOperatorGuardAncestry(t, []string{"zsh"}, nil)
 	clearOperatorAgentMarkers(t)
 
-	audit, err := operatorGuard(t.Context(), "deferral")
+	audit, err := OperatorGuard(t.Context(), "deferral")
 	if err == nil {
 		t.Fatal("expected refusal off a TTY")
 	}
@@ -69,7 +69,7 @@ func TestOperatorGuardRefusesEachAgentMarker(t *testing.T) {
 			clearOperatorAgentMarkers(t)
 			t.Setenv(marker, "1")
 
-			audit, err := operatorGuard(t.Context(), "deferral")
+			audit, err := OperatorGuard(t.Context(), "deferral")
 			if err == nil {
 				t.Fatalf("expected refusal with %s set", marker)
 			}
@@ -88,12 +88,12 @@ func TestOperatorGuardAllowsOperatorAndRecordsAbsentMarkers(t *testing.T) {
 	stubOperatorGuardAncestry(t, []string{"zsh", "login", "init"}, nil)
 	clearOperatorAgentMarkers(t)
 
-	audit, err := operatorGuard(t.Context(), "deferral")
+	audit, err := OperatorGuard(t.Context(), "deferral")
 	if err != nil {
-		t.Fatalf("operatorGuard() error = %v, want nil", err)
+		t.Fatalf("OperatorGuard() error = %v, want nil", err)
 	}
 	if audit == nil {
-		t.Fatal("operatorGuard() returned no audit record")
+		t.Fatal("OperatorGuard() returned no audit record")
 	}
 	if audit.Actor != "operator" {
 		t.Errorf("Actor = %q, want %q", audit.Actor, "operator")
@@ -122,7 +122,7 @@ func TestOperatorGuardAncestryRefusesEachAgentBinary(t *testing.T) {
 			clearOperatorAgentMarkers(t)
 			stubOperatorGuardAncestry(t, []string{"zsh", binary, "login", "init"}, nil)
 
-			audit, err := operatorGuard(t.Context(), "deferral")
+			audit, err := OperatorGuard(t.Context(), "deferral")
 			if err == nil {
 				t.Fatalf("expected refusal with %s in the parent chain", binary)
 			}
@@ -148,7 +148,7 @@ func TestOperatorGuardAncestryRefusesPathQualifiedBinary(t *testing.T) {
 	clearOperatorAgentMarkers(t)
 	stubOperatorGuardAncestry(t, []string{"zsh", "/usr/local/bin/claude", "login"}, nil)
 
-	audit, err := operatorGuard(t.Context(), "deferral")
+	audit, err := OperatorGuard(t.Context(), "deferral")
 	if err == nil {
 		t.Fatal("expected refusal for a path-qualified agent binary")
 	}
@@ -173,12 +173,12 @@ func TestOperatorGuardAncestryUnreadableRecordsUnknown(t *testing.T) {
 			clearOperatorAgentMarkers(t)
 			stubOperatorGuardAncestry(t, chain, errors.Validation("ps unavailable"))
 
-			audit, err := operatorGuard(t.Context(), "deferral")
+			audit, err := OperatorGuard(t.Context(), "deferral")
 			if err != nil {
-				t.Fatalf("operatorGuard() error = %v, want nil when ancestry is unreadable", err)
+				t.Fatalf("OperatorGuard() error = %v, want nil when ancestry is unreadable", err)
 			}
 			if audit == nil {
-				t.Fatal("operatorGuard() returned no audit record")
+				t.Fatal("OperatorGuard() returned no audit record")
 			}
 			if strings.Join(audit.Ancestry, ",") != "unknown" {
 				t.Errorf("Ancestry = %v, want [unknown]", audit.Ancestry)

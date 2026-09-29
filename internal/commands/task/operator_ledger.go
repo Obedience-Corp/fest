@@ -20,8 +20,8 @@ type deferrer interface {
 // the camp ledger entry. The ledger entry is the cross-check for design doc 04
 // guard 7: a deferral event in the JSONL with no matching ledger entry was
 // hand-written, so a failed deferral must leave no entry to contradict.
-func applyDeferral(ctx context.Context, mgr deferrer, festivalPath, taskID, reason string, audit *operatorAudit) error {
-	if err := mgr.DeferBlocker(ctx, taskID, reason, audit.toProgress()); err != nil {
+func applyDeferral(ctx context.Context, mgr deferrer, festivalPath, taskID, reason string, audit *OperatorAudit) error {
+	if err := mgr.DeferBlocker(ctx, taskID, reason, audit.Progress()); err != nil {
 		return err
 	}
 	deferralLedgerEmit(ctx, festivalPath, taskID, reason, audit.DeferredBy)

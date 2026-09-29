@@ -198,7 +198,7 @@ func captureDeferralLedger(t *testing.T) *[]ledgerCall {
 }
 
 func TestApplyDeferralEmitsLedgerOnSuccessOnly(t *testing.T) {
-	audit := &operatorAudit{
+	audit := &OperatorAudit{
 		Actor:        "operator",
 		TTY:          true,
 		AgentMarkers: operatorAgentMarkers,

@@ -67,6 +67,11 @@ type NextTaskResult struct {
 
 	// WorkingDirAbsolute is the resolved absolute path of WorkingDir.
 	WorkingDirAbsolute string `json:"working_dir_absolute,omitempty"`
+
+	// Sweep is set only when fest next is handing back a deferred blocker at
+	// the end of a festival. Omitted entirely on every other result, so an
+	// existing consumer sees no new field.
+	Sweep *SweepInfo `json:"sweep,omitempty"`
 }
 
 // JSONLayeredGoals holds extracted primary goals for JSON output parity.
@@ -172,6 +177,16 @@ func (s *Selector) FindNext(ctx context.Context, currentPath string) (*NextTaskR
 	readyTasks := graph.GetReadyTasks()
 
 	if len(readyTasks) == 0 {
+		// A settled festival with deferred blockers left is not complete: it
+		// enters the sweep so the deferred work comes back.
+		sweep, sweepErr := s.findSweepTask(ctx, graph, location)
+		if sweepErr != nil {
+			return nil, sweepErr
+		}
+		if sweep != nil {
+			return sweep, nil
+		}
+
 		// Check if festival is complete
 		if s.isFestivalComplete(graph) {
 			return &NextTaskResult{

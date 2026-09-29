@@ -360,26 +360,37 @@ func promoteCore(ctx context.Context, festival *show.FestivalInfo, confirm bool,
 				WithField("status", currentStatus).
 				WithHint("only planning, ready, and active festivals can be promoted")
 		}
+	}
 
-		// Validate readiness unless forced (skip for dungeon moves)
-		if !opts.force {
-			if err := validateReadiness(ctx, festival, currentStatus, nextStatus); err != nil {
-				if opts.json {
-					if encErr := shared.EncodeJSON(os.Stdout, map[string]any{
-						"success": false,
-						"error":   err.Error(),
-						"from":    currentStatus,
-						"to":      nextStatus,
-						"hint":    "use --force to skip validation",
-					}); encErr != nil {
-						return "", encErr
-					}
-					return "", errors.ErrAlreadyPrinted
+	// A festival with deferred blockers is not complete. This covers the
+	// dungeon alias as well as the lifecycle transition, because an executor
+	// that could reach completed through --dungeon would not need --force at
+	// all. The refusal and the guard on --force both run only when something
+	// is deferred (D009).
+	if halt, deferErr := enforceDeferredBlockers(ctx, festival, nextStatus, opts); halt || deferErr != nil {
+		return "", deferErr
+	}
+
+	// Validate readiness unless forced (skip for dungeon moves). The deferred
+	// blocker refusal runs first so an operator whose only incomplete work is
+	// deferred reads why, not a generic task count.
+	if opts.dungeon == "" && !opts.force {
+		if err := validateReadiness(ctx, festival, currentStatus, nextStatus); err != nil {
+			if opts.json {
+				if encErr := shared.EncodeJSON(os.Stdout, map[string]any{
+					"success": false,
+					"error":   err.Error(),
+					"from":    currentStatus,
+					"to":      nextStatus,
+					"hint":    "use --force to skip validation",
+				}); encErr != nil {
+					return "", encErr
 				}
-				fmt.Printf("%s %s\n", ui.Warning("Promotion blocked"), ui.Dim(err.Error()))
-				fmt.Printf("\n  %s\n", ui.Dim("Use --force to skip validation"))
-				return "", nil
+				return "", errors.ErrAlreadyPrinted
 			}
+			fmt.Printf("%s %s\n", ui.Warning("Promotion blocked"), ui.Dim(err.Error()))
+			fmt.Printf("\n  %s\n", ui.Dim("Use --force to skip validation"))
+			return "", nil
 		}
 	}
 
