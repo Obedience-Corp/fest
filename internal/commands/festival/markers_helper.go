@@ -150,7 +150,7 @@ func markerResultFromContent(content string) *MarkerResult {
 	}
 }
 
-// emitCreateDryRun prints the sequence/task create preview. planned is the
+// emitCreateDryRun prints the phase/sequence/task create preview. planned is the
 // relative paths a real create would write; nothing is created here.
 func emitCreateDryRun(jsonOutput bool, planned []string, result *MarkerResult) error {
 	if result == nil {

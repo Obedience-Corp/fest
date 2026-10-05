@@ -146,6 +146,15 @@ func RunCreatePhase(ctx context.Context, opts *CreatePhaseOptions) error {
 		return emitCreatePhaseError(opts, err)
 	}
 
+	if opts.DryRun {
+		content, err = buildPhaseGoalContent(cfg, content)
+		if err != nil {
+			return emitCreatePhaseError(opts, err)
+		}
+		planned := filepath.ToSlash(filepath.Join(cfg.phaseID, "PHASE_GOAL.md"))
+		return emitCreateDryRun(opts.JSONOutput, []string{planned}, markerResultFromContent(content))
+	}
+
 	res, err := writePhaseGoal(ctx, cfg, content)
 	if err != nil {
 		return emitCreatePhaseError(opts, err)
@@ -155,10 +164,6 @@ func RunCreatePhase(ctx context.Context, opts *CreatePhaseOptions) error {
 
 	if err := processPhaseMarkers(ctx, cfg, res); err != nil {
 		return emitCreatePhaseError(opts, err)
-	}
-
-	if opts.DryRun && res.markersTotal > 0 {
-		return nil
 	}
 
 	if err := validatePhaseIfConfigured(ctx, cfg, res); err != nil {
@@ -266,9 +271,11 @@ func detectAndInsertPhase(ctx context.Context, absPath string, opts *CreatePhase
 		}
 	}
 
-	ren := festival.NewRenumberer(festival.RenumberOptions{AutoApprove: true, Quiet: true})
-	if err := ren.InsertPhase(ctx, absPath, opts.After, opts.Name); err != nil {
-		return 0, "", "", errors.Wrap(err, "inserting phase")
+	if !opts.DryRun {
+		ren := festival.NewRenumberer(festival.RenumberOptions{AutoApprove: true, Quiet: true})
+		if err := ren.InsertPhase(ctx, absPath, opts.After, opts.Name); err != nil {
+			return 0, "", "", errors.Wrap(err, "inserting phase")
+		}
 	}
 
 	newNumber := opts.After + 1
