@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"image/gif"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -274,5 +275,71 @@ func TestGifRejectsEmbedWithOut(t *testing.T) {
 	cmd.SetArgs([]string{"--embed", "--out", "another.gif"})
 	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "embed") {
 		t.Fatalf("expected mutually exclusive flags error, got %v", err)
+	}
+}
+
+func TestGifRejectsEmbedWithMP4(t *testing.T) {
+	cmd := NewGifCommand()
+	cmd.SetOut(&bytes.Buffer{})
+	cmd.SetErr(&bytes.Buffer{})
+	cmd.SetArgs([]string{"--embed", "--mp4"})
+	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "embed") {
+		t.Fatalf("expected mutually exclusive flags error, got %v", err)
+	}
+}
+
+func TestGifWritesMP4(t *testing.T) {
+	if _, err := exec.LookPath("ffmpeg"); err != nil {
+		t.Skip("ffmpeg not installed")
+	}
+	if _, err := exec.LookPath("ffprobe"); err != nil {
+		t.Skip("ffprobe not installed")
+	}
+	dir := writeFestival(t)
+	t.Chdir(dir)
+	out := filepath.Join(t.TempDir(), "replay.mp4")
+	cmd := NewGifCommand()
+	var stdout bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stdout)
+	cmd.SetArgs([]string{"--mp4", "--speed", "8", "--out", out})
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(stdout.String(), out) {
+		t.Fatalf("stdout = %s", stdout.String())
+	}
+	if _, err := os.Stat(filepath.Join(dir, "demo-DM0001.gif")); err == nil {
+		t.Fatal("mp4 export also wrote a gif")
+	}
+	probe := exec.Command("ffprobe", "-v", "error", "-select_streams", "v:0",
+		"-show_entries", "stream=codec_name,width,height", "-of", "csv=p=0", out)
+	got, err := probe.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(string(got)) != "h264,1080,1920" {
+		t.Fatalf("probe = %q", got)
+	}
+}
+
+func TestChooseOutput(t *testing.T) {
+	gifPath, mp4, err := chooseOutput("demo", "", false)
+	if err != nil || mp4 || gifPath != "demo.gif" {
+		t.Fatalf("default gif = %q mp4=%v err=%v", gifPath, mp4, err)
+	}
+	mp4Path, mp4, err := chooseOutput("demo", "", true)
+	if err != nil || !mp4 || mp4Path != "demo.mp4" {
+		t.Fatalf("default mp4 = %q mp4=%v err=%v", mp4Path, mp4, err)
+	}
+	mp4Path, mp4, err = chooseOutput("demo", "replay.MP4", false)
+	if err != nil || !mp4 || mp4Path != "replay.MP4" {
+		t.Fatalf("extension mp4 = %q mp4=%v err=%v", mp4Path, mp4, err)
+	}
+	if _, _, err := chooseOutput("demo", "replay.gif", true); err == nil || !strings.Contains(err.Error(), "MP4") {
+		t.Fatalf("gif path with --mp4: %v", err)
+	}
+	if _, _, err := chooseOutput("demo", "replay.mov", false); err == nil || !strings.Contains(err.Error(), ".gif or .mp4") {
+		t.Fatalf("mov path: %v", err)
 	}
 }

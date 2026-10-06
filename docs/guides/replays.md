@@ -41,7 +41,18 @@ fest gif --speed 2                  # Double playback speed
 fest gif --speed 0.5                # Half playback speed
 fest gif --embed                    # Refresh the festival's GIF and overview
 fest gif --festival MF0001 --embed  # Add a replay to an older completed festival
+fest gif --mp4                      # 1080x1920 H.264 video, when ffmpeg is installed
+fest gif -o replay.mp4              # Same video export, chosen by file name
+fest gif --speed 4 --mp4            # Shorter video for an uploader with a time cap
 ```
+
+`--mp4` writes `<festival>.mp4` beside the current directory instead of a GIF.
+The video is 1080×1920, H.264, 30 fps, with the replay fitted inside the frame
+and padded in the same background. A silent audio track is included. Fest
+paints the replay frames and asks ffmpeg to encode them, so ffmpeg has to be
+on `PATH`. A `.mp4` path passed to `-o` selects this export without the flag.
+`--mp4` cannot be combined with `--embed`. Completing a festival still writes
+only the GIF.
 
 `--embed` always writes inside the selected festival, even when run from one of
 its phases or from elsewhere in the camp. It cannot be combined with `--out`.

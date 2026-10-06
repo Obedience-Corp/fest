@@ -109,7 +109,7 @@ with recordings of the setup and handoff.
   sequences with testing, review, and iteration gates. Trace commits back to the
   plan with `fest commit`.
 - **See the work move.** Inspect the plan with `fest show`, follow it live with
-  `fest watch`, and share recorded progress with `fest gif`.
+  `fest watch`, and share recorded progress with `fest gif` or `fest gif --mp4`.
 - **Keep your own workflow.** Edit the templates, define festival types, and
   configure gates and hooks for the way you work.
 
@@ -230,10 +230,13 @@ The replay shows recorded tasks, workflow steps, gates, and hook results in
 order. Share it with a link to the plan and the resulting code or deliverable
 so others can inspect the work behind the animation.
 
+`fest gif --mp4` writes that same replay as a 1080×1920 H.264 video when ffmpeg
+is installed. Completing a festival still embeds the GIF.
+
 Completing a festival also generates a replay and embeds it in
 `FESTIVAL_OVERVIEW.md`. Use `fest gif --embed` to refresh that section, including
 for older festivals. See the [replay guide](docs/guides/replays.md) for playback
-options, missing-history behavior, and recovery if rendering fails.
+options, the MP4 export, missing-history behavior, and recovery if rendering fails.
 
 If Fest helps you finish something, [star the repo](https://github.com/Obedience-Corp/fest)
 and share your run.
