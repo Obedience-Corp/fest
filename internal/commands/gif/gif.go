@@ -8,6 +8,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	"github.com/Obedience-Corp/fest/internal/commands/show"
@@ -25,6 +26,7 @@ type options struct {
 	out      string
 	speed    float64
 	embed    bool
+	mp4      bool
 }
 
 // NewGifCommand creates the `fest gif` command.
@@ -32,7 +34,7 @@ func NewGifCommand() *cobra.Command {
 	opts := &options{}
 	cmd := &cobra.Command{
 		Use:   "gif [festival]",
-		Short: "Render a festival's execution as an animated GIF",
+		Short: "Render a festival's execution as a GIF or MP4",
 		// Resolve the festival here: an explicit path does not require the
 		// caller's current directory to belong to a workspace.
 		Annotations: map[string]string{"scope": string(scope.Global)},
@@ -52,6 +54,12 @@ image link to FESTIVAL_OVERVIEW.md (creating the overview if needed). Repeating
 --embed refreshes the replay without duplicating the link. --embed and --out
 cannot be combined.
 
+Use --mp4 to write an H.264 video for a vertical feed instead of a GIF. The
+picture is fitted inside 1080x1920 and padded with the replay background, at
+30 fps, with a silent audio track. This encodes the replay frames directly
+and needs ffmpeg on PATH. -o with a .mp4 name selects the same export.
+--mp4 cannot be combined with --embed. Completion still writes the GIF.
+
 Promoting or setting a festival to completed does this automatically before
 the status change is committed. Use --embed to refresh or retry that replay.
 
@@ -66,6 +74,8 @@ Use --speed to play it faster or slower.`,
   fest gif festivals/.dungeon/completed/2026-01-01/my-festival   # by path
   fest gif --festival DM0001        # by selector
   fest gif -o docs/replay.gif       # choose the output file
+  fest gif --mp4                    # 1080x1920 H.264 video (needs ffmpeg)
+  fest gif -o docs/replay.mp4       # same export, chosen by file name
   fest gif --embed                  # save and embed the replay in the overview
   fest gif --speed 2                # twice as fast
   fest gif --speed 0.5              # half speed, easier to follow`,
@@ -79,9 +89,11 @@ Use --speed to play it faster or slower.`,
 		},
 	}
 	cmd.Flags().StringVar(&opts.festival, "festival", "", "festival selector (name or ID) from within a camp")
-	cmd.Flags().StringVarP(&opts.out, "out", "o", "", "output file (default ./<festival>.gif)")
+	cmd.Flags().StringVarP(&opts.out, "out", "o", "", "output file (default ./<festival>.gif, or .mp4 with --mp4)")
 	cmd.Flags().BoolVar(&opts.embed, "embed", false, "save festival-replay.gif in the festival and embed it in FESTIVAL_OVERVIEW.md")
+	cmd.Flags().BoolVar(&opts.mp4, "mp4", false, "write a 1080x1920 H.264 MP4 for a vertical feed (needs ffmpeg)")
 	cmd.MarkFlagsMutuallyExclusive("embed", "out")
+	cmd.MarkFlagsMutuallyExclusive("embed", "mp4")
 	cmd.Flags().Float64Var(&opts.speed, "speed", 1, "playback speed: 2 is twice as fast, 0.5 is half speed")
 	return cmd
 }
@@ -108,14 +120,20 @@ func run(cmd *cobra.Command, target string, opts *options) error {
 			return errors.Wrap(loadErr, "loading festival replay").WithOp("gif")
 		}
 		plan := festgif.Plan(in, festgif.DefaultTiming.Scaled(1/opts.speed))
-		if out == "" {
-			out = festival.Name + ".gif"
+		var mp4 bool
+		out, mp4, err = chooseOutput(festival.Name, out, opts.mp4)
+		if err != nil {
+			return err
 		}
 		out, err = filepath.Abs(out)
 		if err != nil {
 			return errors.IO("resolving output path", err).WithOp("gif")
 		}
-		result, size, err = replay.WriteGIF(ctx, out, plan)
+		if mp4 {
+			result, size, err = replay.WriteMP4(ctx, out, plan)
+		} else {
+			result, size, err = replay.WriteGIF(ctx, out, plan)
+		}
 	}
 	if err != nil {
 		return err
@@ -186,6 +204,30 @@ func existingDir(cwd, target string) (string, bool) {
 		return "", false
 	}
 	return path, true
+}
+
+// chooseOutput picks the replay file. A .mp4 name selects the video export
+// even without --mp4. --mp4 cannot write a .gif path.
+func chooseOutput(name, out string, mp4 bool) (string, bool, error) {
+	if out == "" {
+		if mp4 {
+			return name + ".mp4", true, nil
+		}
+		return name + ".gif", false, nil
+	}
+	switch strings.ToLower(filepath.Ext(out)) {
+	case ".mp4":
+		return out, true, nil
+	case ".gif":
+		if mp4 {
+			return "", false, errors.Validation("--mp4 writes an MP4, not a GIF").WithOp("gif").
+				WithHint("pass a .mp4 path, or omit --out to use the default name")
+		}
+		return out, false, nil
+	default:
+		return "", false, errors.Validation("output file must end in .gif or .mp4").WithOp("gif").
+			WithHintf("got %s", out)
+	}
 }
 
 func formatBytes(n int64) string {
