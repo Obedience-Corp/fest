@@ -3,6 +3,10 @@ package festgif
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"image"
+	"image/png"
+	"math"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -18,10 +22,13 @@ func TestConcatScriptRepeatsTheLastFrame(t *testing.T) {
 	})
 	want := "ffconcat version 1.0\n" +
 		"file '/tmp/a.png'\n" +
+		"option framerate 1000\n" +
 		"duration 2.000\n" +
 		"file '/tmp/it'\\''s.png'\n" +
+		"option framerate 1000\n" +
 		"duration 1.000\n" +
-		"file '/tmp/it'\\''s.png'\n"
+		"file '/tmp/it'\\''s.png'\n" +
+		"option framerate 1000\n"
 	if got != want {
 		t.Fatalf("concat script:\n%s\nwant:\n%s", got, want)
 	}
@@ -70,6 +77,178 @@ func TestRenderMP4ReportsMissingFFmpeg(t *testing.T) {
 	if _, statErr := os.Stat(out); !errors.Is(statErr, os.ErrNotExist) {
 		t.Fatalf("missing ffmpeg left %s: %v", out, statErr)
 	}
+}
+
+func TestWriteHoldVideoKeepsShortHolds(t *testing.T) {
+	bin := ffmpegBin(t)
+	dir := t.TempDir()
+	pngPath := filepath.Join(dir, "frame.png")
+	f, err := os.Create(pngPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := png.Encode(f, image.NewRGBA(image.Rect(0, 0, 2, 2))); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	// 10 ms and 30 ms are on the GIF grid and shorter than image2's 40 ms tick.
+	pattern := []float64{0.01, 0.03}
+	var frames []heldFrame
+	var want []float64
+	var at float64
+	for range 20 {
+		for _, hold := range pattern {
+			frames = append(frames, heldFrame{path: pngPath, seconds: hold})
+			want = append(want, at)
+			at += hold
+		}
+	}
+	out := filepath.Join(dir, "holds.mp4")
+	if err := writeHoldVideo(t.Context(), bin, frames, out); err != nil {
+		t.Fatal(err)
+	}
+	base := probeTimebase(t, out)
+	if base < holdTimebase {
+		t.Fatalf("time base 1/%d cannot store a 1 ms hold", base)
+	}
+	got := framePTS(t, out)
+	if len(got) < len(want) {
+		t.Fatalf("frames %d, want at least %d", len(got), len(want))
+	}
+	for i, pts := range want {
+		if math.Abs(got[i]-pts) > 0.001 {
+			t.Fatalf("frame %d at %v, want %v", i, got[i], pts)
+		}
+	}
+}
+
+func TestRenderMP4DenseReplayMatchesDuration(t *testing.T) {
+	ffmpegBin(t)
+	const beats = 40
+	tasks := make([]*Node, beats)
+	changes := make([]Beat, beats)
+	final := make(map[string]State, beats)
+	for i := range beats {
+		key := fmt.Sprintf("t%d", i)
+		tasks[i] = &Node{Key: key, Kind: KindTask, Label: key}
+		changes[i] = Beat{Changes: []Change{{Key: key, State: State{Status: StatusCompleted}}}}
+		final[key] = State{Status: StatusCompleted}
+	}
+	timing := DefaultTiming
+	timing.IntroFrames = 1
+	timing.FramesPerBeat = 1
+	timing.MinFramesPerBeat = 1
+	timing.MinBody = 1
+	timing.MaxBody = 0
+	timing.TailFrames = 1
+	timing.MaxDwell = 0
+	timing.HookFrames = 1
+	timing.HeatFrames = 0
+	timing.Dwell = Dwell{}
+	replay := Plan(Input{
+		Title: "dense",
+		Phases: []*Node{{
+			Key: "p", Kind: KindPhase, Label: "p",
+			Children: []*Node{{Key: "s", Kind: KindSequence, Label: "s", Children: tasks}},
+		}},
+		Beats: changes,
+		Final: final,
+	}, timing)
+	if gaps := shortHolds(replay); gaps < beats {
+		t.Fatalf("dense replay has %d one-frame holds, want at least %d", gaps, beats)
+	}
+	out := filepath.Join(t.TempDir(), "replay.mp4")
+	if _, err := RenderMP4(t.Context(), out, replay); err != nil {
+		t.Fatal(err)
+	}
+	probe := probeVideo(t, out)
+	want := float64(centiseconds(replay.Frames, max(1, replay.Timing.FPS))) / 100
+	if probe.duration < want-0.05 || probe.duration > want+0.05 {
+		t.Fatalf("duration %v, replay is %v seconds across %d frames", probe.duration, want, replay.Frames)
+	}
+}
+
+// shortHolds counts painted gaps of a single replay frame. Those are 30 ms at
+// 30 fps, the holds a 25 fps clock rounds away.
+func shortHolds(r *Replay) int {
+	frames := r.paintFrames()
+	n := 0
+	for i, frame := range frames {
+		end := r.Frames
+		if i+1 < len(frames) {
+			end = frames[i+1]
+		}
+		if end-frame == 1 {
+			n++
+		}
+	}
+	return n
+}
+
+func ffmpegBin(t *testing.T) string {
+	t.Helper()
+	bin, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		t.Skip("ffmpeg not installed")
+	}
+	if _, err := exec.LookPath("ffprobe"); err != nil {
+		t.Skip("ffprobe not installed")
+	}
+	return bin
+}
+
+func probeTimebase(t *testing.T, path string) int {
+	t.Helper()
+	out := probeValue(t, path, "stream=time_base")
+	_, den, ok := strings.Cut(strings.TrimSpace(out), "/")
+	if !ok {
+		t.Fatalf("time base %q", out)
+	}
+	n, err := strconv.Atoi(den)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return n
+}
+
+func framePTS(t *testing.T, path string) []float64 {
+	t.Helper()
+	cmd := exec.Command("ffprobe", "-v", "error", "-select_streams", "v:0",
+		"-show_frames", "-show_entries", "frame=pts_time", "-of", "json", path)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var raw struct {
+		Frames []struct {
+			PtsTime string `json:"pts_time"`
+		} `json:"frames"`
+	}
+	if err := json.Unmarshal(out, &raw); err != nil {
+		t.Fatal(err)
+	}
+	pts := make([]float64, 0, len(raw.Frames))
+	for _, frame := range raw.Frames {
+		v, err := strconv.ParseFloat(frame.PtsTime, 64)
+		if err != nil {
+			t.Fatal(err)
+		}
+		pts = append(pts, v)
+	}
+	return pts
+}
+
+func probeValue(t *testing.T, path, entries string) string {
+	t.Helper()
+	cmd := exec.Command("ffprobe", "-v", "error", "-select_streams", "v:0",
+		"-show_entries", entries, "-of", "default=nw=1:nk=1", path)
+	out, err := cmd.Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(out)
 }
 
 func TestRenderMP4WritesAVerticalVideo(t *testing.T) {

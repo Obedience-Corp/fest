@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -17,6 +18,10 @@ const (
 	shareWidth  = 1080
 	shareHeight = 1920
 	shareFPS    = 30
+	// holdTimebase is 1 ms. image2 defaults to 25 fps, and an H.264 time base
+	// at that rate is 40 ms, which cannot store the 10 ms grid from holdSeconds
+	// (one replay frame at 30 fps is 30 ms).
+	holdTimebase = 1000
 )
 
 // ErrFFmpegMissing means the ffmpeg binary is not on PATH.
@@ -75,23 +80,12 @@ func RenderMP4(ctx context.Context, out string, r *Replay) (Result, error) {
 		held = append(held, heldFrame{path: path, seconds: holdSeconds(frame, end, fps)})
 	}
 
-	concatPath := filepath.Join(dir, "frames.ffconcat")
-	if err := os.WriteFile(concatPath, []byte(concatScript(held)), 0o644); err != nil {
-		return Result{}, err
-	}
-
 	// The concat demuxer keeps each still as one frame and stores the hold in
 	// the timestamp gap. A single fps filter does not fill those gaps, so the
-	// first pass records the holds and the second expands them to 30 fps.
-	sync, err := frameSyncArgs(ctx, bin)
-	if err != nil {
-		return Result{}, err
-	}
+	// first pass records the holds at a 1 ms time base and the second expands
+	// them to 30 fps.
 	timed := filepath.Join(dir, "timed.mp4")
-	holdArgs := []string{"-hide_banner", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", concatPath}
-	holdArgs = append(holdArgs, sync...)
-	holdArgs = append(holdArgs, "-c:v", "libx264", "-qp", "0", "-preset", "ultrafast", "-an", timed)
-	if err := runFFmpeg(ctx, bin, holdArgs); err != nil {
+	if err := writeHoldVideo(ctx, bin, held, timed); err != nil {
 		return Result{}, err
 	}
 	seconds := float64(centiseconds(r.Frames, fps)) / 100
@@ -166,13 +160,56 @@ func concatScript(frames []heldFrame) string {
 	var b strings.Builder
 	b.WriteString("ffconcat version 1.0\n")
 	for _, frame := range frames {
-		fmt.Fprintf(&b, "file %s\n", quoteConcatPath(frame.path))
-		fmt.Fprintf(&b, "duration %.3f\n", frame.seconds)
+		writeConcatFile(&b, frame, true)
 	}
 	if len(frames) > 0 {
-		fmt.Fprintf(&b, "file %s\n", quoteConcatPath(frames[len(frames)-1].path))
+		writeConcatFile(&b, frames[len(frames)-1], false)
 	}
 	return b.String()
+}
+
+// writeConcatFile names one still. option comes after file and applies to that
+// file: without it, image2's 25 fps time base rounds the hold.
+func writeConcatFile(b *strings.Builder, frame heldFrame, duration bool) {
+	fmt.Fprintf(b, "file %s\n", quoteConcatPath(frame.path))
+	fmt.Fprintf(b, "option framerate %d\n", holdTimebase)
+	if duration {
+		fmt.Fprintf(b, "duration %.3f\n", frame.seconds)
+	}
+}
+
+// writeHoldVideo stores each still for its hold. The image and the MP4 track
+// both use a 1 ms clock so short holds are not rounded to 40 ms.
+func writeHoldVideo(ctx context.Context, bin string, frames []heldFrame, out string) error {
+	if len(frames) == 0 {
+		return fmt.Errorf("no frames")
+	}
+	sync, err := frameSyncArgs(ctx, bin)
+	if err != nil {
+		return err
+	}
+	concatFile, err := os.CreateTemp(filepath.Dir(out), ".fest-holds-*.ffconcat")
+	if err != nil {
+		return err
+	}
+	concatPath := concatFile.Name()
+	defer func() { _ = os.Remove(concatPath) }()
+	if _, err := concatFile.WriteString(concatScript(frames)); err != nil {
+		_ = concatFile.Close()
+		return err
+	}
+	if err := concatFile.Close(); err != nil {
+		return err
+	}
+	args := []string{"-hide_banner", "-loglevel", "error", "-y", "-f", "concat", "-safe", "0", "-i", concatPath}
+	args = append(args, sync...)
+	args = append(args,
+		"-c:v", "libx264", "-qp", "0", "-preset", "ultrafast",
+		"-enc_time_base", "0.001",
+		"-video_track_timescale", strconv.Itoa(holdTimebase),
+		"-an", out,
+	)
+	return runFFmpeg(ctx, bin, args)
 }
 
 func quoteConcatPath(path string) string {
