@@ -11,6 +11,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/workflow/localstore"
 	"github.com/Obedience-Corp/fest/internal/workflow/standalone"
+	"gopkg.in/yaml.v3"
 )
 
 func writeWFDoc(t *testing.T, dir string) string {
@@ -173,5 +174,70 @@ func TestRunAnonymousNext_JSONMode(t *testing.T) {
 	}
 	if !strings.Contains(out, `"run_status": "not-started"`) {
 		t.Errorf("JSON run_status missing: %s", out)
+	}
+}
+
+func TestRunStandaloneNext_DoesNotWriteRunYAML(t *testing.T) {
+	dir := t.TempDir()
+	doc := writeWFDoc(t, dir)
+	runtimeDir := filepath.Join(dir, ".workflow")
+	store := localstore.Open(runtimeDir, doc)
+	ctx := context.Background()
+	if err := store.Init(ctx, localstore.InitOptions{WorkflowID: "wf-test"}); err != nil {
+		t.Fatal(err)
+	}
+	runID, err := store.StartRun(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AppendEvent(ctx, localstore.Event{EventType: localstore.EventStepStart}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.AppendEvent(ctx, localstore.Event{EventType: localstore.EventStepDone}); err != nil {
+		t.Fatal(err)
+	}
+
+	runPath := filepath.Join(runtimeDir, "runs", runID, "run.yaml")
+	raw, err := os.ReadFile(runPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rm localstore.RunManifest
+	if err := yaml.Unmarshal(raw, &rm); err != nil {
+		t.Fatal(err)
+	}
+	rm.Summary.CurrentStep = 0
+	rm.Summary.CompletedSteps = 0
+	stale, err := yaml.Marshal(&rm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(runPath, stale, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	before := stale
+
+	res := &standalone.Result{
+		Mode:        standalone.ModeTracked,
+		StartDir:    dir,
+		WorkflowDoc: doc,
+		RuntimeDir:  runtimeDir,
+	}
+	out, err := captureStdoutErr(t, func() error {
+		return runStandaloneNext(ctx, res, RenderOptions{JSON: true})
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, `"render_mode": "complete"`) {
+		t.Fatalf("expected in-memory replay to show complete run, got: %s", out)
+	}
+
+	after, err := os.ReadFile(runPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(before) {
+		t.Fatalf("runStandaloneNext rewrote run.yaml; before:\n%s\nafter:\n%s", before, after)
 	}
 }

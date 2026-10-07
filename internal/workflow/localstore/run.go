@@ -27,7 +27,7 @@ type RunSource struct {
 }
 
 // RunSummary is the cached current state. Event replay is authoritative;
-// summary is updated from replay on read.
+// mutators refresh this cache when they append events.
 type RunSummary struct {
 	CurrentStep    int  `yaml:"current_step"`
 	TotalSteps     int  `yaml:"total_steps"`
