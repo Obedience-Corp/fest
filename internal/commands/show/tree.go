@@ -62,7 +62,9 @@ func BuildFestivalTree(ctx context.Context, festivalDir string) (*DisplayNode, e
 
 	festivalRoot := resolveFestivalRoot(festivalDir)
 	var store *progress.Store
-	if mgr, err := progress.NewManager(ctx, festivalRoot); err == nil {
+	// The tree is display-only, like stats: building it must never migrate or
+	// rewrite .fest/ files as a side effect.
+	if mgr, err := progress.NewManagerReadOnly(ctx, festivalRoot); err == nil {
 		store = mgr.Store()
 	}
 
