@@ -3,8 +3,8 @@
 // LOCAL_RUN_STATE.md for the canonical contract.
 //
 // The store is filesystem-only: append-only event stream, derived state via
-// replay. Mutators keep the run.yaml summary cache in sync; readers recompute
-// from events in memory and never rewrite the cache.
+// replay. Mutators refresh the run.yaml summary cache when it is writable;
+// readers recompute from events in memory and never rewrite the cache.
 package localstore
 
 import (
@@ -12,6 +12,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -34,14 +35,25 @@ const (
 
 // Store manages a single .workflow/ runtime directory.
 type Store struct {
-	root        string // absolute path to .workflow/
-	workflowDoc string // absolute path to WORKFLOW.md (sibling of .workflow/)
+	root        string    // absolute path to .workflow/
+	workflowDoc string    // absolute path to WORKFLOW.md (sibling of .workflow/)
+	warnOut     io.Writer // non-fatal warnings; nil means os.Stderr
 }
 
 // Open returns a Store anchored at the given .workflow/ directory.
 // workflowDir may not yet exist (Init will create it).
 func Open(workflowDir, workflowDocPath string) *Store {
-	return &Store{root: workflowDir, workflowDoc: workflowDocPath}
+	return &Store{root: workflowDir, workflowDoc: workflowDocPath, warnOut: os.Stderr}
+}
+
+// warn reports a problem the store recovered from. The hint line is dropped
+// because the operation it would advise on already succeeded.
+func (s *Store) warn(format string, args ...any) {
+	w := s.warnOut
+	if w == nil {
+		w = os.Stderr
+	}
+	_, _ = fmt.Fprintf(w, "Warning: "+format+"\n", args...)
 }
 
 // InitOptions controls Store.Init.
@@ -257,6 +269,13 @@ func (s *Store) StartRun(ctx context.Context, startedBy string) (string, error) 
 }
 
 // AppendEvent appends an event to the active run's event stream.
+//
+// The event is committed once its line is in progress_events.jsonl, so no
+// later failure is reported as a failed append. Refreshing the run.yaml
+// summary cache is best-effort: readers replay the stream, so a stale cache
+// only produces a warning. A terminal event still finalizes workflow.yaml, and
+// a finalize failure is returned with event_recorded set so callers know not
+// to append the event again.
 func (s *Store) AppendEvent(ctx context.Context, evt Event) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -285,7 +304,8 @@ func (s *Store) AppendEvent(ctx context.Context, evt Event) error {
 		return err
 	}
 	if err := s.syncRunSummary(ctx, runDir); err != nil {
-		return festerrors.Wrap(err, "syncing run summary")
+		s.warn("%s recorded, but the run.yaml summary cache was not refreshed; progress is read from the event stream: %s",
+			evt.EventType, festerrors.Message(err))
 	}
 	// Terminal events must also update the parent workflow.yaml so
 	// `fest workflow runs` and subsequent LoadActive calls see a consistent
@@ -293,7 +313,12 @@ func (s *Store) AppendEvent(ctx context.Context, evt Event) error {
 	// keeps pointing at a finished run (D030 finding #3).
 	if evt.EventType == EventWorkflowRunCompleted || evt.EventType == EventWorkflowRunAbandoned {
 		if err := s.finalizeRunInManifest(ctx, evt); err != nil {
-			return festerrors.Wrap(err, "finalize run in manifest")
+			return festerrors.Wrap(err, evt.EventType+" recorded, but the run was not finalized in workflow.yaml").
+				WithField("event_recorded", true).
+				WithField("event_id", evt.EventID).
+				WithField("run_id", evt.RunID).
+				WithHintf("%s is already recorded in %s; make %s writable, then rerun the command to finalize the run (a repeated terminal event changes no step progress)",
+					evt.EventType, filepath.Join(runDir, eventsName), s.ManifestPath())
 		}
 	}
 	return nil
