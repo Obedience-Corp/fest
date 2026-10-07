@@ -123,3 +123,61 @@ func TestRunCreate_JSONOmitsBlankGoal(t *testing.T) {
 
 	assert.NotContains(t, out, `"goal"`)
 }
+
+func TestRenderChainTemplate_EscapesNameAndGoal(t *testing.T) {
+	tests := []struct {
+		name string
+		goal string
+	}{
+		{name: `quote"me`, goal: `say "hi" \ and: # x`},
+		{name: `back\slash`, goal: "first line\nsecond line"},
+		{name: "colon: #hash", goal: "- starts like a list item"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rendered, err := renderChainTemplate(chainTemplateData{
+				ID:        "CH0007",
+				Name:      tt.name,
+				Goal:      tt.goal,
+				CreatedAt: "2026-10-07T00:00:00Z",
+			})
+			require.NoError(t, err)
+
+			c, err := chainpkg.ParseBytes(t.Context(), rendered)
+			require.NoError(t, err)
+			assert.Equal(t, tt.name, c.Metadata.Name)
+			assert.Equal(t, tt.goal, c.Metadata.Goal)
+		})
+	}
+}
+
+func TestRunCreate_EscapedNameAndGoalAreListedAndValid(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "festivals")
+	require.NoError(t, os.MkdirAll(filepath.Join(root, ".festival"), 0o755))
+	t.Chdir(root)
+	const goal = `say "hi" \ and: # x`
+
+	cmd := newCreateCmd()
+	cmd.SetArgs([]string{"--name", `Quote"Me Train`, "--goal", goal, "--json"})
+	out := captureStdout(t, func() error { return cmd.ExecuteContext(t.Context()) })
+
+	var created createResult
+	require.NoError(t, json.Unmarshal([]byte(out), &created))
+	assert.Equal(t, `quote"me-train`, created.Name)
+	assert.Equal(t, goal, created.Goal)
+
+	c, err := chainpkg.Parse(t.Context(), created.Path)
+	require.NoError(t, err)
+	assert.Equal(t, `quote"me-train`, c.Metadata.Name)
+	assert.Equal(t, goal, c.Metadata.Goal)
+
+	listed := captureStdout(t, func() error { return runList(t.Context(), "", true) })
+	var list chainListResult
+	require.NoError(t, json.Unmarshal([]byte(listed), &list))
+	require.Len(t, list.Chains, 1)
+	assert.Equal(t, created.ID, list.Chains[0].ID)
+	assert.Equal(t, `quote"me-train`, list.Chains[0].Name)
+
+	validated := captureStdout(t, func() error { return runValidate(t.Context(), created.ID) })
+	assert.Contains(t, validated, "Result: VALID")
+}

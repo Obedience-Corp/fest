@@ -9,8 +9,8 @@ chain_version: "1.0"
 # ─── Chain Identity ──────────────────────────────────────
 metadata:
   id: "{{.ID}}"
-  name: "{{.Name}}"
-  goal: "{{.Goal}}"
+  name: {{yamlString .Name}}
+  goal: {{yamlString .Goal}}
   created_at: "{{.CreatedAt}}"
   status: planning
   status_history:

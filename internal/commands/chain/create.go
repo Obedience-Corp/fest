@@ -14,6 +14,7 @@ import (
 	chaintpl "github.com/Obedience-Corp/fest/embedded/templates/chain"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/yamlutil"
 	"github.com/spf13/cobra"
 )
 
@@ -120,7 +121,9 @@ func renderChainTemplate(data chainTemplateData) ([]byte, error) {
 		return nil, errors.Wrap(err, "reading chain template").WithCode(errors.ErrCodeTemplate)
 	}
 
-	tmpl, err := template.New("chain").Parse(string(tplData))
+	tmpl, err := template.New("chain").
+		Funcs(template.FuncMap{"yamlString": yamlutil.QuoteString}).
+		Parse(string(tplData))
 	if err != nil {
 		return nil, errors.Wrap(err, "parsing chain template").WithCode(errors.ErrCodeTemplate)
 	}
