@@ -194,7 +194,7 @@ fest chain complete [chain-id] [flags]
 ### Options
 
 ```
-      --force          complete even if not all festivals are done
+      --force          complete even if festivals are not done, the chain has none, or it is still planning
   -h, --help           help for complete
       --notes string   completion notes for the status history
 ```
@@ -215,7 +215,7 @@ Create a new festival chain
 
 ### Synopsis
 
-Create a new chain YAML definition file in festivals/chains/.
+Create a new, empty chain YAML definition file in festivals/chains/.
 
 ```
 fest chain create [flags]
@@ -226,6 +226,7 @@ fest chain create [flags]
 ```
       --goal string   chain goal description
   -h, --help          help for create
+      --json          emit structured JSON result
       --name string   chain name (required)
 ```
 

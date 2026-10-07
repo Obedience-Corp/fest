@@ -51,6 +51,11 @@ func runStatus(ctx context.Context, chainID string) error {
 	fmt.Printf("Created: %s\n", c.Metadata.CreatedAt.Format("2006-01-02"))
 	fmt.Println()
 
+	if len(c.Festivals) == 0 {
+		fmt.Println(emptyChainHint(c))
+		return nil
+	}
+
 	// Resolve live statuses.
 	statuses, resolveErr := resolveChainStatuses(ctx, c)
 	if resolveErr != nil {

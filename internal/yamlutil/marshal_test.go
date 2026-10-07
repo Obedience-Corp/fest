@@ -3,6 +3,8 @@ package yamlutil
 import (
 	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 func TestMarshal_TwoSpaceIndent(t *testing.T) {
@@ -25,5 +27,39 @@ func TestMarshal_TwoSpaceIndent(t *testing.T) {
 	}
 	if strings.Contains(s, "    child") {
 		t.Errorf("found 4-space indent (should be 2):\n%s", s)
+	}
+}
+
+func TestQuoteString_RoundTripsAsSingleLineScalar(t *testing.T) {
+	tests := []string{
+		`say "hi" \ and: # x`,
+		"two\nlines\tand a tab",
+		"Ünïcode & <b>",
+		"",
+		"null",
+		"123",
+		"- dash: start",
+		strings.Repeat("long word ", 30),
+	}
+	for _, value := range tests {
+		t.Run(value, func(t *testing.T) {
+			quoted, err := QuoteString(value)
+			if err != nil {
+				t.Fatalf("QuoteString(%q): %v", value, err)
+			}
+			if strings.Contains(quoted, "\n") {
+				t.Fatalf("QuoteString(%q) spans lines: %q", value, quoted)
+			}
+
+			var doc struct {
+				Value string `yaml:"value"`
+			}
+			if err := yaml.Unmarshal([]byte("value: "+quoted+"\n"), &doc); err != nil {
+				t.Fatalf("unmarshal %q: %v", quoted, err)
+			}
+			if doc.Value != value {
+				t.Fatalf("round trip: got %q, want %q", doc.Value, value)
+			}
+		})
 	}
 }

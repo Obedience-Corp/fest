@@ -44,7 +44,7 @@ the chain id to be passed explicitly.`,
 		},
 	}
 
-	cmd.Flags().BoolVar(&force, "force", false, "complete even if not all festivals are done")
+	cmd.Flags().BoolVar(&force, "force", false, "complete even if festivals are not done, the chain has none, or it is still planning")
 	cmd.Flags().StringVar(&notes, "notes", "", "completion notes for the status history")
 
 	return cmd
@@ -58,6 +58,13 @@ func runComplete(ctx context.Context, chainID string, force bool, notes string) 
 	c, chainPath, err := findChainByID(ctx, chainID)
 	if err != nil {
 		return err
+	}
+
+	if len(c.Festivals) == 0 && !force {
+		fmt.Printf("%s Cannot complete chain %s: it has no festivals.\n", ui.Warning("BLOCKED"), c.Metadata.ID)
+		fmt.Println()
+		fmt.Println("Use --force to complete anyway.")
+		return nil
 	}
 
 	// Resolve live statuses and compute progress.
@@ -80,9 +87,18 @@ func runComplete(ctx context.Context, chainID string, force bool, notes string) 
 	// Transition chain to completed.
 	if notes == "" {
 		notes = "Chain completed"
+		if force && c.Metadata.Status == chainpkg.StatusPlanning {
+			notes = "Chain completed (forced from planning)"
+		}
 	}
-	if err := chainpkg.Transition(ctx, c, chainpkg.StatusCompleted, notes); err != nil {
-		return errors.Wrap(err, "transitioning chain").WithCode(errors.ErrCodeValidation)
+	var transitionErr error
+	if force {
+		transitionErr = chainpkg.ForceComplete(ctx, c, notes)
+	} else {
+		transitionErr = chainpkg.Transition(ctx, c, chainpkg.StatusCompleted, notes)
+	}
+	if transitionErr != nil {
+		return errors.Wrap(transitionErr, "transitioning chain").WithCode(errors.ErrCodeValidation)
 	}
 
 	// Marshal updated chain.

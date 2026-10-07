@@ -76,6 +76,10 @@ func (r *ValidationResult) addError(code, message, ctx string) {
 	r.Errors = append(r.Errors, ValidationError{Code: code, Message: message, Context: ctx})
 }
 
+func (r *ValidationResult) addWarning(code, message, ctx string) {
+	r.Warnings = append(r.Warnings, ValidationWarning{Code: code, Message: message, Context: ctx})
+}
+
 // S1: Unique Refs
 func validateUniqueRefs(_ context.Context, c *Chain, r *ValidationResult) {
 	seen := make(map[string]int)
@@ -335,14 +339,20 @@ func ValidateCrossChain(ctx context.Context, chains []*Chain) *CrossChainResult 
 	return result
 }
 
-// S10: Required Fields
+// S10: Chain completeness. A chain is built one festival at a time, so a chain
+// with fewer than two festivals or no edges is incomplete rather than invalid,
+// and is reported as a warning.
 func validateRequiredFields(_ context.Context, c *Chain, r *ValidationResult) {
-	if len(c.Festivals) < 2 {
-		r.addError("S10",
-			fmt.Sprintf("chain must contain at least 2 festivals (found %d)", len(c.Festivals)), "")
-	}
-	if len(c.Edges) < 1 {
-		r.addError("S10",
-			fmt.Sprintf("chain must contain at least 1 edge (found %d)", len(c.Edges)), "")
+	switch {
+	case len(c.Festivals) == 0:
+		r.addWarning("S10", "chain has no festivals yet",
+			"add one with 'fest chain add --chain "+c.Metadata.ID+" --festival <id>'")
+	case len(c.Festivals) == 1:
+		r.addWarning("S10", "chain has 1 festival and no dependencies yet",
+			"add another with 'fest chain add --chain "+c.Metadata.ID+" --festival <id> --after <ref>'")
+	case len(c.Edges) == 0:
+		r.addWarning("S10",
+			fmt.Sprintf("chain has %d festivals but no dependency edges", len(c.Festivals)),
+			"edges come from 'fest chain add --after <ref>' or from editing the chain file")
 	}
 }

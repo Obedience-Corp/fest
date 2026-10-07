@@ -1,6 +1,8 @@
 package chain
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,34 +14,52 @@ import (
 	chaintpl "github.com/Obedience-Corp/fest/embedded/templates/chain"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/yamlutil"
 	"github.com/spf13/cobra"
 )
 
 const chainIDPrefix = "CH"
 
+type chainTemplateData struct {
+	ID        string
+	Name      string
+	Goal      string
+	CreatedAt string
+}
+
+type createResult struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Status string `json:"status"`
+	Goal   string `json:"goal,omitempty"`
+	Path   string `json:"path"`
+}
+
 func newCreateCmd() *cobra.Command {
 	var (
-		name string
-		goal string
+		name    string
+		goal    string
+		jsonOut bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a new festival chain",
-		Long:  "Create a new chain YAML definition file in festivals/chains/.",
+		Long:  "Create a new, empty chain YAML definition file in festivals/chains/.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runCreate(cmd, name, goal)
+			return runCreate(cmd, name, goal, jsonOut)
 		},
 	}
 
 	cmd.Flags().StringVar(&name, "name", "", "chain name (required)")
 	cmd.Flags().StringVar(&goal, "goal", "", "chain goal description")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "emit structured JSON result")
 	_ = cmd.MarkFlagRequired("name")
 
 	return cmd
 }
 
-func runCreate(cmd *cobra.Command, name, goal string) error {
+func runCreate(cmd *cobra.Command, name, goal string, jsonOut bool) error {
 	ctx := cmd.Context()
 	if err := ctx.Err(); err != nil {
 		return err
@@ -59,44 +79,29 @@ func runCreate(cmd *cobra.Command, name, goal string) error {
 	slug := strings.ToLower(strings.ReplaceAll(name, " ", "-"))
 	id := nextChainID(chainsDir, chainIDPrefix)
 
-	// Render embedded chain template.
-	tplData, err := chaintpl.Templates.ReadFile("chain_template.yaml")
-	if err != nil {
-		return errors.Wrap(err, "reading chain template").WithCode(errors.ErrCodeTemplate)
-	}
-
-	tmpl, err := template.New("chain").Parse(string(tplData))
-	if err != nil {
-		return errors.Wrap(err, "parsing chain template").WithCode(errors.ErrCodeTemplate)
-	}
-
-	now := time.Now().UTC().Format(time.RFC3339)
-	data := struct {
-		ID        string
-		Name      string
-		Goal      string
-		CreatedAt string
-	}{
+	rendered, err := renderChainTemplate(chainTemplateData{
 		ID:        id,
 		Name:      slug,
 		Goal:      goal,
-		CreatedAt: now,
-	}
-
-	filename := fmt.Sprintf("%s-%s.yaml", slug, id)
-	path := filepath.Join(chainsDir, filename)
-
-	f, err := createChainFile(path)
+		CreatedAt: time.Now().UTC().Format(time.RFC3339),
+	})
 	if err != nil {
-		if os.IsExist(err) {
-			return errors.Validation("chain file already exists").WithField("path", path)
-		}
-		return errors.IO("creating chain file", err)
+		return err
 	}
-	defer func() { _ = f.Close() }()
 
-	if err := tmpl.Execute(f, data); err != nil {
-		return errors.Wrap(err, "rendering chain template").WithCode(errors.ErrCodeTemplate)
+	path := filepath.Join(chainsDir, fmt.Sprintf("%s-%s.yaml", slug, id))
+	if err := writeNewChainFile(path, rendered); err != nil {
+		return err
+	}
+
+	if jsonOut {
+		return emitCreateJSON(createResult{
+			ID:     id,
+			Name:   slug,
+			Status: "planning",
+			Goal:   goal,
+			Path:   path,
+		})
 	}
 
 	fmt.Println(ui.Label("CHAIN CREATED"))
@@ -107,6 +112,53 @@ func runCreate(cmd *cobra.Command, name, goal string) error {
 	fmt.Println("Add festivals with 'fest chain add --chain " + id + " --festival <id> [--after <ref>]',")
 	fmt.Println("then run 'fest chain validate " + id + "' to verify.")
 
+	return nil
+}
+
+func renderChainTemplate(data chainTemplateData) ([]byte, error) {
+	tplData, err := chaintpl.Templates.ReadFile("chain_template.yaml")
+	if err != nil {
+		return nil, errors.Wrap(err, "reading chain template").WithCode(errors.ErrCodeTemplate)
+	}
+
+	tmpl, err := template.New("chain").
+		Funcs(template.FuncMap{"yamlString": yamlutil.QuoteString}).
+		Parse(string(tplData))
+	if err != nil {
+		return nil, errors.Wrap(err, "parsing chain template").WithCode(errors.ErrCodeTemplate)
+	}
+
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return nil, errors.Wrap(err, "rendering chain template").WithCode(errors.ErrCodeTemplate)
+	}
+	return buf.Bytes(), nil
+}
+
+func writeNewChainFile(path string, data []byte) error {
+	f, err := createChainFile(path)
+	if err != nil {
+		if os.IsExist(err) {
+			return errors.Validation("chain file already exists").WithField("path", path)
+		}
+		return errors.IO("creating chain file", err)
+	}
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		return errors.IO("writing chain file", err)
+	}
+	if err := f.Close(); err != nil {
+		return errors.IO("closing chain file", err)
+	}
+	return nil
+}
+
+func emitCreateJSON(result createResult) error {
+	data, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return errors.Wrap(err, "marshaling create result")
+	}
+	fmt.Println(string(data))
 	return nil
 }
 

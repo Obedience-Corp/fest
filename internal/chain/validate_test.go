@@ -157,33 +157,41 @@ func TestValidate_S9_UnknownRefInUnlock(t *testing.T) {
 	assert.True(t, hasErrorCode(result, "S9"))
 }
 
-func TestValidate_S10_TooFewFestivals(t *testing.T) {
-	c := &Chain{
-		ChainVersion: "1.0",
-		Metadata:     Metadata{ID: "X0001", Name: "tiny"},
-		Festivals: []FestivalNode{
-			{Ref: "a", ID: "A0001", Name: "alpha"},
-		},
-		Edges: []Edge{},
+func TestValidate_S10_IncompleteChainsWarnInsteadOfFailing(t *testing.T) {
+	alpha := FestivalNode{Ref: "a", ID: "A0001", Name: "alpha"}
+	beta := FestivalNode{Ref: "b", ID: "B0001", Name: "beta"}
+	tests := []struct {
+		name        string
+		festivals   []FestivalNode
+		wantMessage string
+	}{
+		{name: "empty chain", festivals: nil, wantMessage: "chain has no festivals yet"},
+		{name: "one festival", festivals: []FestivalNode{alpha}, wantMessage: "chain has 1 festival and no dependencies yet"},
+		{name: "no edges", festivals: []FestivalNode{alpha, beta}, wantMessage: "chain has 2 festivals but no dependency edges"},
 	}
-	result := Validate(context.Background(), c)
-	assert.False(t, result.Valid)
-	assert.True(t, hasErrorCode(result, "S10"))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := &Chain{
+				ChainVersion: "1.0",
+				Metadata:     Metadata{ID: "X0001", Name: "incomplete"},
+				Festivals:    tt.festivals,
+			}
+			result := Validate(t.Context(), c)
+			assert.True(t, result.Valid)
+			assert.Empty(t, result.Errors)
+			require.Len(t, result.Warnings, 1)
+			assert.Equal(t, "S10", result.Warnings[0].Code)
+			assert.Equal(t, tt.wantMessage, result.Warnings[0].Message)
+			assert.Equal(t, 95, result.Score)
+		})
+	}
 }
 
-func TestValidate_S10_NoEdges(t *testing.T) {
-	c := &Chain{
-		ChainVersion: "1.0",
-		Metadata:     Metadata{ID: "X0001", Name: "no-edges"},
-		Festivals: []FestivalNode{
-			{Ref: "a", ID: "A0001", Name: "alpha"},
-			{Ref: "b", ID: "B0001", Name: "beta"},
-		},
-		Edges: []Edge{},
-	}
-	result := Validate(context.Background(), c)
-	assert.False(t, result.Valid)
-	assert.True(t, hasErrorCode(result, "S10"))
+func TestValidate_S10_CompleteChainHasNoWarning(t *testing.T) {
+	result := Validate(t.Context(), validChain())
+	assert.True(t, result.Valid)
+	assert.Empty(t, result.Warnings)
+	assert.Equal(t, 100, result.Score)
 }
 
 func TestValidate_NoWaves_SkipsWaveChecks(t *testing.T) {

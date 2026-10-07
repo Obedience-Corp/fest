@@ -64,6 +64,11 @@ func runGraph(ctx context.Context, chainID string, mermaid, live bool) error {
 func renderASCII(c *chainpkg.Chain, statuses map[string]chainpkg.FestivalStatus) error {
 	fmt.Printf("%s %s (%s)\n\n", ui.Label("Chain:"), c.Metadata.Name, c.Metadata.ID)
 
+	if len(c.Festivals) == 0 {
+		fmt.Println(emptyChainHint(c))
+		return nil
+	}
+
 	if len(c.Waves) > 0 {
 		for _, w := range c.Waves {
 			fmt.Printf("Wave %d: %s\n", w.ID, w.Name)
