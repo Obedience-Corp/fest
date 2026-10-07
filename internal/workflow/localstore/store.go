@@ -3,7 +3,8 @@
 // LOCAL_RUN_STATE.md for the canonical contract.
 //
 // The store is filesystem-only: append-only event stream, derived state via
-// replay, cached summary fields repaired on read.
+// replay. Mutators keep the run.yaml summary cache in sync; readers recompute
+// from events in memory and never rewrite the cache.
 package localstore
 
 import (
@@ -283,6 +284,9 @@ func (s *Store) AppendEvent(ctx context.Context, evt Event) error {
 	if err := s.appendEvent(ctx, runDir, evt); err != nil {
 		return err
 	}
+	if err := s.syncRunSummary(ctx, runDir); err != nil {
+		return festerrors.Wrap(err, "syncing run summary")
+	}
 	// Terminal events must also update the parent workflow.yaml so
 	// `fest workflow runs` and subsequent LoadActive calls see a consistent
 	// view. Without this, runs[i].Status stays "active" and ActiveRunID
@@ -293,6 +297,41 @@ func (s *Store) AppendEvent(ctx context.Context, evt Event) error {
 		}
 	}
 	return nil
+}
+
+// syncRunSummary rewrites run.yaml summary (and status) from the event stream
+// after a mutating append so readers never need to persist a repair.
+func (s *Store) syncRunSummary(ctx context.Context, runDir string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	runPath := filepath.Join(runDir, runManifestName)
+	raw, err := os.ReadFile(runPath)
+	if err != nil {
+		return festerrors.Wrap(err, "reading run manifest")
+	}
+	var rm RunManifest
+	if err := yaml.Unmarshal(raw, &rm); err != nil {
+		return festerrors.Parse("parsing run manifest", err)
+	}
+	state, replayErr := replayEvents(filepath.Join(runDir, eventsName), rm)
+	if replayErr != nil {
+		return festerrors.Wrap(replayErr, "replaying event stream")
+	}
+	statusChanged := state.Status != "" && state.Status != "active" && state.Status != rm.Status
+	if rm.Summary.CurrentStep == state.CurrentStep &&
+		rm.Summary.CompletedSteps == state.CompletedSteps &&
+		rm.Summary.Blocked == state.Blocked &&
+		!statusChanged {
+		return nil
+	}
+	rm.Summary.CurrentStep = state.CurrentStep
+	rm.Summary.CompletedSteps = state.CompletedSteps
+	rm.Summary.Blocked = state.Blocked
+	if statusChanged {
+		rm.Status = state.Status
+	}
+	return writeYAML(runPath, &rm)
 }
 
 // finalizeRunInManifest updates workflow.yaml after a terminal event.
@@ -342,8 +381,8 @@ func (s *Store) appendEvent(_ context.Context, runDir string, evt Event) error {
 }
 
 // LoadActive returns the active run's replayed state.
-// If summary cached in run.yaml disagrees with the event stream, the file
-// is rewritten with corrected values; events are never modified.
+// When the summary cached in run.yaml disagrees with the event stream, the
+// returned state reflects replay; the on-disk cache is left unchanged.
 func (s *Store) LoadActive(ctx context.Context) (*RunState, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -369,20 +408,6 @@ func (s *Store) LoadActive(ctx context.Context) (*RunState, error) {
 	state, replayErr := replayEvents(filepath.Join(runDir, eventsName), rm)
 	if replayErr != nil {
 		return nil, festerrors.Wrap(replayErr, "replaying event stream")
-	}
-
-	// Repair stale summary on disk if it disagrees with replay.
-	if rm.Summary.CurrentStep != state.CurrentStep ||
-		rm.Summary.CompletedSteps != state.CompletedSteps ||
-		rm.Summary.Blocked != state.Blocked ||
-		(state.Status != "" && state.Status != "active" && state.Status != rm.Status) {
-		rm.Summary.CurrentStep = state.CurrentStep
-		rm.Summary.CompletedSteps = state.CompletedSteps
-		rm.Summary.Blocked = state.Blocked
-		if state.Status != "" {
-			rm.Status = state.Status
-		}
-		_ = writeYAML(runPath, &rm)
 	}
 
 	state.RunID = rm.RunID
