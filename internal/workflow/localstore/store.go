@@ -318,7 +318,8 @@ func (s *Store) syncRunSummary(ctx context.Context, runDir string) error {
 	if replayErr != nil {
 		return festerrors.Wrap(replayErr, "replaying event stream")
 	}
-	statusChanged := state.Status != "" && state.Status != "active" && state.Status != rm.Status
+	statusChanged := state.Status != "" && state.Status != rm.Status &&
+		(!isTerminalRunStatus(rm.Status) || isTerminalRunStatus(state.Status))
 	if rm.Summary.CurrentStep == state.CurrentStep &&
 		rm.Summary.CompletedSteps == state.CompletedSteps &&
 		rm.Summary.Blocked == state.Blocked &&
@@ -332,6 +333,12 @@ func (s *Store) syncRunSummary(ctx context.Context, runDir string) error {
 		rm.Status = state.Status
 	}
 	return writeYAML(runPath, &rm)
+}
+
+// isTerminalRunStatus reports whether a run status is final. A cached terminal
+// status is never moved back to a live one by a later summary sync.
+func isTerminalRunStatus(status string) bool {
+	return status == "completed" || status == "abandoned"
 }
 
 // finalizeRunInManifest updates workflow.yaml after a terminal event.

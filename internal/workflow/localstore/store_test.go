@@ -277,3 +277,79 @@ func TestAppendEvent_UpdatesPersistedSummary(t *testing.T) {
 		t.Fatal("persisted summary.blocked = true, want false")
 	}
 }
+
+func TestAppendEvent_UnblockingPersistsActiveStatus(t *testing.T) {
+	for _, unblock := range []string{EventCheckpointApproved, EventStepDone, EventStepSkip} {
+		t.Run(unblock, func(t *testing.T) {
+			dir := t.TempDir()
+			doc := writeStoreWorkflowDoc(t, dir)
+			store := Open(filepath.Join(dir, ".workflow"), doc)
+			ctx := context.Background()
+			if err := store.Init(ctx, InitOptions{WorkflowID: "wf-test"}); err != nil {
+				t.Fatal(err)
+			}
+			runID, err := store.StartRun(ctx, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			runPath := filepath.Join(dir, ".workflow", runsDir, runID, runManifestName)
+			for _, evt := range []string{EventStepStart, EventStepBlock} {
+				if err := store.AppendEvent(ctx, Event{EventType: evt}); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if rm := readRunManifest(t, runPath); rm.Status != "blocked" || !rm.Summary.Blocked {
+				t.Fatalf("after block: status=%q blocked=%v, want blocked/true", rm.Status, rm.Summary.Blocked)
+			}
+			if err := store.AppendEvent(ctx, Event{EventType: unblock}); err != nil {
+				t.Fatal(err)
+			}
+			if rm := readRunManifest(t, runPath); rm.Status != "active" || rm.Summary.Blocked {
+				t.Fatalf("after %s: status=%q blocked=%v, want active/false", unblock, rm.Status, rm.Summary.Blocked)
+			}
+		})
+	}
+}
+
+func readRunManifest(t *testing.T, runPath string) RunManifest {
+	t.Helper()
+	raw, err := os.ReadFile(runPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var rm RunManifest
+	if err := yaml.Unmarshal(raw, &rm); err != nil {
+		t.Fatal(err)
+	}
+	return rm
+}
+
+func TestSyncRunSummary_KeepsCachedTerminalStatus(t *testing.T) {
+	dir := t.TempDir()
+	doc := writeStoreWorkflowDoc(t, dir)
+	store := Open(filepath.Join(dir, ".workflow"), doc)
+	ctx := context.Background()
+	if err := store.Init(ctx, InitOptions{WorkflowID: "wf-test"}); err != nil {
+		t.Fatal(err)
+	}
+	runID, err := store.StartRun(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runDir := filepath.Join(dir, ".workflow", runsDir, runID)
+	runPath := filepath.Join(runDir, runManifestName)
+	if err := store.appendEvent(ctx, runDir, Event{EventType: EventStepStart}); err != nil {
+		t.Fatal(err)
+	}
+	rm := readRunManifest(t, runPath)
+	rm.Status = "completed"
+	if err := writeYAML(runPath, &rm); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.syncRunSummary(ctx, runDir); err != nil {
+		t.Fatal(err)
+	}
+	if got := readRunManifest(t, runPath).Status; got != "completed" {
+		t.Fatalf("status = %q, want the cached completed status kept", got)
+	}
+}
