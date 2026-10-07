@@ -9,6 +9,7 @@ package localstore
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -592,7 +593,7 @@ func writeYAML(path string, v any) error {
 	if err != nil {
 		return festerrors.Parse("marshal yaml", err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := writeFileAtomic(path, bytes.NewReader(data)); err != nil {
 		return festerrors.IO("writing "+filepath.Base(path), err)
 	}
 	return nil
