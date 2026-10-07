@@ -164,7 +164,7 @@ edges: []
 	assert.Contains(t, err.Error(), "metadata.name is required")
 }
 
-func TestParse_NoFestivals(t *testing.T) {
+func TestParse_EmptyChain(t *testing.T) {
 	yaml := `
 chain_version: "1.0"
 metadata:
@@ -172,10 +172,14 @@ metadata:
   name: test
 festivals: []
 edges: []
+waves: []
 `
-	_, err := ParseBytes(context.Background(), []byte(yaml))
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "at least one festival is required")
+	c, err := ParseBytes(t.Context(), []byte(yaml))
+	require.NoError(t, err)
+	assert.Equal(t, "X0001", c.Metadata.ID)
+	assert.Empty(t, c.Festivals)
+	assert.Empty(t, c.Edges)
+	assert.Empty(t, c.Waves)
 }
 
 func TestParse_EdgeUnknownRef(t *testing.T) {

@@ -119,9 +119,14 @@ func findChainForFestival(ctx context.Context, refOrID, chainIDFlag string) (*ch
 				return c, f.Ref, nil
 			}
 		}
-		return nil, "", errors.NotFound("festival").
+		notFound := errors.NotFound("festival").
 			WithField("refOrID", refOrID).
 			WithField("chainID", chainIDFlag)
+		if len(c.Festivals) == 0 {
+			return nil, "", notFound.WithHint(emptyChainHint(c))
+		}
+		return nil, "", notFound.WithHintf("%s is not in chain %s; run 'fest chain status %s' to see its festivals",
+			refOrID, chainIDFlag, chainIDFlag)
 	}
 
 	// Search all chains for the ref or ID.

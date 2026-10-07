@@ -120,3 +120,26 @@ func TestComputeProgress_ContextCancellation(t *testing.T) {
 	_, err := ComputeProgress(ctx, makeLinearChain(), nil)
 	assert.Error(t, err)
 }
+
+func TestComputeProgress_EmptyChainIsPlanning(t *testing.T) {
+	c := &Chain{ChainVersion: "1.0", Metadata: Metadata{ID: "E0001", Name: "empty"}}
+	compute := map[string]func() (*ChainProgress, error){
+		"without gates": func() (*ChainProgress, error) {
+			return ComputeProgress(t.Context(), c, map[string]FestivalStatus{})
+		},
+		"with gates": func() (*ChainProgress, error) {
+			return ComputeProgressWithGates(t.Context(), c, map[string]FestivalStatus{}, nil)
+		},
+	}
+	for name, run := range compute {
+		t.Run(name, func(t *testing.T) {
+			p, err := run()
+			require.NoError(t, err)
+			assert.Equal(t, StatusPlanning, p.State)
+			assert.Equal(t, 0, p.Total)
+			assert.Equal(t, 0, p.Completed)
+			assert.InDelta(t, 0.0, p.Percentage, 0.01)
+			assert.Empty(t, p.Unblocked)
+		})
+	}
+}

@@ -60,6 +60,13 @@ func runComplete(ctx context.Context, chainID string, force bool, notes string) 
 		return err
 	}
 
+	if len(c.Festivals) == 0 && !force {
+		fmt.Printf("%s Cannot complete chain %s: it has no festivals.\n", ui.Warning("BLOCKED"), c.Metadata.ID)
+		fmt.Println()
+		fmt.Println("Use --force to complete anyway.")
+		return nil
+	}
+
 	// Resolve live statuses and compute progress.
 	statuses, _ := resolveChainStatuses(ctx, c)
 	progress, _ := chainpkg.ComputeProgress(ctx, c, statuses)

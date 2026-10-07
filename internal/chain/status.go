@@ -56,7 +56,7 @@ func ComputeProgress(ctx context.Context, c *Chain, statuses map[string]Festival
 
 	// Determine overall state.
 	switch {
-	case progress.Completed == progress.Total:
+	case progress.Total > 0 && progress.Completed == progress.Total:
 		progress.State = StatusCompleted
 	case progress.Completed > 0 || hasActiveStatus(statuses):
 		progress.State = StatusActive
@@ -189,7 +189,7 @@ func ComputeProgressWithGates(ctx context.Context, c *Chain, statuses map[string
 	}
 
 	switch {
-	case progress.Completed == progress.Total:
+	case progress.Total > 0 && progress.Completed == progress.Total:
 		progress.State = StatusCompleted
 	case progress.Completed > 0 || hasActiveStatus(statuses):
 		progress.State = StatusActive

@@ -1,7 +1,8 @@
 # Festival Chain Definition
 # ─────────────────────────
 # Inter-festival dependency graph for a single initiative.
-# See: fest chain validate <chain-id> to verify.
+# Add festivals with: fest chain add --chain {{.ID}} --festival <id> [--after <ref>]
+# See: fest chain validate {{.ID}} to verify.
 
 chain_version: "1.0"
 
@@ -21,35 +22,36 @@ metadata:
 # Each festival in this chain.
 # ref: short alias used in edges and waves below
 # id:  must match the festival's fest.yaml metadata.id
-festivals:
-  - ref: example1
-    id: EX0001
-    name: example-festival-1
-    projects: []
-
-  - ref: example2
-    id: EX0002
-    name: example-festival-2
-    projects: []
+# Example:
+#   - ref: example1
+#     id: EX0001
+#     name: example-festival-1
+#     projects: []
+#   - ref: example2
+#     id: EX0002
+#     name: example-festival-2
+#     projects: []
+festivals: []
 
 # ─── Dependency Edges ────────────────────────────────────
 # from → to: from must complete before to can activate
 # type: hard (blocks all work) or soft (can start with mocks)
-edges:
-  - from: example1
-    to: example2
-    type: hard
-    note: "example2 depends on example1"
+# Example:
+#   - from: example1
+#     to: example2
+#     type: hard
+#     note: "example2 depends on example1"
+edges: []
 
 # ─── Waves (optional) ───────────────────────────────────
 # Parallel execution groups derived from edges.
-waves:
-  - id: 1
-    name: "Wave 1"
-    unlock: "none"
-    festivals: [example1]
-
-  - id: 2
-    name: "Wave 2"
-    unlock: "example1:completed"
-    festivals: [example2]
+# Example:
+#   - id: 1
+#     name: "Wave 1"
+#     unlock: "none"
+#     festivals: [example1]
+#   - id: 2
+#     name: "Wave 2"
+#     unlock: "example1:completed"
+#     festivals: [example2]
+waves: []

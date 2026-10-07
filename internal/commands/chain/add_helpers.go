@@ -94,9 +94,10 @@ func parseEdgeType(s string) (chainpkg.EdgeType, error) {
 // already uses waves, so coverage (S7) and ordering (S8) still hold: the new wave
 // gets the next sequential id, and its unlock requires every hard prerequisite of
 // the added festival to be completed, which by construction sits in an earlier
-// wave. Chains without waves are left untouched.
+// wave. The first festival added to an empty chain opens wave 1. A chain whose
+// existing festivals have no waves is left untouched.
 func placeInTrailingWave(c *chainpkg.Chain, addedRef string) {
-	if len(c.Waves) == 0 {
+	if len(c.Waves) == 0 && len(c.Festivals) > 1 {
 		return
 	}
 
@@ -132,4 +133,9 @@ func waveUnlock(c *chainpkg.Chain, addedRef string) string {
 		return "none"
 	}
 	return strings.Join(conds, " AND ")
+}
+
+func emptyChainHint(c *chainpkg.Chain) string {
+	return fmt.Sprintf("Chain %s has no festivals yet. Add one with 'fest chain add --chain %s --festival <id>'.",
+		c.Metadata.ID, c.Metadata.ID)
 }

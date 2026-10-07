@@ -69,6 +69,9 @@ func runValidate(ctx context.Context, chainID string) error {
 		fmt.Println(ui.Label("Warnings:"))
 		for _, w := range result.Warnings {
 			fmt.Printf("  ! %s: %s\n", w.Code, w.Message)
+			if w.Context != "" {
+				fmt.Printf("    %s\n", w.Context)
+			}
 		}
 	}
 
@@ -133,6 +136,9 @@ func runCrossValidate(ctx context.Context) error {
 		fmt.Println(ui.Label("Warnings:"))
 		for _, w := range result.Warnings {
 			fmt.Printf("  ! %s: %s\n", w.Code, w.Message)
+			if w.Context != "" {
+				fmt.Printf("    %s\n", w.Context)
+			}
 		}
 	}
 

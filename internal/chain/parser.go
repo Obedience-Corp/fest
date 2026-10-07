@@ -52,9 +52,6 @@ func validateStructure(c *Chain) error {
 	if c.Metadata.Name == "" {
 		return errors.Validation("metadata.name is required")
 	}
-	if len(c.Festivals) == 0 {
-		return errors.Validation("at least one festival is required")
-	}
 
 	refs := c.RefSet()
 	for _, f := range c.Festivals {
