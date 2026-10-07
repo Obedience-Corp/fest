@@ -85,3 +85,43 @@ func TestTransition_FullLifecycle(t *testing.T) {
 
 	assert.Len(t, c.Metadata.StatusHistory, 2)
 }
+
+func TestForceComplete_FromPlanningOrActive(t *testing.T) {
+	for _, from := range []ChainStatus{StatusPlanning, StatusActive} {
+		t.Run(string(from), func(t *testing.T) {
+			c := &Chain{Metadata: Metadata{ID: "CH0001", Status: from}}
+
+			require.NoError(t, ForceComplete(t.Context(), c, "forced"))
+
+			assert.Equal(t, StatusCompleted, c.Metadata.Status)
+			require.Len(t, c.Metadata.StatusHistory, 1)
+			assert.Equal(t, StatusCompleted, c.Metadata.StatusHistory[0].Status)
+			assert.Equal(t, "forced", c.Metadata.StatusHistory[0].Notes)
+			assert.False(t, c.Metadata.StatusHistory[0].Timestamp.IsZero())
+		})
+	}
+}
+
+func TestForceComplete_RejectsTerminalAndUnknownStatus(t *testing.T) {
+	for _, from := range []ChainStatus{StatusCompleted, ChainStatus("archived"), ChainStatus("")} {
+		t.Run(string(from), func(t *testing.T) {
+			c := &Chain{Metadata: Metadata{ID: "CH0001", Status: from}}
+
+			err := ForceComplete(t.Context(), c, "forced")
+
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "cannot force-complete chain CH0001")
+			assert.Equal(t, from, c.Metadata.Status)
+			assert.Empty(t, c.Metadata.StatusHistory)
+		})
+	}
+}
+
+func TestForceComplete_ContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	c := &Chain{Metadata: Metadata{ID: "CH0001", Status: StatusPlanning}}
+
+	require.ErrorIs(t, ForceComplete(ctx, c, "forced"), context.Canceled)
+	assert.Equal(t, StatusPlanning, c.Metadata.Status)
+}
