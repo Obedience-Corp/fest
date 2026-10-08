@@ -43,22 +43,31 @@ current step, completion, and blocked state from its .workflow/ run without
 modifying it. The JSON snapshot then also carries workflow_doc, runtime_dir,
 run_id, run_status, completed_steps, and blocked.`,
 		Annotations: map[string]string{
-			// scope.Global so runStatus can route to standalone workflows
-			// before middleware demands a festival.
+			// scope.Global so a standalone workflow can be reported when no
+			// festival resolves; runStatusCommand still tries the festival
+			// scope first.
 			"scope": string(scope.Global),
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runStatus(cmd.Context(), jsonOutput)
+			return runStatusCommand(cmd, jsonOutput)
 		},
 	}
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 	return cmd
 }
 
-func runStatus(ctx context.Context, jsonOutput bool) error {
-	if handled, err := runStandaloneStatus(ctx, jsonOutput); handled || err != nil {
+func runStatusCommand(cmd *cobra.Command, jsonOutput bool) error {
+	festivalErr := scope.ResolveFestival(cmd)
+	if festivalErr == nil {
+		return runStatus(cmd.Context(), jsonOutput)
+	}
+	if handled, err := runStandaloneStatus(cmd.Context(), jsonOutput); handled || err != nil {
 		return err
 	}
+	return festivalErr
+}
+
+func runStatus(ctx context.Context, jsonOutput bool) error {
 
 	nav, err := getWorkflowNavigator(ctx)
 	if err != nil {

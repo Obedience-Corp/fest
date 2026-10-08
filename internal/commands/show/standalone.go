@@ -74,7 +74,7 @@ func loadStandaloneWorkflow(ctx context.Context, res *standalone.Result) (*Stand
 		mode = standaloneModeTracked
 		store := localstore.Open(res.RuntimeDir, res.WorkflowDoc)
 		var err error
-		state, err = store.LoadActive(ctx)
+		state, err = store.LoadLatest(ctx)
 		if err != nil {
 			return nil, err
 		}

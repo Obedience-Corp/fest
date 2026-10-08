@@ -353,3 +353,46 @@ func TestSyncRunSummary_KeepsCachedTerminalStatus(t *testing.T) {
 		t.Fatalf("status = %q, want the cached completed status kept", got)
 	}
 }
+
+func TestLoadLatest_ReturnsCompletedRunWhenNoneActive(t *testing.T) {
+	dir := t.TempDir()
+	doc := writeStoreWorkflowDoc(t, dir)
+	store := Open(filepath.Join(dir, ".workflow"), doc)
+	ctx := context.Background()
+	if err := store.Init(ctx, InitOptions{WorkflowID: "wf-test"}); err != nil {
+		t.Fatal(err)
+	}
+	if latest, err := store.LoadLatest(ctx); err != nil || latest != nil {
+		t.Fatalf("LoadLatest with no runs = %+v, %v; want nil, nil", latest, err)
+	}
+	runID, err := store.StartRun(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, evt := range []string{EventStepStart, EventStepDone, EventWorkflowRunCompleted} {
+		if err := store.AppendEvent(ctx, Event{EventType: evt}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if active, err := store.LoadActive(ctx); err != nil || active != nil {
+		t.Fatalf("LoadActive after completion = %+v, %v; want nil", active, err)
+	}
+
+	manifest := filepath.Join(dir, ".workflow", manifestName)
+	runFile := filepath.Join(dir, ".workflow", runsDir, runID, runManifestName)
+	beforeManifest, _ := os.ReadFile(manifest)
+	beforeRun, _ := os.ReadFile(runFile)
+
+	latest, err := store.LoadLatest(ctx)
+	if err != nil {
+		t.Fatalf("LoadLatest: %v", err)
+	}
+	if latest == nil || latest.RunID != runID || latest.Status != "completed" || latest.CompletedSteps != 1 {
+		t.Fatalf("LoadLatest = %+v; want run %s completed with 1 step", latest, runID)
+	}
+	afterManifest, _ := os.ReadFile(manifest)
+	afterRun, _ := os.ReadFile(runFile)
+	if string(beforeManifest) != string(afterManifest) || string(beforeRun) != string(afterRun) {
+		t.Error("LoadLatest wrote to the workflow runtime; it must be read-only")
+	}
+}

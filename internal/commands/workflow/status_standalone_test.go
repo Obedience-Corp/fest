@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Obedience-Corp/fest/internal/navigation"
 	"github.com/Obedience-Corp/fest/internal/workflow/localstore"
 )
 
@@ -50,9 +51,18 @@ func assertRuntimeUnchanged(t *testing.T, before, after map[string]string) {
 func runStatusInDir(t *testing.T, dir string, jsonOutput bool) (string, error) {
 	t.Helper()
 	t.Chdir(dir)
+	cmd := newStatusCmd()
+	cmd.SetContext(context.Background())
+	if jsonOutput {
+		cmd.SetArgs([]string{"--json"})
+	} else {
+		cmd.SetArgs([]string{})
+	}
+	cmd.SilenceUsage = true
+	cmd.SilenceErrors = true
 	var runErr error
 	out := captureStdout(t, func() {
-		runErr = runStatus(context.Background(), jsonOutput)
+		runErr = cmd.Execute()
 	})
 	return out, runErr
 }
@@ -178,6 +188,12 @@ func TestWorkflowStatusStandaloneComplete(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	if err := store.AppendEvent(ctx, localstore.Event{EventType: localstore.EventWorkflowRunCompleted}); err != nil {
+		t.Fatal(err)
+	}
+	if active, err := store.LoadActive(ctx); err != nil || active != nil {
+		t.Fatalf("after run completion LoadActive = %+v, %v; want no active run", active, err)
+	}
 	before := snapshotRuntime(t, res.StartDir)
 
 	out, err := runStatusInDir(t, res.StartDir, true)
@@ -190,6 +206,9 @@ func TestWorkflowStatusStandaloneComplete(t *testing.T) {
 	}
 	if !got.Complete || got.CurrentStep != nil || got.WorkflowStep != nil {
 		t.Errorf("complete=%v current=%v step=%v", got.Complete, got.CurrentStep, got.WorkflowStep)
+	}
+	if got.RunStatus != "completed" || got.CompletedSteps == nil || *got.CompletedSteps != 2 {
+		t.Errorf("run_status=%q completed_steps=%v, want completed and 2", got.RunStatus, got.CompletedSteps)
 	}
 	for _, s := range got.Steps {
 		if s.Status != "completed" || s.IsCurrent {
@@ -211,5 +230,46 @@ func TestWorkflowStatusNoWorkflowStillErrors(t *testing.T) {
 	out, err := runStatusInDir(t, t.TempDir(), true)
 	if err == nil {
 		t.Fatalf("expected error outside any workflow, got output:\n%s", out)
+	}
+}
+
+func TestWorkflowStatusLinkedProjectOutsideCampUsesCampRoot(t *testing.T) {
+	campRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(campRoot, ".campaign"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	activeDir := filepath.Join(campRoot, "festivals", "active")
+	if err := os.MkdirAll(activeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	festivalPath := filepath.Join(activeDir, "test-festival")
+	if err := os.Rename(setupWorkflowFestival(t), festivalPath); err != nil {
+		t.Fatal(err)
+	}
+	project := t.TempDir()
+	t.Setenv("CAMP_ROOT", campRoot)
+
+	nav, err := navigation.LoadNavigation()
+	if err != nil {
+		t.Fatalf("load navigation: %v", err)
+	}
+	nav.SetLinkWithPath("test-festival", project, festivalPath)
+	if err := nav.Save(); err != nil {
+		t.Fatalf("save navigation: %v", err)
+	}
+
+	out, err := runStatusInDir(t, project, true)
+	if err != nil {
+		t.Fatalf("status from a linked project outside the camp tree: %v", err)
+	}
+	var got workflowStatusJSON
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("unmarshal: %v\n%s", err, out)
+	}
+	if got.WorkflowDoc != "" || got.RunID != "" {
+		t.Errorf("reported a standalone run, want the linked festival: %+v", got)
+	}
+	if got.TotalSteps == 0 {
+		t.Errorf("festival workflow status has no steps:\n%s", out)
 	}
 }

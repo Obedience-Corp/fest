@@ -129,6 +129,14 @@ func workspaceScopeError() error {
     - Run 'fest init' to create a new workspace`)
 }
 
+// ResolveFestival resolves workspace and festival context into cmd's context
+// the way the festival scope does, for commands that declare a wider scope but
+// still prefer a festival when one resolves (honoring CAMP_ROOT and navigation
+// links).
+func ResolveFestival(cmd *cobra.Command) error {
+	return resolveFestivalScope(cmd)
+}
+
 // resolveFestivalScope resolves both workspace and festival context.
 func resolveFestivalScope(cmd *cobra.Command) error {
 	ctx := cmd.Context()
