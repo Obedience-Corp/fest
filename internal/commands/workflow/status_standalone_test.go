@@ -233,6 +233,57 @@ func TestWorkflowStatusNoWorkflowStillErrors(t *testing.T) {
 	}
 }
 
+func TestWorkflowStatusCompletedRunWithAddedStep(t *testing.T) {
+	res, store := setupTrackedStandaloneShowFixture(t)
+	ctx := context.Background()
+	for i := 0; i < 2; i++ {
+		for _, eventType := range []string{localstore.EventStepStart, localstore.EventStepDone} {
+			if err := store.AppendEvent(ctx, localstore.Event{EventType: eventType}); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if err := store.AppendEvent(ctx, localstore.Event{EventType: localstore.EventWorkflowRunCompleted}); err != nil {
+		t.Fatal(err)
+	}
+	doc, err := os.ReadFile(res.WorkflowDoc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc = append(doc, []byte("\n## Step 3: VERIFY\n\n**Goal:** Verify the result.\n")...)
+	if err := os.WriteFile(res.WorkflowDoc, doc, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	before := snapshotRuntime(t, res.StartDir)
+
+	out, err := runStatusInDir(t, res.StartDir, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got workflowStatusJSON
+	if err := json.Unmarshal([]byte(out), &got); err != nil {
+		t.Fatalf("unmarshal: %v\n%s", err, out)
+	}
+	if got.Complete || got.CompletedSteps == nil || *got.CompletedSteps != 2 || got.TotalSteps != 3 {
+		t.Fatalf("invented completion for the new step:\n%s", out)
+	}
+	if got.RunStatus != "completed" || !got.DocHashChanged || got.CurrentStep == nil || *got.CurrentStep != 3 {
+		t.Errorf("lost recorded run state or document drift:\n%s", out)
+	}
+	if len(got.Steps) != 3 || got.Steps[2].Status != "pending" || !got.Steps[2].IsCurrent {
+		t.Errorf("new step must remain pending and current:\n%s", out)
+	}
+	text, err := runStatusInDir(t, res.StartDir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(text, "All steps complete") || !strings.Contains(text, "2/3") ||
+		!strings.Contains(text, "WORKFLOW.md has changed") {
+		t.Errorf("text output misrepresents the changed workflow:\n%s", text)
+	}
+	assertRuntimeUnchanged(t, before, snapshotRuntime(t, res.StartDir))
+}
+
 func TestWorkflowStatusLinkedProjectOutsideCampUsesCampRoot(t *testing.T) {
 	campRoot := t.TempDir()
 	if err := os.MkdirAll(filepath.Join(campRoot, ".campaign"), 0o755); err != nil {
