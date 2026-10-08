@@ -36,9 +36,16 @@ Use --json for a stable machine-readable snapshot (schema fest.workflow.status/v
 that consumers can read without parsing the human-readable output. Each step in
 the snapshot also carries the judge's followups, the complete recorded verdict
 (finished at, confidence, evidence status), and the most recent hook runs the
-festival ledger holds for that step.`,
+festival ledger holds for that step.
+
+Inside a standalone WORKFLOW.md directory, status reports that workflow's steps,
+current step, completion, and blocked state from its .workflow/ run without
+modifying it. The JSON snapshot then also carries workflow_doc, runtime_dir,
+run_id, run_status, completed_steps, and blocked.`,
 		Annotations: map[string]string{
-			"scope": string(scope.Festival),
+			// scope.Global so runStatus can route to standalone workflows
+			// before middleware demands a festival.
+			"scope": string(scope.Global),
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runStatus(cmd.Context(), jsonOutput)
@@ -49,6 +56,10 @@ festival ledger holds for that step.`,
 }
 
 func runStatus(ctx context.Context, jsonOutput bool) error {
+	if handled, err := runStandaloneStatus(ctx, jsonOutput); handled || err != nil {
+		return err
+	}
+
 	nav, err := getWorkflowNavigator(ctx)
 	if err != nil {
 		return err

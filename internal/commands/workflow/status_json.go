@@ -32,6 +32,14 @@ type workflowStatusJSON struct {
 	TotalSteps    int                      `json:"total_steps"`
 	Complete      bool                     `json:"complete"`
 	Steps         []workflowStatusStepJSON `json:"steps"`
+	// Standalone-only fields, additive to fest.workflow.status/v1.
+	WorkflowDoc    string `json:"workflow_doc,omitempty"`
+	RuntimeDir     string `json:"runtime_dir,omitempty"`
+	RunID          string `json:"run_id,omitempty"`
+	RunStatus      string `json:"run_status,omitempty"`
+	CompletedSteps *int   `json:"completed_steps,omitempty"`
+	Blocked        bool   `json:"blocked,omitempty"`
+	DocHashChanged bool   `json:"doc_hash_changed,omitempty"`
 }
 
 // workflowStatusStepJSON is one step entry in the structured snapshot.
