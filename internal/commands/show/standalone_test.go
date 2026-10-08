@@ -70,6 +70,35 @@ func TestBuildStandaloneStepViewsTrackedRunProgress(t *testing.T) {
 	}
 }
 
+func TestBuildStandaloneStepViewsCompletedRunWithAddedStep(t *testing.T) {
+	steps := []wf.WorkflowStep{
+		{Number: 1, Name: "First"},
+		{Number: 2, Name: "Second"},
+		{Number: 3, Name: "Added after completion"},
+	}
+	state := &localstore.RunState{
+		Status:         "completed",
+		CurrentStep:    2,
+		TotalSteps:     2,
+		CompletedSteps: 2,
+		DocHashChanged: true,
+	}
+
+	views, current, completed, renderMode := buildStandaloneStepViews(steps, state)
+	if completed != 2 || current != 3 || renderMode != renderModeNextUp {
+		t.Fatalf("completed=%d current=%d renderMode=%q, want 2/3/next_up", completed, current, renderMode)
+	}
+	for i, view := range views {
+		wantStatus := wf.StepStatusCompleted
+		if i == 2 {
+			wantStatus = wf.StepStatusPending
+		}
+		if view.Status != wantStatus || view.IsCurrent != (i == 2) {
+			t.Errorf("step %d = %+v, want status=%s current=%v", i+1, view, wantStatus, i == 2)
+		}
+	}
+}
+
 func TestFormatStandaloneWorkflowProgressIncludesStepsAndProgress(t *testing.T) {
 	steps := []wf.WorkflowStep{
 		{Number: 1, Name: "First", Goal: "Start"},

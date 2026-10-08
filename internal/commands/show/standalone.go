@@ -74,7 +74,7 @@ func loadStandaloneWorkflow(ctx context.Context, res *standalone.Result) (*Stand
 		mode = standaloneModeTracked
 		store := localstore.Open(res.RuntimeDir, res.WorkflowDoc)
 		var err error
-		state, err = store.LoadActive(ctx)
+		state, err = store.LoadLatest(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -110,16 +110,13 @@ func buildStandaloneStepViews(steps []wf.WorkflowStep, state *localstore.RunStat
 	completed := 0
 	if state != nil {
 		completed = clampStepCount(state.CompletedSteps, total)
-		if state.Status == "completed" {
-			completed = total
-		}
 	}
 
 	views := make([]shared.WorkflowStepView, len(steps))
 	for i, step := range steps {
 		position := i + 1
 		status := wf.StepStatusPending
-		if position <= completed || renderMode == renderModeComplete {
+		if position <= completed {
 			status = wf.StepStatusCompleted
 		} else if position == current {
 			switch {
@@ -151,7 +148,9 @@ func standaloneRenderPosition(state *localstore.RunState, totalSteps int) (int, 
 	if state == nil {
 		return 1, renderModeNextUp
 	}
-	if state.Status == "completed" || state.CompletedSteps >= totalSteps {
+	// A terminal run describes the document it executed. Later additions to
+	// WORKFLOW.md are still pending, even when that recorded run is completed.
+	if state.CompletedSteps >= totalSteps {
 		return totalSteps, renderModeComplete
 	}
 	if state.CurrentStep > state.CompletedSteps {

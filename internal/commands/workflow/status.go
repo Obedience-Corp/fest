@@ -36,19 +36,39 @@ Use --json for a stable machine-readable snapshot (schema fest.workflow.status/v
 that consumers can read without parsing the human-readable output. Each step in
 the snapshot also carries the judge's followups, the complete recorded verdict
 (finished at, confidence, evidence status), and the most recent hook runs the
-festival ledger holds for that step.`,
+festival ledger holds for that step.
+
+Inside a standalone WORKFLOW.md directory, status reports that workflow's steps,
+current step, completion, and blocked state from its .workflow/ run without
+modifying it. The JSON snapshot then also carries workflow_doc, runtime_dir,
+run_id, run_status, completed_steps, and blocked.`,
 		Annotations: map[string]string{
-			"scope": string(scope.Festival),
+			// scope.Global so a standalone workflow can be reported when no
+			// festival resolves; runStatusCommand still tries the festival
+			// scope first.
+			"scope": string(scope.Global),
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runStatus(cmd.Context(), jsonOutput)
+			return runStatusCommand(cmd, jsonOutput)
 		},
 	}
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "output as JSON")
 	return cmd
 }
 
+func runStatusCommand(cmd *cobra.Command, jsonOutput bool) error {
+	festivalErr := scope.ResolveFestival(cmd)
+	if festivalErr == nil {
+		return runStatus(cmd.Context(), jsonOutput)
+	}
+	if handled, err := runStandaloneStatus(cmd.Context(), jsonOutput); handled || err != nil {
+		return err
+	}
+	return festivalErr
+}
+
 func runStatus(ctx context.Context, jsonOutput bool) error {
+
 	nav, err := getWorkflowNavigator(ctx)
 	if err != nil {
 		return err

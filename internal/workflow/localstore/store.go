@@ -427,7 +427,32 @@ func (s *Store) LoadActive(ctx context.Context) (*RunState, error) {
 	if m.ActiveRunID == "" {
 		return nil, nil
 	}
-	runDir := filepath.Join(s.root, runsDir, m.ActiveRunID)
+	return s.loadRun(m, m.ActiveRunID)
+}
+
+// LoadLatest returns the active run's replayed state, or the most recent run's
+// when no run is active (for example after the final advance completed it).
+// It returns nil when the workflow has no runs. Like LoadActive it never
+// writes.
+func (s *Store) LoadLatest(ctx context.Context) (*RunState, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	m, err := s.LoadManifest(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if m.ActiveRunID != "" {
+		return s.loadRun(m, m.ActiveRunID)
+	}
+	if len(m.Runs) == 0 {
+		return nil, nil
+	}
+	return s.loadRun(m, m.Runs[len(m.Runs)-1].RunID)
+}
+
+func (s *Store) loadRun(m *Manifest, runID string) (*RunState, error) {
+	runDir := filepath.Join(s.root, runsDir, runID)
 	runPath := filepath.Join(runDir, runManifestName)
 	raw, err := os.ReadFile(runPath)
 	if err != nil {
