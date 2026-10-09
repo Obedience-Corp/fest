@@ -2,6 +2,7 @@ package festival
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -84,6 +85,17 @@ func (r *Renumberer) RemoveElement(ctx context.Context, path string) error {
 			NewPath: newPath,
 			Element: elements[i],
 		})
+	}
+
+	// Removal previews never authorize deletion. In particular, AutoApprove
+	// must not turn the default dry run into a destructive operation. Other
+	// renumbering callers retain their interactive preview/apply workflow.
+	if r.options.DryRun {
+		if !r.options.Quiet {
+			r.displayChanges()
+			fmt.Println("\nDRY RUN - Preview complete.")
+		}
+		return nil
 	}
 
 	return r.executeChanges()

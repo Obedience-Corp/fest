@@ -113,9 +113,10 @@ Warning: This will permanently delete the phase and all its contents!`,
 
 			// Create renumberer
 			renumberer := festival.NewRenumberer(festival.RenumberOptions{
-				DryRun:  opts.dryRun,
-				Backup:  opts.backup,
-				Verbose: opts.verbose || shared.IsVerbose(),
+				DryRun:      opts.dryRun,
+				Backup:      opts.backup,
+				Verbose:     opts.verbose || shared.IsVerbose(),
+				AutoApprove: true, // Removal was confirmed above or explicitly forced.
 			})
 
 			// Perform removal
@@ -211,9 +212,10 @@ If --phase is omitted and you're inside a phase directory, it will use the curre
 
 			// Create renumberer
 			renumberer := festival.NewRenumberer(festival.RenumberOptions{
-				DryRun:  opts.dryRun,
-				Backup:  opts.backup,
-				Verbose: opts.verbose || shared.IsVerbose(),
+				DryRun:      opts.dryRun,
+				Backup:      opts.backup,
+				Verbose:     opts.verbose || shared.IsVerbose(),
+				AutoApprove: true, // Removal was confirmed above or explicitly forced.
 			})
 
 			// Perform removal
@@ -343,9 +345,10 @@ If --sequence is omitted and you're inside a sequence directory, it will use the
 
 			// Create renumberer
 			renumberer := festival.NewRenumberer(festival.RenumberOptions{
-				DryRun:  opts.dryRun,
-				Backup:  opts.backup,
-				Verbose: opts.verbose || shared.IsVerbose(),
+				DryRun:      opts.dryRun,
+				Backup:      opts.backup,
+				Verbose:     opts.verbose || shared.IsVerbose(),
+				AutoApprove: true, // Removal was confirmed above or explicitly forced.
 			})
 
 			// Perform removal
