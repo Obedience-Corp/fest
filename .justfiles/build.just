@@ -111,6 +111,19 @@ windows:
         GOOS=windows GOARCH=amd64 go build -ldflags '{{ldflags}}' -o {{bin_dir}}/{{binary_name}}-windows-amd64.exe {{main_path}}
     fi
 
+# Cross-compile fest.exe for CI (stable profile, compile-only gate).
+[no-cd]
+windows-x64-gate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p {{bin_dir}}
+    if [ -n "{{build_tags}}" ]; then
+        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -tags '{{build_tags}}' -ldflags '{{ldflags}}' -o {{bin_dir}}/{{binary_name}}.exe {{main_path}}
+    else
+        CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags '{{ldflags}}' -o {{bin_dir}}/{{binary_name}}.exe {{main_path}}
+    fi
+    test -s {{bin_dir}}/{{binary_name}}.exe
+
 # Build for all platforms
 all: linux darwin darwin-arm64 windows
     @echo "All platform builds complete"
