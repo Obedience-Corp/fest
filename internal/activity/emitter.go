@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"golang.org/x/sys/unix"
-
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/version"
 	"github.com/Obedience-Corp/fest/internal/workspace"
@@ -217,7 +215,7 @@ func openLocked(path string) (*os.File, error) {
 	if err != nil {
 		return nil, errors.IO("opening activity log", err).WithField("path", path)
 	}
-	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX); err != nil {
+	if err := lockActivityFile(f); err != nil {
 		_ = f.Close()
 		return nil, errors.IO("locking activity log", err).WithField("path", path)
 	}
@@ -228,7 +226,7 @@ func closeLocked(f *os.File) {
 	if f == nil {
 		return
 	}
-	_ = unix.Flock(int(f.Fd()), unix.LOCK_UN)
+	unlockActivityFile(f)
 	_ = f.Close()
 }
 
