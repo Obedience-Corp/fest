@@ -67,14 +67,14 @@ func TestDeferRefusedInNonActiveFestival(t *testing.T) {
 	}
 }
 
-func TestDeferInActiveFestivalStillPassesThroughTheOperatorGuard(t *testing.T) {
+func TestDeferInActiveFestivalNeedsConfirmationOffTerminal(t *testing.T) {
 	stubOperatorGuardTerminal(t, false)
 
 	err := runDeferInFixture(t, "active", "implementation")
 	if err == nil {
 		t.Fatal("fest task defer off a terminal must be refused even in an active festival")
 	}
-	if !strings.Contains(err.Error(), "run this from your terminal") {
-		t.Errorf("error = %v, want the operator guard refusal", err)
+	if !strings.Contains(err.Error(), "pass --yes for non-interactive use") {
+		t.Errorf("error = %v, want the noninteractive confirmation hint", err)
 	}
 }

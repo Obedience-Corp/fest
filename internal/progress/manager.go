@@ -502,7 +502,7 @@ func (m *Manager) ReportBlocker(ctx context.Context, taskID, message string, att
 	})
 }
 
-// DeferBlocker records an operator's decision to let a blocked task wait until
+// DeferBlocker records a decision to let a blocked task wait until
 // the end of the festival. Status stays blocked and the frontmatter is not
 // touched: the progress store is the only source of truth for a deferral
 // (D006).

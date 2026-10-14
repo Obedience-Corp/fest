@@ -42,7 +42,12 @@ func TestDeferVerbRefusesOffATerminalAndWritesNothing(t *testing.T) {
 
 	const blockedTask = "001_IMPLEMENTATION/01_core_work/01_first_task.md"
 
-	output, err := tc.RunFestInDir(festPath, "task", "blocked", blockedTask,
+	output, err := tc.RunFestInDir(festPath, "task", "defer", blockedTask,
+		"--reason", "'the vendor replies next week'", "--yes", "--json")
+	require.Error(t, err, "--yes must not defer a task that is not blocked: %s", output)
+	require.Contains(t, output, "only a blocked task can be deferred")
+
+	output, err = tc.RunFestInDir(festPath, "task", "blocked", blockedTask,
 		"--reason", "'upstream provider removed the endpoint'",
 		"--tried", "'checked the changelog'", "--yes")
 	require.NoError(t, err, "fest task blocked: %s", output)
@@ -52,8 +57,7 @@ func TestDeferVerbRefusesOffATerminalAndWritesNothing(t *testing.T) {
 	output, err = tc.RunFestInDir(festPath, "task", "defer", blockedTask,
 		"--reason", "'the vendor replies next week'")
 	require.Error(t, err, "fest task defer off a terminal must fail: %s", output)
-	require.Contains(t, output, "run this from your terminal",
-		"the refusal must be the operator-decision message from design doc 04")
+	require.Contains(t, output, "pass --yes for non-interactive use")
 
 	after := captureDeferGuardState(t, tc, festPath, blockedTask)
 	require.Equal(t, before.events, after.events,
@@ -68,7 +72,7 @@ func TestDeferVerbRefusesOffATerminalAndWritesNothing(t *testing.T) {
 		"nothing may write a deferral into the store from a refused verb")
 }
 
-func TestDeferVerbHasNoAgentFlags(t *testing.T) {
+func TestDeferVerbRequiresYesForJSONAndLetsAnAgentDefer(t *testing.T) {
 	tc := GetSharedContainer(t)
 	festPath := setupImplementationFestival(t, tc, "defer-flags")
 
@@ -80,22 +84,33 @@ func TestDeferVerbHasNoAgentFlags(t *testing.T) {
 
 	before := captureDeferGuardState(t, tc, festPath, blockedTask)
 
-	for _, flag := range []string{"--yes", "--json"} {
-		output, err := tc.RunFestInDir(festPath, "task", "defer", blockedTask,
-			"--reason", "'the vendor replies next week'", flag)
-		require.Error(t, err, "fest task defer %s must fail: %s", flag, output)
-		require.Contains(t, output, "unknown flag",
-			"cobra must reject %s before any code runs", flag)
-	}
+	output, err = tc.RunFestInDir(festPath, "task", "defer", blockedTask,
+		"--reason", "'the vendor replies next week'", "--json")
+	require.Error(t, err, "--json without --yes must fail: %s", output)
+	require.Contains(t, output, "confirmation required")
+
+	afterRefusal := captureDeferGuardState(t, tc, festPath, blockedTask)
+	require.Equal(t, before.events, afterRefusal.events)
+	require.Equal(t, before.taskFile, afterRefusal.taskFile)
+	require.Equal(t, before.nextJSON, afterRefusal.nextJSON)
+
+	output, err = tc.Exec("sh", "-c", "cd "+festPath+
+		" && CODEX_TASK=integration /fest task defer "+blockedTask+
+		" --reason 'the vendor replies next week' --yes --json")
+	require.NoError(t, err, "agent deferral off a terminal: %s", output)
+	require.Contains(t, output, `"deferred": true`)
+	require.Contains(t, output, `"actor": "automation"`)
 
 	help, err := tc.RunFestInDir(festPath, "task", "defer", "--help")
 	require.NoError(t, err, "fest task defer --help: %s", help)
-	require.Contains(t, help, "no --yes and no --json",
-		"the help text must say why the agent flags are absent")
+	require.Contains(t, help, "--yes")
 
 	after := captureDeferGuardState(t, tc, festPath, blockedTask)
-	require.Equal(t, before.events, after.events,
-		"an unknown flag must append no event")
+	require.Contains(t, after.events, `"event":"blocker_deferred"`)
+	require.Contains(t, after.events, `"actor":"automation"`)
+	require.Contains(t, after.events, `"deferred_by":"automation"`)
 	require.Equal(t, before.taskFile, after.taskFile,
-		"an unknown flag must not touch the task file")
+		"deferral must not touch the task file")
+	require.NotEqual(t, before.nextJSON, after.nextJSON,
+		"the dependent task must become ready")
 }

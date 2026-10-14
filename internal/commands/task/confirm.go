@@ -12,6 +12,10 @@ import (
 	"golang.org/x/term"
 )
 
+var confirmationStdinIsTerminal = func() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
+}
+
 // resolveConfirmation decides how a consequential task mutation should proceed
 // given the --yes and --json flags and whether stdin is an interactive terminal.
 //
@@ -43,7 +47,7 @@ func resolveConfirmation(yes, jsonOut bool, taskID, action, command string) (nee
 			WithHint("pass --yes for non-interactive use")
 	}
 
-	if !term.IsTerminal(int(os.Stdin.Fd())) {
+	if !confirmationStdinIsTerminal() {
 		return false, errors.Validation("confirmation required for "+action).
 			WithField("task", taskID).
 			WithHint("pass --yes for non-interactive use")

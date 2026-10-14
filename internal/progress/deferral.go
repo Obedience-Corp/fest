@@ -13,7 +13,7 @@ import (
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 )
 
-// DeferralAudit carries the operator guard's findings from the command layer
+// DeferralAudit carries the command's actor and confirmation findings
 // into the deferral event. It lives here rather than in internal/commands/task
 // so the manager can record it without importing the command package.
 type DeferralAudit struct {

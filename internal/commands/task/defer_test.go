@@ -6,13 +6,9 @@ import (
 	"testing"
 )
 
-func TestDeferCmdHasNoAgentFlags(t *testing.T) {
-	assertNoAgentFlags(t, newDeferCmd())
-}
-
-func TestDeferCmdLongTextExplainsTheMissingFlags(t *testing.T) {
+func TestDeferCmdLongTextExplainsNoninteractiveUse(t *testing.T) {
 	long := newDeferCmd().Long
-	for _, want := range []string{"no --yes and no --json", "operator decision", "fest task unblock"} {
+	for _, want := range []string{"--yes", "--json requires --yes", "automation", "fest task unblock"} {
 		if !strings.Contains(long, want) {
 			t.Errorf("help text missing %q:\n%s", want, long)
 		}

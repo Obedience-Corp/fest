@@ -5238,7 +5238,7 @@ Manage task status (show, edit, complete, block, reset)
 Commands for managing individual task status within a festival.
 
 This is the single home for task state mutations. Consequential changes
-(completed, blocked, reset) prompt for confirmation to ensure agents verify
+(completed, blocked, defer, reset) prompt for confirmation to ensure agents verify
 their work; pass --yes to skip the prompt for non-interactive or agent use, and
 --json to emit a structured result (--json requires --yes). Progress signals
 (update, unblock) are frictionless and never prompt.
@@ -5265,7 +5265,8 @@ Examples:
   fest task reset                         # Reset task to pending (Y/n)
   fest task update 50%                    # Set progress to 50%
   fest task unblock                       # Clear a blocker, resume work
-  fest task defer --reason "vendor reply"  # Operator: let a blocker wait (no --yes)
+  fest task defer --reason "vendor reply"        # Let a blocker wait (type task number)
+  fest task defer --reason "vendor reply" --yes  # Defer non-interactively
 ```
 
 ### Options
@@ -5380,9 +5381,11 @@ settled, fest next brings the deferred tasks back for another attempt, and the
 festival cannot be promoted to completed while any blocker is deferred unless
 you pass --force.
 
-This verb has no --yes and no --json. Deferring is an operator decision and
-there is deliberately no way to script it. If you want to send the task back to
-the executor instead, use 'fest task unblock --note "<what to try>"'.
+By default, a person confirms a deferral by typing the task number in a
+terminal. Pass --yes to defer non-interactively from an agent or app; the event
+records automation as the actor. --json requires --yes. Record why the blocker
+can wait in --reason. To resume this task instead, use
+'fest task unblock --note "<what to try>"'.
 
 ```
 fest task defer [task] [flags]
@@ -5392,7 +5395,9 @@ fest task defer [task] [flags]
 
 ```
   -h, --help            help for defer
+      --json            output as JSON (requires --yes)
       --reason string   why this blocker can wait until the end (required)
+  -y, --yes             skip the interactive task-number confirmation
 ```
 
 ### Options inherited from parent commands
