@@ -329,6 +329,12 @@ Assert-RequiredTestsPassed -Label 'config' -Output $configOut -Required $script:
 $chainingOut = Invoke-GoTestBinary -ExePath (Join-Path $binDir 'chaining.test.exe') -Label 'chaining'
 Assert-RequiredTestsPassed -Label 'chaining' -Output $chainingOut -Required $script:RequiredChainingTests
 
+$cliCampRoot = Join-Path $WorkRoot 'config-cli-camp'
+New-Item -ItemType Directory -Path (Join-Path $cliCampRoot '.campaign') -Force | Out-Null
+New-Item -ItemType Directory -Path (Join-Path $cliCampRoot 'festivals') -Force | Out-Null
+$env:CAMP_ROOT = $cliCampRoot
+Set-Location -LiteralPath $cliCampRoot
+
 Invoke-ConfigCLIProof
 Invoke-ConfigCLIFailureProof
 Invoke-AclDeniedAddProof
