@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -171,13 +172,13 @@ func RepoLocalPath(name string) string {
 
 // IsGitURL checks if a source string looks like a git URL
 func IsGitURL(source string) bool {
-	// Simple heuristics for git URLs
-	if len(source) == 0 {
-		return false
+	for _, prefix := range []string{"https://", "http://", "ssh://", "git://", "file://"} {
+		if strings.HasPrefix(strings.ToLower(source), prefix) {
+			return true
+		}
 	}
-	// git@, https://, http://, ssh://
-	if source[0] == '/' || source[0] == '.' || source[0] == '~' {
-		return false
-	}
-	return true
+	// Git's SCP-style form is host:path or user@host:path. A Windows drive
+	// path has its colon at index one and must be treated as a local source.
+	colon := strings.IndexByte(source, ':')
+	return colon > 1 && !strings.ContainsAny(source[:colon], `/\`)
 }

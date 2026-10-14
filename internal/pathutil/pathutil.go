@@ -24,7 +24,8 @@ func ToRelativePath(absPath, campaignRoot string) string {
 	if err != nil || strings.HasPrefix(rel, "..") {
 		return absPath
 	}
-	return rel
+	// Relative paths are persisted in YAML and may be read on another OS.
+	return filepath.ToSlash(rel)
 }
 
 // ToAbsolutePath converts a campaign-relative path to absolute.
@@ -33,7 +34,7 @@ func ToAbsolutePath(path, campaignRoot string) string {
 	if campaignRoot == "" || filepath.IsAbs(path) {
 		return path
 	}
-	return filepath.Join(campaignRoot, path)
+	return filepath.Join(campaignRoot, filepath.FromSlash(path))
 }
 
 // DisplayPath converts an absolute path to campaign-relative for display.

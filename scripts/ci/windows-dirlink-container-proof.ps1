@@ -37,6 +37,18 @@ function Compile-FestBinary {
     }
 }
 
+function Get-HostGitRoot {
+    $gitCmd = (Get-Command git.exe -ErrorAction Stop).Source
+    for ($dir = Split-Path -Parent $gitCmd; $dir; $dir = Split-Path -Parent $dir) {
+        if (Test-Path -LiteralPath (Join-Path $dir 'cmd\git.exe')) {
+            return $dir
+        }
+        $parent = Split-Path -Parent $dir
+        if ($parent -eq $dir) { break }
+    }
+    throw "host git layout unexpected at $gitCmd (no parent with cmd\git.exe)"
+}
+
 try {
     Assert-WindowsProofHost
     Push-Location $RepoRoot
@@ -85,6 +97,11 @@ try {
             Invoke-DockerCli -DockerArgs @(
                 'cp', $innerScriptHost, "${containerId}:${innerScriptContainer}"
             ) | Out-Null
+            $gitRoot = Get-HostGitRoot
+            Write-Host "Copying host Git from $gitRoot into container for config repository tests"
+            Invoke-DockerCli -DockerArgs @(
+                'cp', $gitRoot, "${containerId}:$containerWork\Git"
+            ) | Out-Null
 
             $aclRoot = "$containerWork\config-acl-root"
             $aclRepos = "$aclRoot\config-repos"
@@ -112,7 +129,7 @@ try {
             $execOut = $rawInnerOut | Out-String
             Write-Host $execOut
             if ($innerExitCode -ne 0) {
-                throw "inner native proof failed ($innerExitCode): $execOut"
+                throw "inner native proof failed ($innerExitCode); see container output above"
             }
 
             if ($execOut -notmatch 'Windows dirlink/config/chaining container proof: PASS') {

@@ -7,6 +7,11 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+$env:PATH = "$WorkRoot\Git\cmd;$WorkRoot\Git\mingw64\bin;$env:PATH"
+if (-not (Get-Command git.exe -ErrorAction SilentlyContinue)) {
+    throw 'Git executable missing from Windows fixture'
+}
+
 $script:ReparseTagMountPoint = '0xa0000003'
 
 $script:RequiredDirlinkTests = @(
@@ -150,8 +155,8 @@ function Invoke-ConfigCLIProof {
     $srcB = Join-Path $WorkRoot 'external-b'
     New-Item -ItemType Directory -Path (Join-Path $srcA 'user') -Force | Out-Null
     New-Item -ItemType Directory -Path (Join-Path $srcB 'user') -Force | Out-Null
-    Set-Content -LiteralPath (Join-Path $srcA 'user\settings.json') -Value '{"repo":"a"}' -Encoding UTF8
-    Set-Content -LiteralPath (Join-Path $srcB 'user\settings.json') -Value '{"repo":"b"}' -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $srcA 'user\settings.json') -Value '{"repo":"repo-a"}' -Encoding UTF8
+    Set-Content -LiteralPath (Join-Path $srcB 'user\settings.json') -Value '{"repo":"repo-b"}' -Encoding UTF8
     $fpA = Get-TreeFingerprint -Root $srcA
     $fpB = Get-TreeFingerprint -Root $srcB
 
