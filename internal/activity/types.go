@@ -20,9 +20,10 @@
 // # Semantics
 //
 // Append-only, O_APPEND | O_CREATE, fsync after every write, advisory file lock
-// (flock) to prevent interleaved writes from concurrent fest processes.
-// Rotation closes and unlocks before rename so the triggering write starts a
-// fresh canonical activity.jsonl.
+// (flock) on the log and a stable path lock during rotation to prevent
+// interleaved writes from concurrent fest processes. Rotation closes and
+// unlocks the data file before rename so the triggering write starts a fresh
+// canonical activity.jsonl.
 package activity
 
 import "time"
