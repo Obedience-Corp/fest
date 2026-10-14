@@ -46,7 +46,7 @@ func CheckLoopCondition(ctx context.Context, phasePath string, completedStep int
 		return nil, fmt.Errorf("create evaluator: %w", err)
 	}
 
-	result, err := evaluator.Evaluate(ctx, phasePath, map[string]any{})
+	result, err := evaluator.Evaluate(ctx, phasePath, loopDef.Params)
 	if err != nil {
 		return nil, fmt.Errorf("evaluate condition: %w", err)
 	}

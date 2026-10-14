@@ -15,6 +15,39 @@ if (-not (Test-Path -LiteralPath $festExe -PathType Leaf)) {
 $env:PATH = "$WorkRoot$([IO.Path]::PathSeparator)$env:PATH"
 $env:NO_COLOR = '1'
 
+$loopTest = Join-Path (Join-Path $WorkRoot 'bin') 'loop.test.exe'
+if (-not (Test-Path -LiteralPath $loopTest -PathType Leaf)) {
+    throw "missing compiled loop tests: $loopTest"
+}
+$loopArgs = @(
+    '-test.v', '-test.count=1', '-test.timeout=2m',
+    '-test.run=^(TestCommandInterpreterKeepsLiteralExpression|TestCommandEvaluatorMissingInterpreter|TestCommandEvaluatorCancelledBeforeStart|TestCommandEvaluatorContainerSemantics|TestStoredCommandConditionContainerReadback)$'
+)
+$priorPreference = $ErrorActionPreference
+$ErrorActionPreference = 'Continue'
+try {
+    $loopOutput = & $loopTest @loopArgs 2>&1 | Out-String
+    $loopCode = $LASTEXITCODE
+} finally {
+    $ErrorActionPreference = $priorPreference
+}
+Write-Host $loopOutput
+if ($loopCode -ne 0) {
+    throw "native command-condition tests failed with exit code $loopCode"
+}
+foreach ($name in @(
+    'TestCommandInterpreterKeepsLiteralExpression',
+    'TestCommandEvaluatorMissingInterpreter',
+    'TestCommandEvaluatorCancelledBeforeStart',
+    'TestCommandEvaluatorContainerSemantics',
+    'TestStoredCommandConditionContainerReadback'
+)) {
+    if (-not $loopOutput.Contains("--- PASS: $name")) {
+        throw "required command-condition test did not pass: $name"
+    }
+}
+Write-Host 'native command-condition tests: OK'
+
 $campRoot = Join-Path $WorkRoot 'shell-camp'
 $festivals = Join-Path $campRoot 'festivals'
 $festivalName = 'shell-navigation'

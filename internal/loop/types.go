@@ -11,11 +11,12 @@ type LoopConfig struct {
 
 // Loop represents a single loop condition.
 type Loop struct {
-	AfterStep     int       `yaml:"after_step"`
-	Condition     string    `yaml:"condition"`
-	OnFailure     OnFailure `yaml:"on_failure"`
-	MaxIterations int       `yaml:"max_iterations"`
-	OnMaxReached  string    `yaml:"on_max_reached"`
+	AfterStep     int            `yaml:"after_step"`
+	Condition     string         `yaml:"condition"`
+	Params        map[string]any `yaml:"params,omitempty"`
+	OnFailure     OnFailure      `yaml:"on_failure"`
+	MaxIterations int            `yaml:"max_iterations"`
+	OnMaxReached  string         `yaml:"on_max_reached"`
 }
 
 // OnFailure defines what to do when a condition fails.

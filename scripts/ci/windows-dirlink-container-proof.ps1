@@ -67,6 +67,7 @@ try {
         Compile-WindowsTestBinary -OutPath (Join-Path $hostBin 'dirlink.test.exe') -Package './internal/dirlink'
         Compile-WindowsTestBinary -OutPath (Join-Path $hostBin 'config.test.exe') -Package './internal/config'
         Compile-WindowsTestBinary -OutPath (Join-Path $hostBin 'chaining.test.exe') -Package './internal/chaining'
+        Compile-WindowsTestBinary -OutPath (Join-Path $hostBin 'loop.test.exe') -Package './internal/loop'
         Compile-FestBinary -OutPath (Join-Path $hostBin 'fest.exe')
 
         $containerWork = 'C:\fest-dirlink-proof'
@@ -92,6 +93,9 @@ try {
             ) | Out-Null
             Invoke-DockerCli -DockerArgs @(
                 'cp', (Join-Path $hostBin 'chaining.test.exe'), "${containerId}:${containerBin}\chaining.test.exe"
+            ) | Out-Null
+            Invoke-DockerCli -DockerArgs @(
+                'cp', (Join-Path $hostBin 'loop.test.exe'), "${containerId}:${containerBin}\loop.test.exe"
             ) | Out-Null
             Invoke-DockerCli -DockerArgs @(
                 'cp', (Join-Path $hostBin 'fest.exe'), "${containerId}:${containerWork}\fest.exe"
