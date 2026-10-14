@@ -13,11 +13,16 @@ $script:RequiredDirlinkTests = @(
     'TestCreateRemoveReadback',
     'TestRemoveRejectsPlainDirectory',
     'TestReplaceRollbackOnFinalizeError',
-    'TestReplaceConfigStyleReadback'
+    'TestReplaceConfigStyleReadback',
+    'TestUnicodeAndSpaceLinkSafeRemoval',
+    'TestBrokenAndCyclicLinkSafeRemoval',
+    'TestOfflineUNCTargetUsesDirectorySymlink'
 )
 $script:RequiredConfigTests = @(
     'TestRepoManagerConfigLinkLifecycle',
-    'TestRepoManagerUseRecreatesMissingActiveLink'
+    'TestRepoManagerUseRecreatesMissingActiveLink',
+    'TestRepoManagerRemoveSaveFailureRestoresActiveLinks',
+    'TestRepoManagerRejectsCaseOnlyNameCollision'
 )
 $script:RequiredChainingTests = @(
     'TestCheckChaining',
@@ -294,7 +299,7 @@ function Invoke-AclDeniedAddProof {
     if ($show.active -eq 'denied') {
         throw 'denied add must not mark config active'
     }
-    if (($out | Out-String) -match '(?i)Active config set') {
+    if ($deniedRun.Output -match '(?i)Active config set') {
         throw 'denied add printed false success messaging'
     }
     Write-Host 'ACL denied add case OK'

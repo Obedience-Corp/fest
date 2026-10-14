@@ -65,7 +65,7 @@ try {
         Write-ProofSection 'Windows Server Core fixture (ContainerUser, isolated ACL in inner script)'
         $containerId = New-ServerCoreIdleContainer -Image $ContainerImage
         try {
-            Invoke-DockerExecAsAdmin $containerId "mkdir $containerWork && mkdir $containerBin" | Out-Null
+            Invoke-DockerExecAsAdmin $containerId "mkdir $containerWork && mkdir $containerBin && mkdir $containerWork\tmp" | Out-Null
             $userSid = Get-ContainerUserSid -ContainerId $containerId
             Write-Host "ContainerUser SID: $userSid"
             Grant-ContainerUserModify -ContainerId $containerId -ContainerPath $containerWork -UserSid $userSid
@@ -89,27 +89,31 @@ try {
             $aclRoot = "$containerWork\config-acl-root"
             $aclRepos = "$aclRoot\config-repos"
             $aclDenySrc = "$containerWork\external-deny"
-            $aclSetup = @(
-                "mkdir `"$aclRepos`""
-                "mkdir `"$aclDenySrc`""
-            ) -join ' && '
-            Invoke-DockerExecAsAdmin $containerId $aclSetup | Out-Null
+            Invoke-DockerExecAsAdmin $containerId "mkdir $aclRepos" | Out-Null
+            Invoke-DockerExecAsAdmin $containerId "mkdir $aclDenySrc" | Out-Null
             Invoke-DockerCli -DockerArgs @('exec', $containerId, 'icacls.exe', $aclRepos,
                 '/deny', "*${userSid}:(OI)(CI)M") | Out-Null
 
             $ps51 = 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
-            $innerCmd = @(
-                "set `"HOME=$containerWork`""
-                "set `"USERPROFILE=$containerWork`""
-                "set `"TEMP=$containerWork\tmp`""
-                "set `"TMP=$containerWork\tmp`""
-                "mkdir $containerWork\tmp 2>nul"
-                "`"$ps51`" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$innerScriptContainer`" -WorkRoot `"$containerWork`""
-            ) -join ' && '
+            $innerArgs = @(
+                'exec', '-u', 'ContainerUser',
+                '-e', "HOME=$containerWork",
+                '-e', "USERPROFILE=$containerWork",
+                '-e', "TEMP=$containerWork\tmp",
+                '-e', "TMP=$containerWork\tmp",
+                $containerId, $ps51, '-NoProfile', '-NonInteractive',
+                '-ExecutionPolicy', 'Bypass', '-File', $innerScriptContainer,
+                '-WorkRoot', $containerWork
+            )
 
             Write-ProofSection 'Run dirlink/config/chaining proof as ContainerUser (PowerShell 5.1 in container)'
-            $execOut = Invoke-DockerExecAsContainerUser $containerId $innerCmd
+            $rawInnerOut = & docker @innerArgs 2>&1
+            $innerExitCode = $LASTEXITCODE
+            $execOut = $rawInnerOut | Out-String
             Write-Host $execOut
+            if ($innerExitCode -ne 0) {
+                throw "inner native proof failed ($innerExitCode): $execOut"
+            }
 
             if ($execOut -notmatch 'Windows dirlink/config/chaining container proof: PASS') {
                 throw "inner proof did not report PASS. Output:`n$execOut"
