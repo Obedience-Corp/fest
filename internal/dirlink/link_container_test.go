@@ -125,3 +125,60 @@ func TestReplaceConfigStyleReadback(t *testing.T) {
 		t.Fatalf("readback through active link: %v", err)
 	}
 }
+
+func TestUnicodeAndSpaceLinkSafeRemoval(t *testing.T) {
+	root := t.TempDir()
+	source := filepath.Join(root, "Config With Spaces 日本語")
+	if err := os.Mkdir(source, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	payload := filepath.Join(source, "keep.txt")
+	if err := os.WriteFile(payload, []byte("external data"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(root, "Active Config 日本語")
+	if err := Create(link, source); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(filepath.Join(link, "keep.txt")); err != nil || string(data) != "external data" {
+		t.Fatalf("read through Unicode/space link: %q, %v", data, err)
+	}
+	if err := Remove(link); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(payload); err != nil || string(data) != "external data" {
+		t.Fatalf("source changed after unlink: %q, %v", data, err)
+	}
+}
+
+func TestBrokenAndCyclicLinkSafeRemoval(t *testing.T) {
+	root := t.TempDir()
+	target := filepath.Join(root, "vanished")
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	broken := filepath.Join(root, "broken")
+	if err := Create(broken, target); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(target); err != nil {
+		t.Fatal(err)
+	}
+	if err := Remove(broken); err != nil {
+		t.Fatalf("remove broken link: %v", err)
+	}
+	if _, err := os.Lstat(broken); !os.IsNotExist(err) {
+		t.Fatalf("broken link still exists: %v", err)
+	}
+
+	cycle := filepath.Join(root, "cycle")
+	if err := Create(cycle, cycle); err != nil {
+		t.Fatal(err)
+	}
+	if err := Remove(cycle); err != nil {
+		t.Fatalf("remove cyclic link: %v", err)
+	}
+	if _, err := os.Lstat(cycle); !os.IsNotExist(err) {
+		t.Fatalf("cyclic link still exists: %v", err)
+	}
+}

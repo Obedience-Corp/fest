@@ -92,9 +92,10 @@ try {
             $aclSetup = @(
                 "mkdir `"$aclRepos`""
                 "mkdir `"$aclDenySrc`""
-                "icacls $aclRepos /deny *${userSid}:(OI)(CI)M"
             ) -join ' && '
             Invoke-DockerExecAsAdmin $containerId $aclSetup | Out-Null
+            Invoke-DockerCli -DockerArgs @('exec', $containerId, 'icacls.exe', $aclRepos,
+                '/deny', "*${userSid}:(OI)(CI)M") | Out-Null
 
             $ps51 = 'C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe'
             $innerCmd = @(
