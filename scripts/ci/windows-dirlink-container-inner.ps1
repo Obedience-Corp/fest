@@ -97,8 +97,15 @@ function Invoke-GoTestBinary {
         [string]$Label
     )
     Write-Step "go test binary: $Label"
-    $out = & $ExePath -test.v -test.count=1 -test.timeout=5m 2>&1
-    $code = $LASTEXITCODE
+    $testArgs = @('-test.v', '-test.count=1', '-test.timeout=5m')
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        $out = & $ExePath @testArgs 2>&1
+        $code = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousPreference
+    }
     $text = $out | Out-String
     Write-Host $text
     if ($code -ne 0) {
