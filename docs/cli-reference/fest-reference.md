@@ -5383,8 +5383,10 @@ you pass --force.
 
 By default, a person confirms a deferral by typing the task number in a
 terminal. Pass --yes to defer non-interactively from an agent or app; the event
-records automation as the actor. --json requires --yes. Record why the blocker
-can wait in --reason. To resume this task instead, use
+records automation as the actor. --json requires --yes. Agents should first
+work ready tasks and record actual unblock attempts. Defer only a documented
+external blocker when specific independent work can proceed; name that work
+and why the blocker can wait in --reason. To resume this task instead, use
 'fest task unblock --note "<what to try>"'.
 
 ```

@@ -21,11 +21,13 @@ const InstructionHeader = "\n" +
 // ExecutorBlockerPolicy is the one sentence every executor sees about blockers.
 // It exists exactly once so a reword in one surface cannot leave the other
 // saying something else, which is the drift design doc 05 scenario A12 names.
-// A blocked task can be deferred by an agent or app when independent work can
-// proceed; the reason and automated actor are recorded in the progress event.
-const ExecutorBlockerPolicy = "A blocked task pauses its dependents. Record unblock attempts. " +
-	"If independent work can proceed, defer with 'fest task defer <task> --reason <why> --yes'; " +
-	"the blocker returns at the end. Ask for a decision when the path cannot be inferred."
+// A blocked task can be deferred by an agent or app after a genuine external
+// blocker is documented and there is specific independent work to do. The
+// reason and automated actor are recorded in the progress event.
+const ExecutorBlockerPolicy = "A blocked task pauses its dependents. Work ready tasks first and record actual unblock attempts. " +
+	"Defer only for a documented external blocker when you can name the independent work that will proceed: " +
+	"'fest task defer <task> --reason \"<why and what proceeds>\" --yes'. " +
+	"The blocker returns at the end. Ask for a decision when the path cannot be inferred."
 
 // Guidance is the central interface for phase-type-aware navigation.
 // It provides unified behavior for determining next steps, marking completion,
