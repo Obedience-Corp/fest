@@ -78,7 +78,7 @@ func OperatorGuard(ctx context.Context, verb string) (*OperatorAudit, error) {
 
 	if !operatorGuardStdinIsTerminal() {
 		return nil, errors.Validation(verb + " is an operator decision; run this from your terminal").
-			WithHint("over ssh use 'ssh -t'; check command help for non-interactive options")
+			WithHint("over ssh use 'ssh -t'; run this guarded decision from a plain terminal")
 	}
 	audit.TTY = true
 

@@ -41,7 +41,8 @@ func runDeferInFixture(t *testing.T, status, phaseType string) error {
 	cmd.SetContext(scope.WithFestival(t.Context(), festDir))
 
 	deferReason = "the vendor replies next week"
-	t.Cleanup(func() { deferReason = "" })
+	deferYes, deferJSON = false, false
+	t.Cleanup(func() { deferReason = ""; deferYes, deferJSON = false, false })
 
 	devnull, _ := os.Open(os.DevNull)
 	origOut := os.Stdout
@@ -68,7 +69,9 @@ func TestDeferRefusedInNonActiveFestival(t *testing.T) {
 }
 
 func TestDeferInActiveFestivalNeedsConfirmationOffTerminal(t *testing.T) {
-	stubOperatorGuardTerminal(t, false)
+	original := confirmationStdinIsTerminal
+	confirmationStdinIsTerminal = func() bool { return false }
+	t.Cleanup(func() { confirmationStdinIsTerminal = original })
 
 	err := runDeferInFixture(t, "active", "implementation")
 	if err == nil {
