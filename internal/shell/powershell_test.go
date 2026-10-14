@@ -45,6 +45,10 @@ if ((Get-Location).Path -ne $env:FEST_SHELL_TEST_DEST) { throw 'fgo did not navi
 if (($global:observed -join '|') -ne 'go|--print') { throw "wrong no-arg CLI call: $($global:observed -join '|')" }
 if ([Console]::OutputEncoding.WebName -ne $priorEncoding) { throw 'fgo changed session output encoding' }
 Set-Location -LiteralPath $start
+fest go
+if ((Get-Location).Path -ne $env:FEST_SHELL_TEST_DEST) { throw 'fest go without target did not navigate' }
+if (($global:observed -join '|') -ne 'go|--print') { throw "wrong no-arg fest go call: $($global:observed -join '|')" }
+Set-Location -LiteralPath $start
 fgo active 'my fest'
 if ((Get-Location).Path -ne $env:FEST_SHELL_TEST_DEST) { throw 'fgo status target did not navigate' }
 if (($global:observed -join '|') -ne 'go|active/my fest|--print') { throw "wrong status CLI call: $($global:observed -join '|')" }

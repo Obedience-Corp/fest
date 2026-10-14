@@ -1,8 +1,8 @@
 #Requires -Version 7.0
 <#
 .SYNOPSIS
-  CF0006 phase004 task02 native Windows proof: dirlink, config, and chaining container_fs tests
-  plus fest.exe config CLI readback inside Windows Server Core as ContainerUser.
+  CF0006 phase004 native Windows proof: dirlink, config, and chaining container_fs tests,
+  plus Fest config and PowerShell navigation CLI journeys as ContainerUser.
 
   Filesystem-mutating work runs only in container temp paths (never on the host workspace).
   Host must be Windows (windows-2025 CI). Do not run on macOS/Linux hosts.
@@ -73,6 +73,8 @@ try {
         $containerBin = "$containerWork\bin"
         $innerScriptHost = Join-Path $PSScriptRoot 'windows-dirlink-container-inner.ps1'
         $innerScriptContainer = "$containerWork\windows-dirlink-container-inner.ps1"
+        $shellScriptHost = Join-Path $PSScriptRoot 'windows-shell-navigation-container-inner.ps1'
+        $shellScriptContainer = "$containerWork\windows-shell-navigation-container-inner.ps1"
 
         Write-ProofSection 'Windows Server Core fixture (ContainerUser, isolated ACL in inner script)'
         $containerId = New-ServerCoreIdleContainer -Image $ContainerImage
@@ -96,6 +98,9 @@ try {
             ) | Out-Null
             Invoke-DockerCli -DockerArgs @(
                 'cp', $innerScriptHost, "${containerId}:${innerScriptContainer}"
+            ) | Out-Null
+            Invoke-DockerCli -DockerArgs @(
+                'cp', $shellScriptHost, "${containerId}:${shellScriptContainer}"
             ) | Out-Null
             $gitRoot = Get-HostGitRoot
             Write-Host "Copying host Git from $gitRoot into container for config repository tests"
@@ -136,8 +141,30 @@ try {
                 throw "inner proof did not report PASS. Output:`n$execOut"
             }
 
+            $shellArgs = @(
+                'exec', '-u', 'ContainerUser',
+                '-e', "HOME=$containerWork",
+                '-e', "USERPROFILE=$containerWork",
+                '-e', "TEMP=$containerWork\tmp",
+                '-e', "TMP=$containerWork\tmp",
+                $containerId, $ps51, '-NoProfile', '-NonInteractive',
+                '-ExecutionPolicy', 'Bypass', '-File', $shellScriptContainer,
+                '-WorkRoot', $containerWork
+            )
+            Write-ProofSection 'Run fresh PowerShell 5.1 Fest navigation proof as ContainerUser'
+            $rawShellOut = & docker @shellArgs 2>&1
+            $shellExitCode = $LASTEXITCODE
+            $shellOut = $rawShellOut | Out-String
+            Write-Host $shellOut
+            if ($shellExitCode -ne 0) {
+                throw "PowerShell navigation proof failed ($shellExitCode); see container output above"
+            }
+            if ($shellOut -notmatch 'Windows PowerShell 5.1 Fest shell navigation: PASS') {
+                throw "PowerShell navigation proof did not report PASS. Output:`n$shellOut"
+            }
+
             Write-Host ''
-            Write-Host "CF0006 dirlink native proof: ContainerUser + $ContainerImage + container_fs tests + fest config CLI"
+            Write-Host "CF0006 native proof: ContainerUser + $ContainerImage + container_fs tests + Fest config/PowerShell CLI"
         } finally {
             Remove-ServerCoreContainer $containerId
             $containerId = $null

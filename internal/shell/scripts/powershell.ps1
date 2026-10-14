@@ -139,10 +139,9 @@ function fest {
         _fest_invoke -Arguments $arguments
         return
     }
-    $goArguments = if ($arguments.Count -gt 1) {
-        @($arguments[1..($arguments.Count - 1)])
-    } else {
-        @()
+    $goArguments = @()
+    if ($arguments.Count -gt 1) {
+        $goArguments = @($arguments[1..($arguments.Count - 1)])
     }
     $first = if ($goArguments.Count -gt 0) { [string] $goArguments[0] } else { '' }
     if ($first -in @('--help', '-h', 'help', 'link', 'unlink', 'map', 'unmap', 'move', 'completions')) {

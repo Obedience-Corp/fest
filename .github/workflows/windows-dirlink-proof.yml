@@ -7,8 +7,10 @@ on:
       - "internal/dirlink/**"
       - "internal/config/repo_manager*.go"
       - "internal/chaining/**"
+      - "internal/shell/**"
       - "scripts/ci/windows-dirlink-container-proof.ps1"
       - "scripts/ci/windows-dirlink-container-inner.ps1"
+      - "scripts/ci/windows-shell-navigation-container-inner.ps1"
       - "scripts/ci/windows-servercore-container.ps1"
       - "scripts/ci/compile-windows-test-targets.sh"
       - ".github/workflows/windows-dirlink-proof.yml"
@@ -18,8 +20,10 @@ on:
       - "internal/dirlink/**"
       - "internal/config/repo_manager*.go"
       - "internal/chaining/**"
+      - "internal/shell/**"
       - "scripts/ci/windows-dirlink-container-proof.ps1"
       - "scripts/ci/windows-dirlink-container-inner.ps1"
+      - "scripts/ci/windows-shell-navigation-container-inner.ps1"
       - "scripts/ci/windows-servercore-container.ps1"
       - "scripts/ci/compile-windows-test-targets.sh"
       - ".github/workflows/windows-dirlink-proof.yml"
@@ -46,7 +50,7 @@ jobs:
       - name: Install just
         uses: extractions/setup-just@v4
 
-      - name: CF0006 dirlink native proof (Windows Server Core / ContainerUser)
+      - name: CF0006 native dirlink and PowerShell proof (Windows Server Core / ContainerUser)
         shell: pwsh
         run: just test windows-dirlink-container-proof
 
