@@ -49,6 +49,7 @@ func (e *CommandEvaluator) Evaluate(ctx context.Context, phasePath string, param
 	}
 
 	cmd := exec.CommandContext(ctx, shellPath, args...)
+	configureCommandCancellation(cmd)
 	// A shell may leave a child holding stdout or stderr open after cancellation.
 	// Bound the pipe wait so a timed-out condition cannot stall until that child exits.
 	cmd.WaitDelay = 250 * time.Millisecond

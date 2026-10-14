@@ -21,7 +21,7 @@ if (-not (Test-Path -LiteralPath $loopTest -PathType Leaf)) {
 }
 $loopArgs = @(
     '-test.v', '-test.count=1', '-test.timeout=2m',
-    '-test.run=^(TestCommandInterpreterKeepsLiteralExpression|TestCommandEvaluatorMissingInterpreter|TestCommandEvaluatorCancelledBeforeStart|TestCommandEvaluatorContainerSemantics|TestStoredCommandConditionContainerReadback)$'
+    '-test.run=^(TestCommandInterpreterKeepsLiteralExpression|TestCommandEvaluatorMissingInterpreter|TestCommandEvaluatorCancelledBeforeStart|TestCommandEvaluatorContainerSemantics|TestStoredCommandConditionContainerReadback|TestCommandEvaluatorWindowsLiteralExpression|TestCommandConditionCancellationStopsDescendantAndRecordsFailure)$'
 )
 $priorPreference = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
@@ -40,6 +40,8 @@ foreach ($name in @(
     'TestCommandEvaluatorMissingInterpreter',
     'TestCommandEvaluatorCancelledBeforeStart',
     'TestCommandEvaluatorContainerSemantics',
+    'TestCommandEvaluatorWindowsLiteralExpression',
+    'TestCommandConditionCancellationStopsDescendantAndRecordsFailure',
     'TestStoredCommandConditionContainerReadback'
 )) {
     if (-not $loopOutput.Contains("--- PASS: $name")) {
