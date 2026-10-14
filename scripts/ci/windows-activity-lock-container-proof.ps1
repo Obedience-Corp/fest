@@ -13,7 +13,7 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $ContainerImage = 'mcr.microsoft.com/windows/servercore:ltsc2025'
 $MinActivityTests = 4
 $TestRunPattern = 'Multiprocess|OpenLocked|Emit_DoesNot|Emit_Cancelled'
-$RunLinePattern = '(?m)^=== RUN\s+(Test[A-Za-z0-9_]+)$'
+$RunLinePattern = '(?m)^=== RUN[ \t]+(Test[A-Za-z0-9_]+)\r?$'
 
 function Write-Section([string]$Title) {
     Write-Host ""
@@ -156,11 +156,11 @@ try {
             Invoke-DockerCli -DockerArgs @('cp', $binPath, "${containerId}:${containerBin}") | Out-Null
 
             $testCmd = @(
-                "set HOME=$containerWork"
-                "set USERPROFILE=$containerWork"
-                "set TEMP=$containerWork\tmp"
-                "set TMP=$containerWork\tmp"
-                "set FEST_ACTIVITY_PATH_LOCK_DIR=$containerLockRoot"
+                "set `"HOME=$containerWork`""
+                "set `"USERPROFILE=$containerWork`""
+                "set `"TEMP=$containerWork\tmp`""
+                "set `"TMP=$containerWork\tmp`""
+                "set `"FEST_ACTIVITY_PATH_LOCK_DIR=$containerLockRoot`""
                 "mkdir $containerWork\tmp"
                 "mkdir $containerLockRoot"
                 "cd /d $containerWork"

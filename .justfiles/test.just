@@ -115,6 +115,15 @@ all-raw: unit-raw integration-raw
 windows-activity-lock-container-proof:
     pwsh -NoProfile -NonInteractive -File scripts/ci/windows-activity-lock-container-proof.ps1
 
+# Enumerate Windows amd64 test packages (go list) and cross-compile stable/dev/
+# integration profiles with go test -c. Compile-only; does not run tests on the host.
+[no-cd]
+windows-test-targets-compile-gate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+    exec bash "$root/scripts/ci/compile-windows-test-targets.sh"
+
 # Cross-compile the activity test binary for Windows amd64 (compile-only smoke).
 [no-cd]
 windows-activity-lock-cross-compile:

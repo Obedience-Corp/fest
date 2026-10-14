@@ -51,3 +51,21 @@ jobs:
 
       - name: Cross-build fest.exe (stable)
         run: BUILD_TAGS='' just build windows-x64-gate
+
+  windows-test-compile:
+    name: windows-test-compile
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Install just
+        uses: extractions/setup-just@v4
+
+      - name: Cross-compile test targets for Windows amd64
+        run: just test windows-test-targets-compile-gate
