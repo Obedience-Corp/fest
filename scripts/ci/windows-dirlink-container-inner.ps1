@@ -21,6 +21,7 @@ $script:RequiredDirlinkTests = @(
     'TestReplaceConfigStyleReadback',
     'TestUnicodeAndSpaceLinkSafeRemoval',
     'TestBrokenAndCyclicLinkSafeRemoval',
+    'TestCreatePreservesCaseEquivalentExistingJunction',
     'TestOfflineUNCTargetUsesDirectorySymlink'
 )
 $script:RequiredConfigTests = @(

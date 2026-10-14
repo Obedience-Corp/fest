@@ -80,10 +80,6 @@ func linkKindFromTag(tag uint32) LinkKind {
 }
 
 func setReparsePoint(linkPath string, rdb *reparseDataBuffer) error {
-	if err := windows.Mkdir(linkPath, 0o777); err != nil {
-		return err
-	}
-
 	linkPtr, err := syscall.UTF16PtrFromString(linkPath)
 	if err != nil {
 		return err
@@ -173,6 +169,9 @@ func createJunction(linkPath, absTarget string) error {
 	rdb.header.ReparseDataLength = buflen
 	copy(rdb.detail[:], byteblob)
 
+	if err := windows.Mkdir(linkPath, 0o777); err != nil {
+		return fmt.Errorf("create directory junction: %w", err)
+	}
 	if err := setReparsePoint(linkPath, &rdb); err != nil {
 		_ = os.Remove(linkPath)
 		return fmt.Errorf("create directory junction: %w", err)

@@ -51,3 +51,33 @@ func TestOfflineUNCTargetUsesDirectorySymlink(t *testing.T) {
 		t.Fatalf("offline UNC link still exists: %v", err)
 	}
 }
+
+func TestCreatePreservesCaseEquivalentExistingJunction(t *testing.T) {
+	root := t.TempDir()
+	first := filepath.Join(root, "first")
+	second := filepath.Join(root, "second")
+	for _, path := range []string{first, second} {
+		if err := os.Mkdir(path, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	link := filepath.Join(root, "Config")
+	if err := Create(link, first); err != nil {
+		t.Fatal(err)
+	}
+	if err := Create(filepath.Join(root, "config"), second); err == nil {
+		t.Fatal("case equivalent junction must not replace the existing junction")
+	}
+	if kind, err := Kind(link); err != nil || kind != KindJunction {
+		t.Fatalf("existing junction kind = %v, %v", kind, err)
+	}
+	if target, err := ReadTarget(link); err != nil || !strings.EqualFold(target, first) {
+		t.Fatalf("existing junction target = %q, %v; want %q", target, err, first)
+	}
+	if err := Remove(link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(first); err != nil {
+		t.Fatalf("source removed with junction: %v", err)
+	}
+}
