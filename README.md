@@ -255,6 +255,13 @@ eval "$(fest shell-init bash)"
 
 For Fish, add `fest shell-init fish | source` to `~/.config/fish/config.fish`.
 
+For Windows PowerShell 5.1 or PowerShell 7, add this line to `$PROFILE` and
+open a new session (or run `. $PROFILE`):
+
+```powershell
+Invoke-Expression (& fest shell-init powershell | Out-String)
+```
+
 | Command | Purpose |
 | --- | --- |
 | `fgo` | Navigate between a linked festival and project |

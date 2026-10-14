@@ -18,7 +18,7 @@ func TestGenerateSupportedShells(t *testing.T) {
 }
 
 func TestGenerateUnsupportedShell(t *testing.T) {
-	_, err := Generate("powershell")
+	_, err := Generate("nushell")
 	if err == nil {
 		t.Fatal("expected error for unsupported shell")
 	}
@@ -36,12 +36,12 @@ func TestBashAndZshShareOneScript(t *testing.T) {
 }
 
 func TestIsSupported(t *testing.T) {
-	for _, sh := range []string{"zsh", "bash", "fish"} {
+	for _, sh := range []string{"zsh", "bash", "fish", "powershell"} {
 		if !IsSupported(sh) {
 			t.Errorf("IsSupported(%q) = false, want true", sh)
 		}
 	}
-	if IsSupported("powershell") {
-		t.Error("IsSupported(powershell) = true, want false")
+	if IsSupported("nushell") {
+		t.Error("IsSupported(nushell) = true, want false")
 	}
 }

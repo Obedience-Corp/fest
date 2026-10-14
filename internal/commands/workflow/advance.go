@@ -201,6 +201,9 @@ func runAdvance(ctx context.Context) error {
 	// Check if already complete
 	if state.IsComplete() {
 		fmt.Println(ui.Success("✓ Workflow already complete!"))
+		if gctx := nav.GetContext(); gctx.FestivalPath != "" && gctx.PhasePath != "" {
+			return checkPhaseChaining(ctx, gctx.FestivalPath, gctx.PhasePath)
+		}
 		return nil
 	}
 
@@ -265,7 +268,9 @@ func showNextStep(ctx context.Context, nav *wf.Navigator, steps []wf.WorkflowSte
 					fmt.Printf("%s %s\n", ui.Dim("Warning: could not propagate phase completion:"), ui.Dim(propErr.Error()))
 				}
 			}
-			checkPhaseChaining(ctx, gctx.FestivalPath, gctx.PhasePath)
+			if err := checkPhaseChaining(ctx, gctx.FestivalPath, gctx.PhasePath); err != nil {
+				return err
+			}
 		}
 
 		fmt.Println("Run " + ui.Accent("fest status") + " to view final state.")
@@ -316,32 +321,32 @@ func phaseGatePending(ctx context.Context, nav *wf.Navigator) bool {
 }
 
 // checkPhaseChaining checks if a completed phase should trigger creation of the next phase.
-func checkPhaseChaining(ctx context.Context, festivalPath, phasePath string) {
+func checkPhaseChaining(ctx context.Context, festivalPath, phasePath string) error {
 	ch := chaining.NewChainer(festivalPath)
 
 	target, err := ch.CheckChaining(ctx, phasePath)
 	if err != nil {
 		fmt.Printf("%s Phase chaining check failed: %v\n", ui.Warning("!"), err)
-		return
+		return err
 	}
 
 	if target == nil {
-		return
+		return nil
 	}
 
 	fmt.Printf("%s Phase chaining: creating %s phase...\n", ui.Accent("->"), target.PendingPhase.Name)
 
 	result, err := ch.ExecuteChain(ctx, target)
 	if err != nil {
-		fmt.Printf("%s Failed to create chained phase: %v\n", ui.Warning("!"), err)
-		fmt.Printf("   You can create it manually: %s\n", ui.Accent(
-			fmt.Sprintf("fest create phase --name %s --type %s", target.PendingPhase.Name, target.PendingPhase.Type),
-		))
-		return
+		fmt.Printf("%s Phase chaining incomplete: %v\n", ui.Warning("!"), err)
+		fmt.Printf("   After fixing the issue, run %s again to resume chaining (in-progress state is recorded under .fest/chaining/).\n",
+			ui.Accent("fest workflow advance"))
+		return err
 	}
 
 	fmt.Printf("%s Created phase: %s (type: %s)\n", ui.Success("->"), result.PhaseName, result.PhaseType)
 	fmt.Println()
 	fmt.Println("Run " + ui.Accent("fest next") + " to continue with the new phase.")
 	fmt.Println()
+	return nil
 }

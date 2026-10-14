@@ -2,8 +2,10 @@ package loop
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -30,9 +32,39 @@ func (e *CommandEvaluator) Evaluate(ctx context.Context, phasePath string, param
 	ctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "sh", "-c", cmdStr)
+	if err := ctx.Err(); err != nil {
+		return &ConditionResult{Pass: false, FailureContext: fmt.Sprintf("Command cancelled before execution: %v", err)}, nil
+	}
+
+	shell, args, hint, err := commandInterpreter(params, cmdStr)
+	if err != nil {
+		return nil, err
+	}
+	shellPath, err := exec.LookPath(shell)
+	if err != nil {
+		return &ConditionResult{
+			Pass:           false,
+			FailureContext: fmt.Sprintf("Command interpreter %q is unavailable: %v. %s", shell, err, hint),
+		}, nil
+	}
+
+	cmd := exec.CommandContext(ctx, shellPath, args...)
+	configureCommandCancellation(cmd)
+	// A shell may leave a child holding stdout or stderr open after cancellation.
+	// Bound the pipe wait so a timed-out condition cannot stall until that child exits.
+	cmd.WaitDelay = 250 * time.Millisecond
 	cmd.Dir = phasePath
 	output, err := cmd.CombinedOutput()
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		reason := "cancelled"
+		if errors.Is(ctxErr, context.DeadlineExceeded) {
+			reason = "timed out"
+		}
+		return &ConditionResult{
+			Pass:           false,
+			FailureContext: fmt.Sprintf("Command %s: %v\nOutput: %s", reason, ctxErr, string(output)),
+		}, nil
+	}
 
 	exitCode := 0
 	if err != nil {
@@ -59,6 +91,45 @@ func (e *CommandEvaluator) Evaluate(ctx context.Context, phasePath string, param
 		Pass:           false,
 		FailureContext: fmt.Sprintf("Expression '%s' not satisfied\nCommand output: %s", expr, string(output)),
 	}, nil
+}
+
+// commandInterpreter keeps existing POSIX behavior on Unix. On Windows,
+// PowerShell is the default; stored POSIX expressions can select sh explicitly.
+func commandInterpreter(params map[string]any, command string) (string, []string, string, error) {
+	shell := ""
+	if raw, exists := params["shell"]; exists {
+		var ok bool
+		shell, ok = raw.(string)
+		if !ok {
+			return "", nil, "", fmt.Errorf("command condition 'shell' must be a string")
+		}
+	}
+	if shell == "" {
+		if runtime.GOOS == "windows" {
+			shell = "powershell"
+		} else {
+			shell = "sh"
+		}
+	}
+
+	switch shell {
+	case "sh":
+		hint := "Install a POSIX sh and put it on PATH."
+		if runtime.GOOS == "windows" {
+			hint = "Install Git for Windows / Git Bash and put sh.exe on PATH for POSIX command conditions, or set shell: powershell for PowerShell syntax."
+		}
+		return "sh", []string{"-c", command}, hint, nil
+	case "powershell":
+		executable := "powershell.exe"
+		if runtime.GOOS != "windows" {
+			executable = "pwsh"
+		}
+		return executable, []string{"-NoProfile", "-NonInteractive", "-Command", command}, "Install PowerShell and put its executable on PATH, or set shell: sh for POSIX syntax.", nil
+	case "pwsh":
+		return "pwsh", []string{"-NoProfile", "-NonInteractive", "-Command", command}, "Install PowerShell 7 and put pwsh on PATH, or set shell: sh for POSIX syntax.", nil
+	default:
+		return "", nil, "", fmt.Errorf("unsupported command condition shell %q (use powershell, pwsh, or sh)", shell)
+	}
 }
 
 func evaluateExpression(expr, output string, exitCode int) bool {
