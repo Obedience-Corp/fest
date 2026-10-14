@@ -12,6 +12,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/festival"
 	"github.com/Obedience-Corp/fest/internal/config"
+	"github.com/Obedience-Corp/fest/internal/dirlink"
 	festivalPkg "github.com/Obedience-Corp/fest/internal/festival"
 	"github.com/Obedience-Corp/fest/internal/guidance"
 )
@@ -51,11 +52,12 @@ type ChainResult struct {
 // Chainer checks for and executes phase chaining on workflow completion.
 type Chainer struct {
 	festivalPath string
+	saveConfig   func(string, string, *config.FestivalConfig) error
 }
 
 // NewChainer creates a Chainer for the given festival.
 func NewChainer(festivalPath string) *Chainer {
-	return &Chainer{festivalPath: festivalPath}
+	return &Chainer{festivalPath: festivalPath, saveConfig: config.SaveFestivalConfig}
 }
 
 // CheckChaining determines if a pending phase should be created after the
@@ -94,36 +96,25 @@ func (c *Chainer) CheckChaining(ctx context.Context, completedPhasePath string) 
 }
 
 // ExecuteChain creates the next phase from the chain target.
+// A chain journal under .fest/chaining/ records in-progress attempts so link or
+// config save failures can be retried without creating a duplicate phase.
 func (c *Chainer) ExecuteChain(ctx context.Context, target *ChainTarget) (*ChainResult, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	opts := &festival.CreatePhaseOptions{
-		Name:        target.PendingPhase.Name,
-		PhaseType:   target.PendingPhase.Type,
-		Path:        target.FestivalPath,
-		After:       -1, // Auto-detect position (append at end)
-		SkipMarkers: true,
+	if err := c.ensureChainedPhase(ctx, target); err != nil {
+		return nil, err
 	}
 
-	if err := festival.RunCreatePhase(ctx, opts); err != nil {
-		return nil, fmt.Errorf("creating chained phase %s: %w", target.PendingPhase.Name, err)
+	inputLinked, linkErr := linkPhaseInput(ctx, target)
+	if linkErr != nil {
+		return nil, fmt.Errorf("linking phase input for %s: %w", target.PendingPhase.Name, linkErr)
 	}
 
-	// Remove the pending phase from config now that it's been created
-	cfg, err := config.LoadFestivalConfig(c.festivalPath, "")
-	if err != nil {
-		return nil, fmt.Errorf("updating festival config after phase creation: %w", err)
+	if err := c.finalizeChain(ctx, target); err != nil {
+		return nil, err
 	}
-
-	cfg.RemovePendingPhase(target.PendingPhase.Name)
-	if err := config.SaveFestivalConfig(c.festivalPath, "", cfg); err != nil {
-		return nil, fmt.Errorf("saving festival config: %w", err)
-	}
-
-	// Link input from the completed phase to the new phase
-	inputLinked := linkPhaseInput(ctx, target)
 
 	return &ChainResult{
 		PhaseName:   target.PendingPhase.Name,
@@ -132,44 +123,144 @@ func (c *Chainer) ExecuteChain(ctx context.Context, target *ChainTarget) (*Chain
 	}, nil
 }
 
-// linkPhaseInput creates a symlink from the new phase's inputs/ directory to the
-// completed phase's plan/ output. Returns true if linking succeeded.
-func linkPhaseInput(ctx context.Context, target *ChainTarget) bool {
+func (c *Chainer) ensureChainedPhase(ctx context.Context, target *ChainTarget) error {
 	if err := ctx.Err(); err != nil {
-		return false
+		return err
 	}
 
-	// Check that the completed phase has a plan/ directory with output
+	journal, err := loadChainJournal(c.festivalPath, target.PendingPhase.Name)
+	if err != nil {
+		return err
+	}
+
+	if journal != nil {
+		matches, err := journalMatchesTarget(journal, target)
+		if err != nil {
+			return err
+		}
+		if !matches {
+			return fmt.Errorf(
+				"chain journal for %s does not match this completion (journal completed phase %q, got %q)",
+				target.PendingPhase.Name,
+				journal.CompletedPhasePath,
+				target.CompletedPhasePath,
+			)
+		}
+		if strings.TrimSpace(journal.PhaseDir) != "" {
+			if _, statErr := os.Stat(journal.PhaseDir); statErr == nil {
+				return nil
+			}
+			return fmt.Errorf("chain journal references missing phase directory %s", journal.PhaseDir)
+		}
+	} else if _, findErr := findCreatedPhaseDir(ctx, c.festivalPath, target.PendingPhase.Name); findErr == nil {
+		return fmt.Errorf(
+			"phase %s already exists without a chain recovery journal; resolve manually before chaining",
+			target.PendingPhase.Name,
+		)
+	}
+
+	if journal == nil {
+		journal, err = newChainJournal(target)
+		if err != nil {
+			return err
+		}
+		if err := writeChainJournal(c.festivalPath, journal); err != nil {
+			return fmt.Errorf("recording chain attempt for %s: %w", target.PendingPhase.Name, err)
+		}
+	}
+
+	if dir, err := findCreatedPhaseDir(ctx, c.festivalPath, target.PendingPhase.Name); err == nil {
+		journal.PhaseDir = dir
+		if err := writeChainJournal(c.festivalPath, journal); err != nil {
+			return fmt.Errorf("update chain journal for %s: %w", target.PendingPhase.Name, err)
+		}
+		return nil
+	}
+
+	opts := &festival.CreatePhaseOptions{
+		Name:        target.PendingPhase.Name,
+		PhaseType:   target.PendingPhase.Type,
+		Path:        c.festivalPath,
+		After:       -1,
+		SkipMarkers: true,
+	}
+	if err := festival.RunCreatePhase(ctx, opts); err != nil {
+		return fmt.Errorf("creating chained phase %s: %w", target.PendingPhase.Name, err)
+	}
+
+	phaseDir, err := findCreatedPhaseDir(ctx, c.festivalPath, target.PendingPhase.Name)
+	if err != nil {
+		return fmt.Errorf("locate chained phase %s after creation: %w", target.PendingPhase.Name, err)
+	}
+	journal.PhaseDir = phaseDir
+	if err := writeChainJournal(c.festivalPath, journal); err != nil {
+		return fmt.Errorf("update chain journal for %s: %w", target.PendingPhase.Name, err)
+	}
+	return nil
+}
+
+func (c *Chainer) finalizeChain(ctx context.Context, target *ChainTarget) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
+	cfg, err := config.LoadFestivalConfig(c.festivalPath, "")
+	if err != nil {
+		return fmt.Errorf("updating festival config after phase creation: %w", err)
+	}
+
+	cfg.RemovePendingPhase(target.PendingPhase.Name)
+	if err := c.saveConfig(c.festivalPath, "", cfg); err != nil {
+		return fmt.Errorf("saving festival config: %w", err)
+	}
+
+	if err := clearChainJournal(c.festivalPath, target.PendingPhase.Name); err != nil {
+		return fmt.Errorf("clearing chain journal for %s: %w", target.PendingPhase.Name, err)
+	}
+	return nil
+}
+
+// linkPhaseInput creates a directory link from the new phase's inputs/ directory to the
+// completed phase's plan/ output. When plan output exists, linking failure is an error.
+func linkPhaseInput(ctx context.Context, target *ChainTarget) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+
 	sourcePlanDir := filepath.Join(target.CompletedPhasePath, "plan")
 	info, err := os.Stat(sourcePlanDir)
-	if err != nil || !info.IsDir() {
-		return false
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("inspect completed phase plan: %w", err)
+	}
+	if !info.IsDir() {
+		return false, fmt.Errorf("completed phase plan is not a directory: %s", sourcePlanDir)
 	}
 
-	// Check if plan/ has any files
 	entries, err := os.ReadDir(sourcePlanDir)
-	if err != nil || len(entries) == 0 {
-		return false
+	if err != nil {
+		return false, fmt.Errorf("read completed phase plan: %w", err)
+	}
+	if len(entries) == 0 {
+		return false, nil
 	}
 
-	// Validate source stays within festival boundary
 	if !isWithinFestival(target.FestivalPath, sourcePlanDir) {
-		return false
+		return false, fmt.Errorf("completed phase plan path escapes festival boundary")
 	}
 
-	// Find the newly created phase directory
 	newPhasePath, err := findCreatedPhaseDir(ctx, target.FestivalPath, target.PendingPhase.Name)
 	if err != nil {
-		return false
+		return false, fmt.Errorf("locate chained phase directory: %w", err)
 	}
 
-	// Create inputs/ directory in the new phase
 	inputsDir := filepath.Join(newPhasePath, "inputs")
 	if err := os.MkdirAll(inputsDir, 0755); err != nil {
-		return false
+		return false, fmt.Errorf("create inputs directory: %w", err)
 	}
 
-	// Create relative symlink using phase type as link name
 	completedPhaseName := filepath.Base(target.CompletedPhasePath)
 	newPhaseName := filepath.Base(newPhasePath)
 	relPath, err := filepath.Rel(
@@ -177,29 +268,50 @@ func linkPhaseInput(ctx context.Context, target *ChainTarget) bool {
 		sourcePlanDir,
 	)
 	if err != nil {
-		return false
+		return false, fmt.Errorf("compute relative plan path: %w", err)
 	}
 
 	linkName := fmt.Sprintf("%s_output", target.CompletedPhaseType)
 	linkPath := filepath.Join(inputsDir, linkName)
-	if err := os.Symlink(relPath, linkPath); err != nil {
-		return false
+	createdLink := false
+	kind, kindErr := dirlink.Kind(linkPath)
+	switch {
+	case kindErr == nil:
+		if kind == dirlink.KindNone {
+			return false, fmt.Errorf("inputs path %s already exists and is not a directory link", linkPath)
+		}
+		linkedInfo, linkedErr := os.Stat(linkPath)
+		sourceInfo, sourceErr := os.Stat(sourcePlanDir)
+		if linkedErr != nil || sourceErr != nil || !os.SameFile(linkedInfo, sourceInfo) {
+			return false, fmt.Errorf("inputs link %s already exists with an unexpected or broken target", linkName)
+		}
+	case os.IsNotExist(kindErr):
+		if err := dirlink.Create(linkPath, relPath); err != nil {
+			return false, err
+		}
+		createdLink = true
+	default:
+		return false, fmt.Errorf("inspect inputs link %s: %w", linkName, kindErr)
 	}
 
-	// Verify the resolved symlink stays within the festival boundary
 	resolved, err := filepath.EvalSymlinks(linkPath)
 	if err != nil || !isWithinFestival(target.FestivalPath, resolved) {
-		// Remove the unsafe symlink
-		_ = os.Remove(linkPath)
-		return false
+		if createdLink {
+			_ = dirlink.Remove(linkPath)
+		}
+		return false, fmt.Errorf("linked plan path escapes festival boundary")
 	}
 
-	// Write inputs/README.md documenting the source
-	readme := fmt.Sprintf("# Phase Inputs\n\nThis phase receives input from the completed %s phase.\n\n## Sources\n\n- `%s/` - Symlink to `%s/plan/` (auto-linked by phase chaining)\n",
+	readme := fmt.Sprintf("# Phase Inputs\n\nThis phase receives input from the completed %s phase.\n\n## Sources\n\n- `%s/` - Directory link to `%s/plan/` (auto-linked by phase chaining)\n",
 		target.CompletedPhaseType, linkName, completedPhaseName)
-	_ = os.WriteFile(filepath.Join(inputsDir, "README.md"), []byte(readme), 0644)
+	if err := os.WriteFile(filepath.Join(inputsDir, "README.md"), []byte(readme), 0644); err != nil {
+		if createdLink {
+			_ = dirlink.Remove(linkPath)
+		}
+		return false, fmt.Errorf("write inputs README: %w", err)
+	}
 
-	return true
+	return true, nil
 }
 
 // isWithinFestival verifies that a path resolves to within the festival directory.

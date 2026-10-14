@@ -15,6 +15,9 @@ func allowOperatorGuard(t *testing.T) {
 	stubOperatorGuardTerminal(t, true)
 	stubOperatorGuardAncestry(t, []string{"zsh", "login"}, nil)
 	clearOperatorAgentMarkers(t)
+	original := confirmationStdinIsTerminal
+	confirmationStdinIsTerminal = func() bool { return true }
+	t.Cleanup(func() { confirmationStdinIsTerminal = original })
 }
 
 func deferHookedFixture(t *testing.T) (string, string) {

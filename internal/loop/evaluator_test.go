@@ -191,7 +191,7 @@ func TestCommandEvaluator_ContainsNoMatch(t *testing.T) {
 func TestCommandEvaluator_ExitCode(t *testing.T) {
 	eval := &CommandEvaluator{}
 	result, err := eval.Evaluate(context.Background(), t.TempDir(), map[string]any{
-		"command":    "true",
+		"command":    "exit 0",
 		"expression": "exitcode:0",
 	})
 	if err != nil {

@@ -13,7 +13,7 @@ import (
 // hand. Regenerating a contract test from the code it tests makes it a rubber
 // stamp, so every entry here is a deliberate line a reviewer reads.
 var deferralSurface = map[string][]string{
-	"fest task defer":   {"reason"},
+	"fest task defer":   {"json", "reason", "yes"},
 	"fest task blocked": {"deferred", "json", "list", "open", "reason", "tried", "yes"},
 	"fest task unblock": {"json", "note"},
 }
@@ -58,17 +58,19 @@ func TestDeferralCommandSurfaceFlags(t *testing.T) {
 	}
 }
 
-// TestDeferIsGuardedOnTheSurface is design doc 04 guard 1 read off the CLI
-// contract: fest task defer has no non-interactive escape hatch, so no agent
-// can reach it by passing a flag.
-func TestDeferIsGuardedOnTheSurface(t *testing.T) {
+// Deferral now has the same explicit non-interactive confirmation as the other
+// consequential task verbs; force remains a separate operator-only action.
+func TestDeferHasNoninteractiveSurface(t *testing.T) {
 	cmd := findCommandByPath(rootCmd, "fest task defer")
 	if cmd == nil {
 		t.Fatal("fest task defer is not on the command surface")
 	}
-	for _, forbidden := range []string{"yes", "y", "json", "force"} {
-		if cmd.Flags().Lookup(forbidden) != nil {
-			t.Errorf("fest task defer must not expose --%s", forbidden)
+	for _, required := range []string{"yes", "json", "reason"} {
+		if cmd.Flags().Lookup(required) == nil {
+			t.Errorf("fest task defer must expose --%s", required)
 		}
+	}
+	if cmd.Flags().Lookup("force") != nil {
+		t.Error("fest task defer must not expose --force")
 	}
 }

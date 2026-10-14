@@ -4,9 +4,10 @@ Common issues and fixes for Fest CLI output and styling.
 
 ## Finding the installed binary
 
-After shell integration (`eval "$(fest shell-init zsh)"` or the Festival helper
-file), `fest` is a **shell function**, not just a PATH entry. Plain
-`which fest` usually prints that function body instead of a filesystem path.
+After shell integration (for example `eval "$(fest shell-init zsh)"` in zsh or
+`Invoke-Expression (& fest shell-init powershell | Out-String)` in PowerShell),
+`fest` is a **shell function**, not just a PATH entry. Plain `which fest` in
+POSIX shells usually prints that function body instead of a filesystem path.
 
 ```bash
 # zsh — external binary only (skips shell functions)
@@ -26,6 +27,10 @@ realpath "$(type -P fest)"     # bash
 
 Run the binary without the wrapper with `command fest ...` (for example
 `command fest version`).
+
+In PowerShell, locate the application with
+`(Get-Command fest -CommandType Application | Select-Object -First 1).Source`
+and run it with `&` when you need to bypass the function.
 
 ## Styled Output and Color
 

@@ -16,10 +16,18 @@ func TestIsGitURL(t *testing.T) {
 		{"git@github.com:user/repo.git", true},
 		{"http://github.com/user/repo", true},
 		{"ssh://git@github.com/user/repo", true},
+		{"git://github.com/user/repo", true},
+		{"file:///home/user/repo", true},
+		{"github.com:user/repo.git", true},
 		{"/absolute/path", false},
 		{"./relative/path", false},
 		{"../parent/path", false},
 		{"~/home/path", false},
+		{`C:\Users\Lance\config repo`, false},
+		{`D:/config/repo`, false},
+		{`C:relative\repo`, false},
+		{`\\server\share\repo`, false},
+		{`relative\repo`, false},
 		{"", false},
 	}
 

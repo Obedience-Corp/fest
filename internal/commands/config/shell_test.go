@@ -6,7 +6,7 @@ import (
 )
 
 func TestShellInitValidShells(t *testing.T) {
-	validShells := []string{"zsh", "bash", "fish"}
+	validShells := []string{"zsh", "bash", "fish", "powershell"}
 
 	for _, shell := range validShells {
 		t.Run(shell, func(t *testing.T) {
@@ -22,7 +22,7 @@ func TestShellInitValidShells(t *testing.T) {
 
 func TestShellInitInvalidShell(t *testing.T) {
 	cmd := NewShellInitCommand()
-	cmd.SetArgs([]string{"powershell"})
+	cmd.SetArgs([]string{"nushell"})
 
 	err := cmd.Execute()
 	if err == nil {

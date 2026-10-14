@@ -1850,8 +1850,12 @@ Use --print to output just the bare path (for scripts, tools, and agents).
 
 SHELL INTEGRATION (recommended):
 ```bash
-  # Add to ~/.zshrc or ~/.bashrc:
+  # Zsh (use bash instead when running bash):
   eval "$(fest shell-init zsh)"
+  # Fish:
+  fest shell-init fish | source
+  # PowerShell ($PROFILE):
+  Invoke-Expression (& fest shell-init powershell | Out-String)
 ```
 
 Then use 'fgo' to navigate:
@@ -1863,6 +1867,8 @@ Then use 'fgo' to navigate:
 Without shell integration, use command substitution:
   cd "$(fest go --print)"
   cd "$(fest go 002 --print)"
+In PowerShell, use Set-Location -LiteralPath (fest go --print). The fgo helper
+handles this after shell integration is loaded.
 
 Fuzzy matching is supported - partial names like "impl" will match
 phases containing "IMPLEMENT". Multiple words narrow the search.
@@ -4684,15 +4690,19 @@ SETUP (one-time):
   # For fish, add to ~/.config/fish/config.fish:
   fest shell-init fish | source
 
+  # For Windows PowerShell 5.1 or PowerShell 7, add to $PROFILE:
+  Invoke-Expression (& fest shell-init powershell | Out-String)
+
   # For dash, busybox ash, or any other POSIX sh, add to ~/.profile:
   eval "$(fest shell-init sh)"
 ```
 
-After setup, reload your shell or run: source ~/.zshrc
+After setup, restart your shell or reload its profile (for example,
+source ~/.zshrc in zsh, or . $PROFILE in PowerShell).
 
-fgo, fls, and fest work identically in every supported shell. Only tab
-completion differs: POSIX sh has no programmable completion to hook, so
-'fest shell-init sh' installs the helpers without it.
+fgo, fls, and fest work in every supported shell. The shell-init command
+installs tab completion in bash, zsh, and fish. POSIX sh and PowerShell get
+the navigation helpers without tab completion.
 
 USAGE - fgo (navigation):
   fgo              Smart navigation (linked project ↔ festival, or festivals root)
@@ -4720,6 +4730,9 @@ fest shell-init <shell> [flags]
 
   # Add to your shell config (zsh)
   eval "$(fest shell-init zsh)"
+
+  # Add to $PROFILE (PowerShell)
+  Invoke-Expression (& fest shell-init powershell | Out-String)
 
   # After setup, use the helpers:
   fgo              # Go to festivals root
@@ -5238,7 +5251,7 @@ Manage task status (show, edit, complete, block, reset)
 Commands for managing individual task status within a festival.
 
 This is the single home for task state mutations. Consequential changes
-(completed, blocked, reset) prompt for confirmation to ensure agents verify
+(completed, blocked, defer, reset) prompt for confirmation to ensure agents verify
 their work; pass --yes to skip the prompt for non-interactive or agent use, and
 --json to emit a structured result (--json requires --yes). Progress signals
 (update, unblock) are frictionless and never prompt.
@@ -5265,7 +5278,8 @@ Examples:
   fest task reset                         # Reset task to pending (Y/n)
   fest task update 50%                    # Set progress to 50%
   fest task unblock                       # Clear a blocker, resume work
-  fest task defer --reason "vendor reply"  # Operator: let a blocker wait (no --yes)
+  fest task defer --reason "vendor reply"        # Let a blocker wait (type task number)
+  fest task defer --reason "vendor reply" --yes  # Defer non-interactively
 ```
 
 ### Options
@@ -5380,9 +5394,13 @@ settled, fest next brings the deferred tasks back for another attempt, and the
 festival cannot be promoted to completed while any blocker is deferred unless
 you pass --force.
 
-This verb has no --yes and no --json. Deferring is an operator decision and
-there is deliberately no way to script it. If you want to send the task back to
-the executor instead, use 'fest task unblock --note "<what to try>"'.
+By default, a person confirms a deferral by typing the task number in a
+terminal. Pass --yes to defer non-interactively from an agent or app; the event
+records automation as the actor. --json requires --yes. Agents should first
+work ready tasks and record actual unblock attempts. Defer only a documented
+external blocker when specific independent work can proceed; name that work
+and why the blocker can wait in --reason. To resume this task instead, use
+'fest task unblock --note "<what to try>"'.
 
 ```
 fest task defer [task] [flags]
@@ -5392,7 +5410,9 @@ fest task defer [task] [flags]
 
 ```
   -h, --help            help for defer
+      --json            output as JSON (requires --yes)
       --reason string   why this blocker can wait until the end (required)
+  -y, --yes             skip the interactive task-number confirmation
 ```
 
 ### Options inherited from parent commands
