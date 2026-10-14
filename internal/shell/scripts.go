@@ -17,3 +17,8 @@ var bashZshCompletionsScript string
 
 //go:embed scripts/fish.sh
 var fishScript string
+
+// powershellScript provides native Windows PowerShell navigation helpers.
+//
+//go:embed scripts/powershell.ps1
+var powershellScript string
