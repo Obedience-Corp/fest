@@ -100,6 +100,7 @@ func TestMultiprocessConcurrentEmitAndRotation(t *testing.T) {
 	if err := execMultiprocChild(t, "cancel", festivalPath, 0, 0); err != nil {
 		t.Fatal(err)
 	}
+	t.Logf("validated %d concurrent writer events across %d parseable JSONL records with a rotation archive", len(writerEvents), len(allEvents))
 }
 
 func execMultiprocChild(t *testing.T, role, festivalPath string, writerID, events int) error {

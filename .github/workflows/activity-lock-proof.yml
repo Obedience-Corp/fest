@@ -2,7 +2,7 @@ name: activity-lock-proof
 
 on:
   push:
-    branches: [main, cf0006-windows]
+    branches: [main]
     paths:
       - "internal/activity/**"
       - "scripts/ci/windows-activity-lock-container-proof.ps1"

@@ -11,8 +11,12 @@ $ErrorActionPreference = 'Stop'
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '../..')).Path
 $ContainerImage = 'mcr.microsoft.com/windows/servercore:ltsc2025'
-$MinActivityTests = 4
-$TestRunPattern = 'Multiprocess|OpenLocked|Emit_DoesNot|Emit_Cancelled'
+$RequiredTests = @(
+    'TestOpenLocked_ClosesHandleWhenLockFails',
+    'TestEmit_DoesNotReportSuccessfulWriteWhenLockFails',
+    'TestEmit_CancelledContextDoesNotWrite',
+    'TestMultiprocessConcurrentEmitAndRotation'
+)
 $RunLinePattern = '(?m)^=== RUN[ \t]+(Test[A-Za-z0-9_]+)\r?$'
 
 function Write-Section([string]$Title) {
@@ -164,7 +168,7 @@ try {
                 "mkdir $containerWork\tmp"
                 "mkdir $containerLockRoot"
                 "cd /d $containerWork"
-                "$containerBin -test.v -test.count=1 -test.timeout=5m -test.run `"$TestRunPattern`""
+                "$containerBin -test.v -test.count=1 -test.timeout=5m"
             ) -join ' && '
 
             Write-Section 'Run activity lock suite inside container'
@@ -175,8 +179,14 @@ try {
                 throw "activity suite output did not contain PASS"
             }
             $runs = [regex]::Matches($execOut, $RunLinePattern)
-            if ($runs.Count -lt $MinActivityTests) {
-                throw "expected at least $MinActivityTests activity tests; saw $($runs.Count). Output:`n$execOut"
+            foreach ($testName in $RequiredTests) {
+                if (-not $execOut.Contains("=== RUN   $testName") -or
+                    -not $execOut.Contains("--- PASS: $testName")) {
+                    throw "required activity test $testName did not run and pass. Output:`n$execOut"
+                }
+            }
+            if ($runs.Count -lt $RequiredTests.Count) {
+                throw "expected at least $($RequiredTests.Count) activity tests; saw $($runs.Count). Output:`n$execOut"
             }
             Write-Host ""
             Write-Host "Windows container activity lock proof: $($runs.Count) tests executed in $ContainerImage"
