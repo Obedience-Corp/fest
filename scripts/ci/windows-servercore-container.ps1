@@ -126,7 +126,7 @@ function Invoke-DockerExecAsContainerUser([string]$ContainerId, [string]$CmdLine
 }
 
 function New-ServerCoreIdleContainer([string]$Image = $script:FestServerCoreImage) {
-    Invoke-DockerCli -DockerArgs @('pull', $Image)
+    Invoke-DockerCli -DockerArgs @('pull', $Image) | Out-Null
     $createOut = & docker create --pull=never $Image cmd /c "ping -n 3600 127.0.0.1 > nul" 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "docker create failed: $($createOut | Out-String)"
@@ -146,7 +146,15 @@ function Remove-ServerCoreContainer([string]$ContainerId) {
     }
 }
 
-function Grant-ContainerUserFullControl([string]$ContainerId, [string]$ContainerPath) {
-    $cmd = "icacls `"$ContainerPath`" /grant ContainerUser:(OI)(CI)F /T"
+function Get-ContainerUserSid([string]$ContainerId) {
+    $identity = Invoke-DockerExecAsContainerUser $ContainerId 'whoami /user /fo csv /nh'
+    if ($identity -notmatch '(S-\d+(?:-\d+)+)') {
+        throw "cannot resolve ContainerUser SID: $identity"
+    }
+    return $Matches[1]
+}
+
+function Grant-ContainerUserModify([string]$ContainerId, [string]$ContainerPath, [string]$UserSid) {
+    $cmd = "icacls `"$ContainerPath`" /grant `"*${UserSid}:(OI)(CI)M`" /T"
     Invoke-DockerExecAsAdmin $ContainerId $cmd | Out-Null
 }

@@ -66,7 +66,9 @@ try {
         $containerId = New-ServerCoreIdleContainer -Image $ContainerImage
         try {
             Invoke-DockerExecAsAdmin $containerId "mkdir $containerWork && mkdir $containerBin" | Out-Null
-            Grant-ContainerUserFullControl -ContainerId $containerId -ContainerPath $containerWork
+            $userSid = Get-ContainerUserSid -ContainerId $containerId
+            Write-Host "ContainerUser SID: $userSid"
+            Grant-ContainerUserModify -ContainerId $containerId -ContainerPath $containerWork -UserSid $userSid
 
             Invoke-DockerCli -DockerArgs @(
                 'cp', (Join-Path $hostBin 'dirlink.test.exe'), "${containerId}:${containerBin}\dirlink.test.exe"
@@ -90,7 +92,7 @@ try {
             $aclSetup = @(
                 "mkdir `"$aclRepos`""
                 "mkdir `"$aclDenySrc`""
-                "icacls `"$aclRepos`" /deny ContainerUser:(OI)(CI)(W,M)"
+                "icacls `"$aclRepos`" /deny `"*${userSid}:(OI)(CI)M`""
             ) -join ' && '
             Invoke-DockerExecAsAdmin $containerId $aclSetup | Out-Null
 
