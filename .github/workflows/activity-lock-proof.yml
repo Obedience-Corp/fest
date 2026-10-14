@@ -6,12 +6,14 @@ on:
     paths:
       - "internal/activity/**"
       - "scripts/ci/windows-activity-lock-container-proof.ps1"
+      - "scripts/ci/windows-servercore-container.ps1"
       - ".github/workflows/activity-lock-proof.yml"
       - ".justfiles/test.just"
   pull_request:
     paths:
       - "internal/activity/**"
       - "scripts/ci/windows-activity-lock-container-proof.ps1"
+      - "scripts/ci/windows-servercore-container.ps1"
       - ".github/workflows/activity-lock-proof.yml"
       - ".justfiles/test.just"
   workflow_dispatch:

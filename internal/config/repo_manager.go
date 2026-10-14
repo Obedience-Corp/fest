@@ -2,11 +2,13 @@ package config
 
 import (
 	"context"
+	stderrors "errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"time"
 
+	"github.com/Obedience-Corp/fest/internal/dirlink"
 	"github.com/Obedience-Corp/fest/internal/errors"
 )
 
@@ -73,9 +75,8 @@ func (rm *RepoManager) Add(ctx context.Context, name, source string) (*ConfigRep
 			return nil, errors.Validation("source path is not a directory").WithField("path", absSource)
 		}
 
-		// Create symlink
-		if err := os.Symlink(absSource, localPath); err != nil {
-			return nil, errors.IO("creating symlink", err).WithField("source", absSource).WithField("target", localPath)
+		if err := dirlink.Create(localPath, absSource); err != nil {
+			return nil, errors.IO("creating config repo link", err).WithField("source", absSource).WithField("target", localPath)
 		}
 	}
 
@@ -89,6 +90,12 @@ func (rm *RepoManager) Add(ctx context.Context, name, source string) (*ConfigRep
 
 	rm.manifest.AddRepo(repo)
 	if err := SaveRepoManifest(ctx, rm.manifest); err != nil {
+		rm.manifest.RemoveRepo(name)
+		if !repo.IsGitRepo {
+			if cleanupErr := dirlink.Remove(localPath); cleanupErr != nil {
+				return nil, stderrors.Join(err, errors.IO("cleaning up unregistered config repo link", cleanupErr).WithField("path", localPath))
+			}
+		}
 		return nil, err
 	}
 
@@ -161,21 +168,20 @@ func (rm *RepoManager) Use(ctx context.Context, name string) error {
 	}
 
 	activePath := ActiveConfigPath()
+	previousActive := rm.manifest.Active
 
-	// Remove existing symlink if present
-	if _, err := os.Lstat(activePath); err == nil {
-		if err := os.Remove(activePath); err != nil {
-			return errors.IO("removing existing active symlink", err).WithField("path", activePath)
-		}
+	err := dirlink.Replace(activePath, repo.LocalPath, func() error {
+		rm.manifest.Active = name
+		return SaveRepoManifest(ctx, rm.manifest)
+	})
+	if err != nil {
+		rm.manifest.Active = previousActive
+		return errors.IO("activating config repo link", err).
+			WithField("name", name).
+			WithField("source", repo.LocalPath).
+			WithField("target", activePath)
 	}
-
-	// Create new symlink
-	if err := os.Symlink(repo.LocalPath, activePath); err != nil {
-		return errors.IO("creating active symlink", err).WithField("source", repo.LocalPath).WithField("target", activePath)
-	}
-
-	rm.manifest.Active = name
-	return SaveRepoManifest(ctx, rm.manifest)
+	return nil
 }
 
 // Remove removes a config repo
@@ -192,10 +198,8 @@ func (rm *RepoManager) Remove(ctx context.Context, name string) error {
 	// If this is the active repo, remove the active symlink first
 	if rm.manifest.Active == name {
 		activePath := ActiveConfigPath()
-		if _, err := os.Lstat(activePath); err == nil {
-			if err := os.Remove(activePath); err != nil {
-				return errors.IO("removing active symlink", err).WithField("path", activePath)
-			}
+		if err := dirlink.Remove(activePath); err != nil && !os.IsNotExist(err) {
+			return errors.IO("removing active config link", err).WithField("path", activePath)
 		}
 		rm.manifest.Active = ""
 	}
@@ -206,9 +210,8 @@ func (rm *RepoManager) Remove(ctx context.Context, name string) error {
 			return errors.IO("removing repo directory", err).WithField("path", repo.LocalPath)
 		}
 	} else {
-		// For symlinks, just remove the symlink
-		if err := os.Remove(repo.LocalPath); err != nil && !os.IsNotExist(err) {
-			return errors.IO("removing repo symlink", err).WithField("path", repo.LocalPath)
+		if err := dirlink.Remove(repo.LocalPath); err != nil && !os.IsNotExist(err) {
+			return errors.IO("removing config repo link", err).WithField("path", repo.LocalPath)
 		}
 	}
 

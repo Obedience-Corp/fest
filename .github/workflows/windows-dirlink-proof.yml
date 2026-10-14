@@ -1,0 +1,69 @@
+name: windows-dirlink-proof
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "internal/dirlink/**"
+      - "internal/config/repo_manager*.go"
+      - "internal/chaining/**"
+      - "scripts/ci/windows-dirlink-container-proof.ps1"
+      - "scripts/ci/windows-dirlink-container-inner.ps1"
+      - "scripts/ci/windows-servercore-container.ps1"
+      - "scripts/ci/compile-windows-test-targets.sh"
+      - ".github/workflows/windows-dirlink-proof.yml"
+      - ".justfiles/test.just"
+  pull_request:
+    paths:
+      - "internal/dirlink/**"
+      - "internal/config/repo_manager*.go"
+      - "internal/chaining/**"
+      - "scripts/ci/windows-dirlink-container-proof.ps1"
+      - "scripts/ci/windows-dirlink-container-inner.ps1"
+      - "scripts/ci/windows-servercore-container.ps1"
+      - "scripts/ci/compile-windows-test-targets.sh"
+      - ".github/workflows/windows-dirlink-proof.yml"
+      - ".justfiles/test.just"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dirlink-config-chaining-windows:
+    name: dirlink-config-chaining-windows
+    runs-on: windows-2025
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Install just
+        uses: extractions/setup-just@v4
+
+      - name: CF0006 dirlink native proof (Windows Server Core / ContainerUser)
+        shell: pwsh
+        run: just test windows-dirlink-container-proof
+
+  dirlink-cross-compile-unix:
+    name: dirlink-cross-compile-unix
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Install just
+        uses: extractions/setup-just@v4
+
+      - name: Windows container_fs compile gate (no test execution)
+        run: just test windows-dirlink-cross-compile-gate

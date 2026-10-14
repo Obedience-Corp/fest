@@ -115,6 +115,28 @@ all-raw: unit-raw integration-raw
 windows-activity-lock-container-proof:
     pwsh -NoProfile -NonInteractive -File scripts/ci/windows-activity-lock-container-proof.ps1
 
+# CF0006 phase004 task02: dirlink/config/chaining container_fs proof inside
+# mcr.microsoft.com/windows/servercore:ltsc2025 as non-elevated ContainerUser.
+# Requires a Windows host with a Windows container engine (windows-2025 CI).
+[no-cd]
+windows-dirlink-container-proof:
+    pwsh -NoProfile -NonInteractive -File scripts/ci/windows-dirlink-container-proof.ps1
+
+# Cross-compile container_fs test binaries for dirlink/config/chaining (compile-only).
+[no-cd]
+windows-dirlink-cross-compile-gate:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+    out="$(mktemp -d)"
+    trap 'rm -rf "$out"' EXIT
+    export GOOS=windows GOARCH=amd64 CGO_ENABLED=0
+    for pkg in ./internal/dirlink ./internal/config ./internal/chaining; do
+      echo "=== compile $pkg ==="
+      go test -c -tags container_fs -o "$out/$(echo "$pkg" | tr '/.' '__').test.exe" "$pkg"
+    done
+    echo "PASS: windows dirlink/config/chaining test binaries compiled under $out"
+
 # Enumerate Windows amd64 test packages (go list) and cross-compile stable/dev/
 # integration plus activity container_fs targets with go test -c.
 [no-cd]
