@@ -397,10 +397,16 @@ fest go [target] [flags]
 
 #### go: Shell Integration
 
-Add to `~/.zshrc` or `~/.bashrc`:
+Add the matching command to your shell profile. For zsh:
 
 ```bash
 eval "$(fest shell-init zsh)"
+```
+
+For PowerShell, add this to `$PROFILE`:
+
+```powershell
+Invoke-Expression (& fest shell-init powershell | Out-String)
 ```
 
 Then use `fgo`:
@@ -858,6 +864,8 @@ fest shell-init [shell] [flags]
 - `zsh`
 - `bash`
 - `fish`
+- `sh` (POSIX shells)
+- `powershell` (Windows PowerShell 5.1 and PowerShell 7)
 
 #### shell-init: Setup
 
@@ -870,6 +878,12 @@ eval "$(fest shell-init bash)"
 
 # Add to ~/.config/fish/config.fish
 fest shell-init fish | source
+```
+
+For PowerShell, add this to `$PROFILE`:
+
+```powershell
+Invoke-Expression (& fest shell-init powershell | Out-String)
 ```
 
 This provides the `fgo` function for quick navigation.
