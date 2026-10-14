@@ -155,6 +155,6 @@ function Get-ContainerUserSid([string]$ContainerId) {
 }
 
 function Grant-ContainerUserModify([string]$ContainerId, [string]$ContainerPath, [string]$UserSid) {
-    $cmd = "icacls `"$ContainerPath`" /grant `"*${UserSid}:(OI)(CI)M`" /T"
+    $cmd = "icacls $ContainerPath /grant *${UserSid}:(OI)(CI)M /T"
     Invoke-DockerExecAsAdmin $ContainerId $cmd | Out-Null
 }

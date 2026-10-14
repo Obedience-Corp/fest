@@ -92,7 +92,7 @@ try {
             $aclSetup = @(
                 "mkdir `"$aclRepos`""
                 "mkdir `"$aclDenySrc`""
-                "icacls `"$aclRepos`" /deny `"*${userSid}:(OI)(CI)M`""
+                "icacls $aclRepos /deny *${userSid}:(OI)(CI)M"
             ) -join ' && '
             Invoke-DockerExecAsAdmin $containerId $aclSetup | Out-Null
 
