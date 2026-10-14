@@ -96,8 +96,29 @@ func SaveRepoManifest(ctx context.Context, manifest *ConfigRepoManifest) error {
 	}
 
 	manifestPath := RepoManifestPath()
-	if err := os.WriteFile(manifestPath, data, filePermissions); err != nil {
-		return errors.IO("writing repo manifest", err).WithField("path", manifestPath)
+	tmp, err := os.CreateTemp(configDir, ".repos-*.json.tmp")
+	if err != nil {
+		return errors.IO("creating repo manifest temporary file", err).WithField("path", manifestPath)
+	}
+	tmpPath := tmp.Name()
+	defer func() {
+		_ = tmp.Close()
+		_ = os.Remove(tmpPath)
+	}()
+	if err := tmp.Chmod(filePermissions); err != nil {
+		return errors.IO("setting repo manifest permissions", err).WithField("path", tmpPath)
+	}
+	if _, err := tmp.Write(data); err != nil {
+		return errors.IO("writing repo manifest", err).WithField("path", tmpPath)
+	}
+	if err := tmp.Sync(); err != nil {
+		return errors.IO("syncing repo manifest", err).WithField("path", tmpPath)
+	}
+	if err := tmp.Close(); err != nil {
+		return errors.IO("closing repo manifest", err).WithField("path", tmpPath)
+	}
+	if err := os.Rename(tmpPath, manifestPath); err != nil {
+		return errors.IO("replacing repo manifest", err).WithField("path", manifestPath)
 	}
 
 	return nil

@@ -368,12 +368,23 @@ func installPlanningTemplate(t *testing.T, festivalsRoot string) {
 	if err := os.MkdirAll(dst, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	src := filepath.Join("..", "..", "methodology", "festivals", ".festival", "templates", "phases", "planning", "GOAL.md")
-	data, err := os.ReadFile(src)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(dst, "GOAL.md"), data, 0o644); err != nil {
+	// The native Windows proof copies only test executables into its container.
+	// Keep this fixture independent of the source tree's working directory.
+	const goal = `---
+id: phase-goal-planning
+phase_type: planning
+fest_type: phase
+fest_id: [REPLACE: PHASE_ID]
+fest_name: [REPLACE: Phase Name]
+fest_parent: [REPLACE: FESTIVAL_ID]
+fest_order: [REPLACE: N]
+fest_phase_type: planning
+fest_status: pending
+fest_tracking: true
+---
+# Phase Goal: [REPLACE: Phase Name]
+`
+	if err := os.WriteFile(filepath.Join(dst, "GOAL.md"), []byte(goal), 0o644); err != nil {
 		t.Fatal(err)
 	}
 }
