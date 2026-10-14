@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 
 	"github.com/Obedience-Corp/fest/internal/errors"
@@ -25,7 +26,22 @@ const (
 
 	// RotationThreshold is the file size at which rotation kicks in (50 MiB).
 	RotationThreshold = 50 * 1024 * 1024
+)
 
+// fileRotationThreshold is the active rotation trigger. Tests may lower it to
+// exercise rotation without writing multi-megabyte fixtures.
+var fileRotationThreshold int64 = RotationThreshold
+
+func init() {
+	if v := os.Getenv("FEST_ACTIVITY_ROTATION_THRESHOLD"); v != "" {
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err == nil && n > 0 {
+			fileRotationThreshold = n
+		}
+	}
+}
+
+const (
 	dirPerms  os.FileMode = 0755
 	filePerms os.FileMode = 0644
 )
@@ -170,48 +186,77 @@ func (e *Emitter) Emit(ctx context.Context, eventName string, scope Scope, sourc
 // an advisory flock to prevent interleaved writes from concurrent fest
 // processes, and fsyncs after every write for durability.
 //
-// If the current file exceeds RotationThreshold, the lock and FD are released
+// A stable cross-process path lock (user cache, keyed by canonical log path)
+// serializes rotation with concurrent writers. The data-file lock is released
 // before rename so the triggering write goes to a newly created canonical
 // activity.jsonl rather than the rotated inode.
 func (e *Emitter) writeFile(path string, ev Event) error {
-	f, err := openLocked(path)
-	if err != nil {
-		return err
-	}
-
-	if info, err := f.Stat(); err == nil && info.Size() > RotationThreshold {
-		closeLocked(f)
-		if rerr := rotateFile(path); rerr != nil {
-			e.warn(rerr)
-		}
-		f, err = openLocked(path)
+	return withActivityPathLock(path, func() error {
+		f, err := openLocked(path)
 		if err != nil {
 			return err
 		}
-	}
-	defer closeLocked(f)
 
-	data, err := marshalEvent(ev)
+		if info, err := f.Stat(); err == nil && info.Size() > fileRotationThreshold {
+			closeLocked(f)
+			if rerr := rotateFile(path); rerr != nil {
+				e.warn(rerr)
+			}
+			f, err = openLocked(path)
+			if err != nil {
+				return err
+			}
+		}
+		defer closeLocked(f)
+
+		data, err := marshalEvent(ev)
+		if err != nil {
+			return errors.Wrap(err, "marshaling activity event")
+		}
+		data = append(data, '\n')
+
+		if _, err := f.Write(data); err != nil {
+			return errors.IO("writing activity event", err).WithField("path", path)
+		}
+		// fsync for durability — activity history matters more than throughput.
+		if err := f.Sync(); err != nil {
+			return errors.IO("fsyncing activity log", err).WithField("path", path)
+		}
+		return nil
+	})
+}
+
+func withActivityPathLock(path string, fn func() error) error {
+	lockPath, err := activityLockPath(path)
 	if err != nil {
-		return errors.Wrap(err, "marshaling activity event")
+		return err
 	}
-	data = append(data, '\n')
-
-	if _, err := f.Write(data); err != nil {
-		return errors.IO("writing activity event", err).WithField("path", path)
+	if err := os.MkdirAll(filepath.Dir(lockPath), dirPerms); err != nil {
+		return errors.IO("creating activity path lock directory", err).WithField("path", filepath.Dir(lockPath))
 	}
-	// fsync for durability — activity history matters more than throughput.
-	if err := f.Sync(); err != nil {
-		return errors.IO("fsyncing activity log", err).WithField("path", path)
+	if err := os.MkdirAll(filepath.Dir(path), dirPerms); err != nil {
+		return errors.IO("creating activity log directory", err).WithField("path", filepath.Dir(path))
 	}
-	return nil
+	lf, err := os.OpenFile(lockPath, os.O_RDWR|os.O_CREATE, filePerms)
+	if err != nil {
+		return errors.IO("opening activity path lock", err).WithField("path", lockPath)
+	}
+	if err := lockActivityFile(lf); err != nil {
+		_ = lf.Close()
+		return errors.IO("locking activity path", err).WithField("path", lockPath)
+	}
+	defer func() {
+		unlockActivityFile(lf)
+		_ = lf.Close()
+	}()
+	return fn()
 }
 
 func openLocked(path string) (*os.File, error) {
 	if err := os.MkdirAll(filepath.Dir(path), dirPerms); err != nil {
 		return nil, errors.IO("creating activity log directory", err).WithField("path", filepath.Dir(path))
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, filePerms)
+	f, err := os.OpenFile(path, activityFileOpenFlags(), filePerms)
 	if err != nil {
 		return nil, errors.IO("opening activity log", err).WithField("path", path)
 	}
@@ -238,14 +283,27 @@ func rotateFile(path string) error {
 	for n := 1; ; n++ {
 		rotated := filepath.Join(dir, "activity."+itoa(n)+".jsonl")
 		_, err := os.Stat(rotated)
-		if os.IsNotExist(err) {
-			if err := os.Rename(path, rotated); err != nil {
-				return errors.IO("rotating activity log", err).WithField("path", path)
-			}
-			return nil
+		if err == nil {
+			continue
 		}
-		if err != nil {
+		if !os.IsNotExist(err) {
 			return errors.IO("checking rotated activity log", err).WithField("path", rotated)
+		}
+		if err := os.Rename(path, rotated); err == nil {
+			return nil
+		} else if os.IsNotExist(err) {
+			// Another fest process won the rotation race; ensure a canonical file exists.
+			if _, statErr := os.Stat(path); statErr == nil {
+				return nil
+			}
+			f, createErr := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, filePerms)
+			if createErr != nil {
+				return errors.IO("recreating activity log after concurrent rotation", createErr).WithField("path", path)
+			}
+			_ = f.Close()
+			return nil
+		} else {
+			return errors.IO("rotating activity log", err).WithField("path", path)
 		}
 	}
 }

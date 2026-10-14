@@ -108,3 +108,29 @@ integration-dev-list-watch:
 [no-cd]
 all-raw: unit-raw integration-raw
     @echo "✅ All tests passed (raw mode)"
+
+# Compile internal/activity tests for Windows and run multiproc/lock proof inside
+# mcr.microsoft.com/windows/servercore:ltsc2025 (windows-2025 CI gate).
+[no-cd]
+windows-activity-lock-container-proof:
+    pwsh -NoProfile -NonInteractive -File scripts/ci/windows-activity-lock-container-proof.ps1
+
+# Cross-compile the activity test binary for Windows amd64 (compile-only smoke).
+[no-cd]
+windows-activity-lock-cross-compile:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    out="$(mktemp -d)/activity.test.exe"
+    GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go test -c -o "$out" ./internal/activity
+    echo "✅ Windows activity test binary: $out"
+
+# Focused activity lock tests in a Linux container (readonly repo bind mount).
+[no-cd]
+activity-lock-unix-container:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    root="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+    docker run --rm \
+      --mount type=bind,src="$root",dst=/src,readonly \
+      -w /src golang:1.26-bookworm \
+      go test ./internal/activity/ -run 'Multiprocess|OpenLocked|Emit_DoesNot|Emit_Cancelled|ActivityPathLock' -count=1 -timeout 5m

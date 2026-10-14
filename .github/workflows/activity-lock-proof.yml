@@ -1,0 +1,55 @@
+name: activity-lock-proof
+
+on:
+  push:
+    branches: [main, cf0006-windows]
+    paths:
+      - "internal/activity/**"
+      - "scripts/ci/windows-activity-lock-container-proof.ps1"
+      - ".github/workflows/activity-lock-proof.yml"
+      - ".justfiles/test.just"
+  pull_request:
+    paths:
+      - "internal/activity/**"
+      - "scripts/ci/windows-activity-lock-container-proof.ps1"
+      - ".github/workflows/activity-lock-proof.yml"
+      - ".justfiles/test.just"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  activity-multiproc-windows:
+    name: activity-multiproc-windows
+    runs-on: windows-2025
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+
+      - name: Install just
+        uses: extractions/setup-just@v4
+
+      - name: Activity multiproc proof (Windows Server Core container)
+        shell: pwsh
+        run: just test windows-activity-lock-container-proof
+
+  activity-multiproc-unix-container:
+    name: activity-multiproc-unix-container
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Multiprocess activity proof (Unix in Docker)
+        run: |
+          docker run --rm \
+            --mount type=bind,src="${{ github.workspace }}",dst=/src,readonly \
+            -w /src golang:1.26-bookworm \
+            go test ./internal/activity/ -run "Multiprocess|OpenLocked|Emit_DoesNot|Emit_Cancelled|ActivityPathLock" -count=1 -timeout 5m

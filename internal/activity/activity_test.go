@@ -138,9 +138,7 @@ func TestEmitter_RotatesAndStartsFresh(t *testing.T) {
 		"fest create task --name setup", WithData(map[string]any{"n": 0}))
 
 	festFile := filepath.Join(festivalPath, ".fest", FestivalFileName)
-	if err := os.Truncate(festFile, RotationThreshold+1); err != nil {
-		t.Fatalf("forcing size past RotationThreshold: %v", err)
-	}
+	appendValidJSONLUntilSize(t, festFile, fileRotationThreshold)
 
 	e.Emit(context.Background(), "task.completed", Scope{Task: "01_setup.md"},
 		"fest task completed", WithData(map[string]any{"marker": "post-rotate"}))

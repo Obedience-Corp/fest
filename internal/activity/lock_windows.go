@@ -14,6 +14,10 @@ var (
 	activityLocks  = map[int]*windows.Overlapped{}
 )
 
+// LockFileEx needs GENERIC_READ or GENERIC_WRITE. On Windows, O_WRONLY with
+// O_APPEND grants only FILE_APPEND_DATA, so retain read access on the handle.
+func activityFileOpenFlags() int { return os.O_APPEND | os.O_CREATE | os.O_RDWR }
+
 func defaultLockActivityFile(f *os.File) error {
 	handle := windows.Handle(f.Fd())
 	ov := &windows.Overlapped{}
