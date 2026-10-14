@@ -59,7 +59,7 @@ func resetTaskFlags() {
 	resetJSON, resetYes = false, false
 	updateJSON = false
 	unblockJSON, unblockNote = false, ""
-	deferReason = ""
+	deferReason, deferYes, deferJSON = "", false, false
 }
 
 // captureIO redirects stdin to an EOF (non-TTY) pipe and captures stdout for the

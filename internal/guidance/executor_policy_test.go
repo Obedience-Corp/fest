@@ -10,8 +10,10 @@ import (
 // fails the moment someone edits the constant, which is the drift design doc 05
 // scenario A12 names.
 func TestExecutorBlockerPolicyText(t *testing.T) {
-	want := "Blocked is a request for a human decision. Executors cannot defer blockers. " +
-		"Exhaust every unblock option first; blocks without recorded attempts are sent back."
+	want := "A blocked task pauses its dependents. Work ready tasks first and record actual unblock attempts. " +
+		"Defer only for a documented external blocker when you can name the independent work that will proceed: " +
+		"'fest task defer <task> --reason \"<why and what proceeds>\" --yes'. " +
+		"The blocker returns at the end. Ask for a decision when the path cannot be inferred."
 	if ExecutorBlockerPolicy != want {
 		t.Errorf("policy sentence changed:\n got: %q\nwant: %q", ExecutorBlockerPolicy, want)
 	}

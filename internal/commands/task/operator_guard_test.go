@@ -48,15 +48,21 @@ func TestOperatorGuardRefusesOffTTY(t *testing.T) {
 	stubOperatorGuardAncestry(t, []string{"zsh"}, nil)
 	clearOperatorAgentMarkers(t)
 
-	audit, err := OperatorGuard(t.Context(), "deferral")
+	audit, err := OperatorGuard(t.Context(), "forced completion")
 	if err == nil {
 		t.Fatal("expected refusal off a TTY")
 	}
 	if audit != nil {
 		t.Error("refusal must return no audit record")
 	}
-	if got, want := err.Error(), "deferral is an operator decision; run this from your terminal"; !strings.Contains(got, want) {
+	if got, want := err.Error(), "forced completion is an operator decision; run this from your terminal"; !strings.Contains(got, want) {
 		t.Errorf("message = %q, want it to contain %q", got, want)
+	}
+	if got, want := err.Error(), "run this guarded decision from a plain terminal"; !strings.Contains(got, want) {
+		t.Errorf("hint = %q, want it to contain %q", got, want)
+	}
+	if strings.Contains(err.Error(), "non-interactive options") {
+		t.Errorf("hint falsely offers a non-interactive override: %v", err)
 	}
 }
 

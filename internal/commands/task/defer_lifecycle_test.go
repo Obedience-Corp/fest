@@ -41,7 +41,8 @@ func runDeferInFixture(t *testing.T, status, phaseType string) error {
 	cmd.SetContext(scope.WithFestival(t.Context(), festDir))
 
 	deferReason = "the vendor replies next week"
-	t.Cleanup(func() { deferReason = "" })
+	deferYes, deferJSON = false, false
+	t.Cleanup(func() { deferReason = ""; deferYes, deferJSON = false, false })
 
 	devnull, _ := os.Open(os.DevNull)
 	origOut := os.Stdout
@@ -67,14 +68,16 @@ func TestDeferRefusedInNonActiveFestival(t *testing.T) {
 	}
 }
 
-func TestDeferInActiveFestivalStillPassesThroughTheOperatorGuard(t *testing.T) {
-	stubOperatorGuardTerminal(t, false)
+func TestDeferInActiveFestivalNeedsConfirmationOffTerminal(t *testing.T) {
+	original := confirmationStdinIsTerminal
+	confirmationStdinIsTerminal = func() bool { return false }
+	t.Cleanup(func() { confirmationStdinIsTerminal = original })
 
 	err := runDeferInFixture(t, "active", "implementation")
 	if err == nil {
 		t.Fatal("fest task defer off a terminal must be refused even in an active festival")
 	}
-	if !strings.Contains(err.Error(), "run this from your terminal") {
-		t.Errorf("error = %v, want the operator guard refusal", err)
+	if !strings.Contains(err.Error(), "pass --yes for non-interactive use") {
+		t.Errorf("error = %v, want the noninteractive confirmation hint", err)
 	}
 }
