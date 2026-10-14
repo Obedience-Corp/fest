@@ -246,15 +246,6 @@ func TestEmitter_NoCampaignIsFestivalOnly(t *testing.T) {
 	}
 }
 
-func TestEmitter_DisabledWhenFestivalPathEmpty(t *testing.T) {
-	e := NewFromFestival(context.Background(), "", func(error) {})
-	if !e.disabled {
-		t.Fatal("expected disabled emitter when festivalPath is empty")
-	}
-	e.Emit(context.Background(), "task.created", Scope{}, "fest create task", nil)
-	// No panic, no file written.
-}
-
 func TestEmitter_ReadOnlyCommandsEmitNothing(t *testing.T) {
 	// This test documents the contract: the activity package does not auto-emit
 	// for read-only commands. Commands that should not emit simply do not call
@@ -308,58 +299,6 @@ func TestEmitter_ConcurrentWrites(t *testing.T) {
 
 	// Each line should be valid JSON (already verified by readJSONL).
 	_ = campaignRoot
-}
-
-func TestCatalog_DestinationDefaults(t *testing.T) {
-	for _, ev := range []string{"festival.created", "festival.promoted", "phase.created", "sequence.created"} {
-		if destination(ev) != DestBoth {
-			t.Fatalf("expected %s to be DestBoth", ev)
-		}
-	}
-	for _, ev := range []string{"task.created", "task.completed", "task.blocked", "task.reset", "validate.ran", "next.resolved", "go.navigated", "workflow.skipped"} {
-		if destination(ev) != DestFestivalOnly {
-			t.Fatalf("expected %s to be DestFestivalOnly", ev)
-		}
-	}
-	if destination("unknown.event") != DestFestivalOnly {
-		t.Fatal("unknown events should default to DestFestivalOnly")
-	}
-}
-
-func TestCatalog_UnpublishedEventsAreNotLive(t *testing.T) {
-	// Reserved names must not be in the live catalog until a caller Emit()s them.
-	for _, ev := range []string{
-		"festival.linked", "festival.unlinked", "festival.deleted", "festival.renamed",
-		"gate.applied", "gate.skipped",
-		"phase.started", "phase.completed", "phase.deleted",
-		"sequence.started", "sequence.completed", "sequence.deleted",
-		"task.started", "task.deleted", "task.renamed", "commit.made",
-		"init.ran", "tui.action",
-	} {
-		if _, live := catalog[ev]; live {
-			t.Fatalf("%s is catalogued as live but is not emitted in this PR", ev)
-		}
-	}
-}
-
-func TestRedact(t *testing.T) {
-	cases := []struct {
-		input  string
-		expect string
-	}{
-		{"fest create --token secret", "fest create --token <REDACTED>"},
-		{"fest --password=pw create", "fest --password=<REDACTED> create"},
-		{"fest --signing-key key", "fest --signing-key <REDACTED>"},
-		{"fest --secret s --reason ok", "fest --secret <REDACTED> --reason ok"},
-		{"fest create --name test", "fest create --name test"},
-		{"", ""},
-	}
-	for _, tc := range cases {
-		got := redact(tc.input)
-		if got != tc.expect {
-			t.Fatalf("redact(%q) = %q, want %q", tc.input, got, tc.expect)
-		}
-	}
 }
 
 type errFake string

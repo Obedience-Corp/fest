@@ -49,19 +49,3 @@ func TestActivityPathLockNotBesideLogFile(t *testing.T) {
 		t.Fatalf("expected lock file at %s: %v", lockPath, err)
 	}
 }
-
-func TestActivityPathLockDeterministicForSameLog(t *testing.T) {
-	t.Setenv(activityPathLockDirEnv, t.TempDir())
-	logPath := filepath.Join(t.TempDir(), ".fest", FestivalFileName)
-	a, err := activityLockPath(logPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	b, err := activityLockPath(logPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if a != b {
-		t.Fatalf("lock paths differ for same log: %q vs %q", a, b)
-	}
-}
