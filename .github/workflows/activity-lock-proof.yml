@@ -52,4 +52,4 @@ jobs:
           docker run --rm \
             --mount type=bind,src="${{ github.workspace }}",dst=/src,readonly \
             -w /src golang:1.26-bookworm \
-            go test ./internal/activity/ -run "Multiprocess|OpenLocked|Emit_DoesNot|Emit_Cancelled|ActivityPathLock" -count=1 -timeout 5m
+            go test -tags container_fs ./internal/activity/ -count=1 -timeout 5m

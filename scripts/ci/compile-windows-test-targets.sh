@@ -31,6 +31,7 @@ safe_name() {
 compile_profile() {
   local profile_name="$1"
   local tags="${2:-}"
+  local scope="${3:-./...}"
 
   local -a tag_args=()
   local tags_label="(none)"
@@ -39,7 +40,7 @@ compile_profile() {
     tags_label="$tags"
   fi
 
-  echo "--- profile: ${profile_name} tags=${tags_label} ---"
+  echo "--- profile: ${profile_name} tags=${tags_label} scope=${scope} ---"
 
   local list_errors=0
   local -a compile_pkgs=()
@@ -47,7 +48,7 @@ compile_profile() {
   local listed
   if ! listed="$(go list -e "${tag_args[@]}" -f \
       '{{if .Error}}err{{"\t"}}{{.ImportPath}}{{"\t"}}{{.Error}}{{else if or (len .TestGoFiles) (len .XTestGoFiles)}}pkg{{"\t"}}{{.ImportPath}}{{end}}' \
-      ./...)"; then
+      "$scope")"; then
     echo "  LIST ERROR: go list failed for profile ${profile_name}" >&2
     gate_failed=1
     total_list_errors=$((total_list_errors + 1))
@@ -113,9 +114,10 @@ compile_profile stable ""
 compile_profile dev "dev"
 compile_profile integration "integration"
 compile_profile integration-dev "integration,dev"
+compile_profile container_fs "container_fs" "./internal/activity/..."
 
 echo "=== summary ==="
-echo "profiles: 4 (stable, dev, integration, integration-dev)"
+echo "profiles: 5 (stable, dev, integration, integration-dev, container_fs activity)"
 echo "GOOS=${GOOS} GOARCH=${GOARCH}"
 echo "test packages enumerated: ${total_packages}"
 echo "go list errors: ${total_list_errors}"

@@ -133,9 +133,9 @@ try {
         $binPath = Join-Path $workHost 'activity.test.exe'
         Write-Section 'Compile internal/activity test binary'
         $env:CGO_ENABLED = '0'
-        & go test -c -o $binPath ./internal/activity
+        & go test -c -tags container_fs -o $binPath ./internal/activity
         if ($LASTEXITCODE -ne 0) {
-            throw "go test -c ./internal/activity failed with exit code $LASTEXITCODE"
+            throw "go test -c -tags container_fs ./internal/activity failed with exit code $LASTEXITCODE"
         }
 
         $containerWork = 'C:\fest-activity-proof'

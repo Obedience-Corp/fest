@@ -67,5 +67,5 @@ jobs:
       - name: Install just
         uses: extractions/setup-just@v4
 
-      - name: Cross-compile test targets for Windows amd64
+      - name: Cross-compile test targets for Windows amd64 (including container_fs activity)
         run: just test windows-test-targets-compile-gate

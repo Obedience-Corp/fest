@@ -1,3 +1,5 @@
+//go:build container_fs
+
 package activity
 
 import (

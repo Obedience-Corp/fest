@@ -1,4 +1,4 @@
-//go:build unix
+//go:build unix && container_fs
 
 package activity
 

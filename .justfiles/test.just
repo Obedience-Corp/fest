@@ -116,7 +116,7 @@ windows-activity-lock-container-proof:
     pwsh -NoProfile -NonInteractive -File scripts/ci/windows-activity-lock-container-proof.ps1
 
 # Enumerate Windows amd64 test packages (go list) and cross-compile stable/dev/
-# integration profiles with go test -c. Compile-only; does not run tests on the host.
+# integration plus activity container_fs targets with go test -c.
 [no-cd]
 windows-test-targets-compile-gate:
     #!/usr/bin/env bash
@@ -130,10 +130,10 @@ windows-activity-lock-cross-compile:
     #!/usr/bin/env bash
     set -euo pipefail
     out="$(mktemp -d)/activity.test.exe"
-    GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go test -c -o "$out" ./internal/activity
+    GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go test -c -tags container_fs -o "$out" ./internal/activity
     echo "✅ Windows activity test binary: $out"
 
-# Focused activity lock tests in a Linux container (readonly repo bind mount).
+# Full activity filesystem test suite in a Linux container (readonly repo bind mount).
 [no-cd]
 activity-lock-unix-container:
     #!/usr/bin/env bash
@@ -142,4 +142,4 @@ activity-lock-unix-container:
     docker run --rm \
       --mount type=bind,src="$root",dst=/src,readonly \
       -w /src golang:1.26-bookworm \
-      go test ./internal/activity/ -run 'Multiprocess|OpenLocked|Emit_DoesNot|Emit_Cancelled|ActivityPathLock' -count=1 -timeout 5m
+      go test -tags container_fs ./internal/activity/ -count=1 -timeout 5m
