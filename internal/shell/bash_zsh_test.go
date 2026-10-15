@@ -99,3 +99,27 @@ func TestBashZshScriptSyntax(t *testing.T) {
 		})
 	}
 }
+
+func TestBashZshScriptLoadsSilentlyInZsh(t *testing.T) {
+	bin, lookErr := exec.LookPath("zsh")
+	if lookErr != nil {
+		t.Skip("zsh not installed")
+	}
+	out, err := Generate("zsh")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "init.zsh")
+	if err := os.WriteFile(path, []byte(out), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command(bin, "-f", "-c", "source \"$1\"; typeset -f fgo >/dev/null && typeset -f fls >/dev/null", "zsh", path)
+	var stderr strings.Builder
+	cmd.Stderr = &stderr
+	if runErr := cmd.Run(); runErr != nil {
+		t.Fatalf("zsh -f failed to source the script: %v\n%s", runErr, stderr.String())
+	}
+	if msg := stderr.String(); msg != "" {
+		t.Fatalf("sourcing under zsh -f (no compinit, no bashcompinit) wrote to stderr:\n%s", msg)
+	}
+}

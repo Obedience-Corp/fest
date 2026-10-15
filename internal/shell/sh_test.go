@@ -141,7 +141,7 @@ func TestBashAndZshKeepTheirCompletions(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Generate(%q) error = %v", shellType, err)
 		}
-		for _, want := range []string{"complete -F _fgo_completions fgo", "complete -F _fls_completions fls", "compdef _fgo_zsh fgo"} {
+		for _, want := range []string{"_fest_register_bash_completion _fgo_completions fgo", "_fest_register_bash_completion _fls_completions fls", "compdef _fgo_zsh fgo"} {
 			if !strings.Contains(script, want) {
 				t.Errorf("%s script lost %q", shellType, want)
 			}
