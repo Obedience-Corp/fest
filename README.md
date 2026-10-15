@@ -44,10 +44,9 @@ npm install -g @obedience-corp/festival
 curl -fsSL https://raw.githubusercontent.com/Obedience-Corp/festival/main/install.sh | bash
 ```
 
-All three methods install `camp`, `fest`, and `festival`. Git is required. Native
-Windows x64 packages are not published yet; use WSL2 with a Linux install for
-now. After the first stable Windows release, use PowerShell and install the suite
-through Scoop:
+Each method installs `camp`, `fest`, and `festival`. Git is required. On
+Windows x64, install [Scoop](https://scoop.sh/) first, then run these commands
+in PowerShell:
 
 ```powershell
 scoop install git
