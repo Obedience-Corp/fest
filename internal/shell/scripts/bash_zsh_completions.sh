@@ -5,6 +5,16 @@
 # substitution. A POSIX sh has no programmable completion to hook, so there is
 # nothing in this file for it to install.
 
+# `complete` is a bash builtin. zsh only has it after `bashcompinit`, so an
+# unconditional call prints "command not found: complete" at every zsh startup.
+# zsh users get the compdef registrations below instead; this helper keeps the
+# bash path for bash and for zsh sessions that loaded bashcompinit.
+_fest_register_bash_completion() {
+    if command -v complete >/dev/null 2>&1; then
+        complete -F "$1" "$2"
+    fi
+}
+
 # Tab completion for fgo (position-aware: status dirs trigger filtered completions)
 _fgo_completions() {
     local completions
@@ -20,8 +30,8 @@ _fgo_completions() {
     COMPREPLY=($(compgen -W "$completions" -- "${COMP_WORDS[COMP_CWORD]}"))
 }
 
-# Register completion (works for both bash and zsh with bashcompinit)
-complete -F _fgo_completions fgo
+# Register completion (bash, or zsh with bashcompinit)
+_fest_register_bash_completion _fgo_completions fgo
 
 # Zsh-specific: colorized completions using compadd -d for ANSI display strings
 if [[ -n "$ZSH_VERSION" ]]; then
@@ -63,7 +73,7 @@ _fls_completions() {
 }
 
 # Register completion
-complete -F _fls_completions fls
+_fest_register_bash_completion _fls_completions fls
 
 # Zsh-specific: use compdef if available for fls
 if [[ -n "$ZSH_VERSION" ]]; then
@@ -102,7 +112,7 @@ _fest_completions_bash() {
     done < <(command fest __complete "${args[@]}" 2>/dev/null)
     COMPREPLY=($(compgen -W "${completions[*]}" -- "$cur"))
 }
-complete -F _fest_completions_bash fest
+_fest_register_bash_completion _fest_completions_bash fest
 
 if [[ -n "$ZSH_VERSION" ]]; then
     _fest_zsh() {
