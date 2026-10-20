@@ -25,10 +25,14 @@ type DisplayNode struct {
 	Stats          StatusCounts   `json:"stats"`                     // Task counts for this level
 	NodeType       string         `json:"node_type"`                 // "festival", "phase", "sequence", "step", "task"
 	Children       []*DisplayNode `json:"children,omitempty"`        // Child phases, sequences, steps, or tasks
-	IsNextPending  bool           `json:"is_next_pending,omitempty"` // First incomplete node at this level — expanded by --inprogress
+	IsNextPending  bool           `json:"is_next_pending,omitempty"` // First node at this level with workable items — expanded by --inprogress
 	Feedback       string         `json:"feedback,omitempty"`        // Concise actionable feedback for blocked steps
 	JudgeStatus    string         `json:"judge_status,omitempty"`    // waiting/approved/rejected/failed
 	WaitingOnJudge bool           `json:"waiting_on_judge,omitempty"`
+
+	// BlockerDeferred marks a blocked task whose blocker was deferred with
+	// fest task defer. The task still displays as blocked.
+	BlockerDeferred bool `json:"blocker_deferred,omitempty"`
 
 	// Replay identity for callers that re-materialize progress (fest gif).
 	// Not part of the JSON contract.
@@ -314,7 +318,12 @@ func buildSequenceNode(seqDir string, store *progress.Store, festivalRoot string
 		}
 
 		node.Stats.Total++
-		status := progress.ResolveTaskStatus(store, festivalRoot, taskPath)
+		status := progress.StatusPending
+		deferred := false
+		if record, ok := progress.ResolveTaskProgress(store, festivalRoot, taskPath); ok && record != nil {
+			status = record.Status
+			deferred = record.Status == progress.StatusBlocked && record.BlockerDeferred
+		}
 
 		displayStatus := TaskDisplayStatus(status)
 		switch displayStatus {
@@ -330,10 +339,11 @@ func buildSequenceNode(seqDir string, store *progress.Store, festivalRoot string
 
 		// Create task child node
 		taskNode := &DisplayNode{
-			Name:     name,
-			NodeType: "task",
-			Status:   displayStatus,
-			TaskPath: taskPath,
+			Name:            name,
+			NodeType:        "task",
+			Status:          displayStatus,
+			BlockerDeferred: deferred,
+			TaskPath:        taskPath,
 			Stats: StatusCounts{
 				Total:      1,
 				Completed:  boolToInt(status == progress.StatusCompleted),
@@ -349,23 +359,64 @@ func buildSequenceNode(seqDir string, store *progress.Store, festivalRoot string
 	return node
 }
 
-// markNextPending walks the tree top-down and marks the first non-terminal
-// child at each level as IsNextPending, recursing into it. Only one path
-// through the tree gets marked, giving --inprogress a "next up" expansion.
+// markNextPending walks the tree top-down and marks the first child at each
+// level that still has workable items as IsNextPending, recursing into it.
+// Children whose only open work is deferred-blocked tasks are passed over;
+// when every open child is like that, the first open one is marked instead.
+// Only one path through the tree gets marked, giving --inprogress a "next up"
+// expansion.
 func markNextPending(node *DisplayNode) {
-	for _, child := range node.Children {
-		if child.Status == "completed" || child.Status == "skipped" {
-			continue
-		}
-		child.IsNextPending = true
-		// Highlight an actual pending leaf as the next place to work, but do
-		// not mask an existing in_progress or blocked status.
-		if (child.NodeType == "task" || child.NodeType == "step") && child.Status == "pending" {
-			child.Status = "in_progress"
-		}
-		markNextPending(child)
+	next := firstChild(node, func(child *DisplayNode) bool { return !isSettled(child) })
+	if next == nil {
+		next = firstChild(node, func(child *DisplayNode) bool { return !isTerminal(child) })
+	}
+	if next == nil {
 		return
 	}
+	next.IsNextPending = true
+	// Highlight an actual pending leaf as the next place to work, but do
+	// not mask an existing in_progress or blocked status.
+	if (next.NodeType == "task" || next.NodeType == "step") && next.Status == "pending" {
+		next.Status = "in_progress"
+	}
+	markNextPending(next)
+}
+
+func firstChild(node *DisplayNode, match func(*DisplayNode) bool) *DisplayNode {
+	for _, child := range node.Children {
+		if match(child) {
+			return child
+		}
+	}
+	return nil
+}
+
+func isTerminal(node *DisplayNode) bool {
+	return node.Status == "completed" || node.Status == "skipped"
+}
+
+// isSettled reports whether a node has no workable items left: it is
+// terminal, it is a deferred-blocked task, or it is blocked and every child
+// beneath it is settled.
+func isSettled(node *DisplayNode) bool {
+	if isTerminal(node) {
+		return true
+	}
+	if node.Status != "blocked" {
+		return false
+	}
+	if node.NodeType == "task" {
+		return node.BlockerDeferred
+	}
+	if len(node.Children) == 0 {
+		return false
+	}
+	for _, child := range node.Children {
+		if !isSettled(child) {
+			return false
+		}
+	}
+	return true
 }
 
 func readPrimaryGoal(dir, filename string) string {
