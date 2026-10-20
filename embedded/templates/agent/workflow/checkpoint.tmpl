@@ -36,6 +36,10 @@ Step {{.StepNumber}}: {{.StepName}}
 
 HUMAN APPROVAL REQUIRED
 {{- end}}
+{{- if .PhaseBlockers}}
+
+{{.PhaseBlockers}}
+{{- end}}
 {{- if .Goal}}
 
 **Question:** {{.Goal}}

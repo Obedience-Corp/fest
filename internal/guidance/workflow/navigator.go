@@ -33,6 +33,7 @@ type Navigator struct {
 	store          StateStore // optional: if set, use JSONL events instead of YAML
 	docFilename    string     // defaults to "WORKFLOW.md", can be overridden for GATES.md
 	stateKeyPrefix string     // prefix for state key, e.g. "gate:" for phase gates
+	phaseTasks     *PhaseTasks
 }
 
 // Ensure Navigator implements guidance.Navigator.
@@ -88,6 +89,18 @@ func (n *Navigator) SetDocFilename(name string) {
 // For phase gates, use "gate:" so state is tracked separately from workflows.
 func (n *Navigator) SetStateKeyPrefix(prefix string) {
 	n.stateKeyPrefix = prefix
+}
+
+// SetPhaseTasks gives the navigator the task summary of its phase so gate
+// guidance can list blocked tasks before the checkpoint question. The caller
+// owns the summary; nil clears it.
+func (n *Navigator) SetPhaseTasks(tasks *PhaseTasks) {
+	n.phaseTasks = tasks
+}
+
+// PhaseTasks returns the task summary set with SetPhaseTasks, or nil.
+func (n *Navigator) PhaseTasks() *PhaseTasks {
+	return n.phaseTasks
 }
 
 // IsGate reports whether this navigator targets a phase gate (GATES.md) rather

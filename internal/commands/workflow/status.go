@@ -101,11 +101,13 @@ func runStatus(ctx context.Context, jsonOutput bool) error {
 		feedback := ""
 		var followups []string
 		var judge *wf.JudgeState
+		deferredBlockers := 0
 		if stepState != nil {
 			status = stepState.Status
 			feedback = wf.DisplayFeedback(stepState.Feedback)
 			followups = stepState.Followups
 			judge = stepState.Judge
+			deferredBlockers = stepState.DeferredBlockers
 			if stepState.Status == wf.StepStatusFailedRemediation {
 				failedRemediation[i] = stepState
 			}
@@ -121,6 +123,8 @@ func runStatus(ctx context.Context, jsonOutput bool) error {
 			Feedback:      feedback,
 			Followups:     followups,
 			Judge:         judge,
+
+			DeferredBlockers: deferredBlockers,
 		}
 	}
 
@@ -141,6 +145,20 @@ func runStatus(ctx context.Context, jsonOutput bool) error {
 		fmt.Fprintf(&sb, "%d of %d", state.CurrentStep, state.TotalSteps)
 	}
 	sb.WriteString("\n\n")
+
+	if nav.IsGate() {
+		if tasks := nav.PhaseTasks(); tasks != nil {
+			if block := wf.FormatPhaseBlockers(tasks.Blocked); block != "" {
+				// Style the header line alone: styling the whole block pads
+				// every line to the longest blocker reason.
+				header, rest, _ := strings.Cut(block, "\n")
+				sb.WriteString(ui.Warning(header))
+				sb.WriteString("\n")
+				sb.WriteString(rest)
+				sb.WriteString("\n")
+			}
+		}
+	}
 
 	// Steps list using shared renderer
 	sb.WriteString(ui.Label("Steps:"))
@@ -281,6 +299,9 @@ func getWorkflowNavigator(ctx context.Context) (*wf.Navigator, error) {
 	if err := nav.Initialize(ctx); err != nil {
 		return nil, fmt.Errorf("initializing navigator: %w", err)
 	}
+	if err := AttachPhaseTasks(ctx, nav, store); err != nil {
+		return nil, err
+	}
 
 	return nav, nil
 }
@@ -304,8 +325,9 @@ func reloadWorkflowNavigator(ctx context.Context, current *wf.Navigator) (*wf.Na
 		nav.SetStateKeyPrefix("gate:")
 	}
 
+	var store *progress.Store
 	if current.HasStateStore() {
-		store := progress.NewStore(gctx.FestivalPath)
+		store = progress.NewStore(gctx.FestivalPath)
 		if err := store.Load(ctx); err != nil {
 			return nil, fmt.Errorf("loading progress store: %w", err)
 		}
@@ -313,6 +335,9 @@ func reloadWorkflowNavigator(ctx context.Context, current *wf.Navigator) (*wf.Na
 	}
 	if err := nav.Initialize(ctx); err != nil {
 		return nil, fmt.Errorf("initializing navigator: %w", err)
+	}
+	if err := AttachPhaseTasks(ctx, nav, store); err != nil {
+		return nil, err
 	}
 
 	// Preserve the injected navigator's identity so callers that retain it
@@ -372,6 +397,13 @@ func resolveNavigationMode(ctx context.Context, festivalPath, phasePath string) 
 		// rather than PHASE_GOAL.md frontmatter (which creates a circular dependency since
 		// gate steps are counted in progress totals).
 		if shared.HasSequenceDirs(phasePath) && !shared.ArePhaseTasksAndWorkflowComplete(ctx, storeLoaded, store, phasePath, phaseName) {
+			if storeLoaded {
+				if tasks, err := shared.CollectPhaseTasks(store, phasePath, phaseName); err == nil {
+					if len(tasks.OpenBlockers()) > 0 {
+						return "", "", openBlockersError(phaseName, &tasks).Error()
+					}
+				}
+			}
 			return "", "", "phase gate exists but is not yet eligible\n\nComplete all phase sequences/tasks first, then the gate will become accessible.\nUse 'fest next' to continue working on phase tasks."
 		}
 		return "GATES.md", "gate:", ""

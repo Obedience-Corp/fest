@@ -26,6 +26,27 @@ type WorkflowStepView struct {
 	Feedback      string
 	Followups     []string
 	Judge         *wf.JudgeState
+	// DeferredBlockers is how many deferred blockers the phase had when this
+	// step was approved; zero when none were recorded.
+	DeferredBlockers int
+}
+
+// JudgeVerdictLabel is the "Judge: <status>" text shown under a step, with the
+// deferred blocker count appended to an approval that recorded one.
+func JudgeVerdictLabel(status string, deferredBlockers int) string {
+	label := "Judge: " + status
+	if status == wf.JudgeApproved && deferredBlockers > 0 {
+		label += " " + DeferredBlockersSuffix(deferredBlockers)
+	}
+	return label
+}
+
+// DeferredBlockersSuffix renders "(N deferred blockers)" for an approval.
+func DeferredBlockersSuffix(n int) string {
+	if n == 1 {
+		return "(1 deferred blocker)"
+	}
+	return fmt.Sprintf("(%d deferred blockers)", n)
 }
 
 // JudgeWaiting reports whether this step is currently waiting on a delegated
@@ -123,8 +144,11 @@ func RenderWorkflowStepLine(step WorkflowStepView, compact bool) string {
 			}
 			sb.WriteByte('\n')
 		case wf.JudgeApproved, wf.JudgeRejected:
-			fmt.Fprintf(&sb, "     %s\n", ui.Dim("Judge: "+step.Judge.Status))
+			fmt.Fprintf(&sb, "     %s\n", ui.Dim(JudgeVerdictLabel(step.Judge.Status, step.DeferredBlockers)))
 		}
+	}
+	if !compact && step.Judge == nil && step.DeferredBlockers > 0 && step.Status == wf.StepStatusCompleted {
+		fmt.Fprintf(&sb, "     %s\n", ui.Dim("Approved "+DeferredBlockersSuffix(step.DeferredBlockers)))
 	}
 
 	return sb.String()
@@ -189,11 +213,13 @@ func LoadWorkflowStepsForPhase(ctx context.Context, festivalPath, phasePath stri
 		feedback := ""
 		var followups []string
 		var judge *wf.JudgeState
+		deferredBlockers := 0
 		if stepState != nil {
 			status = stepState.Status
 			feedback = wf.DisplayFeedback(stepState.Feedback)
 			followups = stepState.Followups
 			judge = stepState.Judge
+			deferredBlockers = stepState.DeferredBlockers
 		}
 
 		views[i] = WorkflowStepView{
@@ -206,6 +232,8 @@ func LoadWorkflowStepsForPhase(ctx context.Context, festivalPath, phasePath stri
 			Feedback:      feedback,
 			Followups:     followups,
 			Judge:         judge,
+
+			DeferredBlockers: deferredBlockers,
 		}
 	}
 
@@ -289,11 +317,13 @@ func LoadGateStepsForPhase(ctx context.Context, festivalPath, phasePath string) 
 		feedback := ""
 		var followups []string
 		var judge *wf.JudgeState
+		deferredBlockers := 0
 		if stepState != nil {
 			status = stepState.Status
 			feedback = wf.DisplayFeedback(stepState.Feedback)
 			followups = stepState.Followups
 			judge = stepState.Judge
+			deferredBlockers = stepState.DeferredBlockers
 		}
 
 		views[i] = WorkflowStepView{
@@ -306,6 +336,8 @@ func LoadGateStepsForPhase(ctx context.Context, festivalPath, phasePath string) 
 			Feedback:      feedback,
 			Followups:     followups,
 			Judge:         judge,
+
+			DeferredBlockers: deferredBlockers,
 		}
 	}
 

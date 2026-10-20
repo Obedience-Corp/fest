@@ -117,9 +117,19 @@ func (n *Navigator) formatCheckpoint(ctx context.Context, step WorkflowStep) (st
 		"OperatorAttestation":    ClassifyCheckpoint(step) == CheckpointClassOperatorAttestation,
 		"SkippedHooksUndeclared": n.skippedUndeclaredLine(ctx, step),
 		"HumanApprovalRequired":  strings.EqualFold(strings.TrimSpace(step.Approval), "human-required"),
+		"PhaseBlockers":          n.gateBlockersBlock(),
 	}
 
 	return agent.Render("workflow/checkpoint", data)
+}
+
+// gateBlockersBlock returns the blocked-task block for a phase gate, or "" for
+// a WORKFLOW.md step or a phase with nothing blocked.
+func (n *Navigator) gateBlockersBlock() string {
+	if !n.IsGate() || n.phaseTasks == nil {
+		return ""
+	}
+	return FormatPhaseBlockers(n.phaseTasks.Blocked)
 }
 
 // approvalJudgeConfigured reports whether the operator has delegated blocking
@@ -236,6 +246,7 @@ func (n *Navigator) formatStep(ctx context.Context, step WorkflowStep, stepState
 			IsJudgeRejection(stepState) && n.approvalJudgeConfigured(ctx),
 		"SkippedHooksUndeclared": n.skippedUndeclaredLine(ctx, step),
 		"HumanApprovalRequired":  strings.EqualFold(strings.TrimSpace(step.Approval), "human-required"),
+		"PhaseBlockers":          n.gateBlockersBlock(),
 	}
 
 	return agent.Render("workflow/step", data)

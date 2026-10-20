@@ -807,13 +807,19 @@ func (m *Manager) propagateSequenceCompletion(ctx context.Context, seqPath strin
 }
 
 // propagatePhaseCompletion updates PHASE_GOAL.md if all sequences/workflows are done.
+//
+// A deferred blocker settles its task so the festival keeps moving, but the
+// task is still not done, so it holds the phase open: the phase is marked
+// completed, and its phase_complete hooks run, only once no deferred blocker
+// remains. Sequences still settle on deferral.
 func (m *Manager) propagatePhaseCompletion(ctx context.Context, phasePath string) error {
 	phaseProgress, err := m.GetPhaseProgress(ctx, phasePath)
 	if err != nil {
 		return errors.Wrap(err, "getting phase progress")
 	}
 
-	if phaseProgress.Progress.Total == 0 || phaseProgress.Progress.Settled < phaseProgress.Progress.Total {
+	p := phaseProgress.Progress
+	if p.Total == 0 || p.Settled < p.Total || p.DeferredBlocked > 0 {
 		return nil
 	}
 

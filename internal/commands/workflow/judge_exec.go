@@ -77,6 +77,9 @@ func launchApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum in
 			return festerrors.Validation("checkpoint changed before approval judge launch")
 		}
 		step = freshSteps[currentStepNum-1]
+		if _, err := refuseGateWithOpenBlockers(ctx, fresh); err != nil {
+			return err
+		}
 		rejudgePreflighted, err := reopenJudgeRejectionIfRequested(ctx, fresh, currentStepNum, step, opts)
 		if err != nil {
 			return err

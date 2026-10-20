@@ -215,6 +215,11 @@ func runPhaseGateMode(ctx context.Context, festivalPath, phasePath string) error
 	if err := nav.Initialize(ctx); err != nil {
 		return errors.Wrap(err, "initializing phase gate navigator")
 	}
+	if wfNav, ok := nav.(*wf.Navigator); ok {
+		if err := wfcmd.AttachPhaseTasks(ctx, wfNav, store); err != nil {
+			return err
+		}
+	}
 
 	// Operator opt-in via hooks.definitions.approval_judge: auto-run the judge on
 	// consecutive blocking gate steps so fest next does not wait for a human.
