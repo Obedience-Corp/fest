@@ -260,8 +260,13 @@ func runNext(cmd *cobra.Command, args []string) error {
 		// If nextPhase is task-based or empty, fall through to selector
 	}
 
-	// Fall back to selector-based navigation
-	selector := selection.NewSelector(festivalPath)
+	// Fall back to selector-based navigation. The sweep hold uses the same
+	// route resolution as a complete festival, so a later phase's unwalked
+	// WORKFLOW.md or GATES.md comes before deferred blockers are revisited.
+	selector := selection.NewSelector(festivalPath).WithSweepHold(func(ctx context.Context) (bool, error) {
+		route, _, routeErr := resolveCompletePhaseRoute(ctx, festivalPath)
+		return route != routeNone, routeErr
+	})
 
 	var result *selection.NextTaskResult
 	if sequenceOnly {
@@ -305,7 +310,7 @@ func runNext(cmd *cobra.Command, args []string) error {
 	// workflow; routing to the later workflow first would skip that gate and
 	// desync `fest next` from `fest workflow status` (which stays on the
 	// earlier phase's gate).
-	if result.FestivalComplete {
+	if result.FestivalComplete || result.PhaseWorkPending {
 		route, routePhase, routeErr := resolveCompletePhaseRoute(ctx, festivalPath)
 		if routeErr == nil {
 			switch route {

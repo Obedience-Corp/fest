@@ -5390,9 +5390,16 @@ Defer a blocker you cannot clear right now.
 
 The task stays blocked and still renders as blocked everywhere. Its dependents
 become ready, so the rest of the festival proceeds. When everything else is
-settled, fest next brings the deferred tasks back for another attempt, and the
-festival cannot be promoted to completed while any blocker is deferred unless
-you pass --force.
+settled, including every phase's WORKFLOW.md and GATES.md, fest next brings
+the deferred tasks back for another attempt, and the festival cannot be
+promoted to completed while any blocker is deferred unless you pass --force.
+
+Phase gates see deferred blockers. Once every other task in a phase is
+settled, its GATES.md steps can run, but fest next and fest workflow status
+list each deferred task with its blocker and deferral reason, the approval
+judge receives them in phase_tasks, and an approval records how many were
+deferred. The phase itself is not marked completed until no deferred blocker
+remains. A blocker that is not deferred stops the gate entirely.
 
 By default, a person confirms a deferral by typing the task number in a
 terminal. Pass --yes to defer non-interactively from an agent or app; the event
@@ -7514,6 +7521,11 @@ Auto approval:
   and must return JSON on stdout with decision "approve" or "reject" and a
   reason. Missing commands, timeouts, non-zero exits, malformed JSON, unknown
   decisions, and empty reasons fail closed and do not approve the checkpoint.
+
+  The request's phase_tasks field lists the phase's task counts and every
+  blocked task with its reason and deferral, so a gate is never judged blind
+  to blocked work. A GATES.md step is refused while any task in the phase is
+  blocked without a deferral.
 
   The judge command is resolved as: --judge-command flag, else the
   hooks.definitions.approval_judge hook in .festival/config.yaml. If neither is

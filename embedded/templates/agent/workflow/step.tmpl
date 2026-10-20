@@ -41,7 +41,8 @@ EXAMPLE OUTPUT:
 {{if .HumanApprovalRequired}}
 HUMAN APPROVAL REQUIRED
 {{end}}
-{{if .IsGate}}**Question:** {{.Goal}}{{else}}**Goal:** {{.Goal}}{{end}}
+{{if .PhaseBlockers}}{{.PhaseBlockers}}
+{{end}}{{if .IsGate}}**Question:** {{.Goal}}{{else}}**Goal:** {{.Goal}}{{end}}
 {{if .SkippedHooksUndeclared}}{{.SkippedHooksUndeclared}}
 {{end}}
 {{if .Actions}}

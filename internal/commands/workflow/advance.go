@@ -194,6 +194,9 @@ func runAdvance(ctx context.Context) error {
 	}); err != nil {
 		return err
 	}
+	if _, err := refuseGateWithOpenBlockers(ctx, nav); err != nil {
+		return err
+	}
 
 	state := nav.GetWorkflowState()
 	steps := nav.GetSteps()

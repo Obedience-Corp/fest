@@ -48,6 +48,7 @@ The concrete type is `approvalJudgeRequest` in
 | `evidence` | when non-empty | Phase-relative deliverables that exist and are non-empty |
 | `campaign_root` | when detected | Camp root; the root the camp-relative `working_dirs` join against |
 | `working_dirs` | when declared | Where the phase's work actually landed |
+| `phase_tasks` | when the phase has sequences | Task counts for the phase and every blocked task, deferred or not |
 
 `document` names a file, it does not carry one. For a `WORKFLOW.md` checkpoint
 it is only the step definition, which is why `evidence` exists.
@@ -152,6 +153,60 @@ sends where the work landed:
   itself, which the judge already sees through `phase_path`. A declaration that
   was present but rejected is reported on stderr rather than dropped silently.
 
+## Phase tasks
+
+A gate decided without the phase's task states can approve a COMPLETENESS
+step while tasks are still blocked, because nothing in the request says so.
+`phase_tasks` closes that gap. It is sent for `GATES.md` and `WORKFLOW.md`
+checkpoints alike, built from the progress store for the checkpoint's phase:
+
+```json
+{
+  "phase_tasks": {
+    "total": 12,
+    "completed": 8,
+    "skipped": 0,
+    "in_progress": 0,
+    "pending": 0,
+    "blocked": [
+      {
+        "task": "02_native_acceptance/01_prove_installed_windows_journey.md",
+        "reason": "Blocked on the obey v0.2.0 release",
+        "deferred": true,
+        "deferred_reason": "External release; packaging proof can proceed"
+      }
+    ]
+  }
+}
+```
+
+- `task` is **phase-relative**, `<sequence>/<task file>`.
+- Blocked tasks are listed in `blocked` and counted nowhere else, so `total`
+  is the four counts plus the length of `blocked`.
+- `deferred_reason` is the operator's `fest task defer --reason`, and is an
+  empty string when the blocker was not deferred.
+- `skipped` counts a task status recorded literally as `skipped`. The progress
+  store never writes one, so it is normally `0`.
+- Tasks are enumerated exactly as phase-gate eligibility enumerates them, so
+  `total` describes the same tasks that made the gate reachable.
+
+What fest guarantees around it:
+
+- A `GATES.md` step is refused, before any judge runs, while the phase has a
+  blocked task that is **not** deferred. `fest workflow advance`, `approve`,
+  and `judge` all name the open blockers and point at `fest task defer` or
+  unblocking. For a gate, every entry in `blocked` is therefore deferred.
+- Deferred blockers do not stop the gate; that is the `fest task defer`
+  contract. They are shown above the checkpoint question by `fest next` and
+  `fest workflow status`, and the judge is expected to weigh them.
+- An approved gate step records the count on its `wf_step_done` event as
+  `deferred_blockers`, and `fest show` renders it beside the verdict, for
+  example `Judge: approved (4 deferred blockers)`. Approvals recorded before
+  this field existed render as plain `Judge: approved`.
+- The phase is not marked completed in `PHASE_GOAL.md` while any deferred
+  blocker remains, even after every gate step is approved.
+- If the progress store cannot be read, the judge is not invoked.
+
 ## What the audit trail can and cannot tell you
 
 Inlining had one virtue nobody designed for: the judge's inputs were fixed, so
@@ -232,6 +287,8 @@ than assuming the manifest is openable.
   fest warns rather than failing closed, except `approve` + `evidence_status=none`
   when evidence was sent (see [Verdict shape](#verdict-shape)).
 - `evidence`, `campaign_root`, and `working_dirs` are omitted when empty.
+- `phase_tasks` is additive and omitted for a phase with no sequences. An
+  older judge ignores it.
 - fest emits no field a judge cannot act on. There is no embedded-content mode:
   a `hooks.definitions.<name>.evidence` key in a config is an unrecognized key
   and is ignored.

@@ -107,6 +107,13 @@ type approvalJudgeRequest struct {
 	// fest.approval.judge/v1: an older judge ignores the field and behaves
 	// exactly as before.
 	WorkingDirs []judgeWorkingDir `json:"working_dirs,omitempty"`
+	// PhaseTasks summarizes the task states of the checkpoint's phase: counts
+	// by status plus every blocked task with its reason and whether its
+	// blocker was deferred. A gate is only judged with no undeferred blocker,
+	// so for GATES.md the blocked list holds deferred blockers the judge must
+	// weigh. Additive to fest.approval.judge/v1: omitted for a phase with no
+	// sequences, and an older judge ignores it.
+	PhaseTasks *wf.PhaseTasks `json:"phase_tasks,omitempty"`
 }
 
 type approvalJudgeResponse struct {
@@ -170,6 +177,11 @@ Auto approval:
   and must return JSON on stdout with decision "approve" or "reject" and a
   reason. Missing commands, timeouts, non-zero exits, malformed JSON, unknown
   decisions, and empty reasons fail closed and do not approve the checkpoint.
+
+  The request's phase_tasks field lists the phase's task counts and every
+  blocked task with its reason and deferral, so a gate is never judged blind
+  to blocked work. A GATES.md step is refused while any task in the phase is
+  blocked without a deferral.
 
   The judge command is resolved as: --judge-command flag, else the
   hooks.definitions.approval_judge hook in .festival/config.yaml. If neither is
@@ -235,6 +247,9 @@ func runApproveWithOptions(ctx context.Context, decision wf.DecisionMetadata, op
 		PhasePath: nav.Ctx.PhasePath,
 		Reason:    "fest workflow approve",
 	}); err != nil {
+		return err
+	}
+	if _, err := refuseGateWithOpenBlockers(ctx, nav); err != nil {
 		return err
 	}
 
@@ -305,6 +320,10 @@ func runApproveWithOptions(ctx context.Context, decision wf.DecisionMetadata, op
 			return festerrors.Validation("checkpoint changed before approval")
 		}
 		freshStep := freshSteps[currentStepNum-1]
+		phaseTasks, err := refuseGateWithOpenBlockers(ctx, fresh)
+		if err != nil {
+			return err
+		}
 		judgeConfigured, err := approvalJudgeConfiguredFor(ctx, fresh)
 		if err != nil {
 			return err
@@ -321,6 +340,7 @@ func runApproveWithOptions(ctx context.Context, decision wf.DecisionMetadata, op
 		if err != nil {
 			return err
 		}
+		decision.DeferredBlockers = phaseTasks.DeferredBlockers()
 		if err := fresh.ApproveWithDecision(ctx, decision); err != nil {
 			return festerrors.Wrap(err, "approving checkpoint")
 		}
@@ -738,6 +758,9 @@ func runApproveAuto(ctx context.Context, nav *wf.Navigator, currentStepNum int, 
 			return festerrors.Validation("checkpoint changed before approval judge started")
 		}
 		step = freshSteps[currentStepNum-1]
+		if _, err := refuseGateWithOpenBlockers(ctx, fresh); err != nil {
+			return err
+		}
 		rejudgePreflighted, err := reopenJudgeRejectionIfRequested(ctx, fresh, currentStepNum, step, opts)
 		if err != nil {
 			return err
@@ -837,6 +860,16 @@ func applyApproveAutoVerdict(ctx context.Context, nav *wf.Navigator, currentStep
 
 	switch decision.Decision {
 	case "approve":
+		// The judge saw the phase's tasks when it was launched; a task blocked
+		// without a deferral since then still stops the gate.
+		phaseTasks, guardErr := refuseGateWithOpenBlockers(ctx, nav)
+		if guardErr != nil {
+			if _, recErr := nav.RecordJudgeOutcome(ctx, currentStepNum, runID, wf.JudgeFailed, guardErr.Error()); recErr != nil {
+				fmt.Printf("%s failed to record judge outcome: %v\n", ui.Warning("⚠"), recErr)
+			}
+			return false, guardErr
+		}
+		judgeDecision.DeferredBlockers = phaseTasks.DeferredBlockers()
 		applied, err := nav.ApplyJudgeApproval(ctx, currentStepNum, runID, audit, judgeDecision, extras)
 		if err != nil {
 			return false, festerrors.Wrap(err, "approving checkpoint from judge decision")
@@ -912,6 +945,18 @@ func judgeApproval(ctx context.Context, nav *wf.Navigator, step wf.WorkflowStep,
 	// not just the step definition. Without this the judge sees only Document
 	// and rejects (no evidence) or approves on the agent's self-report.
 	req.Evidence = resolveExistingEvidencePaths(nav.Ctx.PhasePath, step)
+	// The phase's task states, so a gate is never judged blind to blocked
+	// work. A gate with a blocker that was not deferred is refused outright.
+	phaseTasks, err := loadPhaseTasks(ctx, nav)
+	if err != nil {
+		return nil, "", err
+	}
+	if nav.IsGate() {
+		if len(phaseTasks.OpenBlockers()) > 0 {
+			return nil, "", openBlockersError(phaseNameOf(nav), phaseTasks)
+		}
+	}
+	req.PhaseTasks = phaseTasks
 	opts.Source = resolveJudgeHookSource(ctx, nav, opts.JudgeCommand)
 	opts.Coord = hooks.Coord{
 		FestivalPath: nav.Ctx.FestivalPath,

@@ -677,6 +677,7 @@ func (s *Store) QueueWorkflowEvents(events []wf.WorkflowEvent) {
 			JudgeEvidenceStatus:     we.JudgeEvidenceStatus,
 			JudgeEvidenceOffered:    we.JudgeEvidenceOffered,
 			JudgeWorkingDirsOffered: we.JudgeWorkingDirsOffered,
+			DeferredBlockers:        we.DeferredBlockers,
 			HookName:                we.HookName,
 			HookLayer:               we.HookLayer,
 			HookTiming:              we.HookTiming,

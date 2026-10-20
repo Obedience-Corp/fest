@@ -132,6 +132,10 @@ type ProgressEvent struct {
 	// "offered" keeps the record from implying provenance it does not have.
 	JudgeEvidenceOffered    []string `json:"judge_evidence_offered,omitempty"`
 	JudgeWorkingDirsOffered []string `json:"judge_working_dirs_offered,omitempty"`
+	// DeferredBlockers rides on the wf_step_done that approves a phase gate
+	// step: how many blocked tasks in the phase had a deferred blocker at that
+	// moment. Absent on older events and when there were none.
+	DeferredBlockers int `json:"deferred_blockers,omitempty"`
 
 	// Hook-run event fields (wf_hook_run).
 	HookName     string `json:"hook_name,omitempty"`
@@ -549,6 +553,7 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 			ss.CompletedAt = &ts
 			ss.Feedback = e.Feedback
 			ss.Followups = nil
+			ss.DeferredBlockers = e.DeferredBlockers
 			recordDecision(ss, e)
 
 		case EventWorkflowStepSkip:
@@ -657,6 +662,7 @@ func materializeWorkflowState(events []ProgressEvent) *wf.FestivalWorkflowState 
 				ss.DecisionSummary = ""
 				ss.DecisionAt = nil
 				ss.Judge = nil
+				ss.DeferredBlockers = 0
 			}
 		}
 
@@ -725,13 +731,14 @@ func generateWorkflowEventsFromYAML(state *wf.FestivalWorkflowState) []ProgressE
 					ts = *ss.CompletedAt
 				}
 				events = append(events, ProgressEvent{
-					Timestamp:       ts,
-					Event:           EventWorkflowStepDone,
-					Phase:           phaseName,
-					Step:            i,
-					Feedback:        ss.Feedback,
-					DecisionActor:   ss.DecisionActor,
-					DecisionSummary: ss.DecisionSummary,
+					Timestamp:        ts,
+					Event:            EventWorkflowStepDone,
+					Phase:            phaseName,
+					Step:             i,
+					Feedback:         ss.Feedback,
+					DecisionActor:    ss.DecisionActor,
+					DecisionSummary:  ss.DecisionSummary,
+					DeferredBlockers: ss.DeferredBlockers,
 				})
 
 			case wf.StepStatusSkipped:

@@ -64,6 +64,9 @@ type WorkflowEvent struct {
 	// comments in internal/progress/events.go.
 	JudgeEvidenceOffered    []string
 	JudgeWorkingDirsOffered []string
+	// DeferredBlockers is the number of deferred blockers in the phase when a
+	// gate step was approved. Zero for every other event.
+	DeferredBlockers int
 
 	// Hook-run fields (wf_hook_run). Hook runs are events, never decisions (D9).
 	HookName       string
@@ -85,6 +88,10 @@ type DecisionMetadata struct {
 	// Followups carries the judge's concrete, itemized fixes for a rejection
 	// so a blocked agent knows exactly what to revise before re-submitting.
 	Followups []string
+	// DeferredBlockers is how many blocked tasks in the phase had a deferred
+	// blocker when a gate step was approved, so the record shows the gate was
+	// not approved blind to them.
+	DeferredBlockers int
 }
 
 // Judge lifecycle status values recorded on StepState.Judge.
@@ -257,6 +264,11 @@ type StepState struct {
 	// Judge tracks the delegated approval judge run for this checkpoint, when
 	// one was invoked via 'fest workflow approve --auto'.
 	Judge *JudgeState `yaml:"judge,omitempty" json:"judge,omitempty"`
+
+	// DeferredBlockers is how many deferred blockers the phase had when this
+	// gate step was approved. Zero when there were none or the approval was
+	// recorded before fest tracked the count.
+	DeferredBlockers int `yaml:"deferred_blockers,omitempty" json:"deferred_blockers,omitempty"`
 }
 
 // FestivalWorkflowState contains workflow state for all phases in a festival.
@@ -624,6 +636,7 @@ func (s *WorkflowState) ApproveWithAudit(feedback string, decision DecisionMetad
 	}
 	s.MarkCurrentStep(StepStatusCompleted, feedback)
 	s.recordDecision(s.CurrentStep, decision)
+	state.DeferredBlockers = decision.DeferredBlockers
 	if s.CurrentStep < s.TotalSteps {
 		return s.Advance()
 	}
@@ -746,6 +759,7 @@ func (s *WorkflowState) Reset() {
 		state.DecisionSummary = ""
 		state.DecisionAt = nil
 		state.Judge = nil
+		state.DeferredBlockers = 0
 	}
 	s.UpdatedAt = time.Now().UTC()
 }
@@ -835,12 +849,13 @@ func EmitStepDoneWithFeedbackEvents(phaseName string, step int, feedback string)
 // EmitStepDoneWithDecisionEvents generates completion events with decision metadata.
 func EmitStepDoneWithDecisionEvents(phaseName string, step int, feedback string, decision DecisionMetadata) []WorkflowEvent {
 	return []WorkflowEvent{{
-		EventType:       "wf_step_done",
-		Phase:           phaseName,
-		Step:            step,
-		Feedback:        feedback,
-		DecisionActor:   decision.Actor,
-		DecisionSummary: decision.Summary,
+		EventType:        "wf_step_done",
+		Phase:            phaseName,
+		Step:             step,
+		Feedback:         feedback,
+		DecisionActor:    decision.Actor,
+		DecisionSummary:  decision.Summary,
+		DeferredBlockers: decision.DeferredBlockers,
 	}}
 }
 

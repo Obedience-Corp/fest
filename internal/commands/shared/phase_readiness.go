@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/Obedience-Corp/fest/internal/errors"
+	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/taskfilter"
 )
@@ -117,3 +119,68 @@ func ArePhaseTasksComplete(storeLoaded bool, store *progress.Store, phasePath, p
 	}
 	return taskCount > 0
 }
+
+// CollectPhaseTasks summarizes the task states of a phase from the progress
+// store. It enumerates tasks exactly as ArePhaseTasksComplete does, so the
+// summary describes the same tasks that decided whether the phase gate was
+// eligible. Task ids in Blocked are relative to the phase directory.
+//
+// The progress store has no skipped task status, so Skipped counts only a
+// status recorded literally as "skipped".
+func CollectPhaseTasks(store *progress.Store, phasePath, phaseName string) (wf.PhaseTasks, error) {
+	summary := wf.PhaseTasks{Blocked: []wf.BlockedTask{}}
+	if store == nil {
+		return summary, errors.Validation("progress store is required to summarize phase tasks").
+			WithField("phase", phaseName)
+	}
+
+	entries, err := os.ReadDir(phasePath)
+	if err != nil {
+		return summary, errors.IO("reading phase directory", err).WithField("path", phasePath)
+	}
+
+	for _, seqEntry := range entries {
+		if !seqEntry.IsDir() || !IsNumberedDir(seqEntry.Name()) {
+			continue
+		}
+		seqPath := filepath.Join(phasePath, seqEntry.Name())
+		taskFiles, err := os.ReadDir(seqPath)
+		if err != nil {
+			return summary, errors.IO("reading sequence directory", err).WithField("path", seqPath)
+		}
+		for _, tf := range taskFiles {
+			if tf.IsDir() || !strings.HasSuffix(tf.Name(), ".md") || !taskfilter.IsTask(tf.Name()) {
+				continue
+			}
+			summary.Total++
+			rel := filepath.ToSlash(filepath.Join(seqEntry.Name(), tf.Name()))
+			task, ok := store.GetTask(phaseName + "/" + rel)
+			if !ok || task == nil {
+				summary.Pending++
+				continue
+			}
+			switch task.Status {
+			case progress.StatusCompleted:
+				summary.Completed++
+			case taskStatusSkipped:
+				summary.Skipped++
+			case progress.StatusInProgress:
+				summary.InProgress++
+			case progress.StatusBlocked:
+				summary.Blocked = append(summary.Blocked, wf.BlockedTask{
+					Task:           rel,
+					Reason:         task.BlockerMessage,
+					Deferred:       task.BlockerDeferred,
+					DeferredReason: task.DeferralReason,
+				})
+			default:
+				summary.Pending++
+			}
+		}
+	}
+	return summary, nil
+}
+
+// taskStatusSkipped is the status deps.Task treats as complete. The progress
+// store never writes it, but a hand-edited or imported record may carry it.
+const taskStatusSkipped = "skipped"

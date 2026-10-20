@@ -34,6 +34,10 @@ type DisplayNode struct {
 	// fest task defer. The task still displays as blocked.
 	BlockerDeferred bool `json:"blocker_deferred,omitempty"`
 
+	// DeferredBlockers is how many deferred blockers the phase had when this
+	// gate step was approved. Absent for older approvals and when none.
+	DeferredBlockers int `json:"deferred_blockers,omitempty"`
+
 	// Replay identity for callers that re-materialize progress (fest gif).
 	// Not part of the JSON contract.
 	TaskPath   string `json:"-"` // task file path (task nodes)
@@ -269,7 +273,8 @@ func buildStepNode(step shared.WorkflowStepView) *DisplayNode {
 			}
 			return step.Judge.Status
 		}(),
-		WaitingOnJudge: step.JudgeWaiting(),
+		WaitingOnJudge:   step.JudgeWaiting(),
+		DeferredBlockers: step.DeferredBlockers,
 		Stats: StatusCounts{
 			Total:     1,
 			Completed: boolToInt(step.Status == wf.StepStatusCompleted || step.Status == wf.StepStatusSkipped),
@@ -599,11 +604,16 @@ func renderStepNode(sb *strings.Builder, node *DisplayNode, prefix string, isLas
 	if node.JudgeStatus != "" {
 		sb.WriteString(prefix)
 		sb.WriteString(ui.Dim(childPrefix))
-		label := "Judge: " + node.JudgeStatus
+		label := shared.JudgeVerdictLabel(node.JudgeStatus, node.DeferredBlockers)
 		if node.WaitingOnJudge {
 			label = "Judge: waiting"
 		}
 		sb.WriteString(ui.ColoredText(label, ui.JudgeColor))
+		sb.WriteString("\n")
+	} else if node.DeferredBlockers > 0 && node.Status == "completed" {
+		sb.WriteString(prefix)
+		sb.WriteString(ui.Dim(childPrefix))
+		sb.WriteString(ui.ColoredText("Approved "+shared.DeferredBlockersSuffix(node.DeferredBlockers), ui.JudgeColor))
 		sb.WriteString("\n")
 	}
 }
