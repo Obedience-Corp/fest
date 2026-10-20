@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/deps"
+	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
 	"github.com/Obedience-Corp/fest/internal/progress"
 )
@@ -88,6 +89,12 @@ type NextTaskResult struct {
 	// executor that just reported one is told what it is waiting on and what
 	// the rule about blockers is. Omitted when empty.
 	BlockedTasks []TaskRef `json:"blocked_tasks,omitempty"`
+
+	// PhaseWorkPending is set when every task is settled and deferred
+	// blockers are waiting for the sweep, but the sweep hold reported a phase
+	// workflow or gate still to walk. The caller routes to that phase work;
+	// the sweep has not started. Not part of the JSON contract.
+	PhaseWorkPending bool `json:"-"`
 }
 
 // JSONLayeredGoals holds extracted primary goals for JSON output parity.
@@ -155,6 +162,21 @@ type LocationInfo struct {
 type Selector struct {
 	festivalPath string
 	resolver     *deps.Resolver
+	sweepHold    SweepHold
+}
+
+// SweepHold reports whether phase work outside the task graph, an unwalked
+// WORKFLOW.md or GATES.md, still remains. Deferred blockers come back only
+// once everything else is settled, and an unwalked phase document is not
+// settled, so the sweep waits while the hold reports true.
+type SweepHold func(ctx context.Context) (bool, error)
+
+// WithSweepHold sets the check FindNext consults before it starts or
+// continues the deferred-blocker sweep. Without one the sweep starts as soon
+// as every task is settled.
+func (s *Selector) WithSweepHold(hold SweepHold) *Selector {
+	s.sweepHold = hold
+	return s
 }
 
 // NewSelector creates a new task selector
@@ -194,6 +216,22 @@ func (s *Selector) FindNext(ctx context.Context, currentPath string) (*NextTaskR
 	readyTasks := graph.GetReadyTasks()
 
 	if len(readyTasks) == 0 {
+		// Phase workflows and gates are not in the task graph, so a festival
+		// whose tasks are all settled can still have a later phase to walk.
+		// That work comes before the sweep; the sweep would otherwise hand the
+		// same deferred tasks back forever.
+		held, holdErr := s.sweepHeld(ctx, graph)
+		if holdErr != nil {
+			return nil, holdErr
+		}
+		if held {
+			return &NextTaskResult{
+				PhaseWorkPending: true,
+				Reason:           "Every task is settled; a phase workflow or gate remains before deferred blockers are revisited",
+				Location:         location,
+			}, nil
+		}
+
 		// A settled festival with deferred blockers left is not complete: it
 		// enters the sweep so the deferred work comes back.
 		sweep, sweepErr := s.findSweepTask(ctx, graph, location)
@@ -240,6 +278,20 @@ func (s *Selector) FindNext(ctx context.Context, currentPath string) (*NextTaskR
 	s.attachDeferredContext(mgr, graph, primary, result)
 
 	return result, nil
+}
+
+// sweepHeld reports whether the sweep must wait for phase work. It asks the
+// hold only when the sweep would otherwise run: every task settled and at
+// least one blocker deferred.
+func (s *Selector) sweepHeld(ctx context.Context, graph *deps.Graph) (bool, error) {
+	if s.sweepHold == nil || len(sweepCandidates(graph)) == 0 {
+		return false, nil
+	}
+	held, err := s.sweepHold(ctx)
+	if err != nil {
+		return false, errors.Wrap(err, "checking for phase work before the sweep")
+	}
+	return held, nil
 }
 
 // FindNextInSequence finds the next task within the current sequence
