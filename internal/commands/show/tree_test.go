@@ -9,6 +9,7 @@ import (
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
+	"github.com/Obedience-Corp/fest/internal/progress"
 )
 
 func TestBuildFestivalTree(t *testing.T) {
@@ -496,6 +497,214 @@ func TestRenderTree_InProgressHighlightsPendingTask(t *testing.T) {
 
 	if task.Status != "in_progress" {
 		t.Errorf("next pending task status = %q, want in_progress", task.Status)
+	}
+}
+
+func inProgressTask(name, status string, deferred bool) *DisplayNode {
+	return &DisplayNode{
+		Name:            name,
+		NodeType:        "task",
+		Status:          status,
+		BlockerDeferred: deferred,
+		Stats: StatusCounts{
+			Total:     1,
+			Completed: boolToInt(status == "completed"),
+			Pending:   boolToInt(status == "pending"),
+			Blocked:   boolToInt(status == "blocked"),
+		},
+	}
+}
+
+func inProgressParent(name, nodeType string, children ...*DisplayNode) *DisplayNode {
+	node := &DisplayNode{Name: name, NodeType: nodeType, Children: children}
+	for _, child := range children {
+		node.Stats.Total += child.Stats.Total
+		node.Stats.Completed += child.Stats.Completed
+		node.Stats.InProgress += child.Stats.InProgress
+		node.Stats.Pending += child.Stats.Pending
+		node.Stats.Blocked += child.Stats.Blocked
+	}
+	node.Status = determineStatus(node.Stats)
+	return node
+}
+
+func TestRenderTree_InProgressNextUpSkipsDeferredOnlyWork(t *testing.T) {
+	tests := []struct {
+		name         string
+		children     func() []*DisplayNode
+		wantNext     []string
+		wantShown    []string
+		wantHidden   []string
+		wantBlocked  string
+		wantPhaseRow string
+	}{
+		{
+			name: "deferred blocker moves next-up to the following phase",
+			children: func() []*DisplayNode {
+				return []*DisplayNode{
+					inProgressParent("001_PACKAGE", "phase", inProgressParent("01_package_seq", "sequence",
+						inProgressTask("01_done.md", "completed", false),
+						inProgressTask("02_deferred.md", "blocked", true))),
+					inProgressParent("002_RELEASE", "phase", inProgressParent("01_release_seq", "sequence",
+						inProgressTask("01_ready.md", "pending", false),
+						inProgressTask("02_ready.md", "pending", false))),
+				}
+			},
+			wantNext:     []string{"002_RELEASE", "01_release_seq", "01_ready.md"},
+			wantShown:    []string{"01_release_seq", "01_ready.md", "02_ready.md"},
+			wantHidden:   []string{"01_package_seq", "02_deferred.md"},
+			wantBlocked:  "02_deferred.md",
+			wantPhaseRow: "001_PACKAGE  ■ 1/2 items",
+		},
+		{
+			name: "undeferred blocker keeps the phase next-up",
+			children: func() []*DisplayNode {
+				return []*DisplayNode{
+					inProgressParent("001_PACKAGE", "phase", inProgressParent("01_package_seq", "sequence",
+						inProgressTask("01_done.md", "completed", false),
+						inProgressTask("02_blocked.md", "blocked", false))),
+					inProgressParent("002_RELEASE", "phase", inProgressParent("01_release_seq", "sequence",
+						inProgressTask("01_ready.md", "pending", false),
+						inProgressTask("02_ready.md", "pending", false))),
+				}
+			},
+			wantNext:     []string{"001_PACKAGE", "01_package_seq", "02_blocked.md"},
+			wantShown:    []string{"01_package_seq", "02_blocked.md"},
+			wantHidden:   []string{"01_release_seq", "01_ready.md"},
+			wantBlocked:  "02_blocked.md",
+			wantPhaseRow: "001_PACKAGE  ■ blocked",
+		},
+		{
+			name: "deferred-only sequence yields to a ready sibling sequence",
+			children: func() []*DisplayNode {
+				return []*DisplayNode{
+					inProgressParent("001_PACKAGE", "phase",
+						inProgressParent("01_package_seq", "sequence",
+							inProgressTask("01_done.md", "completed", false),
+							inProgressTask("02_deferred.md", "blocked", true)),
+						inProgressParent("02_package_seq", "sequence",
+							inProgressTask("03_ready.md", "pending", false))),
+				}
+			},
+			wantNext:     []string{"001_PACKAGE", "02_package_seq", "03_ready.md"},
+			wantShown:    []string{"01_package_seq", "02_package_seq", "03_ready.md"},
+			wantHidden:   []string{"02_deferred.md"},
+			wantBlocked:  "02_deferred.md",
+			wantPhaseRow: "001_PACKAGE  ■ blocked",
+		},
+		{
+			name: "all remaining work deferred falls back to the first blocked phase",
+			children: func() []*DisplayNode {
+				return []*DisplayNode{
+					inProgressParent("001_PACKAGE", "phase", inProgressParent("01_package_seq", "sequence",
+						inProgressTask("01_done.md", "completed", false),
+						inProgressTask("02_deferred.md", "blocked", true))),
+					inProgressParent("002_RELEASE", "phase", inProgressParent("01_release_seq", "sequence",
+						inProgressTask("01_also_deferred.md", "blocked", true))),
+				}
+			},
+			wantNext:     []string{"001_PACKAGE", "01_package_seq", "02_deferred.md"},
+			wantShown:    []string{"01_package_seq", "02_deferred.md"},
+			wantHidden:   []string{"01_release_seq", "01_also_deferred.md"},
+			wantBlocked:  "02_deferred.md",
+			wantPhaseRow: "001_PACKAGE  ■ blocked",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tree := inProgressParent("test-festival", "festival", tt.children()...)
+			opts := DefaultTreeOptions()
+			opts.InProgress = true
+			output := RenderTree(tree, opts)
+
+			var next []string
+			var blocked *DisplayNode
+			var walk func(*DisplayNode)
+			walk = func(node *DisplayNode) {
+				if node.IsNextPending {
+					next = append(next, node.Name)
+				}
+				if node.Name == tt.wantBlocked {
+					blocked = node
+				}
+				for _, child := range node.Children {
+					walk(child)
+				}
+			}
+			walk(tree)
+
+			if strings.Join(next, " > ") != strings.Join(tt.wantNext, " > ") {
+				t.Errorf("next-up path = %v, want %v", next, tt.wantNext)
+			}
+			for _, name := range tt.wantShown {
+				if !strings.Contains(output, name) {
+					t.Errorf("output should show %q", name)
+				}
+			}
+			for _, name := range tt.wantHidden {
+				if strings.Contains(output, name) {
+					t.Errorf("output should hide %q", name)
+				}
+			}
+			if !strings.Contains(output, tt.wantPhaseRow) {
+				t.Errorf("output should contain phase row %q", tt.wantPhaseRow)
+			}
+			if blocked == nil || blocked.Status != "blocked" {
+				t.Errorf("task %q must keep blocked status, got %+v", tt.wantBlocked, blocked)
+			}
+			if got := tree.Children[0].Status; got != "blocked" {
+				t.Errorf("phase %s status = %q, want blocked", tree.Children[0].Name, got)
+			}
+			if t.Failed() {
+				t.Logf("rendered tree:\n%s", output)
+			}
+		})
+	}
+}
+
+func TestBuildFestivalTree_CarriesBlockerDeferredFromProgressEvents(t *testing.T) {
+	festivalDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(festivalDir, "fest.yaml"), []byte("name: tree-deferred\nmetadata:\n  id: TD0001\n"), 0o644); err != nil {
+		t.Fatalf("write fest.yaml: %v", err)
+	}
+	seqDir := filepath.Join(festivalDir, "001_PLAN", "01_seq")
+	if err := os.MkdirAll(seqDir, 0o755); err != nil {
+		t.Fatalf("mkdir sequence: %v", err)
+	}
+	for _, name := range []string{"01_deferred.md", "02_blocked.md"} {
+		if err := os.WriteFile(filepath.Join(seqDir, name), []byte("# Task\n"), 0o644); err != nil {
+			t.Fatalf("write task: %v", err)
+		}
+	}
+	festDir := filepath.Join(festivalDir, progress.ProgressDir)
+	if err := os.MkdirAll(festDir, 0o755); err != nil {
+		t.Fatalf("mkdir .fest: %v", err)
+	}
+	events := `{"ts":"2026-09-20T10:00:00Z","event":"blocked","task":"001_PLAN/01_seq/01_deferred.md","reason":"vendor API removed"}
+{"ts":"2026-09-20T10:01:00Z","event":"blocked","task":"001_PLAN/01_seq/02_blocked.md","reason":"waiting on review"}
+{"ts":"2026-09-21T11:00:00Z","event":"blocker_deferred","task":"001_PLAN/01_seq/01_deferred.md","reason":"vendor API removed","deferral_reason":"revisit after the rest lands","deferred_by":"Ada Lovelace","actor":"operator"}
+`
+	if err := os.WriteFile(filepath.Join(festDir, progress.ProgressEventsFile), []byte(events), 0o644); err != nil {
+		t.Fatalf("write progress events: %v", err)
+	}
+
+	tree, err := BuildFestivalTree(context.Background(), festivalDir)
+	if err != nil {
+		t.Fatalf("BuildFestivalTree: %v", err)
+	}
+	tasks := tree.Children[0].Children[0].Children
+	if len(tasks) != 2 {
+		t.Fatalf("task nodes = %d, want 2", len(tasks))
+	}
+	want := map[string]bool{"01_deferred.md": true, "02_blocked.md": false}
+	for _, task := range tasks {
+		if task.Status != "blocked" {
+			t.Errorf("%s status = %q, want blocked", task.Name, task.Status)
+		}
+		if task.BlockerDeferred != want[task.Name] {
+			t.Errorf("%s BlockerDeferred = %v, want %v", task.Name, task.BlockerDeferred, want[task.Name])
+		}
 	}
 }
 
