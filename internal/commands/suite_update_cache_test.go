@@ -125,11 +125,13 @@ func TestAmbientNoticeRefreshesStaleCache(t *testing.T) {
 }
 
 // A release server that never answers must not hold the command past the
-// ambient budget, and must not fail it.
+// ambient budget, must not fail it, and is not asked again on the next command.
 func TestAmbientNoticeSlowNetworkStaysWithinBudget(t *testing.T) {
 	h := stubSuiteNotice(t, "v0.3.20")
+	var hits atomic.Int32
 	release := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
 		select {
 		case <-r.Context().Done():
 		case <-release:
@@ -139,19 +141,21 @@ func TestAmbientNoticeSlowNetworkStaysWithinBudget(t *testing.T) {
 	useRealSuiteCheck(t, h, srv)
 	probe := addProbe(t, h)
 
-	start := time.Now()
-	stdout, stderr, err := runFest(t, probe)
-	elapsed := time.Since(start)
-	if err != nil {
-		t.Fatalf("slow network failed the command: %v", err)
+	for run := 1; run <= 2; run++ {
+		start := time.Now()
+		stdout, stderr, err := runFest(t, probe)
+		elapsed := time.Since(start)
+		if err != nil {
+			t.Fatalf("run %d: slow network failed the command: %v", run, err)
+		}
+		if elapsed > updatecheck.AmbientTimeout+time.Second {
+			t.Fatalf("run %d took %v with an unresponsive release server", run, elapsed)
+		}
+		if stdout != "probe output\n" || stderr != "" {
+			t.Fatalf("run %d: stdout %q stderr %q", run, stdout, stderr)
+		}
 	}
-	if elapsed > updatecheck.AmbientTimeout+time.Second {
-		t.Fatalf("command took %v with an unresponsive release server", elapsed)
-	}
-	if stdout != "probe output\n" || stderr != "" {
-		t.Fatalf("stdout %q stderr %q", stdout, stderr)
-	}
-	if _, err := os.Stat(h.cachePath()); !os.IsNotExist(err) {
-		t.Fatalf("failed first fetch left a cache file (stat err %v)", err)
+	if hits.Load() != 1 {
+		t.Fatalf("release server asked %d times in two commands, want 1", hits.Load())
 	}
 }

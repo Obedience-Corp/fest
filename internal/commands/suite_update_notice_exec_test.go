@@ -17,11 +17,11 @@ import (
 const probeNotice = "Festival suite update available (0.3.20 → 0.3.24)"
 
 type suiteHarness struct {
-	env      map[string]string
-	obeyDir  string
-	calls    int
-	version  string
-	opts     updatecheck.Options
+	env       map[string]string
+	obeyDir   string
+	calls     int
+	version   string
+	opts      updatecheck.Options
 	checks    int
 	probeErr  error
 	probeHelp bool
@@ -60,7 +60,8 @@ func stubSuiteNotice(t *testing.T, bundle string) *suiteHarness {
 	suiteHelpShown = false
 	suiteGetenv = func(k string) string { return h.env[k] }
 	suiteObeyDir = func() (string, error) { return h.obeyDir, nil }
-	suiteExecutable = func() string { return "/opt/festival/bin/fest" }
+	exe := filepath.Join(t.TempDir(), "bin", "fest")
+	suiteExecutable = func() string { return exe }
 	suiteFetcher = nil
 	suiteNotify = func(_ context.Context, v string, o updatecheck.Options) *updatecheck.Notice {
 		h.calls++
@@ -133,7 +134,7 @@ func TestAmbientNoticeRunsAfterSuccessfulCommand(t *testing.T) {
 	if h.opts.CachePath != h.cachePath() {
 		t.Fatalf("CachePath = %q, want %q", h.opts.CachePath, h.cachePath())
 	}
-	if h.opts.ExecutablePath != "/opt/festival/bin/fest" {
+	if h.opts.ExecutablePath == "" || h.opts.ExecutablePath != suiteExecutable() {
 		t.Fatalf("ExecutablePath = %q, want the resolved executable", h.opts.ExecutablePath)
 	}
 	if !strings.Contains(stderr, probeNotice) || !strings.Contains(stderr, "run:") || !strings.Contains(stderr, "festival update") {

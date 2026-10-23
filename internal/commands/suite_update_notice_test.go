@@ -46,6 +46,7 @@ func TestSuiteNoticeEligibility(t *testing.T) {
 	}{
 		{[]string{"next"}, false},
 		{[]string{"next", "--no-context"}, false},
+		{[]string{"markers", "next"}, true},
 		{[]string{"help"}, false},
 		{[]string{"completion", "zsh"}, false},
 		{[]string{"shell-init", "zsh"}, false},

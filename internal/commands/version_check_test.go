@@ -124,10 +124,14 @@ func TestVersionCheckReportsUpdateFromCache(t *testing.T) {
 	}
 }
 
-func TestVersionCheckShortIsRejected(t *testing.T) {
-	stubSuiteNotice(t, "v0.3.20")
-	if _, _, err := runFest(t, "version", "--check", "--short"); err == nil {
-		t.Fatal("--check --short was accepted")
+func TestVersionCheckTakesPrecedenceOverShort(t *testing.T) {
+	stubSuiteNotice(t, "")
+	stdout, _, err := runFest(t, "version", "--check", "--short")
+	if err != nil {
+		t.Fatalf("version --check --short: %v", err)
+	}
+	if !strings.Contains(stdout, "festival suite update check skipped") {
+		t.Fatalf("--short won over --check; stdout:\n%s", stdout)
 	}
 }
 

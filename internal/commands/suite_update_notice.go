@@ -16,9 +16,9 @@ import (
 	"golang.org/x/term"
 )
 
-// suiteNoticeExcludedCommands never show the ambient suite notice, nor does
-// anything beneath them. next is the agent loop surface (design D6); version
-// prints its own result with --check.
+// suiteNoticeExcludedCommands are top-level commands that never show the
+// ambient suite notice, nor does anything beneath them. next is the agent
+// loop surface (design D6); version prints its own result with --check.
 var suiteNoticeExcludedCommands = map[string]bool{
 	"completion": true,
 	"gendocs":    true,
@@ -101,12 +101,14 @@ func suiteNoticeEligible(cmd *cobra.Command) bool {
 	if cmd == nil || !cmd.HasParent() {
 		return false
 	}
+	top := cmd
 	for c := cmd; c.HasParent(); c = c.Parent() {
-		if c.Hidden || suiteNoticeExcludedCommands[c.Name()] {
+		if c.Hidden {
 			return false
 		}
+		top = c
 	}
-	return !machineOutputRequested(cmd)
+	return !suiteNoticeExcludedCommands[top.Name()] && !machineOutputRequested(cmd)
 }
 
 func machineOutputRequested(cmd *cobra.Command) bool {
