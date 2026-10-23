@@ -56,7 +56,7 @@ func TestVersionCheckNoHomeSkips(t *testing.T) {
 	if err != nil {
 		t.Fatalf("version --check: %v", err)
 	}
-	if !strings.Contains(stdout, "(festival suite 0.3.20)") || !strings.Contains(stdout, "skipped: cannot determine home directory") {
+	if !strings.Contains(stdout, "(festival suite 0.3.20)") || !strings.Contains(stdout, "skipped: cannot determine an absolute home directory") {
 		t.Fatalf("stdout:\n%s", stdout)
 	}
 	if h.checks != 0 {
@@ -115,8 +115,8 @@ func TestVersionCheckReportsUpdateFromCache(t *testing.T) {
 			t.Errorf("%s = %v, want %v", k, rep[k], v)
 		}
 	}
-	if fv, _ := rep["fest_version"].(string); fv == "" || fv == "0.3.20" || fv == "v0.3.20" {
-		t.Errorf("fest_version = %v, want fest's own version, not the suite's", rep["fest_version"])
+	if cv, _ := rep["component_version"].(string); cv == "" || cv == "0.3.20" || cv == "v0.3.20" {
+		t.Errorf("component_version = %v, want fest's own version, not the suite's", rep["component_version"])
 	}
 	if _, err := time.Parse(time.RFC3339, rep["checked_at"].(string)); err != nil {
 		t.Errorf("checked_at %v is not RFC3339: %v", rep["checked_at"], err)
@@ -144,7 +144,7 @@ func TestVersionCheckStaleCacheReportsFailedRefresh(t *testing.T) {
 	if err != nil {
 		t.Fatalf("version --check: %v", err)
 	}
-	want := "festival suite latest: 0.3.24 (cached " + checked.Format(time.RFC3339) + "; could not reach GitHub to refresh)\n"
+	want := "festival suite latest: 0.3.24 (cached " + checked.Format(time.RFC3339) + "; refresh from GitHub failed)\n"
 	if !strings.Contains(stdout, want) || !strings.Contains(stdout, "up to date\n") {
 		t.Fatalf("stdout missing %q:\n%s", want, stdout)
 	}
@@ -185,30 +185,30 @@ func TestWriteVersionCheck(t *testing.T) {
 	}{
 		{
 			name:   "not a suite build",
-			info:   versionCheckInfo{FestVersion: "v0.9.3", SkipReason: suiteSkipNotRelease},
+			info:   versionCheckInfo{ComponentVersion: "v0.9.3", SkipReason: suiteSkipNotRelease},
 			want:   []string{"fest v0.9.3\n", "festival suite update check skipped: not a festival suite release build\n"},
 			absent: []string{"latest"},
 		},
 		{
 			name:   "check failed",
-			info:   versionCheckInfo{FestVersion: "v0.9.3", CurrentVersion: "0.3.20", Source: updatecheck.Source},
-			want:   []string{"fest v0.9.3 (festival suite 0.3.20)\n", "festival suite latest: unknown (could not reach GitHub)\n"},
+			info:   versionCheckInfo{ComponentVersion: "v0.9.3", CurrentVersion: "0.3.20", Source: updatecheck.Source},
+			want:   []string{"fest v0.9.3 (festival suite 0.3.20)\n", "festival suite latest: unknown (could not refresh from GitHub)\n"},
 			absent: []string{"up to date", "update available"},
 		},
 		{
 			name:   "up to date",
-			info:   versionCheckInfo{FestVersion: "v0.9.3", CurrentVersion: "0.3.24", LatestVersion: "0.3.24"},
+			info:   versionCheckInfo{ComponentVersion: "v0.9.3", CurrentVersion: "0.3.24", LatestVersion: "0.3.24"},
 			want:   []string{"festival suite latest: 0.3.24\n", "up to date\n"},
 			absent: []string{"run:", "see:"},
 		},
 		{
 			name: "ahead of the latest release",
-			info: versionCheckInfo{FestVersion: "v0.9.3", CurrentVersion: "0.3.25", LatestVersion: "0.3.24"},
+			info: versionCheckInfo{ComponentVersion: "v0.9.3", CurrentVersion: "0.3.25", LatestVersion: "0.3.24"},
 			want: []string{"newer than the latest festival suite release\n"},
 		},
 		{
 			name: "update available",
-			info: versionCheckInfo{FestVersion: "v0.9.3", CurrentVersion: "0.3.20", LatestVersion: "0.3.24", UpdateAvailable: true, UpgradeKind: "run", UpgradeCommand: "festival update"},
+			info: versionCheckInfo{ComponentVersion: "v0.9.3", CurrentVersion: "0.3.20", LatestVersion: "0.3.24", UpdateAvailable: true, UpgradeKind: "run", UpgradeCommand: "festival update"},
 			want: []string{"update available\n", "run: festival update\n"},
 		},
 	}

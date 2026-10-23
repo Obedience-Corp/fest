@@ -16,30 +16,29 @@ const versionCheckSchema = "version-check/v1alpha1"
 
 const (
 	suiteSkipNotRelease = "not a festival suite release build"
-	suiteSkipNoHome     = "cannot determine home directory"
+	suiteSkipNoHome     = "cannot determine an absolute home directory"
 )
 
 var suiteCheck = updatecheck.Check
 
-// versionCheckInfo is the `fest version --check --json` contract. It matches
-// `camp version --check --json` key for key, with fest_version in place of
-// camp_version. current_version is the festival suite release this binary
-// shipped in; fest_version is fest's own component version.
+// versionCheckInfo is the `fest version --check --json` contract, shared key
+// for key with `camp version --check --json`. current_version is the festival
+// suite release this binary shipped in; component_version is fest's own.
 type versionCheckInfo struct {
-	SchemaVersion   string `json:"schema_version"`
-	Product         string `json:"product"`
-	FestVersion     string `json:"fest_version"`
-	CurrentVersion  string `json:"current_version"`
-	LatestVersion   string `json:"latest_version,omitempty"`
-	LatestTag       string `json:"latest_tag,omitempty"`
-	Source          string `json:"source"`
-	UpdateAvailable bool   `json:"update_available"`
-	UpgradeKind     string `json:"upgrade_kind,omitempty"`
-	UpgradeCommand  string `json:"upgrade_command,omitempty"`
-	CheckedAt       string `json:"checked_at,omitempty"`
-	FromCache       bool   `json:"from_cache"`
-	RefreshError    string `json:"refresh_error,omitempty"`
-	SkipReason      string `json:"skip_reason,omitempty"`
+	SchemaVersion    string `json:"schema_version"`
+	Product          string `json:"product"`
+	ComponentVersion string `json:"component_version"`
+	CurrentVersion   string `json:"current_version"`
+	LatestVersion    string `json:"latest_version,omitempty"`
+	LatestTag        string `json:"latest_tag,omitempty"`
+	Source           string `json:"source"`
+	UpdateAvailable  bool   `json:"update_available"`
+	UpgradeKind      string `json:"upgrade_kind,omitempty"`
+	UpgradeCommand   string `json:"upgrade_command,omitempty"`
+	CheckedAt        string `json:"checked_at,omitempty"`
+	FromCache        bool   `json:"from_cache"`
+	RefreshError     string `json:"refresh_error,omitempty"`
+	SkipReason       string `json:"skip_reason,omitempty"`
 }
 
 // suiteVersionCheck compares this binary's festival suite release against the
@@ -47,10 +46,10 @@ type versionCheckInfo struct {
 // it reads no cache and makes no request.
 func suiteVersionCheck(ctx context.Context) (versionCheckInfo, error) {
 	info := versionCheckInfo{
-		SchemaVersion: versionCheckSchema,
-		Product:       "fest",
-		FestVersion:   version.Version,
-		Source:        updatecheck.Source,
+		SchemaVersion:    versionCheckSchema,
+		Product:          "fest",
+		ComponentVersion: version.Version,
+		Source:           updatecheck.Source,
 	}
 	bundle := suiteBundle()
 	if bundle == "" {
@@ -105,19 +104,19 @@ func emitVersionCheck(w io.Writer, info versionCheckInfo, jsonOut bool) error {
 
 func writeVersionCheck(w io.Writer, info versionCheckInfo) {
 	if info.CurrentVersion == "" {
-		_, _ = fmt.Fprintf(w, "fest %s\n", info.FestVersion)
+		_, _ = fmt.Fprintf(w, "fest %s\n", info.ComponentVersion)
 	} else {
-		_, _ = fmt.Fprintf(w, "fest %s (festival suite %s)\n", info.FestVersion, info.CurrentVersion)
+		_, _ = fmt.Fprintf(w, "fest %s (festival suite %s)\n", info.ComponentVersion, info.CurrentVersion)
 	}
 	switch {
 	case info.SkipReason != "":
 		_, _ = fmt.Fprintf(w, "festival suite update check skipped: %s\n", info.SkipReason)
 	case info.LatestVersion == "":
-		_, _ = fmt.Fprintln(w, "festival suite latest: unknown (could not reach GitHub)")
+		_, _ = fmt.Fprintln(w, "festival suite latest: unknown (could not refresh from GitHub)")
 	default:
 		latest := info.LatestVersion
 		if info.RefreshError != "" {
-			latest += " (cached " + info.CheckedAt + "; could not reach GitHub to refresh)"
+			latest += " (cached " + info.CheckedAt + "; refresh from GitHub failed)"
 		}
 		_, _ = fmt.Fprintf(w, "festival suite latest: %s\n", latest)
 		switch {
