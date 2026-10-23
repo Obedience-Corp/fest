@@ -465,7 +465,10 @@ func TestRunPolling_StoppedDispatcherSilencesTicks(t *testing.T) {
 
 	cancel()
 	select {
-	case <-done:
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("runPolling() returned error: %v", err)
+		}
 	case <-time.After(time.Second):
 		t.Fatal("runPolling() did not return after context cancellation")
 	}

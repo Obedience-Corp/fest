@@ -186,7 +186,7 @@ func normalizeFormRunError(err error) error {
 func FormFrameStyle(th *huh.Theme) lipgloss.Style {
 	borderColor := th.Focused.Base.GetBorderTopForeground()
 	// Fallback if theme Base no longer carries BorderForeground.
-	if borderColor == nil {
+	if _, unset := borderColor.(lipgloss.NoColor); unset {
 		borderColor = lipgloss.Color("238")
 	}
 	return lipgloss.NewStyle().
