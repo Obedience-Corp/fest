@@ -17,12 +17,15 @@ import (
 	"github.com/Obedience-Corp/fest/internal/config"
 	"github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/frontmatter"
+	"github.com/Obedience-Corp/fest/internal/guidance"
 	"github.com/Obedience-Corp/fest/internal/id"
+	"github.com/Obedience-Corp/fest/internal/lifecycle"
 	"github.com/Obedience-Corp/fest/internal/navigation"
 	"github.com/Obedience-Corp/fest/internal/progress"
 	"github.com/Obedience-Corp/fest/internal/scope"
 	tpl "github.com/Obedience-Corp/fest/internal/template"
 	"github.com/Obedience-Corp/fest/internal/ui"
+	"github.com/Obedience-Corp/fest/internal/validator"
 	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
@@ -513,9 +516,12 @@ func validateReadiness(ctx context.Context, festival *show.FestivalInfo, from, t
 
 	switch to {
 	case "ready":
-		return validatePlannedToReady(festival)
+		if err := validatePlannedToReady(festival); err != nil {
+			return err
+		}
+		return validateFestivalStructure(ctx, festival, to)
 	case "active":
-		return nil // ready → active has no additional requirements
+		return validateFestivalStructure(ctx, festival, to)
 	case "completed":
 		return validateActiveToCompleted(ctx, festival)
 	default:
@@ -531,6 +537,51 @@ func validatePlannedToReady(festival *show.FestivalInfo) error {
 		return fmt.Errorf("FESTIVAL_GOAL.md is missing")
 	}
 	return nil
+}
+
+// maxPromotionIssues caps how many validation errors a blocked promotion lists.
+const maxPromotionIssues = 8
+
+// validateFestivalStructure applies the validation gate fest next enforces
+// before work starts, judged as of the target status. Root-document markers are
+// expected while a festival is in planning, so promoting out of it is the point
+// where they become errors.
+func validateFestivalStructure(ctx context.Context, festival *show.FestivalInfo, to string) error {
+	result, err := validator.FullValidate(ctx, festival.Path)
+	if err != nil {
+		return fmt.Errorf("could not validate festival: %w", err)
+	}
+
+	phasePath, _, err := lifecycle.FindFirstIncompletePhase(ctx, festival.Path)
+	if err != nil {
+		return fmt.Errorf("could not find the next incomplete phase: %w", err)
+	}
+	phaseType, phaseName := "", ""
+	if phasePath != "" {
+		phaseType = guidance.DetectPhaseType(phasePath)
+		phaseName = filepath.Base(phasePath)
+	}
+
+	issues := validator.BlockingIssues(result, phaseType, phaseName, to)
+	if len(issues) == 0 {
+		return nil
+	}
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "festival validation failed with %d error(s):", len(issues))
+	for i, issue := range issues {
+		if i == maxPromotionIssues {
+			fmt.Fprintf(&sb, "\n    … and %d more", len(issues)-maxPromotionIssues)
+			break
+		}
+		path := issue.Path
+		if rel, relErr := filepath.Rel(festival.Path, path); relErr == nil {
+			path = rel
+		}
+		fmt.Fprintf(&sb, "\n    %s: %s", path, issue.Message)
+	}
+	sb.WriteString("\n  Run 'fest validate' for details")
+	return fmt.Errorf("%s", sb.String())
 }
 
 // validateActiveToCompleted checks that a festival is ready to be completed.

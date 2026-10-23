@@ -304,6 +304,9 @@ func writePromoteFestival(t *testing.T, dir, festivalID, status string) {
 	if err := os.WriteFile(filepath.Join(dir, "FESTIVAL_GOAL.md"), []byte("# Goal\nTest goal\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(dir, "FESTIVAL_OVERVIEW.md"), []byte("# Overview\nTest overview\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func setupPromoteCampaign(t *testing.T) (root, festivalsDir string) {
@@ -803,5 +806,66 @@ func TestPromoteCore_NoCommitAbortedWhenPolicyConfigUnreadable(t *testing.T) {
 	oldPath := filepath.Join(festivalsDir, "planning", "alpha-feature-FE0001")
 	if _, statErr := os.Stat(oldPath); statErr != nil {
 		t.Fatalf("festival should remain in planning when policy load fails, stat err: %v", statErr)
+	}
+}
+
+func TestRunPromote_FailedValidationBlocksPromotion(t *testing.T) {
+	for _, tc := range []struct {
+		name, festival, from, to string
+	}{
+		{"planning to ready", "alpha-feature-FE0001", "planning", "ready"},
+		{"ready to active", "beta-feature-FE0002", "ready", "active"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, festivalsDir := setupPromoteCampaign(t)
+			src := filepath.Join(festivalsDir, tc.from, tc.festival)
+			marker := []byte("# Goal\n[REPLACE: state the goal]\n")
+			if err := os.WriteFile(filepath.Join(src, "FESTIVAL_GOAL.md"), marker, 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := runPromote(t.Context(), &promoteOptions{noCommit: true}, tc.festival); err != nil {
+				t.Fatalf("runPromote: %v", err)
+			}
+
+			if _, err := os.Stat(src); err != nil {
+				t.Fatalf("festival must stay in %s when validation fails: %v", tc.from, err)
+			}
+			moved := filepath.Join(festivalsDir, tc.to, tc.festival)
+			if _, err := os.Stat(moved); !os.IsNotExist(err) {
+				t.Fatalf("festival must not appear in %s, stat err=%v", tc.to, err)
+			}
+		})
+	}
+}
+
+func TestRunPromote_ForceSkipsFailedValidation(t *testing.T) {
+	_, festivalsDir := setupPromoteCampaign(t)
+	src := filepath.Join(festivalsDir, "planning", "alpha-feature-FE0001")
+	marker := []byte("# Goal\n[REPLACE: state the goal]\n")
+	if err := os.WriteFile(filepath.Join(src, "FESTIVAL_GOAL.md"), marker, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := runPromote(t.Context(), &promoteOptions{noCommit: true, force: true}, "alpha-feature-FE0001"); err != nil {
+		t.Fatalf("runPromote: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(festivalsDir, "ready", "alpha-feature-FE0001")); err != nil {
+		t.Fatalf("--force must promote past failed validation: %v", err)
+	}
+}
+
+func TestValidateFestivalStructure_ReportsCancellation(t *testing.T) {
+	_, festivalsDir := setupPromoteCampaign(t)
+	festival := &show.FestivalInfo{
+		Name: "alpha-feature-FE0001",
+		Path: filepath.Join(festivalsDir, "planning", "alpha-feature-FE0001"),
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	if err := validateFestivalStructure(ctx, festival, "ready"); err == nil {
+		t.Fatal("expected an error for a canceled context, got nil")
 	}
 }
