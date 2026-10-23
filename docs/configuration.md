@@ -173,7 +173,7 @@ The latest release comes from github.com/Obedience-Corp/festival and is cached
 for 24 hours in `~/.obey/update-check/suite.json`, which camp shares. Each
 release is announced once. The notice never appears on stdout, when stdout or
 stderr is not a terminal (so `$(fest go --print)` and `fgo` stay quiet), in CI,
-inside an agent session, with `--json` or `--agent`, or for `fest next`,
+inside an agent session, with `--json`, `--agent`, or `--print`, or for `fest next`,
 completion, help, and `fest version`. A fest built outside a
 Festival release (`go install`, `just build`) never checks. Run
 `fest version --check` to ask directly; fest never updates itself.

@@ -30,7 +30,7 @@ var suiteNoticeExcludedCommands = map[string]bool{
 
 // suiteMachineOutputFlags are flags whose presence means stdout is consumed
 // by a program, so the invocation is not a human surface.
-var suiteMachineOutputFlags = []string{"json", "agent", "mermaid"}
+var suiteMachineOutputFlags = []string{"json", "agent", "mermaid", "print"}
 
 var suiteMachineFormats = map[string]bool{
 	"json":   true,

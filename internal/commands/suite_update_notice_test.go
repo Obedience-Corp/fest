@@ -56,6 +56,8 @@ func TestSuiteNoticeEligibility(t *testing.T) {
 		{[]string{"status", "--json"}, false},
 		{[]string{"status", "list", "--json"}, false},
 		{[]string{"go", "--json"}, false},
+		{[]string{"go", "--print"}, false},
+		{[]string{"go", "shortcut", "x", "--print"}, false},
 		{[]string{"go", "completions"}, false},
 		{[]string{"show", "pick"}, false},
 		{[]string{"show", "pick", "--print-path"}, false},
