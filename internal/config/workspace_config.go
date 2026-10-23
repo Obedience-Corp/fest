@@ -90,16 +90,9 @@ func SaveWorkspaceConfig(festivalsRoot string, cfg *WorkspaceConfig) error {
 
 	configPath := filepath.Join(dotFestivalPath, WorkspaceConfigFileName)
 
-	// Marshal to YAML
-	data, err := yamlutil.Marshal(cfg)
+	data, err := workspaceConfigBytes(cfg)
 	if err != nil {
-		return errors.Wrap(err, "marshaling workspace config")
-	}
-
-	// Surface the hooks option as a discoverable commented block when none is
-	// configured, so users can opt into the approval judge without reading docs.
-	if cfg.Hooks.IsZero() {
-		data = append(data, commentedHooksPlaceholder()...)
+		return err
 	}
 
 	// Write file
@@ -108,6 +101,21 @@ func SaveWorkspaceConfig(festivalsRoot string, cfg *WorkspaceConfig) error {
 	}
 
 	return nil
+}
+
+// workspaceConfigBytes renders cfg as the bytes of .festival/config.yaml.
+func workspaceConfigBytes(cfg *WorkspaceConfig) ([]byte, error) {
+	data, err := yamlutil.Marshal(cfg)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshaling workspace config")
+	}
+
+	// Surface the hooks option as a discoverable commented block when none is
+	// configured, so users can opt into the approval judge without reading docs.
+	if cfg.Hooks.IsZero() {
+		data = append(data, commentedHooksPlaceholder()...)
+	}
+	return data, nil
 }
 
 // commentedHooksPlaceholder returns a commented-out hooks block appended to
@@ -161,20 +169,54 @@ func applyWorkspaceDefaults(cfg *WorkspaceConfig) {
 // a file was created and never touches an existing one, which is user-owned.
 // 'fest init' and 'fest system update' both call it, so a workspace initialized
 // before the scaffold existed gets the file on its next update.
+//
+// Any entry at the path counts as present, including a symlink whose target
+// is missing: os.Stat would report that link as absent and a plain write would
+// then create its target, possibly outside the workspace. The file is created
+// with O_EXCL, which fails rather than following a link or overwriting
+// anything that appears between the check and the write.
 func EnsureWorkspaceConfig(festivalsRoot string) (bool, error) {
-	if WorkspaceConfigExists(festivalsRoot) {
+	dotFestivalPath := filepath.Join(festivalsRoot, DotFestivalDir)
+	configPath := filepath.Join(dotFestivalPath, WorkspaceConfigFileName)
+
+	if _, err := os.Lstat(configPath); err == nil {
 		return false, nil
+	} else if !os.IsNotExist(err) {
+		return false, errors.IO("checking workspace config", err).WithField("path", configPath)
 	}
-	if err := SaveWorkspaceConfig(festivalsRoot, DefaultWorkspaceConfig()); err != nil {
+
+	if err := os.MkdirAll(dotFestivalPath, dirPermissions); err != nil {
+		return false, errors.IO("creating .festival directory", err).WithField("path", dotFestivalPath)
+	}
+
+	data, err := workspaceConfigBytes(DefaultWorkspaceConfig())
+	if err != nil {
 		return false, err
+	}
+
+	f, err := os.OpenFile(configPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, filePermissions)
+	if err != nil {
+		if os.IsExist(err) {
+			return false, nil
+		}
+		return false, errors.IO("creating workspace config", err).WithField("path", configPath)
+	}
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		return false, errors.IO("writing workspace config", err).WithField("path", configPath)
+	}
+	if err := f.Close(); err != nil {
+		return false, errors.IO("closing workspace config", err).WithField("path", configPath)
 	}
 	return true, nil
 }
 
-// WorkspaceConfigExists checks if a config.yaml file exists in .festival/
+// WorkspaceConfigExists reports whether anything occupies the config.yaml path
+// in .festival/. It does not follow symlinks, so a dangling link counts as
+// present: it is the operator's entry, and EnsureWorkspaceConfig leaves it alone.
 func WorkspaceConfigExists(festivalsRoot string) bool {
 	configPath := filepath.Join(festivalsRoot, DotFestivalDir, WorkspaceConfigFileName)
-	_, err := os.Stat(configPath)
+	_, err := os.Lstat(configPath)
 	return err == nil
 }
 
