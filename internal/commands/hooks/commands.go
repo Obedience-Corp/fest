@@ -5,13 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
+	"github.com/Obedience-Corp/fest/internal/config"
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 	"github.com/Obedience-Corp/fest/internal/hooks"
 	"github.com/Obedience-Corp/fest/internal/scope"
+	"github.com/Obedience-Corp/fest/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -92,8 +95,24 @@ func runHooksList(ctx context.Context, jsonOutput bool) error {
 		enc.SetIndent("", "  ")
 		return enc.Encode(view)
 	}
-	printHooksListText(view)
+	printHooksListText(view, missingWorkspaceConfigHint(ctx, festivalPath))
 	return nil
+}
+
+// missingWorkspaceConfigHint returns one line naming the absent
+// festivals/.festival/config.yaml and the commands that create it, or "" when
+// the file exists or the workspace cannot be resolved. The text listing reads
+// the hint; the JSON view is a pinned contract and does not carry it.
+func missingWorkspaceConfigHint(ctx context.Context, festivalPath string) string {
+	ws, err := workspace.FindWorkspace(ctx, festivalPath)
+	if err != nil || ws.FestivalsPath == "" || config.WorkspaceConfigExists(ws.FestivalsPath) {
+		return ""
+	}
+	return workspaceConfigHintLine(filepath.Join(filepath.Base(ws.FestivalsPath), config.DotFestivalDir, config.WorkspaceConfigFileName))
+}
+
+func workspaceConfigHintLine(configPath string) string {
+	return fmt.Sprintf("No %s yet: 'fest system update' or 'fest init' creates it with this block commented out.", configPath)
 }
 
 func resolveFestivalPath(ctx context.Context) (string, error) {
@@ -154,7 +173,7 @@ func buildHooksListView(eff *hooks.Effective) hooksListJSON {
 	return view
 }
 
-func printHooksListText(view hooksListJSON) {
+func printHooksListText(view hooksListJSON, missingConfigHint string) {
 	fmt.Printf("hooks.enabled: %v\n", view.Enabled)
 	if len(view.Levels) > 0 {
 		keys := make([]string, 0, len(view.Levels))
@@ -172,6 +191,9 @@ func printHooksListText(view hooksListJSON) {
 		fmt.Println("No hooks configured. The most useful one is the approval judge, which lets agents pass blocking checkpoints on evidence.")
 		for _, line := range hooks.JudgeSetupLines() {
 			fmt.Println("  " + line)
+		}
+		if missingConfigHint != "" {
+			fmt.Println("  " + missingConfigHint)
 		}
 		return
 	}
