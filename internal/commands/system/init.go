@@ -231,10 +231,8 @@ func RunInit(ctx context.Context, targetPath string, opts *InitOptions) error {
 	// Scaffold a user-owned .festival/config.yaml with a commented hooks example
 	// if none exists. Written after checksums so it stays user-owned rather than
 	// tracked as a synced methodology resource.
-	if !config.WorkspaceConfigExists(festivalPath) {
-		if err := config.SaveWorkspaceConfig(festivalPath, config.DefaultWorkspaceConfig()); err != nil {
-			display.Warning("Could not write workspace config: %v", err)
-		}
+	if _, err := config.EnsureWorkspaceConfig(festivalPath); err != nil {
+		display.Warning("Could not write workspace config: %v", err)
 	}
 
 	// Auto-register the new festivals directory as workspace

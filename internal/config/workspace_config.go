@@ -156,6 +156,21 @@ func applyWorkspaceDefaults(cfg *WorkspaceConfig) {
 	// Agent config fields default to false (zero value) which is correct
 }
 
+// EnsureWorkspaceConfig writes the default .festival/config.yaml, with the
+// commented hooks placeholder, when the workspace has none. It reports whether
+// a file was created and never touches an existing one, which is user-owned.
+// 'fest init' and 'fest system update' both call it, so a workspace initialized
+// before the scaffold existed gets the file on its next update.
+func EnsureWorkspaceConfig(festivalsRoot string) (bool, error) {
+	if WorkspaceConfigExists(festivalsRoot) {
+		return false, nil
+	}
+	if err := SaveWorkspaceConfig(festivalsRoot, DefaultWorkspaceConfig()); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 // WorkspaceConfigExists checks if a config.yaml file exists in .festival/
 func WorkspaceConfigExists(festivalsRoot string) bool {
 	configPath := filepath.Join(festivalsRoot, DotFestivalDir, WorkspaceConfigFileName)

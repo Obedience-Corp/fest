@@ -160,6 +160,9 @@ func runUpdate(ctx context.Context, targetPath string, opts *updateOptions) erro
 	if opts.dryRun {
 		display.Warning("\nDRY RUN - No files will be modified")
 		displayChanges(display, changes)
+		if !config.WorkspaceConfigExists(festivalsRoot) {
+			display.Info("\nWould create %s (user-owned, with the hooks example commented out)", filepath.Join(config.DotFestivalDir, config.WorkspaceConfigFileName))
+		}
 		return nil
 	}
 
@@ -271,11 +274,24 @@ func runUpdate(ctx context.Context, targetPath string, opts *updateOptions) erro
 		}
 	}
 
+	// Scaffold the user-owned .festival/config.yaml when the workspace predates
+	// it. The file is excluded from checksums (fileops.shouldSkipFile), so it is
+	// neither tracked as methodology nor reported as orphaned on later runs.
+	configCreated, err := config.EnsureWorkspaceConfig(festivalsRoot)
+	if err != nil {
+		display.Warning("Could not write workspace config: %v", err)
+	} else if configCreated {
+		display.Info("\nCreated %s (user-owned, with the hooks example commented out)", filepath.Join(config.DotFestivalDir, config.WorkspaceConfigFileName))
+	}
+
 	// Show summary
 	display.Success("\nMethodology update complete:")
 	display.Info("  Updated: %d files", len(updatedFiles))
 	display.Info("  Deleted: %d files", len(deletedFiles))
 	display.Info("  Skipped: %d files", len(skippedFiles))
+	if configCreated {
+		display.Info("  Created: %s", config.WorkspaceConfigFileName)
+	}
 
 	return nil
 }
