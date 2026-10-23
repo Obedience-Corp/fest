@@ -12,6 +12,7 @@ import (
 // it changed, so later tests in the package see default flag state.
 func setFlagsFor(t *testing.T, args ...string) *cobra.Command {
 	t.Helper()
+	rootCmd.InitDefaultHelpCmd()
 	cmd, rest, err := rootCmd.Find(args)
 	if err != nil {
 		t.Fatalf("Find(%v): %v", args, err)
@@ -57,7 +58,8 @@ func TestSuiteNoticeEligibility(t *testing.T) {
 		{[]string{"status", "list", "--json"}, false},
 		{[]string{"go", "--json"}, false},
 		{[]string{"go", "--print"}, false},
-		{[]string{"go", "shortcut", "x", "--print"}, false},
+		{[]string{"go", "list", "--print"}, false},
+		{[]string{"go", "list"}, true},
 		{[]string{"go", "completions"}, false},
 		{[]string{"show", "pick"}, false},
 		{[]string{"show", "pick", "--print-path"}, false},
