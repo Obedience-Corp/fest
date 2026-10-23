@@ -191,8 +191,11 @@ func TestValidateMarkerLevelsFollowFestivalStatus(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			path := initFreshFestival(t, tc, tt.camp, "status-thing")
 			if tt.promote {
-				output, exit := runFestExit(t, tc, path, "promote", "--no-commit")
-				require.Zero(t, exit, "promote to ready should succeed: %s", output)
+				// Plain promote refuses a festival that fails validation (see
+				// TestPromoteRefusesFailedValidation); --force reaches the ready
+				// state this case needs to inspect.
+				output, exit := runFestExit(t, tc, path, "promote", "--no-commit", "--force")
+				require.Zero(t, exit, "forced promote to ready should succeed: %s", output)
 				path = strings.Replace(path, "/planning/", "/ready/", 1)
 			}
 
@@ -293,4 +296,18 @@ func TestNextNarrowsToPhasesOnceTheDocumentsAreWritten(t *testing.T) {
 	require.Zero(t, exit, "fest next after a phase exists: %s", stepOutput)
 	require.NotContains(t, stepOutput, "FESTIVAL PLANNING",
 		"once a phase exists the planning step must stop firing")
+}
+
+func TestPromoteRefusesFailedValidation(t *testing.T) {
+	tc := GetSharedContainer(t)
+	path := initFreshFestival(t, tc, "/promote-validation-camp", "gated-thing")
+
+	output, _ := runFestExit(t, tc, path, "promote", "--no-commit")
+	require.Contains(t, output, "Promotion blocked", "promote must refuse a festival with failing validation: %s", output)
+	require.Contains(t, output, "unfilled template markers", "the refusal must name what failed: %s", output)
+	require.Contains(t, output, "--force", "the refusal must name the override: %s", output)
+
+	_, err := tc.runCommand([]string{"test", "-d", path})
+	require.NoError(t, err, "the festival must stay at its planning path %s", path)
+	require.Contains(t, path, "/planning/")
 }
