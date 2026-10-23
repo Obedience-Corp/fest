@@ -77,7 +77,7 @@ To list festivals by status, use 'fest list' (e.g. 'fest list active',
 	cmd.Flags().BoolVar(&opts.summary, "summary", false, "show aggregate summary instead of tree view")
 	cmd.Flags().BoolVar(&opts.watch, "watch", false, "continuously refresh display")
 	cmd.Flags().BoolVar(&opts.goals, "goals", false, "show goals for phases and sequences")
-	cmd.Flags().BoolVar(&opts.showFeedback, "show-feedback", false, "show blocked-step feedback")
+	cmd.Flags().BoolVar(&opts.showFeedback, "show-feedback", false, "show blocked-task and step feedback")
 	cmd.Flags().BoolVar(&opts.collapsed, "collapsed", false, "show collapsed tree with counters only")
 	cmd.Flags().BoolVar(&opts.inProgress, "inprogress", false, "expand only in-progress phases and sequences")
 	cmd.Flags().BoolVar(&opts.roadmap, "roadmap", false, "show full execution roadmap with task statuses")

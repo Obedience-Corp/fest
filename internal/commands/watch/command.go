@@ -89,7 +89,7 @@ It does not change your shell directory.`,
 	}
 
 	cmd.Flags().BoolVar(&opts.goals, "goals", false, "show goals for phases and sequences")
-	cmd.Flags().BoolVar(&opts.showFeedback, "show-feedback", false, "show blocked-step feedback")
+	cmd.Flags().BoolVar(&opts.showFeedback, "show-feedback", false, "show blocked-task and step feedback")
 	cmd.Flags().BoolVar(&opts.collapsed, "collapsed", false, "show collapsed tree with counters only")
 	cmd.Flags().BoolVar(&opts.summary, "summary", false, "show aggregate summary instead of tree view")
 
