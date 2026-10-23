@@ -26,7 +26,7 @@ type DisplayNode struct {
 	NodeType       string         `json:"node_type"`                 // "festival", "phase", "sequence", "step", "task"
 	Children       []*DisplayNode `json:"children,omitempty"`        // Child phases, sequences, steps, or tasks
 	IsNextPending  bool           `json:"is_next_pending,omitempty"` // First node at this level with workable items — expanded by --inprogress
-	Feedback       string         `json:"feedback,omitempty"`        // Concise actionable feedback for blocked steps
+	Feedback       string         `json:"feedback,omitempty"`        // Concise actionable feedback for blocked tasks or steps
 	JudgeStatus    string         `json:"judge_status,omitempty"`    // waiting/approved/rejected/failed
 	WaitingOnJudge bool           `json:"waiting_on_judge,omitempty"`
 
@@ -48,7 +48,7 @@ type DisplayNode struct {
 // TreeOptions configures how the tree is rendered.
 type TreeOptions struct {
 	ShowGoals    bool // Show primary goals (default: true)
-	ShowFeedback bool // Show blocked-step feedback
+	ShowFeedback bool // Show blocked-task and step feedback
 	Collapsed    bool // Show only phases with counters, no children
 	InProgress   bool // Expand only in_progress phases/sequences, collapse rest
 	Width        int  // Terminal width for alignment (0 = auto)
@@ -325,9 +325,13 @@ func buildSequenceNode(seqDir string, store *progress.Store, festivalRoot string
 		node.Stats.Total++
 		status := progress.StatusPending
 		deferred := false
+		feedback := ""
 		if record, ok := progress.ResolveTaskProgress(store, festivalRoot, taskPath); ok && record != nil {
 			status = record.Status
 			deferred = record.Status == progress.StatusBlocked && record.BlockerDeferred
+			if record.Status == progress.StatusBlocked {
+				feedback = wf.DisplayFeedback(record.BlockerMessage)
+			}
 		}
 
 		displayStatus := TaskDisplayStatus(status)
@@ -348,6 +352,7 @@ func buildSequenceNode(seqDir string, store *progress.Store, festivalRoot string
 			NodeType:        "task",
 			Status:          displayStatus,
 			BlockerDeferred: deferred,
+			Feedback:        feedback,
 			TaskPath:        taskPath,
 			Stats: StatusCounts{
 				Total:      1,
@@ -501,7 +506,8 @@ func renderPhaseNode(sb *strings.Builder, node *DisplayNode, prefix string, isLa
 	sb.WriteString(ui.Dim(connector))
 	sb.WriteString(phaseStyle.Render(node.Name))
 	sb.WriteString("  ")
-	collapsePhase := opts.Collapsed || (opts.InProgress && !node.IsNextPending)
+	blockedGate := hasBlockedGate(node)
+	collapsePhase := opts.Collapsed || (opts.InProgress && !expandInProgress(node) && !blockedGate)
 	if collapsePhase {
 		sb.WriteString(formatCollapsedPhaseStatus(node))
 	} else {
@@ -518,10 +524,7 @@ func renderPhaseNode(sb *strings.Builder, node *DisplayNode, prefix string, isLa
 	}
 
 	// Render children: collapsed hides all, inprogress hides non-active
-	showChildren := !opts.Collapsed
-	if opts.InProgress && !node.IsNextPending {
-		showChildren = false
-	}
+	showChildren := !collapsePhase
 	if showChildren {
 		newPrefix := prefix + childPrefix
 		for i, child := range node.Children {
@@ -529,10 +532,31 @@ func renderPhaseNode(sb *strings.Builder, node *DisplayNode, prefix string, isLa
 			if child.NodeType == "step" {
 				renderStepNode(sb, child, newPrefix, childIsLast, opts)
 			} else {
-				renderSequenceNode(sb, child, newPrefix, childIsLast, opts)
+				sequenceOpts := opts
+				// A rejected gate can still depend on deferred tasks. Keep
+				// those tasks visible so the gate does not hide its blockers.
+				if blockedGate && child.Stats.Blocked > 0 {
+					sequenceOpts.InProgress = false
+				}
+				renderSequenceNode(sb, child, newPrefix, childIsLast, sequenceOpts)
 			}
 		}
 	}
+}
+
+// The next-up path is not the only active work: an earlier blocked phase must
+// not hide a task that is already running elsewhere in the festival.
+func expandInProgress(node *DisplayNode) bool {
+	return node.IsNextPending || node.Stats.InProgress > 0
+}
+
+func hasBlockedGate(node *DisplayNode) bool {
+	for _, child := range node.Children {
+		if strings.HasPrefix(child.StateKey, "gate:") && child.Status == "blocked" {
+			return true
+		}
+	}
+	return false
 }
 
 func renderSequenceNode(sb *strings.Builder, node *DisplayNode, prefix string, isLast bool, opts TreeOptions) {
@@ -562,7 +586,7 @@ func renderSequenceNode(sb *strings.Builder, node *DisplayNode, prefix string, i
 
 	// Render task children: collapsed hides all, inprogress hides non-active
 	showTasks := !opts.Collapsed
-	if opts.InProgress && !node.IsNextPending {
+	if opts.InProgress && !expandInProgress(node) {
 		showTasks = false
 	}
 	if showTasks {
@@ -618,22 +642,34 @@ func renderStepNode(sb *strings.Builder, node *DisplayNode, prefix string, isLas
 	}
 }
 
-func renderTaskNode(sb *strings.Builder, node *DisplayNode, prefix string, isLast bool, _ TreeOptions) {
+func renderTaskNode(sb *strings.Builder, node *DisplayNode, prefix string, isLast bool, opts TreeOptions) {
 	connector := "├── "
+	childPrefix := "│   "
 	if isLast {
 		connector = "└── "
+		childPrefix = "    "
 	}
 
 	sb.WriteString(prefix)
 	sb.WriteString(ui.Dim(connector))
 	sb.WriteString(formatTaskStatus(node))
 	sb.WriteString("\n")
+	if opts.ShowFeedback && node.Status == "blocked" && node.Feedback != "" {
+		sb.WriteString(prefix)
+		sb.WriteString(ui.Dim(childPrefix))
+		sb.WriteString(ui.Error("Feedback: ") + node.Feedback)
+		sb.WriteString("\n")
+	}
 }
 
 func formatTaskStatus(node *DisplayNode) string {
 	icon := ui.StateIcon(node.Status)
 	taskStyle := lipgloss.NewStyle().Foreground(ui.TaskColor)
-	return icon + " " + taskStyle.Render(node.Name)
+	label := icon + " " + taskStyle.Render(node.Name)
+	if node.Status == "blocked" && node.BlockerDeferred {
+		label += ui.Dim(" (deferred)")
+	}
+	return label
 }
 
 func formatStepStatus(node *DisplayNode) string {

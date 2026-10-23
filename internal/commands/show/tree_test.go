@@ -507,10 +507,11 @@ func inProgressTask(name, status string, deferred bool) *DisplayNode {
 		Status:          status,
 		BlockerDeferred: deferred,
 		Stats: StatusCounts{
-			Total:     1,
-			Completed: boolToInt(status == "completed"),
-			Pending:   boolToInt(status == "pending"),
-			Blocked:   boolToInt(status == "blocked"),
+			Total:      1,
+			Completed:  boolToInt(status == "completed"),
+			InProgress: boolToInt(status == "in_progress"),
+			Pending:    boolToInt(status == "pending"),
+			Blocked:    boolToInt(status == "blocked"),
 		},
 	}
 }
@@ -705,6 +706,96 @@ func TestBuildFestivalTree_CarriesBlockerDeferredFromProgressEvents(t *testing.T
 		if task.BlockerDeferred != want[task.Name] {
 			t.Errorf("%s BlockerDeferred = %v, want %v", task.Name, task.BlockerDeferred, want[task.Name])
 		}
+		wantFeedback := "waiting on review"
+		if task.Name == "01_deferred.md" {
+			wantFeedback = "vendor API removed"
+		}
+		if task.Feedback != wantFeedback {
+			t.Errorf("%s Feedback = %q, want %q", task.Name, task.Feedback, wantFeedback)
+		}
+	}
+}
+
+func TestRenderTree_InProgressRejectedGateShowsDeferredTasks(t *testing.T) {
+	first := inProgressTask("01_native_artifacts.md", "blocked", true)
+	first.Feedback = "Windows native execution is still required"
+	second := inProgressTask("02_catalog_entry.md", "blocked", true)
+	second.Feedback = "Catalog registration needs published producer bytes"
+	gate := buildStepNode(shared.WorkflowStepView{
+		Number: 1, Name: "OUTCOME", Status: wf.StepStatusBlocked,
+		Feedback: "The required public artifacts and catalog entry are missing",
+		Judge:    &wf.JudgeState{Status: wf.JudgeRejected},
+	})
+	gate.Name = "Gate 1: OUTCOME"
+	gate.StateKey = "gate:006_DISTRIBUTION"
+	gate.Stats.Blocked = 1
+	tree := inProgressParent("release-festival", "festival",
+		inProgressParent("006_DISTRIBUTION", "phase",
+			inProgressParent("01_producer", "sequence", first),
+			inProgressParent("02_catalog", "sequence", second), gate))
+	originalStats := tree.Stats
+	opts := DefaultTreeOptions()
+	opts.InProgress = true
+	out := RenderTree(tree, opts)
+	for _, want := range []string{first.Name + " (deferred)", second.Name + " (deferred)", "Judge: rejected"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("watch must expose rejected gate's deferred tasks; missing %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(out, "Feedback:") {
+		t.Fatalf("feedback must remain opt-in:\n%s", out)
+	}
+	if !gate.IsNextPending || first.IsNextPending || second.IsNextPending {
+		t.Fatal("exposing deferred tasks must not change the next-up path")
+	}
+	opts.ShowFeedback = true
+	out = RenderTree(tree, opts)
+	for _, want := range []string{first.Feedback, second.Feedback, gate.Feedback} {
+		if !strings.Contains(out, "Feedback: "+want) {
+			t.Errorf("--show-feedback must explain both task blockers and rejection; missing %q:\n%s", want, out)
+		}
+	}
+	if tree.Stats != originalStats || first.Status != "blocked" || second.Status != "blocked" || gate.Status != "blocked" {
+		t.Fatal("displaying remediation must preserve counts and blocked states")
+	}
+	opts.Collapsed = true
+	out = RenderTree(tree, opts)
+	if strings.Contains(out, first.Name) || strings.Contains(out, "Gate 1:") {
+		t.Fatalf("explicit --collapsed must still hide children:\n%s", out)
+	}
+}
+
+func TestRenderTree_InProgressShowsRunningWorkBeyondNextPath(t *testing.T) {
+	for _, laterPhase := range []bool{false, true} {
+		name := "sibling sequence"
+		if laterPhase {
+			name = "later phase"
+		}
+		t.Run(name, func(t *testing.T) {
+			blocked := inProgressParent("01_blocked", "sequence",
+				inProgressTask("01_waiting.md", "blocked", false))
+			active := inProgressParent("02_active", "sequence",
+				inProgressTask("01_running.md", "in_progress", false),
+				inProgressTask("02_external.md", "blocked", true))
+			phase := inProgressParent("001_IMPLEMENT", "phase", blocked)
+			var tree *DisplayNode
+			if laterPhase {
+				tree = inProgressParent("release-festival", "festival", phase,
+					inProgressParent("002_RELEASE", "phase", active))
+			} else {
+				tree = inProgressParent("release-festival", "festival",
+					inProgressParent("001_IMPLEMENT", "phase", blocked, active))
+			}
+			opts := DefaultTreeOptions()
+			opts.InProgress = true
+			out := RenderTree(tree, opts)
+			if !strings.Contains(out, "01_running.md") || !strings.Contains(out, "01_waiting.md") {
+				t.Fatalf("watch must show running work alongside the blocking next-up path:\n%s", out)
+			}
+			if active.Status != "blocked" || active.Children[0].Status != "in_progress" {
+				t.Fatal("mixed blocked/running sequence must preserve actual task states")
+			}
+		})
 	}
 }
 
