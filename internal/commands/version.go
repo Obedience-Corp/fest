@@ -14,36 +14,55 @@ var versionCmd = &cobra.Command{
 	Short: "Show version information",
 	Long: `Show fest version, build information, and runtime details.
 
+With --check, compare this build's Festival suite release against the latest
+stable release on github.com/Obedience-Corp/festival and print how to upgrade.
+The result is cached for 24 hours in ~/.obey/update-check/suite.json, shared
+with camp. fest also mentions a newer release on stderr after human commands
+such as fest status and fest go, once per release; set
+FESTIVAL_NO_UPDATE_CHECK=1 to turn that off. fest never updates itself.
+
 Examples:
-  fest version           Show full version info
-  fest version --short   Show only version number
-  fest version --json    Output as JSON`,
+  fest version                  Show full version info
+  fest version --short          Show only version number
+  fest version --json           Output as JSON
+  fest version --check          Check for a newer Festival suite release
+  fest version --check --json   Output the check result as JSON`,
 	Annotations: map[string]string{
 		"scope": "global",
 	},
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		short, _ := cmd.Flags().GetBool("short")
 		jsonOut, _ := cmd.Flags().GetBool("json")
+		check, _ := cmd.Flags().GetBool("check")
 
 		info := version.Get()
 		out := cmd.OutOrStdout()
 
+		if check {
+			rep, err := suiteVersionCheck(cmd.Context())
+			if err != nil {
+				return err
+			}
+			return emitVersionCheck(out, rep, jsonOut)
+		}
+
 		if short {
 			_, _ = fmt.Fprintln(out, info.Version)
-			return
+			return nil
 		}
 
 		if jsonOut {
 			encoded, err := json.MarshalIndent(info, "", "  ")
 			if err != nil {
 				_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Error: %v\n", err)
-				return
+				return nil
 			}
 			_, _ = fmt.Fprintln(out, string(encoded))
-			return
+			return nil
 		}
 
 		writeVersionInfo(out, info)
+		return nil
 	},
 }
 
@@ -64,6 +83,8 @@ func writeVersionInfo(w io.Writer, info version.Info) {
 func init() {
 	versionCmd.Flags().BoolP("short", "s", false, "show only version number")
 	versionCmd.Flags().Bool("json", false, "output as JSON")
+	versionCmd.Flags().Bool("check", false, "check for a newer Festival suite release")
+	versionCmd.MarkFlagsMutuallyExclusive("check", "short")
 	rootCmd.AddCommand(versionCmd)
 	versionCmd.GroupID = "system"
 }

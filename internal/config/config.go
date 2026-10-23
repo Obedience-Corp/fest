@@ -92,18 +92,31 @@ type TUI struct {
 	Theme          string `json:"theme"`            // Color theme: adaptive, light, dark, high-contrast
 }
 
+// ObeyDirName is the per-user directory shared by fest, camp, and obey.
+const ObeyDirName = ".obey"
+
+// ObeyDir returns the per-user ~/.obey directory. It never falls back to a
+// relative path, so callers that cannot resolve a home directory can skip work.
+func ObeyDir() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(home, ObeyDirName), nil
+}
+
 // ConfigDir returns the configuration directory path
 func ConfigDir() string {
 	if dir := os.Getenv("FEST_CONFIG_DIR"); dir != "" {
 		return dir
 	}
 
-	home, err := os.UserHomeDir()
+	obeyDir, err := ObeyDir()
 	if err != nil {
 		return ".fest"
 	}
 
-	return filepath.Join(home, ".obey", "fest")
+	return filepath.Join(obeyDir, "fest")
 }
 
 // Load loads configuration from file
