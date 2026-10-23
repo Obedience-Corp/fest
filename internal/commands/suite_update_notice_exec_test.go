@@ -180,6 +180,19 @@ func TestAmbientNoticeSkipsHelpPrintedByRunE(t *testing.T) {
 	}
 }
 
+func TestAmbientNoticePanicNeverFailsTheCommand(t *testing.T) {
+	h := stubSuiteNotice(t, "v0.3.20")
+	suiteNotify = func(context.Context, string, updatecheck.Options) *updatecheck.Notice {
+		panic("checker bug")
+	}
+	probe := addProbe(t, h)
+
+	stdout, stderr, err := runFest(t, probe)
+	if err != nil || stdout != "probe output\n" || stderr != "" {
+		t.Fatalf("panicking checker changed the command: err %v stdout %q stderr %q", err, stdout, stderr)
+	}
+}
+
 func TestAmbientNoticeEmptyBundleDoesNothing(t *testing.T) {
 	h := stubSuiteNotice(t, "")
 	probe := addProbe(t, h)

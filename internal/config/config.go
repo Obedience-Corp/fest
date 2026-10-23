@@ -95,8 +95,8 @@ type TUI struct {
 // ObeyDirName is the per-user directory shared by fest, camp, and obey.
 const ObeyDirName = ".obey"
 
-// ObeyDir returns the per-user ~/.obey directory. It never falls back to a
-// relative path, so callers that cannot resolve a home directory can skip work.
+// ObeyDir returns the per-user ~/.obey directory. Unlike ConfigDir it has no
+// fallback: with no home directory it returns an error, so callers can skip work.
 func ObeyDir() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {

@@ -162,7 +162,7 @@ fest respects the following environment variables:
 ## Festival Suite Update Notice
 
 A fest binary from a Festival release mentions a newer suite release once,
-on stderr, after a human command such as `fest status` or `fest go`:
+on stderr, after a human command such as `fest status` or `fest list`:
 
 ```text
 ⚠ notice: Festival suite update available (0.3.20 → 0.3.24)

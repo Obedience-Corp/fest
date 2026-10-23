@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"sync/atomic"
@@ -124,6 +126,45 @@ func TestVersionCheckReportsUpdateFromCache(t *testing.T) {
 	}
 }
 
+// An old cache and a failed refresh must say the answer is stale rather than
+// claim the build is current.
+func TestVersionCheckStaleCacheReportsFailedRefresh(t *testing.T) {
+	h := stubSuiteNotice(t, "v0.3.24")
+	var hits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	t.Cleanup(srv.Close)
+	useRealSuiteCheck(t, h, srv)
+	checked := time.Now().Add(-72 * time.Hour).UTC().Truncate(time.Second)
+	seedSuiteCache(t, h.cachePath(), "0.3.24", checked)
+
+	stdout, _, err := runFest(t, "version", "--check")
+	if err != nil {
+		t.Fatalf("version --check: %v", err)
+	}
+	want := "festival suite latest: 0.3.24 (cached " + checked.Format(time.RFC3339) + "; could not reach GitHub to refresh)\n"
+	if !strings.Contains(stdout, want) || !strings.Contains(stdout, "up to date\n") {
+		t.Fatalf("stdout missing %q:\n%s", want, stdout)
+	}
+
+	stdout, _, err = runFest(t, "version", "--check", "--json")
+	if err != nil {
+		t.Fatalf("version --check --json: %v", err)
+	}
+	var rep map[string]any
+	if err := json.Unmarshal([]byte(stdout), &rep); err != nil {
+		t.Fatalf("not JSON: %v\n%s", err, stdout)
+	}
+	if rep["from_cache"] != true || rep["refresh_error"] == nil || rep["refresh_error"] == "" {
+		t.Fatalf("stale report hides the failed refresh: %v", rep)
+	}
+	if hits.Load() != 2 {
+		t.Fatalf("release server hits = %d, want one per explicit check", hits.Load())
+	}
+}
+
 func TestVersionCheckTakesPrecedenceOverShort(t *testing.T) {
 	stubSuiteNotice(t, "")
 	stdout, _, err := runFest(t, "version", "--check", "--short")
@@ -151,7 +192,7 @@ func TestWriteVersionCheck(t *testing.T) {
 		{
 			name:   "check failed",
 			info:   versionCheckInfo{FestVersion: "v0.9.3", CurrentVersion: "0.3.20", Source: updatecheck.Source},
-			want:   []string{"fest v0.9.3 (festival suite 0.3.20)\n", "festival suite latest: unknown (could not reach github:Obedience-Corp/festival)\n"},
+			want:   []string{"fest v0.9.3 (festival suite 0.3.20)\n", "festival suite latest: unknown (could not reach GitHub)\n"},
 			absent: []string{"up to date", "update available"},
 		},
 		{

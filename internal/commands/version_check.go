@@ -37,6 +37,8 @@ type versionCheckInfo struct {
 	UpgradeKind     string `json:"upgrade_kind,omitempty"`
 	UpgradeCommand  string `json:"upgrade_command,omitempty"`
 	CheckedAt       string `json:"checked_at,omitempty"`
+	FromCache       bool   `json:"from_cache"`
+	RefreshError    string `json:"refresh_error,omitempty"`
 	SkipReason      string `json:"skip_reason,omitempty"`
 }
 
@@ -66,6 +68,9 @@ func suiteVersionCheck(ctx context.Context) (versionCheckInfo, error) {
 		ExecutablePath: suiteExecutable(),
 		Fetcher:        suiteFetcher,
 	})
+	if err == nil {
+		err = ctx.Err()
+	}
 	if err != nil {
 		return info, festerrors.Wrap(err, "checking festival suite version")
 	}
@@ -82,6 +87,10 @@ func suiteVersionCheck(ctx context.Context) (versionCheckInfo, error) {
 	}
 	if !res.CheckedAt.IsZero() {
 		info.CheckedAt = res.CheckedAt.UTC().Format(time.RFC3339)
+	}
+	info.FromCache = res.FromCache
+	if res.RefreshErr != nil {
+		info.RefreshError = res.RefreshErr.Error()
 	}
 	return info, nil
 }
@@ -104,9 +113,13 @@ func writeVersionCheck(w io.Writer, info versionCheckInfo) {
 	case info.SkipReason != "":
 		_, _ = fmt.Fprintf(w, "festival suite update check skipped: %s\n", info.SkipReason)
 	case info.LatestVersion == "":
-		_, _ = fmt.Fprintf(w, "festival suite latest: unknown (could not reach %s)\n", info.Source)
+		_, _ = fmt.Fprintln(w, "festival suite latest: unknown (could not reach GitHub)")
 	default:
-		_, _ = fmt.Fprintf(w, "festival suite latest: %s\n", info.LatestVersion)
+		latest := info.LatestVersion
+		if info.RefreshError != "" {
+			latest += " (cached " + info.CheckedAt + "; could not reach GitHub to refresh)"
+		}
+		_, _ = fmt.Fprintf(w, "festival suite latest: %s\n", latest)
 		switch {
 		case info.UpdateAvailable:
 			_, _ = fmt.Fprintln(w, "update available")

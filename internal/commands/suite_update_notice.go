@@ -69,6 +69,8 @@ func init() {
 // writes to stdout and never fails the command. Captured stdout, as in
 // $(fest go --print), means a program is reading fest, so it stays silent.
 func ambientSuiteNotice(cmd *cobra.Command, _ []string) {
+	defer func() { _ = recover() }()
+
 	bundle := suiteBundle()
 	if bundle == "" || suiteHelpShown || !suiteNoticeEligible(cmd) || !suiteStdoutIsTTY() {
 		return
