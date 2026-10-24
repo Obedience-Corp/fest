@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -172,6 +173,35 @@ func TestConfigDir(t *testing.T) {
 	expected := filepath.Join(".obey", "fest")
 	if !filepath.IsAbs(dir) || !strings.HasSuffix(dir, expected) {
 		t.Errorf("Expected absolute path ending in %s, got %s", expected, dir)
+	}
+}
+
+func TestObeyDir(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
+	t.Setenv("FEST_CONFIG_DIR", "")
+
+	got, err := ObeyDir()
+	if err != nil {
+		t.Fatalf("ObeyDir: %v", err)
+	}
+	if want := filepath.Join(home, ".obey"); got != want {
+		t.Fatalf("ObeyDir = %q, want %q", got, want)
+	}
+	if dir := ConfigDir(); dir != filepath.Join(got, "fest") {
+		t.Fatalf("ConfigDir = %q, want it under ObeyDir %q", dir, got)
+	}
+}
+
+func TestObeyDirWithoutHome(t *testing.T) {
+	if runtime.GOOS == "windows" || runtime.GOOS == "plan9" {
+		t.Skip("home resolution does not read HOME on this platform")
+	}
+	t.Setenv("HOME", "")
+
+	if dir, err := ObeyDir(); err == nil {
+		t.Fatalf("ObeyDir = %q with no HOME, want an error rather than a relative path", dir)
 	}
 }
 
