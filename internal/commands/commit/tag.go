@@ -49,7 +49,11 @@ func festCommitMessage(festRef string, pos position, rawMsg string) string {
 // campaignCommitMessage builds the shared campaign/festival tag without
 // requiring a project commit. Festival-only commits use the same tag for the
 // campaign-root commit even when the linked project has nothing staged.
-func campaignCommitMessage(ctx context.Context, ws *scope.WorkspaceInfo, festRef string, pos position, rawMsg, festMessage string) (string, string) {
+func campaignCommitMessage(ctx context.Context, ws *scope.WorkspaceInfo, festRef string, pos position, rawMsg, festMessage string, tagCommits bool) (string, string) {
+	if !tagCommits {
+		return rawMsg, ""
+	}
+
 	commitMessage := festMessage
 	var campaignTag string
 
