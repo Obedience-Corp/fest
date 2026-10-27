@@ -150,12 +150,29 @@ commit can carry a phase and sequence but still fall back to the festival ID.
 
 ### Disabling Reference Tags
 
-Use `--no-tag` to create commits without the reference prefix:
+Use `--no-tag` to suppress all generated camp, festival, phase, and sequence tags
+on both the project commit and any associated camp-root commit:
 
 ```bash
 fest commit --no-tag -m "Minor cleanup"
 # → Minor cleanup
 ```
+
+For a persistent default, `fest commit` honors Camp's commit-tag setting:
+
+```bash
+# Disable generated tags in the current camp
+camp settings set local.commit.disable_commit_tags true
+
+# Or change the machine-wide default (also applies outside a camp)
+camp settings set global.commit.disable_commit_tags true
+```
+
+Tags are enabled by default. A camp-local commit block replaces the global
+commit block, so a local `disable_commit_tags: false` enables tags even when
+the global setting disables them. `--no-tag` always suppresses tags for that
+invocation. Unreadable or invalid settings stop the command before staging or
+committing. The `fest:` label on a separate camp-root commit is retained.
 
 ### Disabling Auto-Stage
 

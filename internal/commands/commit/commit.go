@@ -67,6 +67,9 @@ and legacy fest.yaml project_path. A festival with no linked project creates one
 camp root commit containing only festival-scoped files (not git add -A).
 
 Use --no-root to skip the camp root commit.
+Use --no-tag to suppress all generated camp and festival reference tags.
+Camp's commit.disable_commit_tags setting also applies: local camp settings
+replace the global commit settings. Tags are enabled by default.
 
 Reference format: [FE-{id}]
   - FE: Festival component identifier
@@ -113,7 +116,7 @@ Examples:
 	cmd.Flags().StringVarP(&message, "message", "m", "", "commit message (required unless --auto-write)")
 	cmd.Flags().StringVar(&taskRef, "task", "", "task reference ID to use (e.g., FEST-123456)")
 	cmd.Flags().StringVar(&festivalFlag, "festival", "", "festival path, name, or ID (overrides auto-detection)")
-	cmd.Flags().BoolVar(&noTag, "no-tag", false, "don't prepend task reference")
+	cmd.Flags().BoolVar(&noTag, "no-tag", false, "don't prepend camp or festival reference tags")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "output result as JSON")
 	cmd.Flags().BoolVar(&autoStage, "stage", true, "auto-stage all changes before commit")
 	cmd.Flags().BoolVar(&autoWrite, "auto-write", false, "run configured commit message writer")
@@ -209,6 +212,19 @@ func runCommit(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Resolve the shared policy before staging or running a message writer.
+	// Unreadable settings must not silently change the user's commit policy.
+	campaignRoot := ""
+	if ws != nil && ws.Type == scope.WorkspaceTypeCampaign {
+		campaignRoot = ws.Root
+	}
+	tagCommits, err := commitkit.CommitTagsEnabled(ctx, campaignRoot)
+	if err != nil {
+		result.Error = errors.Wrap(err, "resolving commit tag preference").Error()
+		return outputResult(result)
+	}
+	tagCommits = tagCommits && !noTag
+
 	// Guard outcomes and refusals go to the command's stderr so --json stdout
 	// stays a pure document.
 	report := cmd.ErrOrStderr()
@@ -271,7 +287,7 @@ func runCommit(cmd *cobra.Command, args []string) error {
 
 	// Get task reference via cascading detection strategies.
 	var ref string
-	if !noTag {
+	if tagCommits {
 		if taskRef != "" {
 			// Validate provided ref
 			if !id.Validate(taskRef) {
@@ -316,12 +332,12 @@ func runCommit(cmd *cobra.Command, args []string) error {
 	}
 
 	if primaryCommitted {
-		if err := commitWithCampaignSupport(ctx, ws, primaryRepoPath, ref, pos, rawMsg, festMessage, result); err != nil {
+		if err := commitWithCampaignSupport(ctx, ws, primaryRepoPath, ref, pos, rawMsg, festMessage, tagCommits, result); err != nil {
 			result.Error = err.Error()
 			return outputResult(result)
 		}
 	} else {
-		result.Message, result.CampaignTag = campaignCommitMessage(ctx, ws, ref, pos, rawMsg, festMessage)
+		result.Message, result.CampaignTag = campaignCommitMessage(ctx, ws, ref, pos, rawMsg, festMessage, tagCommits)
 	}
 
 	result.TaskRef = ref
@@ -743,8 +759,8 @@ func loadFestivalID(festivalPath, campaignRoot string) (string, error) {
 // festival refs into a single name-style tag:
 // [{campaign-name}:{cid}-FE-{fid}-PH-{phase}-SQ-{sequence}].
 // Campaign detection or sync failures degrade gracefully — the commit still proceeds.
-func commitWithCampaignSupport(ctx context.Context, ws *scope.WorkspaceInfo, repoPath, festRef string, pos position, rawMsg, festMessage string, result *CommitResult) error {
-	commitMessage, campaignTag := campaignCommitMessage(ctx, ws, festRef, pos, rawMsg, festMessage)
+func commitWithCampaignSupport(ctx context.Context, ws *scope.WorkspaceInfo, repoPath, festRef string, pos position, rawMsg, festMessage string, tagCommits bool, result *CommitResult) error {
+	commitMessage, campaignTag := campaignCommitMessage(ctx, ws, festRef, pos, rawMsg, festMessage, tagCommits)
 	result.CampaignTag = campaignTag
 
 	// commitkit.Commit captures git's output internally, which is the --json
