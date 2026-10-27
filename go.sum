@@ -16,8 +16,8 @@ github.com/Microsoft/go-winio v0.6.2 h1:F2VQgta7ecxGYO8k3ZZz3RS8fVIXVxONVUPlNERo
 github.com/Microsoft/go-winio v0.6.2/go.mod h1:yd8OoFMLzJbo9gZq8j5qaps8bJ9aShtEA8Ipt1oGCvU=
 github.com/Obedience-Corp/build-util v0.1.0 h1:I+R+HWEMTdi27ZOVtfMsxYzno7hx/t/cPc6D3VyNrdQ=
 github.com/Obedience-Corp/build-util v0.1.0/go.mod h1:DEzIemlbEpZYOmEG1xnOWinLrsKxC/0gG8JFNm6M438=
-github.com/Obedience-Corp/camp v0.17.2-0.20261027032857-9f573d7d3b0d h1:zZPqARR4uHZjRh60+6DKQ9UUqttyZb1R5kGLuWeEENA=
-github.com/Obedience-Corp/camp v0.17.2-0.20261027032857-9f573d7d3b0d/go.mod h1:61sXiS5dMiIcrzIqt5DydJhOraprM89F9b2eIofkivc=
+github.com/Obedience-Corp/camp v0.17.2 h1:muopdtz+IEw3LO3jaYTmwLMK78aghAnFb87DmbTNf3c=
+github.com/Obedience-Corp/camp v0.17.2/go.mod h1:61sXiS5dMiIcrzIqt5DydJhOraprM89F9b2eIofkivc=
 github.com/Obedience-Corp/obey-shared v0.6.0 h1:Zn6eaFkpzrVOI3bLSpKcDsf0kWLqiFAW3OAyUKzxRcs=
 github.com/Obedience-Corp/obey-shared v0.6.0/go.mod h1:DX1dmJr5VYGYgGjzZQyHqsoX1DkOYNureTT1j5tGSb8=
 github.com/alecthomas/assert/v2 v2.11.0 h1:2Q9r3ki8+JYXvGsDyBXwH3LcJ+WK5D0gc5E8vS6K3D0=
