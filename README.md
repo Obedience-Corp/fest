@@ -9,7 +9,7 @@ Use the coding agent you already work with.
 <p align="center">
   <a href="https://github.com/Obedience-Corp/fest/stargazers"><img src="https://img.shields.io/github/stars/Obedience-Corp/fest?style=social" alt="Star fest on GitHub"></a>
   <a href="https://pkg.go.dev/github.com/Obedience-Corp/fest"><img src="https://pkg.go.dev/badge/github.com/Obedience-Corp/fest.svg" alt="pkg.go.dev documentation"></a>
-  <a href="https://coveralls.io/github/Obedience-Corp/fest"><img src="https://coveralls.io/repos/github/Obedience-Corp/fest/badge.svg" alt="Coveralls test coverage"></a>
+ <!-- <a href="https://coveralls.io/github/Obedience-Corp/fest"><img src="https://coveralls.io/repos/github/Obedience-Corp/fest/badge.svg" alt="Coveralls test coverage"></a> -->
   <a href="https://github.com/Obedience-Corp/festival"><img src="https://img.shields.io/badge/built%20with-Festival-7c3aed.svg" alt="Built with Festival"></a>
 
 </p>
