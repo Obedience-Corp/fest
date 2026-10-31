@@ -166,3 +166,21 @@ func TestNotificationProcessDeadline(t *testing.T) {
 		t.Fatal("notification exceeded cancellation cleanup bound")
 	}
 }
+
+func TestNotificationDiscardApprovalScope(t *testing.T) {
+	ctx, q := WithNotifications(context.Background())
+	for _, n := range []Notification{
+		{Name: ApprovalNotifyName, Workflow: "phase", Coord: Coord{FestivalPath: "/one"}},
+		{Name: PresentationOpenName, Workflow: "phase", Coord: Coord{FestivalPath: "/one"}},
+		{Name: ApprovalNotifyName, Workflow: "gate:phase", Coord: Coord{FestivalPath: "/one"}},
+		{Name: ApprovalNotifyName, Workflow: "phase", Coord: Coord{FestivalPath: "/two"}},
+	} {
+		QueueNotification(ctx, n)
+	}
+	DiscardApprovalNotifications(ctx, "/one", "phase")
+	var events []Notification
+	q.Drain(ctx, func(_ context.Context, n Notification) { events = append(events, n) })
+	if len(events) != 3 || events[0].Name != PresentationOpenName || events[1].Workflow != "gate:phase" || events[2].Coord.FestivalPath != "/two" {
+		t.Fatalf("events=%+v", events)
+	}
+}

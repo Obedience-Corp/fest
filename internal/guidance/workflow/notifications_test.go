@@ -207,3 +207,48 @@ func TestApprovalNeededEntryRouting(t *testing.T) {
 		})
 	}
 }
+
+func TestApprovalNotificationClearedWithinCommand(t *testing.T) {
+	for _, tc := range []struct {
+		name             string
+		next             *WorkflowStep
+		fail             bool
+		wantApprovalStep int
+	}{
+		{name: "approve-final-step"},
+		{name: "approve-into-nonblocking", next: &WorkflowStep{Number: 2, Name: "FINALIZE"}},
+		{name: "approve-into-human-gate", next: &WorkflowStep{Number: 2, Name: "APPROVAL", Checkpoint: CheckpointUserApproval, Approval: "human-required"}, wantApprovalStep: 2},
+		{name: "failed-approval-preserves-request", fail: true, wantApprovalStep: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			steps := []WorkflowStep{{Number: 1, Name: "PRESENT", Checkpoint: CheckpointUserApproval}}
+			if tc.next != nil {
+				steps = append(steps, *tc.next)
+			}
+			n, store := notificationNavigator(t, steps)
+			ctx, q := hooks.WithNotifications(context.Background())
+			// Match Initialize's persisted entry before approval in the same command.
+			if err := n.saveTransition(ctx, 0); err != nil {
+				t.Fatal(err)
+			}
+			if tc.fail {
+				store.err = errors.New("approval save failed")
+			}
+			if err := n.Approve(ctx); (err != nil) != tc.fail {
+				t.Fatalf("approval error=%v", err)
+			}
+			var events []hooks.Notification
+			q.Drain(ctx, func(_ context.Context, e hooks.Notification) { events = append(events, e) })
+			want := 1 // PRESENT is still an entry event.
+			if tc.wantApprovalStep != 0 {
+				want++
+			}
+			if len(events) != want || events[0].Name != hooks.PresentationOpenName {
+				t.Fatalf("events=%+v", events)
+			}
+			if tc.wantApprovalStep != 0 && (events[1].Name != hooks.ApprovalNotifyName || events[1].Coord.Step != tc.wantApprovalStep) {
+				t.Fatalf("events=%+v", events)
+			}
+		})
+	}
+}

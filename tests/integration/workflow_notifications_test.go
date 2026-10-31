@@ -213,6 +213,42 @@ printf '{}' > /tmp/fest-notification-config/config.json
 	require.NoError(t, err, out)
 	require.Len(t, calls(), previous+4)
 
+	// A fresh workflow can be initialized and approved by the same command.
+	// Its approval-needed event must not survive after the checkpoint is cleared.
+	for _, final := range []bool{false, true} {
+		before := len(calls())
+		approvalPhase := root + "/004_APPROVE"
+		if final {
+			approvalPhase = root + "/005_APPROVE_FINAL"
+		}
+		_, err = tc.runCommand([]string{"sh", "-c", `mkdir -p "$1"; cp "$2/PHASE_GOAL.md" "$1/PHASE_GOAL.md"; printf '%s\n' '# Workflow' '## Step 1: PRESENT' '**Goal:** Show review' '**Actions:**' '1. Review' '**Output:** Review notes' '**Checkpoint:** User approval required' > "$1/WORKFLOW.md"; if [ "$3" = false ]; then printf '%s\n' '## Step 2: FINALIZE' '**Goal:** Finish' '**Actions:**' '1. Finish' '**Output:** Done' '**Checkpoint:** None' >> "$1/WORKFLOW.md"; fi`, "sh", approvalPhase, newPhase, fmt.Sprint(final)})
+		require.NoError(t, err)
+		phase = approvalPhase
+		out, err = run("workflow", "approve")
+		require.NoError(t, err, out)
+		entries = calls()
+		require.Len(t, entries, before+1, "only PRESENT should remain after approval: %s", out)
+		require.Equal(t, "workflow_present", entries[len(entries)-1]["verb"])
+		out, err = run("workflow", "status", "--json")
+		require.NoError(t, err, out)
+		var state struct {
+			CurrentStep int  `json:"current_step"`
+			Complete    bool `json:"complete"`
+			Steps       []struct {
+				Status string `json:"status"`
+			} `json:"steps"`
+		}
+		require.NoError(t, json.Unmarshal([]byte(out), &state))
+		require.Equal(t, final, state.Complete)
+		require.NotEmpty(t, state.Steps)
+		require.Equal(t, "completed", state.Steps[0].Status)
+		if !final {
+			require.Equal(t, 2, state.CurrentStep)
+		}
+		require.Len(t, calls(), before+1, "status must not replay notifications")
+	}
+	phase = newPhase
+
 	// An artifact checkpoint with a configured delegate does not need a human.
 	// Use status initialization so this test never invokes the dummy judge.
 	beforeJudge := len(calls())

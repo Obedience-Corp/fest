@@ -332,7 +332,9 @@ not after approval).
 APPROVAL notifies for `approval: human-required`, operator-attestation checkpoints,
 and artifact-review checkpoints without a configured approval judge. It does not
 notify for artifact reviews delegated to a judge, for successful approvals, or
-for repeated reads of the same checkpoint. Invalid judge configuration needs
+for repeated reads of the same checkpoint. If a command initializes a checkpoint
+and then clears it before returning, its queued approval notification is discarded.
+A failed save preserves the request for the still-persisted checkpoint. Invalid judge configuration needs
 configuration repair and does not trigger a human-approval notification.
 
 Delivery happens once per successful transition execution, after command handling

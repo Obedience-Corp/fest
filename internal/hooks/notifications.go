@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -93,6 +94,24 @@ func QueueNotification(ctx context.Context, n Notification) {
 	if !q.closed {
 		q.pending = append(q.pending, n)
 	}
+}
+
+// DiscardApprovalNotifications removes requests superseded by a successfully
+// saved transition in this workflow. PRESENT remains an entry event; approval
+// notifications describe work that must still be pending at command completion.
+func DiscardApprovalNotifications(ctx context.Context, festivalPath, workflow string) {
+	if ctx == nil {
+		return
+	}
+	q, _ := ctx.Value(notificationKey{}).(*Notifications)
+	if q == nil {
+		return
+	}
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	q.pending = slices.DeleteFunc(q.pending, func(n Notification) bool {
+		return n.Name == ApprovalNotifyName && n.Coord.FestivalPath == festivalPath && n.Workflow == workflow
+	})
 }
 
 // Drain consumes the outbox once, even when delivery fails. It must be called

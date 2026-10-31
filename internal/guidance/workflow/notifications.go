@@ -45,6 +45,10 @@ func (n *Navigator) saveTransition(ctx context.Context, previousStep int) error 
 	if err != nil {
 		return err
 	}
+	// Initialization may have queued an approval request earlier in this same
+	// command. Only invalidate it after persistence succeeds, including when
+	// completing the final step leaves CurrentStep unchanged.
+	hooks.DiscardApprovalNotifications(ctx, n.festivalPath, n.stateKey())
 	if previousStep != n.workflowState.CurrentStep {
 		n.queueEntryNotification(ctx)
 	}
