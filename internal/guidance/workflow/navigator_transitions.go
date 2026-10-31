@@ -32,13 +32,13 @@ func (n *Navigator) MarkComplete(ctx context.Context, stepID string) error {
 			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
 			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, n.workflowState.CurrentStep))
 		}
-		return n.store.SaveEvents(ctx)
+		return n.saveTransition(ctx, currentStep)
 	}
 
 	if n.workflowState.CurrentStep < n.workflowState.TotalSteps {
 		_ = n.workflowState.Advance()
 	}
-	return n.workflowState.Save(ctx, n.festivalPath, sk)
+	return n.saveTransition(ctx, currentStep)
 }
 
 // MarkSkipped marks a step as skipped.
@@ -97,13 +97,13 @@ func (n *Navigator) SkipCurrentStep(ctx context.Context, status StepStatus, reas
 			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
 			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, n.workflowState.CurrentStep))
 		}
-		return n.store.SaveEvents(ctx)
+		return n.saveTransition(ctx, currentStep)
 	}
 
 	if n.workflowState.CurrentStep < n.workflowState.TotalSteps {
 		_ = n.workflowState.Advance()
 	}
-	return n.workflowState.Save(ctx, n.festivalPath, sk)
+	return n.saveTransition(ctx, currentStep)
 }
 
 // MarkFailed marks a step as failed.
@@ -157,7 +157,7 @@ func (n *Navigator) Advance(ctx context.Context) error {
 			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
 			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, n.workflowState.CurrentStep))
 		}
-		return n.store.SaveEvents(ctx)
+		return n.saveTransition(ctx, currentStep)
 	}
 
 	if n.workflowState.CurrentStep < n.workflowState.TotalSteps {
@@ -165,7 +165,7 @@ func (n *Navigator) Advance(ctx context.Context) error {
 			return err
 		}
 	}
-	return n.workflowState.Save(ctx, n.festivalPath, sk)
+	return n.saveTransition(ctx, currentStep)
 }
 
 // GetProgress returns workflow progress.

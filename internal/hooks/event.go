@@ -14,16 +14,19 @@ const (
 	LevelSequence Level = "sequence"
 	LevelTask     Level = "task"
 	LevelGate     Level = "gate"
+	LevelWorkflow Level = "workflow"
 )
 
 type Verb string
 
 const (
-	VerbTaskStart        Verb = "task_start"
-	VerbTaskComplete     Verb = "task_complete"
-	VerbSequenceComplete Verb = "sequence_complete"
-	VerbPhaseComplete    Verb = "phase_complete"
-	VerbGateApprove      Verb = "gate_approve"
+	VerbTaskStart              Verb = "task_start"
+	VerbTaskComplete           Verb = "task_complete"
+	VerbSequenceComplete       Verb = "sequence_complete"
+	VerbPhaseComplete          Verb = "phase_complete"
+	VerbGateApprove            Verb = "gate_approve"
+	VerbWorkflowPresent        Verb = "workflow_present"
+	VerbWorkflowApprovalNeeded Verb = "workflow_approval_needed"
 )
 
 // Event is a lifecycle coordinate a hook binding fires at.

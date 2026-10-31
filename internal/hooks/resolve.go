@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"strings"
 	"time"
 
 	"github.com/Obedience-Corp/fest/internal/config"
@@ -105,6 +106,9 @@ func Resolve(machine, festivals, festival *config.HooksConfig) (*Effective, erro
 			eff.Levels[level] = on
 		}
 		for name, def := range l.cfg.Definitions {
+			if IsNotificationName(name) {
+				continue
+			}
 			winners[name] = prior{src: l.name, def: def}
 		}
 	}
@@ -206,4 +210,18 @@ func differingShadows(name string, winner prior, layers []layerCfg) []ShadowedDe
 		}
 	}
 	return out
+}
+
+// ApprovalJudgeCommand returns the configured approval delegate. Keep this
+// policy shared with command routing: authority is controlled by the judge's
+// definition/enable switch, not ordinary lifecycle hook level switches.
+func ApprovalJudgeCommand(eff *Effective) string {
+	if eff == nil {
+		return ""
+	}
+	h, ok := eff.Hooks[ApprovalJudgeName]
+	if !ok || !h.Enabled {
+		return ""
+	}
+	return strings.TrimSpace(h.Command)
 }

@@ -387,51 +387,11 @@ func lookupApprovalJudgeCommand(ctx context.Context, nav *wf.Navigator) (string,
 // definitions.approval_judge across all three layers configures auto-judge
 // discovery (fest next / judge / approve --auto).
 func resolveApprovalJudgeCommandFromHooks(ctx context.Context, festivalPath, festivalsRoot string) (string, error) {
-	if festivalPath != "" {
-		eff, err := hooks.LoadAndResolve(ctx, festivalPath)
-		if err != nil {
-			return "", festerrors.Wrap(err, "resolving approval judge hooks")
-		}
-		if cmd := approvalJudgeCommandFromEffective(eff); cmd != "" {
-			return cmd, nil
-		}
-	}
-
-	if festivalsRoot == "" {
-		return "", nil
-	}
-
-	var machine *config.HooksConfig
-	if machineCfg, err := config.Load(ctx, ""); err != nil {
-		return "", festerrors.Wrap(err, "loading machine hooks for approval judge")
-	} else if machineCfg != nil {
-		machine = machineCfg.Hooks
-	}
-
-	wcfg, err := config.LoadWorkspaceConfig(festivalsRoot)
-	if err != nil {
-		return "", festerrors.Wrap(err, "loading approval judge authority configuration")
-	}
-	if wcfg == nil {
-		return "", festerrors.Validation("approval judge authority configuration is empty")
-	}
-	festivals := wcfg.Hooks
-	eff, err := hooks.Resolve(machine, &festivals, nil)
-	if err != nil {
-		return "", festerrors.Wrap(err, "resolving approval judge hooks")
-	}
-	return approvalJudgeCommandFromEffective(eff), nil
+	return hooks.ResolveApprovalJudgeCommand(ctx, festivalPath, festivalsRoot)
 }
 
 func approvalJudgeCommandFromEffective(eff *hooks.Effective) string {
-	if eff == nil {
-		return ""
-	}
-	h, ok := eff.Hooks[hooks.ApprovalJudgeName]
-	if !ok || !h.Enabled {
-		return ""
-	}
-	return strings.TrimSpace(h.Command)
+	return hooks.ApprovalJudgeCommand(eff)
 }
 
 func approvalJudgeFestivalsRoot(ctx context.Context, nav *wf.Navigator) (string, error) {

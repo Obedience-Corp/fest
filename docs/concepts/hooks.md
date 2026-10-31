@@ -276,3 +276,88 @@ Warnings never fail the validate exit path by themselves (only errors do).
 3. `fest hooks list` — confirm source layer, enabled state, shadows.
 4. Exercise the lifecycle verb (`fest task completed`, gate approve, …).
 5. On human-required steps, use a real TTY for approve — never `--auto`.
+
+## Machine-local PRESENT and APPROVAL notifications
+
+These optional notifications call attention to workflow steps; they never
+approve a checkpoint. They are separate from the `gate_approve` automation hooks
+and the `approval_judge` that can perform an approval.
+
+| Definition | Event | Trigger |
+| --- | --- | --- |
+| `presentation_open` | `workflow_present` | A successful transition enters a PRESENT-style step, including initialization and reset |
+| `approval_notify` | `workflow_approval_needed` | A successful transition enters a blocking checkpoint that needs human approval; context identifies the waiting step |
+
+Merge either definition into your machine configuration
+(`~/.obey/fest/config.json`, or the directory selected by `FEST_CONFIG_DIR`):
+
+```json
+{
+  "hooks": {
+    "definitions": {
+      "presentation_open": {
+        "enabled": true,
+        "command": "camp app open . --focus target --timeout 4s",
+        "fail": "open",
+        "timeout": "5s"
+      },
+      "approval_notify": {
+        "enabled": true,
+        "command": "camp app open . --focus target --timeout 4s",
+        "fail": "open",
+        "timeout": "5s"
+      }
+    }
+  }
+}
+```
+
+Enable just the event you want. Each definition requires explicit `enabled: true`;
+installation alone does not opt in. Remove the definition or set `enabled: false`
+to stop it. Machine `hooks.enabled: false` or `hooks.levels.workflow: false` also
+turns off both notifications. Shared workspace/festival definitions and switches
+do not override these personal preferences, and step hook bindings cannot invoke
+these reserved definitions.
+
+Inspect them with `fest hooks notifications` or `fest hooks notifications --json`.
+Ordinary `fest hooks list` continues to show layered automation hooks.
+
+The hook runs from the absolute festival directory, so `.` opens that festival.
+The runner executes arguments directly: it does **not** expand shell variables
+or interpret quotes. Do not put `"$FEST_FESTIVAL_PATH"` in the command. Custom
+executables can read the existing `FEST_*` environment and JSON stdin context.
+Both events use level `workflow` and timing `post` (after entering the step,
+not after approval).
+
+APPROVAL notifies for `approval: human-required`, operator-attestation checkpoints,
+and artifact-review checkpoints without a configured approval judge. It does not
+notify for artifact reviews delegated to a judge, for successful approvals, or
+for repeated reads of the same checkpoint. If a command initializes a checkpoint
+and then clears it before returning, its queued approval notification is discarded.
+A failed save preserves the request for the still-persisted checkpoint. Invalid judge configuration needs
+configuration repair and does not trigger a human-approval notification.
+
+Delivery happens once per successful transition execution, after command handling
+returns and workflow/checkpoint locks are released. It also runs when a later
+rendering operation fails, unless the context was cancelled. Repeated reads do
+not reopen the app. A first `fest next` that initializes a PRESENT-first workflow
+can notify; subsequent reads cannot. A genuine reset/re-entry can notify again.
+Standalone workflows are not included. PRESENT opens the festival when review
+begins; it does not assert that the presentation artifacts are already finished.
+Human-required checkpoints keep all their approval requirements.
+
+Notifications always fail open, default to a five-second timeout, and accept
+positive timeouts up to thirty seconds. Invalid enabled definitions are reported
+and skipped. Missing Camp App, command failure, or timeout produces a bounded
+warning without undoing progress or changing the workflow command's result. Hook
+stdout never enters the command's stdout/JSON. Add `--no-start` to the app command
+if you only want to open festivals in an already-running app. No installation
+prompt or command runs for an unconfigured notification.
+
+There are no receipts, retries, or persistent delivery IDs. A crash after saving
+can lose the open; a timeout can occur after the app has acted. Concurrent
+successful transition executions may each notify. When a PRESENT step also needs
+human approval and both definitions are enabled, both notifications run on entry,
+before any approval occurs. Approving that step emits neither event unless the
+next step independently qualifies. For manual
+recovery, run `camp app open .` from the festival directory.
