@@ -192,6 +192,8 @@ func (n *Navigator) Initialize(ctx context.Context) error {
 		}
 	}
 
+	n.workflowState = state
+
 	// If state is empty, initialize it with parsed steps
 	if state.TotalSteps == 0 && len(steps) > 0 {
 		state.Initialize(steps)
@@ -201,13 +203,11 @@ func (n *Navigator) Initialize(ctx context.Context) error {
 			n.store.QueueWorkflowEvents(EmitInitEvents(sk, len(steps)))
 			// Also emit step_start for step 1
 			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, 1))
-			if err := n.store.SaveEvents(ctx); err != nil {
-				return errors.Wrap(err, "saving init events")
-			}
+		}
+		if err := n.saveTransition(ctx, 0, false); err != nil {
+			return errors.Wrap(err, "saving workflow initialization")
 		}
 	}
-
-	n.workflowState = state
 
 	return nil
 }
@@ -414,6 +414,9 @@ func (n *Navigator) ApproveWithAudit(ctx context.Context, feedback string, decis
 		}
 	}
 
+	if n.workflowState.IsComplete() {
+		return nil
+	}
 	currentStep := n.workflowState.CurrentStep
 	stepState := n.workflowState.GetStepState(currentStep)
 	judgeRunID := runningJudgeRunID(stepState)
@@ -435,13 +438,13 @@ func (n *Navigator) ApproveWithAudit(ctx context.Context, feedback string, decis
 			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
 			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, n.workflowState.CurrentStep))
 		}
-		if err := n.store.SaveEvents(ctx); err != nil {
+		if err := n.saveTransition(ctx, currentStep, true); err != nil {
 			return err
 		}
 		n.emitCampaignDecided(ctx, "approve", feedback)
 		return nil
 	}
-	if err := n.workflowState.Save(ctx, n.festivalPath, sk); err != nil {
+	if err := n.saveTransition(ctx, currentStep, true); err != nil {
 		return err
 	}
 	n.emitCampaignDecided(ctx, "approve", feedback)
@@ -603,9 +606,9 @@ func (n *Navigator) ApplyJudgeApproval(ctx context.Context, step int, runID, aud
 			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
 			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, n.workflowState.CurrentStep))
 		}
-		return true, n.store.SaveEvents(ctx)
+		return true, n.saveTransition(ctx, step, true)
 	}
-	return true, n.workflowState.Save(ctx, n.festivalPath, sk)
+	return true, n.saveTransition(ctx, step, true)
 }
 
 // ApplyJudgeRejection atomically records an owned verdict and blocks the
@@ -713,7 +716,7 @@ func (n *Navigator) Reset(ctx context.Context) error {
 	sk := n.stateKey()
 	if n.store != nil {
 		n.store.QueueWorkflowEvents(EmitResetEvents(sk))
-		return n.store.SaveEvents(ctx)
+		return n.saveTransition(ctx, 0, false)
 	}
-	return n.workflowState.Save(ctx, n.festivalPath, sk)
+	return n.saveTransition(ctx, 0, false)
 }

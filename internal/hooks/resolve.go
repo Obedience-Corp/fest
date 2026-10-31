@@ -105,6 +105,9 @@ func Resolve(machine, festivals, festival *config.HooksConfig) (*Effective, erro
 			eff.Levels[level] = on
 		}
 		for name, def := range l.cfg.Definitions {
+			if IsNotificationName(name) {
+				continue
+			}
 			winners[name] = prior{src: l.name, def: def}
 		}
 	}

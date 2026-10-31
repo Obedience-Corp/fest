@@ -6,6 +6,8 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+
+	"github.com/Obedience-Corp/fest/internal/hooks"
 )
 
 // Execute runs the root command with SIGINT/SIGTERM bound to context cancel.
@@ -39,7 +41,10 @@ func ExecuteContext(ctx context.Context) error {
 		return err
 	}
 
-	return rootCmd.ExecuteContext(ctx)
+	ctx, notifications := hooks.WithNotifications(ctx)
+	return executeWithNotifications(ctx, notifications, rootCmd.ExecuteContext, func(ctx context.Context, n hooks.Notification) {
+		hooks.DeliverNotification(ctx, n, rootCmd.ErrOrStderr())
+	})
 }
 
 // ignoreCanceled treats a user-initiated context cancel as a successful stop
@@ -49,4 +54,11 @@ func ignoreCanceled(err error) error {
 		return nil
 	}
 	return err
+}
+
+// executeWithNotifications drains committed outcomes after command defers release locks,
+// including when a later operation returned an error. Delivery cannot replace that error.
+func executeWithNotifications(ctx context.Context, pending *hooks.Notifications, run func(context.Context) error, deliver func(context.Context, hooks.Notification)) error {
+	defer pending.Drain(ctx, deliver)
+	return run(ctx)
 }

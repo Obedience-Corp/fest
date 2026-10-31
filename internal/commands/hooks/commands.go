@@ -26,12 +26,13 @@ func NewHooksCommand() *cobra.Command {
 		Long: `Inspect the hooks resolved from the machine, festivals, and festival layers.
 
 Available Commands:
-  list   Show the effective resolved hook set with source layers and shadow diffs`,
+  list   Show the effective resolved hook set with source layers and shadow diffs
+  notifications   Inspect machine-local PRESENT and approval notifications`,
 		Annotations: map[string]string{
 			"scope": string(scope.Global),
 		},
 	}
-	cmd.AddCommand(newHooksListCmd())
+	cmd.AddCommand(newHooksListCmd(), newNotificationsCmd())
 	return cmd
 }
 
