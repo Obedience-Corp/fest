@@ -23,17 +23,18 @@ const StepTypeWorkflowStep = "workflow_step"
 // Also supports GATES.md files via SetDocFilename and SetStateKeyPrefix.
 type Navigator struct {
 	*guidance.BaseNavigator
-	parser         *Parser
-	steps          []WorkflowStep
-	workflowState  *WorkflowState
-	festivalPath   string
-	phaseName      string
-	phaseDir       string
-	mode           guidance.Mode
-	store          StateStore // optional: if set, use JSONL events instead of YAML
-	docFilename    string     // defaults to "WORKFLOW.md", can be overridden for GATES.md
-	stateKeyPrefix string     // prefix for state key, e.g. "gate:" for phase gates
-	phaseTasks     *PhaseTasks
+	parser            *Parser
+	steps             []WorkflowStep
+	workflowState     *WorkflowState
+	festivalPath      string
+	phaseName         string
+	phaseDir          string
+	mode              guidance.Mode
+	store             StateStore // optional: if set, use JSONL events instead of YAML
+	docFilename       string     // defaults to "WORKFLOW.md", can be overridden for GATES.md
+	stateKeyPrefix    string     // prefix for state key, e.g. "gate:" for phase gates
+	phaseTasks        *PhaseTasks
+	notificationHooks func(context.Context, string) (string, error) // optional resolver override for notification routing
 }
 
 // Ensure Navigator implements guidance.Navigator.
@@ -204,7 +205,7 @@ func (n *Navigator) Initialize(ctx context.Context) error {
 			// Also emit step_start for step 1
 			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, 1))
 		}
-		if err := n.saveTransition(ctx, 0, false); err != nil {
+		if err := n.saveTransition(ctx, 0); err != nil {
 			return errors.Wrap(err, "saving workflow initialization")
 		}
 	}
@@ -438,13 +439,13 @@ func (n *Navigator) ApproveWithAudit(ctx context.Context, feedback string, decis
 			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
 			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, n.workflowState.CurrentStep))
 		}
-		if err := n.saveTransition(ctx, currentStep, true); err != nil {
+		if err := n.saveTransition(ctx, currentStep); err != nil {
 			return err
 		}
 		n.emitCampaignDecided(ctx, "approve", feedback)
 		return nil
 	}
-	if err := n.saveTransition(ctx, currentStep, true); err != nil {
+	if err := n.saveTransition(ctx, currentStep); err != nil {
 		return err
 	}
 	n.emitCampaignDecided(ctx, "approve", feedback)
@@ -606,9 +607,9 @@ func (n *Navigator) ApplyJudgeApproval(ctx context.Context, step int, runID, aud
 			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
 			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, n.workflowState.CurrentStep))
 		}
-		return true, n.saveTransition(ctx, step, true)
+		return true, n.saveTransition(ctx, step)
 	}
-	return true, n.saveTransition(ctx, step, true)
+	return true, n.saveTransition(ctx, step)
 }
 
 // ApplyJudgeRejection atomically records an owned verdict and blocks the
@@ -716,7 +717,7 @@ func (n *Navigator) Reset(ctx context.Context) error {
 	sk := n.stateKey()
 	if n.store != nil {
 		n.store.QueueWorkflowEvents(EmitResetEvents(sk))
-		return n.saveTransition(ctx, 0, false)
+		return n.saveTransition(ctx, 0)
 	}
-	return n.saveTransition(ctx, 0, false)
+	return n.saveTransition(ctx, 0)
 }

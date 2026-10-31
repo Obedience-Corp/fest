@@ -2265,7 +2265,7 @@ Inspect machine-local workflow notifications
 
 ### Synopsis
 
-Inspect presentation_open (entry into PRESENT) and approval_notify (successful approval).
+Inspect presentation_open (entry into PRESENT) and approval_notify (human approval needed).
 These optional notifications run after command execution and lock release. They never
 approve checkpoints. Only explicitly enabled machine definitions apply; workspace and
 festival definitions are ignored. Notifications always fail open and have bounded timeouts.

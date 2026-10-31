@@ -36,6 +36,7 @@ func notificationNavigator(t *testing.T, steps []WorkflowStep) (*Navigator, *not
 	n.workflowState.Initialize(steps)
 	store := &notificationStore{}
 	n.SetStateStore(store)
+	n.notificationHooks = func(context.Context, string) (string, error) { return "", nil }
 	return n, store
 }
 
@@ -64,18 +65,16 @@ func TestPresentationTransitionNotifications(t *testing.T) {
 				}
 				var events []hooks.Notification
 				q.Drain(ctx, func(_ context.Context, e hooks.Notification) { events = append(events, e) })
-				want := 1
+				want := 2
 				if failed {
 					want = 0
-				} else if method == "approve" {
-					want = 2
 				}
 				if len(events) != want {
 					t.Fatalf("events=%+v", events)
 				}
 				if !failed {
-					e := events[len(events)-1]
-					if e.Name != hooks.PresentationOpenName || e.Coord.Step != 2 || e.Coord.FestivalPath != n.festivalPath {
+					e := events[0]
+					if e.Name != hooks.PresentationOpenName || e.Coord.Step != 2 || e.Coord.FestivalPath != n.festivalPath || events[1].Name != hooks.ApprovalNotifyName || events[1].Verb != hooks.VerbWorkflowApprovalNeeded || events[1].Coord.Step != 2 {
 						t.Fatalf("entry=%+v", e)
 					}
 					if n.workflowState.GetCurrentStepState().Status.IsTerminal() {
@@ -111,7 +110,7 @@ func TestPresentationResetAndReadNotifications(t *testing.T) {
 	}
 }
 
-func TestApprovalCompletionDoesNotReplay(t *testing.T) {
+func TestApprovalCompletionDoesNotNotify(t *testing.T) {
 	n, _ := notificationNavigator(t, []WorkflowStep{{Number: 1, Name: "REVIEW", Checkpoint: CheckpointUserApproval}})
 	ctx, q := hooks.WithNotifications(context.Background())
 	if err := n.Approve(ctx); err != nil {
@@ -122,7 +121,7 @@ func TestApprovalCompletionDoesNotReplay(t *testing.T) {
 	}
 	var events []hooks.Notification
 	q.Drain(ctx, func(_ context.Context, e hooks.Notification) { events = append(events, e) })
-	if len(events) != 1 || events[0].Name != hooks.ApprovalNotifyName || events[0].Coord.Step != 1 {
+	if len(events) != 0 {
 		t.Fatalf("events=%+v", events)
 	}
 }
@@ -137,7 +136,7 @@ func TestSupersededJudgeDoesNotNotify(t *testing.T) {
 	q.Drain(ctx, func(context.Context, hooks.Notification) { t.Fatal("superseded judge notified") })
 }
 
-func TestOwnedJudgeApprovalQueuesApprovedThenPresent(t *testing.T) {
+func TestOwnedJudgeApprovalOnlyNotifiesDestination(t *testing.T) {
 	for _, failed := range []bool{false, true} {
 		n, store := notificationNavigator(t, []WorkflowStep{{Number: 1, Name: "REVIEW", Checkpoint: CheckpointUserApproval}, {Number: 2, Name: "PRESENT"}})
 		n.workflowState.GetCurrentStepState().Judge = &JudgeState{Status: JudgeRunning, RunID: "owned", Pid: 1}
@@ -157,8 +156,54 @@ func TestOwnedJudgeApprovalQueuesApprovedThenPresent(t *testing.T) {
 			}
 			continue
 		}
-		if len(events) != 2 || events[0].Name != hooks.ApprovalNotifyName || events[0].Coord.Step != 1 || events[1].Name != hooks.PresentationOpenName || events[1].Coord.Step != 2 {
+		if len(events) != 1 || events[0].Name != hooks.PresentationOpenName || events[0].Coord.Step != 2 {
 			t.Fatalf("events=%+v", events)
 		}
+	}
+}
+
+func TestApprovalNeededEntryRouting(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		step    WorkflowStep
+		judge   bool
+		invalid bool
+		want    bool
+	}{
+		{name: "nonblocking", step: WorkflowStep{Number: 2, Name: "APPROVAL"}},
+		{name: "human-required-with-judge", step: WorkflowStep{Number: 2, Name: "APPROVAL", Checkpoint: CheckpointUserApproval, Approval: "human-required"}, judge: true, want: true},
+		{name: "attestation-with-judge", step: WorkflowStep{Number: 2, Name: "APPROVAL", Checkpoint: CheckpointUserApproval, CheckpointClass: CheckpointClassOperatorAttestation}, judge: true, want: true},
+		{name: "artifact-no-judge", step: WorkflowStep{Number: 2, Name: "REVIEW", Checkpoint: CheckpointUserApproval, CheckpointClass: CheckpointClassArtifactReview}, want: true},
+		{name: "artifact-with-judge", step: WorkflowStep{Number: 2, Name: "REVIEW", Checkpoint: CheckpointUserApproval, CheckpointClass: CheckpointClassArtifactReview}, judge: true},
+		{name: "invalid-judge-config", step: WorkflowStep{Number: 2, Name: "REVIEW", Checkpoint: CheckpointUserApproval, CheckpointClass: CheckpointClassArtifactReview}, invalid: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			n, _ := notificationNavigator(t, []WorkflowStep{{Number: 1, Name: "READ"}, tc.step})
+			n.notificationHooks = func(context.Context, string) (string, error) {
+				if tc.invalid {
+					return "", errors.New("invalid judge configuration")
+				}
+				if tc.judge {
+					return "judge", nil
+				}
+				return "", nil
+			}
+			ctx, q := hooks.WithNotifications(context.Background())
+			if err := n.Advance(ctx); err != nil {
+				t.Fatal(err)
+			}
+			var events []hooks.Notification
+			q.Drain(ctx, func(_ context.Context, e hooks.Notification) { events = append(events, e) })
+			want := 0
+			if tc.want {
+				want = 1
+			}
+			if len(events) != want {
+				t.Fatalf("events=%+v", events)
+			}
+			if tc.want && (events[0].Name != hooks.ApprovalNotifyName || events[0].Verb != hooks.VerbWorkflowApprovalNeeded || events[0].Coord.Step != 2) {
+				t.Fatalf("context=%+v", events)
+			}
+		})
 	}
 }

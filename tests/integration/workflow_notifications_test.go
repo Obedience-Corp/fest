@@ -147,26 +147,28 @@ printf '{}' > /tmp/fest-notification-config/config.json
 	require.NoError(t, err, out)
 	require.NotContains(t, out, "HOOK_STDOUT")
 	entries := calls()
-	require.Len(t, entries, 1, out)
+	require.Len(t, entries, 2, out)
 	require.Equal(t, "workflow_present", entries[0]["verb"])
+	require.Equal(t, "workflow_approval_needed", entries[1]["verb"])
+	require.Equal(t, float64(2), entries[1]["step"])
 	require.Equal(t, float64(2), entries[0]["step"])
 	require.Equal(t, root, entries[0]["festival_path"])
 	cwd, err := tc.runCommand([]string{"cat", "/tmp/fest-notification-cwds"})
 	require.NoError(t, err)
-	require.Equal(t, root, strings.TrimSpace(cwd))
+	require.Equal(t, root+"\n"+root, strings.TrimSpace(cwd))
 	// Opening did not grant human approval. Non-TTY approval remains refused.
 	out, err = run("workflow", "approve")
 	require.Error(t, err)
-	require.Len(t, calls(), 1)
-	// In a separate artifact-review configuration, successful approval notifies
-	// the approved step. The previous human-required configuration stayed blocked.
+	require.Len(t, calls(), 2)
+	// Successful approval does not notify: both calls already happened while
+	// the agent needed human approval. The human-required configuration stayed blocked.
 	_, err = tc.runCommand([]string{"sh", "-c", `sed -i '/Approval:.*human-required/d' "$1/WORKFLOW.md"`, "sh", phase})
 	require.NoError(t, err)
 	out, err = run("workflow", "approve")
 	require.NoError(t, err, out)
 	entries = calls()
 	require.Len(t, entries, 2, out)
-	require.Equal(t, "workflow_approved", entries[1]["verb"])
+	require.Equal(t, "workflow_approval_needed", entries[1]["verb"])
 	require.Equal(t, float64(2), entries[1]["step"])
 	out, err = run("workflow", "status", "--json")
 	require.NoError(t, err, out)
@@ -203,11 +205,34 @@ printf '{}' > /tmp/fest-notification-config/config.json
 	out, err = run("workflow", "status", "--json")
 	require.NoError(t, err, out)
 	require.True(t, json.Valid([]byte(out)))
-	require.Len(t, calls(), previous+1)
+	require.Len(t, calls(), previous+2)
 	out, err = run("workflow", "status", "--json")
 	require.NoError(t, err, out)
-	require.Len(t, calls(), previous+1)
+	require.Len(t, calls(), previous+2)
 	out, err = run("workflow", "reset", "--force")
 	require.NoError(t, err, out)
-	require.Len(t, calls(), previous+2)
+	require.Len(t, calls(), previous+4)
+
+	// An artifact checkpoint with a configured delegate does not need a human.
+	// Use status initialization so this test never invokes the dummy judge.
+	beforeJudge := len(calls())
+	judgePhase := root + "/003_REVIEW"
+	_, err = tc.runCommand([]string{"sh", "-c", `mkdir -p "$1"; sed 's/002_INGEST/003_REVIEW/g' "$2/PHASE_GOAL.md" > "$1/PHASE_GOAL.md"; printf '%s\n' '# Workflow' '## Step 1: REVIEW' '**Goal:** Inspect artifacts' '**Actions:**' '1. Inspect' '**Output:** Review notes' '**Checkpoint:** User approval required' '**Checkpoint class:** artifact_review' > "$1/WORKFLOW.md"; printf '%s\n' 'hooks:' '  definitions:' '    approval_judge:' '      command: fixture-judge-not-executed' '      enabled: true' >> "$3/fest.yaml"`, "sh", judgePhase, phase, root})
+	require.NoError(t, err)
+	phase = judgePhase
+	out, err = run("workflow", "status", "--json")
+	require.NoError(t, err, out)
+	require.Len(t, calls(), beforeJudge)
+	// An explicitly human-required checkpoint still notifies despite that judge.
+	_, err = tc.runCommand([]string{"sh", "-c", `printf '%s\n' '**Approval:** human-required' >> "$1/WORKFLOW.md"`, "sh", phase})
+	require.NoError(t, err)
+	out, err = run("workflow", "reset", "--force")
+	require.NoError(t, err, out)
+	entries = calls()
+	require.Len(t, entries, beforeJudge+1)
+	require.Equal(t, "workflow_approval_needed", entries[len(entries)-1]["verb"])
+	require.Equal(t, float64(1), entries[len(entries)-1]["step"])
+	out, err = run("workflow", "status", "--json")
+	require.NoError(t, err, out)
+	require.Len(t, calls(), beforeJudge+1)
 }

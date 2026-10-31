@@ -23,7 +23,7 @@ func newNotificationsCmd() *cobra.Command {
 	var jsonOutput bool
 	cmd := &cobra.Command{
 		Use: "notifications", Short: "Inspect machine-local workflow notifications",
-		Long: `Inspect presentation_open (entry into PRESENT) and approval_notify (successful approval).
+		Long: `Inspect presentation_open (entry into PRESENT) and approval_notify (human approval needed).
 These optional notifications run after command execution and lock release. They never
 approve checkpoints. Only explicitly enabled machine definitions apply; workspace and
 festival definitions are ignored. Notifications always fail open and have bounded timeouts.
@@ -45,7 +45,7 @@ They are separate from the ordinary hooks shown by 'fest hooks list'.`,
 				verb hooks.Verb
 			}{
 				{hooks.PresentationOpenName, hooks.VerbWorkflowPresent},
-				{hooks.ApprovalNotifyName, hooks.VerbWorkflowApproved},
+				{hooks.ApprovalNotifyName, hooks.VerbWorkflowApprovalNeeded},
 			} {
 				hook, enabled, resolveErr := hooks.ResolveNotification(definitions, spec.name)
 				view := notificationView{Name: spec.name, Event: spec.verb, Enabled: enabled}
