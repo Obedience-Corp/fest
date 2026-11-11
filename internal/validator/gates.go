@@ -68,8 +68,9 @@ func ValidateQualityGates(ctx context.Context, festivalPath string) ([]Issue, er
 		}
 
 		for _, seq := range sequences {
-			// Check sequence exclusion patterns from default policy
-			if isExcludedSequence(seq.Name, defaultPolicy.ExcludePatterns) {
+			// Skip sequences excluded by the default policy or by fest.yaml
+			// excluded_patterns, matching what `fest gates apply` skips.
+			if isExcludedSequence(seq.Name, defaultPolicy.ExcludePatterns) || festCfg.IsSequenceExcluded(seq.Name) {
 				continue
 			}
 

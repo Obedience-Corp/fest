@@ -328,3 +328,51 @@ func findSubstring(s, substr string) bool {
 	}
 	return false
 }
+
+// TestValidateQualityGates_HonorsFestYAMLExcludedPatterns verifies validate skips
+// the same custom excluded_patterns that `fest gates apply` skips.
+func TestValidateQualityGates_HonorsFestYAMLExcludedPatterns(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+
+	festYAML := `version: "1.0"
+quality_gates:
+  enabled: true
+excluded_patterns:
+  - "*_planning"
+  - "*_research"
+  - "*_requirements"
+  - "*_docs"
+  - "*_ops"
+  - "*_proof"
+`
+	if err := os.WriteFile(filepath.Join(dir, "fest.yaml"), []byte(festYAML), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	phasePath := filepath.Join(dir, "002_IMPLEMENTATION")
+	for _, seq := range []string{"01_owner_machine_proof", "03_stable_release_ops", "04_core_feature"} {
+		seqPath := filepath.Join(phasePath, seq)
+		if err := os.MkdirAll(seqPath, 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(seqPath, "01_do_work.md"), []byte("# Work"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	issues, err := ValidateQualityGates(ctx, dir)
+	if err != nil {
+		t.Fatalf("ValidateQualityGates() error = %v", err)
+	}
+
+	if len(issues) != 1 {
+		for _, issue := range issues {
+			t.Logf("  Issue: %s - %s", issue.Path, issue.Message)
+		}
+		t.Fatalf("got %d issues, want 1 (only the non-excluded sequence)", len(issues))
+	}
+	if want := filepath.Join("002_IMPLEMENTATION", "04_core_feature"); issues[0].Path != want {
+		t.Errorf("issue path = %q, want %q", issues[0].Path, want)
+	}
+}
