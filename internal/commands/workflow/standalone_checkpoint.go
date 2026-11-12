@@ -138,10 +138,15 @@ func submitStandaloneCheckpoint(ctx context.Context, store *localstore.Store, wo
 	if err := store.AppendEvent(ctx, localstore.Event{EventType: localstore.EventStepBlock, StepIndex: stepNum}); err != nil {
 		return err
 	}
-	reportStandaloneWaiting(ctx, workflowDoc, steps, stepNum, approvalkit.OutcomeWithdrawn, "")
+	reportStandaloneWaiting(ctx, workflowDoc, steps, stepNum, approvalkit.OutcomeWithdrawn, approvalReasonSuperseded)
 	printStandaloneAwaitingApproval(stepNum, step)
 	return nil
 }
+
+// approvalReasonSuperseded is recorded if submitting a checkpoint finds an
+// older request from the same workflow still open (an earlier run in this
+// directory, say). The new request replaces it.
+const approvalReasonSuperseded = "superseded_by_new_request"
 
 // reportStandaloneWaiting tells the camp what this standalone workflow is
 // waiting on a human to approve: the checkpoint at waitingStep, or nothing when

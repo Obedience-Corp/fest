@@ -263,7 +263,7 @@ func advanceBlockedStandalone(ctx context.Context, store *localstore.Store, work
 	}
 	// Nothing changed, but re-report so a checkpoint that started waiting
 	// before approvals were reported to the camp shows up there.
-	reportStandaloneWaiting(ctx, workflowDoc, steps, stepNum, approvalkit.OutcomeWithdrawn, "")
+	reportStandaloneWaiting(ctx, workflowDoc, steps, stepNum, approvalkit.OutcomeWithdrawn, approvalReasonSuperseded)
 	printStandaloneAwaitingApproval(stepNum, step)
 	return nil
 }

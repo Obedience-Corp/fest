@@ -247,6 +247,30 @@ func TestReportApprovals_FailedSaveReportsNothing(t *testing.T) {
 	}
 }
 
+// TestReportApprovals_FailedSaveDoesNotLeakItsOutcome pins that the reason set
+// for a transition that failed to persist is not attributed to a later report.
+func TestReportApprovals_FailedSaveDoesNotLeakItsOutcome(t *testing.T) {
+	ctx := context.Background()
+	n, camp := campNavigator(t, []WorkflowStep{humanGate(1, "REVIEW"), {Number: 2, Name: "WRAP"}})
+	if err := n.saveTransition(ctx, 0); err != nil {
+		t.Fatal(err)
+	}
+	store := n.store.(*notificationStore)
+	store.err = os.ErrPermission
+	if err := n.Approve(ctx); err == nil {
+		t.Fatal("expected the approval to fail to save")
+	}
+	if n.nextApprovalReport != nil {
+		t.Fatal("a failed save left its outcome behind")
+	}
+	// The same navigator then moves on by another route.
+	store.err = nil
+	n.reportApprovals(ctx)
+	if got := ledgerKinds(t, camp); strings.Contains(got, "approval_approved") {
+		t.Fatalf("a failed approval was recorded as approved: %s", got)
+	}
+}
+
 func TestReportApprovals_OutsideACampIsSilent(t *testing.T) {
 	ctx := context.Background()
 	t.Setenv("CAMP_ROOT", "")

@@ -3,6 +3,7 @@ package campledger
 import (
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -65,6 +66,14 @@ func SetWaiting(ctx context.Context, dir, identity string, w *Waiting, outcome a
 	relDir, ok := campaignRelative(root, dir)
 	if !ok {
 		return // the source resolves outside the campaign it was detected in
+	}
+	// Every workflow transition lands here, and most are not waiting on anyone.
+	// With nothing to request and no ledger yet, there is nothing to resolve
+	// either, so stop before resolving a writer id or opening the ledger.
+	if w == nil {
+		if _, err := os.Stat(filepath.Join(root, filepath.FromSlash(approvalkit.Dir))); err != nil {
+			return
+		}
 	}
 	source := approvalSource(relDir, identity)
 
