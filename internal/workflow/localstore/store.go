@@ -577,6 +577,7 @@ func replayEventStream(r io.Reader) (*RunState, error) {
 		}
 		var evt struct {
 			EventType string `json:"event_type"`
+			Feedback  string `json:"feedback"`
 		}
 		if err := json.Unmarshal(line, &evt); err != nil {
 			continue
@@ -587,6 +588,14 @@ func replayEventStream(r io.Reader) (*RunState, error) {
 		case EventStepDone:
 			state.CompletedSteps++
 			state.Blocked = false
+		case EventStepBlock:
+			state.Blocked = true
+			state.BlockReason = BlockReasonCheckpoint
+			state.Feedback = ""
+		case EventCheckpointRejected:
+			state.Blocked = true
+			state.BlockReason = BlockReasonRejected
+			state.Feedback = evt.Feedback
 		case EventStepSkip:
 			// Mirror camp's localrun.go skip handling: skipped steps count
 			// as forward progress and clear any prior block. Without this
@@ -594,8 +603,6 @@ func replayEventStream(r io.Reader) (*RunState, error) {
 			// divergent state (D030 finding #1).
 			state.CompletedSteps++
 			state.Blocked = false
-		case EventStepBlock, EventCheckpointRejected:
-			state.Blocked = true
 		case EventCheckpointApproved:
 			state.Blocked = false
 		case EventWorkflowRunCompleted:
@@ -609,6 +616,10 @@ func replayEventStream(r io.Reader) (*RunState, error) {
 	}
 	if state.Blocked && state.Status == "active" {
 		state.Status = "blocked"
+	}
+	if !state.Blocked {
+		state.BlockReason = ""
+		state.Feedback = ""
 	}
 	return state, nil
 }

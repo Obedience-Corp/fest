@@ -58,6 +58,8 @@ func collectStandaloneStatus(info *show.StandaloneWorkflowInfo) workflowStatusJS
 		Blocked:        info.Blocked,
 		DocHashChanged: info.DocHashChanged,
 	}
+	out.AwaitingApproval = info.AwaitingApproval
+	out.Feedback = info.Feedback
 	if !complete {
 		current := info.CurrentStep
 		out.CurrentStep = &current
@@ -101,7 +103,12 @@ func renderStandaloneStatusText(info *show.StandaloneWorkflowInfo) string {
 	} else {
 		fmt.Fprintf(&sb, "%s%s\n", ui.Label("Status: "), info.RunStatus)
 	}
-	if info.Blocked {
+	switch {
+	case info.AwaitingApproval:
+		fmt.Fprintf(&sb, "%s%s\n", ui.Label("Blocked: "), ui.Warning("awaiting approval (fest workflow approve)"))
+	case info.Blocked && info.Feedback != "":
+		fmt.Fprintf(&sb, "%s%s\n", ui.Label("Blocked: "), ui.Warning("rejected: "+info.Feedback))
+	case info.Blocked:
 		fmt.Fprintf(&sb, "%s%s\n", ui.Label("Blocked: "), ui.Warning("true"))
 	}
 	sb.WriteString("\n")

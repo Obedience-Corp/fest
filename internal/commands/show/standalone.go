@@ -36,9 +36,14 @@ type StandaloneWorkflowInfo struct {
 	TotalSteps     int
 	CompletedSteps int
 	Blocked        bool
-	DocHashChanged bool
-	RenderMode     string
-	Steps          []shared.WorkflowStepView
+	// AwaitingApproval is true when the run is stopped at a blocking
+	// checkpoint waiting on a human decision; Feedback is the reason of the
+	// rejection currently blocking the run, if any.
+	AwaitingApproval bool
+	Feedback         string
+	DocHashChanged   bool
+	RenderMode       string
+	Steps            []shared.WorkflowStepView
 }
 
 // ResolveStandaloneWorkflow resolves and loads a standalone WORKFLOW.md view.
@@ -99,6 +104,8 @@ func loadStandaloneWorkflow(ctx context.Context, res *standalone.Result) (*Stand
 	if state != nil {
 		info.RunID = state.RunID
 		info.Blocked = state.Blocked
+		info.AwaitingApproval = state.AwaitingApproval()
+		info.Feedback = state.Feedback
 		info.DocHashChanged = state.DocHashChanged
 	}
 	return info, nil

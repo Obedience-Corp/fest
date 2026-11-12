@@ -7500,7 +7500,9 @@ This command:
   2. Advances the workflow to the next step
   3. Saves the updated state
 
-Note: If the current step has a blocking checkpoint, use 'fest workflow approve' instead.
+If the current step has a blocking checkpoint, advance records that the work
+is done and stops there, awaiting approval. Only 'fest workflow approve' moves
+past a checkpoint. After a rejection, advance re-submits the revised step.
 
 ```
 fest workflow advance [flags]
@@ -7595,6 +7597,18 @@ Auto approval:
   to block until the judge returns instead.
 ```
 
+Standalone workflows:
+  A WORKFLOW.md outside a festival has no approval judge to delegate to, so
+  its blocking checkpoints are always a human decision. Approving one requires
+  an interactive terminal and typing APPROVE; --auto, --judge-command and
+  --override-judge do not apply there.
+
+Pinning:
+  --expect-step N refuses the approval, changing nothing, unless the
+  checkpoint is at step N. A tool that shows the user one checkpoint and then
+  runs this command passes the step it showed, so a workflow that has moved on
+  is not approved at a different step.
+
 ```
 fest workflow approve [flags]
 ```
@@ -7603,6 +7617,7 @@ fest workflow approve [flags]
 
 ```
       --auto                     delegate this checkpoint decision to the configured approval judge command
+      --expect-step int          refuse unless the checkpoint is at this step number
   -h, --help                     help for approve
       --judge-command string     approval judge command for --auto (overrides the .festival/config.yaml hooks.definitions.approval_judge hook; requires an interactive TTY)
       --judge-timeout duration   maximum time to wait for the approval judge (0 waits until it returns)
@@ -7769,6 +7784,13 @@ to reject and request revisions.
 
 The feedback will be recorded in the workflow state for reference.
 
+In a standalone workflow (a WORKFLOW.md outside a festival) the step stays
+blocked after a rejection until the revised work is re-submitted with
+'fest workflow advance'.
+
+--expect-step N refuses the rejection, changing nothing, unless the checkpoint
+is at step N.
+
 Failed gates with remediation:
   Use --remediation-phase to record that a phase gate did not pass and
   to link a remediation phase that will correct the underlying issues.
@@ -7789,6 +7811,7 @@ fest workflow reject [flags]
 ### Options
 
 ```
+      --expect-step int            refuse unless the checkpoint is at this step number
   -h, --help                       help for reject
   -r, --reason string              reason for rejection (required)
       --remediation-phase string   link a remediation phase for a failed gate (e.g. 005_FIX_PR_302)
