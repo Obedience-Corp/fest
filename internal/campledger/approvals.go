@@ -44,9 +44,13 @@ type Waiting struct {
 // directory (a phase's WORKFLOW.md and its GATES.md). Requests from this source
 // that are no longer the one waiting are resolved with outcome and reason.
 //
+// When the call records anything, the approvals ledger is committed to the
+// campaign repository straight away (approvalkit.Commit).
+//
 // Outside a campaign this is a silent no-op, as is the rest of this package. A
-// failure warns and is never returned: recording must not fail or undo the
-// state change that already happened.
+// failure to record or to commit warns and is never returned: it must not fail
+// or undo the state change that already happened, and an event that could not
+// be committed is committed by the next call or by camp.
 func SetWaiting(ctx context.Context, dir, identity string, w *Waiting, outcome approvalkit.Outcome, reason string, warn func(error)) {
 	if warn == nil {
 		warn = WarnToStderr()
@@ -101,8 +105,21 @@ func SetWaiting(ctx context.Context, dir, identity string, w *Waiting, outcome a
 		warn(fmt.Errorf(approvalWarnMsg, err))
 		return
 	}
-	if _, err := rec.SetWaiting(ctx, source, want, outcome, reason); err != nil {
+	change, err := rec.SetWaiting(ctx, source, want, outcome, reason)
+	if err != nil {
 		warn(fmt.Errorf(approvalWarnMsg, err))
+		return
+	}
+	if change.Empty() {
+		return
+	}
+	// Commit the event now. The ledger is committed so that a request reaches
+	// the user's other machines; an event left uncommitted until camp next
+	// looks at the ledger would not. Only .campaign/approvals is committed,
+	// through a temporary index, so nothing staged or dirty in the camp is
+	// touched. A camp that is not a git repository is not an error.
+	if _, err := approvalkit.Commit(ctx, root); err != nil {
+		warn(fmt.Errorf("campaign approvals recorded but not committed: %w", err))
 	}
 }
 
