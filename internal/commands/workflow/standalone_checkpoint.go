@@ -4,8 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
+	"github.com/Obedience-Corp/camp/pkg/approvalkit"
+
+	"github.com/Obedience-Corp/fest/internal/campledger"
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
 	"github.com/Obedience-Corp/fest/internal/ui"
@@ -124,7 +128,8 @@ func checkExpectedStep(expect, current int) error {
 
 // submitStandaloneCheckpoint records that a step's work is done and that it
 // now waits on a human decision.
-func submitStandaloneCheckpoint(ctx context.Context, store *localstore.Store, stepNum int, step wf.WorkflowStep, needStart bool) error {
+func submitStandaloneCheckpoint(ctx context.Context, store *localstore.Store, workflowDoc string, steps []wf.WorkflowStep, stepNum int, needStart bool) error {
+	step := steps[stepNum-1]
 	if needStart {
 		if err := store.AppendEvent(ctx, localstore.Event{EventType: localstore.EventStepStart, StepIndex: stepNum}); err != nil {
 			return err
@@ -133,8 +138,32 @@ func submitStandaloneCheckpoint(ctx context.Context, store *localstore.Store, st
 	if err := store.AppendEvent(ctx, localstore.Event{EventType: localstore.EventStepBlock, StepIndex: stepNum}); err != nil {
 		return err
 	}
+	reportStandaloneWaiting(ctx, workflowDoc, steps, stepNum, approvalkit.OutcomeWithdrawn, "")
 	printStandaloneAwaitingApproval(stepNum, step)
 	return nil
+}
+
+// reportStandaloneWaiting tells the camp what this standalone workflow is
+// waiting on a human to approve: the checkpoint at waitingStep, or nothing when
+// waitingStep is 0. outcome and reason describe why an earlier request from
+// this workflow stopped waiting. It follows the run's own state change and is
+// best-effort; outside a camp it does nothing.
+func reportStandaloneWaiting(ctx context.Context, workflowDoc string, steps []wf.WorkflowStep, waitingStep int, outcome approvalkit.Outcome, reason string) {
+	dir := filepath.Dir(workflowDoc)
+	var waiting *campledger.Waiting
+	if waitingStep >= 1 && waitingStep <= len(steps) {
+		step := steps[waitingStep-1]
+		waiting = &campledger.Waiting{
+			Kind:     approvalkit.SourceStandaloneCheckpoint,
+			Step:     waitingStep,
+			StepName: step.Name,
+			Title:    fmt.Sprintf("%s: %s", filepath.Base(dir), step.Name),
+			Body:     wf.CheckpointRequestBody("checkpoint", waitingStep, len(steps), step),
+			Dir:      dir,
+			Doc:      workflowDoc,
+		}
+	}
+	campledger.SetWaiting(ctx, dir, "", waiting, outcome, reason, nil)
 }
 
 func printStandaloneAwaitingApproval(stepNum int, step wf.WorkflowStep) {
@@ -203,6 +232,7 @@ func runStandaloneApprove(ctx context.Context, res *standalone.Result, opts stan
 	if err := cp.store.AppendEvent(ctx, localstore.Event{EventType: localstore.EventStepDone, StepIndex: cp.stepNum}); err != nil {
 		return err
 	}
+	reportStandaloneWaiting(ctx, cp.res.WorkflowDoc, cp.steps, 0, approvalkit.OutcomeApproved, opts.Summary)
 	fmt.Printf("%s Step %d: %s approved\n", ui.Success("✓"), cp.stepNum, cp.step.Name)
 
 	if cp.stepNum >= len(cp.steps) {
@@ -236,6 +266,7 @@ func runStandaloneReject(ctx context.Context, res *standalone.Result, reason str
 	}); err != nil {
 		return err
 	}
+	reportStandaloneWaiting(ctx, cp.res.WorkflowDoc, cp.steps, 0, approvalkit.OutcomeRejected, reason)
 	fmt.Printf("%s Step %d: %s rejected\n", ui.Warning("✗"), cp.stepNum, cp.step.Name)
 	fmt.Printf("%s %s\n\n", ui.Label("Feedback:"), strings.TrimSpace(reason))
 	fmt.Println("Revise the work, then re-submit with: " + ui.Accent("fest workflow advance"))

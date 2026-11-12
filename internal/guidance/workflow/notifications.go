@@ -52,6 +52,7 @@ func (n *Navigator) saveTransition(ctx context.Context, previousStep int) error 
 	if previousStep != n.workflowState.CurrentStep {
 		n.queueEntryNotification(ctx)
 	}
+	n.reportApprovals(ctx)
 	return nil
 }
 

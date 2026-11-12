@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/Obedience-Corp/camp/pkg/approvalkit"
 	"github.com/Obedience-Corp/camp/pkg/ledgerkit"
 
 	"github.com/Obedience-Corp/fest/internal/campledger"
@@ -35,6 +36,9 @@ type Navigator struct {
 	stateKeyPrefix    string     // prefix for state key, e.g. "gate:" for phase gates
 	phaseTasks        *PhaseTasks
 	notificationHooks func(context.Context, string) (string, error) // optional resolver override for notification routing
+	// nextApprovalReport is why the transition being persisted ends a pending
+	// approval; see expectApprovalOutcome.
+	nextApprovalReport *approvalReport
 }
 
 // Ensure Navigator implements guidance.Navigator.
@@ -425,6 +429,7 @@ func (n *Navigator) ApproveWithAudit(ctx context.Context, feedback string, decis
 	if err := n.workflowState.ApproveWithAudit(feedback, decision); err != nil {
 		return err
 	}
+	n.expectApprovalOutcome(approvalkit.OutcomeApproved, feedback)
 
 	sk := n.stateKey()
 	if n.store != nil {
@@ -488,12 +493,16 @@ func (n *Navigator) RejectWithDecision(ctx context.Context, reason string, decis
 			return err
 		}
 		n.emitCampaignDecided(ctx, "reject", reason)
+		n.expectApprovalOutcome(approvalkit.OutcomeRejected, reason)
+		n.reportApprovals(ctx)
 		return nil
 	}
 	if err := n.workflowState.Save(ctx, n.festivalPath, sk); err != nil {
 		return err
 	}
 	n.emitCampaignDecided(ctx, "reject", reason)
+	n.expectApprovalOutcome(approvalkit.OutcomeRejected, reason)
+	n.reportApprovals(ctx)
 	return nil
 }
 
@@ -536,12 +545,16 @@ func (n *Navigator) RejectWithRemediationDecision(ctx context.Context, reason, r
 			return err
 		}
 		n.emitCampaignDecided(ctx, "reject_remediation", reason)
+		n.expectApprovalOutcome(approvalkit.OutcomeRejected, reason)
+		n.reportApprovals(ctx)
 		return nil
 	}
 	if err := n.workflowState.Save(ctx, n.festivalPath, sk); err != nil {
 		return err
 	}
 	n.emitCampaignDecided(ctx, "reject_remediation", reason)
+	n.expectApprovalOutcome(approvalkit.OutcomeRejected, reason)
+	n.reportApprovals(ctx)
 	return nil
 }
 
@@ -607,8 +620,10 @@ func (n *Navigator) ApplyJudgeApproval(ctx context.Context, step int, runID, aud
 			n.store.QueueWorkflowEvents(EmitAdvanceEvents(sk, n.workflowState.CurrentStep))
 			n.store.QueueWorkflowEvents(EmitStepStartEvents(sk, n.workflowState.CurrentStep))
 		}
+		n.expectApprovalOutcome(approvalkit.OutcomeWithdrawn, approvalReasonJudgeApproved)
 		return true, n.saveTransition(ctx, step)
 	}
+	n.expectApprovalOutcome(approvalkit.OutcomeWithdrawn, approvalReasonJudgeApproved)
 	return true, n.saveTransition(ctx, step)
 }
 
@@ -631,9 +646,21 @@ func (n *Navigator) ApplyJudgeRejection(ctx context.Context, step int, runID, au
 	if n.store != nil {
 		n.store.QueueWorkflowEvents(EmitJudgeVerdictEvents(sk, step, runID, JudgeRejected, decision.Summary, extras))
 		n.store.QueueWorkflowEvents(EmitStepBlockWithDecisionEvents(sk, step, decision.Summary, decision))
-		return true, n.store.SaveEvents(ctx)
+		return true, n.savedThenReport(ctx, n.store.SaveEvents(ctx), approvalReasonJudgeRejected)
 	}
-	return true, n.workflowState.Save(ctx, n.festivalPath, sk)
+	return true, n.savedThenReport(ctx, n.workflowState.Save(ctx, n.festivalPath, sk), approvalReasonJudgeRejected)
+}
+
+// savedThenReport reports the workflow's waiting state after a save that did
+// not go through saveTransition, and passes the save's error through. Nothing
+// is reported for a failed save: the persisted state did not change.
+func (n *Navigator) savedThenReport(ctx context.Context, saveErr error, reason string) error {
+	if saveErr != nil {
+		return saveErr
+	}
+	n.expectApprovalOutcome(approvalkit.OutcomeWithdrawn, reason)
+	n.reportApprovals(ctx)
+	return nil
 }
 
 // Recheck transitions the current step out of failed_with_remediation back
@@ -655,9 +682,9 @@ func (n *Navigator) Recheck(ctx context.Context) error {
 	sk := n.stateKey()
 	if n.store != nil {
 		n.store.QueueWorkflowEvents(EmitStepRecheckEvents(sk, n.workflowState.CurrentStep))
-		return n.store.SaveEvents(ctx)
+		return n.savedThenReport(ctx, n.store.SaveEvents(ctx), approvalReasonMovedOn)
 	}
-	return n.workflowState.Save(ctx, n.festivalPath, sk)
+	return n.savedThenReport(ctx, n.workflowState.Save(ctx, n.festivalPath, sk), approvalReasonMovedOn)
 }
 
 // ReopenJudgeRejection moves the current judge-owned rejection back to
@@ -685,9 +712,9 @@ func (n *Navigator) ReopenJudgeRejection(ctx context.Context, step int) error {
 	sk := n.stateKey()
 	if n.store != nil {
 		n.store.QueueWorkflowEvents(EmitJudgeRecheckEvents(sk, step))
-		return n.store.SaveEvents(ctx)
+		return n.savedThenReport(ctx, n.store.SaveEvents(ctx), approvalReasonMovedOn)
 	}
-	return n.workflowState.Save(ctx, n.festivalPath, sk)
+	return n.savedThenReport(ctx, n.workflowState.Save(ctx, n.festivalPath, sk), approvalReasonMovedOn)
 }
 
 // GetWorkflowState returns the current workflow state.
