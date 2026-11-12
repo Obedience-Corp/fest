@@ -45,13 +45,16 @@ type Waiting struct {
 // directory (a phase's WORKFLOW.md and its GATES.md). Requests from this source
 // that are no longer the one waiting are resolved with outcome and reason.
 //
-// When the call records anything, the approvals ledger is committed to the
-// campaign repository straight away (approvalkit.Commit).
+// The event is written to the ledger file and left uncommitted. fest does not
+// commit it: one commit per request and per decision, each running the camp's
+// commit hooks inside a workflow command, costs more than it buys, because a
+// request only reaches another machine at the camp's next push anyway. The
+// ledger is committed with the camp's next ordinary commit, or by
+// 'camp approvals', whichever comes first.
 //
 // Outside a campaign this is a silent no-op, as is the rest of this package. A
-// failure to record or to commit warns and is never returned: it must not fail
-// or undo the state change that already happened, and an event that could not
-// be committed is committed by the next call or by camp.
+// failure warns and is never returned: recording must not fail or undo the
+// state change that already happened.
 func SetWaiting(ctx context.Context, dir, identity string, w *Waiting, outcome approvalkit.Outcome, reason string, warn func(error)) {
 	if warn == nil {
 		warn = WarnToStderr()
@@ -114,21 +117,8 @@ func SetWaiting(ctx context.Context, dir, identity string, w *Waiting, outcome a
 		warn(fmt.Errorf(approvalWarnMsg, err))
 		return
 	}
-	change, err := rec.SetWaiting(ctx, source, want, outcome, reason)
-	if err != nil {
+	if _, err := rec.SetWaiting(ctx, source, want, outcome, reason); err != nil {
 		warn(fmt.Errorf(approvalWarnMsg, err))
-		return
-	}
-	if change.Empty() {
-		return
-	}
-	// Commit the event now. The ledger is committed so that a request reaches
-	// the user's other machines; an event left uncommitted until camp next
-	// looks at the ledger would not. Only .campaign/approvals is committed,
-	// through a temporary index, so nothing staged or dirty in the camp is
-	// touched. A camp that is not a git repository is not an error.
-	if _, err := approvalkit.Commit(ctx, root); err != nil {
-		warn(fmt.Errorf("campaign approvals recorded but not committed: %w", err))
 	}
 }
 

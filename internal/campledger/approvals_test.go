@@ -52,8 +52,6 @@ func TestSetWaiting_RecordsAndResolves(t *testing.T) {
 	if pending, err = approvalkit.Load(ctx, camp); err != nil || len(pending) != 0 {
 		t.Fatalf("pending after resolve = %+v, %v", pending, err)
 	}
-	// The temp camp is not a git repository: there is nothing to commit into,
-	// and that must not surface as a warning.
 	if len(warned) != 0 {
 		t.Fatalf("unexpected warnings: %v", warned)
 	}
