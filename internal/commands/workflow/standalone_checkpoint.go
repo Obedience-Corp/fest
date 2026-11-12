@@ -50,6 +50,9 @@ func resolveStandaloneWorkflow(ctx context.Context) *standalone.Result {
 	}
 	res, err := standalone.Resolve(ctx, cwd)
 	if err != nil || res == nil {
+		// Same fall-through as 'advance'. A resolve error here is not reported:
+		// the festival navigator runs next and reports what it finds, which for
+		// a directory that is neither is "not in a festival".
 		return nil
 	}
 	if res.Mode != standalone.ModeTracked && res.Mode != standalone.ModeAnonymous {
@@ -185,6 +188,11 @@ func runStandaloneApprove(ctx context.Context, res *standalone.Result, opts stan
 			WithHint(fmt.Sprintf("type exactly %s to approve, or Ctrl-C to cancel", operatorApproveToken))
 	}
 
+	// The approval is two appends (three on the last step), not one. If the
+	// process dies after the first, replay reads the run as not blocked with
+	// the step not done, and the next 'advance' submits the checkpoint again
+	// instead of skipping it. That asks the operator to approve twice, which is
+	// odd but safe: no step is ever completed without a recorded approval.
 	if err := cp.store.AppendEvent(ctx, localstore.Event{
 		EventType: localstore.EventCheckpointApproved,
 		StepIndex: cp.stepNum,

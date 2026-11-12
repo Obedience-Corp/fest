@@ -289,3 +289,18 @@ func TestCheckExpectedStep(t *testing.T) {
 		t.Fatal("mismatched pin must fail")
 	}
 }
+
+func TestRejectCmd_StandaloneRefusesSummary(t *testing.T) {
+	tr := toCheckpoint(t)
+	t.Chdir(tr.StartDir)
+	cmd := newRejectCmd()
+	cmd.SetArgs([]string{"--reason", "no", "--summary", "extra"})
+	cmd.SilenceUsage, cmd.SilenceErrors = true, true
+	err := cmd.ExecuteContext(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "--summary is not recorded") {
+		t.Fatalf("standalone reject must refuse --summary, got %v", err)
+	}
+	if state := runState(t, tr); !state.AwaitingApproval() {
+		t.Fatalf("a refused rejection changed the run: %+v", state)
+	}
+}

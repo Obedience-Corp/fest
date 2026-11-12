@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
@@ -63,6 +64,13 @@ Examples:
 				if remediationPhase != "" {
 					return festerrors.Validation("--remediation-phase is only valid for phase gates").
 						WithHint("a standalone workflow has no phases; reject with --reason and re-submit the revised step with 'fest workflow advance'")
+				}
+				if strings.TrimSpace(summary) != "" {
+					// A standalone run records one piece of text with a
+					// rejection, the reason. Accepting --summary and dropping
+					// it would lose something the operator typed.
+					return festerrors.Validation("--summary is not recorded for a standalone workflow").
+						WithHint("put everything the agent should read in --reason")
 				}
 				return runStandaloneReject(cmd.Context(), res, reason, expectStep)
 			}
