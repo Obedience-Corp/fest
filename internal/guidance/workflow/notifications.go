@@ -43,6 +43,9 @@ func (n *Navigator) saveTransition(ctx context.Context, previousStep int) error 
 		err = n.workflowState.Save(ctx, n.festivalPath, n.stateKey())
 	}
 	if err != nil {
+		// The transition did not happen, so the reason recorded for it must
+		// not be attributed to whatever this navigator reports next.
+		n.nextApprovalReport = nil
 		return err
 	}
 	// Initialization may have queued an approval request earlier in this same
@@ -52,6 +55,7 @@ func (n *Navigator) saveTransition(ctx context.Context, previousStep int) error 
 	if previousStep != n.workflowState.CurrentStep {
 		n.queueEntryNotification(ctx)
 	}
+	n.reportApprovals(ctx)
 	return nil
 }
 

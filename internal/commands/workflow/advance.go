@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/Obedience-Corp/camp/pkg/approvalkit"
+
 	"github.com/Obedience-Corp/fest/internal/chaining"
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
 	wf "github.com/Obedience-Corp/fest/internal/guidance/workflow"
@@ -41,7 +43,7 @@ func runAdvanceBootstrap(ctx context.Context, res *standalone.Result) error {
 	store := localstore.Open(filepath.Join(filepath.Dir(res.WorkflowDoc), ".workflow"), res.WorkflowDoc)
 	if steps[0].Checkpoint.IsBlocking() {
 		fmt.Println(ui.Success("✓ Bootstrapped tracked workflow"))
-		return submitStandaloneCheckpoint(ctx, store, 1, steps[0], true)
+		return submitStandaloneCheckpoint(ctx, store, res.WorkflowDoc, steps, 1, true)
 	}
 	if err := store.AppendEvent(ctx, localstore.Event{EventType: localstore.EventStepStart}); err != nil {
 		return err
@@ -82,7 +84,7 @@ func runAdvanceTracked(ctx context.Context, res *standalone.Result) error {
 	}
 
 	if state.Blocked {
-		return advanceBlockedStandalone(ctx, store, state, steps)
+		return advanceBlockedStandalone(ctx, store, res.WorkflowDoc, state, steps)
 	}
 
 	actionable := state.CurrentStep
@@ -109,7 +111,7 @@ func runAdvanceTracked(ctx context.Context, res *standalone.Result) error {
 	if step.Checkpoint.IsBlocking() {
 		// Advancing a checkpoint step means "the work is done": record that
 		// and stop. Only 'fest workflow approve' moves the run past it.
-		return submitStandaloneCheckpoint(ctx, store, actionable, step, needStart)
+		return submitStandaloneCheckpoint(ctx, store, res.WorkflowDoc, steps, actionable, needStart)
 	}
 
 	if needStart {
@@ -222,6 +224,9 @@ func runAdvance(ctx context.Context) error {
 	if step.Checkpoint.IsBlocking() {
 		fmt.Printf("%s Step %d: %s — work complete\n", ui.Success("✓"), currentStepNum, step.Name)
 		fmt.Printf("%s CHECKPOINT: Awaiting approval\n\n", ui.Warning("⚠"))
+		// Nothing changed, but a checkpoint that started waiting before
+		// approvals were reported to the camp is reported now.
+		nav.ReportApprovals(ctx)
 		printApprovalRecoveryFor(ctx, nav, step)
 		fmt.Println("To reject with feedback: " + ui.Accent("fest workflow reject --reason \"...\""))
 		return nil
@@ -244,7 +249,7 @@ func runAdvance(ctx context.Context) error {
 // says so, exactly as the festival path does. After a rejection, advance is how
 // the revised step is submitted again. A block that did not come from a
 // checkpoint (a hand-edited stream) has nothing these commands can clear.
-func advanceBlockedStandalone(ctx context.Context, store *localstore.Store, state *localstore.RunState, steps []wf.WorkflowStep) error {
+func advanceBlockedStandalone(ctx context.Context, store *localstore.Store, workflowDoc string, state *localstore.RunState, steps []wf.WorkflowStep) error {
 	stepNum := state.CurrentStep
 	if stepNum < 1 || stepNum > len(steps) || !steps[stepNum-1].Checkpoint.IsBlocking() {
 		return festerrors.New("standalone workflow step is blocked").
@@ -254,8 +259,11 @@ func advanceBlockedStandalone(ctx context.Context, store *localstore.Store, stat
 	step := steps[stepNum-1]
 	if state.BlockReason == localstore.BlockReasonRejected {
 		fmt.Printf("%s Step %d: %s re-submitted after rejection\n", ui.Success("✓"), stepNum, step.Name)
-		return submitStandaloneCheckpoint(ctx, store, stepNum, step, false)
+		return submitStandaloneCheckpoint(ctx, store, workflowDoc, steps, stepNum, false)
 	}
+	// Nothing changed, but re-report so a checkpoint that started waiting
+	// before approvals were reported to the camp shows up there.
+	reportStandaloneWaiting(ctx, workflowDoc, steps, stepNum, approvalkit.OutcomeWithdrawn, approvalReasonSuperseded)
 	printStandaloneAwaitingApproval(stepNum, step)
 	return nil
 }
