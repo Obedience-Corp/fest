@@ -129,12 +129,11 @@ func TestStandaloneAdvance_RejectsEmptyWorkflow(t *testing.T) {
 	require.False(t, exists, ".workflow/ must not be created on validation failure (D030 #7)")
 }
 
-// TestStandaloneAdvance_RejectsBlockingCheckpoint pins #173 review feedback:
-// standalone runs do not yet implement approve/reject/reset, so a blocking
-// checkpoint reached by tracked-mode advance must fail closed instead of
-// silently appending wf_step_start and pointing the user toward
-// festival-only commands.
-func TestStandaloneAdvance_RejectsBlockingCheckpoint(t *testing.T) {
+// TestStandaloneAdvance_StopsAtBlockingCheckpoint pins the standalone
+// checkpoint contract: advancing a step with a blocking checkpoint records the
+// work as done and stops, repeated advances stay there, an agent (no terminal)
+// cannot approve, and the run only moves on a recorded human decision.
+func TestStandaloneAdvance_StopsAtBlockingCheckpoint(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -150,24 +149,58 @@ func TestStandaloneAdvance_RejectsBlockingCheckpoint(t *testing.T) {
 	bootstrapOut, err := container.RunFestInDir(dir, "workflow", "advance")
 	require.NoError(t, err, "bootstrap (step 1, no checkpoint) should succeed: %s", bootstrapOut)
 
-	checkpointOut, checkpointErr := container.RunFestInDir(dir, "workflow", "advance")
-	require.Error(t, checkpointErr,
-		"advance into step 2's blocking checkpoint must refuse cleanly: %s", checkpointOut)
-	require.Contains(t, checkpointOut, "blocking checkpoints",
-		"error should explain standalone limitation, got: %s", checkpointOut)
+	checkpointOut, err := container.RunFestInDir(dir, "workflow", "advance")
+	require.NoError(t, err, "advance into step 2's checkpoint records the work and stops: %s", checkpointOut)
+	require.Contains(t, checkpointOut, "Awaiting approval")
+	require.Contains(t, checkpointOut, "fest workflow approve")
 
-	retryOut, retryErr := container.RunFestInDir(dir, "workflow", "advance")
-	require.Error(t, retryErr,
-		"second advance must remain at the checkpoint, not silently progress: %s", retryOut)
-	require.Contains(t, retryOut, "blocking checkpoints",
-		"second attempt should hit the same checkpoint, got: %s", retryOut)
+	retryOut, err := container.RunFestInDir(dir, "workflow", "advance")
+	require.NoError(t, err, "a second advance must stay at the checkpoint: %s", retryOut)
+	require.Contains(t, retryOut, "Awaiting approval",
+		"second advance must report the same checkpoint, not progress: %s", retryOut)
+
+	statusOut, err := container.RunFestInDir(dir, "workflow", "status", "--json")
+	require.NoError(t, err, "status: %s", statusOut)
+	require.Contains(t, statusOut, `"awaiting_approval": true`)
+	require.Contains(t, statusOut, `"completed_steps": 1`)
+
+	nextOut, err := container.RunFestInDir(dir, "next")
+	require.NoError(t, err, "next: %s", nextOut)
+	require.Contains(t, nextOut, "awaiting approval")
+
+	// The container has no terminal, which is exactly an agent's situation.
+	approveOut, approveErr := container.RunFestInDir(dir, "workflow", "approve")
+	require.Error(t, approveErr, "approve without a terminal must be refused: %s", approveOut)
+	require.Contains(t, approveOut, "interactive terminal")
+
+	pinnedOut, pinnedErr := container.RunFestInDir(dir, "workflow", "reject", "--reason", "no", "--expect-step", "3")
+	require.Error(t, pinnedErr, "reject pinned to another step must be refused: %s", pinnedOut)
+	require.Contains(t, pinnedOut, "not at the expected step")
+
+	rejectOut, err := container.RunFestInDir(dir, "workflow", "reject", "--reason", "missing-evidence", "--expect-step", "2")
+	require.NoError(t, err, "reject: %s", rejectOut)
+	require.Contains(t, rejectOut, "missing-evidence")
+
+	statusOut, err = container.RunFestInDir(dir, "workflow", "status", "--json")
+	require.NoError(t, err, "status after reject: %s", statusOut)
+	require.NotContains(t, statusOut, `"awaiting_approval": true`)
+	require.Contains(t, statusOut, `"feedback": "missing-evidence"`)
+
+	resubmitOut, err := container.RunFestInDir(dir, "workflow", "advance")
+	require.NoError(t, err, "advance after a rejection re-submits the step: %s", resubmitOut)
+	require.Contains(t, resubmitOut, "re-submitted")
+
+	statusOut, err = container.RunFestInDir(dir, "workflow", "status", "--json")
+	require.NoError(t, err, "status after re-submit: %s", statusOut)
+	require.Contains(t, statusOut, `"awaiting_approval": true`)
+	require.Contains(t, statusOut, `"completed_steps": 1`)
 }
 
-// TestStandaloneAdvance_BlockedRunHintStaysStandalone pins the tracked
-// blocked-state branch: if an existing .workflow/ event stream is already
-// blocked, standalone mode must not point the user at festival-only
-// approve/reset commands.
-func TestStandaloneAdvance_BlockedRunHintStaysStandalone(t *testing.T) {
+// TestStandaloneAdvance_BlockedRunWithoutCheckpoint pins the tracked
+// blocked-state branch for a block that no checkpoint recorded (a hand-edited
+// stream): there is no decision to record, so the run must not point the user
+// at approve.
+func TestStandaloneAdvance_BlockedRunWithoutCheckpoint(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -192,20 +225,22 @@ func TestStandaloneAdvance_BlockedRunHintStaysStandalone(t *testing.T) {
 	require.NoError(t, err)
 
 	out, err = container.RunFestInDir(dir, "workflow", "advance")
-	require.Error(t, err, "advance must reject already-blocked standalone run: %s", out)
+	require.Error(t, err, "advance must reject a run blocked outside a checkpoint: %s", out)
 	require.Contains(t, out, "standalone workflow step is blocked")
-	require.Contains(t, out, "standalone workflows do not support approve/reset yet")
 	require.NotContains(t, out, "fest workflow approve")
 	require.NotContains(t, out, "fest workflow reset")
+
+	out, err = container.RunFestInDir(dir, "workflow", "reject", "--reason", "x")
+	require.Error(t, err, "reject must refuse a step with no checkpoint: %s", out)
+	require.Contains(t, out, "does not have a blocking checkpoint")
 }
 
-// TestStandaloneAdvance_BootstrapRejectsStep1Checkpoint pins the second
+// TestStandaloneAdvance_BootstrapStopsAtStep1Checkpoint pins the second
 // re-review finding on #173: anonymous bootstrap previously appended
 // wf_step_start + wf_step_done unconditionally, silently auto-approving a
-// blocking checkpoint on step 1. The bootstrap path must apply the same
-// fail-closed guard as runAdvanceTracked, and refuse before creating
-// .workflow/ at all.
-func TestStandaloneAdvance_BootstrapRejectsStep1Checkpoint(t *testing.T) {
+// blocking checkpoint on step 1. Bootstrap now creates the run and stops at
+// that checkpoint; the step is not completed until it is approved.
+func TestStandaloneAdvance_BootstrapStopsAtStep1Checkpoint(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
@@ -218,13 +253,13 @@ func TestStandaloneAdvance_BootstrapRejectsStep1Checkpoint(t *testing.T) {
 	const workflowMD = "## Step 1: Approve\n\n**Goal:** Approve.\n\n**Output:** Approved.\n\n**Checkpoint:** USER APPROVAL REQUIRED\n\n## Step 2: Second\n\n**Goal:** Then.\n"
 	require.NoError(t, container.WriteFile(dir+"/WORKFLOW.md", workflowMD))
 
-	out, advanceErr := container.RunFestInDir(dir, "workflow", "advance")
-	require.Error(t, advanceErr,
-		"bootstrap into step 1 with blocking checkpoint must refuse: %s", out)
-	require.Contains(t, out, "blocking checkpoints",
-		"error should explain standalone limitation, got: %s", out)
+	out, err := container.RunFestInDir(dir, "workflow", "advance")
+	require.NoError(t, err, "bootstrap into a step 1 checkpoint stops there: %s", out)
+	require.Contains(t, out, "Awaiting approval")
 
-	manifestExists, _ := container.CheckFileExists(dir + "/.workflow/workflow.yaml")
-	require.False(t, manifestExists,
-		"refused bootstrap must not create .workflow/ — refusal is pre-mutation")
+	statusOut, err := container.RunFestInDir(dir, "workflow", "status", "--json")
+	require.NoError(t, err, "status: %s", statusOut)
+	require.Contains(t, statusOut, `"awaiting_approval": true`)
+	require.Contains(t, statusOut, `"completed_steps": 0`,
+		"the checkpoint step must not be completed by bootstrap: %s", statusOut)
 }

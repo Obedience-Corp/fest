@@ -46,6 +46,27 @@ type RunState struct {
 	CompletedSteps int
 	Blocked        bool
 	DocHashChanged bool
+	// BlockReason says why a blocked run is blocked, taken from the last
+	// event that blocked it: BlockReasonCheckpoint when the step reached its
+	// checkpoint and is waiting on a decision, BlockReasonRejected when that
+	// decision was a rejection and the step is waiting on a revision. Empty
+	// when the run is not blocked.
+	BlockReason string
+	// Feedback is the reason recorded with the rejection that currently blocks
+	// the run. Empty otherwise.
+	Feedback string
+}
+
+// Why a blocked standalone run is blocked.
+const (
+	BlockReasonCheckpoint = "checkpoint"
+	BlockReasonRejected   = "rejected"
+)
+
+// AwaitingApproval reports whether the run is stopped at a checkpoint waiting
+// on a decision, as opposed to waiting on a revision after a rejection.
+func (s *RunState) AwaitingApproval() bool {
+	return s != nil && s.Blocked && s.BlockReason == BlockReasonCheckpoint
 }
 
 const (

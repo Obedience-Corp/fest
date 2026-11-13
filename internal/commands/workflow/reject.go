@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Obedience-Corp/fest/internal/commands/shared"
 	festerrors "github.com/Obedience-Corp/fest/internal/errors"
@@ -20,6 +21,7 @@ func newRejectCmd() *cobra.Command {
 	var remediationPhase string
 	var actor string
 	var summary string
+	var expectStep int
 
 	cmd := &cobra.Command{
 		Use:   "reject",
@@ -30,6 +32,13 @@ When a step's work doesn't meet requirements, use this command
 to reject and request revisions.
 
 The feedback will be recorded in the workflow state for reference.
+
+In a standalone workflow (a WORKFLOW.md outside a festival) the step stays
+blocked after a rejection until the revised work is re-submitted with
+'fest workflow advance'.
+
+--expect-step N refuses the rejection, changing nothing, unless the checkpoint
+is at step N.
 
 Failed gates with remediation:
   Use --remediation-phase to record that a phase gate did not pass and
@@ -42,18 +51,34 @@ Examples:
   fest workflow reject --reason "PR not ready" --remediation-phase 005_FIX_PR_302
   fest workflow reject --reason "missing acceptance proof" --summary "reviewed the diff against the task spec"`,
 		Annotations: map[string]string{
-			"scope": string(scope.Festival),
+			// scope.Global so a standalone WORKFLOW.md outside a festival can
+			// be rejected; inside a festival the navigator enforces context.
+			"scope": string(scope.Global),
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if reason == "" {
 				return festerrors.Validation("--reason is required").
 					WithHint("Usage: fest workflow reject --reason \"your feedback here\"")
 			}
+			if res := resolveStandaloneWorkflow(cmd.Context()); res != nil {
+				if remediationPhase != "" {
+					return festerrors.Validation("--remediation-phase is only valid for phase gates").
+						WithHint("a standalone workflow has no phases; reject with --reason and re-submit the revised step with 'fest workflow advance'")
+				}
+				if strings.TrimSpace(summary) != "" {
+					// A standalone run records one piece of text with a
+					// rejection, the reason. Accepting --summary and dropping
+					// it would lose something the operator typed.
+					return festerrors.Validation("--summary is not recorded for a standalone workflow").
+						WithHint("put everything the agent should read in --reason")
+				}
+				return runStandaloneReject(cmd.Context(), res, reason, expectStep)
+			}
 			decision, err := normalizeDecision("rejection", actor, summary)
 			if err != nil {
 				return err
 			}
-			return runRejectWithRemediationDecision(cmd.Context(), reason, remediationPhase, decision)
+			return runRejectPinned(cmd.Context(), reason, remediationPhase, decision, expectStep)
 		},
 	}
 
@@ -62,6 +87,7 @@ Examples:
 	cmd.Flags().StringVar(&actor, "as", decisionActorUser, "deprecated: manual rejections are always recorded as the user; agent decisions require 'fest workflow judge' with a configured judge")
 	_ = cmd.Flags().MarkHidden("as")
 	cmd.Flags().StringVar(&summary, "summary", "", "decision summary or rationale")
+	cmd.Flags().IntVar(&expectStep, "expect-step", 0, "refuse unless the checkpoint is at this step number")
 	_ = cmd.MarkFlagRequired("reason")
 
 	return cmd
@@ -76,6 +102,12 @@ func runRejectWithRemediation(ctx context.Context, reason, remediationPhase stri
 }
 
 func runRejectWithRemediationDecision(ctx context.Context, reason, remediationPhase string, decision wf.DecisionMetadata) error {
+	return runRejectPinned(ctx, reason, remediationPhase, decision, 0)
+}
+
+// runRejectPinned is the reject path with an optional --expect-step pin; zero
+// means unpinned.
+func runRejectPinned(ctx context.Context, reason, remediationPhase string, decision wf.DecisionMetadata, expectStep int) error {
 	nav, err := getWorkflowNavigator(ctx)
 	if err != nil {
 		return err
@@ -103,6 +135,10 @@ func runRejectWithRemediationDecision(ctx context.Context, reason, remediationPh
 	}
 
 	step := steps[currentStepNum-1]
+
+	if err := checkExpectedStep(expectStep, currentStepNum); err != nil {
+		return err
+	}
 
 	if !step.Checkpoint.IsBlocking() {
 		return festerrors.Validation("step does not have a blocking checkpoint").

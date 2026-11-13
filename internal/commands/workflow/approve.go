@@ -57,6 +57,10 @@ type approvalJudgeOptions struct {
 	OverrideJudge bool
 	Summary       string // manual path summary (also used with --override-judge)
 	Wait          bool
+	// ExpectStep pins the decision to one step: when non-zero and the
+	// checkpoint is at a different step, nothing is decided. See
+	// checkExpectedStep.
+	ExpectStep int
 
 	// Source is the config layer the resolved judge definition came from,
 	// recorded on the judge's wf_hook_run audit event.
@@ -197,11 +201,35 @@ Auto approval:
   By default --auto launches the judge in the background and returns
   immediately; the checkpoint stays blocked until the verdict lands, and
   'fest show' renders the waiting-on-judge state while it runs. Use --wait
-  to block until the judge returns instead.`,
+  to block until the judge returns instead.
+
+Standalone workflows:
+  A WORKFLOW.md outside a festival has no approval judge to delegate to, so
+  its blocking checkpoints are always a human decision. Approving one requires
+  an interactive terminal and typing APPROVE; --auto, --judge-command and
+  --override-judge do not apply there.
+
+Pinning:
+  --expect-step N refuses the approval, changing nothing, unless the
+  checkpoint is at step N. A tool that shows the user one checkpoint and then
+  runs this command passes the step it showed, so a workflow that has moved on
+  is not approved at a different step.`,
 		Annotations: map[string]string{
-			"scope": string(scope.Festival),
+			// scope.Global so a standalone WORKFLOW.md outside a festival can
+			// be approved; inside a festival the navigator enforces context.
+			"scope": string(scope.Global),
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if res := resolveStandaloneWorkflow(cmd.Context()); res != nil {
+				if opts.Auto || opts.OverrideJudge || strings.TrimSpace(opts.JudgeCommand) != "" {
+					return festerrors.Validation("approval judges are not available for standalone workflows").
+						WithHint("a standalone checkpoint is a human decision; run 'fest workflow approve' in a terminal")
+				}
+				return runStandaloneApprove(cmd.Context(), res, standaloneApproveOptions{
+					Summary:    opts.Summary,
+					ExpectStep: opts.ExpectStep,
+				})
+			}
 			if opts.Auto {
 				opts.Rejudge = true
 				return runApproveWithOptions(cmd.Context(), wf.DecisionMetadata{}, opts)
@@ -221,6 +249,7 @@ Auto approval:
 	cmd.Flags().StringVar(&opts.JudgeCommand, "judge-command", opts.JudgeCommand, "approval judge command for --auto (overrides the .festival/config.yaml hooks.definitions.approval_judge hook; requires an interactive TTY)")
 	cmd.Flags().DurationVar(&opts.Timeout, "judge-timeout", opts.Timeout, "maximum time to wait for the approval judge (0 waits until it returns)")
 	cmd.Flags().BoolVar(&opts.OverrideJudge, "override-judge", false, "operator override of a judge/readiness reject (requires --summary and an interactive TTY)")
+	cmd.Flags().IntVar(&opts.ExpectStep, "expect-step", 0, "refuse unless the checkpoint is at this step number")
 	cmd.Flags().BoolVar(&opts.Wait, "wait", false, "block until the judge returns instead of launching it in the background")
 	cmd.MarkFlagsMutuallyExclusive("auto", "as")
 	cmd.MarkFlagsMutuallyExclusive("auto", "summary")
@@ -271,6 +300,10 @@ func runApproveWithOptions(ctx context.Context, decision wf.DecisionMetadata, op
 	}
 
 	step := steps[currentStepNum-1]
+
+	if err := checkExpectedStep(opts.ExpectStep, currentStepNum); err != nil {
+		return err
+	}
 
 	// Verify this is a checkpoint step
 	if !step.Checkpoint.IsBlocking() {

@@ -22,11 +22,10 @@ import (
 // (D007 — fest writes only .workflow/, never .workitem). After bootstrap it
 // appends a start+done pair so step 1 reads as completed.
 //
-// Step 1's checkpoint is honored with the same fail-closed semantics as
-// runAdvanceTracked: a blocking checkpoint on step 1 cannot be auto-approved
-// by bootstrap, since standalone mode lacks approve/reject/reset. The check
-// runs before EnsureTracked so .workflow/ is never created when bootstrap
-// would refuse to mutate.
+// Step 1's checkpoint is honored with the same semantics as runAdvanceTracked:
+// a blocking checkpoint on step 1 is never auto-approved by bootstrap. The run
+// is created, step 1 is recorded as done-and-waiting, and it stays there until
+// 'fest workflow approve'.
 func runAdvanceBootstrap(ctx context.Context, res *standalone.Result) error {
 	steps, parseErr := wf.NewParser().Parse(ctx, res.WorkflowDoc)
 	if parseErr != nil {
@@ -36,16 +35,14 @@ func runAdvanceBootstrap(ctx context.Context, res *standalone.Result) error {
 		return festerrors.Validation("WORKFLOW.md has no parseable steps").
 			WithField("path", res.WorkflowDoc)
 	}
-	if steps[0].Checkpoint.IsBlocking() {
-		return festerrors.New("standalone workflows do not support blocking checkpoints").
-			WithField("step", 1).
-			WithField("step_name", steps[0].Name).
-			WithHint("remove the blocking checkpoint from step 1 in WORKFLOW.md, or run this workflow inside a festival phase where 'fest workflow approve' is available")
-	}
 	if _, err := EnsureTracked(ctx, res, BootstrapOptions{}); err != nil {
 		return err
 	}
 	store := localstore.Open(filepath.Join(filepath.Dir(res.WorkflowDoc), ".workflow"), res.WorkflowDoc)
+	if steps[0].Checkpoint.IsBlocking() {
+		fmt.Println(ui.Success("✓ Bootstrapped tracked workflow"))
+		return submitStandaloneCheckpoint(ctx, store, 1, steps[0], true)
+	}
 	if err := store.AppendEvent(ctx, localstore.Event{EventType: localstore.EventStepStart}); err != nil {
 		return err
 	}
@@ -78,15 +75,14 @@ func runAdvanceTracked(ctx context.Context, res *standalone.Result) error {
 		return festerrors.NotFound("no active run").
 			WithHint("run 'fest workflow start' first")
 	}
-	if state.Blocked {
-		return festerrors.New("standalone workflow step is blocked").
-			WithField("step", state.CurrentStep).
-			WithHint("standalone workflows do not support approve/reset yet; remove the blocking checkpoint from WORKFLOW.md or run inside a festival phase where approval commands are available")
-	}
 
 	steps, parseErr := wf.NewParser().Parse(ctx, res.WorkflowDoc)
 	if parseErr != nil {
 		return festerrors.Wrap(parseErr, "parsing WORKFLOW.md")
+	}
+
+	if state.Blocked {
+		return advanceBlockedStandalone(ctx, store, state, steps)
 	}
 
 	actionable := state.CurrentStep
@@ -111,17 +107,9 @@ func runAdvanceTracked(ctx context.Context, res *standalone.Result) error {
 	step := steps[actionable-1]
 
 	if step.Checkpoint.IsBlocking() {
-		// Standalone mode does not yet implement approve/reject/reset for the
-		// .workflow/ event stream — those commands are festival-scoped. Rather
-		// than appending wf_step_start and routing the user toward a command
-		// that cannot mutate this runtime, refuse the advance up-front and
-		// keep .workflow/ state consistent. No event is written, so LoadActive
-		// continues to report the run as advanceable once the WORKFLOW.md is
-		// adjusted.
-		return festerrors.New("standalone workflows do not support blocking checkpoints").
-			WithField("step", actionable).
-			WithField("step_name", step.Name).
-			WithHint("remove the blocking checkpoint from this step in WORKFLOW.md, or run this workflow inside a festival phase where 'fest workflow approve' is available")
+		// Advancing a checkpoint step means "the work is done": record that
+		// and stop. Only 'fest workflow approve' moves the run past it.
+		return submitStandaloneCheckpoint(ctx, store, actionable, step, needStart)
 	}
 
 	if needStart {
@@ -157,7 +145,9 @@ This command:
   2. Advances the workflow to the next step
   3. Saves the updated state
 
-Note: If the current step has a blocking checkpoint, use 'fest workflow approve' instead.`,
+If the current step has a blocking checkpoint, advance records that the work
+is done and stops there, awaiting approval. Only 'fest workflow approve' moves
+past a checkpoint. After a rejection, advance re-submits the revised step.`,
 		Annotations: map[string]string{
 			// scope.Global so runAdvance can route to anonymous-bootstrap
 			// or tracked standalone runtimes outside a festival.
@@ -245,6 +235,29 @@ func runAdvance(ctx context.Context) error {
 	// Show result
 	fmt.Printf("%s Step %d: %s completed\n", ui.Success("✓"), currentStepNum, step.Name)
 	return showNextStep(ctx, nav, steps)
+}
+
+// advanceBlockedStandalone handles 'fest workflow advance' on a standalone run
+// that is already blocked.
+//
+// At a checkpoint that is waiting on a decision, advance changes nothing and
+// says so, exactly as the festival path does. After a rejection, advance is how
+// the revised step is submitted again. A block that did not come from a
+// checkpoint (a hand-edited stream) has nothing these commands can clear.
+func advanceBlockedStandalone(ctx context.Context, store *localstore.Store, state *localstore.RunState, steps []wf.WorkflowStep) error {
+	stepNum := state.CurrentStep
+	if stepNum < 1 || stepNum > len(steps) || !steps[stepNum-1].Checkpoint.IsBlocking() {
+		return festerrors.New("standalone workflow step is blocked").
+			WithField("step", stepNum).
+			WithHint("the block was not recorded by a checkpoint, so there is no decision to record; correct the .workflow/ event stream or abandon this run")
+	}
+	step := steps[stepNum-1]
+	if state.BlockReason == localstore.BlockReasonRejected {
+		fmt.Printf("%s Step %d: %s re-submitted after rejection\n", ui.Success("✓"), stepNum, step.Name)
+		return submitStandaloneCheckpoint(ctx, store, stepNum, step, false)
+	}
+	printStandaloneAwaitingApproval(stepNum, step)
+	return nil
 }
 
 // showNextStep displays information about the next step or completion message.

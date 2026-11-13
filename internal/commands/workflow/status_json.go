@@ -39,7 +39,12 @@ type workflowStatusJSON struct {
 	RunStatus      string `json:"run_status,omitempty"`
 	CompletedSteps *int   `json:"completed_steps,omitempty"`
 	Blocked        bool   `json:"blocked,omitempty"`
-	DocHashChanged bool   `json:"doc_hash_changed,omitempty"`
+	// AwaitingApproval and Feedback describe a blocked standalone run: stopped
+	// at a checkpoint waiting on a human decision, or blocked by a rejection
+	// (Feedback is its reason) waiting on a revision.
+	AwaitingApproval bool   `json:"awaiting_approval,omitempty"`
+	Feedback         string `json:"feedback,omitempty"`
+	DocHashChanged   bool   `json:"doc_hash_changed,omitempty"`
 }
 
 // workflowStatusStepJSON is one step entry in the structured snapshot.

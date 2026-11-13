@@ -557,9 +557,14 @@ type StandaloneView struct {
 	StepActions    []string `json:"step_actions,omitempty"`
 	StepCheckpoint string   `json:"step_checkpoint,omitempty"`
 	Blocked        bool     `json:"blocked,omitempty"`
-	DocHashChanged bool     `json:"doc_hash_changed,omitempty"`
-	Completion     string   `json:"completion_command,omitempty"`
-	RenderMode     string   `json:"render_mode,omitempty"` // "in_progress" | "next_up" | "complete"
+	// AwaitingApproval is true when the run is stopped at a blocking
+	// checkpoint waiting on a human decision. Feedback carries the reason when
+	// the run is instead blocked by a rejection waiting on a revision.
+	AwaitingApproval bool   `json:"awaiting_approval,omitempty"`
+	Feedback         string `json:"feedback,omitempty"`
+	DocHashChanged   bool   `json:"doc_hash_changed,omitempty"`
+	Completion       string `json:"completion_command,omitempty"`
+	RenderMode       string `json:"render_mode,omitempty"` // "in_progress" | "next_up" | "complete"
 }
 
 // pickRenderStep selects which step runStandaloneNext should display. Returns
@@ -654,6 +659,14 @@ func runStandaloneNext(ctx context.Context, res *standalone.Result, opts RenderO
 		view.StepGoal = s.Goal
 		view.StepActions = s.Actions
 		view.StepCheckpoint = string(s.Checkpoint)
+		if state.Blocked && s.Checkpoint.IsBlocking() {
+			if state.AwaitingApproval() {
+				view.AwaitingApproval = true
+				view.Completion = "fest workflow approve"
+			} else {
+				view.Feedback = state.Feedback
+			}
+		}
 	}
 
 	if opts.ProjectDir {
@@ -687,7 +700,12 @@ func runStandaloneNext(ctx context.Context, res *standalone.Result, opts RenderO
 	fmt.Printf("Workflow doc: %s\n", view.WorkflowDoc)
 	fmt.Printf("Run: %s (%s)\n", view.RunID, view.RunStatus)
 	fmt.Printf("Step %d of %d", view.CurrentStep, view.TotalSteps)
-	if view.Blocked {
+	switch {
+	case view.AwaitingApproval:
+		fmt.Print(" (awaiting approval)")
+	case view.Blocked && view.StepCheckpoint != "" && view.Feedback != "":
+		fmt.Print(" (rejected)")
+	case view.Blocked:
 		fmt.Print(" (blocked)")
 	}
 	fmt.Println()
@@ -706,7 +724,18 @@ func runStandaloneNext(ctx context.Context, res *standalone.Result, opts RenderO
 	if view.DocHashChanged {
 		fmt.Println("\n⚠ WORKFLOW.md has changed since this run started")
 	}
-	fmt.Printf("\nWhen step complete: %s\n", view.Completion)
+	switch {
+	case view.AwaitingApproval:
+		fmt.Println("\nCHECKPOINT: this step is done and awaiting a human decision.")
+		fmt.Println("Stop here, present the work, and ask the operator to decide.")
+		fmt.Println("To approve (operator, in a terminal): fest workflow approve")
+		fmt.Println("To reject with feedback: fest workflow reject --reason \"...\"")
+	case view.Feedback != "":
+		fmt.Printf("\nRejected: %s\n", view.Feedback)
+		fmt.Println("Revise the work, then re-submit with: fest workflow advance")
+	default:
+		fmt.Printf("\nWhen step complete: %s\n", view.Completion)
+	}
 	return nil
 }
 
