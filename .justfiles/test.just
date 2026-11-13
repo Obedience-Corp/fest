@@ -80,7 +80,7 @@ integration-raw:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "Building Linux binary..."
-    GOOS=linux GOARCH=$(go env GOARCH) go build -ldflags '{{ldflags}}' -o bin/linux/fest ./cmd/fest
+    CGO_ENABLED=0 GOOS=linux GOARCH=$(go env GOARCH) go build -ldflags '{{ldflags}}' -o bin/linux/fest ./cmd/fest
     echo "Running integration tests..."
     TESTCONTAINERS_RYUK_DISABLED=true go test -v -tags=integration -timeout 5m ./tests/integration/...
 
