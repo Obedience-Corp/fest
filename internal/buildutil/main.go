@@ -46,9 +46,16 @@ func main() {
 		SectionName: "Fest CLI",
 		LDFlags:     ldflags,
 		IntegrationBuildEnv: func() []string {
+			// CGO_ENABLED=0 so the binary is statically linked. The
+			// integration containers are Alpine, which has no glibc: a
+			// binary built on a Linux host with cgo on is linked against
+			// /lib64/ld-linux-x86-64.so.2 and fails there with
+			// "sh: /fest: not found". Cross-compiling from macOS turns cgo
+			// off on its own, which is why this only shows on Linux hosts.
 			return []string{
 				"GOOS=linux",
 				"GOARCH=" + runtime.GOARCH,
+				"CGO_ENABLED=0",
 			}
 		},
 	})

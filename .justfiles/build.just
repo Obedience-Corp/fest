@@ -67,15 +67,16 @@ profile-commands profile='all':
 
 # --- Cross-platform builds ---
 
-# Build for Linux AMD64
+# Build for Linux AMD64. CGO_ENABLED=0 so a Linux host produces the same
+# statically linked binary a macOS cross-compile does.
 [no-cd]
 linux:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ -n "{{build_tags}}" ]; then
-        GOOS=linux GOARCH=amd64 go build -tags '{{build_tags}}' -ldflags '{{ldflags}}' -o {{bin_dir}}/{{binary_name}}-linux-amd64 {{main_path}}
+        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags '{{build_tags}}' -ldflags '{{ldflags}}' -o {{bin_dir}}/{{binary_name}}-linux-amd64 {{main_path}}
     else
-        GOOS=linux GOARCH=amd64 go build -ldflags '{{ldflags}}' -o {{bin_dir}}/{{binary_name}}-linux-amd64 {{main_path}}
+        CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags '{{ldflags}}' -o {{bin_dir}}/{{binary_name}}-linux-amd64 {{main_path}}
     fi
 
 # Build for macOS Intel
@@ -138,13 +139,15 @@ all-stable:
 all-dev:
     BUILD_TAGS=dev just build all
 
-# Build Linux binary for container testing
+# Build Linux binary for container testing.
+# CGO_ENABLED=0 keeps it statically linked: the test containers are Alpine and
+# cannot run a glibc-linked binary, which is what a Linux host builds otherwise.
 [no-cd]
 test-binary:
     #!/usr/bin/env bash
     set -euo pipefail
     if [ -n "{{build_tags}}" ]; then
-        GOOS=linux GOARCH=$(go env GOARCH) go build -tags '{{build_tags}}' -ldflags '{{ldflags}}' -o {{bin_dir}}/linux/{{binary_name}} {{main_path}}
+        CGO_ENABLED=0 GOOS=linux GOARCH=$(go env GOARCH) go build -tags '{{build_tags}}' -ldflags '{{ldflags}}' -o {{bin_dir}}/linux/{{binary_name}} {{main_path}}
     else
-        GOOS=linux GOARCH=$(go env GOARCH) go build -ldflags '{{ldflags}}' -o {{bin_dir}}/linux/{{binary_name}} {{main_path}}
+        CGO_ENABLED=0 GOOS=linux GOARCH=$(go env GOARCH) go build -ldflags '{{ldflags}}' -o {{bin_dir}}/linux/{{binary_name}} {{main_path}}
     fi
