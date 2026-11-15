@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/Obedience-Corp/camp/pkg/approvalkit"
@@ -54,6 +55,33 @@ func TestSetWaiting_RecordsAndResolves(t *testing.T) {
 	}
 	if len(warned) != 0 {
 		t.Fatalf("unexpected warnings: %v", warned)
+	}
+}
+
+// A checkpoint's document may not exist yet. When the camp is reached through
+// a symlink, the document must still resolve to a camp-relative path instead
+// of being dropped. macOS temp folders sit behind such a link (/var).
+func TestCampaignRelative_MissingFileBehindASymlinkedRoot(t *testing.T) {
+	real := t.TempDir()
+	link := filepath.Join(t.TempDir(), "camp-link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(real, "workflow", "demo"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for name, doc := range map[string]string{
+		"missing file in an existing folder": filepath.Join(link, "workflow", "demo", "WORKFLOW.md"),
+		"missing folder and file":            filepath.Join(link, "workflow", "later", "GATES.md"),
+	} {
+		got, ok := campaignRelative(link, doc)
+		want := filepath.ToSlash(strings.TrimPrefix(doc, link+string(filepath.Separator)))
+		if !ok || got != want {
+			t.Errorf("%s: campaignRelative = %q, %v; want %q", name, got, ok, want)
+		}
+	}
+	if got, ok := campaignRelative(link, filepath.Join(filepath.Dir(link), "outside", "X.md")); ok {
+		t.Errorf("a path outside the camp must not resolve, got %q", got)
 	}
 }
 

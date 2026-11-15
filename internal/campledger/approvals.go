@@ -143,9 +143,7 @@ func campaignRelative(root, path string) (string, bool) {
 	if r, err := filepath.EvalSymlinks(root); err == nil {
 		root = r
 	}
-	if p, err := filepath.EvalSymlinks(path); err == nil {
-		path = p
-	}
+	path = resolveExistingPrefix(path)
 	rel, err := filepath.Rel(root, path)
 	if err != nil {
 		return "", false
@@ -155,4 +153,23 @@ func campaignRelative(root, path string) (string, bool) {
 		return "", false
 	}
 	return rel, true
+}
+
+// resolveExistingPrefix resolves symlinks in the part of path that exists and
+// keeps the rest as written. A checkpoint's document may not be on disk yet,
+// and resolving only the root would then leave the two on different sides of
+// a link such as macOS's /var, so the path would not read as inside the camp.
+func resolveExistingPrefix(path string) string {
+	rest := ""
+	for dir := path; ; {
+		if resolved, err := filepath.EvalSymlinks(dir); err == nil {
+			return filepath.Join(resolved, rest)
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return path
+		}
+		rest = filepath.Join(filepath.Base(dir), rest)
+		dir = parent
+	}
 }
