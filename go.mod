@@ -6,7 +6,7 @@ require (
 	github.com/Masterminds/sprig/v3 v3.3.0
 	github.com/Obedience-Corp/build-util v0.1.0
 	github.com/Obedience-Corp/camp v0.18.5
-	github.com/Obedience-Corp/obey-shared v0.6.0
+	github.com/Obedience-Corp/obey-shared v0.7.0
 	github.com/charmbracelet/bubbles v1.0.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/glamour v1.0.0
